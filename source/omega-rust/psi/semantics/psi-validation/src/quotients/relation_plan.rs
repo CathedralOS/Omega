@@ -41,7 +41,6 @@ use precondition::{
     derive_define_precondition_correspondence, derive_direct_lift_public_precondition_partition,
     derive_public_precondition_partition, derive_representative_precondition_partition,
 };
-#[cfg(test)]
 use precondition::{RepresentativeContractFactLocation, RepresentativeContractOwner};
 pub(super) use representative::pure_representative_effect;
 #[cfg(test)]
@@ -433,71 +432,8 @@ pub(super) fn derive_direct_terminal_plan(
     call: &TableCallExpression,
     request: &QuotientOperationRequest,
 ) -> Result<DirectTerminalRelationPlan, RelationPlanError> {
-    let mut representative = None;
-    let mut input_relations = Vec::new();
-    for (position, argument) in program
-        .expression_table
-        .expression_handles(call.arguments)
-        .iter()
-        .enumerate()
-    {
-        let argument_type =
-            crate::places::declared_place_type_raw(program, machine, Some(state), *argument);
-        let Some(argument_type) = argument_type else {
-            let is_closed_literal_candidate = match program.expression_table.expression(*argument) {
-                psi_typed_trees::expression::ExpressionNode::Boolean(_) => true,
-                psi_typed_trees::expression::ExpressionNode::Integer(_) => true,
-                psi_typed_trees::expression::ExpressionNode::Float(_) => true,
-                psi_typed_trees::expression::ExpressionNode::String(_) => true,
-                psi_typed_trees::expression::ExpressionNode::ArrayLiteral(_) => true,
-                _ => false,
-            };
-            if request.kind == QuotientOperationKind::Lift && is_closed_literal_candidate {
-                if representative.is_none() {
-                    representative = Some(derive_representative_telescope(program, request)?);
-                }
-                if let Some(parameter) = representative
-                    .as_ref()
-                    .and_then(|representative| representative.parameters.get(position))
-                {
-                    match closed_lift_literal_for_representative(
-                        program,
-                        *argument,
-                        parameter.type_reference,
-                        position,
-                    )? {
-                        Some(_) => {
-                            input_relations
-                                .push(InputRelation::ExactEquality(parameter.type_reference));
-                            continue;
-                        }
-                        None => {}
-                    }
-                }
-            }
-            return Err(RelationPlanError::UnresolvedArgumentType(position));
-        };
-        input_relations.push(match exact_quotient_relation(program, argument_type) {
-            ExactRelationLookup::NotQuotient => InputRelation::ExactEquality(argument_type),
-            ExactRelationLookup::Exact(relation) => InputRelation::Quotient(relation),
-            ExactRelationLookup::OpenApplication => {
-                return Err(RelationPlanError::UnresolvedInputRelationApplication(
-                    position,
-                ));
-            }
-        });
-    }
-    let result_relation = match exact_quotient_relation(program, state.return_type) {
-        ExactRelationLookup::NotQuotient => return Err(RelationPlanError::ResultIsNotQuotient),
-        ExactRelationLookup::Exact(relation) => relation,
-        ExactRelationLookup::OpenApplication => {
-            return Err(RelationPlanError::UnresolvedResultRelationApplication);
-        }
-    };
-    let representative = match representative {
-        Some(representative) => representative,
-        None => derive_representative_telescope(program, request)?,
-    };
+    let (input_relations, result_relation, representative) =
+        derive_relation_and_representative(program, machine, state, call, request)?;
     let representative_termination =
         unconditional_representative_termination(program, &representative);
     validate_theorem_role_collection(request)?;
@@ -753,6 +689,214 @@ pub(super) fn derive_direct_terminal_plan(
         define_precondition_correspondence,
         correspondence_certificate,
     })
+}
+
+fn derive_relation_and_representative(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &TableCallExpression,
+    request: &QuotientOperationRequest,
+) -> Result<
+    (
+        Vec<InputRelation>,
+        ExactQuotientRelation,
+        RepresentativeTelescope,
+    ),
+    RelationPlanError,
+> {
+    let mut representative = None;
+    let mut input_relations = Vec::new();
+    for (position, argument) in program
+        .expression_table
+        .expression_handles(call.arguments)
+        .iter()
+        .enumerate()
+    {
+        let argument_type =
+            crate::places::declared_place_type_raw(program, machine, Some(state), *argument);
+        let Some(argument_type) = argument_type else {
+            let is_closed_literal_candidate = match program.expression_table.expression(*argument) {
+                psi_typed_trees::expression::ExpressionNode::Boolean(_) => true,
+                psi_typed_trees::expression::ExpressionNode::Integer(_) => true,
+                psi_typed_trees::expression::ExpressionNode::Float(_) => true,
+                psi_typed_trees::expression::ExpressionNode::String(_) => true,
+                psi_typed_trees::expression::ExpressionNode::ArrayLiteral(_) => true,
+                _ => false,
+            };
+            if request.kind == QuotientOperationKind::Lift && is_closed_literal_candidate {
+                if representative.is_none() {
+                    representative = Some(derive_representative_telescope(program, request)?);
+                }
+                if let Some(parameter) = representative
+                    .as_ref()
+                    .and_then(|representative| representative.parameters.get(position))
+                {
+                    match closed_lift_literal_for_representative(
+                        program,
+                        *argument,
+                        parameter.type_reference,
+                        position,
+                    )? {
+                        Some(_) => {
+                            input_relations
+                                .push(InputRelation::ExactEquality(parameter.type_reference));
+                            continue;
+                        }
+                        None => {}
+                    }
+                }
+            }
+            return Err(RelationPlanError::UnresolvedArgumentType(position));
+        };
+        input_relations.push(match exact_quotient_relation(program, argument_type) {
+            ExactRelationLookup::NotQuotient => InputRelation::ExactEquality(argument_type),
+            ExactRelationLookup::Exact(relation) => InputRelation::Quotient(relation),
+            ExactRelationLookup::OpenApplication => {
+                return Err(RelationPlanError::UnresolvedInputRelationApplication(
+                    position,
+                ));
+            }
+        });
+    }
+    let result_relation = match exact_quotient_relation(program, state.return_type) {
+        ExactRelationLookup::NotQuotient => return Err(RelationPlanError::ResultIsNotQuotient),
+        ExactRelationLookup::Exact(relation) => relation,
+        ExactRelationLookup::OpenApplication => {
+            return Err(RelationPlanError::UnresolvedResultRelationApplication);
+        }
+    };
+    let representative = match representative {
+        Some(representative) => representative,
+        None => derive_representative_telescope(program, request)?,
+    };
+    Ok((input_relations, result_relation, representative))
+}
+
+/// Render the exact authored coordinates involved when the bounded automatic
+/// `Q => P` checker cannot discharge a two-argument `Quotient::lift`.
+///
+/// This is diagnostic reconstruction only. It deliberately reruns the
+/// relation/runtime/partition judgments that succeeded before the implication
+/// failure and grants no correspondence or execution authority.
+pub(super) fn render_failed_builtin_implication(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &TableCallExpression,
+    request: &QuotientOperationRequest,
+    error: RelationPlanError,
+) -> Option<String> {
+    enum FailureKind {
+        Dependent {
+            application: theorem_schema::TheoremApplicationSide,
+            position: usize,
+        },
+        Fixed {
+            position: usize,
+        },
+    }
+
+    let failure = match error {
+        RelationPlanError::DirectLiftLeftPreconditionNotImplied(position) => {
+            FailureKind::Dependent {
+                application: theorem_schema::TheoremApplicationSide::Left,
+                position,
+            }
+        }
+        RelationPlanError::DirectLiftRightPreconditionNotImplied(position) => {
+            FailureKind::Dependent {
+                application: theorem_schema::TheoremApplicationSide::Right,
+                position,
+            }
+        }
+        RelationPlanError::DirectLiftFixedPreconditionNotImplied(position) => {
+            FailureKind::Fixed { position }
+        }
+        _ => return None,
+    };
+    if request.kind != QuotientOperationKind::Lift || request.theorem_evidence.len() != 1 {
+        return None;
+    }
+
+    let (input_relations, result_relation, representative) =
+        derive_relation_and_representative(program, machine, state, call, request).ok()?;
+    let runtime = derive_direct_lift_runtime_correspondence(
+        program,
+        machine,
+        state,
+        call,
+        &input_relations,
+        result_relation,
+        &representative,
+    )
+    .ok()?;
+    let public = derive_direct_lift_public_precondition_partition(
+        program,
+        machine,
+        state,
+        &input_relations,
+        &runtime,
+    )
+    .ok()?;
+    let representative_partition =
+        derive_representative_precondition_partition(program, &input_relations, &representative)
+            .ok()?;
+
+    let (application, public_coordinates, representative_coordinate) = match failure {
+        FailureKind::Dependent {
+            application,
+            position,
+        } => (
+            match application {
+                theorem_schema::TheoremApplicationSide::Left => "left representative application",
+                theorem_schema::TheoremApplicationSide::Right => "right representative application",
+            },
+            public.dependent.as_slice(),
+            *representative_partition.dependent.get(position)?,
+        ),
+        FailureKind::Fixed { position } => (
+            "runtime representative application",
+            public.fixed.as_slice(),
+            *representative_partition.fixed.get(position)?,
+        ),
+    };
+
+    Some(render_implication_coordinate_diagnostic(
+        application,
+        public_coordinates,
+        representative_coordinate,
+    ))
+}
+
+fn render_implication_coordinate_diagnostic(
+    application: &str,
+    public_coordinates: &[RepresentativeContractFactLocation],
+    representative_coordinate: RepresentativeContractFactLocation,
+) -> String {
+    let public_coordinates = public_coordinates
+        .iter()
+        .map(|coordinate| render_contract_coordinate("public-Q", *coordinate))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "built-in public Q => representative P implication failed for the {application}: expected public fact coordinates [{public_coordinates}] to imply representative fact coordinate {}; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem",
+        render_contract_coordinate("representative-P", representative_coordinate),
+    )
+}
+
+fn render_contract_coordinate(
+    scope: &str,
+    coordinate: RepresentativeContractFactLocation,
+) -> String {
+    let owner = match coordinate.owner {
+        RepresentativeContractOwner::Machine => "machine-contract",
+        RepresentativeContractOwner::State => "state-contract",
+    };
+    format!(
+        "{scope}.{owner}[{}].fact[{}]",
+        coordinate.contract_position, coordinate.fact_position,
+    )
 }
 
 fn validate_theorem_role_collection(

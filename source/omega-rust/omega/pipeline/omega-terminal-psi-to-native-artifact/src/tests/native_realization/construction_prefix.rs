@@ -422,6 +422,37 @@ const TWENTY_SECOND_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const TWENTY_THIRD_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 24];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+        values[6] = Empty {};
+        values[7] = Empty {};
+        values[8] = Empty {};
+        values[9] = Empty {};
+        values[10] = Empty {};
+        values[11] = Empty {};
+        values[12] = Empty {};
+        values[13] = Empty {};
+        values[14] = Empty {};
+        values[15] = Empty {};
+        values[16] = Empty {};
+        values[17] = Empty {};
+        values[18] = Empty {};
+        values[19] = Empty {};
+        values[20] = Empty {};
+        values[21] = Empty {};
+        values[22] = Empty {};
+    }
+"#;
+
 #[test]
 fn construction_prefix_reaches_native_image_and_installation_custody() {
     for (source, prefix_length) in [
@@ -446,6 +477,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
         (TWENTIETH_CONSTRUCTION_PREFIX_SOURCE, 20_usize),
         (TWENTY_FIRST_CONSTRUCTION_PREFIX_SOURCE, 21_usize),
         (TWENTY_SECOND_CONSTRUCTION_PREFIX_SOURCE, 22_usize),
+        (TWENTY_THIRD_CONSTRUCTION_PREFIX_SOURCE, 23_usize),
     ] {
         let checked = checked(source);
         let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(
@@ -542,6 +574,65 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
             };
             *length = u64::try_from(prefix_length).expect("bounded prefix length");
             assert!(omega_machine_emission::emit_machine_code(&wrong_root_length).is_err());
+
+            if prefix_length == 23 {
+                let mut fenced_successor = assigned.clone();
+                let function = &mut fenced_successor.functions[0];
+                let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+                    &mut function.operation
+                else {
+                    unreachable!()
+                };
+                let mut successor_operation = body.operations[prefix_length - 1].clone();
+                let omega_assigned_target_operations::AssignedUnitOperation::EstablishTrivialAffineLocal {
+                    psi_operation,
+                    place,
+                    ..
+                } = &mut successor_operation
+                else {
+                    unreachable!()
+                };
+                *psi_operation = psi_core::OperationId::new(psi_operation.get() + 1)
+                    .expect("successor operation");
+                place.id = psi_core::PlaceId::new(place.id.get() + 1).expect("successor place");
+                let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    construction: Some(construction),
+                    ..
+                } = &mut place.kind
+                else {
+                    unreachable!()
+                };
+                *declaration_ordinal = 23;
+                construction.index = 23;
+                let successor_operation_id = *psi_operation;
+                let successor_place = place.id;
+                body.operations.insert(prefix_length, successor_operation);
+                let omega_assigned_target_operations::AssignedUnitOperation::Return {
+                    cleanup_actions,
+                    ..
+                } = body.operations.last_mut().expect("Unit return")
+                else {
+                    unreachable!()
+                };
+                cleanup_actions.insert(
+                    0,
+                    psi_terminal::TerminalAffineCleanupAction::DiscardRoot(successor_place),
+                );
+                let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut body
+                    .structural_types
+                    .iter_mut()
+                    .find(|declaration| declaration.id == root_structural_type)
+                    .expect("construction root type")
+                    .shape
+                else {
+                    unreachable!()
+                };
+                *length = 25;
+                function.provenance.operations.push(successor_operation_id);
+                assert!(omega_machine_emission::emit_machine_code(&fenced_successor).is_err());
+            }
+
             let emitted = omega_machine_emission::emit_machine_code(&assigned)
                 .expect("construction prefix reaches native cleanup emission");
             let function = &emitted.functions[0];
@@ -574,6 +665,70 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                     .collect::<Vec<_>>()
             );
             assert_eq!(function.semantic_code_attribution.len(), prefix_length + 1);
+
+            if prefix_length == 23 {
+                let mut fenced_successor = emitted.clone();
+                let function = &mut fenced_successor.functions[0];
+                let cleanup = function
+                    .unit_affine_cleanup
+                    .as_mut()
+                    .expect("native function retains Unit cleanup custody");
+                let mut successor_local = cleanup
+                    .locals
+                    .last()
+                    .expect("construction-prefix local")
+                    .clone();
+                successor_local.0 = psi_core::OperationId::new(successor_local.0.get() + 1)
+                    .expect("successor operation");
+                successor_local.1.id = psi_core::PlaceId::new(successor_local.1.id.get() + 1)
+                    .expect("successor place");
+                let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                    declaration_ordinal,
+                    construction: Some(construction),
+                    ..
+                } = &mut successor_local.1.kind
+                else {
+                    unreachable!()
+                };
+                *declaration_ordinal = 23;
+                construction.index = 23;
+                let successor_operation = successor_local.0;
+                let successor_place = successor_local.1.id;
+                cleanup.locals.push(successor_local);
+                cleanup.actions.insert(
+                    0,
+                    psi_terminal::TerminalAffineCleanupAction::DiscardRoot(successor_place),
+                );
+                let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut cleanup
+                    .structural_types
+                    .iter_mut()
+                    .find(|declaration| declaration.id == root_structural_type)
+                    .expect("construction root type")
+                    .shape
+                else {
+                    unreachable!()
+                };
+                *length = 25;
+                function.provenance.operations.push(successor_operation);
+                let mut successor_attribution =
+                    function.semantic_code_attribution[prefix_length - 1];
+                successor_attribution.site =
+                    omega_machine_code::SemanticCodeSite::Operation(successor_operation);
+                successor_attribution.operation_ordinal = prefix_length;
+                function
+                    .semantic_code_attribution
+                    .insert(prefix_length, successor_attribution);
+                let return_attribution = function
+                    .semantic_code_attribution
+                    .last_mut()
+                    .expect("Unit return attribution");
+                assert!(matches!(
+                    return_attribution.site,
+                    omega_machine_code::SemanticCodeSite::Edge(_)
+                ));
+                return_attribution.operation_ordinal += 1;
+                assert!(omega_image_emission::build_object_artifact(&fenced_successor).is_err());
+            }
 
             let object = omega_image_emission::build_object_artifact(&emitted)
                 .expect("object validation reconstructs construction cleanup");

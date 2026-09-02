@@ -2146,7 +2146,7 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through eleventh bounded represented-record levels are now live under
+  Third through twelfth bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
@@ -2156,7 +2156,7 @@ Owners:
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A twelfth
+  storage, content, domain, provider, or establishment authority. A thirteenth
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -10032,12 +10032,23 @@ reach or trust, and private proof improvements do not change public identity.
   emission, object/image validation, and installation replay retain the common
   length-twenty-three root and exact twenty-two-operation/one-edge fuel
   ordinals. Missing, reordered, redirected-root, wrong-length, index,
-  cleanup-order, and artifact mutations reject; `[T; 24]` and wider prefixes
-  remain fail closed
-  without runtime liveness state or a loop.
+  cleanup-order, and artifact mutations reject; other prefix drift remains fail
+  closed without runtime liveness state or a loop.
+
+  The next bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 24]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]`
+  and ordinary cleanup
+  `[22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
+  Checked production, Terminal verification, codec and interpretation, machine
+  emission, object/image validation, and installation replay retain the common
+  length-twenty-four root and exact twenty-three-operation/one-edge fuel
+  ordinals. Missing, reordered, redirected-root, wrong-length, index,
+  cleanup-order, and artifact mutations reject; `[T; 25]` and wider prefixes
+  remain fail closed without runtime liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 8]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 23]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 24]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
@@ -10808,9 +10819,12 @@ Remaining N6/N8 work:
   rejected, and full package-review migration plus executable admission remain
   open. This does not close the full stage-4 migration.
 
-  A failed built-in implication diagnostic must print the expected public and
-  representative fact coordinates and point directly to
-  `Quotient::lift<F, Congruence, Transport>(...)`. Extend typed requests,
+  The failed built-in implication diagnostic now reconstructs the exact
+  public-`Q` and representative-`P` partitions after a dependent left/right or
+  fixed-call failure, prints every relevant machine/state contract and fact
+  coordinate, and points directly to
+  `Quotient::lift<F, Congruence, Transport>(...)`. Diagnostic reconstruction
+  grants no correspondence or execution authority. Extend typed requests,
   canonical correspondence identity, Terminal codec, package review, verifier
   replay, and mutation canaries together; the role discriminant itself feeds
   identity before the role-specific payload.

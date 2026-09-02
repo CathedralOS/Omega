@@ -15,7 +15,9 @@ use super::{
     derive_exact_representative_static_application, derive_public_precondition_partition,
     derive_representative_precondition_partition, derive_representative_telescope,
     derive_selected_theorem_telescope, fallthrough_result_root, immutable_alias_fallthrough_root,
-    pure_representative_effect, substituted_type_matches, unconditional_representative_termination,
+    pure_representative_effect, render_failed_builtin_implication,
+    render_implication_coordinate_diagnostic, substituted_type_matches,
+    unconditional_representative_termination,
 };
 use psi_arena::HandleSpan;
 use psi_numerics::arithmetic::ArithmeticDomain;
@@ -9258,4 +9260,257 @@ fn nonterminal_expression_request_cannot_claim_direct_result_flow() {
             .message
             .contains("unchanged state-fallthrough result root")
     );
+}
+
+#[test]
+fn failed_builtin_lift_implication_names_exact_fact_coordinates_and_transport_form() {
+    let public = [
+        RepresentativeContractFactLocation {
+            owner: RepresentativeContractOwner::Machine,
+            contract_position: 2,
+            fact_position: 1,
+        },
+        RepresentativeContractFactLocation {
+            owner: RepresentativeContractOwner::State,
+            contract_position: 4,
+            fact_position: 3,
+        },
+    ];
+    let representative = RepresentativeContractFactLocation {
+        owner: RepresentativeContractOwner::State,
+        contract_position: 6,
+        fact_position: 5,
+    };
+
+    assert_eq!(
+        render_implication_coordinate_diagnostic(
+            "left representative application",
+            &public,
+            representative,
+        ),
+        "built-in public Q => representative P implication failed for the left representative application: expected public fact coordinates [public-Q.machine-contract[2].fact[1], public-Q.state-contract[4].fact[3]] to imply representative fact coordinate representative-P.state-contract[6].fact[5]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem",
+    );
+
+    // The full selected-theorem request fixture below has only dependent P.
+    // Fixed-call fixtures deliberately begin after relation/runtime
+    // correspondence, so they cannot legitimately drive diagnostic
+    // reconstruction. Pin the remaining exact fixed-call rendering here.
+    assert_eq!(
+        render_implication_coordinate_diagnostic(
+            "runtime representative application",
+            &public,
+            representative,
+        ),
+        "built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [public-Q.machine-contract[2].fact[1], public-Q.state-contract[4].fact[3]] to imply representative fact coordinate representative-P.state-contract[6].fact[5]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem",
+    );
+}
+
+#[test]
+fn rejected_two_argument_lift_reports_reconstructed_q_and_p_coordinates() {
+    let (mut program, representative, theorem, _) =
+        selected_theorem_schema_fixture(TheoremSchemaMutation::Exact);
+
+    let theorem_index = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == theorem.machine_symbol)
+        .expect("selected theorem machine");
+    let mut theorem_machine = program.machines()[theorem_index].clone();
+    program.push_machine_type_parameter(
+        &mut theorem_machine,
+        TypeParameter {
+            symbol: symbol(848),
+            name: Identifier::generated_static("TheoremCarrier"),
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        },
+    );
+    program.machines_mut()[theorem_index] = theorem_machine;
+
+    let mut representative_machine = Machine {
+        symbol: representative.machine_symbol,
+        name: Identifier::generated_static("representative"),
+        contracts: representative.machine_contracts,
+        ..Default::default()
+    };
+    program.push_machine_type_parameter(
+        &mut representative_machine,
+        TypeParameter {
+            symbol: symbol(849),
+            name: Identifier::generated_static("RepresentativeCarrier"),
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        },
+    );
+    let mut representative_state = State {
+        symbol: representative.state_symbol,
+        name: Identifier::generated_static("apply"),
+        return_type: representative.return_type,
+        contracts: representative.state_contracts,
+        ..Default::default()
+    };
+    for parameter in &representative.parameters {
+        program.push_state_parameter(
+            &mut representative_state,
+            StateParameter {
+                symbol: parameter.symbol,
+                name: Identifier::generated("representative_parameter"),
+                type_reference: parameter.type_reference,
+                ..Default::default()
+            },
+        );
+    }
+    program.push_machine_state(&mut representative_machine, representative_state);
+    program.push_machine(representative_machine);
+
+    let quotient = quotient_type(
+        &mut program,
+        symbol(900),
+        "ExactQuotient",
+        symbol(850),
+        "ExactRelation",
+    );
+    let public_value_symbol = symbol(901);
+    let shared_symbol = symbol(902);
+    let public_value = named_argument(&mut program, "value", public_value_symbol);
+    let public_value_again = named_argument(&mut program, "value", public_value_symbol);
+    let machine_q = binary_expression(
+        &mut program,
+        public_value,
+        BinaryOperator::Equal,
+        public_value_again,
+    );
+    let public_value = named_argument(&mut program, "value", public_value_symbol);
+    let public_value_again = named_argument(&mut program, "value", public_value_symbol);
+    let state_q = binary_expression(
+        &mut program,
+        public_value,
+        BinaryOperator::Equal,
+        public_value_again,
+    );
+    let machine_q = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(machine_q)]);
+    let state_q = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(state_q)]);
+
+    let mut public_machine = Machine {
+        symbol: symbol(903),
+        name: Identifier::generated_static("quotient_operation"),
+        ..Default::default()
+    };
+    program.push_machine_contract(
+        &mut public_machine,
+        SignatureContract {
+            kind: SignatureContractKind::Ensures,
+            ..Default::default()
+        },
+    );
+    program.push_machine_contract(
+        &mut public_machine,
+        SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts: machine_q,
+            ..Default::default()
+        },
+    );
+    let mut public_state = State {
+        symbol: symbol(904),
+        name: Identifier::generated_static("entry"),
+        return_type: quotient,
+        ..Default::default()
+    };
+    program.push_state_contract(
+        &mut public_state,
+        SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts: state_q,
+            ..Default::default()
+        },
+    );
+    for (parameter_symbol, name, type_reference) in [
+        (public_value_symbol, "value", quotient),
+        (
+            shared_symbol,
+            "shared",
+            representative.parameters[1].type_reference,
+        ),
+    ] {
+        program.push_state_parameter(
+            &mut public_state,
+            StateParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated_static(name),
+                type_reference,
+                ..Default::default()
+            },
+        );
+    }
+
+    let value = named_argument(&mut program, "value", public_value_symbol);
+    let shared = named_argument(&mut program, "shared", shared_symbol);
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([value, shared]);
+    let mut call = call_with_arguments(arguments);
+    let mut selected_carrier = static_argument("Carrier");
+    selected_carrier.symbol = symbol(500);
+    let mut request = request_with_representative(representative.state_symbol);
+    request.representative_operation.application = Some(Box::new(StaticSymbolApplication {
+        lifetime_arguments: Box::default(),
+        arguments: vec![selected_carrier.clone()].into_boxed_slice(),
+    }));
+    let mut selected_theorem = static_argument("congruence");
+    selected_theorem.symbol = theorem.state_symbol;
+    selected_theorem.application = Some(Box::new(StaticSymbolApplication {
+        lifetime_arguments: Box::default(),
+        arguments: vec![selected_carrier].into_boxed_slice(),
+    }));
+    request.theorem_evidence[0].application = selected_theorem;
+    call.quotient_operation = Some(request);
+    let right_context = render_failed_builtin_implication(
+        &program,
+        &public_machine,
+        &public_state,
+        &call,
+        call.quotient_operation
+            .as_ref()
+            .expect("quotient request retained on call"),
+        RelationPlanError::DirectLiftRightPreconditionNotImplied(0),
+    )
+    .expect("the right failure coordinate must replay the exact dependent partitions");
+    assert!(
+        right_context.contains("right representative application"),
+        "{right_context}"
+    );
+    assert!(
+        right_context.contains("public-Q.machine-contract[1].fact[0]"),
+        "{right_context}"
+    );
+    assert!(right_context.contains("public-Q.state-contract[0].fact[0]"));
+    assert!(
+        right_context.contains("representative-P.machine-contract[0].fact[0]"),
+        "{right_context}"
+    );
+    let request = program.expression_table.insert(ExpressionNode::Call(call));
+    program.statement_table.push_statement(
+        &mut public_state.statement_nodes,
+        StatementNode::Expression(request),
+    );
+    program.push_machine_state(&mut public_machine, public_state);
+    program.push_machine(public_machine);
+
+    let mut diagnostics = Vec::new();
+    super::super::reject_quotient_operation_requests(&program, &mut diagnostics);
+
+    assert_eq!(diagnostics.len(), 1);
+    let message = &diagnostics[0].message;
+    assert!(
+        message.contains("public-Q.machine-contract[1].fact[0]"),
+        "{message}"
+    );
+    assert!(message.contains("public-Q.state-contract[0].fact[0]"));
+    assert!(message.contains("representative-P.machine-contract[0].fact[0]"));
+    assert!(message.contains("`Quotient::lift<F, Congruence, Transport>(...)`"));
 }

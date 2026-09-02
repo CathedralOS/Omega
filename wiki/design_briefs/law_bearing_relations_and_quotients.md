@@ -665,6 +665,16 @@ quotient error:
   behavioral-respect or occurrence-preservation facility rather than silently
   weakening the quotient.
 
+The maintained two-argument lift diagnostic now implements the built-in
+implication case precisely. After the ordinary relation, runtime, and
+precondition-partition judgments succeed, a failed dependent left/right or
+fixed-call implication independently reconstructs those same partitions for
+diagnostics. It prints the complete relevant public-`Q` machine/state contract
+fact coordinates and the exact failed representative-`P` coordinate, then
+names `Quotient::lift<F, Congruence, Transport>(...)` as the authored escape
+hatch. That reconstruction is explanatory only and cannot mint a
+correspondence certificate or execution authority.
+
 ## Relation lifting through constructors
 
 A relator supplies a proposition-valued `Lift` member. Its normalized form is
