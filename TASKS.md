@@ -12264,6 +12264,14 @@ checked-result arithmetic decision listed below.
   named `Binding::VtableField` leaves; the parser rejects authored numeric
   `VtableSlot` while downstream artifact enums/codecs retain compatibility
   under **BOUNDARY-OPERATOR-FAMILY-SELECTION**.
+- The two direct production entry-owner Console fields now use the routed
+  carrier: `source/omega/Main::console` and the gate-only
+  `source/psi/parse/ParserHarness::console` are both
+  `Service<Console> in Bound`. Their owner-controlled builds retain exact
+  Fused Console selection, and both source roots pass checked compilation.
+  Provider-internal nested fields and boundary-bearing parameters remain on
+  the transitional representation until their separately fenced carrier
+  rungs land; do not broaden the first direct-field custody proof by name.
 - **FFIVAL:** run the narrow Windows `user32` boundary-coherence slice after
   ENT4, using existing activation, custody, registration, stack, and reach
   machinery.

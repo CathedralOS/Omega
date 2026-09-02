@@ -30,6 +30,34 @@ fn temp_path(name: &str) -> PathBuf {
     ))
 }
 
+fn repository_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(3)
+        .expect("omega crate should live under source/omega-rust/omega")
+        .to_path_buf()
+}
+
+#[test]
+fn routed_production_entry_roots_pass_real_package_resolution() {
+    for (label, relative) in [
+        ("omega-product", "source/omega/main.omg"),
+        ("parser-gate", "source/psi/gates/parser/main.omg"),
+    ] {
+        let source = repository_root().join(relative);
+        let build_dir = temp_path(label);
+        let source = source.to_string_lossy().into_owned();
+        let build_dir_argument = build_dir.to_string_lossy().into_owned();
+        let output = omega(&["--check", "--build-dir", &build_dir_argument, &source]);
+        assert!(
+            output.status.success(),
+            "{relative} should pass real package resolution:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let _ = std::fs::remove_dir_all(build_dir);
+    }
+}
+
 #[test]
 fn package_command_words_do_not_reserve_ordinary_source_filenames() {
     let project = temp_path("install-source");

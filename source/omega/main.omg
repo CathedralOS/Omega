@@ -2,11 +2,12 @@
 // this closure in the parser gate package.
 
 use omega_language_std::console;
+use omega::language::core::service;
 use psi::lex::lexer;
 use psi::parse::parser;
 
 data Main {
-    console: Console;
+    console: Service<Console> in Bound;
     lexer: Lexer;
     parser: Parser;
 }
