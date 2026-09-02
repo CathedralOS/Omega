@@ -816,9 +816,11 @@ the indirect call. Paths deeper than one field, indexed/case projections,
 wider or computed mutation bodies remain outside this bounded rung. An
 operation-free, argument-free Unit-returning requirement may now be retained
 at the checked layer for a terminal direct or once-rebound local descriptor
-call. That plan deliberately has no result carrier. Forwarding such a Unit
-descriptor through another machine, Terminal/table representation, and native
-execution remain outside the current executable rung.
+call. One transparent forwarding machine may accept that descriptor as its
+only parameter and perform the Unit call as its sole statement. Both call
+coordinates are retained, and the plan deliberately has no result carrier.
+Terminal/table representation and native execution remain outside the current
+executable rung.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected
