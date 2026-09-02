@@ -1,5 +1,17 @@
 use psi_symbols::SymbolHandle;
 
+/// Whether one build-owned provider edge is fused into its consumer or kept
+/// as an independently selected component boundary.
+///
+/// Omission at the source surface is deliberately [`Self::Fused`]. Provider
+/// declarations never infer or widen this mode for themselves.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompositionMode {
+    #[default]
+    Fused,
+    Independent,
+}
+
 /// One exact declaration identity participating in a provider selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelectionIdentity {
@@ -138,6 +150,7 @@ impl ProviderSelectionSubject {
 pub struct ProviderSelection {
     pub subject: ProviderSelectionSubject,
     pub provider_type: ProviderSelectionIdentity,
+    pub composition_mode: CompositionMode,
     pub selecting_machine: SymbolHandle,
     pub source_span: psi_source::SourceSpan,
 }
@@ -158,6 +171,7 @@ impl ProviderSelection {
                 canonical_path: provider_type.to_owned(),
                 authored_path: provider_type.to_owned(),
             },
+            composition_mode: CompositionMode::Fused,
             selecting_machine: SymbolHandle::invalid(),
             source_span: psi_source::SourceSpan::default(),
         }
@@ -191,6 +205,7 @@ impl ProviderSelection {
                 canonical_path: provider_type.to_owned(),
                 authored_path: provider_type.to_owned(),
             },
+            composition_mode: CompositionMode::Fused,
             selecting_machine: SymbolHandle::invalid(),
             source_span: psi_source::SourceSpan::default(),
         }

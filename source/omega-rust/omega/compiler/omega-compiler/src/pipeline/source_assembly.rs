@@ -524,6 +524,13 @@ pub data Subsystem {
     case EfiApplication;
     case Unspecified(value: u16);
 }
+// Compiler-owned composition choice for one exact provider selection. The
+// omitted `select_provider` argument means Fused; Independent is never
+// inferred from provider source.
+pub data CompositionMode [copy] {
+    case Fused;
+    case Independent;
+}
 // compiler-owned TargetProfile declaration
 // compiler-owned X86DeploymentFeatures declaration
 // compiler-owned optimization declarations
@@ -1014,6 +1021,37 @@ mod tests {
                 })
                 .collect::<Vec<_>>(),
             ["Root", "Named"]
+        );
+
+        let composition_mode = syntax_trees
+            .root_items()
+            .find_map(|item| match item {
+                psi_syntax_trees::item::Item::Data(data)
+                    if data.name.as_str() == "CompositionMode" =>
+                {
+                    Some(data)
+                }
+                _ => None,
+            })
+            .expect("build prelude must define CompositionMode");
+        let composition_cases = syntax_trees.items.data_members(composition_mode.members);
+        assert_eq!(composition_cases.len(), 2);
+        assert_eq!(
+            composition_cases
+                .iter()
+                .filter_map(|member| match member {
+                    psi_syntax_trees::item::DataMember::Variant(variant)
+                        if syntax_trees
+                            .items
+                            .data_payload_fields(variant.payload)
+                            .is_empty() =>
+                    {
+                        Some(variant.name.as_str())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            ["Fused", "Independent"]
         );
 
         let mut dependency_methods = syntax_trees

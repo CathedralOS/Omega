@@ -245,6 +245,46 @@ fn provider_selection_retains_two_structural_type_paths() {
 }
 
 #[test]
+fn provider_selection_retains_one_explicit_composition_mode_argument() {
+    let source = r#"
+        machine build(builder: &mut Build) {
+            builder.select_provider<host::Console, application::ConsoleProvider>(
+                CompositionMode::Independent
+            );
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize independent provider selection");
+    let parsed = parse_syntax_trees(&tokens).expect("parse independent provider selection");
+    let call = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "select_provider" => Some(call),
+            _ => None,
+        })
+        .expect("provider-selection call");
+
+    assert_eq!(call.machine_arguments.len(), 2);
+    let [mode] = parsed.expressions.expression_handles(call.arguments) else {
+        panic!("one retained composition-mode argument")
+    };
+    let ExpressionNode::Name(mode) = parsed.expressions.expression(*mode) else {
+        panic!("composition mode remains one ordinary name expression")
+    };
+    assert_eq!(
+        parsed
+            .expressions
+            .identifier_path_members(*mode)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["CompositionMode", "Independent"]
+    );
+}
+
+#[test]
 fn root_binding_marker_retains_the_authored_bind_span() {
     let source = r#"
         machine build(builder: &mut Build) {
