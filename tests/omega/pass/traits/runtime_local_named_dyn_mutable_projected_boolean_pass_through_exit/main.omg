@@ -1,0 +1,64 @@
+use omega_language_std::console;
+
+trait Switch {
+    machine enable(&mut self) -> i32;
+}
+
+data Flags {
+    pad: i32;
+    enabled: bool;
+}
+
+data Item {
+    prefix: i32;
+    flags: Flags;
+    code: i32;
+}
+
+Primary: Item satisfies Switch {
+    machine enable(&mut self) -> i32 {
+        self.flags.enabled = true;
+        transition {
+            _ -> self.code
+        }
+    }
+}
+
+data Main {
+    console: Console;
+    decoy: Item;
+    selected: Item;
+}
+
+machine Main::main(&mut self) {
+    self.decoy.prefix = 1;
+    self.decoy.flags.pad = 2;
+    self.decoy.flags.enabled = false;
+    self.decoy.code = 4;
+    self.selected.prefix = 5;
+    self.selected.flags.pad = 6;
+    self.selected.flags.enabled = false;
+    self.selected.code = 23;
+    let mut erased: &mut dyn Switch = &mut self.decoy as &mut dyn Item::Primary;
+    erased = &mut self.selected as &mut dyn Item::Primary;
+    let result: i32 = dispatch(erased);
+    transition result == 23 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine dispatch(erased: &mut dyn Switch) -> i32 {
+    let result: i32 = erased.enable();
+    transition {
+        _ -> result
+    }
+}

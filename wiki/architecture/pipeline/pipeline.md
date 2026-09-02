@@ -161,9 +161,11 @@ realization identities and exact code/data spans needed to rejoin those facts.
 Its forwarding rows additionally retain the semantic scalar result and exact
 result/home carrier; they do not invent Terminal machine identities for
 native-only adapters. The bounded mutable form additionally carries `&mut
-self` as one no-copy pointer and replays one direct Boolean or fixed-integer
-literal store followed by an independently identified direct scalar field read
-and return. The first Boolean store uses the existing fixed-integer dynamic
+self` as one no-copy pointer and replays one Boolean or fixed-integer literal
+store into either a direct field or a primitive field one record projection
+below it, followed by an independently identified direct scalar field read and
+return. Target assignment independently resolves that bounded path and its
+accumulated byte offset before native emission. The first Boolean store uses the existing fixed-integer dynamic
 result-home lane for that independent return; Boolean forwarded results remain
 outside this carrier.
 

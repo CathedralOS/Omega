@@ -757,23 +757,28 @@ remains independent unfinished work. None of these boundaries permit
 devirtualizing the call.
 
 The same closed application now admits one exact mutation-bearing callable in
-Terminal form. Its checked row carries a direct primitive-field literal store
-through `&mut self` separately from the scalar return expression. Lowering
-materializes the constant and store before the existing self-field read, and
-Terminal validation accepts the empty carrier path only because the field is
-directly below the realization's attached self type. An exclusive field
+Terminal form. Its checked row carries a primitive-field literal store through
+`&mut self` separately from the scalar return expression. The field may be
+directly below the realization's attached self type or exactly one named record
+field below it. Lowering materializes the constant and store before the
+existing self-field read, and Terminal validation retains the empty or
+one-field carrier path exactly. An exclusive field
 subloan from an unrestricted mutable-borrow root retains unrestricted
 multiplicity for the duration of that exclusive call; it does not invent a
 linear entry claim. Direct Boolean and fixed-integer literal stores now lower
 `&mut self` as one no-copy pointer to caller storage, emit the store before an
 independently identified direct scalar field read, and retain independent
-x86-64/AArch64 machine, object, image, and installation replay evidence. A
+x86-64/AArch64 machine, object, image, and installation replay evidence. Target
+lowering accumulates the outer and primitive-field offsets; assignment replays
+the path against the retained declarations, and machine emission rejects path
+or offset drift before producing bytes. A
 structural-only scalar-result realization publishes the ABI that its private
 erased-data adapter must rejoin before calling it. The first Boolean store
 returns an independent `i32` self field through the existing fixed-integer
 result-home lane; Boolean forwarded results are not implied. A second write,
-nested destination, computed store value, shared receiver, or body reorder
-remains outside the native carrier.
+path deeper than one named record field, indexed/case projection, computed
+store value, shared receiver, or body reorder remains outside the native
+carrier.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts
