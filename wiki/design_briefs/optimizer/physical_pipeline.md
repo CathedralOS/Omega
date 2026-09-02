@@ -1125,6 +1125,27 @@ policy through deterministic zero-action selection, all generic publication
 custody fields, and Linux/macOS AArch64 object and callable publication. It
 does not relabel that honest no-candidate fixture as an applied deletion.
 
+The adjacent-body sibling
+`Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1` remains a separate
+exact opt-in. Its descriptor admits only `CopyI64; CompareI64`, joins equal
+copy source/destination physical view and storage to the copy destination's
+use as the comparison's ordered left operand, and leaves right-operand cases
+outside the rule. Independent replay reconstructs the same roots, footprints,
+liveness continuity, provenance, attempts, actions, and revisions without
+trusting the descriptor matcher. The shared copy-elision identity and wire
+codec advance to V3 and append policy tag `2` without renumbering the
+established return and compare-zero tags; its revision domain remains V2. The
+source-visible selection encoding and identity advance to V14 and append exact
+optimization tag `19`. Existing V9 realization and fragment-manifest frames
+append that same post-allocation tag without acquiring a parallel schema. The
+new sole AArch64 catalog row uses the existing generic encoding, zero-byte
+disposition, layout,
+realization, manifest, fragment, object, and callable route. Applied fixtures
+and exact five-axis success/first-over budgets live at the machine-rule
+boundary. Current compiler lowering produces no admissible same-view pair, so
+Linux and macOS AArch64 compiler coverage truthfully retains the selected
+policy with zero actions rather than claiming an applied deletion.
+
 The adjacent `costs/` rung is deliberately non-authoritative. Its V1 model
 binds the complete native target and model version into a stable identity, and
 projects existing `MachineSizeKnowledge` without converting encoder-resolved
@@ -1333,14 +1354,14 @@ transformation and custody.
 - direct, selected-lowering-composed, and final artifact paths retain the same
   full selection identity.
 
-The catalog matrix covers all 18 current exact names across all five native
-target constructors: 70 admitted cells and 20 typed architecture rejections.
+The catalog matrix covers all 19 current exact names across all five native
+target constructors: 72 admitted cells and 23 typed architecture rejections.
 Target-independent Psi, selected-lowering, and allocation-recovery rules are
 explicit declarations, not untested fallthrough behavior.
 
-The adjacent composition matrix covers all 136 unordered exact-name pairs on
-both x86-64 and AArch64. Its 272 cells contain 140 admitted routes, 72 typed
-composition rejections, and 60 target rejections. Every cell also checks the
+The adjacent composition matrix covers all 171 unordered exact-name pairs on
+both x86-64 and AArch64. Its 342 cells contain 156 admitted routes, 110 typed
+composition rejections, and 76 target rejections. Every cell also checks the
 exact Psi pass projection and proves that overlaying the complete Psi suite
 does not change the physical disposition; focused triple cases pin the two
 selected-lowering rules with machine and layout routes.
@@ -1380,12 +1401,12 @@ container. UEFI and unwind are not implied by this matrix. The former lacks
 publication authority, while physical frames and unwind carriers remain P5
 prerequisites.
 
-Post-allocation publication coverage crosses all seven exact machine rules
+Post-allocation publication coverage crosses all eight exact machine rules
 with both applicable hosted operating systems: three x86-64 rules on Linux and
-Windows, and four AArch64 rules on Linux and macOS. The 14 rows run twice and
+Windows, and five AArch64 rules on Linux and macOS. The 16 rows run twice and
 compare authenticated realization, fragment, text, object, artifact, and
 callable records plus final text and ELF/COFF/Mach-O container bytes. Applied
-materialization and fusion fixtures require nonzero actions; the two copy-
+materialization and fusion fixtures require nonzero actions; the three copy-
 elision fixtures retain honest zero-action custody because current lowering
 does not emit their exact candidates. Every rule also has one typed wrong-
 architecture refusal before execution. This matrix grants no UEFI publication

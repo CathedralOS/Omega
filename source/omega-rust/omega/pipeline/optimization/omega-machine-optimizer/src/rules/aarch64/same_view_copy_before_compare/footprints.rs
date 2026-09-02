@@ -12,6 +12,8 @@ use crate::{
     Aarch64SameViewCopyElisionError, PostAllocationMachineInstruction, QualifiedPhysicalOperand,
 };
 
+use super::CompareConsumerContract;
+
 pub(super) struct PairEvidence {
     pub source: QualifiedPhysicalOperand,
     pub destination: QualifiedPhysicalOperand,
@@ -30,9 +32,10 @@ pub(super) fn validate_pair(
     live_compare: &InstructionLiveness,
     _live_block: &BlockLiveness,
     physical: &ValidatedPhysicalRegisterModel,
+    contract: CompareConsumerContract,
 ) -> Result<PairEvidence, Aarch64SameViewCopyElisionError> {
     validate_copy(copy, machine_copy, physical)?;
-    validate_compare(compare, machine_compare, physical)?;
+    validate_compare(compare, machine_compare, physical, contract)?;
     if live_copy.instruction != copy.id
         || live_compare.instruction != compare.id
         || live_copy.unit_live_out != live_compare.unit_live_in
@@ -43,7 +46,7 @@ pub(super) fn validate_pair(
     }
     let source = qualified(machine_copy, 0, copy.id)?;
     let destination = qualified(machine_copy, 1, copy.id)?;
-    let consumed = qualified(machine_compare, 0, compare.id)?;
+    let consumed = qualified(machine_compare, contract.consumed_operand, compare.id)?;
     if !consumed.storage_units.iter().all(|unit| {
         live_copy.unit_live_out.contains(unit)
             && live_compare.unit_live_in.contains(unit)
@@ -101,17 +104,18 @@ fn validate_compare(
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
+    contract: CompareConsumerContract,
 ) -> Result<(), Aarch64SameViewCopyElisionError> {
     let nzcv = physical.model().view_named("nzcv").ok_or(
         Aarch64SameViewCopyElisionError::MissingArchitecturalView("nzcv"),
     )?;
     let encoded = &machine.alternative.encoded;
     if machine.instruction != selected.id
-        || !matches!(selected.kind, SelectedInstructionKind::CompareI64Zero)
-        || selected.operands.len() != 1
-        || machine.alternative.key.family != MachineAlternativeFamily::CompareI64Zero
+        || selected.kind != contract.kind
+        || selected.operands.len() != contract.operand_count
+        || machine.alternative.key.family != contract.family
         || machine.alternative.key.variant != 0
-        || encoded.external_operand_reads != [0]
+        || encoded.external_operand_reads != contract.external_reads
         || !encoded.external_operand_writes.is_empty()
         || !encoded.implicit_unit_uses.is_empty()
         || encoded.implicit_unit_defs != nzcv.units
@@ -123,13 +127,21 @@ fn validate_compare(
         || !machine.implicit_unit_uses.is_empty()
         || machine.implicit_unit_defs != nzcv.units
         || !machine.implicit_unit_clobbers.is_empty()
-        || machine.operands.len() != 1
+        || machine.operands.len() != contract.operand_count
     {
         return Err(Aarch64SameViewCopyElisionError::InvalidCompareFootprint(
             selected.id,
         ));
     }
-    validate_operand(selected, machine, 0, RegisterOperandAccess::Use, physical)?;
+    for ordinal in 0..contract.operand_count {
+        validate_operand(
+            selected,
+            machine,
+            ordinal,
+            RegisterOperandAccess::Use,
+            physical,
+        )?;
+    }
     validate_whole_units(machine, selected.id)
 }
 

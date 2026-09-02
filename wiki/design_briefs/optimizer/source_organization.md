@@ -650,11 +650,21 @@ coordinates one immutable instruction-pair input and closed topology through
 `model.rs`. Exact pattern data stays with each rule, currently the cataloged
 `aarch64/compare_zero_branch_nonzero/pattern.rs` and
 `aarch64/elide_same_view_copy_before_return/pattern.rs`, plus the adjacent-body
-`aarch64/elide_same_view_copy_before_compare_zero/pattern.rs`. Each copy rule's
+`aarch64/elide_same_view_copy_before_compare_zero/pattern.rs` and
+`aarch64/elide_same_view_copy_before_compare_i64_left_operand/pattern.rs`.
+Each copy rule's
 tiny entrance visibly joins proposal to independent replay; its validation
-rung reconstructs footprints and roots without importing the matcher. The
-shared rung owns neither enablement nor rewriting, and validators do not import
-it. The only topologies are body-tail/terminator and adjacent ordinary-body
+rung selects the exact policy/contract and calls the independently implemented
+shared replay, which does not import or trust the proposal matcher. The
+comparison-consuming siblings share only deterministic scan, accounting,
+footprint, root, disposition, and replay mechanics beneath
+`aarch64/same_view_copy_before_compare/`; their exact entrances still own
+pattern, policy, and validation dispatch. The physical stage mirrors that
+split under `post_allocation_optimizations/aarch64_same_view_copy/`, whose
+small entrance points to baseline-source, selected-lowering-source, model, and
+execution leaves instead of restoring the former monolithic stage file. The
+peephole matcher owns neither enablement nor rewriting. The only topologies are
+body-tail/terminator and adjacent ordinary-body
 instructions; there is no generic pattern AST. This keeps the path from exact
 rule entrance to pattern, named
 matcher mechanics, and independent replay visible without creating a proxy

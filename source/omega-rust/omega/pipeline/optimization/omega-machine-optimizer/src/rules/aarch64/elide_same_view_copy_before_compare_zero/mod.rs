@@ -2,10 +2,12 @@
 //!
 //! This owner proposes one adjacent body `CopyI64; CompareI64Zero` disposition
 //! through the bounded descriptor matcher, then joins it to an independent
-//! rule-local replay. The shared artifact family supplies codec and custody;
-//! the machine catalog remains the only compiler admission point.
+//! shared-family replay under this leaf's exact contract. The shared artifact
+//! family supplies codec and custody, and the machine catalog remains the only
+//! compiler admission point.
 
 mod compute;
+mod contract;
 mod pattern;
 mod validate;
 

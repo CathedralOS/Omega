@@ -59,6 +59,7 @@ fn decode_content(
     let policy = match cursor.byte()? {
         0 => Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeReturnV1,
         1 => Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
+        2 => Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1,
         _ => return Err(Aarch64SameViewCopyElisionDecodeError::InvalidField),
     };
     let budget = OptimizationWorkBudget::decode(cursor.take(40)?)

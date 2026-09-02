@@ -12,6 +12,7 @@ pub(crate) enum InstructionPairPatternId {
     Aarch64CompareI64ZeroBranchNonZeroV1,
     Aarch64SameViewCopyI64BeforeReturnV1,
     Aarch64SameViewCopyI64BeforeCompareZeroV1,
+    Aarch64SameViewCopyI64BeforeCompareI64LeftOperandV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,8 +1,6 @@
 //! Optimizer module role: executable entrance. Independent non-terminal copy-elision replay.
 
-mod footprints;
 mod replay;
-mod roots;
 
 use omega_regalloc::{ValidatedLiveness, ValidatedSelectedAnalysis};
 use omega_register_model::ValidatedPhysicalRegisterModel;
