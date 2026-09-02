@@ -3,8 +3,9 @@
 // ambiguity without selecting or reconstructing individual rows. Dispatch
 // must consume the exact selected rows from SecondProvider.
 use omega_language_std::console;
+use omega::language::core::service;
 
-boundary trait Pick {
+pub boundary trait Pick {
     machine choose() -> i32;
     machine mark(value: &mut i32);
 }
@@ -27,7 +28,7 @@ machine SecondProvider::mark(value: &mut i32) satisfies Pick::mark {
 
 data Main {
     console: Console;
-    pick: Pick;
+    pick: Service<Pick> in Bound;
     selected: i32;
 }
 

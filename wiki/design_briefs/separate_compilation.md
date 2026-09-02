@@ -1,6 +1,6 @@
 # Design Brief: Separate Compilation And Replaceable Realizations
 
-Current as of 2026-08-25. Status: semantic architecture settled; concrete
+Current as of 2026-09-01. Status: semantic architecture settled; concrete
 artifact encodings and runtime algorithms are implementation work.
 
 ## Terms that must not collapse
@@ -44,12 +44,23 @@ may request `Independent`, and every coordinate in an operator-family
 selection shares that one mode.
 
 The current compiler retains this mode through exact provider selection and
-selected-plan provenance. It deliberately rejects a selected independent edge
-at the componentization fence before checked facts or package-review evidence
-are published: exact closed slot applications, component closure, and the
-`Service<R>` carrier must land before `Independent` can become executable.
-This is a fail-closed implementation stage, not permission to model an
-independent request as fused.
+selected-plan provenance. Its first routed-carrier rung recognizes only the
+toolchain-owned affine `Service<R> in Bound` with one public, closed,
+nongeneric, lifetime-free boundary requirement. For a Fused selection, checked
+trees retain the exact requirement and selected-plan digest; immediately before
+Terminal production the compiler rejoins that receipt with the typed source,
+compiler-owned erasure authorization, and exact Fused selection provenance.
+Only then may lowering erase the carrier into provider-backed dispatch.
+References, extra constraints, authored lookalikes, wrong carriers, receipt
+downgrades, and provenance substitutions reject.
+
+Selected Independent edges still reject at the componentization fence before
+checked facts or package-review evidence are published. Exact closed slot
+applications beyond this first monomorphic rung, component closure, routed
+installation/publication establishment, and era entry/leave accounting must
+land before `Independent` can become executable. This is a fail-closed
+implementation stage, not permission to model an independent request as
+fused.
 
 The exact API spelling may evolve, but the authority split does not. Provider
 source declares what it satisfies; it cannot make itself independently

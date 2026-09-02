@@ -422,10 +422,10 @@ pub(super) fn canonicalize_closed_domain_indices(
             parameters
         };
         if index_parameters.is_empty() {
-            return Err(Diagnostic::error(format!(
-                "generic domain `{}` must declare at least one type or proof-static const index",
-                definition.name
-            )));
+            // A carrier-polymorphic, unindexed domain (`domain<T> T::D`)
+            // needs no closed-family canonicalization. Its exact declaration
+            // symbol is the complete nominal identity retained downstream.
+            continue;
         }
         let mut family_parameters = Vec::with_capacity(index_parameters.len());
         for parameter in index_parameters {

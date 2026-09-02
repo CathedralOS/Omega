@@ -9,9 +9,9 @@ mechanism. Authored `Binding::VtableSlot` is parser-rejected; foreign protocol
 tables use validated named `Binding::VtableField` leaves. The numeric slot
 variant remains downstream only for artifact compatibility decoding/reporting.
 
-`Switchboard.clock: ClockHost` remains a transitional compiler-surface fence.
-The settled runtime carrier is `Service<ClockHost> in Bound`; the fixture must
-migrate when that carrier and its routed installation establishment land.
+`Switchboard.clock` uses the settled affine `Service<ClockHost> in Bound`
+carrier. In this fused fixture the compiler may erase that carrier only after
+joining it to the exact build-selected clock provider.
 
 Expected package evidence:
 

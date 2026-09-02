@@ -848,14 +848,16 @@ pub(super) fn provider_attachment_receiver_matches(
         {
             return false;
         }
-        matches!(
-            program
-                .type_reference_table
-                .type_reference(field.type_reference),
-            TypeReferenceNode::Named { symbol, .. }
-                | TypeReferenceNode::DynamicTrait { symbol, .. }
-                if *symbol == provider_symbol
-        )
+        psi_typed_trees::service::exact_bound_service_requirement(program, field.type_reference)
+            == Some(provider_symbol)
+            || matches!(
+                program
+                    .type_reference_table
+                    .type_reference(field.type_reference),
+                TypeReferenceNode::Named { symbol, .. }
+                    | TypeReferenceNode::DynamicTrait { symbol, .. }
+                    if *symbol == provider_symbol
+            )
     })
 }
 

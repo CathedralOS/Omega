@@ -213,6 +213,15 @@ fn callable_receiver_type_name(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
+    if let Some(requirement) =
+        psi_typed_trees::service::exact_bound_service_requirement(program, type_reference)
+    {
+        return program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == requirement)
+            .map(|definition| definition.name.as_str());
+    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
             callable_receiver_type_name(program, *referee)

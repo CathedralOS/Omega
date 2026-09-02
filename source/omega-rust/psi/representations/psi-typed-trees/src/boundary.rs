@@ -41,16 +41,25 @@ pub fn called_boundary_signature<'program>(
                 .then_some(field.type_reference),
             _ => None,
         })?;
-    let TypeReferenceNode::Named {
-        name: trait_name, ..
-    } = program.type_reference_table.type_reference(field_type)
-    else {
-        return None;
+    let trait_definition = if let Some(requirement) =
+        crate::service::exact_bound_service_requirement(program, field_type)
+    {
+        program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == requirement)?
+    } else {
+        let TypeReferenceNode::Named {
+            name: trait_name, ..
+        } = program.type_reference_table.type_reference(field_type)
+        else {
+            return None;
+        };
+        program
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == trait_name.as_str())?
     };
-    let trait_definition = program
-        .traits()
-        .iter()
-        .find(|definition| definition.name.as_str() == trait_name.as_str())?;
     program
         .trait_machine_signatures(trait_definition)
         .iter()

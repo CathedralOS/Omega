@@ -1,0 +1,13 @@
+// Stable routed authority for one exact closed boundary requirement.
+//
+// `Service<R>` is opaque and affine. Its values are established by build-time
+// composition and installation, never by package-authored construction. A
+// fused build may erase the carrier only after joining it to the exact selected
+// provider for `R`; independent composition retains a runtime slot carrier.
+
+pub boundary data Service<R>;
+
+// `Bound` is compiler-owned but carrier-polymorphic at the domain layer. The
+// frontend admits its exact toolchain declaration only on a closed
+// `Service<R>`; using it on any other carrier is rejected.
+pub domain<T> T::Bound;

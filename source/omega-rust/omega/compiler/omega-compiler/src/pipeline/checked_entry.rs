@@ -1197,6 +1197,32 @@ fn compile_to_checked_inner_with_replay(
             &target_provider_defaults,
             &build_config.provider_selections,
         )?;
+    let mut fused_service_erasures = Vec::new();
+    for selected in &selected_provider_plans {
+        let composition_mode = selected
+            .selected_by
+            .composition_mode()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        if composition_mode != omega_provider_planning::CompositionMode::Fused {
+            continue;
+        }
+        let requirement = selected.derived.provenance.schema.symbol();
+        if typed
+            .traits()
+            .iter()
+            .any(|definition| definition.is_boundary && definition.symbol == requirement)
+        {
+            fused_service_erasures.push(
+                psi_typed_trees::typed_trees::FusedServiceErasureAuthorization {
+                    requirement,
+                    provider_plan_digest: *selected.derived.plan.identity_digest().as_bytes(),
+                },
+            );
+        }
+    }
+    typed
+        .bind_fused_service_erasures(fused_service_erasures)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let selected_semantic_plans = selected_provider_plans
         .iter()
         .map(|selected| selected.derived.plan.clone())

@@ -12184,10 +12184,18 @@ checked-result arithmetic decision listed below.
     carrier, every selected independent request rejects at one downstream
     componentization fence before checked facts or package-review evidence can
     misrepresent it as fused. Authored `CompositionMode` lookalikes reject;
-  - next, land the fused affine `Service<R> in Bound` carrier and exact fused
-    selection/erasure join. Keep generic or lifetime-parametric `R` fenced
-    until a closed slot application is represented rather than inferred from a
-    provider conformance;
+  - the first fused affine `Service<R> in Bound` rung is live. Compiler
+    privilege requires the exact toolchain declaration, one public closed
+    nongeneric and lifetime-free boundary requirement, and exactly one exact
+    `Bound` qualification; references, extra constraints, ordinary traits,
+    authored lookalikes, and wrong carriers reject. Checked trees distinguish
+    legacy provider-backed fields from fused-service fields and retain the
+    exact requirement plus selected-plan digest. Immediately before Terminal
+    production the compiler rejoins the typed field, compiler-owned erasure
+    authorization, selected Fused provenance, and checked receipt; any
+    downgrade or substitution rejects. Generic or lifetime-parametric `R`,
+    nested carriers, and Independent execution remain fenced until their exact
+    slot/lifecycle representations land;
   - replace transitional bare boundary-trait runtime values with the explicit
     affine `Service<R> in Bound` carrier and routed installation/publication
     establishment; fused selection may erase it, while independent calls
@@ -12241,9 +12249,10 @@ checked-result arithmetic decision listed below.
     rollback, roll-forward, path, retention, or cohort policy. Add Cathedral's
     path/retention selection and restart-to-runtime reconciliation around this
     checked core.
-- Replace the provider-switchboard fixture's transitional `clock: ClockHost`
-  field with `Service<ClockHost> in Bound` once that carrier lands. Keep its
-  provider as checked Omega code. Real foreign protocol tables use validated
+- The provider-switchboard fixture now uses `Service<ClockHost> in Bound`; its
+  provider remains checked Omega code. Continue migrating the remaining
+  transitional bare boundary-trait runtime fields through the same exact
+  fused-carrier route. Real foreign protocol tables use validated
   named `Binding::VtableField` leaves; the parser rejects authored numeric
   `VtableSlot` while downstream artifact enums/codecs retain compatibility
   under **BOUNDARY-OPERATOR-FAMILY-SELECTION**.

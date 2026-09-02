@@ -14,6 +14,7 @@ pub(super) fn validate_provider_attachment_requirements(
                 matches!(
                     field.field_type,
                     CheckedUnitStructuralFieldType::ProviderBacked { .. }
+                        | CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
                 )
             })
             .count(),

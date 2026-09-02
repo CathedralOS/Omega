@@ -21,6 +21,10 @@ pub(super) fn checked_provider_attachment_requirements(
         .filter_map(|field| match &field.field_type {
             CheckedUnitStructuralFieldType::ProviderBacked {
                 provider_type_identity,
+            }
+            | CheckedUnitStructuralFieldType::FusedServiceBacked {
+                provider_type_identity,
+                ..
             } => Some((field, provider_type_identity)),
             _ => None,
         })
@@ -58,14 +62,20 @@ pub(super) fn checked_provider_attachment_requirements(
         if source_field.name.as_str() != field.identity {
             return None;
         }
-        match program
-            .type_reference_table
-            .type_reference(source_field.type_reference)
-        {
-            TypeReferenceNode::Named { symbol, .. }
-            | TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
-            _ => None,
-        }
+        psi_typed_trees::service::exact_bound_service_requirement(
+            program,
+            source_field.type_reference,
+        )
+        .or_else(|| {
+            match program
+                .type_reference_table
+                .type_reference(source_field.type_reference)
+            {
+                TypeReferenceNode::Named { symbol, .. }
+                | TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
+                _ => None,
+            }
+        })
     })?;
     let provider = program
         .traits()

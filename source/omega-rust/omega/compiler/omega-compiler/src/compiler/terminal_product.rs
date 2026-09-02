@@ -26,6 +26,10 @@ pub(super) fn produce_retained_terminal_artifact(
         checked,
         checked.selected_provider_plans(),
     )?;
+    omega_selected_dispatch::validate_fused_service_terminal_custody(
+        checked,
+        checked.selected_provider_provenance(),
+    )?;
     let produced = psi_checked_trees_to_terminal::produce_terminal_artifact_with_callback_custody(
         checked,
         &entry_machine,

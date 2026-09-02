@@ -1024,6 +1024,7 @@ impl Lowerer<'_> {
             wire_schema_plans: _,
             machine_specializations: _,
             boundary_calling_plans: _,
+            fused_service_erasures: _,
             open_index_normalizations: _,
             evidence_forwardings,
             proof_output_calls,

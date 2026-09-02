@@ -27,7 +27,10 @@ fn domain_is_declared(
                 && domain.semantic_roles.arithmetic_policy.is_some()
                     == constraint.semantic_roles.arithmetic_policy.is_some()
                 && domain.establishment_routes == constraint.establishment_routes
-                && if psi_typed_trees::domain::index_parameters(program, domain).is_empty() {
+                && if psi_typed_trees::domain::has_generic_carrier(program, domain) {
+                    constraint.arguments.len()
+                        == psi_typed_trees::domain::index_parameters(program, domain).len()
+                } else if psi_typed_trees::domain::index_parameters(program, domain).is_empty() {
                     type_references_match(program, base_type, domain.target_type)
                 } else {
                     constraint.arguments.len()

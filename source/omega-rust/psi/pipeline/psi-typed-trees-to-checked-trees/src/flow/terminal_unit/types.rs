@@ -1416,29 +1416,25 @@ impl<'program> ShapeCollector<'program> {
                     )
                     .into_string(),
             }
-        } else if let Some(provider_symbol) = match self
-            .program
-            .type_reference_table
-            .type_reference(field.type_reference)
+        } else if let Some(fused_service_erasure) =
+            provider_backed_field(self.program, field.type_reference)
         {
-            TypeReferenceNode::Named { symbol, .. }
-            | TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
-            _ => None,
-        } && self
-            .program
-            .traits()
-            .iter()
-            .any(|definition| definition.symbol == provider_symbol && definition.is_boundary)
-        {
-            CheckedUnitStructuralFieldType::ProviderBacked {
-                provider_type_identity: self
-                    .program
-                    .normalized_type_identity_with_binders_and_substitutions(
-                        field.type_reference,
-                        binders,
-                        substitutions,
-                    )
-                    .into_string(),
+            let provider_type_identity = self
+                .program
+                .normalized_type_identity_with_binders_and_substitutions(
+                    field.type_reference,
+                    binders,
+                    substitutions,
+                )
+                .into_string();
+            match fused_service_erasure {
+                Some(erasure) => CheckedUnitStructuralFieldType::FusedServiceBacked {
+                    provider_type_identity,
+                    erasure,
+                },
+                None => CheckedUnitStructuralFieldType::ProviderBacked {
+                    provider_type_identity,
+                },
             }
         } else if let Some(carrier) =
             byte_sequence_carrier(self.program, field.type_reference, substitutions)
@@ -1528,6 +1524,31 @@ impl<'program> ShapeCollector<'program> {
         self.domains
             .retain(|domain| retained.contains(&domain.carrier_type_identity));
     }
+}
+
+fn provider_backed_field(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<Option<psi_checked_trees::CheckedFusedServiceErasureReceipt>> {
+    if let Some(requirement) =
+        psi_typed_trees::service::exact_bound_service_requirement(program, type_reference)
+    {
+        let authorization = program.fused_service_erasure(requirement)?;
+        return Some(Some(psi_checked_trees::CheckedFusedServiceErasureReceipt {
+            requirement,
+            provider_plan_digest: authorization.provider_plan_digest,
+        }));
+    }
+    let provider_symbol = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. }
+        | TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol,
+        _ => return None,
+    };
+    program
+        .traits()
+        .iter()
+        .any(|definition| definition.symbol == provider_symbol && definition.is_boundary)
+        .then_some(None)
 }
 
 pub(super) fn scalar_type(

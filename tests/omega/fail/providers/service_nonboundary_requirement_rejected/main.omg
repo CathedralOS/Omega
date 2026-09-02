@@ -1,0 +1,5 @@
+use omega::language::core::service;
+
+pub trait Local { machine ping(); }
+data Main { service: Service<Local> in Bound; }
+machine Main::main(&mut self) { }

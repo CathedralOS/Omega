@@ -10,6 +10,7 @@ mod compiler_intrinsic;
 mod float_intrinsic;
 mod intrinsic_review;
 mod operator_adapter;
+mod service_custody;
 
 pub use adapter::settle_selected_boundary_adapter_dispatch;
 pub use compiler_intrinsic::{
@@ -33,6 +34,7 @@ pub use operator_adapter::{
     derive_checked_specialized_operator_application_realizations,
     settle_selected_operator_adapter_dispatch, validate_selected_operator_terminal_custody,
 };
+pub use service_custody::validate_fused_service_terminal_custody;
 
 /// Settle checked-body adapters and compiler-intrinsic float execution in one
 /// atomic Unit-plan rebuild. Separate rebuilds would make the later family

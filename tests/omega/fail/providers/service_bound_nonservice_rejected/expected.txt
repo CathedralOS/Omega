@@ -1,0 +1,1 @@
+routes only a closed `Service<R>` carrier

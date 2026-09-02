@@ -29,6 +29,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct AdapterRow {
     receiver_trait: psi_symbols::SymbolHandle,
+    provider_plan_digest: [u8; 32],
     receiver_trait_name: String,
     requirement: String,
     requirement_identity: String,
@@ -139,15 +140,37 @@ fn plan_selected_boundary_adapter_rewrites(
             let psi_typed_trees::data::DataMember::Field(field) = member else {
                 continue;
             };
-            let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
-                .type_reference_table
-                .type_reference(field.type_reference)
-            else {
-                continue;
+            let symbol = if let Some(requirement) =
+                psi_typed_trees::service::exact_bound_service_requirement(
+                    typed,
+                    field.type_reference,
+                ) {
+                let Some(authorization) = typed.fused_service_erasure(requirement) else {
+                    continue;
+                };
+                if !adapters.iter().any(|adapter| {
+                    adapter.receiver_trait == requirement
+                        && adapter.provider_plan_digest == authorization.provider_plan_digest
+                }) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "routed service field `{}::{}` has no exact Fused selected-provider-plan join",
+                        data.name, field.name,
+                    )));
+                    continue;
+                }
+                requirement
+            } else {
+                let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+                    .type_reference_table
+                    .type_reference(field.type_reference)
+                else {
+                    continue;
+                };
+                *symbol
             };
             if !adapters
                 .iter()
-                .any(|adapter| adapter.receiver_trait == *symbol)
+                .any(|adapter| adapter.receiver_trait == symbol)
             {
                 continue;
             }
@@ -174,7 +197,7 @@ fn plan_selected_boundary_adapter_rewrites(
                 field_name: field.name.as_str().to_owned(),
                 field: BoundaryField {
                     symbol: field.symbol,
-                    trait_symbol: *symbol,
+                    trait_symbol: symbol,
                 },
             });
         }
@@ -560,6 +583,7 @@ fn resolve_selected_adapter_row(
 
     Ok(Some(AdapterRow {
         receiver_trait: receiver_trait.symbol,
+        provider_plan_digest: *plan.identity_digest().as_bytes(),
         receiver_trait_name: receiver_trait.name.as_str().to_owned(),
         requirement: method.name.clone(),
         requirement_identity: method.requirement_identity.clone(),
@@ -1120,6 +1144,7 @@ mod tests {
     ) -> AdapterRow {
         AdapterRow {
             receiver_trait,
+            provider_plan_digest: [0; 32],
             receiver_trait_name: format!("Trait{receiver_trait:?}"),
             requirement: requirement.into(),
             requirement_identity: format!("exact::{target}"),

@@ -53,6 +53,10 @@ pub struct TypedTrees {
     /// machine), while the policy type/source body is deliberately absent:
     /// only the validated plan fingerprint is public contract material.
     pub boundary_calling_plans: Vec<BoundaryCallingPlanIdentity>,
+    /// Compiler-owned authorizations for erasing one exact routed service
+    /// carrier after a Fused provider selection. Ordinary Psi lowering keeps
+    /// this empty and therefore cannot erase `Service<R>` by type shape alone.
+    pub fused_service_erasures: Vec<FusedServiceErasureAuthorization>,
     /// PDI3 exact operation/algebra selections for proof-static open index
     /// expressions. The expression tree remains the canonical structural
     /// input; these records bind each operator node to the public operation
@@ -136,6 +140,14 @@ pub struct BoundaryCallingPlanIdentity {
     /// adjacent strong commitment.
     pub report_fingerprint: u64,
     pub commitment: BoundaryCallingPlanCommitment,
+}
+
+/// Exact selected-plan custody that licenses one `Service<R> in Bound`
+/// carrier to enter the existing provider-attachment specialization path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FusedServiceErasureAuthorization {
+    pub requirement: psi_symbols::SymbolHandle,
+    pub provider_plan_digest: [u8; 32],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -636,11 +648,57 @@ impl TypedTrees {
             wire_schema_plans: Vec::new(),
             machine_specializations: Vec::new(),
             boundary_calling_plans: Vec::new(),
+            fused_service_erasures: Vec::new(),
             open_index_normalizations: Vec::new(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
             ranking_expression_custody: Vec::new(),
         }
+    }
+
+    pub fn bind_fused_service_erasures(
+        &mut self,
+        mut authorizations: Vec<FusedServiceErasureAuthorization>,
+    ) -> Result<(), String> {
+        authorizations.sort_by_key(|authorization| {
+            (
+                authorization.requirement.arena_index(),
+                authorization.requirement.generation(),
+            )
+        });
+        for authorization in &authorizations {
+            if authorization.provider_plan_digest == [0; 32]
+                || !self.traits().iter().any(|definition| {
+                    definition.is_boundary && definition.symbol == authorization.requirement
+                })
+            {
+                return Err(
+                    "fused service erasure authorization lacks an exact boundary requirement or selected-plan digest"
+                        .to_owned(),
+                );
+            }
+        }
+        if authorizations
+            .windows(2)
+            .any(|pair| pair[0].requirement == pair[1].requirement)
+        {
+            return Err(
+                "fused service erasure authorizations contain duplicate boundary requirements"
+                    .to_owned(),
+            );
+        }
+        self.fused_service_erasures = authorizations;
+        Ok(())
+    }
+
+    pub fn fused_service_erasure(
+        &self,
+        requirement: psi_symbols::SymbolHandle,
+    ) -> Option<FusedServiceErasureAuthorization> {
+        self.fused_service_erasures
+            .iter()
+            .find(|authorization| authorization.requirement == requirement)
+            .copied()
     }
 
     pub fn ranking_expression_custody_for(
