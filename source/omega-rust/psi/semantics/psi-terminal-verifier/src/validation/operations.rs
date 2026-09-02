@@ -534,6 +534,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallDynamicScalar { .. }
+        | OperationKind::CallDynamicParameterScalar { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::BoundaryCall { .. }

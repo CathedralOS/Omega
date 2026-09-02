@@ -11733,28 +11733,43 @@ checked-result arithmetic decision listed below.
   canaries exercise the complete two-row table rather than a synthetic
   single-row fixture.
 
-  The first pass-through baseline is also live. Checked custody distinguishes
-  a local dispatch from one reached through an exact transparent scalar
-  helper. Checked Psi now publishes the exact caller/callee coordinate,
-  dense runtime-parameter position, bare trait, source binding, and selected
-  conformance for that descriptor transfer; transparent composition consumes
-  this retained transfer rather than rediscovering the outer argument and
-  selection. It then binds the helper's parameter and sole dispatch and
-  composes that unobservable internal call before Terminal publication. The
-  resulting descriptor/table call remains indirect and crosses the same
-  Terminal, target, assignment, object-replay, and x86-64/AArch64 machine-code
-  path. Cross-target compilation and Linux execution select the rebound
-  instance rather than a same-type decoy. The direct rebound continuation
-  likewise carries its exact three-block equality/exit diamond while retaining
-  Terminal operation and edge ordinals. These are deliberately bounded control
-  and transparent-helper families, not a claim that arbitrary Unit CFG or
-  general descriptor-parameter ABI lowering is complete.
+  The descriptor-parameter semantic ABI is now defined and executable.
+  Checked Psi publishes the exact caller/callee coordinate, dense runtime-
+  parameter position, bare trait, source binding, and selected conformance for
+  each descriptor transfer. Terminal format 63 / vocabulary 66 can retain
+  target-neutral descriptor parameters, ordered requirement slots, call
+  arguments sourced from either a rebound local descriptor or an inbound
+  descriptor parameter, and parameter-slot dispatches. Canonical validation
+  rejoins every interface, source, argument, slot, and scalar result and
+  rejects missing, substituted, orphaned, or mismatched custody. Terminal call
+  semantics import only the declared interface at that point, never a concrete
+  realization's private facts. The canonical interpreter executes a
+  hand-constructed but fully encoded, verified, and decoded cross-machine
+  descriptor transfer and table dispatch, including suspension-frame custody;
+  its canary selects the transferred realization rather than a same-shape
+  decoy. The ordinary checked-to-Terminal producer does not yet project these
+  rows from a nontransparent Omega source machine, so this is a completed
+  semantic/portable execution foundation rather than a completed source lane.
+
+  The earlier transparent scalar-helper composition remains a separately live
+  native baseline: it consumes the same retained checked transfer instead of
+  rediscovering source syntax, composes the unobservable helper before Terminal
+  publication, and crosses target lowering, assignment, object replay, and
+  x86-64/AArch64 execution. General `CallDynamicParameterScalar` currently
+  fails closed at native abstract-operation lowering; no target pretends to
+  implement the new physical descriptor-parameter ABI yet.
 
   Remaining work:
 
-  - generalize transparent helper composition into explicit descriptor
-    parameters/arguments when nontransparent cross-machine dynamic values earn
-    a stable semantic and physical ABI;
+  - project the retained checked transfer into Terminal for a nontransparent
+    source machine and add one ordinary Omega-source encode/verify/interpret
+    canary;
+  - lower the portable descriptor parameter/argument/slot model through
+    abstract operations, target calling plans, assignment, relocation, object
+    replay, and x86-64/AArch64 execution, with one physical ABI selected by each
+    receiving lowerer rather than embedded in Terminal;
+  - extend the v1 shared-borrow/scalar-call surface when Unit results, mutable
+    custody, or additional call forms have exact semantic and physical rules;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

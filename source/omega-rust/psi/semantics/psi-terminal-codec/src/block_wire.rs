@@ -160,6 +160,18 @@ pub(super) fn encode_block_for_result_paths(
                 encode_obligation_ids(writer, &requirement_obligations)?;
                 encode_crash_routes(writer, &crash_continuations)?;
             }
+            OperationKind::CallDynamicParameterScalar {
+                parameter_ordinal,
+                requirement_slot,
+                requirement_obligations,
+                crash_continuations,
+            } => {
+                writer.u8(49);
+                writer.u32(parameter_ordinal);
+                writer.u32(requirement_slot);
+                encode_obligation_ids(writer, &requirement_obligations)?;
+                encode_crash_routes(writer, &crash_continuations)?;
+            }
             OperationKind::CallStructural {
                 callee,
                 structural_arguments,
@@ -908,6 +920,12 @@ pub(super) fn decode_block_for_result_paths(
             },
             48 => OperationKind::CallDynamicScalar {
                 descriptor_ordinal: reader.u32()?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+                crash_continuations: decode_crash_routes(reader)?,
+            },
+            49 => OperationKind::CallDynamicParameterScalar {
+                parameter_ordinal: reader.u32()?,
+                requirement_slot: reader.u32()?,
                 requirement_obligations: decode_ids(reader, "ObligationId")?,
                 crash_continuations: decode_crash_routes(reader)?,
             },

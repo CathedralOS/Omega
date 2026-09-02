@@ -10,8 +10,10 @@ use psi_terminal::{
     StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalDirectDynamicDispatch,
-    TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog,
-    TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
+    TerminalDynamicDispatchCatalog, TerminalDynamicRequirement, TerminalIndirectDynamicDispatch,
+    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
     TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
@@ -153,6 +155,8 @@ fn dynamic_dispatch_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: vec![application.clone()],
         dynamic_dispatch: TerminalDynamicDispatchCatalog {
+            parameters: Vec::new(),
+            arguments: Vec::new(),
             selections: vec![TerminalDynamicConformanceSelection {
                 owner: caller,
                 ordinal: 0,
@@ -173,6 +177,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 realization,
             }],
             indirect_dispatches: Vec::new(),
+            parameter_dispatches: Vec::new(),
         },
         quotient_correspondences: Vec::new(),
         machines: vec![
@@ -295,6 +300,89 @@ fn rebound_dynamic_dispatch_module() -> TerminalModule {
     module
 }
 
+fn parameter_dynamic_dispatch_module() -> TerminalModule {
+    let mut module = rebound_dynamic_dispatch_module();
+    let caller = id::<MachineId>(1);
+    let helper = id::<MachineId>(3);
+    let caller_operation = id::<OperationId>(1);
+    let helper_operation = id::<OperationId>(3);
+    module.dynamic_dispatch.indirect_dispatches.clear();
+    module.dynamic_dispatch.parameters = vec![TerminalDynamicDescriptorParameter {
+        owner: helper,
+        ordinal: 0,
+        source_position: 0,
+        trait_identity: "package::Measure".into(),
+        access: StructuralAccess::SharedBorrow,
+        requirements: vec![TerminalDynamicRequirement {
+            slot: 0,
+            declaring_trait_identity: "package::Measure".into(),
+            public_requirement_identity: "package::Measure::measure()".into(),
+            result: ClosedConformanceCallableResult::Bool,
+        }],
+    }];
+    module.dynamic_dispatch.arguments = vec![TerminalDynamicDescriptorArgument {
+        owner: caller,
+        operation: caller_operation,
+        parameter_ordinal: 0,
+        source: TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal: 0 },
+    }];
+    module.dynamic_dispatch.parameter_dispatches = vec![TerminalParameterDynamicDispatch {
+        owner: helper,
+        operation: helper_operation,
+        parameter_ordinal: 0,
+        requirement_slot: 0,
+    }];
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
+        callee: helper,
+        structural_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    module.machines.push(TerminalMachine {
+        id: helper,
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
+            id: id::<ValueId>(4),
+            scalar_type: ScalarType::Boolean,
+        }),
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: id::<BlockId>(3),
+        blocks: vec![Block {
+            id: id::<BlockId>(3),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: helper_operation,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: id::<ValueId>(5),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::CallDynamicParameterScalar {
+                    parameter_ordinal: 0,
+                    requirement_slot: 0,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::Return {
+                cleanup_actions: Vec::new(),
+                edge: id::<EdgeId>(3),
+                value: id::<ValueId>(5),
+            },
+        }],
+        contract: empty_contract(3),
+    });
+    module
+}
+
 fn direct_call_mut(module: &mut TerminalModule) -> &mut OperationKind {
     &mut module.machines[0].blocks[0].operations[0].kind
 }
@@ -312,6 +400,52 @@ fn admits_exact_source_free_direct_dynamic_dispatch() {
 fn admits_exact_rebound_descriptor_and_indirect_dispatch() {
     validate_module(&rebound_dynamic_dispatch_module())
         .expect("exact rebound descriptor and indirect call are valid");
+}
+
+#[test]
+fn admits_exact_dynamic_descriptor_parameter_argument_and_dispatch() {
+    validate_module(&parameter_dynamic_dispatch_module())
+        .expect("exact dynamic descriptor parameter flow is valid");
+}
+
+#[test]
+fn rejects_missing_or_substituted_dynamic_descriptor_parameter_custody() {
+    let mut missing_argument = parameter_dynamic_dispatch_module();
+    missing_argument.dynamic_dispatch.arguments.clear();
+    assert_eq!(
+        validation_error(&missing_argument),
+        ModuleError::InvalidClosedConformanceApplication {
+            owner: id::<MachineId>(1),
+            declaration: "package::CarrierImplementsMeasure".into(),
+        }
+    );
+
+    let mut substituted_interface = parameter_dynamic_dispatch_module();
+    substituted_interface.dynamic_dispatch.parameters[0].trait_identity = "package::Other".into();
+    assert_eq!(
+        validation_error(&substituted_interface),
+        ModuleError::InvalidDynamicDescriptorArgument {
+            owner: id::<MachineId>(1),
+            operation: id::<OperationId>(1),
+            parameter_ordinal: 0,
+        }
+    );
+
+    let mut substituted_slot = parameter_dynamic_dispatch_module();
+    let OperationKind::CallDynamicParameterScalar {
+        requirement_slot, ..
+    } = &mut substituted_slot.machines[2].blocks[0].operations[0].kind
+    else {
+        panic!("parameter dispatch operation expected")
+    };
+    *requirement_slot = 1;
+    assert_eq!(
+        validation_error(&substituted_slot),
+        ModuleError::InvalidParameterDynamicDispatch {
+            owner: id::<MachineId>(3),
+            operation: id::<OperationId>(3),
+        }
+    );
 }
 
 #[test]

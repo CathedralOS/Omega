@@ -29,7 +29,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        65
+        66
     }
 }
 
@@ -1824,6 +1824,16 @@ pub enum OperationKind {
     /// source argument.
     CallDynamicScalar {
         descriptor_ordinal: u32,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one scalar-result requirement through an existential descriptor
+    /// received as a machine parameter. The dynamic catalog owns the exact
+    /// parameter interface and operation-to-slot join; this operation retains
+    /// only the executable coordinates.
+    CallDynamicParameterScalar {
+        parameter_ordinal: u32,
+        requirement_slot: u32,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

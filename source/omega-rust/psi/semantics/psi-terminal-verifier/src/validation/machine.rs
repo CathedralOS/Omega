@@ -94,6 +94,10 @@ pub(super) fn validate_machine(
             if let OperationKind::CallDynamicScalar {
                 requirement_obligations,
                 ..
+            }
+            | OperationKind::CallDynamicParameterScalar {
+                requirement_obligations,
+                ..
             } = &operation.kind
             {
                 let Some(result) = operation.result.scalar() else {
@@ -231,6 +235,7 @@ pub(super) fn validate_machine(
                 | OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::CallDynamicScalar { .. }
+                | OperationKind::CallDynamicParameterScalar { .. }
                 | OperationKind::CallStructural { .. }
                 | OperationKind::EstablishPayloadlessCase { .. }
                 | OperationKind::PortWrite { .. }

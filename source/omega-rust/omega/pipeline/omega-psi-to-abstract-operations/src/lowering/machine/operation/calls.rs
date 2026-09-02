@@ -148,6 +148,9 @@ pub(super) fn lower(
                 crash_continuations,
             }
         }
+        OperationKind::CallDynamicParameterScalar { .. } => {
+            return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+        }
         OperationKind::CallStructural {
             callee,
             structural_arguments,

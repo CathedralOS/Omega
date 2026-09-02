@@ -1,12 +1,141 @@
 //! Canonical wire rows for direct local dynamic dispatch custody.
 
 use psi_terminal::{
-    TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
-    TerminalIndirectDynamicDispatch, TerminalReboundDynamicDescriptor,
+    ClosedConformanceCallableResult, TerminalDirectDynamicDispatch,
+    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
+    TerminalDynamicRequirement, TerminalIndirectDynamicDispatch, TerminalParameterDynamicDispatch,
+    TerminalReboundDynamicDescriptor,
 };
 
 use super::wire::{Reader, Writer};
 use super::{CodecError, decode_counted, decode_structural_arguments, encode_structural_arguments};
+use crate::structural_signature_wire::{decode_structural_access, encode_structural_access};
+
+pub(super) fn encode_dynamic_descriptor_parameters(
+    writer: &mut Writer,
+    parameters: &[TerminalDynamicDescriptorParameter],
+) -> Result<(), CodecError> {
+    writer.len("dynamic descriptor parameters", parameters.len())?;
+    for parameter in parameters {
+        writer.id(parameter.owner);
+        writer.u32(parameter.ordinal);
+        writer.u32(parameter.source_position);
+        writer.string(
+            "dynamic descriptor parameter trait identity",
+            &parameter.trait_identity,
+        )?;
+        encode_structural_access(writer, parameter.access);
+        writer.len(
+            "dynamic descriptor requirements",
+            parameter.requirements.len(),
+        )?;
+        for requirement in &parameter.requirements {
+            writer.u32(requirement.slot);
+            writer.string(
+                "dynamic descriptor requirement declaring trait identity",
+                &requirement.declaring_trait_identity,
+            )?;
+            writer.string(
+                "dynamic descriptor public requirement identity",
+                &requirement.public_requirement_identity,
+            )?;
+            writer.u8(match requirement.result {
+                ClosedConformanceCallableResult::Unit => 1,
+                ClosedConformanceCallableResult::I32 => 2,
+                ClosedConformanceCallableResult::Bool => 3,
+            });
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn decode_dynamic_descriptor_parameters(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalDynamicDescriptorParameter>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(TerminalDynamicDescriptorParameter {
+            owner: reader.id("MachineId")?,
+            ordinal: reader.u32()?,
+            source_position: reader.u32()?,
+            trait_identity: reader.string("dynamic descriptor parameter trait identity")?,
+            access: decode_structural_access(reader)?,
+            requirements: decode_counted(reader, |reader| {
+                Ok(TerminalDynamicRequirement {
+                    slot: reader.u32()?,
+                    declaring_trait_identity: reader
+                        .string("dynamic descriptor requirement declaring trait identity")?,
+                    public_requirement_identity: reader
+                        .string("dynamic descriptor public requirement identity")?,
+                    result: match reader.u8()? {
+                        1 => ClosedConformanceCallableResult::Unit,
+                        2 => ClosedConformanceCallableResult::I32,
+                        3 => ClosedConformanceCallableResult::Bool,
+                        tag => {
+                            return Err(CodecError::InvalidTag(
+                                "ClosedConformanceCallableResult",
+                                tag,
+                            ));
+                        }
+                    },
+                })
+            })?,
+        })
+    })
+}
+
+pub(super) fn encode_dynamic_descriptor_arguments(
+    writer: &mut Writer,
+    arguments: &[TerminalDynamicDescriptorArgument],
+) -> Result<(), CodecError> {
+    writer.len("dynamic descriptor arguments", arguments.len())?;
+    for argument in arguments {
+        writer.id(argument.owner);
+        writer.id(argument.operation);
+        writer.u32(argument.parameter_ordinal);
+        match argument.source {
+            TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
+                writer.u8(1);
+                writer.u32(ordinal);
+            }
+            TerminalDynamicDescriptorSource::Parameter { ordinal } => {
+                writer.u8(2);
+                writer.u32(ordinal);
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn decode_dynamic_descriptor_arguments(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalDynamicDescriptorArgument>, CodecError> {
+    decode_counted(reader, |reader| {
+        let owner = reader.id("MachineId")?;
+        let operation = reader.id("OperationId")?;
+        let parameter_ordinal = reader.u32()?;
+        let source = match reader.u8()? {
+            1 => TerminalDynamicDescriptorSource::ReboundDescriptor {
+                ordinal: reader.u32()?,
+            },
+            2 => TerminalDynamicDescriptorSource::Parameter {
+                ordinal: reader.u32()?,
+            },
+            tag => {
+                return Err(CodecError::InvalidTag(
+                    "TerminalDynamicDescriptorSource",
+                    tag,
+                ));
+            }
+        };
+        Ok(TerminalDynamicDescriptorArgument {
+            owner,
+            operation,
+            parameter_ordinal,
+            source,
+        })
+    })
+}
 
 pub(super) fn encode_dynamic_conformance_selections(
     writer: &mut Writer,
@@ -181,6 +310,33 @@ pub(super) fn decode_indirect_dynamic_dispatches(
             realization_callable_identity: reader
                 .string("indirect dynamic dispatch realization callable identity")?,
             realization: reader.id("MachineId")?,
+        })
+    })
+}
+
+pub(super) fn encode_parameter_dynamic_dispatches(
+    writer: &mut Writer,
+    dispatches: &[TerminalParameterDynamicDispatch],
+) -> Result<(), CodecError> {
+    writer.len("parameter dynamic dispatches", dispatches.len())?;
+    for dispatch in dispatches {
+        writer.id(dispatch.owner);
+        writer.id(dispatch.operation);
+        writer.u32(dispatch.parameter_ordinal);
+        writer.u32(dispatch.requirement_slot);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_parameter_dynamic_dispatches(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalParameterDynamicDispatch>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(TerminalParameterDynamicDispatch {
+            owner: reader.id("MachineId")?,
+            operation: reader.id("OperationId")?,
+            parameter_ordinal: reader.u32()?,
+            requirement_slot: reader.u32()?,
         })
     })
 }
