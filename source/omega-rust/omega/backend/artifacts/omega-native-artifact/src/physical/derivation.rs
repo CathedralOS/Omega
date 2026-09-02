@@ -38,6 +38,14 @@ pub(crate) fn derive_physical_evidence(
     if matches!(scope, NativePhysicalEvidenceScope::Unavailable) {
         return Ok(None);
     }
+    if let NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) = scope
+        && let Some(publication) = optimized.selected_lowering_publication()
+    {
+        super::selected_lowering::validate_selected_lowering_publication_object(
+            publication,
+            object,
+        )?;
+    }
     let module = psi_terminal_codec::decode_module(terminal_artifact.semantic_bytes())
         .map_err(|_| "native physical evidence cannot decode Terminal semantics")?;
     if module
