@@ -2331,14 +2331,14 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     assert!(record.selected_provider_plans().is_empty());
     let bytes = encode_installation_record(&record).expect("canonical bytes");
     assert_eq!(&bytes[..8], b"PSIINST\0");
-    assert_eq!(u16::from_le_bytes(bytes[8..10].try_into().unwrap()), 55);
+    assert_eq!(u16::from_le_bytes(bytes[8..10].try_into().unwrap()), 56);
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "1ef0d00d01a6b6461c640b11d2897d2410351d3578c172884770f8eca3cbe108"
+        "cb7c1941fe067c5924b0602eb8d22f072e99c484bc09d72b2a0061f54921e650"
     );
 
     let mut changed_plan = plan;

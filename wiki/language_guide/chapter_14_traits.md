@@ -794,7 +794,10 @@ durable attached-Unit frame home, so later bounded control flow reads the exact
 normalized result rather than relying on a transient ABI register. Target
 assignment and object/image replay independently rejoin that home to the
 operation, value, integer type, shape, result placement, and emitted store
-bytes on x86-64 and AArch64. Mutation-bearing realization bodies and
+bytes on x86-64 and AArch64. Installation format 56 retains the same semantic
+result and physical result/home carrier, and independently rejoins the
+producer to the generic Unit-home roster, ABI result placement, and exact
+local result interval. Mutation-bearing realization bodies and
 Unit-returning dynamic requirements remain outside this bounded rung.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,

@@ -11799,12 +11799,15 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 55 retains compact strong-identity
+  relocation. Canonical installation format 56 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
-  evidence. Cross-architecture canaries cover two-row tables and reject
-  adapter-byte drift. Forwarded fixed-integer scalar results now receive the
-  same durable attached-Unit home as other scalar calls. Target lowering,
+  evidence. Each installed forwarding row also retains the semantic scalar
+  result and its physical result/home carrier, independently rejoining the
+  producer to the caller's generic Unit-home roster, ABI placement, and exact
+  local result interval. Cross-architecture canaries cover two-row tables and
+  reject adapter-byte drift. Forwarded fixed-integer scalar results now receive
+  the same durable attached-Unit home as other scalar calls. Target lowering,
   assignment, machine emission, object replay, and final-image replay retain
   and rejoin the defining operation, value, integer type, shape, ABI result
   placement, frame home, and exact normalization/store byte interval. A later
@@ -11829,9 +11832,6 @@ checked-result arithmetic decision listed below.
     custody are complete on both architectures, and the existing Linux x86-64
     full-pipeline canary executes the forwarded adapter and checks the selected
     instance through exit status;
-  - extend the installed forwarded-call projection beyond its current
-    call/application span so it independently binds the forwarded scalar
-    producer to the already transported generic Unit-home row;
   - extend the v1 borrowed surface to Unit-returning requirements, mutation-
     bearing `&mut self` realization bodies, and additional call forms when
     their exact semantic and physical rules are settled;

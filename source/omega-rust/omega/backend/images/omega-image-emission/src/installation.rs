@@ -66,6 +66,7 @@ use installation_header_codec::{
     DecodedInstallationHeader, decode_installation_header, encode_installation_header,
 };
 use installed_unit_scalar_transport::{
+    installed_forwarded_dynamic_scalar_result_is_canonical,
     installed_function_scalar_transport_is_canonical, validate_installed_unit_scalar_calls,
     validate_installed_unit_structural_scalar_field_stores,
 };
@@ -87,7 +88,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 55;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 56;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -412,13 +413,15 @@ pub struct InstalledForwardedDynamicDescriptorSlot {
     pub data_offset: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledForwardedDynamicDescriptorCall {
     pub machine: MachineId,
     pub operation: OperationId,
     pub callee: MachineId,
     pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
     pub source: PlaceId,
+    pub semantic_result: omega_abstract_operations::AbstractResult,
+    pub result: omega_machine_code::InternalUnitScalarCallResultRecord,
     pub text_offset: usize,
     pub byte_count: usize,
 }
@@ -1405,6 +1408,8 @@ fn installed_forwarded_dynamic_descriptor_calls(
                 callee: call.callee,
                 application_commitment: application.commitment,
                 source: rebound.source.place,
+                semantic_result: call.semantic_result,
+                result: call.result.clone(),
                 text_offset: function
                     .text_offset
                     .checked_add(call.code_offset)
@@ -3511,6 +3516,11 @@ fn validate_installed_dynamic_conformance(
             || end > function_end
             || !functions.contains_key(&call.callee)
             || !forwarded_commitments.contains(&call.application_commitment)
+            || !installed_forwarded_dynamic_scalar_result_is_canonical(
+                call,
+                function,
+                record.target,
+            )
             || !forwarded_call_sites.insert((call.machine, call.operation))
         {
             return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
