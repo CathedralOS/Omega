@@ -1324,6 +1324,15 @@ and changed-byte interval. A one-block checked call followed by an independent
 immediate Linux exit now exercises that path end to end without widening the
 exit settlement to dynamic or multi-block arguments.
 
+Unoptimized zero-argument Unit normalized imports now exercise the admitted-
+provider D41 role end to end. Their parent retains the exact provider execution,
+selected-plan digest, normalized locator, complete boundary-entry plan, and
+opaque same-stack admission. Their child rejoins the machine call, normalized
+object import, sole semantic relocation, image call, all three spans, and final
+image-symbol identity. Mach-O replay reconstructs the exact image-owned lazy-
+binding pointer slot instead of pretending it was object data; installation
+projection remains bounded to compiler-authored text/data prefixes.
+
 Verified Psi-phase optimization also has a bounded non-identity lane. The
 optimizer's validated final abstract plan determines the exact surviving D29
 and D41 occurrences; their identities additionally bind the validation, final
@@ -1333,10 +1342,9 @@ assignment, machine, object, and image pipeline. The unrelated selected-
 instruction pipeline is not treated as authority for bytes it did not emit.
 Native replay requires one child per survivor and none for eliminated
 occurrences. Selected-lowering, allocation, post-allocation, and layout
-optimization remain fenced before native publication. Port effects,
-normalized foreign calls, admitted native providers, and other unsupported
-executable roles produce no partial D32 evidence; admitted-provider parents
-remain open.
+optimization remain fenced before native publication. Optimized normalized
+foreign calls and admitted-provider calls with arguments, results, callbacks,
+ranked control, or port effects still produce no partial D32 evidence.
 
 The separate service-free, straight-line rebound-dynamic lane now reaches
 machine code, object construction, and direct executable-image emission with

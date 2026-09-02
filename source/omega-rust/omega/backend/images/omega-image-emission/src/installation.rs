@@ -323,7 +323,11 @@ impl InitializedDataFingerprint {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InstalledImageSections {
     pub layout: FinalImageLayout,
+    /// Compiler-authored text prefix. Image-writer thunks remain in the bound
+    /// image but outside this bounded installation projection.
     pub text_byte_count: usize,
+    /// Compiler-authored initialized-data prefix. Image-writer binding slots
+    /// remain in the bound image but outside this immutable-table projection.
     pub data_byte_count: usize,
     pub final_data_fingerprint: InitializedDataFingerprint,
 }
@@ -1096,11 +1100,45 @@ pub fn validate_installation_record(
 }
 
 fn installed_image_sections(image: &ExecutableImage) -> InstalledImageSections {
+    let text_byte_count = image
+        .functions()
+        .iter()
+        .map(|function| {
+            function
+                .text_offset
+                .checked_add(function.byte_count)
+                .expect("validated compiler function text extent")
+        })
+        .chain(image.private_functions().iter().map(|private| {
+            private
+                .function
+                .text_offset
+                .checked_add(private.function.byte_count)
+                .expect("validated compiler-private function text extent")
+        }))
+        .max()
+        .unwrap_or(0);
+    let data_byte_count = image
+        .dynamic_conformance_tables()
+        .iter()
+        .map(|table| {
+            table
+                .data_offset
+                .checked_add(table.byte_count)
+                .expect("validated dynamic-conformance table extent")
+        })
+        .max()
+        .unwrap_or(0);
+    let final_compiler_data = image
+        .output()
+        .final_data_bytes
+        .get(..data_byte_count)
+        .expect("validated image retains its compiler-authored initialized-data prefix");
     InstalledImageSections {
         layout: image.output().final_image_layout,
-        text_byte_count: image.output().final_text_bytes.len(),
-        data_byte_count: image.output().final_data_bytes.len(),
-        final_data_fingerprint: fingerprint_initialized_data(&image.output().final_data_bytes),
+        text_byte_count,
+        data_byte_count,
+        final_data_fingerprint: fingerprint_initialized_data(final_compiler_data),
     }
 }
 

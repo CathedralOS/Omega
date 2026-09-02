@@ -272,6 +272,22 @@ here would add no authority because its bytes are not published. Optimization
 phases that actually select, allocate, rewrite, or lay out physical code remain
 fenced until their own complete custody reaches the native artifact.
 
+The unoptimized admitted-provider continuation currently admits exactly a
+zero-argument Unit normalized foreign call. Its D41 parent retains the complete
+provider-execution binding, selected-plan digest, normalized locator, boundary-
+entry plan, and same-stack admission. Its physical child independently rejoins
+the semantic call owner, machine/object/image call rows, normalized import,
+exact unresolved relocation, emitted spans, and final image-symbol identity.
+Arguments, results, callbacks, ranked control, port effects, and optimized
+foreign calls remain fail-closed rather than publishing partial D32 evidence.
+
+Mach-O image replay derives one aligned eight-byte lazy-binding pointer slot for
+each referenced unresolved import from the exact object import/relocation sets.
+Those image-writer bytes are validated but are not relabeled as compiler-owned
+object data. The installation memory projection deliberately covers only the
+compiler-authored text and immutable-data prefixes; the complete image remains
+separately bound by its image identity and executable-image replay.
+
 ## The cut
 
 `psi-checked-trees-to-terminal` is the sole executable semantic handoff.

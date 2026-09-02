@@ -1038,6 +1038,13 @@ missing, duplicate, stale, substituted, padded, or role-swapped children; the
 physical pipeline may omit only an occurrence whose verified optimization
 proof establishes elimination.
 
+The first admitted-provider child lane is intentionally narrow: an unoptimized,
+zero-argument Unit normalized import. Its complete D41 parent binds exact
+provider execution, selected plan, locator, boundary-entry plan, and same-stack
+admission; its child binds the machine/object/image call, normalized import,
+unresolved semantic relocation, all emitted spans, and final image-symbol
+identity. Wider call shapes and optimized foreign calls remain fail-closed.
+
 For UEFI, the physical adapter contract is settled but not yet implemented in
 this chain. A generated ABI shell invokes one checked bootstrap adapter;
 physical-arrival and firmware-service postconditions supply its opaque
