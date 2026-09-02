@@ -3119,3 +3119,31 @@ runtime prefix, and does not yet claim every profile-v2 malformed-source or
 resource observation. It remains a diagnostic side artifact until complete
 compiler conformance and whole-chain trust cost favor a compiler edge over the
 smaller evaluator edge.
+
+## D70 — Gamma's fixed-point compiler pays its visible audit cost
+
+D69's first fixed point was technically genuine but understated review cost.
+Its 372-line source emitted the 1,122-byte native runtime as roughly 140 packed
+`output-word` constants, used numeric cell identities throughout compiler logic,
+and selected `main` and builtins by 64-bit polynomial hash alone. The fixed-point
+equality checked those choices but did not make them understandable or eliminate
+possible name collisions.
+
+The cleaned compiler emits every runtime instruction through named Alpha
+mnemonic helpers. Each runtime block boundary checks its exact output position,
+and the dynamic startup call is visibly patched from `main_address`. All fixed
+compiler-state cells have named getters/setters; only the genuinely indexed
+definition-row array uses computed cells. Reserved syntax, `main`, and every
+builtin compare exact token length and all source bytes using two readable
+little-endian ASCII chunks. User-word lookup remains exact byte comparison.
+
+The honest implementation is 532 Gamma lines and 18,617 source bytes. Its native
+fixed-point tape is 19,681 bytes, versus D69's 372 lines and 13,834 bytes. Thus
+auditability costs 160 source lines and 5,847 tape bytes. The evaluator-seeded
+`T0` still equals native `T1` byte-for-byte; seeded/native compilation still
+agrees for Delta0, calls, branches, cells, input, and a 100,000-step tail loop.
+
+This remains an experimental side artifact because complete profile-v2 source
+rejection and resource equivalence are not proved. Its source-size comparison is
+now meaningful: the compiler is smaller than the 738-line Beta evaluator without
+hiding a second opaque runtime representation inside packed constants.
