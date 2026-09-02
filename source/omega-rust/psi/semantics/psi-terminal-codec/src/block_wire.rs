@@ -91,7 +91,7 @@ pub(super) fn encode_block_for_result_paths(
                 writer.id(destination);
             }
             OperationKind::EstablishAffineScalarRecord { field, value } => {
-                writer.u8(52);
+                writer.u8(51);
                 writer.id(field);
                 encode_integer_value(writer, value);
             }
@@ -187,7 +187,7 @@ pub(super) fn encode_block_for_result_paths(
                 requirement_obligations,
                 crash_continuations,
             } => {
-                writer.u8(51);
+                writer.u8(52);
                 writer.u32(descriptor_ordinal);
                 encode_obligation_ids(writer, &requirement_obligations)?;
                 encode_crash_routes(writer, &crash_continuations)?;
