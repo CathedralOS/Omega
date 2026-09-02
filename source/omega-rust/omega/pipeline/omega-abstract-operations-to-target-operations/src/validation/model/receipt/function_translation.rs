@@ -23,6 +23,7 @@ use super::immediate::{
     StraightLineWrappingIntegerAddImmediateTranslationReceipt,
     StraightLineWrappingIntegerMultiplyImmediateTranslationReceipt,
     StraightLineWrappingIntegerShiftLeftImmediateTranslationReceipt,
+    StraightLineWrappingIntegerShiftRightImmediateTranslationReceipt,
     StraightLineWrappingIntegerSubtractImmediateTranslationReceipt,
 };
 use super::parameter::{
@@ -98,6 +99,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineWrappingIntegerShiftLeftImmediate(
         StraightLineWrappingIntegerShiftLeftImmediateTranslationReceipt,
+    ),
+    StraightLineWrappingIntegerShiftRightImmediate(
+        StraightLineWrappingIntegerShiftRightImmediateTranslationReceipt,
     ),
     StraightLineIntegerBitwiseNotImmediate(
         StraightLineIntegerBitwiseNotImmediateTranslationReceipt,

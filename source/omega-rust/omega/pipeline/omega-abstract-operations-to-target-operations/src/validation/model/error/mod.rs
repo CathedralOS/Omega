@@ -26,6 +26,7 @@ pub use immediate::{
     StraightLineWrappingIntegerAddImmediateTranslationError,
     StraightLineWrappingIntegerMultiplyImmediateTranslationError,
     StraightLineWrappingIntegerShiftLeftImmediateTranslationError,
+    StraightLineWrappingIntegerShiftRightImmediateTranslationError,
     StraightLineWrappingIntegerSubtractImmediateTranslationError,
 };
 pub(in crate::validation) use parameter::StraightLineParameterReconstructionError;

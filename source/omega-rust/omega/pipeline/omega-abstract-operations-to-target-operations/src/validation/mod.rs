@@ -38,6 +38,7 @@ pub(crate) mod straight_line_unit_return;
 pub(crate) mod straight_line_wrapping_integer_add_immediate;
 pub(crate) mod straight_line_wrapping_integer_multiply_immediate;
 pub(crate) mod straight_line_wrapping_integer_shift_left_immediate;
+pub(crate) mod straight_line_wrapping_integer_shift_right_immediate;
 pub(crate) mod straight_line_wrapping_integer_subtract_immediate;
 pub(crate) mod structural_call_return;
 mod whole_plan;

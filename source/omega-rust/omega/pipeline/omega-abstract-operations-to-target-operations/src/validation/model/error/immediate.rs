@@ -273,6 +273,29 @@ pub enum StraightLineWrappingIntegerShiftLeftImmediateTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineWrappingIntegerShiftRightImmediateTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceDefinitionRoster,
+    SourceValueConstantType,
+    SourceCountConstantType,
+    SourceValueType,
+    SourceCountType,
+    SourceValueOutsideType,
+    SourceCountOutsideType,
+    SourceWrappingShiftOperands,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineWrappingIntegerSubtractImmediateTranslationError {
     SourceParameters,
     SourceStructuralParameters,

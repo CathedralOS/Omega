@@ -7,3 +7,4 @@ mod exact_right;
 mod wrapping_left;
 mod wrapping_left_immediate;
 mod wrapping_right;
+mod wrapping_right_immediate;

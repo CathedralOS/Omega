@@ -45,6 +45,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineWrappingIntegerShiftLeftImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftLeftImmediate
             }
+            Self::StraightLineWrappingIntegerShiftRightImmediate(_) => {
+                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftRightImmediate
+            }
             Self::StraightLineIntegerBitwiseNotImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotImmediate
             }
