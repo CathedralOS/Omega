@@ -137,6 +137,12 @@ pub enum SelectedInstructionKind {
     /// Value-less semantic return. This is deliberately distinct from
     /// `ReturnI64` even on targets where both select the same opcode.
     ReturnUnit,
+    /// Direct internal call with two fixed U64 inputs and one fixed U64
+    /// result. The target constraint row owns the exact ABI views and complete
+    /// call clobbers; `callee` retains relocation/publication custody.
+    CallI64 {
+        callee: MachineId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

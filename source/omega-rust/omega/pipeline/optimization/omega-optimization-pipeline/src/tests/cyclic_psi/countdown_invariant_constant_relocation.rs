@@ -4,9 +4,9 @@ use super::*;
 
 use omega_optimization_unit::{ProvenanceDisposition, PsiRealizationSite};
 use omega_psi_optimizer::{
-    apply_countdown_invariant_constant_relocation,
+    CountdownInvariantConstantRelocationError, apply_countdown_invariant_constant_relocation,
     propose_countdown_invariant_constant_relocations,
-    validate_countdown_invariant_constant_relocation, CountdownInvariantConstantRelocationError,
+    validate_countdown_invariant_constant_relocation,
 };
 
 #[test]
@@ -116,7 +116,7 @@ fn stale_candidate_cannot_cross_a_successful_atomic_revision() {
 
 #[test]
 fn partial_authenticated_relocations_normalize_without_duplicate_ledger_rows() {
-    use super::ranking_relocated_invariant_constants::{relocated_countdown, Relocation};
+    use super::ranking_relocated_invariant_constants::{Relocation, relocated_countdown};
 
     for shape in [Relocation::Zero, Relocation::One] {
         let moved = relocated_countdown(shape);

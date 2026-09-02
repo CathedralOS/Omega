@@ -15,7 +15,7 @@ use crate::{
     X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MATERIALIZE_I64,
     X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, X86_64_MICROSOFT_RETURN,
     X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
-    X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+    X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,6 +112,8 @@ fn selected_keys(
     Ok(SelectedConstraintKeys {
         structural_unit_call: matches!(target.object_format, ObjectFormat::Coff)
             .then_some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
+        call_i64_2_u64_to_u64: matches!(target.object_format, ObjectFormat::Elf)
+            .then_some(X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64),
         materialize_i64: X86_64_MATERIALIZE_I64,
         copy_i64: X86_64_COPY_I64,
         add_i64: X86_64_ADD_I64,

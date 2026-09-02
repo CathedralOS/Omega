@@ -46,11 +46,31 @@ pub(super) fn replay_remaining(
                 .iter()
                 .filter(|candidate| candidate.machine == target_function.machine)
                 .collect::<Vec<_>>();
-            match (plain.as_slice(), structural.as_slice()) {
-                ([legalized], []) => {
+            let scalar_call = proposed
+                .scalar_call_unit_functions
+                .iter()
+                .filter(|candidate| candidate.machine == target_function.machine)
+                .collect::<Vec<_>>();
+            match (
+                plain.as_slice(),
+                scalar_call.as_slice(),
+                structural.as_slice(),
+            ) {
+                ([legalized], [], []) => {
                     replay_unit_function(index, target_function, abstracted, optimized, legalized)?
                 }
-                ([], [legalized]) => replay_structural_unit_function(
+                ([], [legalized], []) => replay_scalar_call_unit_function(
+                    index,
+                    target_function,
+                    abstracted,
+                    optimized,
+                    target,
+                    abstract_plan,
+                    unit,
+                    proposed,
+                    legalized,
+                )?,
+                ([], [], [legalized]) => replay_structural_unit_function(
                     index,
                     target_function,
                     abstracted,

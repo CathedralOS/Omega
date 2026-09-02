@@ -242,10 +242,8 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
         .find(|row| row.instruction == action.branch)
         .unwrap()
         .machine_disposition;
-    let SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
-        source_read,
-        ..
-    } = branch_disposition
+    let SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 { source_read, .. } =
+        branch_disposition
     else {
         panic!("expected fused branch disposition")
     };

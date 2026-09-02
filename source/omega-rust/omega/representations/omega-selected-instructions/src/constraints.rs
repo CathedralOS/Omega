@@ -9,6 +9,9 @@ pub struct SelectedConstraintKeys {
     /// Target-applicable structural Unit call. Absence is an explicit refusal
     /// to select the bounded structural-call roster on this target.
     pub structural_unit_call: Option<RegisterConstraintKey>,
+    /// Exact Linux-hosted `U64, U64 -> U64` direct-call row. Absence is an
+    /// explicit target refusal, not permission to project a wider ABI row.
+    pub call_i64_2_u64_to_u64: Option<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub add_i64: RegisterConstraintKey,

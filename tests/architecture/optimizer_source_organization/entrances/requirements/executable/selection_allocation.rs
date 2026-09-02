@@ -78,8 +78,16 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn derive",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/scalar_call_unit/mod.rs",
+        coordination_marker: "pub(super) fn derive_source_scalar_call_unit_function",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/mod.rs",
         coordination_marker: "pub(super) fn replay",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/scalar_call_unit/mod.rs",
+        coordination_marker: "pub(super) fn replay_scalar_call_unit_function",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/mod.rs",

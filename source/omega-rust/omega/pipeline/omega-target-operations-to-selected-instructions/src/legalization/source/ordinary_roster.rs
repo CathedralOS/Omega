@@ -32,7 +32,19 @@ pub(super) fn derive_remaining(
             return Err(Error::SourceCustodyMismatch);
         };
         if matches!(target_function.operation, TargetOperation::UnitBody(_)) {
-            if let Some(form) = match_unit_form(target_function, abstracted, optimized) {
+            if match_scalar_call_unit_form(target_function).is_some() {
+                rosters
+                    .scalar_call_unit_functions
+                    .push(derive_source_scalar_call_unit_function(
+                        index,
+                        target_function,
+                        abstracted,
+                        optimized,
+                        target,
+                        abstract_plan,
+                        unit,
+                    )?);
+            } else if let Some(form) = match_unit_form(target_function, abstracted, optimized) {
                 rosters.unit_functions.push(derive_source_unit_function(
                     index,
                     target_function,

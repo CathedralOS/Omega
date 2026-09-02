@@ -13,7 +13,7 @@ pub(super) use exact_arithmetic::{
 };
 use exact_arithmetic::{replay_exact_add_node, replay_exact_binary, replay_widened_exact_binary};
 pub(super) use fuel::replay_edge_fuel;
-use fuel::replay_operation_fuel;
+pub(in crate::legalization::replay) use fuel::replay_operation_fuel;
 use immediate::{replay_constant, replay_immediate};
 pub(super) use original_victim_chain::is_shape as replay_active_resident_original_victim_chain_shape;
 use original_victim_chain::replay as replay_active_resident_original_victim_chain;

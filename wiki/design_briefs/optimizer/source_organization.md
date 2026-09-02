@@ -762,6 +762,18 @@ selection boundary visible. Layering guards forbid replay from importing the
 producer or target lowering, and the source-organization registry names both
 semantic ladders.
 
+The bounded scalar-call allocation vertical does not widen the value-less Unit
+roster. `LegalizedOperationPlan::scalar_call_unit_functions` owns its separate
+closed recipe. Source admission descends through the small
+`legalization/source/scalar_call_unit/mod.rs` coordination entrance into named
+grammar, operation, node, callee, and projection leaves; independent replay
+descends through the sibling
+`legalization/replay/scalar_call_unit/` entrance and its own contract, grammar,
+operation, and callee leaves. The catalog row is the sole enablement point.
+This keeps the exact
+two-constant, three-call fork/join form visible without adding call policy to
+the ordinary-roster coordinator.
+
 Selection continues through
 `selection/construction/projected_structural_call_return/`. Its 70-line
 executable entrance coordinates only named `projection`, `constraints`, and
@@ -774,6 +786,17 @@ extracted from the main identity file. The registered ladder terminates at
 public all-five custody and explicit liveness/pre-allocation refusal tests:
 allocation and later physical stages do not inherit authority merely because
 the atomic selected carrier exists.
+
+Ordinary scalar-call selection is likewise an exact mandatory-lowering leaf,
+not a selectable optimization profile. The construction coordinator points to
+`selection/construction/scalar_call_unit.rs`; independent validation uses the
+parallel `selection/validation/scalar_call_unit.rs`. The leaf makes every ABI
+bridge visible as `CopyI64 -> CallI64 -> CopyI64`, while the target-owned
+register catalogs alone name fixed argument/result views and call clobbers.
+Mirrored pipeline tests descend through fixture, custody, allocation, and
+corruption leaves. Machine-effect analysis rejects this selected family until
+call stack, memory, trap, callee-preservation, and relocation custody have an
+honest lower taxonomy.
 
 The checked-Psi exact-add proof producer uses the same navigability rule
 without pretending to be an optimizer catalog. Its 94-line `direct_add/mod.rs`

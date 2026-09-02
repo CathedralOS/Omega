@@ -5,12 +5,14 @@ mod custody;
 mod functions;
 mod leaf;
 mod ordinary_roster;
+mod scalar_call_unit;
 mod shared;
 mod structural;
 mod validators;
 
 use crate::legalization::projected_structural_call_return;
 use functions::{replay_function, replay_unit_function};
+use scalar_call_unit::replay_scalar_call_unit_function;
 use shared::*;
 use structural::replay_structural_unit_function;
 

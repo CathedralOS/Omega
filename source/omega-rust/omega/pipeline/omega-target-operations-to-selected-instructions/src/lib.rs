@@ -18,7 +18,8 @@ pub use selection::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
     select_instructions, selected_instruction_plan_identity,
     selected_instruction_plan_identity_v11_legacy, selected_instruction_plan_identity_v13_legacy,
-    selected_instruction_plan_identity_v14_legacy, validate_selected_instructions,
+    selected_instruction_plan_identity_v14_legacy, selected_instruction_plan_identity_v15_legacy,
+    validate_selected_instructions,
 };
 
 #[cfg(test)]

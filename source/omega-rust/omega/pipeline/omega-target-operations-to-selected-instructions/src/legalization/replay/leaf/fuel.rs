@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(super) fn replay_operation_fuel(
+pub(in crate::legalization::replay) fn replay_operation_fuel(
     function: usize,
     operation: OperationId,
     source: &[omega_optimization_unit::FuelSettlement],

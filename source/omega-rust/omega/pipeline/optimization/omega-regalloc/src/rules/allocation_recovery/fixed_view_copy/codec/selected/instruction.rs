@@ -3,7 +3,7 @@ use omega_selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,
     VirtualRegisterId,
 };
-use psi_core::ObligationId;
+use psi_core::{MachineId, ObligationId};
 
 use crate::FixedViewCopyDecodeError;
 
@@ -92,6 +92,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
+        SelectedInstructionKind::CallI64 { .. } => 12,
     };
     bytes.push(tag);
     match kind {
@@ -120,6 +121,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             encode_integer(bytes, immediate);
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedInstructionKind::CallI64 { callee } => {
+            bytes.extend_from_slice(&callee.get().to_le_bytes());
         }
         _ => {}
     }
@@ -165,6 +169,9 @@ pub(in crate::rules::allocation_recovery::fixed_view_copy::codec) fn decode_kind
         9 => SelectedInstructionKind::ReturnUnit,
         10 => SelectedInstructionKind::CompareI64,
         11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
+        12 => SelectedInstructionKind::CallI64 {
+            callee: decode_id(cursor, MachineId::new)?,
+        },
         tag => return Err(FixedViewCopyDecodeError::UnknownInstructionKind(tag)),
     })
 }
@@ -197,6 +204,19 @@ mod tests {
         assert_eq!(
             decode_kind(&mut cursor).unwrap(),
             SelectedInstructionKind::ConditionalBranchU64LessThan
+        );
+    }
+
+    #[test]
+    fn call_i64_uses_append_only_tag_twelve_and_binds_callee() {
+        let callee = MachineId::new(47).unwrap();
+        let mut bytes = Vec::new();
+        encode_kind(&mut bytes, SelectedInstructionKind::CallI64 { callee });
+        assert_eq!(bytes[0], 12);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(
+            decode_kind(&mut cursor).unwrap(),
+            SelectedInstructionKind::CallI64 { callee }
         );
     }
 }

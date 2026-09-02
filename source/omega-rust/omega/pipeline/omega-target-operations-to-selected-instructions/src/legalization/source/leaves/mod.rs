@@ -20,7 +20,7 @@ pub(super) use exact_add::{
     is_active_resident_exact_add_bridge_chain, is_active_resident_exact_add_chain,
     is_active_resident_exact_add_original_victim_chain,
 };
-pub(super) use fuel::{exact_edge_fuel, exact_operation_fuel};
+pub(in crate::legalization::source) use fuel::{exact_edge_fuel, exact_operation_fuel};
 pub(super) use operation_projection::source_operations;
 
 #[allow(clippy::too_many_arguments)]

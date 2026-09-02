@@ -54,10 +54,21 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v15\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v16\0".as_slice();
     selected_instruction_plan_identity_with_schema(
         plan,
         domain,
+        StructuralLegalizedIdentitySchema::V14,
+    )
+}
+
+#[doc(hidden)]
+pub fn selected_instruction_plan_identity_v15_legacy(
+    plan: &SelectedInstructionPlan,
+) -> SelectedInstructionPlanIdentity {
+    selected_instruction_plan_identity_with_schema(
+        plan,
+        b"omega.terminal-selected-instructions.v15\0",
         StructuralLegalizedIdentitySchema::V14,
     )
 }
@@ -295,6 +306,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
+        SelectedInstructionKind::CallI64 { .. } => 12,
     });
     match instruction.kind {
         SelectedInstructionKind::MaterializeI64 { value } => match value {
@@ -351,6 +363,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit => {}
+        SelectedInstructionKind::CallI64 { callee } => {
+            bytes.extend_from_slice(&callee.get().to_le_bytes());
+        }
     }
     encode_constraint_key(bytes, instruction.constraint);
     encode_len(bytes, instruction.operands.len());

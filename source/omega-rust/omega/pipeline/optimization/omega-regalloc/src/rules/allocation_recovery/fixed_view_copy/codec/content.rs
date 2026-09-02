@@ -83,6 +83,18 @@ pub(super) fn encode_v6(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
 }
 
 #[cfg(test)]
+pub(super) fn encode_legacy_v8(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
+    encode_prefix(
+        bytes,
+        plan,
+        omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v15_legacy(
+            &plan.transformed,
+        ),
+    );
+    encode_selected_plan_v6(bytes, &plan.transformed);
+}
+
+#[cfg(test)]
 pub(super) fn encode_legacy_v7(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
     encode_prefix(
         bytes,

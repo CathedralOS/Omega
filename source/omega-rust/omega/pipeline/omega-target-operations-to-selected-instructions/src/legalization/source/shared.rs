@@ -9,9 +9,10 @@ pub(super) use omega_legalized_operations::{
     LegalizedCallUnitParameter, LegalizedCondition, LegalizedConditionParameter,
     LegalizedExactAdd as SourceExactAdd, LegalizedFunction as SourceFunction,
     LegalizedImmediate as SourceImmediate, LegalizedLeaf as SourceLeaf,
-    LegalizedLeafValue as SourceLeafValue,
+    LegalizedLeafValue as SourceLeafValue, LegalizedScalarCallUnitArgument,
+    LegalizedScalarCallUnitCall, LegalizedScalarCallUnitConstant, LegalizedScalarCallUnitFunction,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction, LegalizedTemporaryId,
-    LegalizedUnitFunction as SourceUnitFunction,
+    LegalizedUnitFunction as SourceUnitFunction, ScalarCallUnitLegalizationRecipe,
 };
 pub(super) use omega_optimization_unit::{
     AcceptedObligationFact, FuelSettlement, OptimizationFact, OwnershipEvent, PsiOptimizationUnit,
@@ -20,7 +21,7 @@ pub(super) use omega_optimization_unit::{
 pub(super) use omega_target_operations::{
     ScalarParameterLocation, TargetBooleanExpression, TargetConditionalIntegerArm,
     TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
-    TargetUnitOperation, TerminalPsiProvenance,
+    TargetUnitOperation, TargetUnitScalarArgumentSource, TerminalPsiProvenance,
 };
 pub(super) use psi_core::{
     EdgeId, IntegerSign, IntegerType, OperationId, ScalarType, StructuralPlaceKind, ValueId,

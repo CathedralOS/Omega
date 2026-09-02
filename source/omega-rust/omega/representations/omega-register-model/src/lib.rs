@@ -193,6 +193,9 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     /// Target-applicable bounded structural Unit call. `None` means this
     /// environment does not claim that ABI/ISA form; it is not a dummy row.
     pub structural_unit_call: Option<RegisterConstraintKey>,
+    /// Exact hosted `U64, U64 -> U64` direct-call form, when this environment
+    /// has selected and validated one. Other targets must refuse the form.
+    pub call_i64_2_u64_to_u64: Option<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub add_i64: RegisterConstraintKey,
@@ -1603,6 +1606,10 @@ mod tests {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,
             }),
+            call_i64_2_u64_to_u64: Some(RegisterConstraintKey {
+                family: RegisterConstraintFamily::Call,
+                variant: 3,
+            }),
             materialize_i64: instruction_key(1),
             copy_i64: instruction_key(5),
             add_i64: instruction_key(6),
@@ -1666,6 +1673,10 @@ mod tests {
         for changed_keys in [
             TargetRegisterEnvironmentConstraintKeys {
                 structural_unit_call: None,
+                ..keys
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                call_i64_2_u64_to_u64: None,
                 ..keys
             },
             TargetRegisterEnvironmentConstraintKeys {

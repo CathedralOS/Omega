@@ -30,7 +30,9 @@ fn optimized_target_lowering_retains_constant_integer_equality_immediate_custody
                     ),
                 ) = target.translation_validation().function_roster()[0].translation()
                 else {
-                    panic!("optimized constant integer equality must retain its exact immediate family")
+                    panic!(
+                        "optimized constant integer equality must retain its exact immediate family"
+                    )
                 };
                 assert_eq!(
                     row.left_constant_operation(),

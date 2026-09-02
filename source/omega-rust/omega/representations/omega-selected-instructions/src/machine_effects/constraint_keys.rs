@@ -7,6 +7,7 @@ impl SelectedConstraintKeys {
     pub fn in_identity_order(self) -> Vec<RegisterConstraintKey> {
         self.structural_unit_call
             .into_iter()
+            .chain(self.call_i64_2_u64_to_u64)
             .chain([
                 self.materialize_i64,
                 self.copy_i64,

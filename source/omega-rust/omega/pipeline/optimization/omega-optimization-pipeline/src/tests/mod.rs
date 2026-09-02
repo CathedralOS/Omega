@@ -5,7 +5,7 @@ use omega_abstract_operations::{AbstractOperation, ValueBinding};
 use omega_calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
 use omega_legalized_operations::{
     LegalizationRecipe, LegalizationTheorem, LegalizedLeafValue, LegalizedTemporaryId,
-    legalized_operation_plan_identity,
+    ScalarCallUnitLegalizationRecipe, legalized_operation_plan_identity,
 };
 use omega_optimization_core::{
     Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
@@ -37,7 +37,10 @@ use omega_selected_instructions::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use omega_target::NativeTarget;
-use omega_target_operations::{TargetIntegerControl, TargetIntegerExpression, TargetOperation};
+use omega_target_operations::{
+    TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetUnitOperation,
+    TargetUnitScalarArgumentSource,
+};
 use omega_target_operations_to_selected_instructions::{
     LegalizationError, SelectedInstructionError, legalization_validator_identity,
     legalize_target_operations, selected_instruction_plan_identity, validate_legalized_operations,

@@ -260,6 +260,15 @@ recovery-machine pairs still reject. The join retains both phase-selection
 roots and independently replays source, machine, encoding, layout, and exit
 custody before publication.
 
+Call-aware allocation follows the same authority discipline. A closed
+attached-Unit U64 three-call form can enter mandatory legalization, selected
+CFG liveness, legality, and home assignment with exact target-owned fixed
+views and clobbers. That does not grant machine-call authority. In particular,
+a preserved allocation home is not an implemented callee-save protocol, and a
+selected call is not an encoded relocation. Machine effects reject the form
+until stack, memory, trap, preservation, and relocation semantics have their
+own validated carriers.
+
 Logical spilling and stack-slot coloring are compiler-private allocation
 decisions rather than user-selected optimization rules. The coloring entrance
 consumes the independently validated logical-spill carrier and returns a
@@ -430,12 +439,14 @@ Fixed-view-copy artifacts use one small version-admitting codec entrance.
 Legacy V4 remains decode-only and byte-stable, with no structural-function
 roster. V5 introduced the scalar selected-plan leaf and structural subtree;
 its decoder remains supported and reconstructs absent call proof/crash rows as
-empty. V6 retains those exact rows below the structural call leaf. Signature,
-ABI/calling plan, declarations, boundary settlements, call, effects,
-ownership, and return fields remain explicit, while named envelope and payload
-leaves authenticate both semantic identities and exact canonical content. This
-also closes caller/callee call-plan fields that independent validation checks
-but the selected semantic identity does not fully cover.
+empty. V6 retains those exact rows below the structural call leaf, V8 appends
+the ordered-comparison vocabulary, and V9 appends the scalar-call kind plus
+callee payload while preserving V4 through V8 decode. Signature, ABI/calling
+plan, declarations, boundary settlements, call, effects, ownership, and return
+fields remain explicit, while named envelope and payload leaves authenticate
+both semantic identities and exact canonical content. This also closes
+caller/callee call-plan fields that independent validation checks but the
+selected semantic identity does not fully cover.
 
 Function-relative realization uses the same source-navigation rule for its V9
 manifest: `codec/mod.rs` owns magic/version framing and final protocol

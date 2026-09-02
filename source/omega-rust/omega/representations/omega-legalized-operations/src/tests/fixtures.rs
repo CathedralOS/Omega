@@ -76,6 +76,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
         entry: id(1),
         functions: Vec::new(),
         unit_functions: Vec::new(),
+        scalar_call_unit_functions: Vec::new(),
         structural_unit_functions: vec![LegalizedStructuralUnitFunction {
             machine: id(1),
             attachment: None,
@@ -254,5 +255,114 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
         completion_receipts,
     };
     call.ownership = vec![OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])];
+    plan
+}
+
+pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
+    let mut plan = call_aware_plan();
+    plan.structural_unit_functions.clear();
+    plan.target = NativeTarget::linux_x64();
+    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let shape = ValueShape::integer(8, 8);
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(plan.target),
+        &CallSignature {
+            parameters: vec![shape, shape],
+            result: Some(shape),
+        },
+    )
+    .unwrap();
+    let machine = id(101);
+    let callee = id(102);
+    let attachment = id(103);
+    let block = id(104);
+    let operations = [id(105), id(106), id(107), id(108), id(109)];
+    let values = [id(110), id(111), id(112), id(113), id(114)];
+    let edge = id(115);
+    let definition = |node| omega_optimization_unit::ValueDefinitionSite::Node { block, node };
+    let fuel = |operation| {
+        vec![FuelSettlement {
+            site: PsiProvenance::Operation(operation),
+            units: 1,
+        }]
+    };
+    let effect = |index| EffectLink {
+        input: index,
+        output: index + 1,
+    };
+    let constant = |index, value| LegalizedScalarCallUnitConstant {
+        operation: operations[index],
+        result: values[index],
+        scalar_type,
+        value: IntegerValue::Unsigned(value),
+        definition_site: definition(index as u32),
+        fuel: fuel(operations[index]),
+        effect: effect(index as u64),
+        ownership: Vec::new(),
+    };
+    let immediate =
+        |index, value| omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation: operations[index],
+            source_value: values[index],
+            scalar_type,
+            value: IntegerValue::Unsigned(value),
+        };
+    let home = |index| omega_target_operations::TargetUnitScalarHomeRequirement {
+        defining_operation: operations[index],
+        source_value: values[index],
+        scalar_type,
+        shape,
+    };
+    let argument = |parameter_index, source| LegalizedScalarCallUnitArgument {
+        parameter_index,
+        source,
+        placement: call_plan.parameters[parameter_index as usize].clone(),
+    };
+    let call = |index, sources: [omega_target_operations::TargetUnitScalarArgumentSource; 2]| {
+        LegalizedScalarCallUnitCall {
+            operation: operations[index],
+            callee,
+            call_plan: call_plan.clone(),
+            result_home: home(index),
+            result_definition_site: definition(index as u32),
+            arguments: [argument(0, sources[0]), argument(1, sources[1])],
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+            fuel: fuel(operations[index]),
+            effect: effect(index as u64),
+            ownership: Vec::new(),
+        }
+    };
+    plan.scalar_call_unit_functions
+        .push(LegalizedScalarCallUnitFunction {
+        machine,
+        attachment,
+        provenance: TerminalPsiProvenance {
+            operations: operations.to_vec(),
+            edges: vec![edge],
+        },
+        recipe:
+            ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1,
+        entry_block: block,
+        constants: [constant(0, 7), constant(1, 9)],
+        calls: [
+            call(2, [immediate(0, 7), immediate(1, 9)]),
+            call(3, [immediate(0, 7), immediate(1, 9)]),
+            call(
+                4,
+                [
+                    omega_target_operations::TargetUnitScalarArgumentSource::Home(home(2)),
+                    omega_target_operations::TargetUnitScalarArgumentSource::Home(home(3)),
+                ],
+            ),
+        ],
+        return_edge: edge,
+        return_fuel: vec![FuelSettlement {
+            site: PsiProvenance::Edge(edge),
+            units: 1,
+        }],
+        return_effect: effect(5),
+        return_ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
+    });
     plan
 }

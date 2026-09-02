@@ -236,6 +236,9 @@ fn semantic(kind: &SelectedInstructionKind) -> MachineSemanticKind {
         }
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
+        SelectedInstructionKind::CallI64 { .. } => {
+            unreachable!("scalar calls are refused before machine optimization")
+        }
     }
 }
 

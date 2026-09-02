@@ -5,13 +5,15 @@
 //! become producer-derived validation evidence.
 
 use omega_legalized_operations::{
-    LegalizationRecipe, StructuralUnitLegalizationRecipe, UnitLegalizationRecipe,
+    LegalizationRecipe, ScalarCallUnitLegalizationRecipe, StructuralUnitLegalizationRecipe,
+    UnitLegalizationRecipe,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum LegalizationFormRecipe {
     Scalar(LegalizationRecipe),
     Unit(UnitLegalizationRecipe),
+    ScalarCallUnit(ScalarCallUnitLegalizationRecipe),
     StructuralUnit(StructuralUnitLegalizationRecipe),
 }
 
@@ -34,6 +36,11 @@ pub(super) enum UnitLegalizationMatcherKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ScalarCallUnitLegalizationMatcherKind {
+    U64EqualityConditionalThreeCallChain,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StructuralUnitLegalizationMatcherKind {
     ReturnUnit,
     AuthoredCallThenReturnUnit,
@@ -45,6 +52,7 @@ pub(super) enum StructuralUnitLegalizationMatcherKind {
 pub(super) enum LegalizationProducerMatcherKind {
     Scalar(ScalarLegalizationMatcherKind),
     Unit(UnitLegalizationMatcherKind),
+    ScalarCallUnit(ScalarCallUnitLegalizationMatcherKind),
     StructuralUnit(StructuralUnitLegalizationMatcherKind),
 }
 
@@ -67,6 +75,11 @@ pub(super) enum UnitLegalizationValidatorKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ScalarCallUnitLegalizationValidatorKind {
+    U64EqualityConditionalThreeCallChain,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StructuralUnitLegalizationValidatorKind {
     ReturnUnit,
     AuthoredCallThenReturnUnit,
@@ -78,6 +91,7 @@ pub(super) enum StructuralUnitLegalizationValidatorKind {
 pub(super) enum LegalizationValidatorKind {
     Scalar(ScalarLegalizationValidatorKind),
     Unit(UnitLegalizationValidatorKind),
+    ScalarCallUnit(ScalarCallUnitLegalizationValidatorKind),
     StructuralUnit(StructuralUnitLegalizationValidatorKind),
 }
 
@@ -109,6 +123,14 @@ pub(super) struct UnitShapeConstraints {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ScalarCallUnitShapeConstraints {
+    pub block_count: usize,
+    pub operation_count: usize,
+    pub node_count: usize,
+    pub scalar_parameter_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StructuralUnitOperationShape {
     ReturnOnly,
     CallThenReturn,
@@ -126,6 +148,7 @@ pub(super) struct StructuralUnitShapeConstraints {
 pub(super) enum LegalizationShapeConstraints {
     Scalar(ScalarShapeConstraints),
     Unit(UnitShapeConstraints),
+    ScalarCallUnit(ScalarCallUnitShapeConstraints),
     StructuralUnit(StructuralUnitShapeConstraints),
 }
 
@@ -261,6 +284,30 @@ const fn unit_form() -> LegalizationFormDescriptor {
     }
 }
 
+const fn scalar_call_unit_form() -> LegalizationFormDescriptor {
+    LegalizationFormDescriptor {
+        recipe: LegalizationFormRecipe::ScalarCallUnit(
+            ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1,
+        ),
+        producer_matcher: LegalizationProducerMatcherKind::ScalarCallUnit(
+            ScalarCallUnitLegalizationMatcherKind::U64EqualityConditionalThreeCallChain,
+        ),
+        constraints: LegalizationShapeConstraints::ScalarCallUnit(ScalarCallUnitShapeConstraints {
+            block_count: 1,
+            operation_count: 6,
+            node_count: 6,
+            scalar_parameter_count: 0,
+        }),
+        cost: LegalizationStructuralCost {
+            projected_selected_instruction_count: 10,
+            introduced_temporary_count: 0,
+        },
+        validator: LegalizationValidatorKind::ScalarCallUnit(
+            ScalarCallUnitLegalizationValidatorKind::U64EqualityConditionalThreeCallChain,
+        ),
+    }
+}
+
 const fn structural_unit_form(
     recipe: StructuralUnitLegalizationRecipe,
     producer_matcher: StructuralUnitLegalizationMatcherKind,
@@ -285,7 +332,7 @@ const fn structural_unit_form(
 }
 
 /// The sole precedence, shape, and planning inventory for all current forms.
-pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 18] = [
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 19] = [
     scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
@@ -433,6 +480,7 @@ pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 18] = [
         0,
         ScalarLegalizationValidatorKind::Immediate,
     ),
+    scalar_call_unit_form(),
     unit_form(),
     structural_unit_form(
         StructuralUnitLegalizationRecipe::ReturnUnitV1,
