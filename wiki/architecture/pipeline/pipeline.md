@@ -242,6 +242,21 @@ the ordinary standalone route is one child through the same continuation.
 Canonical target-set orchestration and its ordered outcomes remain above this
 boundary.
 
+The compiler's `MultiTargetCompileRequest` takes one `ExplicitTargetSet` and a
+targetless child-request factory. The set is therefore the only declaration of
+target identity; the compiler installs each canonical profile while the
+factory supplies that child's package inputs, build directory, admissions, and
+lowering policy. Admission requires one root, product, artifact-emission
+policy, and package source-input projection, plus distinct declared build
+directories, before source acquisition. This catches deterministic sibling
+collisions; it does not attest host filesystem isolation or defeat ambient
+same-user aliasing and races. `compile_targets` prepares source once and returns
+one `ExactTargetCompileOutcome` per canonical profile without fail-fast
+collection. A shared preparation failure is repeated as the same diagnostic
+set for every requested profile. The outcome set is orchestration data only:
+it mints no batch manifest or support/test/audit claim, while successful
+children retain their ordinary standalone production reports.
+
 ## Representation Root Shape
 
 Durable representations should make their semantic spine visible at the root.

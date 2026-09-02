@@ -2,7 +2,11 @@ use crate::compiler::{ArtifactEmissionPolicy, CompileOptions, OptimizationRollba
 use crate::pipeline::PackageCompilationInputs;
 use psi_diagnostics::Diagnostic;
 
+mod multi_target;
 mod targets;
+pub use multi_target::{
+    ExactTargetCompileOutcome, MultiTargetCompileOutcomes, MultiTargetCompileRequest,
+};
 pub use targets::ExplicitTargetSet;
 
 /// The semantic product requested from the production compiler pipeline.

@@ -27,7 +27,10 @@ pub use report::{
     ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedNativeArtifact,
 };
-pub use request::{CompileRequest, ExplicitTargetSet, RequestedCompileProduct};
+pub use request::{
+    CompileRequest, ExactTargetCompileOutcome, ExplicitTargetSet, MultiTargetCompileOutcomes,
+    MultiTargetCompileRequest, RequestedCompileProduct,
+};
 pub use terminal_native_realization::{
     SourceEvaluatedImportSettlement,
     realize_retained_terminal_artifact_with_source_evaluated_imports,
@@ -46,11 +49,27 @@ impl Compiler {
     pub fn compile(self, request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
         execution::run_on_compile_thread(move || driver::compile(request))
     }
+
+    /// Compile one caller-supplied canonical target set while retaining every
+    /// exact child's ordinary result, including failures.
+    pub fn compile_targets(
+        self,
+        request: MultiTargetCompileRequest,
+    ) -> Result<MultiTargetCompileOutcomes, Vec<Diagnostic>> {
+        execution::run_on_compile_thread(move || driver::compile_targets(request))
+    }
 }
 
 /// Execute one typed production compiler request.
 pub fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
     Compiler::new().compile(request)
+}
+
+/// Execute one explicit multi-target compiler request.
+pub fn compile_targets(
+    request: MultiTargetCompileRequest,
+) -> Result<MultiTargetCompileOutcomes, Vec<Diagnostic>> {
+    Compiler::new().compile_targets(request)
 }
 
 /// Continue one package-manager-owned checked production to a retained

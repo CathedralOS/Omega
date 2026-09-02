@@ -549,7 +549,7 @@ impl CheckedCompileRequest {
 /// supply package inputs, build staging, and exact target selection; source
 /// assembly rejects a child whose immutable package source projection differs
 /// from the one prepared here.
-pub(super) struct PreparedCheckedSource {
+pub(crate) struct PreparedCheckedSource {
     root_path: std::path::PathBuf,
     source_checkpoint: ImmutableSourceParseCheckpoint,
     shared_timings: CompileTimings,
@@ -579,7 +579,7 @@ impl CheckedChildExecution<'_> {
 }
 
 impl PreparedCheckedSource {
-    pub(super) fn prepare(
+    pub(crate) fn prepare(
         root_path: &Path,
         package_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -593,6 +593,35 @@ impl PreparedCheckedSource {
             root_path: root_path.to_owned(),
             source_checkpoint,
             shared_timings,
+        })
+    }
+
+    pub(crate) fn compile_for_terminal(
+        &self,
+        options: &super::CompileOptions,
+        package_inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        if options.root_path != self.root_path {
+            return Err(vec![Diagnostic::error(
+                "checked child compilation root does not match its prepared source checkpoint",
+            )]);
+        }
+        let selected_target_profile = options
+            .target_name
+            .as_deref()
+            .map(|target_name| {
+                omega_target::TargetProfile::from_omega_target_name(Some(target_name))
+            })
+            .transpose()
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let build_dir = options.build_dir();
+        self.compile_child_with_replay(CheckedChildExecution {
+            selected_target_profile,
+            package_inputs,
+            build_dir: Some(&build_dir),
+            filesystem_sponsor: None,
+            evaluation_sponsor: None,
+            replay_record: None,
         })
     }
 
@@ -741,14 +770,8 @@ pub(crate) fn compile_to_checked_for_terminal(
     options: &super::CompileOptions,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    compile_to_checked_inner(
-        &options.root_path,
-        options.target_name.as_deref(),
-        package_inputs,
-        Some(&options.build_dir()),
-        None,
-        None,
-    )
+    let prepared = PreparedCheckedSource::prepare(&options.root_path, package_inputs)?;
+    prepared.compile_for_terminal(options, package_inputs)
 }
 
 struct CheckedFrontend {
@@ -964,25 +987,6 @@ fn reject_target_scoped_generated_machines(
         .with_source_span(target.source_span())]);
     }
     Ok(())
-}
-
-fn compile_to_checked_inner(
-    root_path: &Path,
-    target_name: Option<&str>,
-    package_inputs: Option<&PackageCompilationInputs>,
-    build_dir: Option<&Path>,
-    filesystem_sponsor: Option<psi_build_time_evaluation::BuildMachineFilesystemSponsor>,
-    evaluation_sponsor: Option<psi_build_time_evaluation::BuildEvaluationSponsor>,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    compile_to_checked_inner_with_replay(
-        root_path,
-        target_name,
-        package_inputs,
-        build_dir,
-        filesystem_sponsor,
-        evaluation_sponsor,
-        None,
-    )
 }
 
 fn compile_to_checked_inner_with_replay(

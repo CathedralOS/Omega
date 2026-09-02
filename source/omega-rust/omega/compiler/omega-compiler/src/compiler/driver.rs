@@ -1,6 +1,9 @@
 use super::native_checked::NativeCompilationWithCheckedReceipt;
 use super::request::ValidatedCompileRequest;
-use super::{CompileReport, CompileRequest, RequestedCompileProduct, TrustAdmissionSettlement};
+use super::{
+    CompileReport, CompileRequest, ExactTargetCompileOutcome, MultiTargetCompileOutcomes,
+    MultiTargetCompileRequest, RequestedCompileProduct, TrustAdmissionSettlement,
+};
 use psi_diagnostics::Diagnostic;
 use std::path::PathBuf;
 
@@ -10,7 +13,57 @@ use std::path::PathBuf;
 /// frontend and differ only in how far the result proceeds.
 pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
     let request = request.validate_for_execution()?;
-    let (checked, trust_settlement) = compile_checked_with_observations(&request)?;
+    compile_validated(request, None)
+}
+
+/// Compile every canonical exact child while retaining each ordinary result.
+///
+/// Request-shape failures reject before source acquisition. Once admitted, a
+/// shared source-preparation failure and every child-local failure remain one
+/// ordered outcome per requested target.
+pub(super) fn compile_targets(
+    request: MultiTargetCompileRequest,
+) -> Result<MultiTargetCompileOutcomes, Vec<Diagnostic>> {
+    let request = request.validate_batch_for_execution()?;
+    let (target_set, children) = request.into_parts();
+    let prepared = {
+        let first = children
+            .first()
+            .expect("validated explicit target set retains one child");
+        crate::pipeline::checked_entry::PreparedCheckedSource::prepare(
+            &first.options().root_path,
+            first.package_inputs(),
+        )
+    };
+    let prepared = match prepared {
+        Ok(prepared) => prepared,
+        Err(diagnostics) => {
+            let outcomes = target_set
+                .profiles()
+                .iter()
+                .copied()
+                .map(|target| ExactTargetCompileOutcome::new(target, Err(diagnostics.clone())))
+                .collect();
+            return Ok(MultiTargetCompileOutcomes::new(target_set, outcomes));
+        }
+    };
+    let outcomes = target_set
+        .profiles()
+        .iter()
+        .copied()
+        .zip(children)
+        .map(|(target, child)| {
+            ExactTargetCompileOutcome::new(target, compile_validated(child, Some(&prepared)))
+        })
+        .collect();
+    Ok(MultiTargetCompileOutcomes::new(target_set, outcomes))
+}
+
+fn compile_validated(
+    request: ValidatedCompileRequest,
+    prepared: Option<&crate::pipeline::checked_entry::PreparedCheckedSource>,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    let (checked, trust_settlement) = compile_checked_with_observations(&request, prepared)?;
     let finalize_report =
         |report: CompileReport| report.with_trust_admission_settlement(trust_settlement);
     match request.requested_product() {
@@ -29,6 +82,7 @@ pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diag
 
 fn compile_checked_with_observations(
     request: &ValidatedCompileRequest,
+    prepared: Option<&crate::pipeline::checked_entry::PreparedCheckedSource>,
 ) -> Result<
     (
         crate::pipeline::CheckedCompilation,
@@ -36,10 +90,15 @@ fn compile_checked_with_observations(
     ),
     Vec<Diagnostic>,
 > {
-    let checked = crate::pipeline::checked_entry::compile_to_checked_for_terminal(
-        request.options(),
-        request.package_inputs(),
-    )?;
+    let checked = match prepared {
+        Some(prepared) => {
+            prepared.compile_for_terminal(request.options(), request.package_inputs())?
+        }
+        None => crate::pipeline::checked_entry::compile_to_checked_for_terminal(
+            request.options(),
+            request.package_inputs(),
+        )?,
+    };
     let trust_settlement = crate::pipeline::reporting::report_checked_observations(
         crate::pipeline::reporting::CheckedObservationInput {
             options: request.options(),
