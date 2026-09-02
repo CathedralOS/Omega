@@ -16,6 +16,7 @@ fn every_fixed_integer_foreign_result_flows_through_a_durable_home_to_a_later_im
         for profile in [
             omega_target::TargetProfile::LinuxX64,
             omega_target::TargetProfile::LinuxArm64,
+            omega_target::TargetProfile::WindowsX64,
         ] {
             assert_exact_fixed_integer_foreign_result_flow(profile, integer, type_identity);
         }
@@ -248,7 +249,7 @@ fn assert_exact_fixed_integer_foreign_result_flow(
     );
     assert_eq!(
         &function.bytes[argument.code_offset..argument.code_offset + argument.byte_count],
-        expected_argument_bytes(target.architecture)
+        expected_argument_bytes(profile)
     );
     match target.architecture {
         omega_target::Architecture::X86_64 => {
@@ -405,18 +406,33 @@ fn assert_exact_fixed_integer_foreign_result_flow(
         object.foreign_calls()[0].aarch64_floating_control.is_some(),
         target.architecture == omega_target::Architecture::Aarch64
     );
-    let interpreter = omega_target::normalize_elf_interpreter_plan(
-        match profile {
-            omega_target::TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".to_vec(),
-            omega_target::TargetProfile::LinuxArm64 => b"/lib/ld-linux-aarch64.so.1".to_vec(),
-            _ => unreachable!(),
-        },
-        profile,
-    )
-    .unwrap();
-    let image = omega_image_emission::emit_dynamic_elf_image(&object, interpreter).unwrap();
-    assert_eq!(image.output().final_image_imports, 2);
-    assert_eq!(image.output().final_image_relocations, 2);
+    match profile {
+        omega_target::TargetProfile::LinuxX64 | omega_target::TargetProfile::LinuxArm64 => {
+            let interpreter = omega_target::normalize_elf_interpreter_plan(
+                match profile {
+                    omega_target::TargetProfile::LinuxX64 => {
+                        b"/lib64/ld-linux-x86-64.so.2".to_vec()
+                    }
+                    omega_target::TargetProfile::LinuxArm64 => {
+                        b"/lib/ld-linux-aarch64.so.1".to_vec()
+                    }
+                    _ => unreachable!(),
+                },
+                profile,
+            )
+            .unwrap();
+            let image = omega_image_emission::emit_dynamic_elf_image(&object, interpreter).unwrap();
+            assert_eq!(image.output().final_image_imports, 2);
+            assert_eq!(image.output().final_image_relocations, 2);
+        }
+        omega_target::TargetProfile::WindowsX64 => {
+            let image = omega_image_emission::emit_executable_image(&object, 3).unwrap();
+            assert_eq!(image.output().final_image_imports, 2);
+            assert_eq!(image.output().final_image_relocations, 2);
+            assert_eq!(image.output().format, "pe64-x86_64-executable");
+        }
+        _ => unreachable!(),
+    }
 }
 
 fn integer_shape(integer: psi_core::IntegerType) -> omega_calling_conventions::ValueShape {
@@ -663,9 +679,11 @@ fn expected_result_bytes(
     }
 }
 
-fn expected_argument_bytes(architecture: omega_target::Architecture) -> &'static [u8] {
-    match architecture {
-        omega_target::Architecture::X86_64 => &[0x48, 0x8b, 0x7c, 0x24, 0x08],
-        omega_target::Architecture::Aarch64 => &[0xe0, 0x03, 0x40, 0xf9],
+fn expected_argument_bytes(profile: omega_target::TargetProfile) -> &'static [u8] {
+    match profile {
+        omega_target::TargetProfile::LinuxX64 => &[0x48, 0x8b, 0x7c, 0x24, 0x08],
+        omega_target::TargetProfile::LinuxArm64 => &[0xe0, 0x03, 0x40, 0xf9],
+        omega_target::TargetProfile::WindowsX64 => &[0x48, 0x8b, 0x4c, 0x24, 0x28],
+        _ => unreachable!(),
     }
 }

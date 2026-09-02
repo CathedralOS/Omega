@@ -527,7 +527,13 @@ attached `Unit` bodies are normalized from their evaluated result registers
 into durable 64-bit scalar homes and may feed later normalized foreign calls.
 The declared sign and width, canonical shape, home roster, producer ordinal,
 exact result-store interval, and later argument-load interval survive ordinary
-object construction and both Linux dynamic-ELF drivers. Machine emission
+object construction and both Linux dynamic-ELF drivers. The Windows x86-64
+lane now carries the same exact `u32` producer result from its evaluated RAX
+placement into a durable home, then reloads that home into the evaluated RCX
+placement of a later normalized PE import. Object and final-PE replay retain
+both atomic locators, Win64 shadow-space custody, ordered result-store/argument-
+load byte intervals, and both relocations; stripped or drifted home/type/shape/
+ordinal/placement identity rejects. Machine emission
 rejoins each row to its preceding constant, exact preceding scalar-call
 producer, or exact preceding normalized-foreign result producer and emits the
 compact target register materialization.

@@ -1801,7 +1801,7 @@ pub(super) fn is_bounded_partial_affine_path(
                                     (&inner.shape, path),
                                     (
                                         StructuralTypeShape::FixedArray {
-                                            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14),
+                                            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15),
                                             ..
                                         },
                                         [
@@ -1891,7 +1891,7 @@ pub(super) fn partial_affine_residuals(
             .find(|declaration| declaration.id == element)?;
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14),
+            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15),
         } = inner.shape
         else {
             return None;
