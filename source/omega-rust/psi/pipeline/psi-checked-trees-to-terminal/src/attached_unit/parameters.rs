@@ -3,12 +3,12 @@
 
 use super::*;
 
-/// Rejoin the checked parameter receipt to the exact typed state signature
-/// before any raw checked-to-Terminal caller can erase the boundary-opaque
-/// carrier. Owner-selected Fused provenance is validated by the compiler's
-/// later custody gate; this layer independently rejects missing, fabricated,
-/// or source-substituted checked receipts.
-pub(crate) fn validate_fused_service_parameter_receipts(
+/// Rejoin direct Unit scalar parameters and routed-Service receipts to the
+/// exact typed state signature before raw checked-to-Terminal lowering erases
+/// their authored source partition. Owner-selected Fused provenance is
+/// validated by the compiler's later custody gate; this layer independently
+/// rejects missing, fabricated, or source-substituted checked custody.
+pub(crate) fn validate_direct_unit_parameter_custody(
     checked: &CheckedTrees,
 ) -> Result<(), LoweringError> {
     let has_receipt = |parameters: &[psi_checked_trees::CheckedUnitStructuralParameterPlan]| {
@@ -87,15 +87,14 @@ pub(crate) fn validate_fused_service_parameter_receipts(
 
     for plan in &checked.facts.flow.terminal_unit_effects.machines {
         let carries_receipt = has_receipt(&plan.structural_parameters);
+        let carries_parameter_custody = carries_receipt || !plan.scalar_parameters.is_empty();
         let Some(machine) = checked
             .machines()
             .iter()
             .find(|machine| machine.symbol == plan.machine)
         else {
-            if carries_receipt {
-                return unsupported(
-                    "fused Service parameter plan has no exact typed machine",
-                );
+            if carries_parameter_custody {
+                return unsupported("direct Unit parameter plan has no exact typed machine");
             }
             continue;
         };
@@ -104,14 +103,39 @@ pub(crate) fn validate_fused_service_parameter_receipts(
             .iter()
             .find(|state| state.symbol == plan.state)
         else {
-            if carries_receipt {
-                return unsupported(
-                    "fused Service parameter plan has no exact typed state",
-                );
+            if carries_parameter_custody {
+                return unsupported("direct Unit parameter plan has no exact typed state");
             }
             continue;
         };
         let source_parameters = checked.state_parameters(state);
+        let expected_scalar_parameters = source_parameters
+            .iter()
+            .enumerate()
+            .filter_map(|(position, source)| {
+                checked
+                    .primitive_type_reference(source.type_reference)
+                    .map(|primitive_type| (position, source, primitive_type))
+            })
+            .map(|(position, source, primitive_type)| {
+                if source.is_self || source.is_const || source.is_mutable {
+                    return Err(LoweringError::Unsupported(
+                        "direct Unit scalar parameter is not an immutable direct value",
+                    ));
+                }
+                Ok(psi_checked_trees::CheckedStructuralScalarParameterPlan {
+                    source_position: u32::try_from(position).map_err(|_| {
+                        LoweringError::Unsupported("direct Unit scalar source position exceeds u32")
+                    })?,
+                    primitive_type,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        if plan.scalar_parameters != expected_scalar_parameters {
+            return unsupported(
+                "direct Unit scalar parameters do not rejoin the exact typed source partition",
+            );
+        }
         for (position, source) in source_parameters.iter().enumerate() {
             let carrier = psi_typed_trees::service::classify_exact_bound_service_carrier(
                 checked,
@@ -196,6 +220,21 @@ pub(crate) fn validate_fused_service_parameter_receipts(
         }
     }
     Ok(())
+}
+
+pub(crate) fn lower_unit_scalar_parameter_types(
+    parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
+) -> Result<Vec<ScalarType>, LoweringError> {
+    if parameters
+        .windows(2)
+        .any(|pair| pair[0].source_position >= pair[1].source_position)
+    {
+        return unsupported("Unit scalar parameters are not in strict source order");
+    }
+    parameters
+        .iter()
+        .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+        .collect()
 }
 
 fn fused_service_parameter_base_and_qualifications(

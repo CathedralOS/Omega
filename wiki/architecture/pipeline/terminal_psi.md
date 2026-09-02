@@ -137,10 +137,17 @@ gate additionally rejoins exact Fused selection provenance. Only one direct
 owned affine parameter making a nonempty ordered sequence of direct calls to
 its one exact requirement in a one-state attached Unit machine is admitted.
 Final custody requires an exact ordered call/checked-operation bijection;
-removal, insertion, reordering, or target substitution rejects. Transfers,
+removal, insertion, reordering, or target substitution rejects. A finite
+authored-order set of immutable primitive parameters may accompany that carrier
+and remains in Terminal's independent scalar namespace, including direct use as
+Unit-boundary arguments. Ordinary scalar-bearing attached Unit provider bodies
+use the same representation. Provider-candidate validation compares the
+boundary declaration's scalar types directly with the candidate machine's
+scalar parameters, avoiding another encoded signature copy. Transfers,
 projections, borrows, multiple carriers, mixed receiver requirements, composed
-control, scalar-bearing/free helpers, initial root establishment, and
-Independent execution remain absent from Terminal rather than being guessed.
+control, free helpers, native installed-provider scalar ABI realization,
+initial root establishment, and Independent execution remain absent from
+Terminal rather than being guessed.
 
 Preservation is not realization. Omega target lowering currently accepts the
 one exact Linux `exit_process(i32) -> Unit` migration shape through import-free

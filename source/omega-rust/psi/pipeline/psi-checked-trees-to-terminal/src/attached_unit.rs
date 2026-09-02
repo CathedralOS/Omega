@@ -15,7 +15,8 @@ mod provider_attachments;
 mod providers;
 mod selected_operator;
 
-pub(super) use parameters::validate_fused_service_parameter_receipts;
+use parameters::lower_unit_scalar_parameter_types;
+pub(super) use parameters::validate_direct_unit_parameter_custody;
 
 use call_closure::{
     checked_selected_scalar_call_closure, checked_terminal_machine_name,
@@ -473,6 +474,7 @@ pub(super) fn lower_attached_unit_closure_including(
     }
 
     let mut lowered_machine_parameters = Vec::with_capacity(closure.len());
+    let mut lowered_machine_scalar_parameters = Vec::with_capacity(closure.len());
     let mut lowered_claims = Vec::with_capacity(closure.len());
     for machine_symbol in &closure {
         let plan = unique_unit_machine(plans, *machine_symbol)?;
@@ -492,11 +494,13 @@ pub(super) fn lower_attached_unit_closure_including(
             &domain_ids,
             &mut next_place,
         )?;
+        let scalar_parameters = lower_unit_scalar_parameter_types(&plan.scalar_parameters)?;
         // ClaimId is machine-local; unrelated closure members must not shift
         // this machine's canonical claim namespace.
         let claims =
             lower_unit_entry_claims(plan.machine, plan.state, &plan.entry_claims, &parameters)?;
         lowered_machine_parameters.push((*machine_symbol, parameters));
+        lowered_machine_scalar_parameters.push((*machine_symbol, scalar_parameters));
         lowered_claims.push((*machine_symbol, claims.entry_claims, claims.source_claims));
     }
 
@@ -587,6 +591,7 @@ pub(super) fn lower_attached_unit_closure_including(
         })
         .collect::<Vec<_>>();
     let mut next_operation = 1_u64;
+    let mut next_value = 1_u64;
     let mut next_edge = 1_u64;
     let mut next_block = 1_u64;
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
@@ -602,6 +607,20 @@ pub(super) fn lower_attached_unit_closure_including(
             .iter()
             .find_map(|(symbol, parameters)| (*symbol == plan.machine).then_some(parameters))
             .expect("every closure machine has lowered parameters");
+        let scalar_parameter_types = lowered_machine_scalar_parameters
+            .iter()
+            .find_map(|(symbol, parameters)| (*symbol == plan.machine).then_some(parameters))
+            .expect("every closure machine has lowered scalar parameters");
+        let scalar_parameters = scalar_parameter_types
+            .iter()
+            .map(|scalar_type| {
+                Ok(ValueDeclaration {
+                    id: value_id(allocate_dense(&mut next_value)?),
+                    scalar_type: *scalar_type,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let scalar_parameter_count = scalar_parameters.len();
         let runtime_requirements = lowered_machine_runtime_requirements
             .iter()
             .find_map(|(symbol, requirements)| (*symbol == plan.machine).then_some(requirements))
@@ -749,8 +768,8 @@ pub(super) fn lower_attached_unit_closure_including(
             });
         }
         let mut next_literal_argument = 0usize;
-        let mut next_value_identity = 1_u64;
-        let mut scalar_result_values = Vec::<ValueDeclaration>::new();
+        let mut next_value_identity = next_value;
+        let mut scalar_result_values = scalar_parameters.clone();
         for operation in &plan.operations[..plan.operations.len() - 1] {
             let mut source_call = None;
             let kind = match operation {
@@ -917,7 +936,9 @@ pub(super) fn lower_attached_unit_closure_including(
                     scalar_arguments,
                     ..
                 } => {
-                    if usize::try_from(result.binding_ordinal).ok()
+                    if usize::try_from(result.binding_ordinal)
+                        .ok()
+                        .and_then(|ordinal| ordinal.checked_add(scalar_parameter_count))
                         != Some(scalar_result_values.len())
                     {
                         return unsupported(
@@ -1072,7 +1093,9 @@ pub(super) fn lower_attached_unit_closure_including(
                     format,
                     operands,
                 } => {
-                    if usize::try_from(result.binding_ordinal).ok()
+                    if usize::try_from(result.binding_ordinal)
+                        .ok()
+                        .and_then(|ordinal| ordinal.checked_add(scalar_parameter_count))
                         != Some(scalar_result_values.len())
                     {
                         return unsupported(
@@ -1287,7 +1310,9 @@ pub(super) fn lower_attached_unit_closure_including(
                     completion_receipts,
                     ..
                 } => {
-                    if usize::try_from(result.binding_ordinal).ok()
+                    if usize::try_from(result.binding_ordinal)
+                        .ok()
+                        .and_then(|ordinal| ordinal.checked_add(scalar_parameter_count))
                         != Some(scalar_result_values.len())
                     {
                         return unsupported(
@@ -1586,6 +1611,7 @@ pub(super) fn lower_attached_unit_closure_including(
             return unsupported("byte-sequence literal argument consumption is incomplete");
         }
         next_operation = operations.next_identity;
+        next_value = next_value_identity;
         let CheckedUnitEffectOperationPlan::ReturnUnit {
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1643,7 +1669,7 @@ pub(super) fn lower_attached_unit_closure_including(
         machines.push(TerminalMachine {
             id: terminal_machine,
             attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
-            parameters: Vec::new(),
+            parameters: scalar_parameters.clone(),
             structural_parameters: parameters.clone(),
             ranked_scc: None,
             result: TerminalMachineResult::Unit,
@@ -1750,16 +1776,21 @@ pub(super) fn lower_attached_unit_closure_including(
                 .ok_or(LoweringError::Unsupported(
                     "provider candidate references an unlowered Unit boundary requirement",
                 ))?;
-            if !scalar_parameters.is_empty() {
-                return unsupported(
-                    "provider candidate boundary signatures do not yet admit scalar parameters",
-                );
-            }
             let terminal_candidate = lookup_machine_id(&machine_ids, candidate.candidate)?;
             let realized = machines
                 .iter()
                 .find(|machine| machine.id == terminal_candidate)
                 .expect("provider candidate root was lowered as an ordinary terminal machine");
+            if scalar_parameters.len() != realized.parameters.len()
+                || scalar_parameters
+                    .iter()
+                    .zip(&realized.parameters)
+                    .any(|(boundary, candidate)| *boundary != candidate.scalar_type)
+            {
+                return unsupported(
+                    "provider candidate scalar signature disagrees with its boundary requirement",
+                );
+            }
             Ok(ProviderCandidateConformance {
                 boundary: *boundary,
                 requirement_identity: candidate.requirement_identity.clone(),

@@ -688,15 +688,29 @@ fn fused_service_field_mut(
 fn fused_service_parameter_mut(
     checked: &mut CheckedCompilation,
 ) -> &mut psi_checked_trees::CheckedUnitStructuralParameterPlan {
+    fused_service_parameter_plan_mut(checked)
+        .structural_parameters
+        .iter_mut()
+        .find(|parameter| parameter.fused_service_erasure.is_some())
+        .expect("checked Service fixture has no fused structural parameter")
+}
+
+fn fused_service_parameter_plan_mut(
+    checked: &mut CheckedCompilation,
+) -> &mut psi_checked_trees::CheckedUnitEffectMachinePlan {
     checked
         .facts
         .flow
         .terminal_unit_effects
         .machines
         .iter_mut()
-        .flat_map(|machine| &mut machine.structural_parameters)
-        .find(|parameter| parameter.fused_service_erasure.is_some())
-        .expect("checked Service fixture has no fused structural parameter")
+        .find(|machine| {
+            machine
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.fused_service_erasure.is_some())
+        })
+        .expect("checked Service fixture has no fused parameter machine")
 }
 
 #[test]
@@ -724,6 +738,9 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     let [parameter] = parameter_plan.structural_parameters.as_slice() else {
         panic!("direct Service parameter machine should retain one structural parameter")
     };
+    let [scalar_parameter] = parameter_plan.scalar_parameters.as_slice() else {
+        panic!("direct Service parameter machine should retain one scalar parameter")
+    };
     let receipt = parameter
         .fused_service_erasure
         .as_ref()
@@ -737,6 +754,11 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         psi_checked_trees::CheckedStructuralAccess::Owned
     );
     assert_eq!(parameter.qualifications.len(), 1);
+    assert_eq!(scalar_parameter.source_position, 1);
+    assert_eq!(
+        scalar_parameter.primitive_type,
+        psi_typed_trees::types::PrimitiveType::I32
+    );
     assert!(receipt.source_parameter.is_valid());
     let parameter_machine = baseline
         .typed
@@ -776,8 +798,41 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         2,
         "both direct Service calls must retain ordered checked operations"
     );
-    psi_checked_trees_to_terminal::lower_machine(&baseline, "ParameterHarness::run")
-        .expect("authorized direct Service parameter should lower through Terminal");
+    let lowered_parameter =
+        psi_checked_trees_to_terminal::lower_machine(&baseline, "ParameterHarness::run").expect(
+            "authorized direct Service and scalar parameters should lower through Terminal",
+        );
+    let terminal_parameter_machine = lowered_parameter
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered_parameter.semantic_module.entry)
+        .expect("lowered direct Service parameter machine should remain the Terminal entry");
+    let [terminal_scalar_parameter] = terminal_parameter_machine.parameters.as_slice() else {
+        panic!("Terminal direct Service helper should retain one scalar parameter")
+    };
+    assert_eq!(
+        terminal_scalar_parameter.scalar_type,
+        psi_core::ScalarType::Integer(
+            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap()
+        )
+    );
+    let scalar_call_arguments = terminal_parameter_machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            psi_terminal::OperationKind::BoundaryCall { arguments, .. } => Some(arguments),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(scalar_call_arguments.len(), 2);
+    assert!(
+        scalar_call_arguments
+            .iter()
+            .all(|arguments| arguments.as_slice() == [terminal_scalar_parameter.id]),
+        "both ordered Service calls must consume the exact Terminal scalar parameter"
+    );
 
     let mut parameter_downgrade = baseline.clone();
     fused_service_parameter_mut(&mut parameter_downgrade).fused_service_erasure = None;
@@ -799,6 +854,31 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         raw_lowering_error
             .to_string()
             .contains("lost its Fused erasure receipt")
+    );
+
+    let mut scalar_parameter_removal = baseline.clone();
+    fused_service_parameter_plan_mut(&mut scalar_parameter_removal)
+        .scalar_parameters
+        .clear();
+    let scalar_parameter_error = omega_selected_dispatch::validate_fused_service_terminal_custody(
+        &scalar_parameter_removal,
+        &provenance,
+    )
+    .expect_err("removing a routed Service scalar parameter must reject");
+    assert!(scalar_parameter_error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("scalar parameters do not rejoin the exact immutable typed source partition")
+    }));
+    let raw_scalar_parameter_error = psi_checked_trees_to_terminal::lower_machine(
+        &scalar_parameter_removal,
+        "ParameterHarness::run",
+    )
+    .expect_err("raw Terminal lowering must reject a removed routed Service scalar parameter");
+    assert!(
+        raw_scalar_parameter_error.to_string().contains(
+            "direct Unit scalar parameters do not rejoin the exact typed source partition"
+        )
     );
 
     let mut parameter_symbol_substitution = baseline.clone();

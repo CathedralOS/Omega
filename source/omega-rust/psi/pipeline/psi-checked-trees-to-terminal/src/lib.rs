@@ -1194,7 +1194,7 @@ pub fn lower_machine(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    attached_unit::validate_fused_service_parameter_receipts(checked)?;
+    attached_unit::validate_direct_unit_parameter_custody(checked)?;
     let selection = select_terminal_machine(checked, machine_name)?;
     let exact_guarded_payloadless = checked
         .facts

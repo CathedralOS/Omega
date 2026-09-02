@@ -3,7 +3,8 @@
 use omega_provider_planning::CompositionMode;
 use omega_provider_planning::plans::SelectedProviderReviewProvenance;
 use psi_checked_trees::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
+    CheckedStructuralScalarParameterPlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralParameterPlan,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -61,6 +62,38 @@ fn validate_unit_machines(
             continue;
         };
         let source_parameters = checked.state_parameters(state);
+        let carries_receipt = plan
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.fused_service_erasure.is_some());
+        let mut source_scalar_parameters = Vec::new();
+        let mut invalid_scalar_parameter = false;
+        for (position, source) in source_parameters.iter().enumerate() {
+            let Some(primitive_type) = checked.primitive_type_reference(source.type_reference)
+            else {
+                continue;
+            };
+            if source.is_self || source.is_const || source.is_mutable {
+                invalid_scalar_parameter = true;
+                continue;
+            }
+            let Ok(source_position) = u32::try_from(position) else {
+                invalid_scalar_parameter = true;
+                continue;
+            };
+            source_scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+                source_position,
+                primitive_type,
+            });
+        }
+        if carries_receipt {
+            if invalid_scalar_parameter || plan.scalar_parameters != source_scalar_parameters {
+                diagnostics.push(Diagnostic::error(format!(
+                    "checked Unit machine `{}` routed Service scalar parameters do not rejoin the exact immutable typed source partition",
+                    machine.name,
+                )));
+            }
+        }
 
         for (position, source_parameter) in source_parameters.iter().enumerate() {
             let classification = psi_typed_trees::service::classify_exact_bound_service_carrier(
