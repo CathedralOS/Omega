@@ -318,8 +318,52 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
             site: PsiProvenance::Operation(comparison),
             units: 1,
         }],
+        left: left_parameter.clone(),
+        right: right_parameter.clone(),
+    };
+    assert_ne!(legalized_operation_plan_identity(&equality), identity);
+
+    let mut inclusive = plan.clone();
+    inclusive.functions[0].recipe =
+        LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1;
+    inclusive.functions[0].condition = LegalizedCondition::IntegerLessOrEqualParametersV1 {
+        operation: comparison,
+        result_definition_site: omega_optimization_unit::ValueDefinitionSite::Node {
+            block: entry,
+            node: 0,
+        },
+        fuel: vec![FuelSettlement {
+            site: PsiProvenance::Operation(comparison),
+            units: 1,
+        }],
         left: left_parameter,
         right: right_parameter,
     };
-    assert_ne!(legalized_operation_plan_identity(&equality), identity);
+    let inclusive_identity = legalized_operation_plan_identity(&inclusive);
+    assert_ne!(inclusive_identity, identity);
+    assert_ne!(
+        inclusive_identity,
+        legalized_operation_plan_identity(&equality)
+    );
+
+    let mut inclusive_reversed = inclusive.clone();
+    let LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } =
+        &mut inclusive_reversed.functions[0].condition
+    else {
+        panic!("inclusive comparison fixture")
+    };
+    std::mem::swap(left, right);
+    assert_ne!(
+        legalized_operation_plan_identity(&inclusive_reversed),
+        inclusive_identity
+    );
+
+    assert_eq!(
+        legalized_operation_plan_identity_v14_legacy(&plan),
+        legalized_operation_plan_identity_v14_legacy(&plan.clone())
+    );
+    assert_ne!(
+        legalized_operation_plan_identity_v14_legacy(&plan),
+        legalized_operation_plan_identity(&plan)
+    );
 }

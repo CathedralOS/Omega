@@ -82,6 +82,7 @@ pub(super) fn validate(
                 source.condition,
                 LegalizedCondition::IntegerEqualParametersV1 { .. }
                     | LegalizedCondition::IntegerLessThanParametersV1 { .. }
+                    | LegalizedCondition::IntegerLessOrEqualParametersV1 { .. }
             ) {
                 [VirtualRegisterId(2), VirtualRegisterId(3)]
             } else {

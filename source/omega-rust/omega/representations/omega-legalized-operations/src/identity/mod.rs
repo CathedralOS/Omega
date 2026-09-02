@@ -14,6 +14,27 @@ use shared::*;
 pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
+    canonical::identity(plan, b"omega.terminal-legalized-operations.v15\0", true)
+}
+
+#[doc(hidden)]
+pub fn legalized_operation_plan_identity_v12_legacy(
+    plan: &LegalizedOperationPlan,
+) -> LegalizedOperationPlanIdentity {
+    canonical::identity(plan, b"omega.terminal-legalized-operations.v12\0", true)
+}
+
+#[doc(hidden)]
+pub fn legalized_operation_plan_identity_v13_legacy(
+    plan: &LegalizedOperationPlan,
+) -> LegalizedOperationPlanIdentity {
+    canonical::identity(plan, b"omega.terminal-legalized-operations.v13\0", true)
+}
+
+#[doc(hidden)]
+pub fn legalized_operation_plan_identity_v14_legacy(
+    plan: &LegalizedOperationPlan,
+) -> LegalizedOperationPlanIdentity {
     canonical::identity(plan, b"omega.terminal-legalized-operations.v14\0", true)
 }
 

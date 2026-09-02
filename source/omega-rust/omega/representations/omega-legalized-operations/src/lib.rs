@@ -12,6 +12,8 @@ mod validation;
 
 pub use identity::{
     legalized_operation_plan_identity, legalized_operation_plan_identity_v9_legacy,
+    legalized_operation_plan_identity_v12_legacy, legalized_operation_plan_identity_v13_legacy,
+    legalized_operation_plan_identity_v14_legacy,
 };
 pub use model::*;
 

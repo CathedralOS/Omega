@@ -195,6 +195,61 @@ fn fixture() -> Fixture {
     }
 }
 
+fn less_or_equal_fixture() -> Fixture {
+    let mut fixture = fixture();
+    let TargetOperation::ReturnIntegerExpressionConditionalControl { condition, .. } =
+        &mut fixture.target.operation
+    else {
+        unreachable!("comparison fixture")
+    };
+    let TargetBooleanExpression::IntegerLessThan {
+        psi_operation,
+        scalar_type,
+        left,
+        right,
+    } = condition
+    else {
+        unreachable!("comparison fixture")
+    };
+    *condition = TargetBooleanExpression::IntegerLessOrEqual {
+        psi_operation: *psi_operation,
+        scalar_type: *scalar_type,
+        left: left.clone(),
+        right: right.clone(),
+    };
+    let AbstractOperation::IntegerLessThan {
+        psi_operation,
+        result,
+        left,
+        right,
+    } = fixture.abstracted.operations[0].clone()
+    else {
+        unreachable!("comparison fixture")
+    };
+    fixture.abstracted.operations[0] = AbstractOperation::IntegerLessOrEqual {
+        psi_operation,
+        result,
+        left,
+        right,
+    };
+    let AbstractOperation::IntegerLessThan {
+        psi_operation,
+        result,
+        left,
+        right,
+    } = fixture.optimized.blocks[0].nodes[0].operation.clone()
+    else {
+        unreachable!("comparison fixture")
+    };
+    fixture.optimized.blocks[0].nodes[0].operation = AbstractOperation::IntegerLessOrEqual {
+        psi_operation,
+        result,
+        left,
+        right,
+    };
+    fixture
+}
+
 #[test]
 fn strict_less_than_condition_is_produced_and_independently_replayed() {
     let fixture = fixture();
@@ -339,6 +394,136 @@ fn strict_less_than_replay_rejects_equality_condition_substitution() {
             &fixture.optimized,
             fixture.condition,
             &substituted,
+        )
+        .map(|_| ()),
+        Err(LegalizationError::NonCanonicalLegalizedPlan)
+    );
+}
+
+#[test]
+fn inclusive_comparison_preserves_authored_order_through_independent_replay() {
+    let fixture = less_or_equal_fixture();
+    let derived = source::derive_condition_for_test(
+        0,
+        &fixture.target,
+        &fixture.abstracted,
+        &fixture.optimized,
+    )
+    .expect("inclusive source condition");
+    assert_eq!(
+        derived.shape,
+        ScalarConditionShape::IntegerLessOrEqualU64Parameters
+    );
+    let LegalizedCondition::IntegerLessOrEqualParametersV1 {
+        operation,
+        left,
+        right,
+        fuel,
+        ..
+    } = &derived.legalized
+    else {
+        panic!("inclusive comparison custody")
+    };
+    assert_eq!(*operation, fixture.operation);
+    assert_eq!(left.source_value, fixture.left);
+    assert_eq!(left.parameter_index, 0);
+    assert_eq!(right.source_value, fixture.right);
+    assert_eq!(right.parameter_index, 1);
+    assert_eq!(fuel.len(), 1);
+
+    let replayed = replay::replay_condition_for_test(
+        0,
+        Architecture::X86_64,
+        &fixture.target,
+        &fixture.abstracted,
+        &fixture.optimized,
+        derived.source,
+        &derived.legalized,
+    )
+    .expect("independent inclusive replay");
+    assert_eq!(replayed.source, fixture.condition);
+    assert_eq!(
+        replayed.shape,
+        ScalarConditionShape::IntegerLessOrEqualU64Parameters
+    );
+}
+
+#[test]
+fn inclusive_comparison_replay_rejects_order_and_predicate_substitution() {
+    let mut reflexive = less_or_equal_fixture();
+    let TargetOperation::ReturnIntegerExpressionConditionalControl {
+        condition: TargetBooleanExpression::IntegerLessOrEqual { left, right, .. },
+        ..
+    } = &mut reflexive.target.operation
+    else {
+        panic!("inclusive comparison fixture")
+    };
+    *right = left.clone();
+    assert_eq!(
+        source::derive_condition_for_test(
+            0,
+            &reflexive.target,
+            &reflexive.abstracted,
+            &reflexive.optimized,
+        )
+        .map(|_| ()),
+        Err(LegalizationError::UnsupportedCondition { function: 0 })
+    );
+
+    let fixture = less_or_equal_fixture();
+    let derived = source::derive_condition_for_test(
+        0,
+        &fixture.target,
+        &fixture.abstracted,
+        &fixture.optimized,
+    )
+    .expect("inclusive source condition");
+    let mut swapped = derived.legalized.clone();
+    let LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } = &mut swapped
+    else {
+        panic!("inclusive comparison custody")
+    };
+    std::mem::swap(left, right);
+    assert_eq!(
+        replay::replay_condition_for_test(
+            0,
+            Architecture::X86_64,
+            &fixture.target,
+            &fixture.abstracted,
+            &fixture.optimized,
+            derived.source,
+            &swapped,
+        )
+        .map(|_| ()),
+        Err(LegalizationError::NonCanonicalLegalizedPlan)
+    );
+
+    let LegalizedCondition::IntegerLessOrEqualParametersV1 {
+        operation,
+        result_definition_site,
+        fuel,
+        left,
+        right,
+    } = derived.legalized
+    else {
+        panic!("inclusive comparison custody")
+    };
+    let strict = LegalizedCondition::IntegerLessThanParametersV1 {
+        operation,
+        result_definition_site,
+        fuel,
+        left: LegalizedConditionParameter { ..left },
+        right: LegalizedConditionParameter { ..right },
+    };
+    assert_eq!(
+        replay::replay_condition_for_test(
+            0,
+            Architecture::X86_64,
+            &fixture.target,
+            &fixture.abstracted,
+            &fixture.optimized,
+            fixture.condition,
+            &strict,
         )
         .map(|_| ()),
         Err(LegalizationError::NonCanonicalLegalizedPlan)

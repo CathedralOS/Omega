@@ -2,7 +2,9 @@
 
 mod direct_parameter;
 mod integer_equal_parameters;
+mod integer_less_or_equal_parameters;
 mod integer_less_than_parameters;
+mod integer_parameter_comparison;
 
 use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
@@ -36,6 +38,10 @@ pub(super) fn derive<'a>(
             condition: TargetBooleanExpression::IntegerLessThan { .. },
             ..
         } => integer_less_than_parameters::derive(function, target, abstracted, optimized),
+        TargetOperation::ReturnIntegerExpressionConditionalControl {
+            condition: TargetBooleanExpression::IntegerLessOrEqual { .. },
+            ..
+        } => integer_less_or_equal_parameters::derive(function, target, abstracted, optimized),
         _ => Err(Error::UnsupportedSourceShape { function }),
     }
 }

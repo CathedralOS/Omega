@@ -237,10 +237,12 @@ enablement and order.
 
 Runtime condition legalization follows the same mirrored taxonomy as leaf
 legalization. `source/conditions/mod.rs` is the small producer coordination
-entrance over exact `direct_parameter` and `integer_equal_parameters` leaves;
-the adjacent `integer_less_than_parameters` leaf owns the ordered runtime
-sibling. `replay/conditions/mod.rs` independently reconstructs those same
-three closed forms
+entrance over exact `direct_parameter`, `integer_equal_parameters`,
+`integer_less_than_parameters`, and `integer_less_or_equal_parameters` leaves.
+The three comparison leaves delegate only their common ordered-parameter
+mechanics to `integer_parameter_comparison`; each named leaf continues to own
+its predicate. `replay/conditions/mod.rs` independently reconstructs those
+same four closed forms through its own mirrored comparison mechanics
 without importing producer helpers. The ordered legalization catalog selects
 the complete condition-plus-leaf recipe, so an immediate-leaf direct condition
 cannot overlap the immediate-leaf integer-equality condition. Condition leaves
@@ -250,12 +252,15 @@ custody; return-expression mechanics remain under the existing source/replay
 leaf rungs.
 
 Scalar selected construction mirrors that split below its sole family catalog.
-The entry-control rung owns separate direct-parameter and
-integer-equal-parameter, and integer-less-than-parameter leaves. Equality
+One `comparison_immediate_pair` family owns shared leaf materialization, while
+the entry-control rung owns separate direct-parameter, integer-equal-parameter,
+integer-less-than-parameter, and integer-less-or-equal-parameter leaves. Equality
 constructs a two-register compare and deliberately maps the existing nonzero
 successor to the false source arm. Strict less-than constructs the same ordered
 compare but a predicate-specific terminator with less/source-true taken and
-not-less/source-false as fallthrough. Their independent validation siblings
+not-less/source-false as fallthrough. Inclusive less-or-equal reverses the
+compare operands and maps that same less predicate to source false, leaving
+source true as fallthrough. Their independent validation siblings
 reconstruct the exact instruction, operands, provenance, predicate, and
 successor mapping. ISA constraint/effect
 catalogs and encoders remain target-owned leaves rather than being hidden in

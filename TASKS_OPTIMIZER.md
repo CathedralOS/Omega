@@ -1037,6 +1037,25 @@ decision. Only true language-semantic questions belong in
     identities. Cross-target selection and publication tests pin x86
     `cmp`/`JB` and AArch64 `cmp`/`B.LO` through Linux object and callable
     publication.
+  - [x] Add inclusive unsigned-`U64` runtime comparison without expanding the
+    machine predicate vocabulary. Legalization admits one exact
+    `[IntegerLessOrEqual, Conditional]` sibling in the same bounded
+    two-parameter, three-block, immediate-leaf grammar, retains authored
+    left/right order, and appends recipe tag 11 plus the distinct condition
+    discriminator. Its producer and independent replay share only the common
+    ordered-comparison mechanics used by equality and strict less-than; their
+    tiny named leaves retain predicate ownership and keep all three forms
+    independently selectable. Selection canonicalizes `left <= right` as
+    `!(right < left)`: it emits the established `CompareI64` with reversed
+    operands and reuses `ConditionalBranchU64LessThan`, sending the less edge
+    to the source false leaf and retaining source true as fallthrough. Thus no
+    new selected instruction, constraint, effect, encoder, layout, allocator,
+    or object vocabulary is introduced. Cross-target publication pins x86
+    `cmp right, left`/`JB false` and AArch64 `cmp right, left`/`B.LO false`.
+    Independent replay and selected validation reject reflexive-family,
+    operand-order, predicate, compare, and successor corruption; the semantic
+    matrix distinguishes less, equal, and greater inputs and covers `0` and
+    `U64::MAX` before Linux object and callable publication on both ISAs.
   - [x] Add constant-widen-to-immediate as its own exact abstract-to-target
     family. Its independently reconstructed source grammar and target replay
     cover all 18 native fixed-integer widening relations and preserve the

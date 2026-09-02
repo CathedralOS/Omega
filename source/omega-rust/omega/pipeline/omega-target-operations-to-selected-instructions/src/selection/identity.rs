@@ -3,6 +3,7 @@ use super::shared::*;
 mod ordinary;
 mod primitives;
 mod projected_structural;
+mod structural_legalized;
 
 use primitives::{encode_constraint_key, encode_machine_register};
 
@@ -54,7 +55,11 @@ pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
     let domain = b"omega.terminal-selected-instructions.v15\0".as_slice();
-    selected_instruction_plan_identity_with_schema(plan, domain, false)
+    selected_instruction_plan_identity_with_schema(
+        plan,
+        domain,
+        StructuralLegalizedIdentitySchema::V14,
+    )
 }
 
 #[doc(hidden)]
@@ -64,7 +69,7 @@ pub fn selected_instruction_plan_identity_v11_legacy(
     selected_instruction_plan_identity_with_schema(
         plan,
         b"omega.terminal-selected-instructions.v11\0",
-        true,
+        StructuralLegalizedIdentitySchema::V9,
     )
 }
 
@@ -77,7 +82,11 @@ pub fn selected_instruction_plan_identity_v13_legacy(
     } else {
         b"omega.terminal-selected-instructions.v13\0".as_slice()
     };
-    selected_instruction_plan_identity_with_schema(plan, domain, false)
+    selected_instruction_plan_identity_with_schema(
+        plan,
+        domain,
+        StructuralLegalizedIdentitySchema::V12,
+    )
 }
 
 #[doc(hidden)]
@@ -87,14 +96,22 @@ pub fn selected_instruction_plan_identity_v14_legacy(
     selected_instruction_plan_identity_with_schema(
         plan,
         b"omega.terminal-selected-instructions.v14\0",
-        false,
+        StructuralLegalizedIdentitySchema::V13,
     )
+}
+
+#[derive(Clone, Copy)]
+enum StructuralLegalizedIdentitySchema {
+    V9,
+    V12,
+    V13,
+    V14,
 }
 
 fn selected_instruction_plan_identity_with_schema(
     plan: &SelectedInstructionPlan,
     domain: &[u8],
-    legacy_legalized_identity: bool,
+    structural_legalized_identity_schema: StructuralLegalizedIdentitySchema,
 ) -> SelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
@@ -171,7 +188,7 @@ fn selected_instruction_plan_identity_with_schema(
         }
     }
     bytes.extend_from_slice(
-        &selected_structural_legalized_identity(plan, legacy_legalized_identity).bytes(),
+        &structural_legalized::identity(plan, structural_legalized_identity_schema).bytes(),
     );
     encode_len(&mut bytes, plan.structural_unit_functions.len());
     for function in &plan.structural_unit_functions {
@@ -181,90 +198,6 @@ fn selected_instruction_plan_identity_with_schema(
         projected_structural::encode(&mut bytes, &plan.projected_structural_call_returns);
     }
     SelectedInstructionPlanIdentity::from_canonical_bytes(&bytes)
-}
-
-fn selected_structural_legalized_identity(
-    plan: &SelectedInstructionPlan,
-    legacy: bool,
-) -> LegalizedOperationPlanIdentity {
-    let legalized = LegalizedOperationPlan {
-        psi: plan.psi,
-        optimization_unit: omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
-            b"omega.selected-structural-legalized-fingerprint.v1",
-        ),
-        fuel_schedule: plan.fuel_schedule,
-        target: plan.target,
-        entry: plan.entry,
-        functions: Vec::new(),
-        unit_functions: Vec::new(),
-        structural_unit_functions: plan
-            .structural_unit_functions
-            .iter()
-            .map(|function| SourceStructuralUnitFunction {
-                machine: function.machine,
-                attachment: function.attachment,
-                provenance: function.provenance.clone(),
-                recipe: if !function.boundary_settlements.is_empty() {
-                    omega_legalized_operations::StructuralUnitLegalizationRecipe::ClaimCompletionSettlementsThenReturnUnitV1
-                } else {
-                    match function.call.as_ref().map(|call| &call.source) {
-                        Some(omega_legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit) => {
-                            omega_legalized_operations::StructuralUnitLegalizationRecipe::AuthoredCallThenReturnUnitV1
-                        }
-                        Some(omega_legalized_operations::LegalizedCallUnitSource::InstalledProvider { .. }) => {
-                            omega_legalized_operations::StructuralUnitLegalizationRecipe::InstalledProviderCallThenReturnUnitV1
-                        }
-                        None => omega_legalized_operations::StructuralUnitLegalizationRecipe::ReturnUnitV1,
-                    }
-                },
-                structural_types: function.structural_types.clone(),
-                call_plan: function.abi.call_plan.clone(),
-                parameters: function
-                    .abi
-                    .parameters
-                    .iter()
-                    .map(|parameter| LegalizedCallUnitParameter {
-                        semantic: parameter.semantic.clone(),
-                        target: parameter.target.clone(),
-                    })
-                    .collect(),
-                structural_places: function.structural_places.clone(),
-                entry_claims: function.entry_claims.clone(),
-                published_service_ceiling: function.published_service_ceiling.clone(),
-                entry_block: function.source_entry_block,
-                boundary_settlements: function.boundary_settlements.clone(),
-                call: function.call.as_ref().map(|call| LegalizedCallUnit {
-                    source: call.source.clone(),
-                    operation: call.operation,
-                    callee: call.callee,
-                    arguments: call
-                        .arguments
-                        .iter()
-                        .map(|argument| LegalizedCallUnitArgument {
-                            semantic: argument.semantic.clone(),
-                            target: argument.target.clone(),
-                        })
-                        .collect(),
-                    claim_transfers: call.claim_transfers.clone(),
-                    requirement_obligations: call.requirement_obligations.clone(),
-                    crash_continuations: call.crash_continuations.clone(),
-                    fuel: call.provenance.fuel.clone(),
-                    effect: call.effect,
-                    ownership: call.ownership.clone(),
-                }),
-                return_edge: function.terminator.psi_return_edge,
-                return_fuel: function.terminator.instruction.provenance.fuel.clone(),
-                return_effect: function.terminator.effect,
-                return_ownership: function.terminator.ownership.clone(),
-            })
-            .collect(),
-        projected_structural_call_returns: Vec::new(),
-    };
-    if legacy {
-        omega_legalized_operations::legalized_operation_plan_identity_v9_legacy(&legalized)
-    } else {
-        legalized_operation_plan_identity(&legalized)
-    }
 }
 
 fn encode_selected_structural_unit_function(

@@ -29,7 +29,8 @@ pub(super) fn validate_source_register_architecture(
                 register.architecture() != architecture
             }
             LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
-            | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. } => {
+            | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
+            | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } => {
                 left.register.architecture() != architecture
                     || right.register.architecture() != architecture
             }
