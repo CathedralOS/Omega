@@ -747,16 +747,34 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     let [parameter_state] = baseline.typed.machine_states(parameter_machine) else {
         panic!("direct Service parameter machine should have one state")
     };
-    let [psi_typed_trees::statement::StatementNode::Call(settled_call)] = baseline
+    let [
+        psi_typed_trees::statement::StatementNode::Call(first_settled_call),
+        psi_typed_trees::statement::StatementNode::Call(second_settled_call),
+    ] = baseline
         .typed
         .statement_table
         .statements(parameter_state.statement_nodes)
     else {
-        panic!("direct Service parameter machine should retain one settled call")
+        panic!("direct Service parameter machine should retain two settled calls")
     };
-    assert!(
-        !settled_call.receiver_symbol.is_valid(),
-        "exact Service parameter receiver should settle to direct adapter dispatch"
+    for settled_call in [first_settled_call, second_settled_call] {
+        assert!(
+            !settled_call.receiver_symbol.is_valid(),
+            "each exact Service parameter receiver should settle to direct adapter dispatch"
+        );
+    }
+    assert_eq!(
+        parameter_plan
+            .operations
+            .iter()
+            .filter(|operation| matches!(
+                operation,
+                psi_checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                    | psi_checked_trees::CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+            ))
+            .count(),
+        2,
+        "both direct Service calls must retain ordered checked operations"
     );
     psi_checked_trees_to_terminal::lower_machine(&baseline, "ParameterHarness::run")
         .expect("authorized direct Service parameter should lower through Terminal");
@@ -815,6 +833,43 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         diagnostic
             .message
             .contains("not the exact direct owned affine source parameter")
+    }));
+
+    let mut parameter_operation_removal = baseline.clone();
+    let parameter_machine = parameter_operation_removal
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .find(|plan| {
+            plan.structural_parameters
+                .iter()
+                .any(|parameter| parameter.fused_service_erasure.is_some())
+        })
+        .expect("direct Service parameter machine");
+    let operation_index = parameter_machine
+        .operations
+        .iter()
+        .position(|operation| {
+            matches!(
+                operation,
+                psi_checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                    | psi_checked_trees::CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+            )
+        })
+        .expect("direct Service boundary operation");
+    parameter_machine.operations.remove(operation_index);
+    let parameter_operation_error =
+        omega_selected_dispatch::validate_fused_service_terminal_custody(
+            &parameter_operation_removal,
+            &provenance,
+        )
+        .expect_err("removing one ordered Service operation must reject");
+    assert!(parameter_operation_error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("expected one ordered operation per call")
     }));
 
     let mut classifier_twins = baseline.clone();
