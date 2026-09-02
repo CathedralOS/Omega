@@ -377,6 +377,7 @@ fn conditional_return_crash_plan(
             machine: machine_id(1),
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),
                 edges: (1..=4).map(edge_id).collect(),
@@ -497,6 +498,7 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TargetOperat
                 machine: machine_id(1),
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: (1..=5).map(operation_id).collect(),
                     edges: (1..=4).map(edge_id).collect(),
@@ -569,6 +571,7 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TargetOperat
                 machine: machine_id(2),
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: Vec::new(),
                     edges: vec![edge_id(5)],
@@ -584,6 +587,7 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TargetOperat
                 machine: machine_id(3),
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: Vec::new(),
                     edges: vec![edge_id(6)],
@@ -625,6 +629,7 @@ fn conditional_condition_division_plan(target: NativeTarget) -> TargetOperationP
             machine: machine_id(1),
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation_id(1), operation_id(2)],
                 edges: vec![edge_id(1), edge_id(2), edge_id(3), edge_id(4)],
@@ -683,6 +688,7 @@ fn conditional_arm_division_plan(target: NativeTarget, signed: bool) -> TargetOp
             machine: machine_id(1),
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation_id(1), operation_id(2)],
                 edges: vec![edge_id(1), edge_id(2), edge_id(3), edge_id(4)],
@@ -741,6 +747,7 @@ fn division_argument_plan(target: NativeTarget) -> TargetOperationPlan {
                 machine: machine_id(1),
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![operation_id(1), operation_id(2)],
                     edges: vec![edge_id(1)],
@@ -781,6 +788,7 @@ fn division_argument_plan(target: NativeTarget) -> TargetOperationPlan {
                 machine: machine_id(2),
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: Vec::new(),
                     edges: vec![edge_id(2)],

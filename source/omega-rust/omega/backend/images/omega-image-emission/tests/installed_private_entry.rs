@@ -91,6 +91,7 @@ fn private_function_plan() -> TargetOperationPlan {
                     placement: result_placement,
                 },
             }),
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),
                 edges: vec![EdgeId::new(2).expect("private return edge")],

@@ -751,6 +751,7 @@ fn nested_conditional_plan(target: NativeTarget, nested_false_arm: bool) -> Targ
             machine: machine_id(1),
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),
                 edges: (1..=8).map(edge_id).collect(),
