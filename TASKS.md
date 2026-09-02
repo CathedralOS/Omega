@@ -7558,6 +7558,17 @@ Owners:
   regressions resolve and type on the ordinary test stack, and the unchanged
   mixed nominal owner now passes there as well; increasing the stack or
   weakening the original owner is not the fix.
+  The same unchanged mixed nominal owner now completes in 15.8s wall on the
+  measured debug product, down from the recorded 34.6s. Checked operator-use
+  discovery and Terminal path-fact reconstruction use exact hashed membership
+  instead of repeated linear duplicate scans; path-fact fingerprints remain
+  non-authoritative buckets whose collisions receive full proposition equality
+  checks. Successor substitution skips facts that cannot mention an edge
+  argument. Large batches of independent certificate searches use at most eight
+  dynamically balanced workers, then restore source order before deterministic
+  error selection and the existing obligation sort; batches below sixteen
+  remain single-threaded. The proof goals, selected certificates, verifier
+  replay, and exhaustive opt-in tamper matrix are unchanged.
   Sample refresh no longer multiplies its machine-wide outer fan-out by a full
   backend worker pool per sample: each independent compile now owns one inner
   worker and uses `OutputOnly`, because the command consumes only the runnable
