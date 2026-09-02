@@ -18,6 +18,57 @@ fn fixed_integer_shape(integer: psi_core::IntegerType) -> Option<ValueShape> {
     Some(ValueShape::integer(bytes, bytes))
 }
 
+pub(super) fn installed_forwarded_dynamic_scalar_result_is_canonical(
+    call: &super::InstalledForwardedDynamicDescriptorCall,
+    function: &InstalledFunction,
+    target: NativeTarget,
+) -> bool {
+    let psi_core::ScalarType::Integer(result_type) = call.semantic_result.scalar_type else {
+        return false;
+    };
+    let Some(result_shape) = fixed_integer_shape(result_type) else {
+        return false;
+    };
+    let Ok(pointer_bytes) = u16::try_from(target.pointer_size) else {
+        return false;
+    };
+    let Ok(pointer_alignment) = u16::try_from(target.pointer_alignment) else {
+        return false;
+    };
+    let pointer = ValueShape::integer(pointer_bytes, pointer_alignment);
+    let Ok(expected_plan) = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![pointer; 2],
+            result: Some(result_shape),
+        },
+    ) else {
+        return false;
+    };
+    let Some(expected_result) = expected_plan.result.as_ref() else {
+        return false;
+    };
+    let Some(local_call_offset) = call.text_offset.checked_sub(function.text_offset) else {
+        return false;
+    };
+    let Some(local_call_end) = local_call_offset.checked_add(call.byte_count) else {
+        return false;
+    };
+    let Some(result_end) = call.result.code_offset.checked_add(call.result.byte_count) else {
+        return false;
+    };
+
+    call.semantic_result.value == call.result.home.source_value
+        && call.result.home.defining_operation == call.operation
+        && call.result.home.scalar_type == result_type
+        && call.result.home.shape == result_shape
+        && call.result.source == *expected_result
+        && function.unit_scalar_homes.contains(&call.result.home)
+        && call.result.byte_count != 0
+        && call.result.code_offset >= local_call_offset
+        && result_end == local_call_end
+}
+
 pub(super) fn installed_function_scalar_transport_is_canonical(
     function: &InstalledFunction,
     target: NativeTarget,
@@ -405,4 +456,145 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+    use omega_machine_code::{ForeignCallScalarResultRecord, UnitScalarHomeRecord};
+    use psi_core::{
+        IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType, ValueId,
+    };
+
+    use super::*;
+
+    fn forwarded_result_fixture() -> (
+        super::super::InstalledForwardedDynamicDescriptorCall,
+        InstalledFunction,
+    ) {
+        let target = NativeTarget::linux_x64();
+        let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let shape = ValueShape::integer(4, 4);
+        let plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); 2],
+                result: Some(shape),
+            },
+        )
+        .expect("forwarded descriptor plan");
+        let operation = OperationId::new(7).expect("operation");
+        let value = ValueId::new(8).expect("value");
+        let home = UnitScalarHomeRecord {
+            defining_operation: operation,
+            source_value: value,
+            scalar_type: integer,
+            shape,
+            byte_offset: 16,
+        };
+        let call = super::super::InstalledForwardedDynamicDescriptorCall {
+            machine: MachineId::new(1).expect("caller"),
+            operation,
+            callee: MachineId::new(2).expect("callee"),
+            application_commitment:
+                psi_terminal::ClosedConformanceApplicationCommitment::from_digest([1; 32]),
+            source: PlaceId::new(3).expect("source"),
+            semantic_result: omega_abstract_operations::AbstractResult {
+                value,
+                scalar_type: ScalarType::Integer(integer),
+            },
+            result: ForeignCallScalarResultRecord {
+                home,
+                source: plan.result.expect("result placement"),
+                code_offset: 30,
+                byte_count: 10,
+            },
+            text_offset: 120,
+            byte_count: 20,
+        };
+        let function = InstalledFunction {
+            machine: call.machine,
+            attachment: None,
+            fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
+            structural_call_scalar_return: None,
+            text_offset: 100,
+            byte_count: 50,
+            unit_stack: None,
+            scalar_stack: None,
+            unit_call_stacks: Vec::new(),
+            scalar_call_stacks: Vec::new(),
+            foreign_call_stacks: Vec::new(),
+            unit_body: true,
+            ranked_u32_countdown: false,
+            unit_parameters: Vec::new(),
+            unit_parameter_homes: Vec::new(),
+            unit_scalar_homes: vec![home],
+            unit_integer_constants: Vec::new(),
+            unit_structural_scalar_field_stores: Vec::new(),
+            unit_affine_cleanup: None,
+            scalar_affine_cleanup: None,
+            scalar_control_affine_cleanups: Vec::new(),
+            scalar_structural_parameters: Vec::new(),
+            scalar_structural_parameter_homes: Vec::new(),
+        };
+        (call, function)
+    }
+
+    #[test]
+    fn installed_forwarded_result_rejoins_semantic_home_placement_and_span() {
+        let target = NativeTarget::linux_x64();
+        let (valid, function) = forwarded_result_fixture();
+        assert!(installed_forwarded_dynamic_scalar_result_is_canonical(
+            &valid, &function, target
+        ));
+
+        let mut wrong_semantic_value = valid.clone();
+        wrong_semantic_value.semantic_result.value = ValueId::new(99).expect("different value");
+        assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
+            &wrong_semantic_value,
+            &function,
+            target
+        ));
+
+        let mut wrong_semantic_type = valid.clone();
+        wrong_semantic_type.semantic_result.scalar_type = ScalarType::Boolean;
+        assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
+            &wrong_semantic_type,
+            &function,
+            target
+        ));
+
+        let mut wrong_home = valid.clone();
+        wrong_home.result.home.source_value = ValueId::new(99).expect("different value");
+        assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
+            &wrong_home,
+            &function,
+            target
+        ));
+
+        let mut missing_home = function.clone();
+        missing_home.unit_scalar_homes.clear();
+        assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
+            &valid,
+            &missing_home,
+            target
+        ));
+
+        let mut wrong_placement = valid.clone();
+        wrong_placement.result.source.shape = ValueShape::integer(8, 8);
+        assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
+            &wrong_placement,
+            &function,
+            target
+        ));
+
+        let mut truncated_result = valid;
+        truncated_result.result.byte_count -= 1;
+        assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
+            &truncated_result,
+            &function,
+            target
+        ));
+    }
 }

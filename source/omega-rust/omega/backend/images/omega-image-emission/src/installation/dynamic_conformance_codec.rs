@@ -1,6 +1,7 @@
 //! Canonical installation transport for dynamic-conformance table custody.
 
-use psi_core::{MachineId, OperationId, PlaceId, ValueId};
+use omega_machine_code::InternalUnitScalarCallResultRecord;
+use psi_core::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
 use psi_terminal::ClosedConformanceApplicationCommitment;
 
 use super::{
@@ -8,7 +9,12 @@ use super::{
     InstalledDynamicParameterScalarCall, InstalledDynamicScalarCall,
     InstalledForwardedDynamicDescriptorAdapter, InstalledForwardedDynamicDescriptorCall,
     InstalledForwardedDynamicDescriptorSlot, InstalledForwardedDynamicDescriptorTable, Reader,
+    internal_unit_scalar_call_codec::{decode_offset, encode_offset},
     push_u32, push_u64,
+    unit_scalar_codec::{
+        decode_integer_type, decode_unit_scalar_home, encode_integer_type, encode_unit_scalar_home,
+    },
+    value_placement_codec::{decode_direct_placement, encode_direct_placement},
 };
 
 pub(super) fn encode_dynamic_conformance_custody(
@@ -150,6 +156,17 @@ pub(super) fn encode_dynamic_conformance_custody(
         push_u64(bytes, call.callee.get());
         bytes.extend_from_slice(&call.application_commitment.as_bytes());
         push_u64(bytes, call.source.get());
+        push_u64(bytes, call.semantic_result.value.get());
+        let ScalarType::Integer(result_type) = call.semantic_result.scalar_type else {
+            return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
+                call.machine,
+            ));
+        };
+        encode_integer_type(bytes, result_type)?;
+        encode_unit_scalar_home(bytes, call.result.home)?;
+        encode_direct_placement(bytes, &call.result.source)?;
+        encode_offset(bytes, call.result.code_offset)?;
+        encode_offset(bytes, call.result.byte_count)?;
         push_u64(
             bytes,
             u64::try_from(call.text_offset).map_err(|_| {
@@ -377,7 +394,7 @@ pub(super) fn decode_dynamic_conformance_custody(
     }
     let forwarded_call_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyForwardedDynamicDescriptorCalls)?;
-    if forwarded_call_count > reader.remaining() / 80 {
+    if forwarded_call_count > reader.remaining() / 158 {
         return Err(InstallationError::UnexpectedEnd);
     }
     let mut forwarded_calls = Vec::with_capacity(forwarded_call_count);
@@ -395,6 +412,18 @@ pub(super) fn decode_dynamic_conformance_custody(
         let source = PlaceId::new(reader.u64()?).ok_or(
             InstallationError::InvalidForwardedDynamicDescriptorCall(machine),
         )?;
+        let semantic_result = omega_abstract_operations::AbstractResult {
+            value: ValueId::new(reader.u64()?).ok_or(
+                InstallationError::InvalidForwardedDynamicDescriptorCall(machine),
+            )?,
+            scalar_type: ScalarType::Integer(decode_integer_type(reader)?),
+        };
+        let result = InternalUnitScalarCallResultRecord {
+            home: decode_unit_scalar_home(reader)?,
+            source: decode_direct_placement(reader)?,
+            code_offset: decode_offset(reader)?,
+            byte_count: decode_offset(reader)?,
+        };
         let text_offset = usize::try_from(reader.u64()?)
             .map_err(|_| InstallationError::InvalidForwardedDynamicDescriptorCall(machine))?;
         let byte_count = usize::try_from(reader.u64()?)
@@ -410,6 +439,8 @@ pub(super) fn decode_dynamic_conformance_custody(
             callee,
             application_commitment,
             source,
+            semantic_result,
+            result,
             text_offset,
             byte_count,
         });

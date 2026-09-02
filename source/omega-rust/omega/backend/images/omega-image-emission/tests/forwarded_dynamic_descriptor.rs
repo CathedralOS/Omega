@@ -119,7 +119,20 @@ fn object_construction_binds_forwarded_tables_through_adapters() {
             argument.adapters.len()
         );
         assert_eq!(installation.forwarded_dynamic_descriptor_tables().len(), 1);
-        assert_eq!(installation.forwarded_dynamic_descriptor_calls().len(), 1);
+        let [installed_call] = installation.forwarded_dynamic_descriptor_calls() else {
+            panic!("one installed forwarded descriptor call expected")
+        };
+        assert_eq!(installed_call.semantic_result, call.semantic_result);
+        assert_eq!(installed_call.result, call.result);
+        assert!(
+            installation
+                .functions()
+                .iter()
+                .find(|function| function.machine == caller.machine)
+                .expect("installed caller")
+                .unit_scalar_homes
+                .contains(&installed_call.result.home)
+        );
         assert_eq!(installation.dynamic_parameter_scalar_calls().len(), 1);
         let bytes = encode_installation_record(&installation).expect("encode installation");
         assert_eq!(decode_installation_record(&bytes), Ok(installation.clone()));
