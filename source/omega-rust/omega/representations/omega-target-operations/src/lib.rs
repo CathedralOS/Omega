@@ -104,7 +104,9 @@ pub struct FixedIntegerScalarFunctionAbi {
 }
 
 /// Function-owned mixed ABI derived while Abstract scalar and structural
-/// parameter declarations are both still available.
+/// parameter declarations are both still available. Intermediate physical
+/// owners validate this row mechanically; `NativeArtifact` rejoins its named
+/// values and places to the canonical Terminal machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MixedStructuralScalarFunctionAbi {
     pub call_plan: CallPlan,

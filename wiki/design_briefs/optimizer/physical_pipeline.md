@@ -1228,8 +1228,11 @@ separate scalar and structural argument rows and retains the authored operation
 coordinate; private source and substituted-generic type spellings are
 reconciled only when their independently checked structural shapes agree. The
 hosted fixed-integer/empty-record subset continues through native D32 physical
-custody. Structural results, projected or borrowed roots, nontrivial layouts,
-and broader effects remain outside this lane.
+custody. Object and installation replay validates ABI mechanics, while the
+native artifact rejoins retained scalar value and structural place identities
+against the canonical Terminal machine it already owns. Structural results,
+projected or borrowed roots, nontrivial layouts, and broader effects remain
+outside this lane.
 
 D32 requires this physical composition to issue one child receipt for every
 settled boundary occurrence surviving the validated optimization projection.

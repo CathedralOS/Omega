@@ -158,6 +158,7 @@ pub(super) fn compose_call_operation(
             CallResultRule::ScalarCalleeResult,
             OperationKind::CallStructuralScalar {
                 callee,
+                arguments,
                 structural_arguments,
                 requirement_obligations,
                 ..
@@ -172,6 +173,7 @@ pub(super) fn compose_call_operation(
                 machine,
                 operation,
                 callee,
+                arguments,
                 structural_arguments,
                 requirement_obligations,
                 value_types,
@@ -223,6 +225,7 @@ pub(super) fn compose_call_operation(
                 machine,
                 operation,
                 callee,
+                &[],
                 std::slice::from_ref(&selection.source),
                 requirement_obligations,
                 value_types,
@@ -365,6 +368,7 @@ fn compose_structural_scalar_call(
     machine: &TerminalMachine,
     operation: &Operation,
     callee: &TerminalMachine,
+    arguments: &[ValueId],
     structural_arguments: &[psi_terminal::StructuralArgument],
     requirement_obligations: &[psi_core::ObligationId],
     value_types: &BTreeMap<ValueId, ScalarType>,
@@ -388,18 +392,24 @@ fn compose_structural_scalar_call(
             )
         })
         .collect::<BTreeMap<_, _>>();
-    let result_substitution = BTreeMap::from([(
+    let mut value_substitutions = callee
+        .parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| (parameter.id, value_term(*argument, value_types)))
+        .collect::<BTreeMap<_, _>>();
+    value_substitutions.insert(
         callee
             .result
             .scalar()
             .expect("validated structural scalar-call target has a scalar result")
             .id,
         value_term(operation.result.expect_scalar().id, value_types),
-    )]);
+    );
     let substitute = |proposition: &Proposition| {
         substitute_proposition_values(
             &substitute_proposition_structural_places(proposition, &structural_substitutions),
-            &result_substitution,
+            &value_substitutions,
         )
     };
     for (requirement_position, (required, obligation)) in callee

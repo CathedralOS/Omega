@@ -124,6 +124,44 @@ pub struct RederivedSelectedOperatorStructuralScalarArguments {
     pub structural_source_parameter_positions: Vec<u32>,
 }
 
+/// Parameter-family partition independently reconstructed from the authored
+/// realization declaration. Checked flow rows may retain these coordinates,
+/// but cannot author or rearrange them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RederivedSelectedOperatorParameterPartition {
+    pub scalar_parameters: Vec<(u32, psi_typed_trees::types::PrimitiveType)>,
+    pub structural_parameter_positions: Vec<u32>,
+}
+
+pub fn rederive_selected_operator_parameter_partition(
+    program: &psi_typed_trees::TypedTrees,
+    realization_machine: psi_symbols::SymbolHandle,
+    realization_state: psi_symbols::SymbolHandle,
+) -> Option<RederivedSelectedOperatorParameterPartition> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == realization_machine)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == realization_state)?;
+    let mut scalar_parameters = Vec::new();
+    let mut structural_parameter_positions = Vec::new();
+    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+        let position = u32::try_from(position).ok()?;
+        if let Some(primitive) = program.primitive_type_reference(parameter.type_reference) {
+            scalar_parameters.push((position, primitive));
+        } else {
+            structural_parameter_positions.push(position);
+        }
+    }
+    Some(RederivedSelectedOperatorParameterPartition {
+        scalar_parameters,
+        structural_parameter_positions,
+    })
+}
+
 /// Rederive the scalar expressions and whole structural roots supplied by one
 /// authored selected operator use. Unsupported expression shapes fail closed.
 pub fn rederive_selected_operator_structural_scalar_arguments(

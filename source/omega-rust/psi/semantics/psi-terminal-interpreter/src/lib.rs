@@ -1038,6 +1038,7 @@ impl TerminalExecution {
         &mut self,
         callee_id: MachineId,
         result: psi_terminal::ValueDeclaration,
+        scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[StructuralArgument],
         claim_transfers: &[ClaimTransfer],
         dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
@@ -1047,11 +1048,10 @@ impl TerminalExecution {
             .get(&callee_id)
             .cloned()
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
-        if !callee.parameters.is_empty()
-            || callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type)
-        {
+        if callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type) {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
+        let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let arguments = resolve_structural_arguments(
             &self.structural_types,
             &self.structural_values,
@@ -1118,7 +1118,7 @@ impl TerminalExecution {
             result: SuspendedCallResult::Scalar(result.id),
         });
         self.blocks = callee.blocks;
-        self.values = BTreeMap::new();
+        self.values = values;
         self.structural_values = structural_values;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
@@ -1338,6 +1338,7 @@ impl TerminalExecution {
                     }
                     OperationKind::CallStructuralScalar {
                         callee,
+                        arguments,
                         structural_arguments,
                         claim_transfers,
                         ..
@@ -1348,9 +1349,19 @@ impl TerminalExecution {
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         let dynamic_parameters =
                             self.resolve_dynamic_call_arguments(operation.id)?;
+                        let scalar_arguments = arguments
+                            .iter()
+                            .map(|argument| {
+                                self.values
+                                    .get(argument)
+                                    .copied()
+                                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
                         self.begin_structural_scalar_call(
                             callee,
                             result,
+                            &scalar_arguments,
                             &structural_arguments,
                             &claim_transfers,
                             dynamic_parameters,
@@ -1372,6 +1383,7 @@ impl TerminalExecution {
                         self.begin_structural_scalar_call(
                             callee,
                             result,
+                            &[],
                             &[source],
                             &[],
                             BTreeMap::new(),
