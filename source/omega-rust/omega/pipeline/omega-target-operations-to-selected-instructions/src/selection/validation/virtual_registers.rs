@@ -46,7 +46,8 @@ pub(super) fn validate_virtual_registers(
                 )
             })
             .collect(),
-        LegalizedCondition::I64LessThanParametersV1 { left, right, .. } => {
+        LegalizedCondition::I64LessThanParametersV1 { left, right, .. }
+        | LegalizedCondition::I64LessOrEqualParametersV1 { left, right, .. } => {
             let i64_type = ScalarType::Integer(
                 psi_core::IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
             );

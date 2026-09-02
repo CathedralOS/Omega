@@ -536,10 +536,13 @@ those joins. The crate-level `lib.rs` is only the responsibility map between
 the two stages, not a hidden third coordinator.
 
 Immediately below the legalization entrance, `catalog.rs` is the sole ordered
-inventory for all twenty-two forms: sixteen scalar, one scalar-call Unit, one
+inventory for all twenty-three forms: seventeen scalar, one scalar-call Unit, one
 plain Unit, and four structural Unit. Each row names its typed recipe, producer
 matcher kind, exact source-shape constraints, non-authoritative structural
-cost, and independent validator kind. `source/matchers/` walks that catalog to
+cost, and independent validator kind. Its `catalog/model.rs` child owns only the
+typed row vocabulary, keeping the ordered coordination point below the file-size
+ceiling without distributing inventory or precedence. `source/matchers/` walks
+that catalog to
 recognize a form; `replay/validators/` reconstructs membership without calling
 producer code. Removing a row disables the form, and missing or ambiguous
 recipe lookup fails closed. The Unit recipe families are retained in the
@@ -554,10 +557,11 @@ unsigned-`U64` functions with two distinct entry parameters and either
 `[IntegerLessOrEqual, Conditional]`, or the composite
 `[IntegerEqual, BooleanNot, Conditional]` in the entry block. A fifth exact
 candidate has two signed-`I64` entry parameters and
-`[IntegerLessThan, Conditional]`. A sixth candidate has one unsigned-`U64`
+`[IntegerLessThan, Conditional]`; a sixth signed candidate owns the parallel
+`[IntegerLessOrEqual, Conditional]` form. A seventh candidate has one unsigned-`U64`
 entry parameter and entry operations exactly
 `[IntegerConstant(U64, 0), IntegerEqual(parameter, zero), Conditional]`.
-A seventh uses that same parameter and authored zero but follows equality with
+An eighth uses that same parameter and authored zero but follows equality with
 `[BooleanNot, Conditional]`, making parameter-not-equal-zero explicit without
 introducing another machine predicate.
 Every candidate has one `U64` immediate return in each leaf. Legalization
@@ -594,7 +598,10 @@ opposite successor mappings. Signed strict less-than instead owns
 true/less successor mapping while x86 emits `JL rel32` (or `JL rel8` only
 through explicit relaxation) and AArch64 emits `B.LT`. Signed and unsigned
 predicates have distinct selected, machine-effect, layout, encoding, and
-fragment identities. The parameter-zero-comparison family instead retains
+fragment identities. Signed inclusive ordering reuses that signed predicate
+with reversed compare operands, sending less to source false and retaining
+source true as fallthrough; it does not introduce `JLE`/`B.LE` vocabulary. The
+parameter-zero-comparison family instead retains
 three virtual registers, folds the authored zero into `CompareI64Zero`, and
 maps nonzero to source false for equality and source true for inequality
 through the existing nonzero terminator. Equality provenance remains on the

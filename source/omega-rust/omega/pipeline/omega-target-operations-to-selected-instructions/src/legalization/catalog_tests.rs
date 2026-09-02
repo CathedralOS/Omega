@@ -4,7 +4,7 @@ use omega_legalized_operations::{
     UnitLegalizationRecipe,
 };
 
-const EXPECTED_RECIPES: [LegalizationFormRecipe; 22] = [
+const EXPECTED_RECIPES: [LegalizationFormRecipe; 23] = [
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ImmediateConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EntryParameterConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1),
@@ -39,6 +39,9 @@ const EXPECTED_RECIPES: [LegalizationFormRecipe; 22] = [
         LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1,
     ),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1),
+    LegalizationFormRecipe::Scalar(
+        LegalizationRecipe::ReturnU64I64LessOrEqualParametersConditionalV1,
+    ),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1),
     LegalizationFormRecipe::ScalarCallUnit(
@@ -165,6 +168,32 @@ fn i64_less_than_catalog_row_freezes_the_exact_source_grammar() {
     assert_ne!(
         super::legalization_validator_identity(),
         super::legalization_validator_identity_v17_legacy()
+    );
+}
+
+#[test]
+fn i64_less_or_equal_catalog_row_freezes_the_exact_source_grammar() {
+    let row = legalization_form_for_recipe(LegalizationFormRecipe::Scalar(
+        LegalizationRecipe::ReturnU64I64LessOrEqualParametersConditionalV1,
+    ))
+    .expect("I64 less-or-equal catalog row");
+    let LegalizationShapeConstraints::Scalar(constraints) = row.constraints else {
+        panic!("scalar I64 less-or-equal row")
+    };
+    assert_eq!(
+        constraints.condition,
+        ScalarConditionShape::IntegerLessOrEqualI64Parameters
+    );
+    assert_eq!(constraints.entry_node_count, 2);
+    assert_eq!(constraints.block_offsets, [0, 2, 4]);
+    assert_eq!(constraints.operation_count, 6);
+    assert_eq!(constraints.leaf_node_counts, [2, 2]);
+    assert_eq!(constraints.parameter_count, 2);
+    assert_eq!(row.cost.projected_selected_instruction_count, 6);
+    assert_eq!(row.cost.introduced_temporary_count, 0);
+    assert_ne!(
+        super::legalization_validator_identity(),
+        super::legalization_validator_identity_v20_legacy()
     );
 }
 

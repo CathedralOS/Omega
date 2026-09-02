@@ -195,6 +195,13 @@ machine rule is absent; only the separately named
 pair with `CBNZ`. This distinction lets source coverage grow without silently
 promoting a physical optimization.
 
+Signed inclusive comparison follows the same exact-family rule. Its legalization
+row is distinct from both signed strict-less-than and unsigned less-or-equal,
+but selected construction deliberately reuses `CompareI64` and
+`ConditionalBranchI64LessThan`: `left <= right` reverses the compare, takes the
+source false edge when `right < left`, and leaves source true as fallthrough.
+This composition adds no umbrella level and no `JLE`/`B.LE` machine family.
+
 Psi analysis has one exact cyclic admission rather than a broad loop mode. The
 optimizer-only Terminal authority accepts ordinary acyclic input plus the
 existing unsigned-countdown ranked SCC. Verified-context validation separately

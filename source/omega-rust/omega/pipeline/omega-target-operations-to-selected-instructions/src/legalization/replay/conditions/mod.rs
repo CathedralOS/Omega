@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Independently classifies and replays one proposed scalar condition.
-
 mod direct_parameter;
+mod i64_less_or_equal_parameters;
 mod i64_less_than_parameters;
 mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
@@ -16,7 +16,6 @@ use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
 use model::ReplayLeaf;
 pub(in crate::legalization) use model::ReplayedCondition;
-
 pub(super) fn replay<'a>(
     function: usize,
     architecture: omega_target::Architecture,
@@ -55,6 +54,15 @@ pub(super) fn replay<'a>(
             },
             LegalizedCondition::IntegerLessThanParametersV1 { .. },
         ) => integer_less_than_parameters::replay,
+        (
+            TargetOperation::ReturnIntegerExpressionConditionalControl {
+                condition: TargetBooleanExpression::IntegerLessOrEqual { scalar_type, .. },
+                ..
+            },
+            LegalizedCondition::I64LessOrEqualParametersV1 { .. },
+        ) if *scalar_type == IntegerType::new(IntegerSign::Signed, 64).expect("i64") => {
+            i64_less_or_equal_parameters::replay
+        }
         (
             TargetOperation::ReturnIntegerExpressionConditionalControl {
                 condition: TargetBooleanExpression::IntegerLessOrEqual { .. },

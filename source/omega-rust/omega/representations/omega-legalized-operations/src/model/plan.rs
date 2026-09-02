@@ -77,6 +77,9 @@ pub enum LegalizationRecipe {
     /// Strict signed ordering of two ordered I64 entry parameters controls
     /// two immediate U64 return arms.
     ReturnU64I64LessThanParametersConditionalV1,
+    /// Inclusive signed ordering of two ordered I64 entry parameters controls
+    /// two immediate U64 return arms.
+    ReturnU64I64LessOrEqualParametersConditionalV1,
     /// Equality of one U64 entry parameter with an exact authored U64 zero
     /// controls two immediate U64 return arms.
     ReturnU64EqualZeroParameterConditionalV1,

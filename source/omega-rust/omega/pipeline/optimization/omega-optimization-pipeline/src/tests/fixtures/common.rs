@@ -262,6 +262,20 @@ pub(crate) fn conditional_i64_integer_less_than_parameters_artifact() -> (Vec<u8
     )
 }
 
+pub(crate) fn conditional_i64_integer_less_or_equal_parameters_artifact() -> (Vec<u8>, Vec<u8>) {
+    let machine = conditional_i64_integer_less_or_equal_parameters_machine(19_900, [7, 9]);
+    let module = conditional_immediate_module(machine.id, vec![machine]);
+    let proof = ProofBundle {
+        recursive_components: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: Vec::new(),
+    };
+    (
+        psi_terminal_codec::encode_module(&module).unwrap(),
+        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+    )
+}
+
 pub(crate) fn conditional_u64_integer_less_or_equal_parameters_artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = conditional_u64_integer_less_or_equal_parameters_machine(19_400, [7, 9]);
     let module = conditional_immediate_module(machine.id, vec![machine]);
@@ -341,6 +355,18 @@ pub(crate) fn conditional_i64_integer_less_than_parameters_machine(
     literals: [u128; 2],
 ) -> TerminalMachine {
     let mut machine = conditional_u64_integer_less_than_parameters_machine(base, literals);
+    let i64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    for parameter in &mut machine.parameters {
+        parameter.scalar_type = i64_type;
+    }
+    machine
+}
+
+pub(crate) fn conditional_i64_integer_less_or_equal_parameters_machine(
+    base: u64,
+    literals: [u128; 2],
+) -> TerminalMachine {
+    let mut machine = conditional_u64_integer_less_or_equal_parameters_machine(base, literals);
     let i64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
     for parameter in &mut machine.parameters {
         parameter.scalar_type = i64_type;

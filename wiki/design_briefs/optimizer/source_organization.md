@@ -239,15 +239,18 @@ Runtime condition legalization follows the same mirrored taxonomy as leaf
 legalization. `source/conditions/mod.rs` is the small producer coordination
 entrance over exact `direct_parameter`, `integer_equal_parameters`,
 `integer_less_than_parameters`, `integer_less_or_equal_parameters`,
-`integer_not_equal_parameters`, `i64_less_than_parameters`, and
-`u64_equal_zero_parameter`, and `u64_not_equal_zero_parameter` leaves. The
+`integer_not_equal_parameters`, `i64_less_than_parameters`,
+`i64_less_or_equal_parameters`, `u64_equal_zero_parameter`, and
+`u64_not_equal_zero_parameter` leaves. The
 simple comparison leaves delegate only
 their common ordered-parameter mechanics
 to `integer_parameter_comparison`; each named leaf continues to own its
-predicate and exact integer type. The composite inequality leaf delegates its
+predicate and exact integer type. `source/conditions/model.rs` owns the returned
+condition-custody envelope so the entrance remains only the readable classifier
+and coordinator. The composite inequality leaf delegates its
 shared parameter projection to `integer_parameter_not_equal` while retaining
 the equality and Boolean-not chain itself. `replay/conditions/mod.rs` joins a
-tiny local model leaf to independently reconstruct those same eight closed forms
+tiny local model leaf to independently reconstruct those same nine closed forms
 through its own mirrored comparison mechanics without importing producer
 helpers. The two zero-comparison leaves separately own their authored immediate
 and single-parameter projection; the inequality leaf additionally owns its
@@ -276,7 +279,10 @@ existing nonzero branch, mapping nonzero to source true and zero to source
 false without materializing a Boolean-not result. Signed strict less-than owns
 parallel `i64_less_than_parameters` construction and validation leaves and a
 distinct signed terminator; it does not widen the unsigned leaf or infer the
-predicate from register bits. The adjacent `zero_comparison_immediate_pair`
+predicate from register bits. Signed inclusive ordering owns parallel
+`i64_less_or_equal_parameters` construction and validation leaves: they reverse
+the compare operands and route signed-less to source false while source true
+falls through. The adjacent `zero_comparison_immediate_pair`
 family owns the distinct three-register shape. Its `equal_zero_parameter` entry
 leaf makes the nonzero-to-false/zero-to-true mapping explicit; its
 `not_equal_zero_parameter` sibling keeps equality provenance on the compare,

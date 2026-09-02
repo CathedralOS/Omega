@@ -2,6 +2,7 @@
 
 mod direct_parameter;
 mod equal_zero_parameter;
+mod i64_less_or_equal_parameters;
 mod i64_less_than_parameters;
 mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
@@ -36,6 +37,9 @@ pub(in crate::selection::construction::scalar) fn condition(
         }
         LegalizedCondition::I64LessThanParametersV1 { .. } => {
             i64_less_than_parameters::build(context)
+        }
+        LegalizedCondition::I64LessOrEqualParametersV1 { .. } => {
+            i64_less_or_equal_parameters::build(context)
         }
     }
 }

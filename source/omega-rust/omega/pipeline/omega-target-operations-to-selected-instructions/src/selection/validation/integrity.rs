@@ -16,6 +16,7 @@ pub(super) fn validate_dense(
                         | LegalizedCondition::IntegerLessOrEqualParametersV1 { .. }
                         | LegalizedCondition::IntegerNotEqualParametersV1 { .. }
                         | LegalizedCondition::I64LessThanParametersV1 { .. }
+                        | LegalizedCondition::I64LessOrEqualParametersV1 { .. }
                 ) {
                     4
                 } else {
@@ -391,6 +392,22 @@ pub(super) fn validate_provenance_partition(
             &[][..],
             source.branch_true_fuel.as_slice(),
             source.branch_false_fuel.as_slice(),
+        ),
+        (
+            LegalizedCondition::I64LessOrEqualParametersV1 { fuel, .. },
+            SelectedTerminator::ConditionalBranchI64LessThan {
+                instruction,
+                when_less,
+                when_not_less,
+            },
+        ) => (
+            instruction,
+            when_less,
+            when_not_less,
+            fuel.as_slice(),
+            &[][..],
+            source.branch_false_fuel.as_slice(),
+            source.branch_true_fuel.as_slice(),
         ),
         _ => {
             return Err(SelectedInstructionError::ProvenancePartitionMismatch {

@@ -70,6 +70,13 @@ pub enum LegalizedCondition {
         left: LegalizedConditionParameter,
         right: LegalizedConditionParameter,
     },
+    I64LessOrEqualParametersV1 {
+        operation: OperationId,
+        result_definition_site: ValueDefinitionSite,
+        fuel: Vec<FuelSettlement>,
+        left: LegalizedConditionParameter,
+        right: LegalizedConditionParameter,
+    },
     U64EqualZeroParameterV1 {
         operation: OperationId,
         result_definition_site: ValueDefinitionSite,

@@ -31,7 +31,8 @@ pub(super) fn validate_source_register_architecture(
             LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
             | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
             | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. }
-            | LegalizedCondition::I64LessThanParametersV1 { left, right, .. } => {
+            | LegalizedCondition::I64LessThanParametersV1 { left, right, .. }
+            | LegalizedCondition::I64LessOrEqualParametersV1 { left, right, .. } => {
                 left.register.architecture() != architecture
                     || right.register.architecture() != architecture
             }

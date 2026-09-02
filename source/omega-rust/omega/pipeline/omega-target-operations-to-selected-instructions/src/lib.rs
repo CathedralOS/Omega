@@ -14,7 +14,8 @@ pub use legalization::{
     ProjectedStructuralCallReturnLegalizationReceipt, ValidatedLegalizedOperations,
     legalization_validator_identity, legalization_validator_identity_v17_legacy,
     legalization_validator_identity_v18_legacy, legalization_validator_identity_v19_legacy,
-    legalize_target_operations, validate_legalized_operations,
+    legalization_validator_identity_v20_legacy, legalize_target_operations,
+    validate_legalized_operations,
 };
 pub use selection::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
