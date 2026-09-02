@@ -3,7 +3,7 @@
 //! This layer consumes relative permission-domain packing, binds it to the
 //! exact retained Linux target, and closes the current five-program-header
 //! geometry (`PT_INTERP`, R/RX/RW `PT_LOAD`, and `PT_DYNAMIC`). It also
-//! resolves all twenty-one section-header placement obligations as retained
+//! resolves all twenty-three section-header placement obligations as retained
 //! values. It does not write those values into the section-header template,
 //! resolve payload-internal fixups, mutate image bytes, serialize program
 //! headers, or claim runnable-ELF authority. The section-header template gets
@@ -20,8 +20,8 @@ use crate::section_roster::ElfDynamicRosterSectionKind;
 use omega_target::TargetProfile;
 use psi_diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 12;
-const PLACEMENT_FIXUP_COUNT: usize = 21;
+const SECTION_COUNT: usize = 13;
+const PLACEMENT_FIXUP_COUNT: usize = 23;
 const DYNAMIC_PROGRAM_HEADER_COUNT: u64 = 5;
 const DYNAMIC_MAX_PAGE_SIZE: u64 = 0x1_0000;
 const DYNAMIC_LOAD_POLICY_TAG: u8 = 1;
@@ -54,11 +54,12 @@ pub enum ElfPlacedDynamicSectionKind {
     SystemVHash = 4,
     GnuSymbolVersion = 5,
     GnuVersionRequirement = 6,
-    ProcedureLinkage = 7,
-    ProcedureGot = 8,
-    ProcedureRelocation = 9,
-    DynamicTable = 10,
-    SectionNameTable = 11,
+    GnuHash = 7,
+    ProcedureLinkage = 8,
+    ProcedureGot = 9,
+    ProcedureRelocation = 10,
+    DynamicTable = 11,
+    SectionNameTable = 12,
 }
 
 /// Absolute geometry for one future `Elf64_Phdr`.
@@ -108,7 +109,7 @@ impl ElfLoadProgramHeader {
     }
 }
 
-/// Absolute placement of one row in the closed twelve-section roster.
+/// Absolute placement of one row in the closed thirteen-section roster.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ElfPlacedDynamicSection {
     index: u32,
@@ -455,7 +456,7 @@ fn derive_contents(
     let relative_contents = relative.contents();
     require(
         relative_contents.rows.len() == SECTION_COUNT,
-        "dynamic ELF load placement requires the exact twelve-row relative roster",
+        "dynamic ELF load placement requires the exact thirteen-row relative roster",
     )?;
     for region in [
         ElfRelativeSectionPayloadRegion::ReadOnly,
@@ -654,7 +655,7 @@ fn derive_contents(
     let header_contents = relative.payloads().section_headers().contents();
     require(
         header_contents.placement_fixups.len() == PLACEMENT_FIXUP_COUNT,
-        "dynamic ELF load placement requires exactly twenty-one section-header fixups",
+        "dynamic ELF load placement requires exactly twenty-three section-header fixups",
     )?;
     let mut resolutions = Vec::with_capacity(PLACEMENT_FIXUP_COUNT);
     for fixup in &header_contents.placement_fixups {
@@ -1273,6 +1274,7 @@ const fn public_section_kind(kind: ElfDynamicRosterSectionKind) -> ElfPlacedDyna
         ElfDynamicRosterSectionKind::GnuVersionRequirement => {
             ElfPlacedDynamicSectionKind::GnuVersionRequirement
         }
+        ElfDynamicRosterSectionKind::GnuHash => ElfPlacedDynamicSectionKind::GnuHash,
         ElfDynamicRosterSectionKind::ProcedureLinkage => {
             ElfPlacedDynamicSectionKind::ProcedureLinkage
         }
@@ -1670,15 +1672,15 @@ mod tests {
             layout.section_header_table_file_offset()
                 >= shstrtab.file_offset() + shstrtab.byte_size()
         );
-        assert_eq!(layout.section_header_table_byte_size(), 12 * 64);
+        assert_eq!(layout.section_header_table_byte_size(), 13 * 64);
     }
 
     #[test]
-    fn exact_twenty_one_fixups_are_resolved_without_mutating_template_bytes() {
+    fn exact_twenty_three_fixups_are_resolved_without_mutating_template_bytes() {
         let layout = plan_elf_dynamic_load_layout(relative(TargetProfile::LinuxArm64)).unwrap();
         let template = layout.relative().payloads().section_headers().contents();
-        assert_eq!(layout.section_header_resolutions().len(), 21);
-        assert_eq!(template.placement_fixups.len(), 21);
+        assert_eq!(layout.section_header_resolutions().len(), 23);
+        assert_eq!(template.placement_fixups.len(), 23);
         for (fixup, resolution) in template
             .placement_fixups
             .iter()

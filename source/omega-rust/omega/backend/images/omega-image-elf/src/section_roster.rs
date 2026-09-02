@@ -3,7 +3,7 @@
 //! The generic System V ABI defines the null section, numeric `sh_name`,
 //! `sh_link`, and `sh_info` fields in the [section header] and identifies the
 //! section-name table through [`e_shstrndx`]. This layer closes only the exact
-//! twelve-row section order and resolves retained semantic references to
+//! thirteen-row section order and resolves retained semantic references to
 //! numeric indexes. It assigns no address, file offset, placement, program
 //! header, or serialized section-header bytes.
 //!
@@ -17,8 +17,8 @@ use crate::dynamic_section_descriptors::ElfDynamicSectionKind;
 use crate::section_name_table::{ElfSectionNameTableSectionKind, ValidatedElfSectionNameTablePlan};
 use psi_diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 12;
-const SECTION_NAME_TABLE_INDEX: u32 = 11;
+const SECTION_COUNT: usize = 13;
+const SECTION_NAME_TABLE_INDEX: u32 = 12;
 const SHT_NULL: u32 = 0;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -31,6 +31,7 @@ const CANONICAL_KINDS: [ElfDynamicRosterSectionKind; SECTION_COUNT] = [
     ElfDynamicRosterSectionKind::SystemVHash,
     ElfDynamicRosterSectionKind::GnuSymbolVersion,
     ElfDynamicRosterSectionKind::GnuVersionRequirement,
+    ElfDynamicRosterSectionKind::GnuHash,
     ElfDynamicRosterSectionKind::ProcedureLinkage,
     ElfDynamicRosterSectionKind::ProcedureGot,
     ElfDynamicRosterSectionKind::ProcedureRelocation,
@@ -130,11 +131,12 @@ pub(crate) enum ElfDynamicRosterSectionKind {
     SystemVHash = 4,
     GnuSymbolVersion = 5,
     GnuVersionRequirement = 6,
-    ProcedureLinkage = 7,
-    ProcedureGot = 8,
-    ProcedureRelocation = 9,
-    DynamicTable = 10,
-    SectionNameTable = 11,
+    GnuHash = 7,
+    ProcedureLinkage = 8,
+    ProcedureGot = 9,
+    ProcedureRelocation = 10,
+    DynamicTable = 11,
+    SectionNameTable = 12,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -324,6 +326,7 @@ const fn roster_kind_from_dynamic(kind: ElfDynamicSectionKind) -> ElfDynamicRost
         ElfDynamicSectionKind::GnuVersionRequirement => {
             ElfDynamicRosterSectionKind::GnuVersionRequirement
         }
+        ElfDynamicSectionKind::GnuHash => ElfDynamicRosterSectionKind::GnuHash,
     }
 }
 
@@ -385,15 +388,15 @@ fn validate_contents(
 ) -> Result<(), Diagnostic> {
     require(
         section_names.descriptor_count() == SECTION_COUNT - 1,
-        "numeric ELF roster requires the exact sealed eleven semantic descriptors",
+        "numeric ELF roster requires the exact sealed twelve semantic descriptors",
     )?;
     require(
-        section_names.byte_count() == 102,
-        "numeric ELF roster requires the exact complete 102-byte name table",
+        section_names.byte_count() == 112,
+        "numeric ELF roster requires the exact complete 112-byte name table",
     )?;
     require(
         contents.rows.len() == SECTION_COUNT,
-        "numeric ELF roster must contain exactly twelve rows",
+        "numeric ELF roster must contain exactly thirteen rows",
     )?;
     require(
         contents.section_name_table_index == SECTION_NAME_TABLE_INDEX,
@@ -452,6 +455,7 @@ const fn expected_name(kind: ElfDynamicRosterSectionKind) -> &'static [u8] {
         ElfDynamicRosterSectionKind::SystemVHash => b".hash",
         ElfDynamicRosterSectionKind::GnuSymbolVersion => b".gnu.version",
         ElfDynamicRosterSectionKind::GnuVersionRequirement => b".gnu.version_r",
+        ElfDynamicRosterSectionKind::GnuHash => b".gnu.hash",
         ElfDynamicRosterSectionKind::ProcedureLinkage => b".plt",
         ElfDynamicRosterSectionKind::ProcedureGot => b".got.plt",
         ElfDynamicRosterSectionKind::ProcedureRelocation => b".rela.plt",
@@ -482,7 +486,8 @@ fn validate_row_against_owner(
         | ElfDynamicRosterSectionKind::DynamicSymbol
         | ElfDynamicRosterSectionKind::SystemVHash
         | ElfDynamicRosterSectionKind::GnuSymbolVersion
-        | ElfDynamicRosterSectionKind::GnuVersionRequirement => {
+        | ElfDynamicRosterSectionKind::GnuVersionRequirement
+        | ElfDynamicRosterSectionKind::GnuHash => {
             let source = base_descriptor_contents(section_names)
                 .descriptors
                 .iter()
@@ -534,7 +539,7 @@ fn validate_row_against_owner(
             let source = &section_names.dynamic_table().contents().descriptor;
             ElfNumericSectionDescriptor {
                 kind: row.kind,
-                index: 10,
+                index: 11,
                 name_offset: source.name_offset,
                 section_type: source.section_type,
                 flags: source.flags,
@@ -553,7 +558,7 @@ fn validate_row_against_owner(
             )?;
             ElfNumericSectionDescriptor {
                 kind: row.kind,
-                index: 11,
+                index: 12,
                 name_offset: source.name_offset,
                 section_type: source.section_type,
                 flags: source.flags,
@@ -588,10 +593,11 @@ fn validate_references(contents: &ElfDynamicSectionRosterContents) -> Result<(),
         row(ElfDynamicRosterSectionKind::DynamicSymbol)?.link == 2
             && row(ElfDynamicRosterSectionKind::DynamicSymbol)?.info == 1
             && row(ElfDynamicRosterSectionKind::SystemVHash)?.link == 3
+            && row(ElfDynamicRosterSectionKind::GnuHash)?.link == 3
             && row(ElfDynamicRosterSectionKind::GnuSymbolVersion)?.link == 3
             && row(ElfDynamicRosterSectionKind::GnuVersionRequirement)?.link == 2
             && row(ElfDynamicRosterSectionKind::ProcedureRelocation)?.link == 3
-            && row(ElfDynamicRosterSectionKind::ProcedureRelocation)?.info == 8
+            && row(ElfDynamicRosterSectionKind::ProcedureRelocation)?.info == 9
             && row(ElfDynamicRosterSectionKind::DynamicTable)?.link == 2,
         "numeric ELF link/info relationships do not resolve to the canonical roster",
     )
@@ -612,7 +618,7 @@ fn non_authoritative_roster_compatibility_fingerprint(
     contents: &ElfDynamicSectionRosterContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-section-roster.v1");
+    hash.bytes(b"omega.elf-dynamic-section-roster.v2");
     hash.bytes(
         &section_names
             .non_authoritative_table_compatibility_fingerprint()
@@ -826,13 +832,13 @@ mod tests {
     }
 
     #[test]
-    fn both_targets_close_exact_twelve_row_roster_and_shstrndx() {
+    fn both_targets_close_exact_thirteen_row_roster_and_shstrndx() {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let roster = plan_elf_dynamic_section_roster(section_names(target, &IMPORTS))
                 .expect("validated section roster");
-            assert_eq!(roster.section_count(), 12);
-            assert_eq!(roster.section_name_table_index(), 11);
-            assert_eq!(roster.contents.rows.len(), 12);
+            assert_eq!(roster.section_count(), 13);
+            assert_eq!(roster.section_name_table_index(), 12);
+            assert_eq!(roster.contents.rows.len(), 13);
             assert_eq!(
                 roster
                     .contents
@@ -884,11 +890,11 @@ mod tests {
             &roster.contents,
             ElfDynamicRosterSectionKind::ProcedureRelocation,
         );
-        assert_eq!((rela.link, rela.info), (3, 8));
+        assert_eq!((rela.link, rela.info), (3, 9));
         let dynamic = row(&roster.contents, ElfDynamicRosterSectionKind::DynamicTable);
         assert_eq!(
             (dynamic.name_offset, dynamic.link, dynamic.info),
-            (93, 2, 0)
+            (103, 2, 0)
         );
         let shstrtab = row(
             &roster.contents,
@@ -902,7 +908,7 @@ mod tests {
                 shstrtab.link,
                 shstrtab.info,
             ),
-            (59, 3, 102, 0, 0),
+            (59, 3, 112, 0, 0),
         );
     }
 
@@ -979,6 +985,7 @@ mod tests {
         for (kind, field) in [
             (ElfDynamicRosterSectionKind::DynamicSymbol, true),
             (ElfDynamicRosterSectionKind::SystemVHash, true),
+            (ElfDynamicRosterSectionKind::GnuHash, true),
             (ElfDynamicRosterSectionKind::GnuSymbolVersion, true),
             (ElfDynamicRosterSectionKind::GnuVersionRequirement, true),
             (ElfDynamicRosterSectionKind::ProcedureRelocation, true),

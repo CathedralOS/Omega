@@ -4,7 +4,7 @@
 //! This first closed carrier retains only `FloatMeaning` projections from one
 //! landed IEEE input through the shared format-specific projection catalog.
 
-use psi_core::{IeeeFloatFormat, MachineId, OperationId, ValueId};
+use psi_core::{BlockId, IeeeFloatFormat, MachineId, OperationId, ValueId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProofValueId(pub u32);
@@ -84,6 +84,20 @@ pub struct DirectMachineFloatResult {
     pub format: IeeeFloatFormat,
 }
 
+/// Exact artifact-relative identity of one scalar IEEE block parameter.
+///
+/// The block must occur in `owner` and declare `parameter` directly in its
+/// parameter table. Machine parameters, machine results, and operation results
+/// remain distinct source classes even when their scalar declarations have the
+/// same IEEE format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DirectBlockFloatParameter {
+    pub owner: MachineId,
+    pub block: BlockId,
+    pub parameter: ValueId,
+    pub format: IeeeFloatFormat,
+}
+
 /// Exact artifact-relative identity of one scalar IEEE non-call operation
 /// result.
 ///
@@ -111,6 +125,7 @@ pub enum FloatMeaningSource {
     TransitionalInput(FloatProjectionInput),
     DirectMachineParameter(DirectMachineFloatParameter),
     DirectMachineResult(DirectMachineFloatResult),
+    DirectBlockParameter(DirectBlockFloatParameter),
     DirectOperationResult(DirectOperationFloatResult),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
@@ -122,6 +137,7 @@ impl FloatMeaningSource {
             Self::TransitionalInput(input) => input.format,
             Self::DirectMachineParameter(parameter) => parameter.format,
             Self::DirectMachineResult(result) => result.format,
+            Self::DirectBlockParameter(parameter) => parameter.format,
             Self::DirectOperationResult(result) => result.format,
             Self::ExactBinary32Literal(_) => IeeeFloatFormat::Binary32,
             Self::ExactBinary64Literal(_) => IeeeFloatFormat::Binary64,

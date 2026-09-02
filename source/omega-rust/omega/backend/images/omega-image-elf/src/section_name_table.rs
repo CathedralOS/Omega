@@ -15,11 +15,11 @@ use crate::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPl
 use psi_diagnostics::Diagnostic;
 
 const SHT_STRTAB: u32 = 3;
-const UPSTREAM_DESCRIPTOR_COUNT: usize = 10;
-const UPSTREAM_NAME_SEED_SIZE: usize = 102;
+const UPSTREAM_DESCRIPTOR_COUNT: usize = 11;
+const UPSTREAM_NAME_SEED_SIZE: usize = 112;
 const SECTION_NAME_TABLE_NAME_OFFSET: u32 = 59;
-const COMPLETE_SECTION_NAME_TABLE_SIZE: usize = 102;
-const COMPLETE_SECTION_NAME_TABLE: &[u8] = b"\0.interp\0.dynstr\0.dynsym\0.hash\0.gnu.version\0.gnu.version_r\0.shstrtab\0.plt\0.got.plt\0.rela.plt\0.dynamic\0";
+const COMPLETE_SECTION_NAME_TABLE_SIZE: usize = 112;
+const COMPLETE_SECTION_NAME_TABLE: &[u8] = b"\0.interp\0.dynstr\0.dynsym\0.hash\0.gnu.version\0.gnu.version_r\0.shstrtab\0.gnu.hash\0.plt\0.got.plt\0.rela.plt\0.dynamic\0";
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -250,12 +250,12 @@ fn validate_contents(
 ) -> Result<(), Diagnostic> {
     require(
         dynamic_table.descriptor_count() == UPSTREAM_DESCRIPTOR_COUNT,
-        "section-name table requires the exact sealed ten-row base",
+        "section-name table requires the exact sealed eleven-row base",
     )?;
     let base_seed = upstream_name_seed(dynamic_table);
     require(
         base_seed.len() == UPSTREAM_NAME_SEED_SIZE,
-        "section-name table requires the exact 102-byte upstream name seed",
+        "section-name table requires the exact 112-byte upstream name seed",
     )?;
     require(
         base_seed.len() == COMPLETE_SECTION_NAME_TABLE_SIZE
@@ -301,10 +301,11 @@ fn validate_complete_names(bytes: &[u8]) -> Result<(), Diagnostic> {
         (31, b".gnu.version"),
         (44, b".gnu.version_r"),
         (59, b".shstrtab"),
-        (69, b".plt"),
-        (74, b".got.plt"),
-        (83, b".rela.plt"),
-        (93, b".dynamic"),
+        (69, b".gnu.hash"),
+        (79, b".plt"),
+        (84, b".got.plt"),
+        (93, b".rela.plt"),
+        (103, b".dynamic"),
     ];
     let mut next_offset = 0usize;
     for (offset, expected) in EXPECTED {
@@ -581,10 +582,10 @@ mod tests {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let plan = plan_elf_section_name_table(dynamic_table(target, &IMPORTS))
                 .expect("validated section-name table");
-            assert_eq!(plan.dynamic_table().descriptor_count(), 10);
-            assert_eq!(plan.descriptor_count(), 11);
+            assert_eq!(plan.dynamic_table().descriptor_count(), 11);
+            assert_eq!(plan.descriptor_count(), 12);
             assert_eq!(plan.appended_descriptor_count(), 1);
-            assert_eq!(plan.byte_count(), 102);
+            assert_eq!(plan.byte_count(), 112);
             assert_eq!(plan.contents.bytes, COMPLETE_SECTION_NAME_TABLE);
             assert_eq!(
                 plan.contents.descriptor,
@@ -593,7 +594,7 @@ mod tests {
                     name_offset: 59,
                     section_type: SHT_STRTAB,
                     flags: 0,
-                    payload_size: 102,
+                    payload_size: 112,
                     alignment: 1,
                     entry_size: 0,
                     link: None,
@@ -612,7 +613,9 @@ mod tests {
             plan_elf_section_name_table(dynamic_table(TargetProfile::LinuxX64, &IMPORTS)).unwrap();
         let upstream = upstream_name_seed(plan.dynamic_table());
         assert_eq!(plan.contents.bytes, upstream);
+        assert_eq!(plan.contents.bytes.len(), 112);
         assert_eq!(&plan.contents.bytes[59..69], b".shstrtab\0");
+        assert_eq!(&plan.contents.bytes[69..79], b".gnu.hash\0");
         assert_eq!(
             plan.contents
                 .bytes
@@ -622,7 +625,7 @@ mod tests {
             1,
         );
         assert_eq!(plan.contents.bytes.last(), Some(&0));
-        assert_eq!(&plan.contents.bytes[93..], b".dynamic\0");
+        assert_eq!(&plan.contents.bytes[103..], b".dynamic\0");
         validate_complete_names(&plan.contents.bytes).unwrap();
 
         let dynstr = &plan
@@ -734,7 +737,7 @@ mod tests {
             name_offset: u32::MAX,
             section_type: SHT_STRTAB,
             flags: 0,
-            payload_size: 102,
+            payload_size: 112,
             alignment: 1,
             entry_size: 0,
             link: None,

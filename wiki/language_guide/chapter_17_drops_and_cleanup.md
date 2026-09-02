@@ -489,7 +489,17 @@ Establishments must be the literal prefix
 Unit return records eighteen distinct zero-ABI element occurrences and cleans
 them in reverse order
 `[17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing,
-reordered, duplicate, dynamic, wrong-root, wrong-length, or length-twenty and
+reordered, duplicate, dynamic, wrong-root, wrong-length, or other
+construction-prefix drift remains unsupported, and trap or nuclear-abort edges
+still clean nothing.
+
+The eighteenth bounded slice admits `[T; 20]` under those same restrictions.
+Establishments must be the literal prefix
+`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]`; an
+ordinary Unit return records nineteen distinct zero-ABI element occurrences and
+cleans them in reverse order
+`[18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing,
+reordered, duplicate, dynamic, wrong-root, wrong-length, or length-twenty-one and
 wider construction shapes remain unsupported, and trap or nuclear-abort edges
 still clean nothing.
 

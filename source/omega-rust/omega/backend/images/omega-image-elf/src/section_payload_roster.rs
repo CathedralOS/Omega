@@ -16,8 +16,8 @@ use crate::section_header_bytes::ValidatedElfSectionHeaderTableTemplate;
 use crate::section_roster::ElfDynamicRosterSectionKind;
 use psi_diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 12;
-const DYNAMIC_FIXUP_COUNT: usize = 7;
+const SECTION_COUNT: usize = 13;
+const DYNAMIC_FIXUP_COUNT: usize = 8;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -227,7 +227,7 @@ fn derive_contents(
         .iter()
         .map(|fixup| ElfIndexedDynamicFixup {
             row_ordinal: fixup.row_ordinal,
-            storage_section_index: 10,
+            storage_section_index: 11,
             byte_offset: fixup.byte_offset,
             byte_width: fixup.byte_width,
             kind: fixup.kind,
@@ -279,6 +279,7 @@ fn upstream_payload(
         ElfDynamicRosterSectionKind::DynamicString => &base.dynstr,
         ElfDynamicRosterSectionKind::DynamicSymbol => &base.dynsym,
         ElfDynamicRosterSectionKind::SystemVHash => &base.sysv_hash,
+        ElfDynamicRosterSectionKind::GnuHash => &base.gnu_hash,
         ElfDynamicRosterSectionKind::GnuSymbolVersion => &base.versym,
         ElfDynamicRosterSectionKind::GnuVersionRequirement => &base.verneed,
         ElfDynamicRosterSectionKind::ProcedureLinkage => &bytes.plt,
@@ -299,15 +300,15 @@ const fn indexed_procedure_storage(
     match storage {
         ElfProcedureLinkageFixupStorage::SourceText => ElfIndexedProcedureFixupStorage::SourceText,
         ElfProcedureLinkageFixupStorage::Plt => ElfIndexedProcedureFixupStorage::Section {
-            index: 7,
+            index: 8,
             kind: ElfDynamicRosterSectionKind::ProcedureLinkage,
         },
         ElfProcedureLinkageFixupStorage::GotPlt => ElfIndexedProcedureFixupStorage::Section {
-            index: 8,
+            index: 9,
             kind: ElfDynamicRosterSectionKind::ProcedureGot,
         },
         ElfProcedureLinkageFixupStorage::RelaPlt => ElfIndexedProcedureFixupStorage::Section {
-            index: 9,
+            index: 10,
             kind: ElfDynamicRosterSectionKind::ProcedureRelocation,
         },
     }
@@ -315,22 +316,23 @@ const fn indexed_procedure_storage(
 
 const fn procedure_target_section(target: ElfProcedureLinkageSemanticTarget) -> u32 {
     match target {
-        ElfProcedureLinkageSemanticTarget::FutureDynamicSection => 10,
+        ElfProcedureLinkageSemanticTarget::FutureDynamicSection => 11,
         ElfProcedureLinkageSemanticTarget::PltHeader
         | ElfProcedureLinkageSemanticTarget::PltEntry { .. }
-        | ElfProcedureLinkageSemanticTarget::PltLazyTail { .. } => 7,
+        | ElfProcedureLinkageSemanticTarget::PltLazyTail { .. } => 8,
         ElfProcedureLinkageSemanticTarget::GotPltHeaderWord { .. }
-        | ElfProcedureLinkageSemanticTarget::GotPltSlot { .. } => 8,
+        | ElfProcedureLinkageSemanticTarget::GotPltSlot { .. } => 9,
     }
 }
 
 const fn dynamic_target_section(target: ElfDynamicAddressTarget) -> u32 {
     match target {
-        ElfDynamicAddressTarget::ProcedureGot => 8,
+        ElfDynamicAddressTarget::ProcedureGot => 9,
         ElfDynamicAddressTarget::SystemVHash => 4,
+        ElfDynamicAddressTarget::GnuHash => 7,
         ElfDynamicAddressTarget::DynamicString => 2,
         ElfDynamicAddressTarget::DynamicSymbol => 3,
-        ElfDynamicAddressTarget::ProcedureRelocation => 9,
+        ElfDynamicAddressTarget::ProcedureRelocation => 10,
         ElfDynamicAddressTarget::GnuSymbolVersion => 5,
         ElfDynamicAddressTarget::GnuVersionRequirement => 6,
     }
@@ -373,7 +375,7 @@ fn validate_contents(
     let roster = &section_headers.roster().contents().rows;
     require(
         roster.len() == SECTION_COUNT && contents.rows.len() == SECTION_COUNT,
-        "indexed ELF payload roster must contain exactly twelve rows",
+        "indexed ELF payload roster must contain exactly thirteen rows",
     )?;
     for (ordinal, (row, descriptor)) in contents.rows.iter().zip(roster).enumerate() {
         require(
@@ -463,16 +465,16 @@ fn validate_dynamic_fixups(
     let upstream = &dynamic_payload(section_headers).contents().address_fixups;
     require(
         upstream.len() == DYNAMIC_FIXUP_COUNT && contents.dynamic_fixups.len() == upstream.len(),
-        "indexed dynamic fixups do not contain exactly seven rows",
+        "indexed dynamic fixups do not contain exactly eight rows",
     )?;
     let storage = contents
         .rows
-        .get(10)
+        .get(11)
         .ok_or_else(|| Diagnostic::error("indexed .dynamic payload is missing"))?;
     for (indexed, upstream) in contents.dynamic_fixups.iter().zip(upstream) {
         require(
             indexed.row_ordinal == upstream.row_ordinal
-                && indexed.storage_section_index == 10
+                && indexed.storage_section_index == 11
                 && indexed.byte_offset == upstream.byte_offset
                 && indexed.byte_width == upstream.byte_width
                 && indexed.kind == upstream.kind
@@ -764,14 +766,15 @@ mod tests {
     }
 
     #[test]
-    fn both_targets_join_exact_twelve_payloads_and_indexed_fixups() {
+    fn both_targets_join_exact_thirteen_payloads_and_indexed_fixups() {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let plan = plan_elf_indexed_section_payloads(headers(target, &IMPORTS)).unwrap();
-            assert_eq!(plan.row_count(), 12);
-            assert_eq!(plan.dynamic_fixup_count(), 7);
+            assert_eq!(plan.row_count(), 13);
+            assert_eq!(plan.dynamic_fixup_count(), 8);
             assert_eq!(plan.contents.rows[0].bytes, []);
-            assert_eq!(plan.contents.rows[10].bytes.len(), 240);
-            assert_eq!(plan.contents.rows[11].bytes.len(), 102);
+            assert_eq!(plan.contents.rows[7].bytes.len(), 36);
+            assert_eq!(plan.contents.rows[11].bytes.len(), 256);
+            assert_eq!(plan.contents.rows[12].bytes.len(), 112);
             for (index, row) in plan.contents.rows.iter().enumerate() {
                 assert_eq!(row.index, index as u32);
                 assert_eq!(
@@ -828,7 +831,7 @@ mod tests {
                 .iter()
                 .map(|fixup| fixup.target_section_index)
                 .collect::<Vec<_>>(),
-            [8, 4, 2, 3, 9, 5, 6]
+            [9, 4, 7, 2, 3, 10, 5, 6]
         );
     }
 

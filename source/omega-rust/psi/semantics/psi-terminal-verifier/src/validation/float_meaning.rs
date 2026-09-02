@@ -144,6 +144,10 @@ fn validate_direct_sources(module: &TerminalModule) -> Result<(), ModuleError> {
                 crate::verification::verify_direct_float_result(module, result)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
             }
+            psi_terminal::FloatMeaningSource::DirectBlockParameter(parameter) => {
+                crate::verification::verify_direct_block_float_parameter(module, parameter)
+                    .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
+            }
             psi_terminal::FloatMeaningSource::DirectOperationResult(result) => {
                 crate::verification::verify_direct_operation_float_result(module, result)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
@@ -159,6 +163,7 @@ const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Opt
         psi_terminal::FloatMeaningSource::TransitionalInput(input) => Some(input.id.0),
         psi_terminal::FloatMeaningSource::DirectMachineParameter(_)
         | psi_terminal::FloatMeaningSource::DirectMachineResult(_)
+        | psi_terminal::FloatMeaningSource::DirectBlockParameter(_)
         | psi_terminal::FloatMeaningSource::DirectOperationResult(_)
         | psi_terminal::FloatMeaningSource::ExactBinary32Literal(_)
         | psi_terminal::FloatMeaningSource::ExactBinary64Literal(_) => None,
@@ -172,12 +177,13 @@ mod tests {
         PlaceId, ScalarType, StructuralTypeId, ValueId,
     };
     use psi_terminal::{
-        Block, DirectMachineFloatParameter, DirectMachineFloatResult, DirectOperationFloatResult,
-        FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-        FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, Operation, OperationKind,
-        OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
-        ProofValueId, StructuralMultiplicity, StructuralOperationResult, TerminalMachine,
-        TerminalMachineResult, Terminator, ValueDeclaration, VocabularyMarker,
+        Block, DirectBlockFloatParameter, DirectMachineFloatParameter, DirectMachineFloatResult,
+        DirectOperationFloatResult, FloatMeaningEqualityProposition, FloatMeaningProjection,
+        FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
+        FloatProjectionInputId, Operation, OperationKind, OperationResult, ProofOnlyValueType,
+        ProofPropositionId, ProofValueDeclaration, ProofValueId, StructuralMultiplicity,
+        StructuralOperationResult, TerminalMachine, TerminalMachineResult, Terminator,
+        ValueDeclaration, VocabularyMarker,
     };
 
     fn contract(
@@ -375,6 +381,21 @@ mod tests {
                 psi_numerics::float_projection::FloatProjectionOperation::Meaning64
             }
         });
+        module
+    }
+
+    fn direct_block_parameter_module(format: IeeeFloatFormat) -> TerminalModule {
+        let mut module = direct_operation_result_module(format);
+        let owner = module.entry;
+        let block = module.machines[0].blocks[0].id;
+        let parameter = module.machines[0].blocks[0].parameters[0].id;
+        module.float_meaning_projections[0].source =
+            FloatMeaningSource::DirectBlockParameter(DirectBlockFloatParameter {
+                owner,
+                block,
+                parameter,
+                format,
+            });
         module
     }
 
@@ -592,6 +613,104 @@ mod tests {
             validate_direct_sources(&unit_result),
             Err(ModuleError::InvalidFloatMeaningProjection {
                 error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectResult { .. },
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn direct_block_parameter_rejoins_exact_f32_and_f64_declarations() {
+        assert_eq!(
+            validate_direct_sources(&direct_block_parameter_module(IeeeFloatFormat::Binary32)),
+            Ok(())
+        );
+        assert_eq!(
+            validate_direct_sources(&direct_block_parameter_module(IeeeFloatFormat::Binary64)),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn direct_block_parameter_rejects_coordinates_class_and_format_substitution() {
+        let module = direct_block_parameter_module(IeeeFloatFormat::Binary32);
+
+        let mut wrong_owner = module.clone();
+        let FloatMeaningSource::DirectBlockParameter(source) =
+            &mut wrong_owner.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.owner = semantic_id(2, MachineId::new);
+        assert!(matches!(
+            validate_direct_sources(&wrong_owner),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectBlockParameterOwner(_),
+                ..
+            })
+        ));
+
+        let mut wrong_block = module.clone();
+        let FloatMeaningSource::DirectBlockParameter(source) =
+            &mut wrong_block.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.block = semantic_id(2, BlockId::new);
+        assert!(matches!(
+            validate_direct_sources(&wrong_block),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectBlockParameterBlock { .. },
+                ..
+            })
+        ));
+
+        let mut machine_parameter = module.clone();
+        let parameter = machine_parameter.machines[0].parameters[0].id;
+        let FloatMeaningSource::DirectBlockParameter(source) =
+            &mut machine_parameter.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.parameter = parameter;
+        assert!(matches!(
+            validate_direct_sources(&machine_parameter),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectBlockParameter { .. },
+                ..
+            })
+        ));
+
+        let mut operation_result = module.clone();
+        let result = operation_result.machines[0].blocks[0].operations[0]
+            .result
+            .scalar()
+            .expect("fixture operation scalar result")
+            .id;
+        let FloatMeaningSource::DirectBlockParameter(source) =
+            &mut operation_result.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.parameter = result;
+        assert!(matches!(
+            validate_direct_sources(&operation_result),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectBlockParameter { .. },
+                ..
+            })
+        ));
+
+        let mut wrong_format = module;
+        let FloatMeaningSource::DirectBlockParameter(source) =
+            &mut wrong_format.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.format = IeeeFloatFormat::Binary64;
+        assert!(matches!(
+            validate_direct_sources(&wrong_format),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::DirectBlockParameterFormatMismatch,
                 ..
             })
         ));

@@ -11,7 +11,7 @@ use crate::section_payload_roster::ValidatedElfIndexedSectionPayloadPlan;
 use crate::section_roster::ElfDynamicRosterSectionKind;
 use psi_diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 12;
+const SECTION_COUNT: usize = 13;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 const SHF_WRITE: u64 = 0x1;
@@ -207,7 +207,7 @@ fn derive_contents(
     let roster_rows = &payloads.section_headers().roster().contents().rows;
     require(
         payload_rows.len() == SECTION_COUNT && roster_rows.len() == SECTION_COUNT,
-        "relative ELF layout requires the exact twelve-row payload roster",
+        "relative ELF layout requires the exact thirteen-row payload roster",
     )?;
 
     let mut rows = Vec::with_capacity(SECTION_COUNT);
@@ -283,7 +283,7 @@ fn validate_contents(
         payload_rows.len() == SECTION_COUNT
             && roster_rows.len() == SECTION_COUNT
             && contents.rows.len() == SECTION_COUNT,
-        "relative ELF layout does not contain exactly twelve rows",
+        "relative ELF layout does not contain exactly thirteen rows",
     )?;
 
     let mut region_spans = ElfRelativeSectionPayloadRegionSpans::default();
@@ -549,28 +549,28 @@ mod tests {
             assert_eq!(layout.contents.rows[0].byte_size, 0);
             assert_eq!(layout.contents.rows[0].region, None);
             assert!(
-                layout.contents.rows[1..=6]
+                layout.contents.rows[1..=7]
                     .iter()
                     .all(|row| { row.region == Some(ElfRelativeSectionPayloadRegion::ReadOnly) })
             );
             assert_eq!(
-                layout.contents.rows[7].region,
+                layout.contents.rows[8].region,
                 Some(ElfRelativeSectionPayloadRegion::ReadExecute)
             );
             assert_eq!(
-                layout.contents.rows[8].region,
-                Some(ElfRelativeSectionPayloadRegion::ReadWrite)
-            );
-            assert_eq!(
                 layout.contents.rows[9].region,
-                Some(ElfRelativeSectionPayloadRegion::ReadOnly)
+                Some(ElfRelativeSectionPayloadRegion::ReadWrite)
             );
             assert_eq!(
                 layout.contents.rows[10].region,
-                Some(ElfRelativeSectionPayloadRegion::ReadWrite)
+                Some(ElfRelativeSectionPayloadRegion::ReadOnly)
             );
             assert_eq!(
                 layout.contents.rows[11].region,
+                Some(ElfRelativeSectionPayloadRegion::ReadWrite)
+            );
+            assert_eq!(
+                layout.contents.rows[12].region,
                 Some(ElfRelativeSectionPayloadRegion::FileOnly)
             );
             for region in [

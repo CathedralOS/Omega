@@ -3,13 +3,13 @@
 //! This layer consumes the resolved `.dynamic` owner so the linear custody
 //! chain cannot fork before file-container serialization. It emits one exact
 //! ELF64-LSB header followed by the five already-planned program headers and
-//! binds the already-applied twelve-row section-header table to the exact
+//! binds the already-applied thirteen-row section-header table to the exact
 //! `e_shoff` retained by the absolute load layout. A separate decoder replays
 //! every field and rejoins both byte regions to their upstream owners.
 //!
 //! The carrier deliberately does not resolve procedure or source relocations,
 //! copy any dynamic payload into a file image, mutate the retained `FinalImage`,
-//! add `.gnu.hash`, or grant loader, publication, or runnable-image authority.
+//! grant loader, publication, or runnable-image authority.
 
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::entry::elf_entry_address;
@@ -28,10 +28,10 @@ const ELF64_PROGRAM_HEADER_COUNT: usize = 5;
 const ELF64_HEADER_PREFIX_SIZE: usize =
     ELF64_HEADER_SIZE + ELF64_PROGRAM_HEADER_SIZE * ELF64_PROGRAM_HEADER_COUNT;
 const ELF64_SECTION_HEADER_SIZE: usize = 64;
-const ELF64_SECTION_HEADER_COUNT: usize = 12;
+const ELF64_SECTION_HEADER_COUNT: usize = 13;
 const ELF64_SECTION_HEADER_TABLE_SIZE: usize =
     ELF64_SECTION_HEADER_SIZE * ELF64_SECTION_HEADER_COUNT;
-const ELF64_SECTION_NAME_TABLE_INDEX: u16 = 11;
+const ELF64_SECTION_NAME_TABLE_INDEX: u16 = 12;
 
 const ET_EXEC: u16 = 2;
 const EM_X86_64: u16 = 62;
@@ -76,7 +76,7 @@ impl ValidatedElfDynamicFileEnvelope {
         self.contents.section_header_table_file_offset
     }
 
-    /// Exact applied twelve-row section-header table to place at
+    /// Exact applied thirteen-row section-header table to place at
     /// [`Self::section_header_table_file_offset`].
     pub fn section_header_table_bytes(&self) -> &[u8] {
         &self.contents.section_header_table_bytes
@@ -838,7 +838,7 @@ mod tests {
         ] {
             let envelope = serialize_elf_dynamic_file_envelope(standard_resolved(target)).unwrap();
             assert_eq!(envelope.header_prefix_bytes().len(), 344);
-            assert_eq!(envelope.section_header_table_bytes().len(), 768);
+            assert_eq!(envelope.section_header_table_bytes().len(), 832);
             assert_ne!(
                 envelope.non_authoritative_envelope_compatibility_fingerprint(),
                 0,

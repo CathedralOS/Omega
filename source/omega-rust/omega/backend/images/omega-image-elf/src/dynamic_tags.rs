@@ -3,11 +3,14 @@
 //! The generic [System V ABI dynamic section] defines the required tag/value
 //! relationships and the significant relative order of `DT_NEEDED` rows. The
 //! [LSB symbol-version ABI] defines `DT_VERSYM`, `DT_VERNEED`, and
-//! `DT_VERNEEDNUM`. This module retains those meanings as typed rows and seven
+//! `DT_VERNEEDNUM`. This module retains those meanings as typed rows and eight
 //! semantic address obligations; it emits no `Elf64_Dyn` bytes or addresses.
+//! The [original GNU implementation] defines `DT_GNU_HASH` custody for the
+//! companion `.gnu.hash` payload.
 //!
 //! [System V ABI dynamic section]: https://gabi.xinuos.com/elf/08-dynamic.html
 //! [LSB symbol-version ABI]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
+//! [original GNU implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 
 use crate::dynamic_linkage_descriptors::{
     ElfProcedureLinkageSectionKind, ValidatedElfProcedureLinkageSectionDescriptorPlan,
@@ -22,14 +25,14 @@ use psi_diagnostics::Diagnostic;
 const ELF64_DYNAMIC_SYMBOL_SIZE: u64 = 24;
 const ELF64_RELA_SIZE: usize = 24;
 const ELF64_DYN_VALUE_SIZE: u8 = 8;
-const FIXED_NON_NEEDED_ROW_COUNT: usize = 13;
-const ADDRESS_OBLIGATION_COUNT: usize = 7;
+const FIXED_NON_NEEDED_ROW_COUNT: usize = 14;
+const ADDRESS_OBLIGATION_COUNT: usize = 8;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Independently validated semantic `.dynamic` rows and address obligations.
 ///
-/// The exact nine-section descriptor carrier remains owned by this non-clone
+/// The exact ten-section descriptor carrier remains owned by this non-clone
 /// plan. No row contains a placed pointer, final section index, serialized
 /// `Elf64_Dyn`, program header, image mutation, or runnable-image authority.
 #[derive(Debug)]
@@ -63,8 +66,8 @@ impl ValidatedElfDynamicTagPlan {
         self.contents.address_obligations.len()
     }
 
-    /// Compatibility fingerprint of the owning nine-section descriptor
-    /// identity, exact typed row sequence, and seven semantic address
+    /// Compatibility fingerprint of the owning ten-section descriptor
+    /// identity, exact typed row sequence, and eight semantic address
     /// obligations. This is not final-byte or loader identity.
     pub const fn non_authoritative_tag_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_tag_compatibility_fingerprint
@@ -87,7 +90,7 @@ impl ValidatedElfDynamicTagPlan {
 
 /// Rejected semantic dynamic-tag planning with exact descriptor custody.
 #[derive(Debug)]
-#[must_use = "ELF dynamic-tag rejection retains the nine-section carrier"]
+#[must_use = "ELF dynamic-tag rejection retains the ten-section carrier"]
 pub struct ElfDynamicTagPlanningError {
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
     diagnostic: Diagnostic,
@@ -138,6 +141,7 @@ pub(crate) enum ElfDynamicTag {
     ProcedureRelocationKind = 20,
     ProcedureRelocation = 23,
     GnuSymbolVersion = 0x6fff_fff0,
+    GnuHash = 0x6fff_fef5,
     GnuVersionRequirement = 0x6fff_fffe,
     GnuVersionRequirementCount = 0x6fff_ffff,
 }
@@ -170,6 +174,7 @@ pub(crate) enum ElfDynamicAddressTarget {
     ProcedureRelocation = 5,
     GnuSymbolVersion = 6,
     GnuVersionRequirement = 7,
+    GnuHash = 8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,7 +195,7 @@ struct CandidateValidationError {
     diagnostic: Diagnostic,
 }
 
-/// Consume the exact nine-section address-free carrier into a complete
+/// Consume the exact ten-section address-free carrier into a complete
 /// semantic `.dynamic` tag sequence and typed future-address obligations.
 ///
 /// The planner deliberately stops before `Elf64_Dyn` serialization, `.dynamic`
@@ -258,6 +263,12 @@ fn derive_contents(
         &mut address_obligations,
         ElfDynamicTag::SystemVHash,
         ElfDynamicAddressTarget::SystemVHash,
+    )?;
+    push_address_row(
+        &mut rows,
+        &mut address_obligations,
+        ElfDynamicTag::GnuHash,
+        ElfDynamicAddressTarget::GnuHash,
     )?;
     push_address_row(
         &mut rows,
@@ -395,8 +406,8 @@ fn validate_contents(
     contents: &ElfDynamicTagContents,
 ) -> Result<(), Diagnostic> {
     require(
-        descriptors.descriptor_count() == 9,
-        "ELF dynamic tags require the exact nine-section descriptor carrier",
+        descriptors.descriptor_count() == 10,
+        "ELF dynamic tags require the exact ten-section descriptor carrier",
     )?;
     require(
         matches!(
@@ -501,6 +512,7 @@ fn validate_fixed_rows(
         },
         address_row(ElfDynamicTag::ProcedureGot),
         address_row(ElfDynamicTag::SystemVHash),
+        address_row(ElfDynamicTag::GnuHash),
         address_row(ElfDynamicTag::DynamicString),
         address_row(ElfDynamicTag::DynamicSymbol),
         ElfDynamicSemanticRow {
@@ -576,6 +588,7 @@ fn validate_address_obligations(contents: &ElfDynamicTagContents) -> Result<(), 
             ElfDynamicTag::SystemVHash,
             ElfDynamicAddressTarget::SystemVHash,
         ),
+        (ElfDynamicTag::GnuHash, ElfDynamicAddressTarget::GnuHash),
         (
             ElfDynamicTag::DynamicString,
             ElfDynamicAddressTarget::DynamicString,
@@ -698,7 +711,7 @@ fn non_authoritative_tag_compatibility_fingerprint(
     contents: &ElfDynamicTagContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-tags.v1");
+    hash.bytes(b"omega.elf-dynamic-tags.v2");
     hash.bytes(
         &descriptors
             .non_authoritative_descriptor_compatibility_fingerprint()
@@ -923,10 +936,10 @@ mod tests {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let plan = plan_elf_dynamic_tags(descriptors(target, &IMPORTS))
                 .expect("validated semantic dynamic tags");
-            assert_eq!(plan.descriptors().descriptor_count(), 9);
+            assert_eq!(plan.descriptors().descriptor_count(), 10);
             assert_eq!(plan.needed_row_count(), 2);
-            assert_eq!(plan.row_count(), 15);
-            assert_eq!(plan.address_obligation_count(), 7);
+            assert_eq!(plan.row_count(), 16);
+            assert_eq!(plan.address_obligation_count(), 8);
             assert_ne!(plan.non_authoritative_tag_compatibility_fingerprint(), 0);
 
             let structural = structural_contents(&plan.descriptors);
@@ -955,6 +968,7 @@ mod tests {
                     ElfDynamicTag::ProcedureRelocationSize,
                     ElfDynamicTag::ProcedureGot,
                     ElfDynamicTag::SystemVHash,
+                    ElfDynamicTag::GnuHash,
                     ElfDynamicTag::DynamicString,
                     ElfDynamicTag::DynamicSymbol,
                     ElfDynamicTag::DynamicStringSize,
@@ -983,25 +997,30 @@ mod tests {
                     ElfDynamicAddressObligation {
                         row_ordinal: 5,
                         byte_width: 8,
-                        target: ElfDynamicAddressTarget::DynamicString,
+                        target: ElfDynamicAddressTarget::GnuHash,
                     },
                     ElfDynamicAddressObligation {
                         row_ordinal: 6,
                         byte_width: 8,
-                        target: ElfDynamicAddressTarget::DynamicSymbol,
+                        target: ElfDynamicAddressTarget::DynamicString,
                     },
                     ElfDynamicAddressObligation {
-                        row_ordinal: 10,
+                        row_ordinal: 7,
                         byte_width: 8,
-                        target: ElfDynamicAddressTarget::ProcedureRelocation,
+                        target: ElfDynamicAddressTarget::DynamicSymbol,
                     },
                     ElfDynamicAddressObligation {
                         row_ordinal: 11,
                         byte_width: 8,
-                        target: ElfDynamicAddressTarget::GnuSymbolVersion,
+                        target: ElfDynamicAddressTarget::ProcedureRelocation,
                     },
                     ElfDynamicAddressObligation {
                         row_ordinal: 12,
+                        byte_width: 8,
+                        target: ElfDynamicAddressTarget::GnuSymbolVersion,
+                    },
+                    ElfDynamicAddressObligation {
+                        row_ordinal: 13,
                         byte_width: 8,
                         target: ElfDynamicAddressTarget::GnuVersionRequirement,
                     },
@@ -1012,18 +1031,18 @@ mod tests {
                 ElfDynamicValue::ProcedureRelocationByteCount(48),
             );
             assert_eq!(
-                plan.contents.rows[8].value,
+                plan.contents.rows[9].value,
                 ElfDynamicValue::DynamicSymbolEntryByteCount(24),
             );
             assert_eq!(
-                plan.contents.rows[9].value,
+                plan.contents.rows[10].value,
                 ElfDynamicValue::RelocationTag(ElfDynamicTag::Rela),
             );
             assert_eq!(
-                plan.contents.rows[13].value,
+                plan.contents.rows[14].value,
                 ElfDynamicValue::VersionRequirementRecordCount(2),
             );
-            assert_eq!(plan.contents.rows[14].value, ElfDynamicValue::Null);
+            assert_eq!(plan.contents.rows[15].value, ElfDynamicValue::Null);
             validate_contents(plan.descriptors(), &plan.contents)
                 .expect("independent dynamic-tag replay");
         }
@@ -1097,7 +1116,7 @@ mod tests {
             Box::new(|candidate| {
                 candidate.contents.rows.pop();
             }),
-            Box::new(|candidate| candidate.contents.rows.push(candidate.contents.rows[14])),
+            Box::new(|candidate| candidate.contents.rows.push(candidate.contents.rows[15])),
             Box::new(|candidate| candidate.contents.rows[0].tag = ElfDynamicTag::Null),
             Box::new(|candidate| {
                 candidate.contents.rows[0].value = ElfDynamicValue::NeededStringOffset(0)
@@ -1107,21 +1126,21 @@ mod tests {
             }),
             Box::new(|candidate| candidate.contents.rows[3].value = ElfDynamicValue::Null),
             Box::new(|candidate| {
-                candidate.contents.rows[7].value = ElfDynamicValue::DynamicStringByteCount(0)
+                candidate.contents.rows[8].value = ElfDynamicValue::DynamicStringByteCount(0)
             }),
             Box::new(|candidate| {
-                candidate.contents.rows[8].value = ElfDynamicValue::DynamicSymbolEntryByteCount(16)
+                candidate.contents.rows[9].value = ElfDynamicValue::DynamicSymbolEntryByteCount(16)
             }),
             Box::new(|candidate| {
-                candidate.contents.rows[9].value =
+                candidate.contents.rows[10].value =
                     ElfDynamicValue::RelocationTag(ElfDynamicTag::Null)
             }),
             Box::new(|candidate| {
-                candidate.contents.rows[13].value =
+                candidate.contents.rows[14].value =
                     ElfDynamicValue::VersionRequirementRecordCount(1)
             }),
             Box::new(|candidate| {
-                candidate.contents.rows[14].value = ElfDynamicValue::AddressPlaceholder
+                candidate.contents.rows[15].value = ElfDynamicValue::AddressPlaceholder
             }),
             Box::new(|candidate| candidate.non_authoritative_tag_compatibility_fingerprint ^= 1),
         ];

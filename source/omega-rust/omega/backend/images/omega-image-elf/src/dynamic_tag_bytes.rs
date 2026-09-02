@@ -3,7 +3,7 @@
 //! The primary System V ABI defines [`Elf64_Dyn`] as one signed eight-byte tag
 //! followed by an eight-byte value/address union, while the generic ELF [data
 //! encoding] defines least-significant-byte-first serialization. This module
-//! preserves all seven address fields as exact zero placeholders with typed
+//! preserves all eight address fields as exact zero placeholders with typed
 //! byte-coordinate fixups; it assigns no address or section index.
 //!
 //! [`Elf64_Dyn`]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
@@ -602,9 +602,9 @@ mod tests {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let payload = serialize_elf_dynamic_table(tag_plan(target, &IMPORTS))
                 .expect("validated dynamic payload");
-            assert_eq!(payload.row_count(), 15);
-            assert_eq!(payload.byte_count(), 240);
-            assert_eq!(payload.address_fixup_count(), 7);
+            assert_eq!(payload.row_count(), 16);
+            assert_eq!(payload.byte_count(), 256);
+            assert_eq!(payload.address_fixup_count(), 8);
             assert_ne!(
                 payload.non_authoritative_payload_compatibility_fingerprint(),
                 0
@@ -620,10 +620,11 @@ mod tests {
                 &row(bytes, 0)[8..],
                 &(u64::from(first_needed)).to_le_bytes(),
             );
-            assert_eq!(&row(bytes, 9)[..8], &[20, 0, 0, 0, 0, 0, 0, 0]);
-            assert_eq!(&row(bytes, 9)[8..], &[7, 0, 0, 0, 0, 0, 0, 0]);
-            assert_eq!(&row(bytes, 11)[..8], &[0xf0, 0xff, 0xff, 0x6f, 0, 0, 0, 0],);
-            assert_eq!(row(bytes, 14), &[0; 16]);
+            assert_eq!(&row(bytes, 5)[..8], &[0xf5, 0xfe, 0xff, 0x6f, 0, 0, 0, 0]);
+            assert_eq!(&row(bytes, 10)[..8], &[20, 0, 0, 0, 0, 0, 0, 0]);
+            assert_eq!(&row(bytes, 10)[8..], &[7, 0, 0, 0, 0, 0, 0, 0]);
+            assert_eq!(&row(bytes, 12)[..8], &[0xf0, 0xff, 0xff, 0x6f, 0, 0, 0, 0],);
+            assert_eq!(row(bytes, 15), &[0; 16]);
             assert_eq!(
                 payload.contents.address_fixups,
                 [
@@ -646,32 +647,39 @@ mod tests {
                         byte_offset: 88,
                         byte_width: 8,
                         kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::DynamicString,
+                        target: ElfDynamicAddressTarget::GnuHash,
                     },
                     ElfDynamicPayloadAddressFixup {
                         row_ordinal: 6,
                         byte_offset: 104,
                         byte_width: 8,
                         kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::DynamicSymbol,
+                        target: ElfDynamicAddressTarget::DynamicString,
                     },
                     ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 10,
-                        byte_offset: 168,
+                        row_ordinal: 7,
+                        byte_offset: 120,
                         byte_width: 8,
                         kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::ProcedureRelocation,
+                        target: ElfDynamicAddressTarget::DynamicSymbol,
                     },
                     ElfDynamicPayloadAddressFixup {
                         row_ordinal: 11,
                         byte_offset: 184,
                         byte_width: 8,
                         kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
-                        target: ElfDynamicAddressTarget::GnuSymbolVersion,
+                        target: ElfDynamicAddressTarget::ProcedureRelocation,
                     },
                     ElfDynamicPayloadAddressFixup {
                         row_ordinal: 12,
                         byte_offset: 200,
+                        byte_width: 8,
+                        kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
+                        target: ElfDynamicAddressTarget::GnuSymbolVersion,
+                    },
+                    ElfDynamicPayloadAddressFixup {
+                        row_ordinal: 13,
+                        byte_offset: 216,
                         byte_width: 8,
                         kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
                         target: ElfDynamicAddressTarget::GnuVersionRequirement,
@@ -740,13 +748,13 @@ mod tests {
             Box::new(|candidate| candidate.contents.bytes[8] ^= 1),
             Box::new(|candidate| candidate.contents.bytes[2 * 16 + 8] ^= 1),
             Box::new(|candidate| candidate.contents.bytes[3 * 16 + 8] = 1),
-            Box::new(|candidate| candidate.contents.bytes[7 * 16 + 8] ^= 1),
             Box::new(|candidate| candidate.contents.bytes[8 * 16 + 8] ^= 1),
             Box::new(|candidate| candidate.contents.bytes[9 * 16 + 8] ^= 1),
-            Box::new(|candidate| candidate.contents.bytes[13 * 16 + 8] ^= 1),
-            Box::new(|candidate| candidate.contents.bytes[14 * 16] = 1),
-            Box::new(|candidate| candidate.contents.bytes[14 * 16 + 8] = 1),
-            Box::new(|candidate| candidate.contents.bytes[11 * 16..11 * 16 + 8].reverse()),
+            Box::new(|candidate| candidate.contents.bytes[10 * 16 + 8] ^= 1),
+            Box::new(|candidate| candidate.contents.bytes[14 * 16 + 8] ^= 1),
+            Box::new(|candidate| candidate.contents.bytes[15 * 16] = 1),
+            Box::new(|candidate| candidate.contents.bytes[15 * 16 + 8] = 1),
+            Box::new(|candidate| candidate.contents.bytes[12 * 16..12 * 16 + 8].reverse()),
             Box::new(|candidate| {
                 candidate.contents.bytes.pop();
             }),

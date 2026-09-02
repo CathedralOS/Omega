@@ -230,14 +230,14 @@ alignment](https://gabi.xinuos.com/elf/01-intro.html#sixty-four-bit-data-types)
 and [least-significant-byte-first
 encoding](https://gabi.xinuos.com/elf/02-eheader.html#data-encoding).
 
-A following sealed descriptor rung still binds the original six payloads to six
+A following sealed descriptor rung now binds all seven payloads to seven
 address-free semantic section kinds with their exact ABI type, flags, payload
 size, alignment, entry size, semantic link, and `sh_info` meaning. Independent
 validation replays every name, payload relationship, symbol/version count,
 System V hash chain count, and version-need object count before sealing a
 deterministic descriptor identity while retaining payload custody on failure.
 An append-only section-name seed fixes the current `.interp`, `.dynstr`,
-`.dynsym`, `.hash`, `.gnu.version`, and `.gnu.version_r` offsets and reserves
+`.dynsym`, `.hash`, `.gnu.version`, `.gnu.version_r`, and `.gnu.hash` offsets and reserves
 `.shstrtab`; it is not a complete name table and supplies neither a `.shstrtab`
 descriptor nor final numeric section indexes. The metadata follows the primary
 System V ABI [section-header, type, flag, link, and info
@@ -281,79 +281,78 @@ They still grant no address, physical section index, placement, resolved fixup,
 image mutation, or runnable-image authority.
 
 The following address-free descriptor rung retains those templates and extends
-the owning section-name seed append-only from 69 to 93 bytes with `.plt`,
-`.got.plt`, and `.rela.plt` at offsets 69, 74, and 83. The three semantic rows
+the owning section-name seed append-only from 79 to 103 bytes with `.plt`,
+`.got.plt`, and `.rela.plt` at offsets 79, 84, and 93. The three semantic rows
 bind the exact template payload sizes to their ABI section types, flags,
 alignments, and entry sizes. AArch64 `.plt` retains
 `SHF_AARCH64_PURECODE`; `.rela.plt` retains typed `.dynsym` `sh_link` and
 `.got.plt` `sh_info` meaning together with `SHF_INFO_LINK`, without assigning
-either numeric index. Independent replay checks the unchanged six-row seed
+either numeric index. Independent replay checks the unchanged seven-row seed
 prefix, every appended name and metadata field, row order, target distinction,
 and deterministic identity while preserving template custody on rejection.
-The result is a nine-semantic-section view, not a completed section roster or
+The result is a ten-semantic-section view, not a completed section roster or
 `.shstrtab`.
 
 A following semantic `.dynamic` plan now retains the significant exact
 `DT_NEEDED` prefix followed by the complete owned fixed tag roster and one
 trailing `DT_NULL`. Literal rows bind `.rela.plt` and `.dynstr` byte counts,
 the `Elf64_Sym` entry size, RELA kind, and exact version-requirement record
-count. Seven typed zero-address obligations target `.got.plt`, `.hash`,
-`.dynstr`, `.dynsym`, `.rela.plt`, `.gnu.version`, and `.gnu.version_r`
+count. Eight typed zero-address obligations target `.got.plt`, `.hash`,
+`.gnu.hash`, `.dynstr`, `.dynsym`, `.rela.plt`, `.gnu.version`, and `.gnu.version_r`
 without assigning a pointer or numeric index. Independent replay checks raw
 library-name offsets and significant order, exact tag multiplicity/order,
 relocation closure, the target-specific future-`.dynamic` GOT policy, every
 literal/obligation, identity, and descriptor custody. General RELA,
-`DT_GNU_HASH` plus `.gnu.hash` section/roster/layout integration,
 bind-now, text-relocation, init/fini, runpath, soname, and target-optional tags
 remain absent because the sealed inputs own none of those meanings. A further
 serialization carrier consumes the plan into exact 16-byte ELF64-LSB
 `Elf64_Dyn` rows: signed `d_tag` then unsigned `d_un`, both little-endian.
 Literal values are copied exactly; address values and the final null value stay
-zero, with the seven address obligations translated to typed eight-byte fixups
+zero, with the eight address obligations translated to typed eight-byte fixups
 at their exact value-field offsets. An independent bounded decoder requires
 the exact row count with no trailing bytes and replays endianness, row order
 and values, fixup bounds/non-overlap/targets, deterministic identity, and plan
 custody. The serialized carrier supplies no `.dynamic` name, descriptor,
 section index, address, or placement authority. The following address-free
-descriptor carrier extends the exact 93-byte append-only name seed with raw
-`.dynamic\0` at offset 93 and retains one semantic `SHT_DYNAMIC` row with
+descriptor carrier extends the exact 103-byte append-only name seed with raw
+`.dynamic\0` at offset 103 and retains one semantic `SHT_DYNAMIC` row with
 writable/allocated flags, exact payload size, alignment eight, entry size
 sixteen, a typed `.dynstr` link, and no info relationship. Independent replay
-checks the complete 102-byte seed, raw name, unique semantic link, every field,
+checks the complete 112-byte seed, raw name, unique semantic link, every field,
 identity, and payload custody. No final numeric `sh_name`/`sh_link`, section
 index, address, or placement is assigned. The section-name-table carrier then
-adopts the unchanged exact 102-byte seed as the complete `.shstrtab` payload.
+adopts the unchanged exact 112-byte seed as the complete `.shstrtab` payload.
 The name reserved once at offset 59 remains unique, `.dynamic\0` ends the table
-at byte 102, and the semantic descriptor records `SHT_STRTAB`, no flags, size
-102, alignment one, zero entry size, and no link/info relationship. Independent
+at byte 112, and the semantic descriptor records `SHT_STRTAB`, no flags, size
+112, alignment one, zero entry size, and no link/info relationship. Independent
 bounded replay walks every contiguous NUL-framed name and checks every byte,
 field, identity, and exact `.dynamic`-descriptor custody. It assigns no numeric
 section index, `e_shstrndx`, address, or placement. A numeric-roster carrier
-then consumes that owner into twelve closed rows: null index zero; the retained
-six base rows at 1–6; `.plt`/`.got.plt`/`.rela.plt` at 7–9; `.dynamic` at 10;
-and `.shstrtab` at 11, which is also the exact `e_shstrndx`. Existing `sh_name`
+then consumes that owner into thirteen closed rows: null index zero; the retained
+seven base rows at 1–7; `.plt`/`.got.plt`/`.rela.plt` at 8–10; `.dynamic` at 11;
+and `.shstrtab` at 12, which is also the exact `e_shstrndx`. Existing `sh_name`
 offsets and literal `sh_info` values survive unchanged; semantic links and the
 relocated-section info relationship resolve to exact in-roster indexes.
 Independent replay checks order, unique coverage, every metadata
 field/reference, identity, and name-table custody. The roster assigns no
 address, file offset, or payload placement. A section-header serialization
-carrier then consumes the exact roster into twelve 64-byte ELF64-LSB
-`Elf64_Shdr` templates, 768 bytes total. It copies every numeric roster field
-and leaves each `sh_addr` and `sh_offset` placement field zero. Twenty-one
-typed fixups identify the eleven non-null file offsets and the ten allocated
+carrier then consumes the exact roster into thirteen 64-byte ELF64-LSB
+`Elf64_Shdr` templates, 832 bytes total. It copies every numeric roster field
+and leaves each `sh_addr` and `sh_offset` placement field zero. Twenty-three
+typed fixups identify the twelve non-null file offsets and the eleven allocated
 virtual addresses. An independent bounded decoder rejects truncated or
 trailing bytes and replays every field and row, exact fixup order and
 coordinate, zero placeholder, bounds and non-overlap, identity, and roster
 custody. The carrier grants no placement or `e_shoff` authority.
 A following indexed-payload carrier consumes those templates and binds every
-numeric row to its exact already-owned bytes: null, the six base payloads,
+numeric row to its exact already-owned bytes: null, the seven base payloads,
 PLT/GOT.PLT/RELA.PLT, `.dynamic`, and `.shstrtab`. Row bytes replay against
 their upstream serializers and lengths replay against numeric `sh_size`.
 Procedure-linkage and source-text obligations remain a distinct typed fixup
-family, while the seven `.dynamic` obligations remain another; both map their
+family, while the eight `.dynamic` obligations remain another; both map their
 storage and semantic targets to exact numeric section rows without resolving an
 address. Source text stays an explicit non-section storage domain, and the
-twenty-one section-header placement fixups are not duplicated. Independent
+twenty-three section-header placement fixups are not duplicated. Independent
 replay checks all rows, bytes, sizes, fixups, mutable masks, zero placeholders,
 constraints, storage bounds and targets, identity, and exact header-template
 custody. The carrier grants no address or placement authority.
@@ -377,27 +376,27 @@ to use their distinct 4-KiB `Page(expr)` rule. The carrier closes one canonical
 load owns the ELF/program-header prefix and read-only dynamic sections; RX owns
 the retained source text and `.plt`; RW owns writable dynamic sections,
 initialized source data, and the aligned BSS zero-fill tail. `.shstrtab` and
-the 768-byte section-header table receive file-only coordinates outside the
-load file extents. All twenty-one typed section-header placement obligations
+the 832-byte section-header table receive file-only coordinates outside the
+load file extents. All twenty-three typed section-header placement obligations
 receive exact retained values without mutating their zero templates.
 Independent replay checks source, section, segment, alignment, alias, and
 fixup coverage plus the deferred procedure-placement envelopes. This remains
 geometry only, not loader, publication, or runnable-image authority.
 
 The section-header application carrier now consumes that exact absolute owner,
-copies the retained 768-byte template, and applies only the eleven resolved file
-offsets and ten resolved virtual addresses to their exact typed zero
+copies the retained 832-byte template, and applies only the twelve resolved file
+offsets and eleven resolved virtual addresses to their exact typed zero
 placeholders as little-endian `u64` values. Its independent bounded decoder
-replays all twelve roster rows, every unchanged field, exact application
+replays all thirteen roster rows, every unchanged field, exact application
 order/coordinate/kind/value, null and file-only `.shstrtab` semantics,
 deterministic content-bound identity, and load-layout custody. It assigns no
 `e_shoff`, serializes no ELF or program header, mutates no `FinalImage`, and
 grants no runnable authority.
 
 The internal `.dynamic` application carrier now consumes that placed-header
-owner, copies only indexed roster row ten, and resolves the exact seven
-`DT_PLTGOT`, `DT_HASH`, `DT_STRTAB`, `DT_SYMTAB`, `DT_JMPREL`, `DT_VERSYM`, and
-`DT_VERNEED` address obligations from their allocated section virtual
+owner, copies only indexed roster row eleven, and resolves the exact eight
+`DT_PLTGOT`, `DT_HASH`, `DT_GNU_HASH`, `DT_STRTAB`, `DT_SYMTAB`, `DT_JMPREL`,
+`DT_VERSYM`, and `DT_VERNEED` address obligations from their allocated section virtual
 addresses. It patches only the typed zero `d_un` fields as little-endian `u64`
 values. Independent replay rejoins the semantic tag plan, serialized fixups,
 indexed storage, target section identities, every literal/null and unchanged
@@ -409,7 +408,7 @@ The dynamic file-envelope carrier now consumes that resolved owner and emits
 the exact 64-byte ELF64-LSB header followed by the five already-planned 56-byte
 program-header rows. It binds the retained entry symbol, target machine,
 `e_shoff`, fixed table geometry, every exact load-layout row, and the already-
-applied 768-byte section-header table as a separate file fragment at that exact
+applied 832-byte section-header table as a separate file fragment at that exact
 offset. An independent bounded decoder rejoins both fragments to the entry,
 absolute layout, and placed-header owner, and rejection returns the complete
 resolved owner. This carrier is deliberately non-runnable: it copies no payload
@@ -426,7 +425,7 @@ bits, complete fixup coverage, and every unchanged byte. Rejection returns the
 complete file-envelope owner, and the retained `FinalImage` remains immutable.
 
 The next non-runnable assembly carrier consumes that resolved-linkage owner and
-places the exact header prefix, retained source text/data, all eleven non-null
+places the exact header prefix, retained source text/data, all twelve non-null
 section payloads, resolved `.plt`/`.got.plt`/`.rela.plt` and `.dynamic` bytes,
 file-only `.shstrtab`, and the applied section-header table into one owned file
 buffer at their absolute offsets. Its typed fragment ledger and independent
@@ -514,8 +513,8 @@ drifted source/type/value/home/index/register/byte/plan/stack custody rejects.
 General runtime expressions, non-fixed-integer, float, aggregate, and indirect
 result shapes, the external-root
 `StackPlan`/lease/entry-epoch join, stronger foreign-call alignment, optional
-`.gnu.hash` section/tag/layout/final-image integration beyond its address-free
-carrier and serializer, and general external-admission ownership remain open
+hash-policy extensions beyond the now integrated `.hash` plus `.gnu.hash`
+carriers, and general external-admission ownership remain open
 engineering work. An owned direct `[u8; N]` destination now contextually copies a quoted
 literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte

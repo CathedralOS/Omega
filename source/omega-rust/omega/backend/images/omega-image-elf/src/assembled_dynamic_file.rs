@@ -3,11 +3,11 @@
 //! This rung consumes the resolved procedure-linkage owner and copies every
 //! retained file-backed fragment to its already-validated absolute offset. An
 //! explicit placement ledger and an independent byte replay cover the header
-//! prefix, source text/data, all eleven non-null section payloads, the section
+//! prefix, source text/data, all twelve non-null section payloads, the section
 //! name table, the section-header table, and every zero-filled alignment gap.
 //!
 //! The assembled bytes remain non-runnable custody. This layer does not mutate
-//! the retained `FinalImage`, add `.gnu.hash`, publish bytes, or grant loader or
+//! the retained `FinalImage`, publish bytes, or grant loader or
 //! runnable-image authority.
 
 use crate::load_layout::{ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout};
@@ -17,7 +17,7 @@ use omega_image::{ExecutableImageOutput, FinalImage, place_executable_regions};
 use omega_target::TargetProfile;
 use psi_diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 12;
+const SECTION_COUNT: usize = 13;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -481,10 +481,10 @@ fn expected_fragments(
     let indexed = load.relative().payloads().contents();
     require(
         indexed.rows.len() == SECTION_COUNT && load.sections().len() == SECTION_COUNT,
-        "dynamic ELF assembly requires the exact twelve-row section roster",
+        "dynamic ELF assembly requires the exact thirteen-row section roster",
     )?;
 
-    let mut fragments = Vec::with_capacity(15);
+    let mut fragments = Vec::with_capacity(16);
     fragments.push(Fragment {
         kind: ElfDynamicFileFragmentKind::HeaderPrefix,
         file_offset: 0,
@@ -548,10 +548,10 @@ fn section_bytes<'a>(
     indexed_bytes: &'a [u8],
 ) -> &'a [u8] {
     match index {
-        7 => resolved_linkage.procedure_linkage_bytes(),
-        8 => resolved_linkage.procedure_got_bytes(),
-        9 => resolved_linkage.procedure_relocation_bytes(),
-        10 => resolved_linkage.envelope().resolved_dynamic_table().bytes(),
+        8 => resolved_linkage.procedure_linkage_bytes(),
+        9 => resolved_linkage.procedure_got_bytes(),
+        10 => resolved_linkage.procedure_relocation_bytes(),
+        11 => resolved_linkage.envelope().resolved_dynamic_table().bytes(),
         _ => indexed_bytes,
     }
 }
@@ -664,6 +664,7 @@ const fn public_section_kind(kind: ElfDynamicRosterSectionKind) -> ElfPlacedDyna
         ElfDynamicRosterSectionKind::GnuVersionRequirement => {
             ElfPlacedDynamicSectionKind::GnuVersionRequirement
         }
+        ElfDynamicRosterSectionKind::GnuHash => ElfPlacedDynamicSectionKind::GnuHash,
         ElfDynamicRosterSectionKind::ProcedureLinkage => {
             ElfPlacedDynamicSectionKind::ProcedureLinkage
         }
@@ -995,7 +996,7 @@ mod tests {
             let load = load_layout(resolved);
             let envelope = resolved.envelope();
 
-            assert_eq!(assembled.fragment_placements().len(), 15);
+            assert_eq!(assembled.fragment_placements().len(), 16);
             assert_eq!(
                 assembled.bytes().len(),
                 usize::try_from(envelope.section_header_table_file_offset()).unwrap()
