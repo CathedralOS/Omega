@@ -11,6 +11,7 @@
 //! on these types.
 
 use super::foreign_locator::{ForeignLocatorIdentityDigest, NormalizedForeignLocator};
+use omega_target::TargetProfile;
 pub use psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 use sha2::{Digest, Sha256};
 
@@ -517,6 +518,72 @@ impl EvaluatedForeignImport {
     pub const fn receipt(&self) -> &EvaluatedBindingReceipt {
         &self.receipt
     }
+}
+
+/// Atomic normalized syscall number plus the receipt that produced it.
+/// Construction rejects non-Linux targets, numbers outside the downstream
+/// syscall carrier, and receipts committed to any different target or number.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvaluatedForeignSyscall {
+    target: TargetProfile,
+    number: i64,
+    identity_digest: ForeignLocatorIdentityDigest,
+    receipt: EvaluatedBindingReceipt,
+}
+
+impl EvaluatedForeignSyscall {
+    #[doc(hidden)]
+    pub fn from_retained_evidence(
+        target: TargetProfile,
+        number: u64,
+        receipt: EvaluatedBindingReceipt,
+    ) -> Result<Self, String> {
+        if !matches!(target, TargetProfile::LinuxArm64 | TargetProfile::LinuxX64) {
+            return Err(format!(
+                "evaluated Binding::Syscall is not applicable to selected target `{}`",
+                target.target_name(),
+            ));
+        }
+        let number = u32::try_from(number)
+            .map_err(|_| "evaluated Binding::Syscall number does not fit u32".to_owned())?;
+        let identity_digest = evaluated_syscall_identity_digest(target, number);
+        if receipt.locator_identity_digest() != identity_digest {
+            return Err(
+                "evaluated binding receipt does not commit to the supplied normalized syscall"
+                    .to_owned(),
+            );
+        }
+        Ok(Self {
+            target,
+            number: i64::from(number),
+            identity_digest,
+            receipt,
+        })
+    }
+
+    pub const fn target(&self) -> TargetProfile {
+        self.target
+    }
+
+    pub const fn number(&self) -> i64 {
+        self.number
+    }
+
+    pub const fn identity_digest(&self) -> ForeignLocatorIdentityDigest {
+        self.identity_digest
+    }
+
+    pub const fn receipt(&self) -> &EvaluatedBindingReceipt {
+        &self.receipt
+    }
+}
+
+#[doc(hidden)]
+pub fn evaluated_syscall_identity_digest(
+    target: TargetProfile,
+    number: u32,
+) -> ForeignLocatorIdentityDigest {
+    omega_target::evaluated_syscall_identity_digest(target, number)
 }
 
 /// How one method binds on one target -- the Binding sum's union with the

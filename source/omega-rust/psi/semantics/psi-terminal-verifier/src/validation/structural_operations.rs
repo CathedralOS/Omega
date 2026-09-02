@@ -912,6 +912,16 @@ pub(super) fn validate_unit_operation_static(
                     operation: operation.id,
                     boundary: *boundary,
                 })?;
+            if boundary
+                .content_guarantees
+                .iter()
+                .any(|guarantee| matches!(guarantee, BoundaryContentGuarantee::RetainedBorrow(_)))
+            {
+                return Err(ModuleError::RetainedBorrowBoundaryIsNotExecutable {
+                    operation: operation.id,
+                    boundary: boundary.id,
+                });
+            }
             validate_structural_arguments(
                 module,
                 machine,

@@ -331,7 +331,7 @@ pub fn lower_content_conservation_plan(
 pub fn lower_boundary_content_guarantees(
     plans: &[ContentConservationPlan],
     callable: psi_symbols::SymbolHandle,
-) -> Result<Vec<ContentConservationGuarantee>, LoweringError> {
+) -> Result<Vec<BoundaryContentGuarantee>, LoweringError> {
     let mut guarantees = plans
         .iter()
         .filter(|plan| {
@@ -341,11 +341,13 @@ pub fn lower_boundary_content_guarantees(
         .map(|plan| {
             let lowered = lower_content_conservation_plan(plan)?;
             let conservation = lowered_conservation(lowered.proposition)?;
-            Ok(ContentConservationGuarantee {
-                report_fingerprint: lowered.source_report_fingerprint,
-                structural_places: lowered.structural_places,
-                conservation,
-            })
+            Ok(BoundaryContentGuarantee::Conservation(
+                ContentConservationGuarantee {
+                    report_fingerprint: lowered.source_report_fingerprint,
+                    structural_places: lowered.structural_places,
+                    conservation,
+                },
+            ))
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     guarantees.sort();

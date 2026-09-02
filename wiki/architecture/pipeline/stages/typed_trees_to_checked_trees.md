@@ -1132,10 +1132,12 @@ Current ownership is:
   `flow/statements.rs` owns statement entry facts, call fact sequencing, loan
   activation, mutation invalidation, and transfer propagation,
   `flow/transfers.rs` owns statement fact transfers and emits the narrow
-  checked-only parameter-rooted structural qualification-correspondence ledger;
-  its producer requires every source/source-occurrence/destination root to
-  belong to the formation machine or exact formation state and independently
-  walks exact Field/Case plus literal in-bounds FixedIndex segments,
+  checked-only parameter- or prior-state-local-rooted structural qualification-
+  correspondence ledger; its producer requires every source/source-occurrence/
+  destination root to belong to the formation machine or exact formation state,
+  requires an exact-state local to have one declaration strictly before the
+  formation statement, independently re-resolves its declared type, and walks
+  exact Field/Case plus literal in-bounds FixedIndex segments,
   `flow/calls.rs` owns call
   fact assembly, `flow/call_phases.rs` owns call entry/requires/invalidation/exit
   context phase routing, `flow/call_phases/invalidation.rs` owns call mutation
@@ -1243,6 +1245,7 @@ Current ownership is:
   rewrite predicates. `checks/termination/progress.rs` independently replays
   retained qualification correspondence before deriving checked progress
   summaries; malformed, label-only, out-of-bounds/nonliteral/runtime-indexed,
+  later/missing/duplicate/reordered/type- or symbol-substituted local,
   foreign-machine, or sibling-state-rooted correspondence fails closed.
 - The checked-lowering regression root `tests/termination.rs` is orchestration
   only. Its subordinate modules separately own ranking witnesses, operational

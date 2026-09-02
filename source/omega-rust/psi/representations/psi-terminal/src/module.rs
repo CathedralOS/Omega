@@ -29,7 +29,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        74
+        75
     }
 }
 
@@ -825,7 +825,7 @@ pub struct BoundaryMachineDeclaration {
     /// are provider assumptions, not executable proof terms; a caller may use
     /// one only through the successful `BoundaryCall` operation that selected
     /// this declaration.
-    pub content_guarantees: Vec<ContentConservationGuarantee>,
+    pub content_guarantees: Vec<BoundaryContentGuarantee>,
     /// Strictly ordered normalized published ceiling.
     pub published_service_ceiling: Vec<ServiceId>,
 }
@@ -840,6 +840,60 @@ pub struct ContentConservationGuarantee {
     /// signature by parameter position.
     pub structural_places: Vec<StructuralPlaceDeclaration>,
     pub conservation: ContentConservation,
+}
+
+/// Closed content contract attached to one exact boundary callable.
+///
+/// Retained borrows deliberately share the declaration catalog with ordinary
+/// conservation guarantees while remaining a distinct, non-executable row.
+/// This prevents a structural protocol result from being mistaken for the
+/// established scalar boundary-result ABI.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryContentGuarantee {
+    Conservation(ContentConservationGuarantee),
+    RetainedBorrow(RetainedBorrowCustody),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RetainedBorrowCustody {
+    pub callable_identity: String,
+    pub source: RetainedBorrowPlace,
+    pub result: RetainedBorrowPlace,
+    pub access: StructuralAccess,
+    pub callable_lifetime_parameter_count: u32,
+    pub callable_lifetime_parameter_ordinal: u32,
+    pub result_nominal_identity: String,
+    pub result_multiplicity: StructuralMultiplicity,
+    pub result_lifetime_argument_count: u32,
+    pub result_lifetime_argument_ordinal: u32,
+    pub result_lifetime_slot_is_erased: bool,
+    pub retained_semantic_domain: DomainSemanticId,
+    pub source_projection: RetainedBorrowContentProjection,
+    pub result_projection: RetainedBorrowContentProjection,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RetainedBorrowContentProjection {
+    pub semantic_domain: DomainSemanticId,
+    pub carrier_identity: String,
+    pub projection: StructuralContentProjection,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RetainedBorrowPlace {
+    pub version: psi_core::ContentPlaceVersion,
+    pub root: RetainedBorrowPlaceRoot,
+    pub segments: Vec<psi_core::ContentPlaceSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RetainedBorrowPlaceRoot {
+    Parameter {
+        position: u32,
+        identity: String,
+        is_self: bool,
+    },
+    Result,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

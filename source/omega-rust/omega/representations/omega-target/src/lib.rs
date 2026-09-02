@@ -14,7 +14,7 @@ pub use elf_loader::{
 };
 pub use foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
-    NormalizedForeignLocator, normalize_foreign_locator,
+    NormalizedForeignLocator, evaluated_syscall_identity_digest, normalize_foreign_locator,
 };
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetEntryStackSubject,

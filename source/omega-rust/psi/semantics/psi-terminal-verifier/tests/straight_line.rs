@@ -5215,11 +5215,13 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         result: None,
         requires: Vec::new(),
         program_local_root_introductions: Vec::new(),
-        content_guarantees: vec![ContentConservationGuarantee {
-            report_fingerprint: source_report_fingerprint,
-            structural_places: source_structural_places,
-            conservation: source,
-        }],
+        content_guarantees: vec![psi_terminal::BoundaryContentGuarantee::Conservation(
+            ContentConservationGuarantee {
+                report_fingerprint: source_report_fingerprint,
+                structural_places: source_structural_places,
+                conservation: source,
+            },
+        )],
         published_service_ceiling: Vec::new(),
     };
     (

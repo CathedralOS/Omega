@@ -13,6 +13,10 @@ pub enum PackageReviewExternalBinding {
     /// from the legacy string-backed import so review can never reinterpret
     /// two independently authored strings as one atomic physical locator.
     NormalizedImport(PackageReviewEvaluatedImport),
+    /// Ordinary typed `Binding::Syscall` evaluation. This remains distinct
+    /// from the legacy integer syscall carrier and retains its exact producer,
+    /// target, evaluator, and materializer receipt.
+    NormalizedSyscall(PackageReviewEvaluatedSyscall),
     Syscall {
         number: i64,
     },
@@ -175,6 +179,83 @@ impl PackageReviewEvaluatedImport {
 
     pub const fn receipt_locator_identity_digest(&self) -> [u8; 32] {
         self.receipt_locator_identity_digest
+    }
+
+    pub const fn receipt_identity_digest(&self) -> [u8; 32] {
+        self.receipt_identity_digest
+    }
+}
+
+/// Stable, source-handle-free review identity for one evaluated syscall.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewEvaluatedSyscall {
+    pub(crate) target: String,
+    pub(crate) number: i64,
+    pub(crate) binding_identity_digest: [u8; 32],
+    pub(crate) producer: PackageReviewNominalIdentity,
+    pub(crate) producer_package: Option<psi_core::PackageKeyIdentity>,
+    pub(crate) producer_callable_identity: String,
+    pub(crate) producer_closure_digest: [u8; 32],
+    pub(crate) evaluator_semantics_marker: u32,
+    pub(crate) evaluation_usage: PackageReviewEvaluatedBindingUsage,
+    pub(crate) evaluation_digest: [u8; 32],
+    pub(crate) materializer_schema_version: u32,
+    pub(crate) materialization_digest: [u8; 32],
+    pub(crate) receipt_binding_identity_digest: [u8; 32],
+    pub(crate) receipt_identity_digest: [u8; 32],
+}
+
+impl PackageReviewEvaluatedSyscall {
+    pub fn target(&self) -> &str {
+        &self.target
+    }
+
+    pub const fn number(&self) -> i64 {
+        self.number
+    }
+
+    pub const fn binding_identity_digest(&self) -> [u8; 32] {
+        self.binding_identity_digest
+    }
+
+    pub const fn producer(&self) -> &PackageReviewNominalIdentity {
+        &self.producer
+    }
+
+    pub const fn producer_package(&self) -> Option<psi_core::PackageKeyIdentity> {
+        self.producer_package
+    }
+
+    pub fn producer_callable_identity(&self) -> &str {
+        &self.producer_callable_identity
+    }
+
+    pub const fn producer_closure_digest(&self) -> [u8; 32] {
+        self.producer_closure_digest
+    }
+
+    pub const fn evaluator_semantics_marker(&self) -> u32 {
+        self.evaluator_semantics_marker
+    }
+
+    pub const fn evaluation_usage(&self) -> PackageReviewEvaluatedBindingUsage {
+        self.evaluation_usage
+    }
+
+    pub const fn evaluation_digest(&self) -> [u8; 32] {
+        self.evaluation_digest
+    }
+
+    pub const fn materializer_schema_version(&self) -> u32 {
+        self.materializer_schema_version
+    }
+
+    pub const fn materialization_digest(&self) -> [u8; 32] {
+        self.materialization_digest
+    }
+
+    pub const fn receipt_binding_identity_digest(&self) -> [u8; 32] {
+        self.receipt_binding_identity_digest
     }
 
     pub const fn receipt_identity_digest(&self) -> [u8; 32] {

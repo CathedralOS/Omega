@@ -30,10 +30,9 @@ pub data DllImport<
     );
 }
 
-// The first ordinary source-value rung is intentionally import-only.
-// `Syscall` and `VtableField` remain on their explicit legacy carriers until
-// their number and native-field identities have ordinary typed source forms;
-// they must not be smuggled into this sum as magic integers.
+// Syscall numbers are ordinary target-scoped values. `VtableField` remains on
+// its explicit legacy carrier until NativeFieldIdentity has an ordinary typed
+// source form; it must not be smuggled into this sum as a magic integer.
 pub data Binding<
     const ObjectLength: u64,
     const SymbolLength: u64,
@@ -42,4 +41,5 @@ pub data Binding<
     case DllImport(
         import: DllImport<ObjectLength, SymbolLength, VersionLength>
     );
+    case Syscall(number: u64);
 }

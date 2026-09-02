@@ -1,7 +1,8 @@
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
-    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport, PackageReviewExternalBinding,
+    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
+    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
     PackageReviewExternalExecutableSupply, PackageReviewForeignLocator,
     PackageReviewSourceLocationRole,
 };
@@ -29,11 +30,25 @@ pub(super) fn project_external_executable_supply_with_source(
     })
 }
 
-pub(super) fn project_evaluated_import(
+pub(super) fn project_evaluated_binding(
     compilation: &CheckedCompilation,
     row: &omega_provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
-    let evaluated = row.evaluated();
+    match row.evaluated() {
+        omega_provider_planning::evaluated_via_bindings::EvaluatedViaBinding::Import(evaluated) => {
+            project_evaluated_import(compilation, row, evaluated)
+        }
+        omega_provider_planning::evaluated_via_bindings::EvaluatedViaBinding::Syscall(
+            evaluated,
+        ) => project_evaluated_syscall(compilation, row, evaluated),
+    }
+}
+
+fn project_evaluated_import(
+    compilation: &CheckedCompilation,
+    row: &omega_provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
+    evaluated: &omega_effects::provider_plan::EvaluatedForeignImport,
+) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
     let locator = evaluated.locator();
     let projected_locator = match locator.locator() {
         omega_target::ForeignLocatorCandidate::PeByName { library, export } => {
@@ -93,6 +108,44 @@ pub(super) fn project_evaluated_import(
             materializer_schema_version: receipt.materializer_schema_version(),
             materialization_digest: receipt.materialization_digest().as_bytes(),
             receipt_locator_identity_digest: receipt.locator_identity_digest().as_bytes(),
+            receipt_identity_digest: receipt.identity_digest(),
+        },
+    ))
+}
+
+fn project_evaluated_syscall(
+    compilation: &CheckedCompilation,
+    row: &omega_provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
+    evaluated: &omega_effects::provider_plan::EvaluatedForeignSyscall,
+) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
+    let receipt = evaluated.receipt();
+    let usage = receipt.evaluation_usage();
+    Ok(PackageReviewExternalBinding::NormalizedSyscall(
+        PackageReviewEvaluatedSyscall {
+            target: evaluated.target().identity().as_str().to_owned(),
+            number: evaluated.number(),
+            binding_identity_digest: evaluated.identity_digest().as_bytes(),
+            producer: nominal_identity(compilation, row.producer_machine())?,
+            producer_package: receipt.producer_package(),
+            producer_callable_identity: receipt.producer_callable_identity().to_owned(),
+            producer_closure_digest: receipt.producer_closure_digest().as_bytes(),
+            evaluator_semantics_marker: receipt.evaluator_semantics_marker(),
+            evaluation_usage: PackageReviewEvaluatedBindingUsage {
+                usage_schema_version: usage.usage_schema_version(),
+                step_schedule_marker: usage.step_schedule_marker(),
+                fuel_units: usage.fuel_units(),
+                fuel_ceiling: usage.fuel_ceiling(),
+                build_log_bytes: usage.build_log_bytes(),
+                filesystem_operation_attempts: usage.filesystem_operation_attempts(),
+                peak_live_cells: usage.peak_live_cells(),
+                peak_live_text_bytes: usage.peak_live_text_bytes(),
+                result_cells: usage.result_cells(),
+                result_text_bytes: usage.result_text_bytes(),
+            },
+            evaluation_digest: receipt.evaluation_digest().as_bytes(),
+            materializer_schema_version: receipt.materializer_schema_version(),
+            materialization_digest: receipt.materialization_digest().as_bytes(),
+            receipt_binding_identity_digest: receipt.locator_identity_digest().as_bytes(),
             receipt_identity_digest: receipt.identity_digest(),
         },
     ))
@@ -213,11 +266,35 @@ pub(super) fn external_binding_matches_provider_binding(
                 )
             })
             .is_some_and(|row| {
-                row.evaluated() == evaluated
-                    && project_evaluated_import(compilation, row).is_ok_and(|projected| {
+                row.evaluated().as_import() == Some(evaluated)
+                    && project_evaluated_binding(compilation, row).is_ok_and(|projected| {
                         projected
                             == PackageReviewExternalBinding::NormalizedImport(reviewed.clone())
                     })
+            }),
+        (
+            PackageReviewExternalBinding::NormalizedSyscall(reviewed),
+            omega_effects::provider_plan::ProviderBinding::Syscall {
+                number: selected_number,
+            },
+        ) => compilation
+            .machine_trait_conformances(machine)
+            .first()
+            .and_then(|conformance| {
+                compilation.evaluated_via_bindings().exact(
+                    machine.symbol,
+                    conformance.symbol,
+                    conformance.requirement_symbol,
+                )
+            })
+            .is_some_and(|row| {
+                row.evaluated().as_syscall().is_some_and(|evaluated| {
+                    evaluated.number() == *selected_number
+                        && project_evaluated_binding(compilation, row).is_ok_and(|projected| {
+                            projected
+                                == PackageReviewExternalBinding::NormalizedSyscall(reviewed.clone())
+                        })
+                })
             }),
         (
             PackageReviewExternalBinding::Import { library, symbol },

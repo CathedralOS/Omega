@@ -37,24 +37,22 @@ pub(in crate::attached_unit) fn lower_selected_structural_result_realizations(
             || realization.scalar_parameters[0].source_position != 1
             || realization.result.multiplicity != Multiplicity::Affine
             || !realization.result.qualifications.is_empty()
-            || realization.result.type_identity
-                != realization.structural_parameter.type_identity
+            || realization.result.type_identity != realization.structural_parameter.type_identity
             || realization.return_statement_ordinal != 0
         {
             return unsupported(
                 "selected structural-result realization exceeds the first mixed affine lane",
             );
         }
-        let machine_index = machine_index_base
-            .checked_add(index)
-            .ok_or(LoweringError::Unsupported(
-                "selected structural-result machine count overflows usize",
-            ))?;
+        let machine_index =
+            machine_index_base
+                .checked_add(index)
+                .ok_or(LoweringError::Unsupported(
+                    "selected structural-result machine count overflows usize",
+                ))?;
         let identity_base = u64::try_from(machine_index)
             .map_err(|_| {
-                LoweringError::Unsupported(
-                    "selected structural-result machine count exceeds u64",
-                )
+                LoweringError::Unsupported("selected structural-result machine count exceeds u64")
             })?
             .checked_mul(TERMINAL_MACHINE_IDENTITY_STRIDE)
             .ok_or(LoweringError::Unsupported(
@@ -152,13 +150,11 @@ pub(in crate::attached_unit) fn lower_selected_structural_result_realizations(
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::ReturnStructural {
-                    edge: edge_id(
-                        identity_base
-                            .checked_add(1)
-                            .ok_or(LoweringError::Unsupported(
-                                "selected structural-result edge identity range overflows",
-                            ))?,
-                    ),
+                    edge: edge_id(identity_base.checked_add(1).ok_or(
+                        LoweringError::Unsupported(
+                            "selected structural-result edge identity range overflows",
+                        ),
+                    )?),
                     source: structural_parameter_place,
                     returned_claims: Vec::new(),
                     trivial_affine_discards: Vec::new(),

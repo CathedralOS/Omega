@@ -186,3 +186,66 @@ fn review_rejects_typed_via_mutation_after_evaluation() {
             .contains("evaluated `via` binding table retains 2 rows for 1 exact typed expressions")
     }));
 }
+
+#[test]
+fn review_keeps_ordinary_syscall_receipt_distinct_from_legacy_syscall() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"use omega::language::core::external_binding;
+
+pub boundary trait Process {
+    machine exit(code: i32);
+}
+
+pub linux_x86_64 machine exit_binding() -> Binding<0, 0, 0> {
+    Binding::Syscall { number: 60 }
+}
+
+pub machine exit_leaf(code: i32)
+    satisfies Process::exit
+    via exit_binding();
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target linux_x86_64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("linux_x86_64"),
+        package_inputs(&package.0),
+    )
+    .unwrap_or_else(|diagnostics| panic!("ordinary syscall should check: {diagnostics:#?}"));
+    let review = project_checked_package_review(&checked)
+        .expect("ordinary syscall supply should project exactly");
+    let [supply] = review.external_executable_supply() else {
+        panic!("one reviewed ordinary syscall leaf expected");
+    };
+    let PackageReviewExternalBinding::NormalizedSyscall(syscall) = supply.binding() else {
+        panic!("ordinary syscall must not project as a legacy syscall");
+    };
+    assert_eq!(syscall.target(), "omega.target-profile.v1:linux_x86_64");
+    assert_eq!(syscall.number(), 60);
+    assert_eq!(syscall.producer().path(), "exit_binding");
+    assert_eq!(syscall.producer_package(), Some(package_identity()));
+    assert_ne!(syscall.producer_closure_digest(), [0; 32]);
+    assert_ne!(syscall.evaluation_digest(), [0; 32]);
+    assert_ne!(syscall.materialization_digest(), [0; 32]);
+    assert_ne!(syscall.receipt_identity_digest(), [0; 32]);
+    assert_eq!(
+        syscall.receipt_binding_identity_digest(),
+        syscall.binding_identity_digest()
+    );
+
+    let rows = review.canonical_rows().expect("ordinary syscall rows");
+    let row = rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply)
+        .expect("ordinary syscall canonical row");
+    let encoded = encode_package_review_canonical_row(row).expect("encode ordinary syscall row");
+    let decoded = decode_package_review_canonical_row(&encoded).expect("recover syscall row");
+    assert_eq!(decoded.canonical_bytes(), row.canonical_bytes());
+}

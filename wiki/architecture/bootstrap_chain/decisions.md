@@ -1625,14 +1625,17 @@ are proof and correspondence coordinates. They do not become user-visible
 trace values unless a separate language contract explicitly observes a
 location.
 
-The first bounded runtime comparator covers the scalar schema only. Both
-runtime operands must exactly match the verifier-derived Boolean,
-fixed-integer, binary32, or binary64 type; malformed fixed-width integer values
-and address-carrier schemas reject rather than compare. Boolean and fixed-
-integer values compare exactly, while
-IEEE values compare their retained interchange bits so signed zero and NaN
-payload identity are preserved. This comparison result grants no trace,
-refinement, or structural-value authority.
+The bounded runtime comparator covers scalar schemas and exact whole-root
+structural schemas. Scalar operands must exactly match the verifier-derived
+Boolean, fixed-integer, binary32, or binary64 type; malformed fixed-width
+integer values and address-carrier schemas reject rather than compare. Boolean
+and fixed-integer values compare exactly, while IEEE values compare their
+retained interchange bits so signed zero and NaN payload identity are
+preserved. Structural operands require the exact structural type, canonical
+complete required qualification rosters, empty runtime paths, and complete
+opaque value identity. Projected qualifications and nested runtime values
+remain outside this rung. These comparison results grant no trace or refinement
+authority.
 
 Version 1 classifies every ordinary `BoundaryCall` and direct semantic service
 operation such as `PortWrite` as an ordered external event. Every new Terminal

@@ -6,10 +6,10 @@ use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     CheckedPackageCallableReview, PackageReviewCallableConformance, PackageReviewCallableRole,
-    PackageReviewCheckedServiceReach, PackageReviewEvaluatedImport, PackageReviewExternalBinding,
-    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
-    PackageReviewExternalRequirement, PackageReviewExternalStaticParameter,
-    PackageReviewForeignLocator,
+    PackageReviewCheckedServiceReach, PackageReviewEvaluatedImport, PackageReviewEvaluatedSyscall,
+    PackageReviewExternalBinding, PackageReviewExternalCallableSignature,
+    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
+    PackageReviewExternalStaticParameter, PackageReviewForeignLocator,
 };
 
 use super::contracts::encode_callable_contract;
@@ -180,6 +180,10 @@ pub(crate) fn encode_external_executable_supply(
             encoder.byte(6);
             encode_review_evaluated_import(encoder, import)?;
         }
+        PackageReviewExternalBinding::NormalizedSyscall(syscall) => {
+            encoder.byte(7);
+            encode_review_evaluated_syscall(encoder, syscall)?;
+        }
         PackageReviewExternalBinding::Syscall { number } => {
             encoder.byte(1);
             encoder.i64(*number);
@@ -258,5 +262,36 @@ fn encode_review_evaluated_import(
     encoder.fixed_bytes(&import.materialization_digest);
     encoder.fixed_bytes(&import.receipt_locator_identity_digest);
     encoder.fixed_bytes(&import.receipt_identity_digest);
+    encoder.check()
+}
+
+fn encode_review_evaluated_syscall(
+    encoder: &mut Encoder,
+    syscall: &PackageReviewEvaluatedSyscall,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.string(&syscall.target)?;
+    encoder.i64(syscall.number);
+    encoder.fixed_bytes(&syscall.binding_identity_digest);
+    encode_nominal(encoder, &syscall.producer)?;
+    encoder.optional_package_identity(syscall.producer_package);
+    encoder.string(&syscall.producer_callable_identity)?;
+    encoder.fixed_bytes(&syscall.producer_closure_digest);
+    encoder.u32(syscall.evaluator_semantics_marker);
+    let usage = syscall.evaluation_usage;
+    encoder.u32(usage.usage_schema_version);
+    encoder.u32(usage.step_schedule_marker);
+    encoder.u64(usage.fuel_units);
+    encoder.u64(usage.fuel_ceiling);
+    encoder.u64(usage.build_log_bytes);
+    encoder.u64(usage.filesystem_operation_attempts);
+    encoder.u64(usage.peak_live_cells);
+    encoder.u64(usage.peak_live_text_bytes);
+    encoder.u64(usage.result_cells);
+    encoder.u64(usage.result_text_bytes);
+    encoder.fixed_bytes(&syscall.evaluation_digest);
+    encoder.u32(syscall.materializer_schema_version);
+    encoder.fixed_bytes(&syscall.materialization_digest);
+    encoder.fixed_bytes(&syscall.receipt_binding_identity_digest);
+    encoder.fixed_bytes(&syscall.receipt_identity_digest);
     encoder.check()
 }

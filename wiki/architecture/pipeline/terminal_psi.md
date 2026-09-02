@@ -3626,12 +3626,15 @@ classification admits only the two known ordinary event kinds and cannot make
 a future Terminal operation internal by default. This carrier changes no
 Terminal module format, vocabulary, runtime outcome, or fuel schedule.
 Terminal-external completion, runtime trace values/refinement, and forgetting
-projections remain later D39 slices. The first bounded runtime-value helper now
-compares two scalar values against one verifier-derived exact schema. It rejects
-type drift, address-carrier schemas, and malformed fixed integers, compares
-Boolean and fixed-integer values directly, and compares binary32/binary64
-interchange bits without host-float equality. It does not construct a trace,
-compare structural values, or issue a refinement result.
+projections remain later D39 slices. The bounded runtime-value helpers compare
+two scalar values or two exact whole-root structural values against one
+verifier-derived schema. Scalar comparison rejects type drift, address-carrier
+schemas, and malformed fixed integers, compares Boolean and fixed-integer
+values directly, and compares binary32/binary64 interchange bits without
+host-float equality. Structural comparison requires exact structural type,
+canonical complete required qualifications, empty runtime paths, and complete
+opaque value identity; projected qualifications and nested runtime values stay
+fenced. Neither helper constructs a trace or issues a refinement result.
 
 A terminal-external event requires an explicit checked boundary completion
 identity. `never` alone proves no normal return but cannot distinguish

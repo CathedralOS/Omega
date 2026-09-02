@@ -10,10 +10,11 @@ use psi_core::{
     StructuralTypeId, ValueId, content_conservation_report_fingerprint,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
-    CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim, EvidenceContractLaneKind,
-    OperationKind, OperationResult, PropositionBinderArgumentKind, PropositionBinderKind,
-    PropositionEvidence, StructuralAccess, StructuralArgument, StructuralFieldType,
+    BoundaryContentGuarantee, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt,
+    ContentPartitionComposition, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim,
+    EvidenceContractLaneKind, OperationKind, OperationResult, PropositionBinderArgumentKind,
+    PropositionBinderKind, PropositionEvidence, RetainedBorrowContentProjection,
+    RetainedBorrowPlaceRoot, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator,

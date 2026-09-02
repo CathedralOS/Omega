@@ -18,16 +18,18 @@ use psi_core::{
     StructuralCaseSubject, StructuralPlaceKind,
 };
 use psi_terminal::{
-    BindingRelevance, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimContentProjection,
-    ContentConservationGuarantee, CrashCause, CrashPredicateTerm, CrashRouteBucket,
-    CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
+    BindingRelevance, BoundaryContentGuarantee, BoundaryMachineDeclaration, ByteSequenceCarrier,
+    ClaimContentProjection, ContentConservationGuarantee, CrashCause, CrashPredicateTerm,
+    CrashRouteBucket, CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, MachineContract, OutcomeSpecificCallEvidence,
-    ProgramLocalRootIntroductionSchema, ProviderCandidateConformance, ServiceDeclaration,
-    StructuralAccess, StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalRootServiceReach,
+    ProgramLocalRootIntroductionSchema, ProviderCandidateConformance,
+    RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
+    RetainedBorrowPlaceRoot, ServiceDeclaration, StructuralAccess, StructuralArgument,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalRootServiceReach,
 };
 
 use crate::{

@@ -928,6 +928,10 @@ pub enum ModuleError {
     ContentPartitionProducerArgumentMismatch(OperationId),
     NonCanonicalBoundaryContentGuarantees(BoundaryMachineId),
     InvalidBoundaryContentGuarantee(BoundaryMachineId),
+    RetainedBorrowBoundaryIsNotExecutable {
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
     ContentConservationRequiresEnsures {
         contract: ContractId,
     },

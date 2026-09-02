@@ -448,6 +448,10 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             || row.provider_identity.is_empty()
             || row.candidate_identity.is_empty()
             || boundary.identity != row.requirement_identity
+            || boundary
+                .content_guarantees
+                .iter()
+                .any(|guarantee| matches!(guarantee, BoundaryContentGuarantee::RetainedBorrow(_)))
             || !provider_subjects.insert((
                 row.boundary,
                 row.provider_identity.as_str(),

@@ -9,7 +9,8 @@ mod semantic_value_comparison;
 
 pub use semantic_value_comparison::{
     TerminalTraceScalarComparisonError, TerminalTraceScalarValueSide,
-    compare_terminal_trace_scalar_values,
+    TerminalTraceStructuralComparisonError, TerminalTraceStructuralValueSide,
+    compare_terminal_trace_scalar_values, compare_terminal_trace_structural_values,
 };
 
 use std::collections::{BTreeMap, BTreeSet};

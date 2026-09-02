@@ -8,7 +8,7 @@
 use omega_effects::provider_plan::{
     EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
     EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
-    EvaluatedForeignImport,
+    EvaluatedForeignImport, EvaluatedForeignSyscall, ProviderBinding,
 };
 use omega_package_compilation::PackageCompilationInputs;
 use omega_target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
@@ -31,6 +31,63 @@ use std::sync::Arc;
 
 const MATERIALIZER_SCHEMA_VERSION: u32 = 1;
 
+/// One exact normalized result of evaluating the compiler-owned `Binding`
+/// sum. The variant remains explicit so ordinary syscall evidence cannot be
+/// reinterpreted as a legacy syscall carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EvaluatedViaBinding {
+    Import(EvaluatedForeignImport),
+    Syscall(EvaluatedForeignSyscall),
+}
+
+impl EvaluatedViaBinding {
+    pub const fn target(&self) -> TargetProfile {
+        match self {
+            Self::Import(evaluated) => evaluated.locator().target(),
+            Self::Syscall(evaluated) => evaluated.target(),
+        }
+    }
+
+    pub const fn receipt(&self) -> &EvaluatedBindingReceipt {
+        match self {
+            Self::Import(evaluated) => evaluated.receipt(),
+            Self::Syscall(evaluated) => evaluated.receipt(),
+        }
+    }
+
+    pub const fn identity_digest(&self) -> omega_target::ForeignLocatorIdentityDigest {
+        match self {
+            Self::Import(evaluated) => evaluated.locator().identity_digest(),
+            Self::Syscall(evaluated) => evaluated.identity_digest(),
+        }
+    }
+
+    pub fn provider_binding(&self) -> ProviderBinding {
+        match self {
+            Self::Import(evaluated) => ProviderBinding::Import {
+                evaluated: evaluated.clone(),
+            },
+            Self::Syscall(evaluated) => ProviderBinding::Syscall {
+                number: evaluated.number(),
+            },
+        }
+    }
+
+    pub const fn as_import(&self) -> Option<&EvaluatedForeignImport> {
+        match self {
+            Self::Import(evaluated) => Some(evaluated),
+            Self::Syscall(_) => None,
+        }
+    }
+
+    pub const fn as_syscall(&self) -> Option<&EvaluatedForeignSyscall> {
+        match self {
+            Self::Import(_) => None,
+            Self::Syscall(evaluated) => Some(evaluated),
+        }
+    }
+}
+
 /// Exact typed-program join for one ordinary `via` expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedViaBindingRow {
@@ -41,7 +98,7 @@ pub struct EvaluatedViaBindingRow {
     producer_machine: SymbolHandle,
     producer_entry_state: SymbolHandle,
     via_source_span: SourceSpan,
-    evaluated: EvaluatedForeignImport,
+    evaluated: EvaluatedViaBinding,
 }
 
 impl EvaluatedViaBindingRow {
@@ -66,7 +123,7 @@ impl EvaluatedViaBindingRow {
     pub const fn via_source_span(&self) -> SourceSpan {
         self.via_source_span
     }
-    pub const fn evaluated(&self) -> &EvaluatedForeignImport {
+    pub const fn evaluated(&self) -> &EvaluatedViaBinding {
         &self.evaluated
     }
 }
@@ -213,9 +270,9 @@ impl EvaluatedViaBindingTable {
             if row.via_expression != conformance.via_expression
                 || row.via_source_span != source_span
                 || !producer_matches_receipt
-                || self.target != Some(row.evaluated.locator().target())
+                || self.target != Some(row.evaluated.target())
                 || row.evaluated.receipt().locator_identity_digest()
-                    != row.evaluated.locator().identity_digest()
+                    != row.evaluated.identity_digest()
             {
                 diagnostics.push(at(
                     source_span,
@@ -383,14 +440,38 @@ fn evaluate_one(
             )
         })?;
     let (value, usage) = measured.into_parts();
-    let candidate =
+    let decoded =
         decode_binding_value(&value, widths).map_err(|message| at(source_span, message))?;
-    let locator = normalize_foreign_locator(candidate, target).map_err(|error| {
-        at(
-            source_span,
-            format!("ordinary external `via` returned an invalid locator: {error}"),
-        )
-    })?;
+    let binding_identity_digest = match &decoded {
+        DecodedBindingValue::Import(candidate) => {
+            normalize_foreign_locator(candidate.clone(), target)
+                .map_err(|error| {
+                    at(
+                        source_span,
+                        format!("ordinary external `via` returned an invalid locator: {error}"),
+                    )
+                })?
+                .identity_digest()
+        }
+        DecodedBindingValue::Syscall { number } => {
+            let number = u32::try_from(*number).map_err(|_| {
+                at(
+                    source_span,
+                    "ordinary Binding::Syscall number does not fit u32",
+                )
+            })?;
+            if !matches!(target, TargetProfile::LinuxArm64 | TargetProfile::LinuxX64) {
+                return Err(at(
+                    source_span,
+                    format!(
+                        "ordinary Binding::Syscall is not applicable to selected target `{}`",
+                        target.target_name(),
+                    ),
+                ));
+            }
+            omega_effects::provider_plan::evaluated_syscall_identity_digest(target, number)
+        }
+    };
     let producer_identity = typed
         .normalized_machine_overload_identity(producer)
         .map(|identity| identity.identity().to_owned())
@@ -408,7 +489,7 @@ fn evaluate_one(
         vocabulary.source_digest,
         widths,
         &value,
-        locator.identity_digest().as_bytes(),
+        binding_identity_digest.as_bytes(),
     );
     let retained_usage = retained_usage(usage).map_err(|message| at(source_span, message))?;
     let receipt = EvaluatedBindingReceipt::from_evaluation(
@@ -420,11 +501,27 @@ fn evaluate_one(
         evaluation_digest,
         MATERIALIZER_SCHEMA_VERSION,
         materialization_digest,
-        locator.identity_digest(),
+        binding_identity_digest,
     )
     .map_err(|message| at(source_span, message))?;
-    let evaluated = EvaluatedForeignImport::from_retained_evidence(locator, receipt)
-        .map_err(|message| at(source_span, message))?;
+    let evaluated = match decoded {
+        DecodedBindingValue::Import(candidate) => {
+            let locator = normalize_foreign_locator(candidate, target).map_err(|error| {
+                at(
+                    source_span,
+                    format!("ordinary external `via` returned an invalid locator: {error}"),
+                )
+            })?;
+            EvaluatedViaBinding::Import(
+                EvaluatedForeignImport::from_retained_evidence(locator, receipt)
+                    .map_err(|message| at(source_span, message))?,
+            )
+        }
+        DecodedBindingValue::Syscall { number } => EvaluatedViaBinding::Syscall(
+            EvaluatedForeignSyscall::from_retained_evidence(target, number, receipt)
+                .map_err(|message| at(source_span, message))?,
+        ),
+    };
     Ok(EvaluatedViaBindingRow {
         realization_machine: machine.symbol,
         satisfied_owner: conformance.symbol,
@@ -588,17 +685,21 @@ fn validate_binding_shape(
     widths: [SymbolHandle; 3],
     dll_import: SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
-    let [DataMember::Variant(variant)] = typed.data_members(definition) else {
+    let [
+        DataMember::Variant(import_variant),
+        DataMember::Variant(syscall_variant),
+    ] = typed.data_members(definition)
+    else {
         return Err(vec![Diagnostic::error(
-            "compiler-owned Binding must remain import-only",
+            "compiler-owned Binding must retain the exact DllImport and Syscall cases",
         )]);
     };
-    let [field] = typed.data_payload_fields(variant) else {
+    let [field] = typed.data_payload_fields(import_variant) else {
         return Err(vec![Diagnostic::error(
             "compiler-owned Binding::DllImport payload drifted",
         )]);
     };
-    if variant.name.as_str() != "DllImport" || field.name.as_str() != "import" {
+    if import_variant.name.as_str() != "DllImport" || field.name.as_str() != "import" {
         return Err(vec![Diagnostic::error(
             "compiler-owned Binding::DllImport names drifted",
         )]);
@@ -636,6 +737,19 @@ fn validate_binding_shape(
                 "compiler-owned Binding width binder identity drifted",
             )]);
         }
+    }
+    let [number] = typed.data_payload_fields(syscall_variant) else {
+        return Err(vec![Diagnostic::error(
+            "compiler-owned Binding::Syscall payload drifted",
+        )]);
+    };
+    if syscall_variant.name.as_str() != "Syscall"
+        || number.name.as_str() != "number"
+        || typed.primitive_type_reference(number.type_reference) != Some(PrimitiveType::U64)
+    {
+        return Err(vec![Diagnostic::error(
+            "compiler-owned Binding::Syscall must retain one u64 `number` field",
+        )]);
     }
     Ok(())
 }
@@ -729,16 +843,34 @@ fn binding_widths(
     Ok(widths)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DecodedBindingValue {
+    Import(ForeignLocatorCandidate),
+    Syscall { number: u64 },
+}
+
 fn decode_binding_value(
     value: &BuildTimeValue,
     widths: [u64; 3],
-) -> Result<ForeignLocatorCandidate, String> {
+) -> Result<DecodedBindingValue, String> {
     let BuildTimeValue::Case { variant, payload } = value else {
-        return Err("ordinary external `via` must evaluate to Binding::DllImport".to_owned());
+        return Err("ordinary external `via` must evaluate to one exact Binding case".to_owned());
     };
+    if variant == "Syscall" {
+        require_unused_width(widths[0], "Syscall ObjectLength")?;
+        require_unused_width(widths[1], "Syscall SymbolLength")?;
+        require_unused_width(widths[2], "Syscall VersionLength")?;
+        let [number] = exact_fields(payload, ["number"])?;
+        let BuildTimeValue::Int(number) = number else {
+            return Err("Binding::Syscall number must evaluate as u64-compatible Int".to_owned());
+        };
+        let number = u64::try_from(*number)
+            .map_err(|_| "Binding::Syscall number must fit u64".to_owned())?;
+        return Ok(DecodedBindingValue::Syscall { number });
+    }
     if variant != "DllImport" || payload.len() != 1 || payload[0].0 != "import" {
         return Err(
-            "ordinary external `via` must evaluate to the exact Binding::DllImport payload"
+            "ordinary external `via` must evaluate to the exact Binding::DllImport or Binding::Syscall payload"
                 .to_owned(),
         );
     }
@@ -749,10 +881,12 @@ fn decode_binding_value(
         "PeByName" => {
             require_unused_width(widths[2], "PeByName VersionLength")?;
             let [library, export] = exact_fields(payload, ["library", "export"])?;
-            Ok(ForeignLocatorCandidate::PeByName {
-                library: exact_bytes(library, widths[0], "PeByName library")?,
-                export: exact_bytes(export, widths[1], "PeByName export")?,
-            })
+            Ok(DecodedBindingValue::Import(
+                ForeignLocatorCandidate::PeByName {
+                    library: exact_bytes(library, widths[0], "PeByName library")?,
+                    export: exact_bytes(export, widths[1], "PeByName export")?,
+                },
+            ))
         }
         "PeByOrdinal" => {
             require_unused_width(widths[1], "PeByOrdinal SymbolLength")?;
@@ -766,30 +900,36 @@ fn decode_binding_value(
             if ordinal == 0 {
                 return Err("PeByOrdinal ordinal must be nonzero".to_owned());
             }
-            Ok(ForeignLocatorCandidate::PeByOrdinal {
-                library: exact_bytes(library, widths[0], "PeByOrdinal library")?,
-                ordinal,
-            })
+            Ok(DecodedBindingValue::Import(
+                ForeignLocatorCandidate::PeByOrdinal {
+                    library: exact_bytes(library, widths[0], "PeByOrdinal library")?,
+                    ordinal,
+                },
+            ))
         }
         "ElfVersioned" => {
             let [object, symbol, version] = exact_fields(payload, ["object", "symbol", "version"])?;
-            Ok(ForeignLocatorCandidate::ElfVersioned {
-                object: exact_bytes(object, widths[0], "ElfVersioned object")?,
-                symbol: exact_bytes(symbol, widths[1], "ElfVersioned symbol")?,
-                version: exact_bytes(version, widths[2], "ElfVersioned version")?,
-            })
+            Ok(DecodedBindingValue::Import(
+                ForeignLocatorCandidate::ElfVersioned {
+                    object: exact_bytes(object, widths[0], "ElfVersioned object")?,
+                    symbol: exact_bytes(symbol, widths[1], "ElfVersioned symbol")?,
+                    version: exact_bytes(version, widths[2], "ElfVersioned version")?,
+                },
+            ))
         }
         "MachODylibSymbol" => {
             require_unused_width(widths[2], "MachODylibSymbol VersionLength")?;
             let [install_name, symbol] = exact_fields(payload, ["install_name", "symbol"])?;
-            Ok(ForeignLocatorCandidate::MachODylibSymbol {
-                install_name: exact_bytes(
-                    install_name,
-                    widths[0],
-                    "MachODylibSymbol install_name",
-                )?,
-                symbol: exact_bytes(symbol, widths[1], "MachODylibSymbol symbol")?,
-            })
+            Ok(DecodedBindingValue::Import(
+                ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: exact_bytes(
+                        install_name,
+                        widths[0],
+                        "MachODylibSymbol install_name",
+                    )?,
+                    symbol: exact_bytes(symbol, widths[1], "MachODylibSymbol symbol")?,
+                },
+            ))
         }
         _ => Err(format!("unknown compiler-owned DllImport case `{variant}`")),
     }
@@ -1213,7 +1353,12 @@ mod tests {
                 via_source_span: typed
                     .expression_table
                     .source_span(conformance.via_expression),
-                evaluated: retained_import(&typed, producer, b"ExitProcess", 11),
+                evaluated: EvaluatedViaBinding::Import(retained_import(
+                    &typed,
+                    producer,
+                    b"ExitProcess",
+                    11,
+                )),
             }],
         };
         table
@@ -1257,11 +1402,34 @@ mod tests {
         });
         assert_eq!(
             decode_binding_value(&value, [12, 11, 0]).unwrap(),
-            ForeignLocatorCandidate::PeByName {
+            DecodedBindingValue::Import(ForeignLocatorCandidate::PeByName {
                 library: b"kernel32.dll".to_vec(),
                 export: b"ExitProcess".to_vec()
-            }
+            })
         );
+    }
+
+    #[test]
+    fn decodes_exact_syscall_and_rejects_width_or_number_substitution() {
+        let value = BuildTimeValue::Case {
+            variant: "Syscall".to_owned(),
+            payload: vec![("number".to_owned(), BuildTimeValue::Int(60))],
+        };
+        assert_eq!(
+            decode_binding_value(&value, [0, 0, 0]).unwrap(),
+            DecodedBindingValue::Syscall { number: 60 }
+        );
+        assert!(decode_binding_value(&value, [1, 0, 0]).is_err());
+        let negative = BuildTimeValue::Case {
+            variant: "Syscall".to_owned(),
+            payload: vec![("number".to_owned(), BuildTimeValue::Int(-1))],
+        };
+        assert!(decode_binding_value(&negative, [0, 0, 0]).is_err());
+        let substituted = BuildTimeValue::Case {
+            variant: "Syscall".to_owned(),
+            payload: vec![("ordinal".to_owned(), BuildTimeValue::Int(60))],
+        };
+        assert!(decode_binding_value(&substituted, [0, 0, 0]).is_err());
     }
 
     #[test]

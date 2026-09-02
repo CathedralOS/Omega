@@ -8,7 +8,7 @@ use super::boundary_operators::{
 };
 use super::boundary_requirements::project_top_level_requirement_external_supply;
 use super::external_supply::{
-    project_evaluated_import, project_external_binding,
+    project_evaluated_binding, project_external_binding,
     project_external_executable_supply_with_source, validate_external_binding_payload,
 };
 use crate::capture::source::ProjectedReviewRow;
@@ -105,7 +105,7 @@ pub(super) fn project_callable_conformances(
                     }
                     (
                         ExpectedExternalCarrier::Evaluated,
-                        project_evaluated_import(compilation, row)?,
+                        project_evaluated_binding(compilation, row)?,
                     )
                 }
                 _ => {

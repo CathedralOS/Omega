@@ -137,8 +137,9 @@ fn imported_external_binding_vocabulary_has_the_exact_first_rung_shape() {
     assert_eq!(binding.generic_instance, None);
     assert_toolchain_source(typed, binding.symbol);
     let binding_parameters = exact_width_parameters(typed, binding);
-    let [DataMember::Variant(import)] = typed.data_members(binding) else {
-        panic!("the first Binding rung must remain import-only");
+    let [DataMember::Variant(import), DataMember::Variant(syscall)] = typed.data_members(binding)
+    else {
+        panic!("Binding must retain the exact DllImport and Syscall cases");
     };
     assert_eq!(import.name.as_str(), "DllImport");
     let [payload] = typed.data_payload_fields(import) else {
@@ -168,6 +169,16 @@ fn imported_external_binding_vocabulary_has_the_exact_first_rung_shape() {
         };
         assert_eq!(*symbol, parameter);
     }
+
+    assert_eq!(syscall.name.as_str(), "Syscall");
+    let [number] = typed.data_payload_fields(syscall) else {
+        panic!("Binding::Syscall must carry exactly one number payload");
+    };
+    assert_eq!(number.name.as_str(), "number");
+    assert_eq!(
+        typed.primitive_type_reference(number.type_reference),
+        Some(PrimitiveType::U64)
+    );
 }
 
 fn exact_width_parameters(
