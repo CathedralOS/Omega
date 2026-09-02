@@ -13,6 +13,7 @@ pub(super) const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = 
     dispatch::immediate::WRAPPING_INTEGER_ADD,
     dispatch::immediate::WRAPPING_INTEGER_DIVIDE_OPERANDS,
     dispatch::immediate::WRAPPING_INTEGER_REMAINDER_OPERANDS,
+    dispatch::immediate::SATURATING_INTEGER_DIVIDE_OPERANDS,
     dispatch::immediate::SATURATING_INTEGER_SUBTRACT,
     dispatch::immediate::WRAPPING_INTEGER_SUBTRACT,
     dispatch::immediate::WRAPPING_INTEGER_MULTIPLY,

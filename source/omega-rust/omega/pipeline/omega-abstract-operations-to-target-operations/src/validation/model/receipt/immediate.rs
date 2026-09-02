@@ -6,6 +6,7 @@ mod integer_bitwise_xor;
 mod integer_less_or_equal;
 mod integer_less_than;
 mod saturating_integer_add;
+mod saturating_integer_divide_operands;
 mod saturating_integer_multiply;
 mod saturating_integer_subtract;
 mod wrapping_integer_add;
@@ -22,6 +23,7 @@ pub use integer_bitwise_xor::StraightLineIntegerBitwiseXorImmediateTranslationRe
 pub use integer_less_or_equal::StraightLineIntegerLessOrEqualImmediateTranslationReceipt;
 pub use integer_less_than::StraightLineIntegerLessThanImmediateTranslationReceipt;
 pub use saturating_integer_add::StraightLineSaturatingIntegerAddImmediateTranslationReceipt;
+pub use saturating_integer_divide_operands::StraightLineSaturatingIntegerDivideImmediateOperandsTranslationReceipt;
 pub use saturating_integer_multiply::StraightLineSaturatingIntegerMultiplyImmediateTranslationReceipt;
 pub use saturating_integer_subtract::StraightLineSaturatingIntegerSubtractImmediateTranslationReceipt;
 pub use wrapping_integer_add::StraightLineWrappingIntegerAddImmediateTranslationReceipt;

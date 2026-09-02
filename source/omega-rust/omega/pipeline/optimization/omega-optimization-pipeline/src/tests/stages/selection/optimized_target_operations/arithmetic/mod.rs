@@ -6,6 +6,7 @@ mod exact_remainder;
 mod exact_subtract;
 mod saturating_add_immediate;
 mod saturating_divide;
+mod saturating_divide_immediate_operands;
 mod saturating_multiply;
 mod saturating_multiply_immediate;
 mod saturating_remainder;

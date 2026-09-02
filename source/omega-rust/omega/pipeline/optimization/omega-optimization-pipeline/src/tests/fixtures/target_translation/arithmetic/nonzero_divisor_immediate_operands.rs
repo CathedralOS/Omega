@@ -1,18 +1,19 @@
-//! Shared real Terminal fixture for proof-bearing wrapping divide/remainder over constants.
+//! Shared real Terminal fixture for proof-bearing nonzero-divisor operations over constants.
 
 use super::super::*;
 
 #[derive(Clone, Copy)]
-pub(super) enum WrappingNonzeroIntegerOperation {
-    Divide,
-    Remainder,
+pub(super) enum NonzeroDivisorIntegerOperation {
+    WrappingDivide,
+    WrappingRemainder,
+    SaturatingDivide,
 }
 
-pub(super) fn wrapping_nonzero_integer_immediate_operands_return_artifact(
+pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
     scalar_type: IntegerType,
     left: IntegerValue,
     right: IntegerValue,
-    operation: WrappingNonzeroIntegerOperation,
+    operation: NonzeroDivisorIntegerOperation,
 ) -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(84_001).unwrap();
     let entry = BlockId::new(84_002).unwrap();
@@ -87,15 +88,22 @@ pub(super) fn wrapping_nonzero_integer_immediate_operands_return_artifact(
                             scalar_type: ScalarType::Integer(scalar_type),
                         }),
                         kind: match operation {
-                            WrappingNonzeroIntegerOperation::Divide => {
+                            NonzeroDivisorIntegerOperation::WrappingDivide => {
                                 OperationKind::WrappingIntegerDivide {
                                     left: left_result,
                                     right: right_result,
                                     obligation,
                                 }
                             }
-                            WrappingNonzeroIntegerOperation::Remainder => {
+                            NonzeroDivisorIntegerOperation::WrappingRemainder => {
                                 OperationKind::WrappingIntegerRemainder {
+                                    left: left_result,
+                                    right: right_result,
+                                    obligation,
+                                }
+                            }
+                            NonzeroDivisorIntegerOperation::SaturatingDivide => {
+                                OperationKind::SaturatingIntegerDivide {
                                     left: left_result,
                                     right: right_result,
                                     obligation,

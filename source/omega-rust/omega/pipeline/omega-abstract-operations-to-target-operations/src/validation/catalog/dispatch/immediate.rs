@@ -10,6 +10,7 @@ mod integer_equal;
 mod integer_less_or_equal;
 mod integer_less_than;
 mod saturating_integer_add;
+mod saturating_integer_divide_operands;
 mod saturating_integer_multiply;
 mod saturating_integer_subtract;
 mod wrapping_integer_add;
@@ -28,6 +29,7 @@ pub(in crate::validation::catalog) use integer_equal::DESCRIPTOR as INTEGER_EQUA
 pub(in crate::validation::catalog) use integer_less_or_equal::DESCRIPTOR as INTEGER_LESS_OR_EQUAL;
 pub(in crate::validation::catalog) use integer_less_than::DESCRIPTOR as INTEGER_LESS_THAN;
 pub(in crate::validation::catalog) use saturating_integer_add::DESCRIPTOR as SATURATING_INTEGER_ADD;
+pub(in crate::validation::catalog) use saturating_integer_divide_operands::DESCRIPTOR as SATURATING_INTEGER_DIVIDE_OPERANDS;
 pub(in crate::validation::catalog) use saturating_integer_multiply::DESCRIPTOR as SATURATING_INTEGER_MULTIPLY;
 pub(in crate::validation::catalog) use saturating_integer_subtract::DESCRIPTOR as SATURATING_INTEGER_SUBTRACT;
 pub(in crate::validation::catalog) use wrapping_integer_add::DESCRIPTOR as WRAPPING_INTEGER_ADD;

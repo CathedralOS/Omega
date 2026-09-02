@@ -11,6 +11,7 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineWrappingIntegerAddImmediate,
     StraightLineWrappingIntegerDivideImmediateOperands,
     StraightLineWrappingIntegerRemainderImmediateOperands,
+    StraightLineSaturatingIntegerDivideImmediateOperands,
     StraightLineSaturatingIntegerSubtractImmediate,
     StraightLineWrappingIntegerSubtractImmediate,
     StraightLineWrappingIntegerMultiplyImmediate,

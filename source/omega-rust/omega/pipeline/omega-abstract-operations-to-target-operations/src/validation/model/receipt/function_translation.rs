@@ -18,6 +18,7 @@ use super::immediate::{
     StraightLineIntegerLessThanImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,
     StraightLineSaturatingIntegerAddImmediateTranslationReceipt,
+    StraightLineSaturatingIntegerDivideImmediateOperandsTranslationReceipt,
     StraightLineSaturatingIntegerMultiplyImmediateTranslationReceipt,
     StraightLineSaturatingIntegerSubtractImmediateTranslationReceipt,
     StraightLineWrappingIntegerAddImmediateTranslationReceipt,
@@ -98,6 +99,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineWrappingIntegerRemainderImmediateOperands(
         StraightLineWrappingIntegerRemainderImmediateOperandsTranslationReceipt,
+    ),
+    StraightLineSaturatingIntegerDivideImmediateOperands(
+        StraightLineSaturatingIntegerDivideImmediateOperandsTranslationReceipt,
     ),
     StraightLineWrappingIntegerSubtractImmediate(
         StraightLineWrappingIntegerSubtractImmediateTranslationReceipt,
