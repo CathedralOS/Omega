@@ -290,7 +290,7 @@
 
 : collect_array
   need_token prepare_symbol need_token resolve_type set_temp_two set_temp_one
-  temp_one 0x0 assert-equal
+  temp_two 0x1 assert-equal
   need_token parse_nat dup 0x0 = branch bad collect_array_ready
 ;
 : collect_array_ready

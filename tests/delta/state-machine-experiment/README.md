@@ -17,7 +17,7 @@ The whitespace-tokenized source admits:
 ```text
 sum TYPE CASE+ end
 record TYPE (FIELD TYPE)+ end
-array TYPE word LENGTH
+array TYPE ELEMENT_TYPE LENGTH
 machine NAME PARAM TYPE RESULT TYPE
   (local NAME TYPE)*
   (state NAME | statement)*
@@ -49,8 +49,8 @@ switch VALUE SUM (CASE STATE)+ endswitch
 halt SOURCE
 ```
 
-The implementation deliberately uses one exact global namespace, one-word sum
-values, statically allocated machine variables, constant array indexes, and
+The implementation deliberately uses one exact global namespace, exactly
+one-word array elements, statically allocated machine variables, and
 nonrecursive machine calls. These restrictions keep the experiment finite;
 they are not proposed Delta semantics.
 
@@ -78,6 +78,8 @@ they are not proposed Delta semantics.
 | Generated Alpha tape | 523 bytes |
 | Nested-scope parser source | 109 lines / 2,312 bytes |
 | Nested-scope parser Alpha tape | 1,919 bytes |
+| Recursive AST transform source | 427 lines / 10,774 bytes |
+| Recursive AST transform Alpha tape | 9,563 bytes |
 
 The compiler line spend is approximately:
 
@@ -95,9 +97,11 @@ The compiler line spend is approximately:
 The canonical Gamma evaluator and self-hosted Gamma compiler independently
 execute/compile this Gamma source. Their resulting native Delta compiler agrees
 with interpreted execution on the exact 523-byte state sample, 1,919-byte parser
-sample, and eight malformed twins, including identical failure prefixes. The
-compiled parser passes nested-scope, shadowing, duplicate-offset, malformed
-scope, and arena-exhaustion cases.
+sample, 9,563-byte recursive-transform sample, and ten malformed twins,
+including identical failure prefixes. The compiled parser passes nested-scope,
+shadowing, duplicate-offset, malformed-scope, and arena-exhaustion cases. The
+transform customer passes mixed and fully folded trees, a surviving conditional,
+arity and framing errors, exact source offsets, and node/depth exhaustion.
 
 ## Reading the result
 
@@ -109,6 +113,15 @@ observed pain more directly than another permanent functional language.
 
 V2 tested three former reopen conditions: variable-length logical collections,
 nested scopes, and deterministic source-offset diagnostics. Indexed fixed arenas
-handled them with 72 additional Gamma lines. The remaining credible functional
-challenge is rich recursive syntax transformation across many node variants,
-not parsing, scopes, or bounded collection storage alone.
+handled them with 72 additional Gamma lines. The recursive customer tests the
+last D73 challenge with five nominal node variants, variable-arity child chains,
+explicit postorder traversal, in-place rewrites, and canonical output. Its 105-line
+transform is direct; declarations and parsing dominate at 260 lines.
+
+This result weakens the implementation case for a functional Delta, but does
+not make state-machine syntax free. The complete customer needs 427 lines and
+80 named states for a deliberately small tree language. A functional challenger
+could compress traversal and reconstruction, at the cost of a larger trusted
+compiler and implicit allocation/recursion machinery. The next decision should
+compare those whole-edge costs against the actual Epsilon compiler rather than
+adding richer values speculatively.
