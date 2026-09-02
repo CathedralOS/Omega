@@ -147,10 +147,17 @@ scalar parameters, avoiding another encoded signature copy. The same exact
 lane also admits a free Unit helper. It lowers with no attachment and no
 provider-attachment roots while preserving the Service structural parameter,
 ordinary scalar parameters, and their exact boundary-call use; no synthetic
-empty record stands in for a receiver. Transfers, projections, borrows,
-multiple carriers, mixed receiver requirements, composed control, native
-installed-provider scalar ABI realization, initial root establishment, and
-Independent execution remain absent from Terminal rather than being guessed.
+empty record stands in for a receiver. One further exact lane moves the sole
+owned Service carrier of a free, nongeneric, lifetime-free, one-state Unit
+machine as a whole-root argument into one free terminal helper. Caller and
+target receipts retain the same carrier, `Bound` domain, requirement, and
+selected-plan digest; the helper must end the route in direct calls to that
+requirement. The raw producer and final compiler custody gate independently
+replay the one source edge and both receipts. Scalar-bearing or repeated
+forwarding, projections, borrows, duplicate edges, multiple carriers, mixed
+receiver requirements, composed control, native installed-provider scalar ABI
+realization, initial root establishment, and Independent execution remain
+absent from Terminal rather than being guessed.
 
 Preservation is not realization. Omega target lowering currently accepts the
 one exact Linux `exit_process(i32) -> Unit` migration shape through import-free

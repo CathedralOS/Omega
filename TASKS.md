@@ -12253,24 +12253,33 @@ checked-result arithmetic decision listed below.
     Fused plan digest. Adapter settlement consumes only that receipt; raw
     checked-to-Terminal lowering and the final compiler custody gate both
     reject removal, fabrication, source substitution, borrowed access, or
-    digest/provenance drift. Recursive placement validation rejects Service
+    digest/provenance drift. One exact forwarding hop is also live for a free,
+    nongeneric, lifetime-free, one-state Unit machine moving its sole owned
+    carrier as one whole-root argument to one free helper. The target retains
+    the identical carrier/base identity, `Bound` domain, requirement, and
+    selected-plan digest and must terminate the route in direct calls to that
+    requirement. Raw lowering and final selected-provider custody replay the
+    edge independently against its exact source call and target receipt;
+    scalar arguments, projections, borrows, duplicate edges, and another
+    forwarding hop reject. Recursive placement validation rejects Service
     carriers hidden in references, arrays, slices, generic wrappers, locals,
-    returns, trait/requirement signatures, and operators. Internal
-    Service-to-Service forwarding, projected or borrowed arguments, multiple
-    carrier parameters, mixed receiver requirements, composed control,
-    native installed-provider scalar ABI realization, root establishment, and
-    Independent execution remain separately fenced. Multiple distinct
+    returns, trait/requirement signatures, and operators. Additional or
+    scalar-bearing Service forwarding, projected or borrowed arguments,
+    multiple carrier parameters, mixed receiver requirements, composed
+    control, native installed-provider scalar ABI realization, root
+    establishment, and Independent execution remain separately fenced.
+    Multiple distinct
     carriers are **DEPENDENCY-BLOCKED**, not language-design-blocked: Terminal
     structural qualifications currently key one domain plan only by
     `SemanticDomainId` while also binding one carrier identity, so the shared
     `Bound` domain cannot honestly represent both `Service<A>` and
     `Service<B>` in one machine. Land an exact domain-application identity
     before removing that fence; do not collapse the carrier identities;
-  - final Fused custody is split by source responsibility: the 304-line field
-    owner rejoins routed record fields, while a private 471-line parameter
-    owner independently rejoins direct machine parameters and rejects receipts
-    in every unsupported Terminal plan family. The public custody gate and
-    diagnostic contract remain unchanged;
+  - final Fused custody is split by source responsibility: the field owner
+    rejoins routed record fields, the parameter owner independently rejoins
+    direct machine parameters, and its private forwarding owner replays the
+    exact one-hop edge and target receipt. Unsupported Terminal plan families
+    reject without widening the public custody gate or diagnostic contract;
   - replace transitional bare boundary-trait runtime values with the explicit
     affine `Service<R> in Bound` carrier and routed installation/publication
     establishment; fused selection may erase it, while independent calls
