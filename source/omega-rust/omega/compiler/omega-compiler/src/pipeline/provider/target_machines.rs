@@ -35,9 +35,11 @@ use std::collections::BTreeMap;
 /// the selected provider-default declarations must be retained before that
 /// mutation. This carrier owns their deterministic full-name roster and
 /// consumes it exactly once when rebinding the corresponding typed machines.
+#[derive(Debug)]
 pub(crate) struct SelectedTargetMachineDeclarations {
     provider_default_machine_names: Vec<String>,
     selected_machine_origins: Vec<(String, String)>,
+    all_machine_origins: Vec<(String, String)>,
 }
 
 pub(crate) struct SettledTargetMachineDeclarations {
@@ -49,13 +51,45 @@ impl SelectedTargetMachineDeclarations {
     fn new(
         mut provider_default_machine_names: Vec<String>,
         mut selected_machine_origins: Vec<(String, String)>,
+        mut all_machine_origins: Vec<(String, String)>,
     ) -> Self {
         provider_default_machine_names.sort();
         selected_machine_origins.sort();
+        all_machine_origins.sort();
         Self {
             provider_default_machine_names,
             selected_machine_origins,
+            all_machine_origins,
         }
+    }
+
+    /// Filter one generated-source extension against the exact complete
+    /// target-declaration roster retained before the authored frontend was
+    /// admitted. The extension is selected in place, while this carrier is
+    /// consumed into the combined base-plus-extension custody.
+    pub(crate) fn filter_generated_extension(
+        mut self,
+        syntax: &mut SyntaxTrees,
+        target_name: Option<&str>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let selected = NativeTarget::from_omega_target_name(target_name)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let extension_origins = target_machine_origins(syntax);
+        let mut complete_origins = self.all_machine_origins.clone();
+        complete_origins.extend(extension_origins.iter().cloned());
+        validate_target_machine_origins(&complete_origins, selected)?;
+
+        let extension = select_target_machines(syntax, selected, extension_origins);
+        self.provider_default_machine_names
+            .extend(extension.provider_default_machine_names);
+        self.selected_machine_origins
+            .extend(extension.selected_machine_origins);
+        self.all_machine_origins
+            .extend(extension.all_machine_origins);
+        self.provider_default_machine_names.sort();
+        self.selected_machine_origins.sort();
+        self.all_machine_origins.sort();
+        Ok(self)
     }
 
     /// Resolve the retained target-owned provider-default producers and
@@ -120,11 +154,13 @@ pub(crate) fn filter_target_machines(
 ) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
     let selected =
         NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
+    let origins = target_machine_origins(syntax);
+    validate_target_machine_origins(&origins, selected)?;
+    Ok(select_target_machines(syntax, selected, origins))
+}
 
-    // full machine name -> (selected handles, non-selected target names).
-    // BTreeMap keeps diagnostics deterministic across runs.
-    let mut rows: BTreeMap<String, (Vec<psi_syntax_trees::item::ItemHandle>, Vec<String>)> =
-        BTreeMap::new();
+fn target_machine_origins(syntax: &SyntaxTrees) -> Vec<(String, String)> {
+    let mut origins = Vec::new();
     for handle in syntax.root_item_handles().to_vec() {
         let Item::Machine(machine) = syntax.root_item(handle) else {
             continue;
@@ -138,25 +174,37 @@ pub(crate) fn filter_target_machines(
         // `Owner::Owner::provider_defaults`, which still groups target rows but
         // cannot be resolved against the later typed machine.
         let full_name = machine.name.as_str().to_owned();
+        origins.push((full_name, target.as_str().to_owned()));
+    }
+    origins
+}
+
+fn validate_target_machine_origins(
+    origins: &[(String, String)],
+    selected: NativeTarget,
+) -> Result<(), Vec<Diagnostic>> {
+    // full machine name -> (selected count, non-selected target names).
+    // BTreeMap keeps diagnostics deterministic across runs and generated units.
+    let mut rows: BTreeMap<&str, (usize, Vec<&str>)> = BTreeMap::new();
+    for (full_name, target) in origins {
         let row_selected = NativeTarget::from_omega_target_name(Some(target.as_str()))
             .is_ok_and(|resolved| resolved == selected);
-        let entry = rows.entry(full_name).or_default();
+        let entry = rows.entry(full_name.as_str()).or_default();
         if row_selected {
-            entry.0.push(handle);
+            entry.0 += 1;
         } else {
-            entry.1.push(target.as_str().to_owned());
+            entry.1.push(target.as_str());
         }
     }
-
-    for (full_name, (selected_handles, other_targets)) in &rows {
-        if selected_handles.len() > 1 {
+    for (full_name, (selected_count, other_targets)) in rows {
+        if selected_count > 1 {
             return Err(vec![Diagnostic::error(format!(
                 "machine `{full_name}` is implemented twice for the selected target -- \
                  a target supplies exactly one implementation of a contract machine",
             ))]);
         }
-        if selected_handles.is_empty() {
-            let mut providers = other_targets.clone();
+        if selected_count == 0 {
+            let mut providers = other_targets;
             providers.sort();
             providers.dedup();
             // A name implemented by ONE foreign target is that target's
@@ -176,53 +224,67 @@ pub(crate) fn filter_target_machines(
             ))]);
         }
     }
+    Ok(())
+}
 
+fn select_target_machines(
+    syntax: &mut SyntaxTrees,
+    selected: NativeTarget,
+    all_machine_origins: Vec<(String, String)>,
+) -> SelectedTargetMachineDeclarations {
     // PRV4c: a target package may contribute ordinary provider defaults with
     // a target-scoped, package-owned `Owner::provider_defaults` machine. Keep
     // the selected declarations' full names before erasing the target marker;
     // typed machines intentionally carry no deployment marker after this pass.
     let mut provider_default_machines = Vec::new();
     let mut selected_machine_origins = Vec::new();
-    for (full_name, (selected_handles, _)) in &rows {
-        if !selected_handles.is_empty() && full_name.ends_with("::provider_defaults") {
+    for handle in syntax.root_item_handles().to_vec() {
+        let Item::Machine(machine) = syntax.root_item(handle) else {
+            continue;
+        };
+        let Some(target) = machine.target.as_ref() else {
+            continue;
+        };
+        if !NativeTarget::from_omega_target_name(Some(target.as_str()))
+            .is_ok_and(|resolved| resolved == selected)
+        {
+            continue;
+        }
+        let full_name = machine.name.as_str().to_owned();
+        if full_name.ends_with("::provider_defaults") {
             provider_default_machines.push(full_name.clone());
         }
-        for handle in selected_handles {
-            let Item::Machine(machine) = syntax.root_item(*handle) else {
-                continue;
-            };
-            let Some(target) = machine.target.as_ref() else {
-                continue;
-            };
-            selected_machine_origins.push((full_name.clone(), target.as_str().to_owned()));
-        }
-    }
-    // Clear the selected machines' markers LAST, after the loud edges passed:
-    // from here on they are ordinary machines.
-    for (_, (selected_handles, _)) in rows {
-        for handle in selected_handles {
-            let Item::Machine(machine) = syntax.root_item(handle) else {
-                continue;
-            };
-            let mut machine = machine.clone();
-            machine.target = None;
-            syntax.items.replace_item(handle, Item::Machine(machine));
-        }
+        selected_machine_origins.push((full_name, target.as_str().to_owned()));
+
+        // Typed machines intentionally carry no target marker after this
+        // selection point.
+        let mut machine = machine.clone();
+        machine.target = None;
+        syntax.items.replace_item(handle, Item::Machine(machine));
     }
 
-    Ok(SelectedTargetMachineDeclarations::new(
+    SelectedTargetMachineDeclarations::new(
         provider_default_machines,
         selected_machine_origins,
-    ))
+        all_machine_origins,
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::SelectedTargetMachineDeclarations;
+    use super::{SelectedTargetMachineDeclarations, filter_target_machines};
+
+    fn syntax(source_id: usize, source: &str) -> psi_syntax_trees::SyntaxTrees {
+        let tokens = crate::lexer::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize target-machine fixture");
+        crate::parser::parse_syntax_trees_with_id(psi_source::SourceId(source_id), &tokens)
+            .expect("parse target-machine fixture")
+    }
 
     #[test]
     fn empty_target_declarations_settle_to_canonical_empty_defaults() {
-        let settled = SelectedTargetMachineDeclarations::new(Vec::new(), Vec::new())
+        let settled = SelectedTargetMachineDeclarations::new(Vec::new(), Vec::new(), Vec::new())
             .settle_provider_defaults(&psi_typed_trees::TypedTrees::default())
             .expect("empty target declaration custody has no typed dependency");
 
@@ -237,6 +299,7 @@ mod tests {
                 "Zed::provider_defaults".into(),
                 "Alpha::provider_defaults".into(),
             ],
+            Vec::new(),
             Vec::new(),
         );
         let Err(diagnostics) =
@@ -254,5 +317,133 @@ mod tests {
             diagnostics[1].to_string(),
             "error: selected target provider-default machine `Zed::provider_defaults` did not survive lowering"
         );
+    }
+
+    #[test]
+    fn generated_extension_retains_selected_origin_and_provider_default_custody() {
+        let mut base = syntax(
+            0,
+            "linux_x86_64 machine Base::value() -> u64 { 1 }\nwindows_x86_64 machine Base::value() -> u64 { 2 }\n",
+        );
+        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
+            .expect("base target cohort selects exactly");
+        let mut extension = syntax(
+            1,
+            "linux_x86_64 machine Generated::value() -> u64 { 3 }\nwindows_x86_64 machine Generated::value() -> u64 { 4 }\nlinux_x86_64 machine Generated::provider_defaults() { }\nwindows_x86_64 machine Generated::provider_defaults() { }\n",
+        );
+
+        let retained = retained
+            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
+            .expect("generated target cohort selects against retained base");
+
+        assert_eq!(
+            retained.provider_default_machine_names,
+            vec!["Generated::provider_defaults"]
+        );
+        assert_eq!(
+            retained.selected_machine_origins,
+            vec![
+                ("Base::value".into(), "linux_x86_64".into()),
+                ("Generated::provider_defaults".into(), "linux_x86_64".into(),),
+                ("Generated::value".into(), "linux_x86_64".into()),
+            ]
+        );
+        let generated_targets = extension
+            .root_items()
+            .filter_map(|item| {
+                let psi_syntax_trees::item::Item::Machine(machine) = item else {
+                    return None;
+                };
+                Some((
+                    machine.name.as_str().to_owned(),
+                    machine
+                        .target
+                        .as_ref()
+                        .map(|target| target.as_str().to_owned()),
+                ))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            generated_targets,
+            vec![
+                ("Generated::value".into(), None),
+                ("Generated::value".into(), Some("windows_x86_64".into())),
+                ("Generated::provider_defaults".into(), None),
+                (
+                    "Generated::provider_defaults".into(),
+                    Some("windows_x86_64".into()),
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn generated_extension_rejects_selected_duplicate_across_base_stratum() {
+        let mut base = syntax(0, "linux_x86_64 machine Duplicate::value() -> u64 { 1 }\n");
+        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
+            .expect("base target row selects exactly");
+        let mut extension = syntax(1, "linux_x86_64 machine Duplicate::value() -> u64 { 2 }\n");
+
+        let diagnostics = retained
+            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
+            .expect_err("base and generated selected rows must form one global cohort");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("implemented twice"));
+        assert!(diagnostics[0].message.contains("Duplicate::value"));
+    }
+
+    #[test]
+    fn generated_extension_completes_missing_target_validation_across_base_stratum() {
+        let mut base = syntax(0, "windows_x86_64 machine Missing::value() -> u64 { 1 }\n");
+        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
+            .expect("one foreign-only base row remains an inert target-local helper");
+        let mut extension = syntax(1, "macos_arm64 machine Missing::value() -> u64 { 2 }\n");
+
+        let diagnostics = retained
+            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
+            .expect_err("base and generated rows must form one portable target cohort");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("no implementation"));
+        assert!(diagnostics[0].message.contains("macos_arm64"));
+        assert!(diagnostics[0].message.contains("windows_x86_64"));
+    }
+
+    #[test]
+    fn generated_units_reject_a_duplicate_selected_target_row() {
+        let mut base = syntax(0, "const BASE: u64 = 1;\n");
+        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
+            .expect("base has no target rows");
+        let mut extension = syntax(1, "linux_x86_64 machine Duplicate::value() -> u64 { 2 }\n");
+        let second = syntax(2, "linux_x86_64 machine Duplicate::value() -> u64 { 3 }\n");
+        extension.extend_from(&second);
+
+        let diagnostics = retained
+            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
+            .expect_err("generated units must not split a duplicate selected row");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("implemented twice"));
+        assert!(diagnostics[0].message.contains("Duplicate::value"));
+    }
+
+    #[test]
+    fn generated_units_reject_a_portable_cohort_missing_the_selected_target() {
+        let mut base = syntax(0, "const BASE: u64 = 1;\n");
+        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
+            .expect("base has no target rows");
+        let mut extension = syntax(1, "windows_x86_64 machine Missing::value() -> u64 { 2 }\n");
+        let second = syntax(2, "macos_arm64 machine Missing::value() -> u64 { 3 }\n");
+        extension.extend_from(&second);
+
+        let diagnostics = retained
+            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
+            .expect_err("generated units must expose a complete target cohort");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("no implementation"));
+        assert!(diagnostics[0].message.contains("macos_arm64"));
+        assert!(diagnostics[0].message.contains("windows_x86_64"));
     }
 }

@@ -255,6 +255,84 @@ machine build(builder: &mut Build) {{
 }
 
 #[test]
+fn generated_target_machines_join_selected_origin_and_provider_default_custody() {
+    let profile = omega_target::TargetProfile::LinuxX64;
+    let project = Project::new("generated-target-machines");
+    project.write("main.omg", "data Main { }\n");
+    project.write(
+        "build.omg",
+        r#"target linux_x86_64 { }
+target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.application("generated-target-machines");
+    let generated: BuildPath = builder.output.resolve("generated.omg");
+    let descriptor: i32 = builder.output.create(generated, 438);
+    let count: i64 = builder.output.write(
+        descriptor,
+        "data Generated { }\nlinux_x86_64 machine Generated::value() -> u64 { 11 }\nwindows_x86_64 machine Generated::value() -> u64 { 22 }\nlinux_x86_64 machine Generated::provider_defaults() { }\nwindows_x86_64 machine Generated::provider_defaults() { }\n"
+    );
+    let close: i32 = builder.output.close(descriptor);
+    builder.output.include_source(generated);
+}
+"#,
+    );
+
+    let session = std::env::temp_dir().join(format!(
+        "omega-build-facet-generated-target-session-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&session);
+    std::fs::create_dir(&session).expect("create generated-target build session");
+    let session = std::fs::canonicalize(session).expect("canonicalize generated-target session");
+    let sponsor = FilesystemSponsor::new(&session).expect("create generated-target sponsor");
+    let build_dir = session.join("output");
+    let bound_build_dir = sponsor
+        .bind_path(&build_dir)
+        .expect("bind generated-target output root");
+    let prepared_build_dir = sponsor
+        .prepare_create_directory(&bound_build_dir)
+        .expect("prepare generated-target output root");
+    std::fs::create_dir(&build_dir).expect("create generated-target output root");
+    prepared_build_dir
+        .commit()
+        .expect("commit generated-target output root");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
+        &project.main(),
+        &build_dir,
+        Some(profile.target_name()),
+        package_inputs(&project.root),
+        sponsor,
+    )
+    .expect("generated target machines should continue from the retained frontend");
+    set_canonical_source_tree_permissions(&project.root, false);
+
+    assert_eq!(checked.selected_target_profile(), Some(profile));
+    for expected in ["Generated::value", "Generated::provider_defaults"] {
+        assert_eq!(
+            checked
+                .typed
+                .machines()
+                .iter()
+                .filter(|machine| machine.name.as_str() == expected)
+                .count(),
+            1,
+            "only the selected generated target row should survive for {expected}",
+        );
+    }
+    assert_eq!(
+        checked.source_file_count(),
+        4,
+        "selected filtering must not change generated-source custody",
+    );
+    checked
+        .verify_current_source_consumption()
+        .expect("generated target source remains tied to staged-output custody");
+    let _ = std::fs::remove_dir_all(session);
+}
+
+#[test]
 fn generated_local_instance_collection_preserves_build_symbol_and_source_custody() {
     let profile = omega_target::TargetProfile::host();
     let project = Project::new("generated-local-instance");

@@ -894,9 +894,18 @@ fn try_seeded_extension(
     base: psi_symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     assembled: &crate::pipeline::source_assembly::AssembledSyntax,
     extension: crate::pipeline::source_assembly::RetainedGeneratedSyntaxExtension,
+    selected_target_machine_declarations:
+        crate::pipeline::target_machines::SelectedTargetMachineDeclarations,
+    target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
-) -> Result<psi_typed_trees::TypedTrees, Vec<Diagnostic>> {
+) -> Result<
+    (
+        psi_typed_trees::TypedTrees,
+        crate::pipeline::target_machines::SelectedTargetMachineDeclarations,
+    ),
+    Vec<Diagnostic>,
+> {
     let retained_prefix = base.typed().clone();
     let mut wire_schema_frontier = retained_prefix.wire_schemas().len();
     let (extension_units, sources) = extension.into_pre_resolution_inputs(assembled)?;
@@ -904,7 +913,6 @@ fn try_seeded_extension(
         psi_syntax_trees::SyntaxTrees::new(psi_source::SourceId(assembled.sources.len()));
     let mut pre_checks = Vec::with_capacity(extension_units.len());
     for unit in extension_units {
-        reject_target_scoped_generated_machines(&unit)?;
         let evaluated = match package_inputs {
             Some(package_inputs) => {
                 psi_build_time_evaluation::evaluate_pre_resolution_with_sources_and_authority(
@@ -922,6 +930,8 @@ fn try_seeded_extension(
         extension_syntax.extend_from(&unit);
         pre_checks.push(pre_check);
     }
+    let selected_target_machine_declarations = selected_target_machine_declarations
+        .filter_generated_extension(&mut extension_syntax, target_name)?;
     let seeded = resolve_seeded_syntax_extension(
         base.resolved_base_for_extension(),
         &extension_syntax,
@@ -967,26 +977,7 @@ fn try_seeded_extension(
             "generated-source pre-check evaluation changed the retained typed base",
         )]);
     }
-    Ok(typed)
-}
-
-fn reject_target_scoped_generated_machines(
-    syntax: &psi_syntax_trees::SyntaxTrees,
-) -> Result<(), Vec<Diagnostic>> {
-    for item in syntax.root_items() {
-        let psi_syntax_trees::item::Item::Machine(machine) = item else {
-            continue;
-        };
-        let Some(target) = &machine.target else {
-            continue;
-        };
-        return Err(vec![Diagnostic::error(format!(
-            "generated target-scoped machine `{}` requires extension-aware target-selection custody, which retained-checkpoint continuation does not yet provide",
-            machine.name,
-        ))
-        .with_source_span(target.source_span())]);
-    }
-    Ok(())
+    Ok((typed, selected_target_machine_declarations))
 }
 
 fn compile_to_checked_inner_with_replay(
@@ -1168,10 +1159,12 @@ fn compile_assembled_checked_child(
                 "generated-source continuation lost its retained frontend base",
             )]);
         };
-        let typed = try_seeded_extension(
+        let (typed, selected_target_machine_declarations) = try_seeded_extension(
             typing_base,
             &frozen_syntax,
             extension,
+            selected_target_machine_declarations,
+            target_name,
             Some(package_inputs),
             &mut timings,
         )?;
@@ -1486,9 +1479,7 @@ fn compile_assembled_checked_child(
 
 #[cfg(test)]
 mod continuation_tests {
-    use super::{
-        CheckedChildExecution, PreparedCheckedSource, reject_target_scoped_generated_machines,
-    };
+    use super::{CheckedChildExecution, PreparedCheckedSource};
     use std::fs;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -1538,26 +1529,6 @@ machine build(builder: &mut Build) {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.root);
         }
-    }
-
-    #[test]
-    fn generated_target_scoped_machine_rejects_before_seeded_resolution() {
-        let source = "linux_x86_64 machine generated() -> u64 { 3 }";
-        let tokens = crate::lexer::Lexer::new(source)
-            .tokenize()
-            .expect("tokenize generated target machine");
-        let syntax = crate::parser::parse_syntax_trees_with_id(psi_source::SourceId(0), &tokens)
-            .expect("parse generated target machine");
-
-        let diagnostics = reject_target_scoped_generated_machines(&syntax)
-            .expect_err("target-scoped generated machines need exact target custody");
-
-        assert_eq!(diagnostics.len(), 1);
-        assert!(
-            diagnostics[0]
-                .message
-                .contains("extension-aware target-selection custody")
-        );
     }
 
     #[test]
