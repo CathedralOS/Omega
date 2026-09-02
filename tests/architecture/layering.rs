@@ -1924,13 +1924,25 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let realization_path = realization_root.join("mod.rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
+    let api_path = realization_root.join("api.rs");
+    let api = std::fs::read_to_string(&api_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", api_path.display()));
     let machine_code_path = realization_root.join("machine_code.rs");
     let machine_code = std::fs::read_to_string(&machine_code_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", machine_code_path.display()));
+    let callback_machine_code_path = realization_root.join("callback_machine_code.rs");
+    let callback_machine_code = std::fs::read_to_string(&callback_machine_code_path)
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                callback_machine_code_path.display()
+            )
+        });
     let input_path = realization_root.join("input.rs");
     let input = std::fs::read_to_string(&input_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", input_path.display()));
-    let production_realization = format!("{realization}\n{input}\n{machine_code}");
+    let production_realization =
+        format!("{realization}\n{api}\n{input}\n{machine_code}\n{callback_machine_code}");
     assert!(
         realization.contains("pub fn realize_native_artifact(")
             && realization.contains("artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
@@ -1948,9 +1960,6 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let (baseline_conveyor, optimized_conveyor) = native_conveyor
         .split_once("NativeRealizationInput::ExplicitOptimization")
         .expect("native realization retains an explicit optimized conveyor arm");
-    let (optimized_conveyor, _) = optimized_conveyor
-        .split_once("\nfn emit_callback_thunks(")
-        .expect("optimized conveyor ends before the ordinary callback-thunk helper");
     let (psi_only_conveyor, selected_physical_conveyor) = optimized_conveyor
         .split_once("let continuation = match provider_installation")
         .expect("optimized realization visibly separates Psi-only publication from selected physical continuation");
@@ -2036,9 +2045,11 @@ fn component_candidate_replay_keeps_compact_identity_report_only() {
         "component-candidate replay must require both the strong closure digest and report-coordinate drift check"
     );
     assert!(
-        producer.contains("selected_provider_closure_digest:")
+        producer.contains("let selected_provider_closure_digest =")
             && producer.contains("selected_provider_plans.identity_digest().as_bytes()")
-            && producer.contains("selected_provider_closure_report_identity:"),
+            && producer.contains("let selected_provider_closure_report_identity =")
+            && producer.contains("selected_provider_closure_report_identity,")
+            && producer.contains("selected_provider_closure_digest,"),
         "native realization must derive both identities from the same exact selected closure"
     );
     assert!(

@@ -340,15 +340,18 @@ verified eliminated occurrence needs no child. A byte digest, provider-plan
 fingerprint, asserted application string, or selected-dispatch rewrite alone
 establishes no physical coverage.
 
-The first verified non-identity continuation admits only Psi-phase
-optimizations. Its survivor projection is derived from the independently
-validated final abstract plan and binds that validation, its final unit,
-Terminal identity, final operation ordinals, and exact D29 coverage. The final
-plan then uses the ordinary target/assignment/emission backend, whose emitted
-bytes supply D32 spans. Requiring the separate selected-instruction pipeline
-here would add no authority because its bytes are not published. Optimization
-phases that actually select, allocate, rewrite, or lay out physical code remain
-fenced until their own complete custody reaches the native artifact.
+The verified non-identity continuation admits Psi-phase optimization and one
+first selected-lowering publication cohort. Psi-phase optimization derives its
+survivor projection from the independently validated final abstract plan, then
+uses the ordinary target/assignment/emission backend. The selected-lowering
+cohort is narrower: x86-64, spill-free, frameless, provider-free,
+callback-free, FMA-free Unit functions containing exactly one validated return fragment. It
+projects those fragments into the existing machine-code/object/image path and
+retains exact empty D32 coverage; it does not create a second backend or infer
+missing fields. Applied selected-lowering operations, calls, structural
+fragments, allocation recovery, post-allocation rewriting, and layout
+optimization remain fenced until each route's complete custody reaches the
+native artifact.
 
 The unoptimized admitted-provider continuation currently admits normalized
 foreign calls containing fixed-width 8-, 16-, 32-, or 64-bit integer scalar

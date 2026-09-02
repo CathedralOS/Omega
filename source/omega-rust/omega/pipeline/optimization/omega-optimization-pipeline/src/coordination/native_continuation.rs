@@ -20,7 +20,7 @@ use crate::{
 #[derive(Debug)]
 pub enum StagedOptimizedNativeContinuation {
     CoverageFallbackAssigned(StagedOptimizedAssignedOperations),
-    SelectedPhysical(StagedOptimizedVerifiedPhysicalPipeline),
+    SelectedPhysical(Box<StagedOptimizedVerifiedPhysicalPipeline>),
 }
 
 #[derive(Debug)]
@@ -56,6 +56,7 @@ pub fn stage_optimized_native_continuation_with_provider_executions(
         target,
         settlements,
     )
+    .map(Box::new)
     .map(StagedOptimizedNativeContinuation::SelectedPhysical)
     .map_err(OptimizedNativeContinuationError::SelectedPhysical)
 }
@@ -82,6 +83,7 @@ pub fn stage_optimized_native_continuation_with_provider_executions_and_installa
         settlements,
         installation,
     )
+    .map(Box::new)
     .map(StagedOptimizedNativeContinuation::SelectedPhysical)
     .map_err(OptimizedNativeContinuationError::SelectedPhysical)
 }

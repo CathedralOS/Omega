@@ -1,26 +1,32 @@
+use crate::realization::callback_machine_code::{
+    emit_callback_thunks, validate_callback_thunk_assignments,
+};
 use crate::realization::diagnostics::{
     realization_error, selected_physical_pipeline_failed,
     selected_physical_pipeline_not_publishable,
 };
 use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::selected_lowering_projection::{
+    SelectedLoweringPublicationRequest, emit_return_only_selected_lowering,
+};
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
-use omega_machine_code::{CompilerPrivateMachineCodeFunction, MachineCodePlanWithPrivateFunctions};
+use omega_boundary_applications::TerminalBoundaryApplicationCoverage;
+use omega_machine_code::MachineCodePlanWithPrivateFunctions;
+use omega_native_artifact::NativePhysicalEvidenceScope;
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
 use psi_diagnostics::Diagnostic;
 
 pub(crate) struct EmittedRealizationMachineCode {
     pub(crate) machine_code: MachineCodePlanWithPrivateFunctions,
-    pub(crate) physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
+    pub(crate) physical_evidence_scope: NativePhysicalEvidenceScope,
 }
 
 pub(crate) fn emit_realization_machine_code(
     input: NativeRealizationInput,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
-    boundary_application_coverage: Option<
-        &omega_boundary_applications::TerminalBoundaryApplicationCoverage,
-    >,
-    initial_physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
+    boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
+    initial_physical_evidence_scope: NativePhysicalEvidenceScope,
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<EmittedRealizationMachineCode, Vec<Diagnostic>> {
     match input {
@@ -159,7 +165,7 @@ pub(crate) fn emit_realization_machine_code(
                         })?;
                         scope
                     }
-                    None => omega_native_artifact::NativePhysicalEvidenceScope::Unavailable,
+                    None => NativePhysicalEvidenceScope::Unavailable,
                 };
                 let assigned = omega_target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(&optimized_target)
                     .map_err(|error| realization_error("optimized physical assignment", error))?;
@@ -174,6 +180,9 @@ pub(crate) fn emit_realization_machine_code(
                     physical_evidence_scope,
                 });
             }
+            let optimized_plan = optimized.plan().clone();
+            let optimized_validation = optimized.validation();
+            let has_provider_installation = provider_installation.is_some();
             let continuation = match provider_installation {
                 Some(installation) => omega_optimization_pipeline::stage_optimized_native_continuation_with_provider_executions_and_installation(
                     optimized,
@@ -206,130 +215,39 @@ pub(crate) fn emit_realization_machine_code(
                 }
                 omega_optimization_pipeline::StagedOptimizedNativeContinuation::SelectedPhysical(
                     physical,
-                ) => return Err(selected_physical_pipeline_not_publishable(
-                    request.optimization_selections,
-                    &physical,
-                )),
+                ) => match *physical {
+                    omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering {
+                        realization,
+                    } => {
+                        let (plan, physical_evidence_scope) =
+                            emit_return_only_selected_lowering(
+                                realization,
+                                SelectedLoweringPublicationRequest {
+                                    has_provider_installation,
+                                    has_boundary_settlements: !settlements.is_empty(),
+                                    boundary_application_coverage,
+                                    optimized_plan: &optimized_plan,
+                                    terminal: optimized_validation.psi(),
+                                    validation: optimized_validation.identity(),
+                                    final_unit: optimized_validation.final_unit(),
+                                },
+                            )?;
+                        return Ok(EmittedRealizationMachineCode {
+                            machine_code: MachineCodePlanWithPrivateFunctions {
+                                plan,
+                                private_functions: Vec::new(),
+                            },
+                            physical_evidence_scope,
+                        });
+                    }
+                    other => return Err(selected_physical_pipeline_not_publishable(
+                        request.optimization_selections,
+                        &other,
+                    )),
+                },
             }
         }
     }
-}
-
-fn emit_callback_thunks(
-    thunks: &[crate::realization::model::NativeCallbackThunkSettlement<'_>],
-    target: omega_target::NativeTarget,
-    profile: &psi_proof_admission::AdmissionProfile,
-) -> Result<Vec<CompilerPrivateMachineCodeFunction>, Vec<Diagnostic>> {
-    if thunks.len() > 1 {
-        return Err(realization_error(
-            "native callback thunk emission",
-            "ordinary native realization currently admits exactly one callback thunk",
-        ));
-    }
-    let mut emitted = Vec::with_capacity(thunks.len());
-    for thunk in thunks {
-        if thunk.private_symbol.is_empty()
-            || thunk.callback_function.callback_thunk_placement_index()
-                != Some(thunk.placement_index)
-        {
-            return Err(realization_error(
-                "native callback thunk emission",
-                "callback thunk has invalid private identity custody",
-            ));
-        }
-        thunk
-            .artifact
-            .validate()
-            .map_err(|error| realization_error("callback thunk artifact replay", error))?;
-        let lowered =
-            omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
-                thunk.artifact.semantic_bytes(),
-                thunk.artifact.proof_bytes(),
-                profile,
-            )
-            .map_err(|error| realization_error("callback thunk abstract lowering", error))?;
-        let omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(abstract_plan) =
-            lowered
-        else {
-            return Err(realization_error(
-                "native callback thunk emission",
-                "callback thunk cannot use ranked native authority",
-            ));
-        };
-        let target_plan =
-            omega_abstract_operations_to_target_operations::lower_to_target_operations(
-                &abstract_plan,
-                target,
-            )
-            .map_err(|error| realization_error("callback thunk target lowering", error))?;
-        let assigned =
-            omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
-                .map_err(|error| realization_error("callback thunk physical assignment", error))?;
-        let machine_code = omega_machine_emission::emit_machine_code(&assigned)
-            .map_err(|error| realization_error("callback thunk machine-code emission", error))?;
-        let [function] = machine_code.functions.as_slice() else {
-            return Err(realization_error(
-                "native callback thunk emission",
-                "bounded callback thunk must emit exactly one native function",
-            ));
-        };
-        let Some(abi) = function.fixed_integer_scalar_abi.as_ref() else {
-            return Err(realization_error(
-                "native callback thunk emission",
-                "bounded callback thunk did not retain its fixed-integer scalar ABI",
-            ));
-        };
-        if machine_code.target != target
-            || machine_code.entry != thunk.lowering_receipt.terminal_machine
-            || function.machine != thunk.lowering_receipt.terminal_machine
-            || abi.call_plan != thunk.boundary_entry_plan.call
-        {
-            return Err(realization_error(
-                "native callback thunk emission",
-                "callback thunk machine, target, or inbound ABI drifted from its lowering receipt",
-            ));
-        }
-        emitted.push(CompilerPrivateMachineCodeFunction {
-            identity: thunk.callback_function,
-            private_symbol: std::sync::Arc::from(thunk.private_symbol),
-            source_psi: machine_code.psi,
-            function: function.clone(),
-        });
-    }
-    Ok(emitted)
-}
-
-fn validate_callback_thunk_assignments(
-    thunks: &[crate::realization::model::NativeCallbackThunkSettlement<'_>],
-    assigned: &[omega_assigned_target_operations::AssignedNativeCallbackArgument],
-) -> Result<(), Vec<Diagnostic>> {
-    if thunks.len() != assigned.len() {
-        return Err(realization_error(
-            "native callback thunk assignment",
-            "callback body and assigned argument rosters differ",
-        ));
-    }
-    for thunk in thunks {
-        let matching = assigned
-            .iter()
-            .filter(|argument| argument.target.placement_index == thunk.placement_index)
-            .collect::<Vec<_>>();
-        let [argument] = matching.as_slice() else {
-            return Err(realization_error(
-                "native callback thunk assignment",
-                "callback body does not rejoin exactly one assigned registrar argument",
-            ));
-        };
-        if argument.target.terminal_operation != thunk.terminal_operation
-            || argument.target.callback_function != thunk.callback_function
-        {
-            return Err(realization_error(
-                "native callback thunk assignment",
-                "callback body identity drifted from its assigned registrar argument",
-            ));
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

@@ -1416,6 +1416,15 @@ container. UEFI and unwind are not implied by this matrix. The former lacks
 publication authority, while physical frames and unwind carriers remain P5
 prerequisites.
 
+Compiler native-artifact production now consumes the selected-lowering route
+for the exact x86-64 return-only Unit cohort. The bridge replays optimizer fragment
+custody and projects its machine, attachment, Terminal return edge, bytes, and
+explicitly empty frame into the ordinary object/image path. It admits no
+providers, callbacks, FMA, structural fragments, calls, frames, or spills.
+Because the current source canary contains no executable D29/D41 occurrence,
+its physical evidence is exact and empty; this does not yet claim native D32
+publication for the applied incoming-u12 rows above.
+
 Post-allocation publication coverage crosses all nine exact machine rules
 with both applicable hosted operating systems: three x86-64 rules on Linux and
 Windows, and six AArch64 rules on Linux and macOS. The 18 rows run twice and

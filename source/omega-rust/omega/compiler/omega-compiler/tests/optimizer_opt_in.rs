@@ -251,7 +251,7 @@ data Build {
 }
 
 #[test]
-fn selected_native_build_fails_closed_without_installing_output() {
+fn return_only_selected_lowering_build_rejoins_native_artifact_production() {
     let root = project(
         "fail-closed",
         Some(
@@ -265,25 +265,31 @@ machine build(builder: &mut Build) {
         ),
     );
     let build_dir = root.join("build");
-    let diagnostics = compile_native_and_publish(CompileOptions {
-        root_path: root.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x86_64".into()),
-    })
-    .expect_err("selected optimization must not fall through to legacy O0 lowering");
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("`SelectedIncomingU12ExactAddImmediate`"),
-        "unexpected diagnostic: {}",
-        diagnostics[0].message
-    );
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("complete verified optimizer pipeline")
-    );
+    let report = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .expect("the exact return-only selected-lowering cohort should reach native custody");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("selected-lowering compilation retains its native artifact");
+    artifact
+        .validate()
+        .expect("selected-lowering native artifact should replay");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        omega_terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = artifact
+        .physical_evidence()
+        .expect("empty D32 coverage is still exact physical evidence");
+    assert!(physical.projection().operator_occurrences().is_empty());
+    assert!(physical.projection().boundary_occurrences().is_empty());
+    assert!(physical.children().is_empty());
     assert!(!build_dir.join("omega-program").exists());
     assert!(!build_dir.join("omega-program.exe").exists());
 }
@@ -337,7 +343,7 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
-fn exact_subtract_immediate_native_build_fails_closed_without_installing_output() {
+fn return_only_exact_subtract_rejoins_native_artifact_production() {
     let root = project(
         "subtract-fail-closed",
         Some(
@@ -351,24 +357,31 @@ machine build(builder: &mut Build) {
         ),
     );
     let build_dir = root.join("build");
-    let diagnostics = compile_native_and_publish(CompileOptions {
-        root_path: root.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x86_64".into()),
-    })
-    .expect_err("selected optimization must not fall through to legacy O0 lowering");
-    assert_eq!(diagnostics.len(), 1);
+    let report = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .expect("the exact return-only subtract selection should reach native custody");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("selected-lowering compilation retains its native artifact");
+    artifact
+        .validate()
+        .expect("selected-lowering native artifact should replay");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        omega_terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
     assert!(
-        diagnostics[0]
-            .message
-            .contains("`SelectedIncomingU12ExactSubtractImmediate`"),
-        "unexpected diagnostic: {}",
-        diagnostics[0].message
-    );
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("complete verified optimizer pipeline")
+        artifact
+            .physical_evidence()
+            .expect("empty D32 coverage remains exact")
+            .children()
+            .is_empty()
     );
     assert!(!build_dir.join("omega-program").exists());
     assert!(!build_dir.join("omega-program.exe").exists());

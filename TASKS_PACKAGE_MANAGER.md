@@ -50,8 +50,13 @@ stop the item on one precise owner question before adding machinery.
     single-instantiation scalar-helper, nested-expression, and
     selected-provider-chain cohort only as another concrete language form
     requires it;
-  - extend the landed verified Psi-phase D32 non-identity projection through
-    selected-lowering, allocation, post-allocation, and layout optimization.
+  - extend the landed verified Psi-phase D32 non-identity projection beyond
+    the first x86-64 selected-lowering return-only Unit cohort. That cohort now
+    rejoins validated optimizer fragments to the existing native artifact
+    path and proves exact empty D32 coverage without providers, callbacks,
+    FMA, frames, spills, calls, or a second backend. Next publish one
+    source-reachable applied selected-lowering operation with nonempty D32
+    custody, then allocation, post-allocation, and layout optimization.
     Extend admitted-provider D41 custody beyond the landed normalized-import
     lane with fixed-width integer scalar arguments/results and one direct
     compiler-private callback parameter to structural arguments/results,

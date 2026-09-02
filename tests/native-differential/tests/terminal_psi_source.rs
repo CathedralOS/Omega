@@ -943,34 +943,27 @@ fn selected_optimizer_source_cannot_create_a_second_native_pipeline() {
 }
 
 #[test]
-fn lower_only_optimizer_source_cannot_create_a_second_native_pipeline() {
+fn lower_only_optimizer_source_rejoins_the_existing_native_pipeline() {
     let checked = compile_to_checked(
         &selected_lowering_optimizer_source_canary(),
         Some("linux_x64"),
     )
     .expect("lower-only optimizer source should reach checked compilation");
-    let diagnostics = stage_terminal_component(
+    let candidate = stage_terminal_component(
         &checked,
         NativeTarget::linux_x64(),
         3,
         &AdmissionProfile::default(),
         &[],
     )
-    .expect_err("selected physical work is not a second production backend");
-    assert_eq!(diagnostics.len(), 1);
-    let message = &diagnostics[0].message;
-    assert!(message.contains("`SelectedIncomingU12ExactAddImmediate`"));
-    assert!(
-        message.contains("cannot yet enter native production"),
-        "{message}"
-    );
-    assert!(
-        message.contains(
-            "continuation does not cover baseline frame/exit, executable-image, and publication validation"
-        ),
-        "{message}"
-    );
-    assert!(message.contains("no output was installed"), "{message}");
+    .expect("the validated return-only selected-lowering cohort should use native production");
+    candidate
+        .native_artifact()
+        .validate()
+        .expect("selected-lowering native custody must replay");
+    assert_eq!(candidate.object().entry(), candidate.stack_demand().entry());
+    assert_eq!(candidate.object().functions().len(), 1);
+    assert!(!candidate.image().output().bytes.is_empty());
 }
 
 #[test]
