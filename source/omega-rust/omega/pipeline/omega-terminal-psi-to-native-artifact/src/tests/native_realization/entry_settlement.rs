@@ -31,6 +31,11 @@ fn independently_settles_exact_hosted_source_and_entry() {
 #[test]
 fn independently_settles_exact_fused_service_root() {
     let (artifact, receipt, source, establishment) = fused_service_custody();
+    assert_ne!(
+        source.receiver().normalized_type_identity(),
+        Some(establishment.attachment_type_identity()),
+        "semantic receiver and Terminal attachment identities are distinct axes",
+    );
     let rows = [establishment.clone()];
     let settlement = validate_native_program_entry_settlement(
         &artifact,
@@ -172,7 +177,7 @@ pub(crate) fn fused_service_custody() -> (
             "entry".into(),
             "test::Main::launch(&mut self) -> Unit".into(),
             omega_program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
-                normalized_type_identity: attachment_type.identity.clone(),
+                normalized_type_identity: "test::Main".into(),
             },
             Vec::new(),
         )
@@ -195,10 +200,14 @@ fn establishment_for_source(
     field_identity: &str,
     carrier_type_identity: &str,
 ) -> omega_program_entry_plan::ProgramEntryFusedServiceEstablishment {
+    let receiver_type_identity = source
+        .receiver()
+        .normalized_type_identity()
+        .expect("Fused establishment source has a receiver");
     omega_program_entry_plan::ProgramEntryFusedServiceEstablishment::new(
         source.identity(),
         source.target_slot(),
-        attachment_type_identity.into(),
+        receiver_type_identity.into(),
         attachment_type_identity.into(),
         field_identity.into(),
         carrier_type_identity.into(),
