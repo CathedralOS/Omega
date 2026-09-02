@@ -2179,17 +2179,17 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through thirteenth bounded represented-record levels are now live under
+  Third through fourteenth bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant. One bounded
-  recursive classifier and validator owns every admitted depth instead of eleven
+  recursive classifier and validator owns every admitted depth instead of twelve
   hand-unrolled implementations while preserving the same diagnostic order.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A fourteenth
+  storage, content, domain, provider, or establishment authority. A fifteenth
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -10491,8 +10491,8 @@ Remaining N6/N8 work:
   concluding the caller application. Source, codec, verifier, optimizer
   identity, and tamper canaries preserve the same four-unit runtime. The next
   bounded rung now permits one, two, three, four, five, six, seven, eight,
-  nine, or ten distinct bound whole-result terms to be used once each: the
-  matching payloadless arm may pass them as dense ordered named `requires`
+  nine, ten, or eleven distinct bound whole-result terms to be used once each:
+  the matching payloadless arm may pass them as dense ordered named `requires`
   inputs of one direct tail state whose sole ordinary argument is the saved
   result and whose body returns that argument unchanged. Terminal retains an
   independently resolvable third
@@ -10502,11 +10502,11 @@ Remaining N6/N8 work:
   terms, and caller/target result places. Codec format 42 / vocabulary 45 and
   the verifier reject omitted, duplicated, reordered, redirected, interface-
   drifted, or non-identity uses while fixed fuel and interpretation retain the
-  existing four-unit runtime. The length-ten source, canonical codec,
+  existing four-unit runtime. The length-eleven source, canonical codec,
   independent verifier, proof admission, fixed-fuel, and interpreter path retain
-  ten dense distinct rows, while an otherwise fully rejoined eleventh row fails
+  eleven dense distinct rows, while an otherwise fully rejoined twelfth row fails
   the bounded cardinality gate. Payload projections, multiple or partial-result
-  substitutions, eleven-or-more evidence arguments, repeated term use, later
+  substitutions, twelve-or-more evidence arguments, repeated term use, later
   invalidation, erased proof-output linkage, wider structural calls, and
   tagged-sum execution remain fail-closed.
 
