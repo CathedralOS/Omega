@@ -3245,7 +3245,9 @@ fn emits_signed_i32_structural_field_reads_for_native_targets() {
 fn mutable_scalar_store_return_plan(
     target: NativeTarget,
     boolean_store: bool,
+    projected_store: bool,
 ) -> TargetOperationPlan {
+    assert!(!projected_store || boolean_store);
     let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let machine = MachineId::new(20).unwrap();
     let structural_type = StructuralTypeId::new(20).unwrap();
@@ -3262,7 +3264,16 @@ fn mutable_scalar_store_return_plan(
     let edge = EdgeId::new(20).unwrap();
     let literal = ValueId::new(20).unwrap();
     let result = ValueId::new(21).unwrap();
-    let shape = ValueShape::borrowed_reference(if boolean_store { 8 } else { 4 }, 4);
+    let shape = ValueShape::borrowed_reference(
+        if projected_store {
+            16
+        } else if boolean_store {
+            8
+        } else {
+            4
+        },
+        4,
+    );
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
@@ -3293,10 +3304,13 @@ fn mutable_scalar_store_return_plan(
     let store = TargetScalarStructuralFieldStore {
         psi_operation: store_operation,
         destination: destination.clone(),
-        path: Vec::new(),
+        path: projected_store
+            .then(|| psi_terminal::StructuralPathSegment::Field("flags".into()))
+            .into_iter()
+            .collect(),
         field,
         destination_placement: parameter.placement.clone(),
-        field_byte_offset: 0,
+        field_byte_offset: if projected_store { 8 } else { 0 },
         defining_operation,
         source_value: literal,
         immediate: if boolean_store {
@@ -3333,45 +3347,112 @@ fn mutable_scalar_store_return_plan(
                         source: place,
                         field: return_field,
                         source_placement: parameter.placement.clone(),
-                        field_byte_offset: if boolean_store { 4 } else { 0 },
+                        field_byte_offset: if projected_store {
+                            12
+                        } else if boolean_store {
+                            4
+                        } else {
+                            0
+                        },
                         integer_type,
                     },
                 }),
-                structural_types: vec![StructuralTypeDeclaration {
-                    id: structural_type,
-                    identity: "MutableCarrier".into(),
-                    shape: StructuralTypeShape::Record {
-                        fields: if boolean_store {
-                            vec![
-                                psi_terminal::StructuralFieldDeclaration {
+                structural_types: if projected_store {
+                    vec![
+                        StructuralTypeDeclaration {
+                            id: structural_type,
+                            identity: "MutableCarrier".into(),
+                            shape: StructuralTypeShape::Record {
+                                fields: vec![
+                                    psi_terminal::StructuralFieldDeclaration {
+                                        id: StructuralFieldId::new(23).unwrap(),
+                                        identity: "prefix".into(),
+                                        relevance: psi_terminal::BindingRelevance::Relevant,
+                                        field_type: psi_terminal::StructuralFieldType::Scalar(
+                                            psi_core::ScalarType::Integer(integer_type),
+                                        ),
+                                    },
+                                    psi_terminal::StructuralFieldDeclaration {
+                                        id: StructuralFieldId::new(22).unwrap(),
+                                        identity: "flags".into(),
+                                        relevance: psi_terminal::BindingRelevance::Relevant,
+                                        field_type: psi_terminal::StructuralFieldType::Structural(
+                                            StructuralTypeId::new(21).unwrap(),
+                                        ),
+                                    },
+                                    psi_terminal::StructuralFieldDeclaration {
+                                        id: return_field,
+                                        identity: "code".into(),
+                                        relevance: psi_terminal::BindingRelevance::Relevant,
+                                        field_type: psi_terminal::StructuralFieldType::Scalar(
+                                            psi_core::ScalarType::Integer(integer_type),
+                                        ),
+                                    },
+                                ],
+                            },
+                        },
+                        StructuralTypeDeclaration {
+                            id: StructuralTypeId::new(21).unwrap(),
+                            identity: "Flags".into(),
+                            shape: StructuralTypeShape::Record {
+                                fields: vec![
+                                    psi_terminal::StructuralFieldDeclaration {
+                                        id: StructuralFieldId::new(24).unwrap(),
+                                        identity: "pad".into(),
+                                        relevance: psi_terminal::BindingRelevance::Relevant,
+                                        field_type: psi_terminal::StructuralFieldType::Scalar(
+                                            psi_core::ScalarType::Integer(integer_type),
+                                        ),
+                                    },
+                                    psi_terminal::StructuralFieldDeclaration {
+                                        id: field,
+                                        identity: "enabled".into(),
+                                        relevance: psi_terminal::BindingRelevance::Relevant,
+                                        field_type: psi_terminal::StructuralFieldType::Scalar(
+                                            psi_core::ScalarType::Boolean,
+                                        ),
+                                    },
+                                ],
+                            },
+                        },
+                    ]
+                } else {
+                    vec![StructuralTypeDeclaration {
+                        id: structural_type,
+                        identity: "MutableCarrier".into(),
+                        shape: StructuralTypeShape::Record {
+                            fields: if boolean_store {
+                                vec![
+                                    psi_terminal::StructuralFieldDeclaration {
+                                        id: field,
+                                        identity: "enabled".into(),
+                                        relevance: psi_terminal::BindingRelevance::Relevant,
+                                        field_type: psi_terminal::StructuralFieldType::Scalar(
+                                            psi_core::ScalarType::Boolean,
+                                        ),
+                                    },
+                                    psi_terminal::StructuralFieldDeclaration {
+                                        id: return_field,
+                                        identity: "code".into(),
+                                        relevance: psi_terminal::BindingRelevance::Relevant,
+                                        field_type: psi_terminal::StructuralFieldType::Scalar(
+                                            psi_core::ScalarType::Integer(integer_type),
+                                        ),
+                                    },
+                                ]
+                            } else {
+                                vec![psi_terminal::StructuralFieldDeclaration {
                                     id: field,
-                                    identity: "enabled".into(),
-                                    relevance: psi_terminal::BindingRelevance::Relevant,
-                                    field_type: psi_terminal::StructuralFieldType::Scalar(
-                                        psi_core::ScalarType::Boolean,
-                                    ),
-                                },
-                                psi_terminal::StructuralFieldDeclaration {
-                                    id: return_field,
-                                    identity: "code".into(),
+                                    identity: "value".into(),
                                     relevance: psi_terminal::BindingRelevance::Relevant,
                                     field_type: psi_terminal::StructuralFieldType::Scalar(
                                         psi_core::ScalarType::Integer(integer_type),
                                     ),
-                                },
-                            ]
-                        } else {
-                            vec![psi_terminal::StructuralFieldDeclaration {
-                                id: field,
-                                identity: "value".into(),
-                                relevance: psi_terminal::BindingRelevance::Relevant,
-                                field_type: psi_terminal::StructuralFieldType::Scalar(
-                                    psi_core::ScalarType::Integer(integer_type),
-                                ),
-                            }]
+                                }]
+                            },
                         },
-                    },
-                }],
+                    }]
+                },
                 call_plan,
                 structural_parameters: vec![parameter],
             },
@@ -3383,6 +3464,7 @@ fn mutable_scalar_store_return_plan(
 fn emits_mutable_self_store_through_the_original_reference_before_return_read() {
     let x86 = emit_machine_code(&mutable_scalar_store_return_plan(
         NativeTarget::linux_x64(),
+        false,
         false,
     ))
     .expect("emit x86 mutable store");
@@ -3409,6 +3491,7 @@ fn emits_mutable_self_store_through_the_original_reference_before_return_read() 
     let arm = emit_machine_code(&mutable_scalar_store_return_plan(
         NativeTarget::linux_arm64(),
         false,
+        false,
     ))
     .expect("emit AArch64 mutable store");
     assert_eq!(
@@ -3433,6 +3516,7 @@ fn emits_boolean_store_before_independent_integer_self_field_return() {
     let x86 = emit_machine_code(&mutable_scalar_store_return_plan(
         NativeTarget::linux_x64(),
         true,
+        false,
     ))
     .expect("emit x86 Boolean store with integer return");
     assert_eq!(
@@ -3462,6 +3546,7 @@ fn emits_boolean_store_before_independent_integer_self_field_return() {
     let arm = emit_machine_code(&mutable_scalar_store_return_plan(
         NativeTarget::linux_arm64(),
         true,
+        false,
     ))
     .expect("emit AArch64 Boolean store with integer return");
     assert_eq!(
@@ -3474,6 +3559,81 @@ fn emits_boolean_store_before_independent_integer_self_field_return() {
             0xd65f_03c0,
         ]
     );
+}
+
+#[test]
+fn emits_projected_boolean_store_at_the_accumulated_nested_offset() {
+    let x86 = emit_machine_code(&mutable_scalar_store_return_plan(
+        NativeTarget::linux_x64(),
+        true,
+        true,
+    ))
+    .expect("emit projected x86 Boolean store");
+    assert_eq!(
+        x86.functions[0].bytes,
+        [
+            0x49, 0xbb, 1, 0, 0, 0, 0, 0, 0, 0, 0x44, 0x88, 0x5f, 0x08, 0x40, 0x8b, 0x47, 0x0c,
+            0x48, 0x63, 0xc0, 0xc3,
+        ]
+    );
+    let store = x86.functions[0]
+        .scalar_structural_scalar_field_store
+        .as_ref()
+        .expect("projected Boolean store evidence");
+    assert_eq!(
+        store.path,
+        [psi_terminal::StructuralPathSegment::Field("flags".into())]
+    );
+    assert_eq!(store.field_byte_offset, 8);
+    assert_eq!(store.return_field_byte_offset, 12);
+
+    let arm = emit_machine_code(&mutable_scalar_store_return_plan(
+        NativeTarget::linux_arm64(),
+        true,
+        true,
+    ))
+    .expect("emit projected AArch64 Boolean store");
+    assert_eq!(
+        aarch64_instructions(&arm.functions[0].bytes),
+        [
+            0xd280_0030,
+            0x3900_2010,
+            0xb940_0c00,
+            0x9340_7c00,
+            0xd65f_03c0,
+        ]
+    );
+}
+
+#[test]
+fn rejects_projected_scalar_store_path_or_accumulated_offset_drift_before_emission() {
+    let plan = mutable_scalar_store_return_plan(NativeTarget::linux_x64(), true, true);
+    let rejects = |mut plan: TargetOperationPlan,
+                   mutate: fn(&mut TargetScalarStructuralFieldStore)| {
+        let TargetOperation::ScalarReturnAfterStructuralScalarFieldStore { store, .. } =
+            &mut plan.functions[0].operation
+        else {
+            unreachable!("projected store fixture remains a scalar-store carrier")
+        };
+        mutate(store);
+        assert!(matches!(
+            assign_registers(&plan),
+            Err(omega_target_operations_to_assigned_target_operations::AssignmentError::StructuralScalarFieldStoreCustodyMismatch { .. })
+        ));
+    };
+
+    rejects(plan.clone(), |store| store.field_byte_offset = 4);
+    rejects(plan.clone(), |store| {
+        store.path[0] = psi_terminal::StructuralPathSegment::Field("missing".into());
+    });
+    rejects(plan.clone(), |store| {
+        store.path.push(psi_terminal::StructuralPathSegment::Field(
+            "too-deep".into(),
+        ));
+    });
+    rejects(plan, |store| {
+        store.path[0] = psi_terminal::StructuralPathSegment::FixedIndex(0);
+    });
 }
 
 #[test]

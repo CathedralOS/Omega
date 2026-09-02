@@ -81,6 +81,37 @@ const MUTATING_REALIZATION_SOURCE: &str = r#"
     }
 "#;
 
+const PROJECTED_MUTATING_REALIZATION_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&mut self) -> i32;
+    }
+
+    data Payload [copy] {
+        value: i32;
+    }
+
+    data Item [copy] {
+        payload: Payload;
+        code: i32;
+    }
+
+    Primary: Item satisfies Measure {
+        machine measure(&mut self) -> i32 {
+            self.payload.value = 23;
+            transition { _ -> self.code }
+        }
+    }
+
+    data Main [copy] {
+        item: Item;
+    }
+
+    machine Main::run(&mut self) {
+        let erased: &mut dyn Measure = &mut self.item as &mut dyn Item::Primary;
+        let result: i32 = erased.measure();
+    }
+"#;
+
 const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
@@ -738,6 +769,49 @@ fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
                 ..
             }
         ] if path.is_empty()
+    ));
+}
+
+#[test]
+fn lowers_one_projected_mutating_realization_path_before_its_scalar_return() {
+    let checked = checked_source(PROJECTED_MUTATING_REALIZATION_SOURCE);
+    let store = direct_plan(&checked)
+        .realization_structural_scalar_field_store
+        .as_ref()
+        .expect("checked projected realization field store");
+    assert_eq!(
+        store.carrier_path,
+        [psi_checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "payload".into()
+        )]
+    );
+    assert_eq!(store.field_identity, "value");
+
+    let lowered = lower_machine(&checked, "Main::run").expect("projected realization lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("projected realization module verifies");
+    let realization = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id != lowered.semantic_module.entry)
+        .expect("selected realization");
+    assert!(matches!(
+        realization.blocks[0].operations.as_slice(),
+        [
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::StructuralScalarFieldStore { path, .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerStructuralField { .. },
+                ..
+            }
+        ] if path == &[psi_terminal::StructuralPathSegment::Field("payload".into())]
     ));
 }
 

@@ -798,18 +798,21 @@ bytes on x86-64 and AArch64. Installation format 59 retains the same semantic
 result and physical result/home carrier, and independently rejoins the
 producer to the generic Unit-home roster, ABI result placement, and exact
 local result interval. A first mutation-bearing realization body is admitted
-through checked and Terminal form when `&mut self` receives exactly one direct
-primitive-field literal store and then returns an exact scalar self field. The
+through checked and Terminal form when `&mut self` receives exactly one
+primitive-field literal store, either directly or one named record projection
+below the receiver, and then returns an exact scalar self field. The
 callable row retains the write separately from the return, and Terminal emits
 the store before the read. Direct Boolean and fixed-integer literal stores also
 reach native execution: `&mut self` is one no-copy pointer to caller storage,
 the erased-data adapter rejoins the structural-only scalar-result ABI, and
 machine/object/image evidence replays the exact store/read/return bytes on
-x86-64 and AArch64. Store and return fields are identified independently. The
+x86-64 and AArch64. Store path, accumulated byte offset, and return field are
+identified independently; assignment rejects disagreement between the path and
+offset. The
 first Boolean store returns an independent `i32` field through the existing
-fixed-integer result-home lane; Boolean-returning forwarded calls, wider or
-computed mutation bodies, and Unit-returning dynamic requirements remain
-outside this bounded rung.
+fixed-integer result-home lane; Boolean-returning forwarded calls, paths deeper
+than one field, indexed/case projections, wider or computed mutation bodies,
+and Unit-returning dynamic requirements remain outside this bounded rung.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected

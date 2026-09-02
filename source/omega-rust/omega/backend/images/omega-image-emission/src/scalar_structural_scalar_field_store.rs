@@ -47,7 +47,7 @@ pub(super) fn validate_scalar_structural_scalar_field_store(
         )
         || !store.destination.qualifications.is_empty()
         || !store.destination.projected_qualifications.is_empty()
-        || !store.path.is_empty()
+        || !valid_store_path(&store.path)
         || parameter.place != store.destination.place
         || parameter.structural_type != store.destination.structural_type
         || parameter.multiplicity != store.destination.multiplicity
@@ -121,6 +121,11 @@ pub(super) fn validate_scalar_structural_scalar_field_store(
         return Err(invalid());
     }
     Ok(())
+}
+
+fn valid_store_path(path: &[psi_terminal::StructuralPathSegment]) -> bool {
+    path.is_empty()
+        || matches!(path, [psi_terminal::StructuralPathSegment::Field(identity)] if !identity.is_empty())
 }
 
 fn exact_attribution_count(

@@ -11992,13 +11992,15 @@ checked-result arithmetic decision listed below.
 
   The first mutation-bearing realization body is live through checked custody
   and Terminal verification. It is exactly one literal `bool` or `i32` store
-  into a direct primitive field of `&mut self`, followed by the existing exact
-  scalar self-field return. The checked callable roster retains the store,
+  into either a direct primitive field of `&mut self` or a primitive field one
+  record projection below it, followed by the existing exact scalar self-field
+  return. The checked callable roster retains the store,
   source statement, mutable-self parameter, field identity, primitive type,
   and literal independently from the return expression; the selected-call
   summary must equal its selected callable. Terminal materializes the constant
-  and direct self-field store before the read and permits no second mutation,
-  nested destination, computed value, shared receiver, or reordered body. The
+  and self-field store before the read and permits no second mutation, path
+  deeper than one record field, indexed/case projection, computed value,
+  shared receiver, or reordered body. The
   Boolean and fixed-integer literal stores now cross target lowering,
   assignment, machine emission, object/image replay, installation, and native
   execution. The store field and subsequent scalar return field are retained
@@ -12007,13 +12009,18 @@ checked-result arithmetic decision listed below.
   lane; it does not claim a Boolean forwarded-result carrier. The mutable ABI
   carries `&mut self` as one no-copy pointer to caller storage; the private adapter
   rejoins the realization's exact structural-only scalar-result ABI before
-  calling it. Machine and object evidence independently bind the literal
-  store, subsequent read, result normalization, return, provenance, and exact
-  x86-64/AArch64 bytes. The authored integer mutable pass-through canary changes
-  the selected field to 23; the Boolean mutation canary stores `true` and reads
-  an independent selected code of 23. Both exit 70 on Linux x86-64 while both
-  target artifacts cross-link. Canonical installation format 59 retains this
-  evidence.
+  calling it. For the one-field path, target lowering accumulates the outer
+  record and primitive-field offsets while assignment independently replays
+  the path against the retained declarations. Machine and object evidence bind
+  the literal store, path, accumulated offset, subsequent read, result
+  normalization, return, provenance, and exact x86-64/AArch64 bytes. The
+  authored integer mutable pass-through canary changes the selected field to
+  23; the direct and projected Boolean mutation canaries store `true` and
+  return an independent selected code of 23. All three exit 70 on Linux x86-64
+  while their target artifacts cross-link. Exact machine tests place the
+  projected Boolean at byte offset 8 and reject path or accumulated-offset
+  drift before emission. Canonical installation format 59 retains this
+  already-encoded path evidence.
 
   Remaining work:
 
@@ -12021,11 +12028,12 @@ checked-result arithmetic decision listed below.
     custody are complete on both architectures, and the existing Linux x86-64
     full-pipeline canary executes the forwarded adapter and checks the selected
     instance through exit status;
-  - widen beyond the current single direct Boolean or fixed-integer literal
+  - widen beyond the current single Boolean or fixed-integer literal
     store only when each wider body has an exact semantic and physical rule;
-    computed values, projected paths, and multiple writes still have no native
-    carrier, while Boolean-returning forwarded calls still need an exact
-    result-home and control carrier of their own;
+    computed values, paths deeper than one record field, indexed/case
+    projections, and multiple writes still have no native carrier, while
+    Boolean-returning forwarded calls still need an exact result-home and
+    control carrier of their own;
   - extend the v1 borrowed surface to Unit-returning requirements and
     additional call forms when their exact semantic and physical rules are
     settled;

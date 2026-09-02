@@ -85,6 +85,8 @@ pub(super) fn lower_store(
             }) if *actual_type == scalar_type && *actual == expected
         ),
     };
+    let exact_path = path.is_empty()
+        || matches!(path.as_slice(), [StructuralPathSegment::Field(identity)] if !identity.is_empty());
     if value.value != source_value
         || value.scalar_type != immediate.scalar_type()
         || !exact_immediate
@@ -97,23 +99,39 @@ pub(super) fn lower_store(
         || destination.access != StructuralAccess::MutableBorrow
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
-        || !path.is_empty()
+        || !exact_path
     {
         return Err(LoweringError::UnsupportedOperationInScalarFunction(
             function.machine,
         ));
     }
-    let field_byte_offset = match immediate {
-        TargetScalarImmediate::Boolean(_) => {
-            direct_boolean_field_offset(destination.structural_type, *field, structural_types)?
+    let (field_owner, path_byte_offset) = match path.as_slice() {
+        [] => (destination.structural_type, 0),
+        [StructuralPathSegment::Field(_)] => {
+            let (nested, _, offset) = resolve_structural_field_path(
+                destination.structural_type,
+                path,
+                structural_types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?;
+            (nested, offset)
         }
-        TargetScalarImmediate::Integer { scalar_type, .. } => direct_integer_field_offset(
-            destination.structural_type,
-            *field,
-            scalar_type,
-            structural_types,
-        )?,
+        _ => unreachable!("projected scalar store path was checked above"),
     };
+    let direct_field_byte_offset = match immediate {
+        TargetScalarImmediate::Boolean(_) => {
+            direct_boolean_field_offset(field_owner, *field, structural_types)?
+        }
+        TargetScalarImmediate::Integer { scalar_type, .. } => {
+            direct_integer_field_offset(field_owner, *field, scalar_type, structural_types)?
+        }
+    };
+    let field_byte_offset = path_byte_offset
+        .checked_add(direct_field_byte_offset)
+        .ok_or(LoweringError::StructuralTypeTooLarge(
+            destination.structural_type,
+        ))?;
     provenance.operations.push(*psi_operation);
     Ok(TargetScalarStructuralFieldStore {
         psi_operation: *psi_operation,

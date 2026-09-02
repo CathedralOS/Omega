@@ -1,7 +1,9 @@
 //! Physical assignment for one direct mutable-self scalar store prefix.
 
 use super::assign_function;
-use super::unit::structural_scalar::{declaration_map, direct_scalar_field_offset};
+use super::unit::structural_scalar::{
+    declaration_map, direct_scalar_field_offset, scalar_field_offset_at_path,
+};
 use crate::assignment::placement::validate_structural_placement;
 use crate::assignment::shared::*;
 use omega_target_operations::TargetScalarImmediate;
@@ -119,10 +121,10 @@ pub(super) fn assign(
         || store.destination.access != psi_terminal::StructuralAccess::MutableBorrow
         || !store.destination.qualifications.is_empty()
         || !store.destination.projected_qualifications.is_empty()
-        || !store.path.is_empty()
         || !valid_immediate
-        || direct_scalar_field_offset(
+        || scalar_field_offset_at_path(
             store.destination.structural_type,
+            &store.path,
             store.field,
             store.immediate.scalar_type(),
             &declarations,

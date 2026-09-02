@@ -370,6 +370,29 @@ pub(in crate::assignment::function) fn direct_scalar_field_offset(
     None
 }
 
+pub(in crate::assignment::function) fn scalar_field_offset_at_path(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    scalar_type: ScalarType,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<u32> {
+    let (field_owner, path_offset) = match path {
+        [] => (structural_type, 0),
+        [StructuralPathSegment::Field(identity)] if !identity.is_empty() => {
+            let (nested, _, offset) = resolve_field_path(structural_type, path, declarations)?;
+            (nested, offset)
+        }
+        _ => return None,
+    };
+    path_offset.checked_add(direct_scalar_field_offset(
+        field_owner,
+        field,
+        scalar_type,
+        declarations,
+    )?)
+}
+
 fn structural_shape(
     structural_type: StructuralTypeId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
