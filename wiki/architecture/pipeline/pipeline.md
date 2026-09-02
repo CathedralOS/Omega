@@ -214,6 +214,15 @@ out compilation: orchestration must first expose the shared immutable
 source/parse/build checkpoint, so wrapping the existing target-sensitive
 compiler invocation in a loop would violate the stage boundary.
 
+Package-aware compilation now projects one exact in-memory
+`PackageCompilationSourceInputs` value containing every source-routing input:
+root role, package identities and canonical names, physical roots, canonical
+build-visible source metadata, and requester-local dependency edges. Generated
+source bundles and accepted semantic bindings remain exact-target child inputs.
+This projection is a checkpoint equality guard, not a durable package identity
+or source receipt; source/parse sharing does not land until the compiler owns
+and validates the corresponding immutable checkpoint.
+
 ## Representation Root Shape
 
 Durable representations should make their semantic spine visible at the root.

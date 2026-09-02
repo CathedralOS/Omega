@@ -281,6 +281,25 @@ pub struct PackageCompilationInputs {
     accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
 }
 
+/// Exact in-memory projection of the target-independent package inputs used
+/// while source roots and ordinary imports are discovered.
+///
+/// This is not a durable package identity: it deliberately retains physical
+/// source roots and canonical build-visible metadata. Its sole purpose is to
+/// prevent a compiler source checkpoint prepared from one package graph from
+/// being reused with a child whose source-routing inputs differ. Exact-target
+/// generated sources and accepted semantic bindings are excluded because they
+/// join only after that shared checkpoint forks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageCompilationSourceInputs {
+    root: PackageKeyIdentity,
+    root_role: BuildDeclarationKind,
+    packages: BTreeMap<PackageKeyIdentity, PathBuf>,
+    package_names: BTreeMap<PackageKeyIdentity, String>,
+    canonical_source_metadata: BTreeMap<PackageKeyIdentity, CanonicalFilesystemMetadataIndex>,
+    dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
+}
+
 impl PackageCompilationInputs {
     pub fn new(
         root: PackageKeyIdentity,
@@ -483,6 +502,21 @@ impl PackageCompilationInputs {
         self.packages
             .iter()
             .map(|(identity, root)| (*identity, root.as_path()))
+    }
+
+    /// Project every target-independent source-routing input as one exact
+    /// equality value. The projection is compiler plumbing, not a serialized
+    /// source receipt or an admission verdict.
+    #[doc(hidden)]
+    pub fn source_inputs(&self) -> PackageCompilationSourceInputs {
+        PackageCompilationSourceInputs {
+            root: self.root,
+            root_role: self.root_role,
+            packages: self.packages.clone(),
+            package_names: self.package_names.clone(),
+            canonical_source_metadata: self.canonical_source_metadata.clone(),
+            dependencies: self.dependencies.clone(),
+        }
     }
 
     pub fn dependencies(
