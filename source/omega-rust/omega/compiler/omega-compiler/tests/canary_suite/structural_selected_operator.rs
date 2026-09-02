@@ -506,3 +506,321 @@ fn specialized_structural_fixed_operator_unit_terminal_custody_rejects_drift() {
         }
     }
 }
+
+#[test]
+fn specialized_mixed_structural_fixed_operator_hosted_native_reaches_d32() {
+    let canary = pass_canary("providers/specialized_mixed_structural_fixed_operator_hosted_native");
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let report = compile_rooted_backend_canary_without_output_for_target(&canary, target)
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "hosted mixed structural/fixed-integer selection should realize natively for {target}: {diagnostics:#?}"
+                )
+            });
+        let native = report.retained_native_artifact().unwrap_or_else(|| {
+            panic!("hosted mixed structural/fixed-integer selection should retain {target} native custody")
+        });
+        native.validate().unwrap_or_else(|error| {
+            panic!(
+                "hosted mixed structural/fixed-integer selection {target} should replay: {error}"
+            )
+        });
+        let physical = report
+            .require_package_native_physical_evidence()
+            .unwrap_or_else(|error| {
+                panic!(
+                    "hosted mixed structural/fixed-integer selection {target} should earn D32: {error}"
+                )
+            });
+        assert!(std::ptr::eq(
+            physical,
+            native.physical_evidence().unwrap_or_else(|| panic!(
+                "hosted mixed structural/fixed-integer selection should retain {target} D32"
+            )),
+        ));
+    }
+}
+
+#[test]
+fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
+    let canary = pass_canary("providers/specialized_mixed_structural_fixed_operator_hosted_native");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+        .expect("hosted mixed structural/fixed-integer selection should check");
+    let consume = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "consume")
+        .expect("mixed structural/fixed-integer Unit helper");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == consume.symbol)
+        .expect("checked mixed structural/fixed-integer helper plan");
+    let [
+        psi_checked_trees::CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+            result,
+            realization_machine,
+            realization_state,
+            scalar_arguments,
+            structural_arguments,
+            ..
+        },
+        psi_checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("one mixed selected call and one Unit return")
+    };
+    assert_eq!(
+        result.primitive_type,
+        psi_typed_trees::types::PrimitiveType::I32
+    );
+    assert!(matches!(
+        scalar_arguments.as_slice(),
+        [psi_checked_trees::CheckedScalarExpression::IntegerLiteral { literal }]
+            if literal.value_i64() == Some(11)
+                && literal.landing().is_some_and(|landing|
+                    landing.landed_type
+                        == psi_numerics::literals::LandedIntegerType::I32)
+    ));
+    assert!(matches!(
+        structural_arguments.as_slice(),
+        [argument]
+            if argument.source_parameter_index() == Some(0)
+                && argument.path.is_empty()
+                && argument.access == psi_checked_trees::CheckedStructuralAccess::Owned
+    ));
+    assert!(trivial_affine_discards.is_empty());
+
+    let realization = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines
+        .iter()
+        .find(|realization| {
+            realization.machine == *realization_machine && realization.state == *realization_state
+        })
+        .expect("exact mixed structural/fixed-integer realization plan");
+    assert!(matches!(
+        realization.structural_parameters.as_slice(),
+        [parameter]
+            if parameter.position == 0
+                && parameter.multiplicity == psi_language_semantics::Multiplicity::Affine
+                && parameter.access == psi_checked_trees::CheckedStructuralAccess::Owned
+    ));
+    assert!(matches!(
+        realization.scalar_parameters.as_slice(),
+        [parameter]
+            if parameter.source_position == 1
+                && parameter.primitive_type == psi_typed_trees::types::PrimitiveType::I32
+    ));
+
+    let main = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("hosted mixed entry machine");
+    let main_plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == main.symbol)
+        .expect("checked hosted mixed entry plan");
+    assert!(matches!(
+        main_plan.operations.as_slice(),
+        [
+            psi_checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                declaration_ordinal: 0,
+                ..
+            },
+            psi_checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            },
+            psi_checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+                trivial_affine_local_discard_ordinals,
+                ..
+            },
+        ] if matches!(structural_arguments.as_slice(), [argument]
+            if argument.source_local_declaration_ordinal() == Some(0)
+                && argument.path.is_empty()
+                && argument.access == psi_checked_trees::CheckedStructuralAccess::Owned)
+            && trivial_affine_local_discard_ordinals.is_empty()
+    ));
+
+    let produced =
+        psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+            &checked,
+            "consume",
+        )
+        .expect("mixed structural/fixed-integer selection should reach Terminal");
+    let [occurrence] = produced.boundary_operator_scope().occurrences() else {
+        panic!("one exact mixed structural/fixed-integer occurrence")
+    };
+    let module = psi_terminal_codec::decode_module(produced.artifact().semantic_bytes())
+        .expect("mixed structural/fixed-integer Terminal semantics should decode");
+    let matching_calls = module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(move |operation| operation.id == occurrence.terminal_operation())
+                .map(move |operation| (machine, operation))
+        })
+        .collect::<Vec<_>>();
+    let [(terminal_consume, call)] = matching_calls.as_slice() else {
+        panic!("one exact D29-bound mixed Terminal call")
+    };
+    let psi_terminal::OperationKind::CallStructuralScalar {
+        arguments,
+        structural_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+        ..
+    } = &call.kind
+    else {
+        panic!("mixed Unit selection must lower as CallStructuralScalar")
+    };
+    let [scalar_argument] = arguments.as_slice() else {
+        panic!("one exact Terminal scalar argument")
+    };
+    let [structural_argument] = structural_arguments.as_slice() else {
+        panic!("one exact Terminal structural argument")
+    };
+    let [structural_parameter] = terminal_consume.structural_parameters.as_slice() else {
+        panic!("one exact Terminal structural parameter")
+    };
+    assert_eq!(structural_argument.place, structural_parameter.place);
+    assert!(structural_argument.path.is_empty());
+    assert_eq!(
+        structural_argument.access,
+        psi_terminal::StructuralAccess::Owned
+    );
+    assert!(claim_transfers.is_empty());
+    assert!(requirement_obligations.is_empty());
+    assert!(crash_continuations.is_empty());
+
+    let scalar_producers = terminal_consume
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            operation
+                .result
+                .scalar()
+                .is_some_and(|result| result.id == *scalar_argument)
+        })
+        .collect::<Vec<_>>();
+    let [scalar_producer] = scalar_producers.as_slice() else {
+        panic!("one exact producer for the Terminal scalar argument")
+    };
+    let psi_terminal::OperationKind::IntegerConstant { value } = &scalar_producer.kind else {
+        panic!("mixed scalar argument must remain an integer constant")
+    };
+    assert_eq!(*value, psi_core::IntegerValue::Signed(11));
+    let i32_type = psi_core::ScalarType::Integer(
+        psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).expect("i32"),
+    );
+    assert_eq!(
+        scalar_producer
+            .result
+            .scalar()
+            .expect("integer constant result")
+            .scalar_type,
+        i32_type
+    );
+    assert_eq!(
+        call.result
+            .scalar()
+            .expect("mixed call scalar result")
+            .scalar_type,
+        i32_type
+    );
+}
+
+#[test]
+fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
+    #[derive(Clone, Copy, Debug)]
+    enum Drift {
+        RemovedScalar,
+        SubstitutedScalar,
+        StructuralSource,
+    }
+
+    let canary = pass_canary("providers/specialized_mixed_structural_fixed_operator_hosted_native");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+        .expect("hosted mixed structural/fixed-integer selection should check");
+    let consume = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "consume")
+        .expect("mixed structural/fixed-integer Unit helper");
+
+    for drift in [
+        Drift::RemovedScalar,
+        Drift::SubstitutedScalar,
+        Drift::StructuralSource,
+    ] {
+        let mut drifted = checked.clone();
+        let plan = drifted
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == consume.symbol)
+            .expect("checked mixed structural/fixed-integer helper plan");
+        let Some(
+            psi_checked_trees::CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                scalar_arguments,
+                structural_arguments,
+                ..
+            },
+        ) = plan.operations.first_mut()
+        else {
+            panic!("checked mixed structural/fixed-integer selected call")
+        };
+        match drift {
+            Drift::RemovedScalar => scalar_arguments.clear(),
+            Drift::SubstitutedScalar => {
+                let [psi_checked_trees::CheckedScalarExpression::IntegerLiteral { literal }] =
+                    scalar_arguments.as_mut_slice()
+                else {
+                    panic!("one checked integer literal argument")
+                };
+                let landing = literal.landing().expect("landed i32 literal");
+                *literal =
+                    psi_numerics::literals::IntegerLiteral::from_value(12).with_landing(landing);
+            }
+            Drift::StructuralSource => {
+                structural_arguments[0].source =
+                    psi_checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: 1,
+                    };
+            }
+        }
+        assert!(
+            psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+                &drifted,
+                "consume",
+            )
+            .is_err(),
+            "{drift:?} must reject before Terminal publication"
+        );
+    }
+}
