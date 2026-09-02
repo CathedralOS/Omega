@@ -186,14 +186,6 @@ pub(super) fn build_checked_dynamic_unit_call(
         .data_definitions()
         .iter()
         .find(|data| data.symbol == selection.source_data)?;
-    // Changed-conformance rebinding is first admitted by the scalar-result lane.
-    // Keep Unit plans fail-closed until their distinct application custody is
-    // represented and verified end to end.
-    if let Some(initial) = rebound_from
-        && (initial.conformance != selection.conformance || initial.rows != selection.rows)
-    {
-        return None;
-    }
     let rebound_from = match rebound_from {
         Some(initial) => Some(checked_rebound_dynamic_selection(
             program,

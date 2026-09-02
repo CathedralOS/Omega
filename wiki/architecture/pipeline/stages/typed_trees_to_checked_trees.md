@@ -1079,8 +1079,8 @@ Current ownership is:
   field/type identity, and source statement; other body shapes publish no
   callable row. A separate checked-only Unit catalog admits one terminal,
   argument-free requirement call through either a direct local descriptor or
-  one exact same-conformance reassignment. Changed-conformance Unit rebinding
-  remains fail-closed. It retains the complete application
+  one exact same-interface reassignment. Like the scalar lane, each version may
+  name a different closed conformance. It retains the complete application
   and operation-free callable roster, source borrow/path, contracts, and exact
   call reach while carrying no scalar result binding or home. Nonempty bodies,
   arguments, service reach, realization state contracts, result discards, or a

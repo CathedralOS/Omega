@@ -165,7 +165,7 @@ fn lower_dynamic_composed_unit_machine(
         {
             Some(lower_initial_rebound_application(
                 checked,
-                plan,
+                plan.target_trait,
                 initial,
                 caller_machine,
             )?)
@@ -1528,7 +1528,7 @@ fn materialize_dynamic_realizations(
 
 fn lower_initial_rebound_application(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
+    target_trait_symbol: psi_symbols::SymbolHandle,
     initial: &CheckedDynamicSelectionPlan,
     owner: psi_core::MachineId,
 ) -> Result<ClosedConformanceApplication, LoweringError> {
@@ -1548,12 +1548,12 @@ fn lower_initial_rebound_application(
         .typed
         .traits()
         .iter()
-        .filter(|definition| definition.symbol == plan.target_trait)
+        .filter(|definition| definition.symbol == target_trait_symbol)
         .collect::<Vec<_>>();
     let [target_trait] = traits.as_slice() else {
         return unsupported("initial dynamic selection lost its exact target trait");
     };
-    if initial.fact.target_trait != plan.target_trait
+    if initial.fact.target_trait != target_trait_symbol
         || conformance.carrier_symbol != initial.fact.source_data
         || conformance.trait_symbol != initial.fact.target_trait
         || !conformance.lifetime_parameters.is_empty()
@@ -1620,7 +1620,7 @@ fn lower_initial_rebound_application(
         declaration_identity: checked.symbols.display_path(conformance_symbol, "::"),
         telescope: Vec::new(),
         subject_identity: Some(initial.type_identity.clone()),
-        trait_identity: checked.symbols.display_path(plan.target_trait, "::"),
+        trait_identity: checked.symbols.display_path(target_trait_symbol, "::"),
         trait_lifetime_arguments: Vec::new(),
         trait_arguments: Vec::new(),
         realization_callables: Vec::new(),

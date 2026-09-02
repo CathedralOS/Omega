@@ -781,8 +781,8 @@ the instance and table words in the existing local slot. The initializer's
 application remains semantic evidence but does not cause an unused runtime
 table to be emitted. The compiler refuses malformed, colliding, or
 interface-changing versions without devirtualizing them; the latest application
-alone supplies the private indirect slot call. Result-less Unit rebinding still
-requires the same conformance. Non-cast assignments, aggregate erased calls,
+alone supplies the private indirect slot call. This is equally valid for a
+result-less Unit requirement; no scalar carrier is introduced. Non-cast assignments, aggregate erased calls,
 storage, joins, escaping, and component crossing remain open. Those consumers
 use the same complete normalized maps.
 

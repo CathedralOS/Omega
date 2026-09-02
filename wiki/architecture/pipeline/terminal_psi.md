@@ -796,9 +796,9 @@ closed applications. Only the latest application owns executable callable rows
 and supplies the runtime table; the already-overwritten initializer application
 is retained without inventing an unused table. Verification rejects interface
 drift, missing applications, or collapsing either selection onto the other's
-commitment. This works for both caller-local scalar dispatch and the existing
-transparent descriptor-parameter hop; result-less Unit rebinding remains the
-same-conformance subset.
+commitment. This works for caller-local scalar and Unit dispatch and for both
+forms through the existing transparent descriptor-parameter hop. Unit remains
+result-less throughout.
 
 The same closed application now admits one exact mutation-bearing callable in
 Terminal form. Its checked row carries a primitive-field literal store through
