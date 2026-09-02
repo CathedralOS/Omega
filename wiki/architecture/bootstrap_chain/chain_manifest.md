@@ -25,7 +25,7 @@ relation, and disclosed admissions.
 | Darwin arm64 | `source/alpha/alpha_arm64_macos` | `5844f295e3ab843e1819aae0ca47d41ad99cef5e2193a5abee64e630b41c304c` |
 | Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | `ccce78bbef7cb5a538d4fb0e350a1c646233d179074e65b4ac7cca98c4a4a6f7` |
 
-The trusted Beta compiler is a manifest row. Its 16,812-byte addressed Beta
+The trusted Beta compiler is a manifest row. Its 14,696-byte addressed Beta
 source reconstructs its admitted 2,135-byte Alpha tape exactly. The Alpha VM and that
 compiler tape form the current executable bootstrap floor.
 

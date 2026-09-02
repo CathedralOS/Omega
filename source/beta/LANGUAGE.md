@@ -126,7 +126,7 @@ The current exact subject is small enough for total checked reconstruction:
 
 | Subject fact | Value |
 | --- | ---: |
-| Source bytes | 16,812 |
+| Source bytes | 14,696 |
 | Source lines | 458 |
 | Encoded payload bytes | 2,135 |
 

@@ -3,9 +3,9 @@
         imm   r1, 0x0
 0xa: ; loop:
         read  r0
-        jlt   r0, r1, 0x22                  ; r0 < 0  =>  EOF -> done:
+        jlt   r0, r1, 0x22 ; r0 < 0  =>  EOF -> done:
         write r0
-        jmp   0xa                           ; -> loop:
+        jmp   0xa ; -> loop:
 0x22: ; done:
         imm   r0, 0x0
         halt  r0

@@ -35,7 +35,7 @@ Delta, and the former Delta is Epsilon.
 ## Current inventory
 
 - [x] Alpha conformance passes all 26 cases.
-- [x] Trusted Beta's 16,812-byte addressed source reconstructs its admitted 2,135-byte
+- [x] Trusted Beta's 14,696-byte addressed source reconstructs its admitted 2,135-byte
   compiler tape byte-for-byte; the independent six-case differential and
   strict grammar regression pass.
 - [x] Gamma's concatenative compiler-machine contract is fixed at

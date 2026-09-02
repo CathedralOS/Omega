@@ -3186,3 +3186,19 @@ call recursion. Reopen the functional-rung comparison when a representative
 larger slice requires recursive syntax values, variable-length collections,
 nested scopes, or rich deterministic diagnostics. Those costs are absent here
 and could reverse the result.
+
+## D72 — Address target comments use compact spacing
+
+Control-target annotations now follow the instruction after one separating
+space instead of padding to a shared column:
+
+```text
+jeq re, r0, 0x4f ; -> read_probe:
+```
+
+Address assertions retain `0x4f: ; read_probe:`. The compact form keeps the
+numeric target and its inert human name in one visual unit and removes horizontal
+scanning across whitespace. This formatting changes no Beta tokens or tapes.
+The canonical Beta compiler source falls from D65's 16,812 bytes to 14,696 bytes
+at the same 458 lines and reconstructs the same admitted 2,135-byte tape. The
+Gamma evaluator remains 738 lines and emits the same 4,289-byte tape.
