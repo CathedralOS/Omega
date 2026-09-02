@@ -897,6 +897,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
                         execution: provider(980).into(),
                         realization: LinuxWriteLineRealization.into(),
                         scalar_arguments: Vec::new(),
+                        runtime_scalar_arguments: Vec::new(),
                         arguments: vec![argument.clone()],
                         byte_sequence_arguments: vec![BoundaryByteSequenceArgument {
                             argument: argument.clone(),
@@ -924,6 +925,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
                             immediate: psi_core::IntegerValue::Signed(37),
                             destination,
                         }],
+                        runtime_scalar_arguments: Vec::new(),
                         arguments: Vec::new(),
                         byte_sequence_arguments: Vec::new(),
                         completion_claim_sources: Vec::new(),
@@ -2400,6 +2402,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                             execution: provider_execution.into(),
                             realization: realization.into(),
                             scalar_arguments: Vec::new(),
+                            runtime_scalar_arguments: Vec::new(),
                             arguments: settlement_arguments.clone(),
                             byte_sequence_arguments: Vec::new(),
                             completion_claim_sources: Vec::new(),

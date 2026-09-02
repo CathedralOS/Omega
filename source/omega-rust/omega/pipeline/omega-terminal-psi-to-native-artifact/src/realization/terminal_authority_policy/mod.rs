@@ -27,7 +27,7 @@ use commitment::complete_policy_commitment;
 
 /// Version of the receiving-realization policy table over D45's shared
 /// role-tagged terminal-mechanism identity.
-pub const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 2;
+pub const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 3;
 
 /// Build one accepted receiving policy from explicit exact foreign rows.
 /// Compiler-intrinsic rows cannot be overridden, duplicate physical identities

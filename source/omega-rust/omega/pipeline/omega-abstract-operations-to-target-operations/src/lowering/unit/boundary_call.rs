@@ -395,6 +395,7 @@ pub(super) fn lower_boundary_call(
                 unreachable!("normalized foreign settlement returns above")
             };
             let mut scalar_arguments = Vec::new();
+            let mut runtime_scalar_arguments = Vec::new();
             let mut byte_sequence_arguments = Vec::new();
             match realization {
                 BoundaryRealization::MetadataOnlyPort(realization) => {
@@ -524,6 +525,48 @@ pub(super) fn lower_boundary_call(
                     });
                     *nonreturning_boundary = true;
                 }
+                BoundaryRealization::LinuxWriteByteI32(_) => {
+                    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
+                    let [source_value] = arguments.as_slice() else {
+                        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                    };
+                    let Some(known) = scalar_values.get(source_value).copied() else {
+                        return Err(LoweringError::UnknownValue(*source_value));
+                    };
+                    let shape = fixed_native_integer_shape(i32_type)
+                        .ok_or(LoweringError::InvalidLinuxExitGroupShape(function.machine))?;
+                    let call_plan = evaluate_call_plan(
+                        CallingPolicy::native_for_target(target),
+                        &CallSignature {
+                            parameters: vec![shape],
+                            result: None,
+                        },
+                    )
+                    .map_err(LoweringError::AbiPlan)?;
+                    let [placement] = call_plan.parameters.as_slice() else {
+                        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                    };
+                    if target.object_format != ObjectFormat::Elf
+                        || !matches!(
+                            target.architecture,
+                            Architecture::X86_64 | Architecture::Aarch64
+                        )
+                        || declaration.scalar_parameters.as_slice()
+                            != [ScalarType::Integer(i32_type)]
+                        || !declaration.structural_parameters.is_empty()
+                        || declaration.result.is_some()
+                        || known.scalar_type() != i32_type
+                        || !structural_arguments.is_empty()
+                        || placement.shape != shape
+                    {
+                        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                    }
+                    runtime_scalar_arguments.push(TargetUnitScalarCallArgument {
+                        parameter_index: 0,
+                        source: known.into_target_source(*source_value),
+                        placement: placement.clone(),
+                    });
+                }
                 BoundaryRealization::DirectPortReadU8(_) => {
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 }
@@ -534,6 +577,7 @@ pub(super) fn lower_boundary_call(
                 execution: binding.execution,
                 realization,
                 scalar_arguments,
+                runtime_scalar_arguments,
                 arguments: structural_arguments.clone(),
                 byte_sequence_arguments,
                 completion_claim_sources: completion_claim_sources.clone(),

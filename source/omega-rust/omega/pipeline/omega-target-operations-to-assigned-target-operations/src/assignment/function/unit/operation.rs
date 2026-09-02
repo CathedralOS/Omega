@@ -569,6 +569,7 @@ pub(super) fn assign(
             execution,
             realization,
             scalar_arguments,
+            runtime_scalar_arguments,
             arguments,
             byte_sequence_arguments,
             completion_claim_sources,
@@ -579,6 +580,12 @@ pub(super) fn assign(
             execution: *execution,
             realization: *realization,
             scalar_arguments: scalar_arguments.clone(),
+            runtime_scalar_arguments: assign_boundary_runtime_scalar_arguments(
+                target,
+                runtime_scalar_arguments,
+                preceding_operations,
+                assigned_scalar_homes,
+            )?,
             arguments: arguments.clone(),
             byte_sequence_arguments: byte_sequence_arguments.clone(),
             completion_claim_sources: completion_claim_sources.clone(),
@@ -592,4 +599,64 @@ pub(super) fn assign(
             cleanup_actions: cleanup_actions.clone(),
         },
     })
+}
+
+fn assign_boundary_runtime_scalar_arguments(
+    target: NativeTarget,
+    arguments: &[omega_target_operations::TargetUnitScalarCallArgument],
+    preceding_operations: &[TargetUnitOperation],
+    assigned_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
+) -> Result<Vec<AssignedNormalizedForeignScalarArgument>, AssignmentError> {
+    let [argument] = arguments else {
+        return if arguments.is_empty() {
+            Ok(Vec::new())
+        } else {
+            Err(AssignmentError::ExpressionStackFrameNotEncodable)
+        };
+    };
+    let psi_core::ScalarType::Integer(integer_type) = argument.scalar_type() else {
+        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
+    };
+    let shape = super::scalar_call::fixed_integer_shape(argument.source_value(), integer_type)?;
+    let plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![shape],
+            result: None,
+        },
+    )
+    .map_err(|_| AssignmentError::ExpressionStackFrameNotEncodable)?;
+    if argument.parameter_index != 0
+        || plan.parameters.as_slice() != [argument.placement.clone()]
+        || argument.placement.shape != shape
+    {
+        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
+    }
+    let source = match argument.source {
+        TargetUnitScalarArgumentSource::Parameter { .. } => {
+            return Err(AssignmentError::ExpressionStackFrameNotEncodable);
+        }
+        source => super::scalar_call::assign_known_unit_scalar_source(
+            source,
+            preceding_operations,
+            assigned_homes,
+        )
+        .ok_or(AssignmentError::ExpressionStackFrameNotEncodable)?,
+    };
+    let scratch = match target.architecture {
+        omega_target::Architecture::X86_64 => MachineRegister::X86R11,
+        omega_target::Architecture::Aarch64 => MachineRegister::Aarch64X(9),
+    };
+    Ok(vec![AssignedNormalizedForeignScalarArgument {
+        parameter_index: 0,
+        source,
+        placement: omega_calling_conventions::ValuePlacement {
+            shape,
+            locations: vec![ValueLocation::Register {
+                register: scratch,
+                value_byte_offset: 0,
+                byte_size: shape.byte_size,
+            }],
+        },
+    }])
 }

@@ -45,15 +45,28 @@ pub(super) fn validate_completion_custody(
     ) {
         return Err(CompletionCustodyError::InvalidReceiptCustody);
     }
-    if matches!(
-        settlement.execution,
-        omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-            omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+    let compiler_builtin_pair_is_exact = match (settlement.execution, settlement.realization) {
+        (
+            omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+            ),
+            omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_),
         )
-    ) && !matches!(
-        settlement.realization,
-        omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_)
-    ) {
+        | (
+            omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                omega_target_operations::CompilerBuiltinExecution::LinuxWriteByteI32,
+            ),
+            omega_target_operations::BoundaryRealization::LinuxWriteByteI32(_),
+        ) => true,
+        (omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(_), _)
+        | (
+            _,
+            omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_)
+            | omega_target_operations::BoundaryRealization::LinuxWriteByteI32(_),
+        ) => false,
+        _ => true,
+    };
+    if !compiler_builtin_pair_is_exact {
         return Err(CompletionCustodyError::InvalidProviderCustody);
     }
     if derive_completion_provider_custody(
@@ -198,6 +211,7 @@ mod tests {
                 },
             ),
             scalar_arguments: Vec::new(),
+            runtime_scalar_arguments: Vec::new(),
             arguments,
             byte_sequence_arguments: Vec::new(),
             completion_claim_sources,
@@ -375,6 +389,14 @@ mod tests {
         );
         assert_eq!(
             validate_completion_custody(&role_substitution),
+            Err(CompletionCustodyError::InvalidProviderCustody)
+        );
+
+        let mut reverse_role_substitution = settlement(Vec::new(), Vec::new(), Vec::new());
+        reverse_role_substitution.realization =
+            omega_target_operations::BoundaryRealization::LinuxWriteByteI32(Default::default());
+        assert_eq!(
+            validate_completion_custody(&reverse_role_substitution),
             Err(CompletionCustodyError::InvalidProviderCustody)
         );
     }

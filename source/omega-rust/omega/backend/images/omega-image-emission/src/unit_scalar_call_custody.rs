@@ -503,6 +503,29 @@ pub(super) fn exact_preceding_unit_scalar_home_producer_count(
     internal + foreign + dynamic + forwarded
 }
 
+/// Count exact ordinary internal Unit scalar producers that complete before a
+/// runtime boundary consumer. Installation retains this producer family in
+/// full; other home-producing call families remain closed for that boundary.
+pub(super) fn exact_preceding_internal_unit_scalar_home_producer_count(
+    calls: &[omega_machine_code::InternalUnitScalarCallRecord],
+    home: omega_machine_code::UnitScalarHomeRecord,
+    consumer_operation_ordinal: usize,
+    consumer_code_offset: usize,
+) -> usize {
+    calls
+        .iter()
+        .filter(|producer| {
+            producer.result.home == home
+                && producer.operation_ordinal < consumer_operation_ordinal
+                && producer
+                    .result
+                    .code_offset
+                    .checked_add(producer.result.byte_count)
+                    .is_some_and(|end| end <= consumer_code_offset)
+        })
+        .count()
+}
+
 pub(super) fn expected_argument_bytes(
     target: NativeTarget,
     argument: &omega_machine_code::InternalUnitScalarCallArgumentRecord,

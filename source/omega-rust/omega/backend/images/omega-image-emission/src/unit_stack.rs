@@ -302,13 +302,17 @@ pub(super) fn validate_stack_adjustment_pair(
 }
 
 pub(super) fn validate_complete_unit_stack_evidence(
-    architecture: Architecture,
+    target: omega_target::NativeTarget,
     machine: MachineId,
     bytes: &[u8],
     function: UnitStackEvidence,
     calls: &[omega_machine_code::InternalCallRelocation],
     foreign_calls: &[ForeignCallRelocation],
     dynamic_calls: &[omega_machine_code::DynamicScalarCallRecord],
+    boundary_settlements: &[omega_machine_code::BoundarySettlementRecord],
+    integer_constants: &[omega_machine_code::UnitIntegerConstantRecord],
+    scalar_homes: &[omega_machine_code::UnitScalarHomeRecord],
+    internal_unit_scalar_calls: &[omega_machine_code::InternalUnitScalarCallRecord],
     inline_data: &[std::ops::Range<usize>],
 ) -> Result<(), ObjectError> {
     let mut claimed = std::collections::BTreeMap::new();
@@ -344,8 +348,55 @@ pub(super) fn validate_complete_unit_stack_evidence(
             return Err(ObjectError::DuplicateUnitStackAdjustment(machine));
         }
     }
+    for settlement in boundary_settlements {
+        if crate::runtime_scalar_custody::linux_write_byte_custody_is_exact(
+            target,
+            settlement,
+            integer_constants,
+            scalar_homes,
+            |home, consumer_ordinal, consumer_offset| {
+                crate::unit_scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
+                    internal_unit_scalar_calls,
+                    home,
+                    consumer_ordinal,
+                    consumer_offset,
+                )
+            },
+            Some(bytes),
+        ) {
+            let [argument] = settlement.runtime_scalar_arguments.as_slice() else {
+                unreachable!("exact Linux write-byte custody has one argument")
+            };
+            let suffix_offset = argument
+                .code_offset
+                .checked_add(argument.byte_count)
+                .ok_or(ObjectError::UnclaimedUnitStackAdjustment {
+                    machine,
+                    offset: argument.code_offset,
+                })?;
+            let release_delta = match target.architecture {
+                Architecture::X86_64 => 33,
+                Architecture::Aarch64 => 36,
+            };
+            let pair = StackAdjustmentPair {
+                byte_size: 16,
+                allocation_offset: suffix_offset,
+                allocation_byte_count: 4,
+                release_offset: suffix_offset.checked_add(release_delta).ok_or(
+                    ObjectError::UnclaimedUnitStackAdjustment {
+                        machine,
+                        offset: suffix_offset,
+                    },
+                )?,
+                release_byte_count: 4,
+            };
+            if !claim_pair(pair) {
+                return Err(ObjectError::DuplicateUnitStackAdjustment(machine));
+            }
+        }
+    }
 
-    match architecture {
+    match target.architecture {
         Architecture::X86_64 => {
             let mut info_factory = iced_x86::InstructionInfoFactory::new();
             let call_starts = calls

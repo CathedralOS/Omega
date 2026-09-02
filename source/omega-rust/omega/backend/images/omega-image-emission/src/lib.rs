@@ -29,6 +29,7 @@ mod installed_provider_unit_scalar_call;
 mod instruction_loads;
 mod partial_cleanup_partition;
 mod ranked_u32_countdown;
+mod runtime_scalar_custody;
 mod scalar_call_stack;
 mod scalar_cleanup_preservation;
 mod scalar_conditional_call_paths;
@@ -84,6 +85,7 @@ use fully_consumed_affine_pair::{
     exact_fully_consumed_affine_pair, exact_partially_consumed_affine_array,
 };
 use installed_provider_unit_scalar_call::validate_installed_provider_unit_scalar_calls;
+use runtime_scalar_custody::linux_write_byte_custody_is_exact;
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
@@ -885,6 +887,31 @@ fn build_object_artifact_with_x86_feature_profile(
                 )
             })
             .transpose()?;
+        if function.boundary_settlements.iter().any(|settlement| {
+            linux_write_byte_custody_is_exact(
+                plan.target,
+                settlement,
+                &function.unit_integer_constants,
+                &function.unit_scalar_homes,
+                |home, consumer_ordinal, consumer_offset| {
+                    unit_scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
+                        &function.internal_unit_scalar_calls,
+                        home,
+                        consumer_ordinal,
+                        consumer_offset,
+                    )
+                },
+                Some(&function.bytes),
+            )
+        }) {
+            let stack = validated_function_stack
+                .as_mut()
+                .ok_or(ObjectError::UnaccountedTerminalStack(function.machine))?;
+            stack.local_peak_bytes = stack
+                .frame_bytes
+                .checked_add(16)
+                .ok_or(ObjectError::UnaccountedTerminalStack(function.machine))?;
+        }
         if function.unit_stack.is_some() && function.scalar_stack.is_some() {
             return Err(ObjectError::ConflictingTerminalStackEvidence(
                 function.machine,
@@ -1469,13 +1496,17 @@ fn build_object_artifact_with_x86_feature_profile(
                 })
                 .collect::<Vec<_>>();
             validate_complete_unit_stack_evidence(
-                plan.target.architecture,
+                plan.target,
                 function.machine,
                 &function.bytes,
                 stack,
                 &function.internal_calls,
                 &function.foreign_calls,
                 &function.dynamic_scalar_calls,
+                &function.boundary_settlements,
+                &function.unit_integer_constants,
+                &function.unit_scalar_homes,
+                &function.internal_unit_scalar_calls,
                 &inline_data,
             )?;
         }
@@ -1619,6 +1650,7 @@ fn build_object_artifact_with_x86_feature_profile(
             let valid_realization = match settlement.realization {
                 BoundaryRealization::MetadataOnlyPort(realization) => {
                     settlement.scalar_arguments.is_empty()
+                        && settlement.runtime_scalar_arguments.is_empty()
                         && settlement.byte_sequence_arguments.is_empty()
                         && settlement.byte_count == 0
                         && function
@@ -1639,6 +1671,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 }
                 BoundaryRealization::ClaimCompletionOnly(_) => {
                     settlement.scalar_arguments.is_empty()
+                        && settlement.runtime_scalar_arguments.is_empty()
                         && settlement.byte_sequence_arguments.is_empty()
                         && settlement.native_result.is_none()
                         && settlement.byte_count == 0
@@ -1671,6 +1704,7 @@ fn build_object_artifact_with_x86_feature_profile(
                                 && function.bytes.get(return_offset) == Some(&0xc3)
                         });
                     settlement.scalar_arguments.is_empty()
+                        && settlement.runtime_scalar_arguments.is_empty()
                         && settlement.byte_sequence_arguments.is_empty()
                         && settlement.byte_count == expected.len()
                         && plan.target.architecture == Architecture::X86_64
@@ -1762,11 +1796,30 @@ fn build_object_artifact_with_x86_feature_profile(
                                 .and_then(|end| function.bytes.get(settlement.code_offset..end))
                                 == Some(expected.as_slice())
                     }) && expected_destination == Some(argument.destination)
+                        && settlement.runtime_scalar_arguments.is_empty()
                         && settlement.arguments.is_empty()
                         && settlement.byte_sequence_arguments.is_empty()
                         && settlement.native_result.is_none()
                         && function.scalar_stack.is_none()
                         && exact_nominal_tail
+                }
+                BoundaryRealization::LinuxWriteByteI32(_) => {
+                    linux_write_byte_custody_is_exact(
+                        plan.target,
+                        settlement,
+                        &function.unit_integer_constants,
+                        &function.unit_scalar_homes,
+                        |home, consumer_ordinal, consumer_offset| {
+                            unit_scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
+                                &function.internal_unit_scalar_calls,
+                                home,
+                                consumer_ordinal,
+                                consumer_offset,
+                            )
+                        },
+                        Some(&function.bytes),
+                    ) && function.unit_stack.is_some()
+                        && function.scalar_stack.is_none()
                 }
             };
             if !valid_realization

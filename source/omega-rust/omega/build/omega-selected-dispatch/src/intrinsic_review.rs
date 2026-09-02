@@ -157,17 +157,23 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
                 accepted_console_binding,
             ) {
                 Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
-                    if accepted_console_binding.is_some_and(|binding| {
-                        crate::compiler_intrinsic::accepted_binding_matches_selected_row_identity(
+                    if identity
+                        == omega_effects::CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32
+                        && let Some(binding) = accepted_console_binding
+                    {
+                        match crate::compiler_intrinsic::accepted_binding_matches_console_exit_process_i32_row(
                             checked,
                             plan,
+                            row,
                             retained.provider.schema.symbol(),
                             *requirement_symbol,
                             *realization_symbol,
                             binding,
-                        )
-                    }) {
-                        accepted_matches.push(retained.provider.schema.symbol());
+                        ) {
+                            Ok(true) => accepted_matches.push(retained.provider.schema.symbol()),
+                            Ok(false) => {}
+                            Err(diagnostic) => diagnostics.push(diagnostic),
+                        }
                     }
                     rows.push(Some(identity))
                 }

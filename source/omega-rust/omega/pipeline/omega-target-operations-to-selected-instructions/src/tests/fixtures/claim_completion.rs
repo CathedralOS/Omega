@@ -83,6 +83,7 @@ pub(in crate::tests) fn claim_completion_settlement_fixture() -> (
             .into(),
             realization: omega_target_operations::ClaimCompletionOnlyRealization.into(),
             scalar_arguments: Vec::new(),
+            runtime_scalar_arguments: Vec::new(),
             arguments: vec![argument],
             byte_sequence_arguments: Vec::new(),
             completion_claim_sources: sources,

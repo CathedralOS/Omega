@@ -877,9 +877,27 @@ Remaining:
   or divergence. Carry the same explicit checked terminal-effect completion
   identity through the boundary contract, checked trees, Terminal, and target
   realization before using this path in `TerminalTraceV1`. Compiler-function
-  publication certification remains a later engineering rung; read/write
-  Console leaves, Darwin/Windows exits, their source-form inference, and broader
-  removal of `via Binding::CompilerIntrinsic` remain open.
+  publication certification remains a later engineering rung.
+
+  The second bounded ordinary catalog entry now closes Linux
+  `Console::write_byte(i32) -> Unit` through the same inferred bodyless source
+  form, exact selected-plan/catalog replay, ProcessOutput permission, target
+  lowering, assignment, and physical artifact custody. Linux x86-64 and
+  AArch64 materialize the exact signed-i32 source into a private scratch
+  register, copy its low byte into one balanced 16-byte stack slot, invoke
+  `write(1, ..., 1)`, and trap unless exactly one byte is reported. Machine,
+  object, image, installation, and D41 evidence retain and independently replay
+  the source, materialization interval, syscall bytes, stack peak, and
+  realization identity. One product-source literal canary reaches a native
+  artifact on both Linux targets; an exact preceding internal Unit-call home
+  is the separately mutation-tested runtime source. Direct incoming-parameter
+  custody remains fail-closed until
+  installation retains the corresponding scalar ABI ledger. Package review
+  v126/canonical row v84 adds the distinct execution tag, and terminal-authority
+  policy v3 commits its separate ProcessOutput class. `read_byte`, the
+  remaining Console leaves, Darwin/Windows realizations, broader source-form
+  inference, and removal of the remaining payload-free
+  `via Binding::CompilerIntrinsic` forms remain open.
 
   `InterruptMaskGuard::restore`, `InterruptAcknowledgement::complete`,
   `Task::request_cancel`, and `Task::finish` now use the public top-level
@@ -3609,11 +3627,15 @@ Remaining:
   eleventh bounded rung now admits exactly eleven enclosing acyclic relevant
   record fields before that sole mixed occurrence, with the same whole-root
   equality, inequality, Unit-call rebasing, codec, verifier, fuel, interpreter,
-  and per-prefix mutation replay covering all eleven ordered field identities.
-  Twelve or more enclosing fields, case-payload or mixed-under-mixed placement,
-  two mixed sibling fields, direct projected mixed comparisons, recursive
-  cycles, address and erased payload equality, and runtime sum layout remain
-  fenced.
+  and per-prefix mutation replay covering all eleven ordered field identities. A
+  twelfth bounded rung now admits exactly twelve enclosing acyclic relevant
+  record fields before that sole mixed occurrence, with the same whole-root
+  equality, inequality, Unit-call rebasing, codec, verifier, fuel, interpreter,
+  and per-prefix mutation replay covering all twelve ordered field identities.
+  Thirteen or more enclosing fields, case-payload or mixed-under-mixed
+  placement, two mixed sibling fields, direct projected mixed comparisons,
+  recursive cycles, address and erased payload equality, and runtime sum layout
+  remain fenced.
   Semantic codec format 33 / vocabulary
   35, proof-bundle v19, and installation-record v40 retain the structural
   shapes, case-payload paths, and proposition. Continue with those fenced
@@ -9171,13 +9193,14 @@ compiler concept is introduced.
   Land the first demand-complete table over the closed
   `CompilerIntrinsicExecutionIdentity` families, including explicit empty
   dispositions and no wildcard default. This first rung is now live as the
-  receiving realization's version-1, 494-row compiler-intrinsic policy: the
-  closed mechanism atoms and canonical 13-class disposition carrier live below
+  receiving realization's initial version-1, 494-row compiler-intrinsic policy:
+  the closed mechanism atoms and canonical 13-class disposition carrier live below
   planning in `omega-effects`, while native realization owns the exhaustive
   physical classification and strong whole-table commitment. The existing
   provider-planning paths are compatibility re-exports, not a second identity
   vocabulary. `LinuxExitGroupI32` exercises `ProcessTermination`; privileged
-  assembly is split explicitly between `MachineControl` and `PortIo`; every
+  assembly is split explicitly between `MachineControl` and `PortIo`; the later
+  `LinuxWriteByteI32` row exercises `ProcessOutput`; every
   authority-class-free builtin and numeric coordinate has an explicit empty
   disposition. Empty remains distinct from absent or unsupported: policy lookup
   rejects any exact mechanism missing from the versioned committed inventory.
@@ -9209,13 +9232,13 @@ compiler concept is introduced.
   selected evaluated import to exactly one physical external row. Legacy
   string-backed imports remain segregated and never enter accepted
   classification directly. D45's receiving policy now uses one shared role-
-  tagged `TerminalMechanismIdentity`: the exhaustive 494-row compiler-
+  tagged `TerminalMechanismIdentity`: the exhaustive 495-row compiler-
   intrinsic inventory occupies its compiler-intrinsic role, while normalized
   foreign leaves occupy an exact target/locator/admitted-contract role. The
   latter binds the collision-resistant normalized locator identity to the
   canonical admitted `BoundaryEntryPlan` contract commitment, never to a
   provider report fingerprint. Receiving authorities supply an explicit finite
-  foreign-row table; version 2 commits the complete intrinsic and foreign row
+  foreign-row table; version 3 commits the complete intrinsic and foreign row
   set, canonical order, and each exact disposition. Duplicate or reserved rows
   and empty contract identities reject while building the policy. Native
   realization classifies every directly demanded normalized import before
@@ -9346,9 +9369,9 @@ compiler concept is introduced.
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
   A direct primitive scalar assignment value may wrap complete caller-isolated
-  call producers in up to twenty-six unary, binary, primitive-cast,
+  call producers in up to twenty-seven unary, binary, primitive-cast,
   member-projection, or indexing shells without widening that call budget. A
-  twenty-seventh direct scalar shell remains fenced; aggregate fields and projected
+  twenty-eighth direct scalar shell remains fenced; aggregate fields and projected
   concrete record, selected-case, or fixed-array literals retain their
   separate two-shell computation budget.
   One top-level concrete primitive-only record or selected-case literal may
@@ -9392,7 +9415,7 @@ compiler concept is introduced.
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, a fourth direct aggregate level, a third projected aggregate or
-  aggregate/literal computed shell, a twenty-seventh direct scalar computed shell,
+  aggregate/literal computed shell, a twenty-eighth direct scalar computed shell,
   other computed field shapes, and out-of-isolated-root shapes remain
   conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
@@ -11975,7 +11998,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 60 retains compact strong-identity
+  relocation. Canonical installation format 62 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Each installed forwarding row also retains the semantic scalar
@@ -12035,7 +12058,7 @@ checked-result arithmetic decision listed below.
   return an independent selected code of 23. All three exit 70 on Linux x86-64
   while their target artifacts cross-link. Exact machine tests place the
   projected Boolean at byte offset 8 and reject path or accumulated-offset
-  drift before emission. Canonical installation format 60 retains this
+  drift before emission. Canonical installation format 62 retains this
   already-encoded path evidence.
 
   Boolean-returning forwarded calls now use the same producer-bound result-
@@ -12049,7 +12072,7 @@ checked-result arithmetic decision listed below.
   native canary selects `true` from the rebound instance, cross-links on both
   Linux architectures, and exits 70 on the hosted target. Object and
   installation replay rejoin the Boolean semantic result, call placement,
-  home roster, normalization/store interval, and canonical format-60 scalar
+  home roster, normalization/store interval, and canonical format-62 scalar
   tag. Integer-result forwarding remains unchanged.
 
   The first Unit-returning requirement rung now has checked custody without

@@ -605,6 +605,9 @@ pub struct BoundarySettlementRecord {
     /// only settlements retain an empty list; native realizations retain the
     /// exact terminal value, type, immediate, and ABI destination.
     pub scalar_arguments: Vec<BoundaryScalarArgument>,
+    /// Exact assigned source and emitted materialization for returning
+    /// compiler-builtin scalar inputs.
+    pub runtime_scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,
     /// Exact typed Psi custody arguments, including structural projections.
     /// These are provider-settlement evidence and do not describe an internal
     /// Unit-call ABI.

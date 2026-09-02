@@ -519,8 +519,9 @@ identity. Exact-policy replay rejects substitution. This records physical
 classification policy only; it does not prove service/schema containment or
 mint provider-execution admission evidence.
 
-The direct normalized-foreign rung now uses the same version-2 policy through
-one role-tagged `TerminalMechanismIdentity`. Each explicit foreign row binds
+The direct normalized-foreign rung uses the same versioned policy through one
+role-tagged `TerminalMechanismIdentity` (introduced in version 2; version 3 adds
+the Linux write-byte ProcessOutput row). Each explicit foreign row binds
 the exact selected target and normalized locator identity to the strong
 contract commitment of its canonical admitted `BoundaryEntryPlan`; a provider
 report fingerprint is never the contract key. Native realization classifies

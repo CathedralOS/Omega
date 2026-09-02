@@ -80,20 +80,26 @@ Foreign table calls name a field in that validated layout; authored numeric
 slot ordinals are not binding identity. Compiler intrinsics carry no binding
 value at all: the exact realization declaration, signature, and selected target
 select the sealed catalog entry.
-The first production catalog row is Linux `Console::exit_process(i32) -> Unit`.
-Its target library authors an exact target-scoped bodyless `boundary machine`
-and satisfaction edge without a payload-free `via`; provider planning derives
-the compiler-intrinsic candidate from the retained selected-source origin. The
-physical catalog entry requires exact accepted-package/toolchain custody of the
-requirement and realization symbols, their normalized signatures and
-conformance, and a selected canonical Linux profile. Canonical Terminal replay
-contributes only the exact demanded boundary identity; later compiler-owned
-evidence rejoins that demand to the selected plan before choosing the existing
-`exit_group` realization. Lookalike or unscoped symbols, targetless plans,
-legacy-authored `via`, sibling Console operations, and non-Linux targets confer
-no physical catalog identity.
-This row closes physical provider selection and emission only. D39 requires a
-distinct checked terminal-effect completion identity before
+The first two production catalog rows are Linux
+`Console::exit_process(i32) -> Unit` and `Console::write_byte(i32) -> Unit`.
+Their target libraries author exact target-scoped bodyless `boundary machine`
+declarations and satisfaction edges without payload-free `via`; provider
+planning derives each compiler-intrinsic candidate from its retained
+selected-source origin. Each physical catalog entry requires exact
+accepted-package/toolchain custody of the requirement and realization symbols,
+their normalized signatures and conformance, and a selected canonical Linux
+profile. Canonical Terminal replay contributes only the exact demanded boundary
+identity; later compiler-owned evidence rejoins that demand to the selected
+plan before choosing `exit_group` or the single-byte `write` realization.
+Lookalike or unscoped symbols, targetless plans, legacy-authored `via`,
+uncatalogued sibling Console operations, and non-Linux targets confer no
+physical catalog identity. The write-byte row additionally retains the exact
+i32 source, its scratch-register materialization and stack interval, and the
+balanced one-byte syscall bytes through object, image, installation, and D41
+replay. Direct incoming-parameter custody remains closed until installation has
+an exact scalar ABI ledger.
+The exit row closes physical provider selection and emission only. D39 requires
+a distinct checked terminal-effect completion identity before
 `TerminalTraceV1` may observe successful external termination; neither the Unit
 signature nor the backend's knowledge that `exit_group` does not return may
 manufacture that semantic fact.

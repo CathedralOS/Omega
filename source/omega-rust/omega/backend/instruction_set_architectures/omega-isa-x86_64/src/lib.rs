@@ -131,6 +131,24 @@ pub fn encode_linux_exit_group_i32(value: i32) -> Vec<u8> {
     bytes
 }
 
+/// Import-free Linux `write(1, &byte, 1)` realization. The caller places the
+/// low byte of the exact `i32` source in `r11b`; this closed encoder owns the
+/// private stack slot and traps if the kernel does not consume that byte.
+pub fn encode_linux_write_byte_i32_from_r11() -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(44);
+    bytes.extend_from_slice(&[0x48, 0x83, 0xec, 0x10]);
+    bytes.extend_from_slice(&[0x44, 0x88, 0x1c, 0x24]);
+    bytes.extend_from_slice(&[0xbf, 1, 0, 0, 0]);
+    bytes.extend_from_slice(&[0x48, 0x89, 0xe6]);
+    bytes.extend_from_slice(&[0xba, 1, 0, 0, 0]);
+    bytes.extend_from_slice(&[0xb8, 1, 0, 0, 0]);
+    bytes.extend_from_slice(&[0x0f, 0x05, 0x48, 0x85, 0xc0]);
+    bytes.extend_from_slice(&[0x7e, 0x06]);
+    bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 0x10]);
+    bytes.extend_from_slice(&[0xeb, 0x02, 0x0f, 0x0b]);
+    bytes
+}
+
 /// Import-free Linux `write_line` over one immutable literal.
 pub fn encode_linux_write_line_literal(
     literal: &[u8],
@@ -206,5 +224,14 @@ mod tests {
             .position(|window| window == [0xb8, 1, 0, 0, 0, 0x0f, 0x05])
             .unwrap();
         assert_eq!(retry_target, i64::try_from(loop_start).unwrap());
+
+        let byte_write = encode_linux_write_byte_i32_from_r11();
+        assert_eq!(&byte_write[..4], &[0x48, 0x83, 0xec, 0x10]);
+        assert_eq!(&byte_write[33..37], &[0x48, 0x83, 0xc4, 0x10]);
+        assert_eq!(&byte_write[39..], &[0x0f, 0x0b]);
+        let trap_target = 33_i64 + i64::from(byte_write[32] as i8);
+        assert_eq!(trap_target, 39);
+        let success_target = 39_i64 + i64::from(byte_write[38] as i8);
+        assert_eq!(success_target, i64::try_from(byte_write.len()).unwrap());
     }
 }

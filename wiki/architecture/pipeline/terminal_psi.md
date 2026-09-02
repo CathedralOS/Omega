@@ -199,8 +199,15 @@ substitution reject; native lowering cannot reconstruct or omit the authority
 from zero-payload layout.
 
 Preservation is not realization. Omega target lowering currently accepts the
-one exact Linux `exit_process(i32) -> Unit` migration shape through import-free
-`exit_group`, including the consumed scalar and nonreturning trap tail. D39
+exact Linux `exit_process(i32) -> Unit` migration shape through import-free
+`exit_group`, including the consumed scalar and nonreturning trap tail. It also
+accepts the exact Linux `write_byte(i32) -> Unit` catalog shape for a direct
+integer constant or exact preceding internal Unit-call home. Both Linux ISAs
+materialize that source into a target-private scratch register and emit a balanced stack-backed
+`write(1, ..., 1)` sequence that traps unless exactly one byte is reported;
+machine through installation replay retains the source, interval, stack peak,
+and bytes. Incoming scalar parameters remain closed until installation retains
+their exact Unit ABI ledger. D39
 forbids treating that late provider fact as source-semantic external
 termination: the path is physical implementation evidence until the boundary
 contract and Terminal carry one explicit terminal-effect identity. It also
@@ -2832,10 +2839,13 @@ codecs, verification, fixed fuel, interpretation, and independent prefix
 mutation. An eleventh bounded form admits exactly eleven enclosing relevant
 record fields and replays the same complete ordered path through whole-root
 equality, inequality, Unit-call rebasing, codecs, verification, fixed fuel,
-interpretation, and independent prefix mutation. Twelve or more enclosing
-fields, mixed values below case payloads or another mixed shape, two mixed
-sibling fields, direct projected mixed comparisons, recursive cycles, address
-and erased payload equality, written
+interpretation, and independent prefix mutation. A twelfth bounded form admits
+exactly twelve enclosing relevant record fields and replays the same complete
+ordered path through whole-root equality, inequality, Unit-call rebasing,
+codecs, verification, fixed fuel, interpretation, and independent prefix
+mutation. Thirteen or more enclosing fields, mixed values below case payloads
+or another mixed shape, two mixed sibling fields, direct projected mixed
+comparisons, recursive cycles, address and erased payload equality, written
 `equals` bodies, and runtime sum layout remain outside this bounded terminal
 slice. When an acyclic
 relevant record field reaches a payload-bearing sum, the same sum proposition

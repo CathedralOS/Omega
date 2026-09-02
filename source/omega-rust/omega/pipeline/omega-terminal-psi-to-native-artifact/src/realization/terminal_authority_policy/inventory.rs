@@ -8,7 +8,7 @@ use omega_effects::{
 use psi_numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
 use psi_symbols::BuiltinFunction;
 
-pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 494;
+pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 495;
 const FLOAT_FORMATS: [FloatFormat; 2] = [FloatFormat::F32, FloatFormat::F64];
 const ARITHMETIC_DOMAINS: [ArithmeticDomain; 4] = [
     ArithmeticDomain::Exact,
@@ -25,6 +25,7 @@ pub(super) fn committed_policy_mechanisms() -> &'static [CompilerIntrinsicExecut
 pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdentity> {
     let mut mechanisms = Vec::with_capacity(CLOSED_POLICY_ROW_COUNT as usize);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32);
     mechanisms.extend(
         BuiltinFunction::ALL
             .into_iter()

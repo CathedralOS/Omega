@@ -6,6 +6,7 @@ use crate::{
     byte_sequence_custody::linux_write_line_custody_is_exact,
     can_emit_executable_image,
     completion_receipts::{CompletionCustodyError, validate_completion_custody},
+    runtime_scalar_custody::linux_write_byte_custody_is_exact,
 };
 use omega_calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueLocation, ValuePlacement,
@@ -89,7 +90,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 61;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 62;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -3261,6 +3262,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         let valid_realization = match installed.settlement.realization {
             BoundaryRealization::MetadataOnlyPort(realization) => {
                 installed.settlement.scalar_arguments.is_empty()
+                    && installed.settlement.runtime_scalar_arguments.is_empty()
                     && installed.settlement.byte_sequence_arguments.is_empty()
                     && installed.settlement.byte_count == 0
                     && record
@@ -3285,6 +3287,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             }
             BoundaryRealization::ClaimCompletionOnly(_) => {
                 installed.settlement.scalar_arguments.is_empty()
+                    && installed.settlement.runtime_scalar_arguments.is_empty()
                     && installed.settlement.byte_sequence_arguments.is_empty()
                     && installed.settlement.native_result.is_none()
                     && installed.settlement.byte_count == 0
@@ -3324,6 +3327,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 == 1
                         });
                 installed.settlement.scalar_arguments.is_empty()
+                    && installed.settlement.runtime_scalar_arguments.is_empty()
                     && installed.settlement.byte_sequence_arguments.is_empty()
                     && record.target.architecture == Architecture::X86_64
                     && installed.settlement.byte_count
@@ -3415,6 +3419,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     });
                 record.target.object_format == omega_target::ObjectFormat::Elf
                     && expected_destination == Some(argument.destination)
+                    && installed.settlement.runtime_scalar_arguments.is_empty()
                     && installed.settlement.byte_count == expected_byte_count
                     && expected_byte_count != 0
                     && installed.settlement.arguments.is_empty()
@@ -3422,6 +3427,33 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && installed.settlement.native_result.is_none()
                     && function.scalar_stack.is_none()
                     && exact_nominal_tail
+            }
+            BoundaryRealization::LinuxWriteByteI32(_) => {
+                linux_write_byte_custody_is_exact(
+                    record.target,
+                    &installed.settlement,
+                    &function.unit_integer_constants,
+                    &function.unit_scalar_homes,
+                    |home, consumer_ordinal, consumer_offset| {
+                        record
+                            .internal_unit_scalar_calls
+                            .iter()
+                            .filter(|producer| {
+                                producer.machine == installed.machine
+                                    && producer.custody.result.home == home
+                                    && producer.custody.operation_ordinal < consumer_ordinal
+                                    && producer
+                                        .custody
+                                        .result
+                                        .code_offset
+                                        .checked_add(producer.custody.result.byte_count)
+                                        .is_some_and(|end| end <= consumer_offset)
+                            })
+                            .count()
+                    },
+                    None,
+                ) && function.unit_body
+                    && function.scalar_stack.is_none()
             }
         };
         if !valid_realization

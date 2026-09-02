@@ -16,6 +16,9 @@ pub(super) fn classify_compiler_intrinsic(
         CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
             disposition([TerminalAuthorityClass::ProcessTermination])
         }
+        CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => {
+            disposition([TerminalAuthorityClass::ProcessOutput])
+        }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             classify_builtin_function(function)
         }

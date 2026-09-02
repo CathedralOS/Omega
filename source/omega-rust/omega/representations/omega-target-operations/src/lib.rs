@@ -244,6 +244,7 @@ pub struct ProviderExecutionBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerBuiltinExecution {
     LinuxExitGroupI32,
+    LinuxWriteByteI32,
 }
 
 /// Closed execution roles for a realized Terminal boundary.
@@ -333,6 +334,11 @@ pub struct DirectPortReadU8Realization {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LinuxExitGroupI32Realization;
 
+/// Import-free Linux single-byte standard-output write through the kernel's
+/// `write(2)` ABI. Syscall coordinates are target facts and remain closed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LinuxWriteByteI32Realization;
+
 /// Import-free Linux standard-output realization through the kernel's
 /// `write(2)` ABI. The emitted loop consumes the complete immutable payload
 /// and one trailing newline or traps; no hosted import is implied.
@@ -393,6 +399,7 @@ builtin_settlement_conversion!(MetadataOnlyPortRealization);
 builtin_settlement_conversion!(DirectPortReadU8Realization);
 builtin_settlement_conversion!(LinuxWriteLineRealization);
 builtin_settlement_conversion!(LinuxExitGroupI32Realization);
+builtin_settlement_conversion!(LinuxWriteByteI32Realization);
 builtin_settlement_conversion!(ClaimCompletionOnlyRealization);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -401,6 +408,7 @@ pub enum BoundaryRealization {
     DirectPortReadU8(DirectPortReadU8Realization),
     LinuxWriteLine(LinuxWriteLineRealization),
     LinuxExitGroupI32(LinuxExitGroupI32Realization),
+    LinuxWriteByteI32(LinuxWriteByteI32Realization),
     ClaimCompletionOnly(ClaimCompletionOnlyRealization),
 }
 
@@ -419,6 +427,12 @@ impl From<DirectPortReadU8Realization> for BoundaryRealization {
 impl From<LinuxExitGroupI32Realization> for BoundaryRealization {
     fn from(realization: LinuxExitGroupI32Realization) -> Self {
         Self::LinuxExitGroupI32(realization)
+    }
+}
+
+impl From<LinuxWriteByteI32Realization> for BoundaryRealization {
+    fn from(realization: LinuxWriteByteI32Realization) -> Self {
+        Self::LinuxWriteByteI32(realization)
     }
 }
 
@@ -892,6 +906,9 @@ pub enum TargetUnitOperation {
         execution: BoundaryExecutionBinding,
         realization: BoundaryRealization,
         scalar_arguments: Vec<BoundaryScalarArgument>,
+        /// Returning compiler-builtin scalar inputs retain the same exact
+        /// source and ABI-placement custody as evaluated native calls.
+        runtime_scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         arguments: Vec<StructuralArgument>,
         byte_sequence_arguments: Vec<BoundaryByteSequenceArgument>,
         completion_claim_sources: Vec<CompletionClaimSource>,

@@ -22,6 +22,7 @@ pub(crate) fn linux_write_line_custody_is_exact(
             Architecture::X86_64 | Architecture::Aarch64
         )
         || !settlement.scalar_arguments.is_empty()
+        || !settlement.runtime_scalar_arguments.is_empty()
         || settlement.arguments.as_slice() != [custody.argument.clone()]
         || !custody.argument.path.is_empty()
         || !matches!(

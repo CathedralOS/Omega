@@ -2960,6 +2960,19 @@ termination. That authority remains closed until one explicit checked
 terminal-effect completion identity survives from the boundary contract through
 Terminal and the selected target realization.
 
+Package review v126/canonical row v84 adds the second distinct catalog
+execution identity for exact selected Linux
+`Console::write_byte(i32) -> Unit`. The same package/toolchain, declaration,
+signature, conformance, selected-plan, and target-origin joins apply; the row
+does not share the exit identity or its ProcessTermination authority. Native
+artifact replay additionally binds one exact runtime scalar source and its
+materialization/syscall span. Direct constants and exact preceding internal
+Unit-call homes are the current bounded sources; incoming parameters remain
+fenced until installation can replay their scalar ABI ledger. This closes the
+bounded Linux physical implementation with terminal-authority policy v3
+ProcessOutput permission, not a sibling Console row, hosted import, or wider
+external-binding mechanism.
+
 For a selected payload-bearing top-level external satisfier, provider planning
 extracts the foreign calling row from the same exact selected plan. The ABI
 join resolves one canonical top-level requirement and normalized overload; it

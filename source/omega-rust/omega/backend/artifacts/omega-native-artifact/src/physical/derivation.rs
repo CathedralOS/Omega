@@ -186,6 +186,31 @@ pub(crate) fn derive_physical_evidence(
                     installed,
                 )?);
             }
+            (Some(installed), None)
+                if matches!(
+                    (
+                        installed.settlement.execution,
+                        &installed.settlement.realization,
+                    ),
+                    (
+                        BoundaryExecutionRecord::CompilerBuiltin(
+                            CompilerBuiltinExecution::LinuxWriteByteI32
+                        ),
+                        BoundaryRealization::LinuxWriteByteI32(_),
+                    )
+                ) =>
+            {
+                children.push(derive_write_byte_child(
+                    occurrence,
+                    projection.identity(),
+                    requirement,
+                    selected_plan.plan_digest(),
+                    target,
+                    object,
+                    image,
+                    installed,
+                )?);
+            }
             (None, Some(foreign)) => {
                 let Some(child) = derive_normalized_foreign_child(
                     occurrence,
@@ -539,6 +564,128 @@ fn derive_exit_group_child(
         scalar_argument: *scalar_argument,
     };
     let parent_identity = builtin_boundary_trait_settlement_identity(
+        occurrence,
+        requirement_identity,
+        selected_plan_digest,
+        target,
+        scalar_argument,
+    );
+    let parent = PhysicalChildParent::BoundaryTraitSettlement(
+        BoundaryTraitSettlementParts {
+            occurrence: *occurrence,
+            requirement_identity: requirement_identity.to_owned(),
+            selected_plan_digest,
+            target,
+            role,
+            identity: parent_identity,
+        }
+        .into(),
+    );
+    let machine_bytes_digest = sha256(machine_bytes);
+    let object_bytes_digest = sha256(object_bytes);
+    let final_image_bytes_digest = sha256(final_image_bytes);
+    let relocation = PhysicalRelocationDisposition::DirectInstructionBytes;
+    let identity = physical_child_identity(
+        &parent,
+        projection,
+        NativePhysicalOccurrence::Boundary(occurrence.identity()),
+        machine_span,
+        object_span,
+        final_image_span,
+        machine_bytes_digest,
+        object_bytes_digest,
+        final_image_bytes_digest,
+        relocation,
+    );
+    Ok(NativePhysicalChildParts {
+        parent,
+        projection,
+        occurrence: NativePhysicalOccurrence::Boundary(occurrence.identity()),
+        machine_span,
+        object_span,
+        final_image_span,
+        machine_bytes_digest,
+        object_bytes_digest,
+        final_image_bytes_digest,
+        relocation,
+        identity,
+    }
+    .into())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_write_byte_child(
+    occurrence: &OptimizedBoundaryOccurrence,
+    projection: NativeOptimizationProjectionIdentity,
+    requirement_identity: &str,
+    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    target: NativeTarget,
+    object: &omega_image_emission::ObjectArtifact,
+    image: &omega_image::EmittedImageOutput,
+    installed: &omega_image_emission::ObjectBoundarySettlement,
+) -> Result<NativePhysicalChild, &'static str> {
+    let settlement = &installed.settlement;
+    let [scalar_argument] = settlement.runtime_scalar_arguments.as_slice() else {
+        return Err("Linux write-byte physical child requires one runtime scalar argument");
+    };
+    if target.object_format != ObjectFormat::Elf
+        || !matches!(
+            target.architecture,
+            Architecture::X86_64 | Architecture::Aarch64
+        )
+        || !settlement.scalar_arguments.is_empty()
+        || !settlement.arguments.is_empty()
+        || !settlement.byte_sequence_arguments.is_empty()
+        || !settlement.completion_claim_sources.is_empty()
+        || !settlement.completion_receipts.is_empty()
+        || !settlement.completion_provider_custody.is_empty()
+        || settlement.native_result.is_some()
+    {
+        return Err("Linux write-byte D41 settlement custody is incomplete or substituted");
+    }
+    let function = object
+        .functions()
+        .iter()
+        .find(|function| function.machine == occurrence.machine())
+        .ok_or("Linux write-byte physical child names an absent object function")?;
+    let expected_object_offset = function
+        .text_offset
+        .checked_add(settlement.code_offset)
+        .ok_or("Linux write-byte physical child object span overflow")?;
+    if installed.text_offset != expected_object_offset {
+        return Err("Linux write-byte physical child object span is detached");
+    }
+    let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
+    let object_span = native_byte_span(installed.text_offset, settlement.byte_count);
+    let final_image_span = object_span;
+    let machine_bytes = span(function.bytes(object), machine_span)?;
+    let object_bytes = span(object.text_bytes(), object_span)?;
+    let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
+    if machine_bytes != object_bytes || object_bytes != final_image_bytes {
+        return Err("Linux write-byte physical child bytes changed across physical custody");
+    }
+    let object_end = installed
+        .text_offset
+        .checked_add(settlement.byte_count)
+        .ok_or("Linux write-byte physical child relocation span overflow")?;
+    if object.relocations().records().any(|(_, relocation)| {
+        relocation.section == SectionKind::Text
+            && ranges_overlap(
+                installed.text_offset,
+                object_end,
+                relocation.offset,
+                relocation.offset.saturating_add(relocation.byte_width),
+            )
+    }) {
+        return Err("Linux write-byte physical child unexpectedly contains a relocation");
+    }
+    let role = BoundaryTraitSettlementRole::CompilerBuiltinRuntimeScalar {
+        catalog: NativeCompilerBuiltinCatalogIdentity::LinuxElfV1,
+        execution: CompilerBuiltinExecution::LinuxWriteByteI32,
+        realization: BoundaryRealization::LinuxWriteByteI32(Default::default()),
+        scalar_argument: scalar_argument.clone(),
+    };
+    let parent_identity = builtin_runtime_scalar_boundary_trait_settlement_identity(
         occurrence,
         requirement_identity,
         selected_plan_digest,
@@ -1167,6 +1314,55 @@ fn builtin_boundary_trait_settlement_identity(
         unreachable!("D41 settlement shape was checked")
     };
     digest.update(i32::try_from(value).expect("checked i32").to_le_bytes());
+    digest.finalize().into()
+}
+
+fn builtin_runtime_scalar_boundary_trait_settlement_identity(
+    occurrence: &OptimizedBoundaryOccurrence,
+    requirement_identity: &str,
+    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    target: NativeTarget,
+    scalar_argument: &omega_machine_code::ForeignCallScalarArgumentRecord,
+) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v1\0");
+    digest.update(occurrence.identity().bytes());
+    hash_bytes(&mut digest, requirement_identity.as_bytes());
+    digest.update(selected_plan_digest.as_bytes());
+    hash_target(&mut digest, target);
+    digest.update([1, 2, 2]);
+    digest.update(scalar_argument.parameter_index.to_le_bytes());
+    match scalar_argument.source {
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            ..
+        } => {
+            digest.update([0]);
+            digest.update(parameter_index.to_le_bytes());
+            digest.update(source_value.get().to_le_bytes());
+        }
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation,
+            source_value,
+            value,
+            ..
+        } => {
+            digest.update([1]);
+            digest.update(defining_operation.get().to_le_bytes());
+            digest.update(source_value.get().to_le_bytes());
+            match value {
+                psi_core::IntegerValue::Signed(value) => digest.update(value.to_le_bytes()),
+                psi_core::IntegerValue::Unsigned(value) => digest.update(value.to_le_bytes()),
+            }
+        }
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
+            digest.update([2]);
+            digest.update(home.defining_operation.get().to_le_bytes());
+            digest.update(home.source_value.get().to_le_bytes());
+            digest.update(home.byte_offset.to_le_bytes());
+        }
+    }
     digest.finalize().into()
 }
 

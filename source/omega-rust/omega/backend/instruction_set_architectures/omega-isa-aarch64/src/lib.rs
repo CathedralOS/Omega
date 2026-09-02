@@ -64,6 +64,25 @@ pub fn encode_linux_exit_group_i32(value: i32) -> Result<Vec<u8>, Diagnostic> {
     Ok(bytes)
 }
 
+/// Import-free Linux `write(1, &byte, 1)` realization. The caller places the
+/// low byte of the exact `i32` source in `w9`; this encoder owns the stack slot.
+pub fn encode_linux_write_byte_i32_from_w9() -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&0xd100_43ff_u32.to_le_bytes());
+    bytes.extend_from_slice(&0x3900_03e9_u32.to_le_bytes());
+    bytes.extend(encode_movz(0, 1));
+    bytes.extend_from_slice(&0x9100_03e1_u32.to_le_bytes());
+    bytes.extend(encode_movz(2, 1));
+    bytes.extend(encode_movz(8, 64));
+    bytes.extend(encode_svc(0));
+    bytes.extend(encode_compare_x_immediate(0, 0)?);
+    bytes.extend_from_slice(&0x5400_006d_u32.to_le_bytes());
+    bytes.extend_from_slice(&0x9100_43ff_u32.to_le_bytes());
+    bytes.extend_from_slice(&0x1400_0002_u32.to_le_bytes());
+    bytes.extend(encode_brk(0));
+    Ok(bytes)
+}
+
 /// Import-free Linux `write_line` over one immutable literal.
 pub fn encode_linux_write_line_literal(
     literal: &[u8],
@@ -273,5 +292,12 @@ mod tests {
             &bytes[data.start - 4..data.start],
             &0xd420_0000_u32.to_le_bytes()
         );
+
+        let byte_write = encode_linux_write_byte_i32_from_w9().unwrap();
+        assert_eq!(byte_write.len(), 48);
+        assert_eq!(&byte_write[..4], &0xd100_43ff_u32.to_le_bytes());
+        assert_eq!(&byte_write[36..40], &0x9100_43ff_u32.to_le_bytes());
+        assert_eq!(&byte_write[40..44], &0x1400_0002_u32.to_le_bytes());
+        assert_eq!(&byte_write[44..], &0xd420_0000_u32.to_le_bytes());
     }
 }

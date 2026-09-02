@@ -5,12 +5,13 @@
 
 use omega_machine_code::{
     BoundaryByteSequenceArgumentRecord, BoundaryExecutionRecord, BoundaryResultRecord,
-    BoundarySettlementRecord, CompletionProviderCustodyBinding,
+    BoundarySettlementRecord, CompletionProviderCustodyBinding, ForeignCallScalarArgumentRecord,
+    InternalUnitScalarArgumentSourceRecord, UnitScalarParameterLocationRecord,
 };
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, ClaimCompletionOnlyRealization,
     CompilerBuiltinExecution, DirectPortReadU8Realization, LinuxExitGroupI32Realization,
-    LinuxWriteLineRealization, MetadataOnlyPortRealization,
+    LinuxWriteByteI32Realization, LinuxWriteLineRealization, MetadataOnlyPortRealization,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerValue, MachineId, OperationId, ServiceId, ValueId,
@@ -27,6 +28,10 @@ use super::{
     provider_execution_codec::{decode_provider_execution, encode_provider_execution},
     push_u16, push_u32, push_u64,
     structural_argument_codec::{decode_structural_argument, encode_structural_argument},
+    unit_scalar_codec::{
+        decode_integer_type, decode_integer_value, decode_unit_scalar_home, encode_integer_type,
+        encode_integer_value, encode_unit_scalar_home,
+    },
     value_placement_codec::{decode_placement, decode_register, encode_placement, register_tag},
 };
 
@@ -78,6 +83,13 @@ pub(super) fn encode_boundary_settlements(
                 push_u16(bytes, 0);
                 bytes.push(0);
             }
+            BoundaryRealization::LinuxWriteByteI32(_) => {
+                bytes.push(5);
+                push_u64(bytes, 0);
+                push_u64(bytes, 0);
+                push_u16(bytes, 0);
+                bytes.push(0);
+            }
         }
         bytes.push(0);
         push_u64(
@@ -122,6 +134,26 @@ pub(super) fn encode_boundary_settlements(
             }
             bytes.push(register_tag(argument.destination)?);
             bytes.extend_from_slice(&[0; 3]);
+        }
+        push_u32(
+            bytes,
+            u32::try_from(settlement.runtime_scalar_arguments.len())
+                .map_err(|_| InstallationError::TooManySettlementScalarArguments)?,
+        );
+        for argument in &settlement.runtime_scalar_arguments {
+            push_u32(bytes, argument.parameter_index);
+            encode_boundary_runtime_source(bytes, argument.source)?;
+            encode_placement(bytes, &argument.placement)?;
+            push_u64(
+                bytes,
+                u64::try_from(argument.code_offset)
+                    .map_err(|_| InstallationError::SettlementOffsetNotRepresentable)?,
+            );
+            push_u64(
+                bytes,
+                u64::try_from(argument.byte_count)
+                    .map_err(|_| InstallationError::SettlementOffsetNotRepresentable)?,
+            );
         }
         push_u32(
             bytes,
@@ -250,6 +282,9 @@ pub(super) fn decode_boundary_settlements(
             4 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
                 BoundaryRealization::ClaimCompletionOnly(ClaimCompletionOnlyRealization)
             }
+            5 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
+                BoundaryRealization::LinuxWriteByteI32(LinuxWriteByteI32Realization)
+            }
             _ => return Err(InstallationError::InvalidBoundaryRealizationTag),
         };
         if reader.u8()? != 0 {
@@ -293,6 +328,23 @@ pub(super) fn decode_boundary_settlements(
                 scalar_type,
                 immediate,
                 destination,
+            });
+        }
+        let runtime_scalar_argument_count = usize::try_from(reader.u32()?)
+            .map_err(|_| InstallationError::TooManySettlementScalarArguments)?;
+        if runtime_scalar_argument_count > reader.remaining() / 24 {
+            return Err(InstallationError::UnexpectedEnd);
+        }
+        let mut runtime_scalar_arguments = Vec::with_capacity(runtime_scalar_argument_count);
+        for _ in 0..runtime_scalar_argument_count {
+            runtime_scalar_arguments.push(ForeignCallScalarArgumentRecord {
+                parameter_index: reader.u32()?,
+                source: decode_boundary_runtime_source(reader)?,
+                placement: decode_placement(reader)?,
+                code_offset: usize::try_from(reader.u64()?)
+                    .map_err(|_| InstallationError::SettlementOffsetNotRepresentable)?,
+                byte_count: usize::try_from(reader.u64()?)
+                    .map_err(|_| InstallationError::SettlementOffsetNotRepresentable)?,
             });
         }
         let argument_count = usize::try_from(reader.u32()?)
@@ -405,6 +457,7 @@ pub(super) fn decode_boundary_settlements(
                 execution,
                 realization,
                 scalar_arguments,
+                runtime_scalar_arguments,
                 arguments,
                 byte_sequence_arguments,
                 completion_claim_sources,
@@ -430,6 +483,9 @@ fn encode_boundary_execution(bytes: &mut Vec<u8>, execution: BoundaryExecutionRe
         BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxExitGroupI32) => {
             bytes.push(1);
         }
+        BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32) => {
+            bytes.push(2);
+        }
     }
 }
 
@@ -443,6 +499,107 @@ fn decode_boundary_execution(
         1 => Ok(BoundaryExecutionRecord::CompilerBuiltin(
             CompilerBuiltinExecution::LinuxExitGroupI32,
         )),
+        2 => Ok(BoundaryExecutionRecord::CompilerBuiltin(
+            CompilerBuiltinExecution::LinuxWriteByteI32,
+        )),
         _ => Err(InstallationError::InvalidBoundaryExecutionTag),
+    }
+}
+
+fn encode_boundary_runtime_source(
+    bytes: &mut Vec<u8>,
+    source: InternalUnitScalarArgumentSourceRecord,
+) -> Result<(), InstallationError> {
+    match source {
+        InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } => {
+            bytes.extend_from_slice(&[0, 0, 0, 0]);
+            push_u32(bytes, parameter_index);
+            push_u64(bytes, source_value.get());
+            encode_integer_type(bytes, scalar_type)?;
+            match location {
+                UnitScalarParameterLocationRecord::Register(register) => {
+                    bytes.push(0);
+                    bytes.push(register_tag(register)?);
+                    bytes.extend_from_slice(&[0; 2]);
+                    push_u32(bytes, 0);
+                }
+                UnitScalarParameterLocationRecord::IncomingStack { byte_offset } => {
+                    bytes.extend_from_slice(&[1, 0, 0, 0]);
+                    push_u32(bytes, byte_offset);
+                }
+            }
+        }
+        InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => {
+            bytes.extend_from_slice(&[1, 0, 0, 0]);
+            push_u64(bytes, defining_operation.get());
+            push_u64(bytes, source_value.get());
+            encode_integer_type(bytes, scalar_type)?;
+            encode_integer_value(bytes, value);
+        }
+        InternalUnitScalarArgumentSourceRecord::Home(home) => {
+            bytes.extend_from_slice(&[2, 0, 0, 0]);
+            encode_unit_scalar_home(bytes, home)?;
+        }
+    }
+    Ok(())
+}
+
+fn decode_boundary_runtime_source(
+    reader: &mut Reader<'_>,
+) -> Result<InternalUnitScalarArgumentSourceRecord, InstallationError> {
+    let tag = reader.u8()?;
+    if reader.take(3)? != [0; 3] {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    match tag {
+        0 => {
+            let parameter_index = reader.u32()?;
+            let source_value = ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::InvalidBoundaryScalarArgument)?;
+            let scalar_type = decode_integer_type(reader)?;
+            let location_tag = reader.u8()?;
+            let register_tag_byte = reader.u8()?;
+            if reader.take(2)? != [0; 2] {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            let byte_offset = reader.u32()?;
+            let location = match location_tag {
+                0 if byte_offset == 0 => {
+                    UnitScalarParameterLocationRecord::Register(decode_register(register_tag_byte)?)
+                }
+                1 if register_tag_byte == 0 => {
+                    UnitScalarParameterLocationRecord::IncomingStack { byte_offset }
+                }
+                _ => return Err(InstallationError::InvalidBoundaryScalarArgument),
+            };
+            Ok(InternalUnitScalarArgumentSourceRecord::Parameter {
+                parameter_index,
+                source_value,
+                scalar_type,
+                location,
+            })
+        }
+        1 => Ok(InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation: OperationId::new(reader.u64()?)
+                .ok_or(InstallationError::InvalidBoundaryScalarArgument)?,
+            source_value: ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::InvalidBoundaryScalarArgument)?,
+            scalar_type: decode_integer_type(reader)?,
+            value: decode_integer_value(reader)?,
+        }),
+        2 => Ok(InternalUnitScalarArgumentSourceRecord::Home(
+            decode_unit_scalar_home(reader)?,
+        )),
+        _ => Err(InstallationError::InvalidBoundaryScalarArgument),
     }
 }
