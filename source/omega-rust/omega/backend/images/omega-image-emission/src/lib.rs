@@ -1586,12 +1586,9 @@ fn build_object_artifact_with_x86_feature_profile(
                                             == settlement
                                                 .code_offset
                                                 .saturating_add(settlement.byte_count)
-                                        && attribution
-                                            .code_offset
-                                            .checked_add(attribution.byte_count)
-                                            == Some(function.bytes.len())
                                         && (function.unit_stack.is_some()
-                                            || attribution.byte_count == 0)
+                                            || (attribution.byte_count == 0
+                                                && attribution.code_offset == function.bytes.len()))
                                 })
                                 .count()
                                 == 1

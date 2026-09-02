@@ -1107,7 +1107,7 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_local_named_dyn_rebound_stops_at_the_explicit_multiblock_target_boundary() {
+fn runtime_local_named_dyn_rebound_direct_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_local_named_dyn_rebound_direct_exit");
     for target in ["linux_x86_64", "linux_arm64"] {
         let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
@@ -1140,24 +1140,44 @@ fn runtime_local_named_dyn_rebound_stops_at_the_explicit_multiblock_target_bound
                     .collect(),
             )
             .expect("exact Console exit permission policy");
-        let diagnostics =
-            compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
-                &canary,
-                target,
-                permission_policy,
+        compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
+            &canary,
+            target,
+            permission_policy,
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{target} should lower the rebound dynamic call and its exact exit diamond:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n")
             )
-            .expect_err("rebound dynamic continuation lowering remains explicitly pending");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("UnitFunctionNotStraightLine")),
-            "{target} must stop at the exact multi-block target-lowering boundary:\n{}",
-            diagnostics
-                .iter()
-                .map(|diagnostic| diagnostic.message.as_str())
-                .collect::<Vec<_>>()
-                .join("\n"),
+        });
+    }
+
+    // The closed compiler-builtin catalog currently realizes exit_process on
+    // Linux. Keep the machine-code construction checks above cross-target and
+    // execute the artifact on Linux hosts where that exact settlement exists.
+    #[cfg(target_os = "linux")]
+    {
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-runtime-local-named-dyn-rebound-direct-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+
+        let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+            .expect("a rebound named dynamic value should emit its exact private table function");
+        assert_native_exit_code(
+            &compilation,
+            70,
+            "rebound named dynamic descriptor canary",
+            "the indirect slot must execute against the rebound Item instance, not the original decoy",
         );
+
+        let _ = fs::remove_dir_all(&build_dir);
     }
 }
 

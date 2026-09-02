@@ -11735,21 +11735,18 @@ checked-result arithmetic decision listed below.
 
   The remaining pass-through baseline is blocked one layer earlier: an
   attached Unit caller cannot yet compose a scalar-returning structural helper
-  that owns the dynamic dispatch. The direct rebound continuation reaches
-  canonical Terminal and the abstract-operation plan, then stops at the
-  explicit straight-line-only Unit target-lowering fence. These are distinct
-  call-composition and Unit-control gaps; neither is a descriptor-table
-  materialization gap.
+  that owns the dynamic dispatch. The direct rebound continuation is live: its
+  exact three-block equality/exit diamond crosses target lowering, assignment,
+  x86-64 and AArch64 emission, object replay, and Linux execution while
+  retaining the original Terminal operation and edge ordinals. This is a
+  deliberately bounded Unit-control family, not a claim that arbitrary Unit
+  CFG lowering is complete.
 
   Remaining work:
 
   - compose scalar-returning structural helpers into attached Unit closures so
     the pass-through canary retains and forwards the descriptor without
     flattening it into a static call;
-  - lower the verified bounded multi-block Unit continuation needed by the
-    direct rebound canary, preserving its dynamic call, conditional branch,
-    and bodyless terminal leaves; then restore both native canaries before
-    claiming either route live; and
   - only then extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

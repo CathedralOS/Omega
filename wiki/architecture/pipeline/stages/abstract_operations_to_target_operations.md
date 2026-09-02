@@ -92,6 +92,11 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   selected realization. It derives the realization's structural argument and
   scalar result ABI while preserving both source copies; physical assignment
   later allocates the canonical two-word descriptor and durable result home.
+- `lowering/unit/conditional_exit.rs` owns the exact attached-Unit equality
+  diamond used by a rebound dynamic result followed by two admitted
+  nonreturning boundary leaves. It preserves all ten Terminal operation
+  ordinals with explicit zero-code control markers and carries both successor
+  edges; it is not a general CFG legalization path.
 - `lowering/unit/projected_argument.rs` owns the shared target-layout lowering
   for one structural argument projected from an attached Unit parameter.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
@@ -140,10 +145,12 @@ It also preserves ownership summaries without yet lowering them into target
 copy/cleanup operations.
 Value summaries are preserved through target legalization, but are not yet used
 to drive target storage or ownership policy.
-Rebound dynamic calls now cross target legalization and physical assignment.
-Machine emission still needs selected-conformance table materialization,
-indirect-call encoding, and object relocations; multi-block continuation
-control remains a separate native-lowering gap.
+Rebound dynamic calls now cross target legalization, physical assignment,
+selected-conformance table materialization, indirect-call encoding, and object
+relocation on x86-64 and AArch64. The exact three-block equality/exit
+continuation used by the direct rebound canary also reaches machine code and
+object replay. General attached-Unit CFG legalization remains open outside
+that explicitly bounded family.
 Boundary-edge summaries are preserved through target legalization, including
 source-level boundary edges, exact registrar occurrence/native-parameter
 identity rows, target-aware links, and lowered host-operation edges. These rows

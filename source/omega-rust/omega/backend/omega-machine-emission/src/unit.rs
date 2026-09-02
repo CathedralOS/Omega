@@ -848,7 +848,15 @@ pub(super) fn emit_unit_body(
     let mut established_byte_sequences = std::collections::BTreeMap::new();
     let mut established_integer_constants = std::collections::BTreeMap::new();
     let mut established_ieee_float_constants = std::collections::BTreeMap::new();
+    let mut pending_conditional: Option<(usize, usize)> = None;
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
+        if pending_conditional.is_some_and(|(false_ordinal, _)| false_ordinal == operation_ordinal)
+        {
+            let (_, branch_offset) = pending_conditional
+                .take()
+                .expect("the matching bounded false arm owns the pending branch");
+            patch_unit_conditional_branch(&mut bytes, target.architecture, branch_offset)?;
+        }
         if returned {
             return Err(EmissionError::UnitOperationAfterReturn);
         }
@@ -1149,6 +1157,49 @@ pub(super) fn emit_unit_body(
                     operation_ordinal,
                     code_offset,
                 )?);
+            }
+            AssignedUnitOperation::ConditionalIntegerEqual {
+                psi_operation,
+                result: _,
+                scalar_type,
+                left,
+                right,
+                when_true,
+                when_false,
+            } => {
+                operation_site = Some(*psi_operation);
+                if pending_conditional.is_some()
+                    || usize::try_from(when_true.operation_ordinal).ok()
+                        != Some(operation_ordinal + 2)
+                    || usize::try_from(when_false.operation_ordinal)
+                        .ok()
+                        .is_none_or(|ordinal| {
+                            ordinal <= operation_ordinal + 1 || ordinal >= body.operations.len()
+                        })
+                    || when_true.psi_edge == when_false.psi_edge
+                    || when_true.nominal_return_edge == when_false.nominal_return_edge
+                {
+                    return Err(EmissionError::ConditionalBranchEncodingInvalid);
+                }
+                let branch_offset = emit_unit_integer_equality_branch(
+                    &mut bytes,
+                    target.architecture,
+                    *psi_operation,
+                    *scalar_type,
+                    *left,
+                    *right,
+                )?;
+                pending_conditional = Some((
+                    usize::try_from(when_false.operation_ordinal)
+                        .map_err(|_| EmissionError::ConditionalBranchEncodingInvalid)?,
+                    branch_offset,
+                ));
+            }
+            AssignedUnitOperation::ConditionalDispatch { fallthrough_edge } => {
+                edge_site = Some(*fallthrough_edge);
+            }
+            AssignedUnitOperation::NonreturningTail { psi_edge } => {
+                edge_site = Some(*psi_edge);
             }
             AssignedUnitOperation::PortWrite {
                 psi_operation,
@@ -1961,7 +2012,7 @@ pub(super) fn emit_unit_body(
             byte_count: bytes.len() - code_offset,
         });
     }
-    if !returned {
+    if !returned || pending_conditional.is_some() {
         return Err(EmissionError::UnitFunctionHasNoReturn);
     }
     Ok(UnitEmission {
@@ -2022,6 +2073,99 @@ pub(super) fn emit_unit_body(
             .collect(),
         affine_cleanup,
     })
+}
+
+fn emit_unit_integer_equality_branch(
+    bytes: &mut Vec<u8>,
+    architecture: Architecture,
+    psi_operation: psi_core::OperationId,
+    scalar_type: psi_core::IntegerType,
+    left: AssignedUnitScalarArgumentSource,
+    right: AssignedUnitScalarArgumentSource,
+) -> Result<usize, EmissionError> {
+    let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+        .expect("i32 is a valid fixed integer type");
+    if scalar_type != i32_type || left.scalar_type() != i32_type || right.scalar_type() != i32_type
+    {
+        return Err(EmissionError::InvalidUnitScalarCallCustody(psi_operation));
+    }
+    let (home, immediate) = match (left, right) {
+        (
+            AssignedUnitScalarArgumentSource::Home(home),
+            AssignedUnitScalarArgumentSource::IntegerImmediate { value, .. },
+        )
+        | (
+            AssignedUnitScalarArgumentSource::IntegerImmediate { value, .. },
+            AssignedUnitScalarArgumentSource::Home(home),
+        ) => (home, value),
+        _ => return Err(EmissionError::InvalidUnitScalarCallCustody(psi_operation)),
+    };
+    let psi_core::IntegerValue::Signed(immediate) = immediate else {
+        return Err(EmissionError::InvalidUnitScalarCallCustody(psi_operation));
+    };
+    let immediate = i32::try_from(immediate)
+        .map_err(|_| EmissionError::InvalidUnitScalarCallCustody(psi_operation))?;
+    match architecture {
+        Architecture::X86_64 => {
+            emit_x86_64_stack_load_width(bytes, 0, home.byte_offset, 4)?;
+            bytes.push(0x3d); // cmp eax, imm32
+            bytes.extend_from_slice(&immediate.to_le_bytes());
+            let branch_offset = bytes.len();
+            bytes.extend_from_slice(&[0x0f, 0x85, 0, 0, 0, 0]); // jne false arm
+            Ok(branch_offset)
+        }
+        Architecture::Aarch64 => {
+            let immediate = u32::try_from(immediate)
+                .ok()
+                .filter(|value| *value <= 0xfff)
+                .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?;
+            let load = aarch64_unit_stack_access(aarch64_load_base(4)?, 9, home.byte_offset, 4)?;
+            bytes.extend_from_slice(&load.to_le_bytes());
+            let compare = 0x7100_001f_u32 | (immediate << 10) | (9 << 5); // cmp w9, #imm12
+            bytes.extend_from_slice(&compare.to_le_bytes());
+            let branch_offset = bytes.len();
+            bytes.extend_from_slice(&0x5400_0001_u32.to_le_bytes()); // b.ne false arm
+            Ok(branch_offset)
+        }
+    }
+}
+
+fn patch_unit_conditional_branch(
+    bytes: &mut [u8],
+    architecture: Architecture,
+    branch_offset: usize,
+) -> Result<(), EmissionError> {
+    match architecture {
+        Architecture::X86_64 => {
+            let target = i64::try_from(bytes.len())
+                .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            let next = i64::try_from(branch_offset + 6)
+                .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            let displacement = i32::try_from(target - next)
+                .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            bytes
+                .get_mut(branch_offset + 2..branch_offset + 6)
+                .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?
+                .copy_from_slice(&displacement.to_le_bytes());
+        }
+        Architecture::Aarch64 => {
+            let distance = bytes
+                .len()
+                .checked_sub(branch_offset)
+                .filter(|distance| distance.is_multiple_of(4))
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            let words = distance / 4;
+            if words > 0x3ffff {
+                return Err(EmissionError::ConditionalBranchDistanceNotEncodable);
+            }
+            let instruction = 0x5400_0001_u32 | ((words as u32) << 5);
+            bytes
+                .get_mut(branch_offset..branch_offset + 4)
+                .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?
+                .copy_from_slice(&instruction.to_le_bytes());
+        }
+    }
+    Ok(())
 }
 
 fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool {
