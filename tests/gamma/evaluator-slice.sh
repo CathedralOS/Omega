@@ -173,7 +173,7 @@ assert_case malformed-source 1 \
 assert_case unresolved-entry 1 \
     '(def main (input) (Complete input)) (entry other)' \
     '' ''
-assert_case unsupported-valid-form 3 \
+assert_case unresolved-call 2 \
     '(def main (input) (helper input)) (entry main)' \
     '' ''
 assert_case unused-declaration 0 \
@@ -185,6 +185,24 @@ assert_case later-entry 0 \
 assert_case duplicate-function 1 \
     '(def same (value) (Complete #x61)) (def same (input) (Complete #x62)) (entry same)' \
     '' ''
+assert_case forward-call 0 \
+    '(def main (input) (helper input)) (def helper (value) (Complete value)) (entry main)' \
+    61 61
+assert_case nested-call 0 \
+    '(def addone (value) (+ value 1)) (def main (input) (Complete (bytes-single (addone 64)))) (entry main)' \
+    '' 41
+assert_case lexical-isolation 0 \
+    '(def keep (value) (let x 66 (bytes-single value))) (def main (input) (let x 65 (Complete (keep x)))) (entry main)' \
+    '' 41
+assert_case mutual-call 0 \
+    '(def even (value) (if (= value 0) 1 (odd (- value 1)))) (def odd (value) (if (= value 0) 0 (even (- value 1)))) (def main (input) (Complete (bytes-single (even 20)))) (entry main)' \
+    '' 01
+assert_case unreachable-unresolved-call 0 \
+    '(def main (input) (if 0 (missing input) (Complete input))) (entry main)' \
+    62 62
+assert_case deep-bounded-recursion 0 \
+    '(def loop (value) (if (= value 0) (Complete #x01) (loop (- value 1)))) (def main (input) (loop 10000)) (entry main)' \
+    '' 01
 
 printf 'BAD' > "$TMP/request"
 set +e
@@ -197,4 +215,4 @@ set -e
 }
 echo "ok - malformed-request"
 
-echo "Gamma evaluator development slice: 45/45 cases passed"
+echo "Gamma evaluator development slice: 51/51 cases passed"

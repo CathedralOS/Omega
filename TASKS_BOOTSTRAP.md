@@ -39,9 +39,10 @@ Delta is Epsilon.
   compiler tape byte-for-byte; the independent six-case differential and
   strict grammar regression pass.
 - [x] Gamma's minimal functional contract is fixed at `source/gamma/LANGUAGE.md`.
-- [ ] A Beta-authored Gamma evaluator development source and 45-case focused
+- [ ] A Beta-authored Gamma evaluator development source and 51-case focused
   gate now cover the request boundary, declaration census, entry selection, and
-  expression core. General calls, constructors, `match`, proper tail calls, its derived Alpha
+  expression core. Unary calls are implemented with isolated lexical environments
+  and bounded ordinary recursion. Constructors, `match`, arbitrary arity, proper tail calls, its derived Alpha
   tape, and complete conformance suite remain absent.
 - [ ] Gamma derivation checker is absent.
 - [ ] Gamma-written Delta compiler source and tape are absent.
@@ -96,11 +97,11 @@ Delta is Epsilon.
   Its derived Alpha tape is bound through the admitted Beta compiler rather
   than separately admitted as opaque bytecode.
 
-  The current source is a 45-case-passing development slice. It implements
-  framing, bounded unary function rows and entry selection, structural checks for its accepted forms,
+  The current source is a 51-case-passing development slice. It implements
+  framing, bounded unary function rows, entry selection and calls, structural checks for its accepted forms,
   `if`, `let`, checked integer operations, every byte primitive, total equality
   over values it can construct, outcomes, and bounded arena/stack operation.
-  The call/constructor/match/tail-call work remains on this task.
+  Constructor, match, arbitrary-arity, and tail-call work remains on this task.
 
   Acceptance: a closed positive/negative suite pins lexical rejection,
   complete structural syntax rejection, declaration census, runtime name and
