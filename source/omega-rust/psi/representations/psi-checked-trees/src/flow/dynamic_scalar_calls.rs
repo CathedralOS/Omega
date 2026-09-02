@@ -21,6 +21,68 @@ pub struct CheckedDynamicDispatchPlans {
     pub transfers: Vec<CheckedDynamicDescriptorTransferPlan>,
     pub direct_scalar_calls: Vec<CheckedDynamicScalarCallPlan>,
     pub rebound_scalar_calls: Vec<CheckedReboundDynamicScalarCallPlan>,
+    /// Exact terminal Unit-returning calls through a local descriptor. These
+    /// remain distinct from scalar-result calls: no result binding, ABI home,
+    /// or continuation may be inferred for this lane.
+    pub direct_unit_calls: Vec<CheckedDynamicUnitCallPlan>,
+    pub rebound_unit_calls: Vec<CheckedReboundDynamicUnitCallPlan>,
+}
+
+/// Checked custody for one terminal Unit-returning call through a local named
+/// dynamic value. This first rung admits no call arguments, result discard,
+/// contracts, service reach, or realization body operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicUnitCallPlan {
+    pub caller_machine: SymbolHandle,
+    pub caller_state: SymbolHandle,
+    pub caller_attachment_type_identity: String,
+    pub caller_multiplicity: psi_language_semantics::Multiplicity,
+    pub caller_parameter_access: super::CheckedStructuralAccess,
+    pub caller_contract_report_fingerprint: u64,
+    pub caller_contract_commitment: MachineContractCommitment,
+    pub caller_service_reach: ServiceReachSummary,
+    pub coordinate: CheckedUnitCallCoordinate,
+    pub receiver_binding: SymbolHandle,
+    pub selection: DynamicConformanceBindingFact,
+    pub source_parameter_position: u32,
+    pub source_access: super::CheckedStructuralAccess,
+    pub source_field: SymbolHandle,
+    pub source_path: Vec<CheckedUnitStructuralPathSegment>,
+    pub source_type_identity: String,
+    pub source_multiplicity: psi_language_semantics::Multiplicity,
+    pub target_trait: SymbolHandle,
+    pub selected_conformance: SymbolHandle,
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub requirement_identity: String,
+    pub realization_machine: SymbolHandle,
+    pub realization_state: SymbolHandle,
+    pub realization_identity: String,
+    pub realization_callables: Vec<CheckedDynamicUnitRealizationCallablePlan>,
+    pub realization_contract_report_fingerprint: u64,
+    pub realization_contract_commitment: MachineContractCommitment,
+    pub checked_call_service_reach: ServiceReachSummary,
+}
+
+/// One exact operation-free checked Unit callable behind a closed dynamic
+/// table row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicUnitRealizationCallablePlan {
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub requirement_identity: String,
+    pub realization_machine: SymbolHandle,
+    pub realization_state: SymbolHandle,
+    pub realization_identity: String,
+    pub contract_report_fingerprint: u64,
+    pub contract_commitment: MachineContractCommitment,
+}
+
+/// A Unit call after exactly one same-conformance descriptor reassignment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedReboundDynamicUnitCallPlan {
+    pub initial: CheckedDynamicSelectionPlan,
+    pub latest: CheckedDynamicUnitCallPlan,
 }
 
 /// One checked call argument that transfers an already-selected dynamic

@@ -1068,7 +1068,14 @@ Current ownership is:
   before the existing exact scalar return. The retained write joins the sole
   authoritative mutation path, assignment-value fact, mutable-self parameter,
   field/type identity, and source statement; other body shapes publish no
-  callable row. A
+  callable row. A separate checked-only Unit catalog admits one terminal,
+  argument-free requirement call through either a direct local descriptor or
+  one exact same-conformance reassignment. It retains the complete application
+  and operation-free callable roster, source borrow/path, contracts, and exact
+  call reach while carrying no scalar result binding or home. Nonempty bodies,
+  arguments, service reach, realization state contracts, result discards, or a
+  later statement fail closed. Descriptor-parameter forwarding and every
+  Terminal/native carrier remain later boundaries. A
   proof-static `term.member` binder argument resolves in its named-contract
   scope to the exact checked evidence-term handle and one unambiguous direct or
   inherited requirement row. The row retains the declaring trait's normalized

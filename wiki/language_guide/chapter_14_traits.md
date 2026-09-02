@@ -813,8 +813,12 @@ first Boolean store returns an independent `i32` field through the existing
 fixed-integer result-home lane. A Boolean-returning forwarded call instead
 uses an exact one-byte Boolean home and branches directly on that value after
 the indirect call. Paths deeper than one field, indexed/case projections,
-wider or computed mutation bodies, and Unit-returning dynamic requirements
-remain outside this bounded rung.
+wider or computed mutation bodies remain outside this bounded rung. An
+operation-free, argument-free Unit-returning requirement may now be retained
+at the checked layer for a terminal direct or once-rebound local descriptor
+call. That plan deliberately has no result carrier. Forwarding such a Unit
+descriptor through another machine, Terminal/table representation, and native
+execution remain outside the current executable rung.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected
