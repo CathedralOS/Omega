@@ -12,7 +12,6 @@ use omega_target::{Architecture, NativeTarget};
 use psi_core::MachineId;
 
 use super::instruction_loads::{aarch64_terminal_register, x86_terminal_register};
-use super::unit_scalar_call_custody::expected_unit_scalar_result_bytes;
 use super::{ObjectError, same_dynamic_table_application};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,29 +57,11 @@ pub(super) fn validate_forwarded_dynamic_descriptors(
                 || call.dynamic_arguments.len() != 1
                 || call.call_plan.parameters.len() != 2
                 || machine_functions.get(&call.callee).is_none()
-                || call.semantic_result.value != call.result.home.source_value
-                || call.semantic_result.scalar_type != call.result.home.scalar_type
-                || call.result.home.defining_operation != call.psi_operation
-                || call.call_plan.result.as_ref() != Some(&call.result.source)
-                || !function.unit_scalar_homes.contains(&call.result.home)
+                || call.semantic_result.is_some() != call.result.is_some()
             {
                 return Err(invalid());
             }
-            let expected_result =
-                expected_unit_scalar_result_bytes(target, &call.result).ok_or_else(invalid)?;
-            let result_end = call
-                .result
-                .code_offset
-                .checked_add(call.result.byte_count)
-                .ok_or_else(invalid)?;
-            if call.result.byte_count != expected_result.len()
-                || function.bytes.get(call.result.code_offset..result_end)
-                    != Some(expected_result.as_slice())
-                || result_end != operation_end
-            {
-                return Err(invalid());
-            }
-            validate_scalar_result(target, function, call, operation_end).ok_or_else(invalid)?;
+            validate_call_result(target, function, call, operation_end).ok_or_else(invalid)?;
             let argument = &call.dynamic_arguments[0];
             if !argument.custody.has_complete_custody(
                 function.machine,
@@ -139,31 +120,16 @@ pub(super) fn validate_forwarded_dynamic_descriptors(
     Ok(applications)
 }
 
-fn validate_scalar_result(
+fn validate_call_result(
     target: NativeTarget,
     function: &MachineCodeFunction,
     call: &omega_machine_code::ForwardedDynamicDescriptorCallRecord,
     operation_end: usize,
 ) -> Option<()> {
-    let result_shape =
-        super::unit_scalar_call_custody::scalar_home_shape(call.semantic_result.scalar_type)?;
-    let pointer = ValueShape::integer(
-        u16::try_from(target.pointer_size).ok()?,
-        u16::try_from(target.pointer_alignment).ok()?,
-    );
-    let expected_call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![pointer; 2],
-            result: Some(result_shape),
-        },
-    )
-    .ok()?;
-    let result = &call.result;
     let direct_call_end = call
         .direct_call_offset
         .checked_add(call.direct_call_byte_count)?;
-    let expected_result_offset = if let Some(outbound) = call.unit_stack.outbound {
+    let post_call_offset = if let Some(outbound) = call.unit_stack.outbound {
         let allocation_end = outbound
             .allocation_offset
             .checked_add(outbound.allocation_byte_count)?;
@@ -176,17 +142,44 @@ fn validate_scalar_result(
     } else {
         direct_call_end
     };
+    let result_shape = call
+        .semantic_result
+        .and_then(|result| super::unit_scalar_call_custody::scalar_home_shape(result.scalar_type));
+    let pointer = ValueShape::integer(
+        u16::try_from(target.pointer_size).ok()?,
+        u16::try_from(target.pointer_alignment).ok()?,
+    );
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![pointer; 2],
+            result: result_shape,
+        },
+    )
+    .ok()?;
+    if expected_call_plan != call.call_plan {
+        return None;
+    }
+    let (Some(semantic_result), Some(result), Some(result_shape)) =
+        (call.semantic_result, call.result.as_ref(), result_shape)
+    else {
+        return (call.semantic_result.is_none()
+            && call.result.is_none()
+            && call.call_plan.result.is_none()
+            && post_call_offset == operation_end)
+            .then_some(());
+    };
     let expected_bytes =
         super::unit_scalar_call_custody::expected_unit_scalar_result_bytes(target, result)?;
     let result_end = result.code_offset.checked_add(result.byte_count)?;
     (call.call_plan == expected_call_plan
         && call.call_plan.result.as_ref() == Some(&result.source)
         && result.home.defining_operation == call.psi_operation
-        && result.home.source_value == call.semantic_result.value
-        && result.home.scalar_type == call.semantic_result.scalar_type
+        && result.home.source_value == semantic_result.value
+        && result.home.scalar_type == semantic_result.scalar_type
         && result.home.shape == result_shape
         && function.unit_scalar_homes.contains(&result.home)
-        && result.code_offset == expected_result_offset
+        && result.code_offset == post_call_offset
         && result.byte_count == expected_bytes.len()
         && result_end == operation_end
         && function.bytes.get(result.code_offset..result_end) == Some(expected_bytes.as_slice()))
@@ -197,8 +190,8 @@ fn validate_parameter_dispatches(
     target: NativeTarget,
     function: &MachineCodeFunction,
 ) -> Result<(), ObjectError> {
-    for call in &function.dynamic_parameter_scalar_calls {
-        let invalid = || ObjectError::InvalidDynamicParameterScalarCallEvidence {
+    for call in &function.dynamic_parameter_calls {
+        let invalid = || ObjectError::InvalidDynamicParameterCallEvidence {
             caller: function.machine,
             operation: call.psi_operation,
         };
@@ -210,6 +203,40 @@ fn validate_parameter_dispatches(
             .indirect_call_offset
             .checked_add(call.indirect_call_byte_count)
             .ok_or_else(invalid)?;
+        let expected_result_shape = match (call.requirement.result, call.scalar_type) {
+            (psi_terminal::ClosedConformanceCallableResult::Unit, None) => None,
+            (
+                psi_terminal::ClosedConformanceCallableResult::I32,
+                Some(psi_core::ScalarType::Integer(integer)),
+            ) if integer.sign() == psi_core::IntegerSign::Signed && integer.bits() == 32 => {
+                Some(ValueShape::integer(4, 4))
+            }
+            (
+                psi_terminal::ClosedConformanceCallableResult::Bool,
+                Some(psi_core::ScalarType::Boolean),
+            ) => Some(ValueShape::integer(1, 1)),
+            _ => return Err(invalid()),
+        };
+        let pointer = ValueShape::integer(
+            u16::try_from(target.pointer_size).map_err(|_| invalid())?,
+            u16::try_from(target.pointer_alignment).map_err(|_| invalid())?,
+        );
+        let expected_function_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![pointer, pointer],
+                result: expected_result_shape,
+            },
+        )
+        .map_err(|_| invalid())?;
+        let expected_dispatch_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![pointer],
+                result: expected_result_shape,
+            },
+        )
+        .map_err(|_| invalid())?;
         if end > function.bytes.len()
             || call_end > end
             || !function.provenance.operations.contains(&call.psi_operation)
@@ -217,6 +244,9 @@ fn validate_parameter_dispatches(
                 != call.requirement.slot.checked_mul(8).ok_or_else(invalid)?
             || call.parameter.owner != function.machine
             || call.parameter.trait_identity != call.requirement.declaring_trait_identity
+            || call.source_value.is_some() != call.scalar_type.is_some()
+            || call.function_call_plan != expected_function_plan
+            || call.dispatch_call_plan != expected_dispatch_plan
             || call
                 .parameter
                 .requirements

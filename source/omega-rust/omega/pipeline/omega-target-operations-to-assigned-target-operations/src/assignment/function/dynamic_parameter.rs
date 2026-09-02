@@ -7,23 +7,59 @@ pub(super) fn assign(
     operation: &TargetOperation,
     target: NativeTarget,
 ) -> Result<AssignedOperation, AssignmentError> {
-    let TargetOperation::ReturnDynamicParameterScalarCall {
+    let (
         psi_edge,
         psi_operation,
-        source_value,
-        scalar_type,
+        scalar_result,
         parameter_abi,
         requirement,
         function_call_plan,
         dispatch_call_plan,
         table_slot_byte_offset,
-    } = operation
-    else {
-        unreachable!("dynamic-parameter assignment receives only its exact target role")
+    ) = match operation {
+        TargetOperation::ReturnDynamicParameterScalarCall {
+            psi_edge,
+            psi_operation,
+            source_value,
+            scalar_type,
+            parameter_abi,
+            requirement,
+            function_call_plan,
+            dispatch_call_plan,
+            table_slot_byte_offset,
+        } => (
+            *psi_edge,
+            *psi_operation,
+            Some((*source_value, *scalar_type)),
+            parameter_abi,
+            requirement,
+            function_call_plan,
+            dispatch_call_plan,
+            *table_slot_byte_offset,
+        ),
+        TargetOperation::DynamicParameterUnitCall {
+            psi_edge,
+            psi_operation,
+            parameter_abi,
+            requirement,
+            function_call_plan,
+            dispatch_call_plan,
+            table_slot_byte_offset,
+        } => (
+            *psi_edge,
+            *psi_operation,
+            None,
+            parameter_abi,
+            requirement,
+            function_call_plan,
+            dispatch_call_plan,
+            *table_slot_byte_offset,
+        ),
+        _ => unreachable!("dynamic-parameter assignment receives only its exact target role"),
     };
     let invalid = || AssignmentError::DynamicDescriptorAssignmentMismatch {
         machine: function.machine,
-        operation: *psi_operation,
+        operation: psi_operation,
     };
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
@@ -31,30 +67,33 @@ pub(super) fn assign(
     let result_shape = function_call_plan
         .result
         .as_ref()
-        .map(|placement| placement.shape)
-        .ok_or_else(invalid)?;
-    let result_matches = match (requirement.result, scalar_type) {
+        .map(|placement| placement.shape);
+    let result_matches = match (requirement.result, scalar_result, result_shape) {
         (
             psi_terminal::ClosedConformanceCallableResult::I32,
-            psi_core::ScalarType::Integer(integer),
+            Some((_, psi_core::ScalarType::Integer(integer))),
+            Some(result_shape),
         ) => {
             integer.carrier() == psi_core::IntegerCarrier::Fixed
                 && integer.sign() == psi_core::IntegerSign::Signed
                 && integer.bits() == 32
                 && result_shape == ValueShape::integer(4, 4)
         }
-        (psi_terminal::ClosedConformanceCallableResult::Bool, psi_core::ScalarType::Boolean) => {
-            result_shape == ValueShape::integer(1, 1)
-        }
+        (
+            psi_terminal::ClosedConformanceCallableResult::Bool,
+            Some((_, psi_core::ScalarType::Boolean)),
+            Some(result_shape),
+        ) => result_shape == ValueShape::integer(1, 1),
+        (psi_terminal::ClosedConformanceCallableResult::Unit, None, None) => true,
         _ => false,
     };
     let function_signature = CallSignature {
         parameters: vec![pointer_shape, pointer_shape],
-        result: Some(result_shape),
+        result: result_shape,
     };
     let dispatch_signature = CallSignature {
         parameters: vec![pointer_shape],
-        result: Some(result_shape),
+        result: result_shape,
     };
     if !result_matches
         || function_call_plan.policy != CallingPolicy::native_for_target(target)
@@ -72,7 +111,7 @@ pub(super) fn assign(
             .requirements
             .get(usize::try_from(requirement.slot).map_err(|_| invalid())?)
             != Some(requirement)
-        || requirement.slot.checked_mul(u32::from(pointer_size)) != Some(*table_slot_byte_offset)
+        || requirement.slot.checked_mul(u32::from(pointer_size)) != Some(table_slot_byte_offset)
         || function_call_plan.result != dispatch_call_plan.result
     {
         return Err(invalid());
@@ -95,21 +134,35 @@ pub(super) fn assign(
             target: MachineRegister::Aarch64X(16),
         },
     };
-    Ok(AssignedOperation::ReturnDynamicParameterScalarCall {
-        psi_edge: *psi_edge,
-        psi_operation: *psi_operation,
-        source_value: *source_value,
-        scalar_type: *scalar_type,
-        parameter_abi: AssignedDynamicDescriptorParameterAbi {
-            parameter: parameter_abi.parameter.clone(),
-            instance,
-            table,
-        },
-        requirement: requirement.clone(),
-        function_call_plan: function_call_plan.clone(),
-        dispatch_call_plan: dispatch_call_plan.clone(),
-        table_slot_byte_offset: *table_slot_byte_offset,
-        mechanism,
+    let parameter_abi = AssignedDynamicDescriptorParameterAbi {
+        parameter: parameter_abi.parameter.clone(),
+        instance,
+        table,
+    };
+    Ok(if let Some((source_value, scalar_type)) = scalar_result {
+        AssignedOperation::ReturnDynamicParameterScalarCall {
+            psi_edge,
+            psi_operation,
+            source_value,
+            scalar_type,
+            parameter_abi,
+            requirement: requirement.clone(),
+            function_call_plan: function_call_plan.clone(),
+            dispatch_call_plan: dispatch_call_plan.clone(),
+            table_slot_byte_offset,
+            mechanism,
+        }
+    } else {
+        AssignedOperation::DynamicParameterUnitCall {
+            psi_edge,
+            psi_operation,
+            parameter_abi,
+            requirement: requirement.clone(),
+            function_call_plan: function_call_plan.clone(),
+            dispatch_call_plan: dispatch_call_plan.clone(),
+            table_slot_byte_offset,
+            mechanism,
+        }
     })
 }
 
@@ -117,11 +170,13 @@ fn pointer_register(
     placement: &omega_calling_conventions::ValuePlacement,
     architecture: Architecture,
 ) -> Option<MachineRegister> {
-    let [omega_calling_conventions::ValueLocation::Register {
-        register,
-        value_byte_offset: 0,
-        byte_size,
-    }] = placement.locations.as_slice()
+    let [
+        omega_calling_conventions::ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size,
+        },
+    ] = placement.locations.as_slice()
     else {
         return None;
     };

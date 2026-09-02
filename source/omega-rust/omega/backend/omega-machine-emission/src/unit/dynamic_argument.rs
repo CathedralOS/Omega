@@ -40,7 +40,7 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
     operation_ordinal: usize,
     code_offset: usize,
 ) -> Result<ForwardedDynamicDescriptorCallRecord, EmissionError> {
-    let AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+    let (
         psi_operation,
         result,
         callee,
@@ -49,37 +49,80 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         copies,
         dynamic_arguments,
         claim_transfers,
-        ..
-    } = operation
-    else {
-        unreachable!("forwarded descriptor router supplied another operation")
+    ) = match operation {
+        AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+            psi_operation,
+            result,
+            callee,
+            call_plan,
+            result_home,
+            copies,
+            dynamic_arguments,
+            claim_transfers,
+            ..
+        } => (
+            *psi_operation,
+            Some(*result),
+            *callee,
+            call_plan,
+            Some(*result_home),
+            copies,
+            dynamic_arguments,
+            claim_transfers,
+        ),
+        AssignedUnitOperation::StructuralUnitCallWithDynamicArguments {
+            psi_operation,
+            callee,
+            call_plan,
+            copies,
+            dynamic_arguments,
+            claim_transfers,
+            ..
+        } => (
+            *psi_operation,
+            None,
+            *callee,
+            call_plan,
+            None,
+            copies,
+            dynamic_arguments,
+            claim_transfers,
+        ),
+        _ => unreachable!("forwarded descriptor router supplied another operation"),
     };
-    let invalid = || EmissionError::InvalidDynamicDescriptorCallCustody(*psi_operation);
-    let expected_result = super::unit_scalar_shape(result.value, result.scalar_type)?;
-    let Some(helper) = functions
-        .iter()
-        .find(|function| function.machine == *callee)
-    else {
+    let invalid = || EmissionError::InvalidDynamicDescriptorCallCustody(psi_operation);
+    let expected_result = result
+        .map(|result| super::unit_scalar_shape(result.value, result.scalar_type))
+        .transpose()?;
+    let Some(helper) = functions.iter().find(|function| function.machine == callee) else {
         return Err(invalid());
     };
-    let AssignedOperation::ReturnDynamicParameterScalarCall {
-        scalar_type,
-        parameter_abi,
-        function_call_plan,
-        ..
-    } = &helper.operation
-    else {
-        return Err(invalid());
+    let (helper_scalar_type, parameter_abi, function_call_plan) = match &helper.operation {
+        AssignedOperation::ReturnDynamicParameterScalarCall {
+            scalar_type,
+            parameter_abi,
+            function_call_plan,
+            ..
+        } => (Some(*scalar_type), parameter_abi, function_call_plan),
+        AssignedOperation::DynamicParameterUnitCall {
+            parameter_abi,
+            function_call_plan,
+            ..
+        } => (None, parameter_abi, function_call_plan),
+        _ => return Err(invalid()),
     };
     if !copies.is_empty()
         || dynamic_arguments.len() != 1
-        || *scalar_type != result.scalar_type
+        || helper_scalar_type != result.map(|result| result.scalar_type)
         || function_call_plan != call_plan
-        || result_home.defining_operation != *psi_operation
-        || result_home.source_value != result.value
-        || result_home.scalar_type != result.scalar_type
-        || result_home.shape != expected_result
-        || call_plan.result.as_ref().map(|placement| placement.shape) != Some(expected_result)
+        || result.zip(result_home).is_some_and(|(result, home)| {
+            home.defining_operation != psi_operation
+                || home.source_value != result.value
+                || home.scalar_type != result.scalar_type
+                || Some(home.shape) != expected_result
+        })
+        || result.is_some() != result_home.is_some()
+        || call_plan.result.as_ref().map(|placement| placement.shape) != expected_result
         || call_plan.parameters.len() != 2
         || parameter_abi.parameter != dynamic_arguments[0].custody.target
     {
@@ -90,7 +133,7 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
     for (ordinal, argument) in dynamic_arguments.iter().enumerate() {
         if !argument
             .custody
-            .has_complete_custody(owner, *psi_operation, *callee)
+            .has_complete_custody(owner, psi_operation, callee)
         {
             return Err(invalid());
         }
@@ -122,17 +165,17 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         let (source_home_byte_offset, source_home_indirect, instance_offset, instance_count) =
             match target.architecture {
                 Architecture::X86_64 => {
-                    emit_x86_instance(bytes, argument, x86_homes, *psi_operation)?
+                    emit_x86_instance(bytes, argument, x86_homes, psi_operation)?
                 }
                 Architecture::Aarch64 => {
-                    emit_aarch64_instance(bytes, argument, aarch64_homes, *psi_operation)?
+                    emit_aarch64_instance(bytes, argument, aarch64_homes, psi_operation)?
                 }
             };
         let table_address = match target.architecture {
             Architecture::X86_64 => emit_x86_table_address(bytes, argument.table_destination)?,
             Architecture::Aarch64 => emit_aarch64_table_address(bytes, argument.table_destination)?,
         };
-        let adapters = build_adapters(argument, target, functions, *psi_operation)?;
+        let adapters = build_adapters(argument, target, functions, psi_operation)?;
         emitted_arguments.push(ForwardedDynamicDescriptorArgumentRecord {
             custody: argument.custody.clone(),
             instance: target_instance(argument, instance_placement.clone()),
@@ -152,8 +195,8 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         Architecture::X86_64 => {
             emit_x86_64_unit_call(
                 bytes,
-                CallSiteOwner::Operation(*psi_operation),
-                *callee,
+                CallSiteOwner::Operation(psi_operation),
+                callee,
                 &[],
                 target,
                 x86_homes,
@@ -165,8 +208,8 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         Architecture::Aarch64 => {
             emit_aarch64_unit_call(
                 bytes,
-                CallSiteOwner::Operation(*psi_operation),
-                *callee,
+                CallSiteOwner::Operation(psi_operation),
+                callee,
                 &[],
                 aarch64_homes,
                 &[],
@@ -177,8 +220,8 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
     }
     let relocation = internal_calls.get(relocation_index).ok_or_else(invalid)?;
     if internal_calls.len() != relocation_index + 1
-        || relocation.owner != CallSiteOwner::Operation(*psi_operation)
-        || relocation.target != *callee
+        || relocation.owner != CallSiteOwner::Operation(psi_operation)
+        || relocation.target != callee
         || relocation.scalar_stack.is_some()
     {
         return Err(invalid());
@@ -188,18 +231,22 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         Architecture::X86_64 => (relocation.offset.checked_sub(1).ok_or_else(invalid)?, 5),
         Architecture::Aarch64 => (relocation.offset, 4),
     };
-    let result_record = emit_unit_scalar_result(
-        bytes,
-        target.architecture,
-        *psi_operation,
-        call_plan,
-        *result_home,
-    )?;
+    let result_record = result_home
+        .map(|result_home| {
+            emit_unit_scalar_result(
+                bytes,
+                target.architecture,
+                psi_operation,
+                call_plan,
+                result_home,
+            )
+        })
+        .transpose()?;
     Ok(ForwardedDynamicDescriptorCallRecord {
-        psi_operation: *psi_operation,
-        semantic_result: *result,
+        psi_operation,
+        semantic_result: result,
         result: result_record,
-        callee: *callee,
+        callee,
         call_plan: call_plan.clone(),
         dynamic_arguments: emitted_arguments,
         claim_transfers: claim_transfers.clone(),
@@ -277,26 +324,54 @@ fn build_adapters(
                 },
             )
             .map_err(|_| invalid())?;
-            let realization_abi = realization
-                .mixed_structural_scalar_abi
-                .as_ref()
-                .ok_or_else(invalid)?;
-            if !realization_abi.scalar_parameters.is_empty()
-                || realization_abi.structural_parameters.len() != 1
-                || realization_abi.structural_parameters[0].structural_type
-                    != argument.instance.structural_type
-                || realization_abi.structural_parameters[0].access != argument.instance.access
-                || realization_abi.structural_parameters[0].shape != realization_parameter_shape
-                || realization_abi.call_plan != expected_realization_call_plan
-                || realization_abi.result.placement
-                    != *expected_realization_call_plan
-                        .result
+            let realization_call_plan = match (&realization.operation, callable.result) {
+                (
+                    AssignedOperation::UnitBody(body),
+                    psi_terminal::ClosedConformanceCallableResult::Unit,
+                ) => {
+                    let [parameter] = body.parameters.as_slice() else {
+                        return Err(invalid());
+                    };
+                    if !body.scalar_parameters.is_empty()
+                        || parameter.structural_type != argument.instance.structural_type
+                        || parameter.access != argument.instance.access
+                        || parameter.shape != realization_parameter_shape
+                        || body.call_plan != expected_realization_call_plan
+                    {
+                        return Err(invalid());
+                    }
+                    body.call_plan.clone()
+                }
+                (
+                    _,
+                    psi_terminal::ClosedConformanceCallableResult::I32
+                    | psi_terminal::ClosedConformanceCallableResult::Bool,
+                ) => {
+                    let realization_abi = realization
+                        .mixed_structural_scalar_abi
                         .as_ref()
-                        .ok_or_else(invalid)?
-            {
-                return Err(invalid());
-            }
-            let realization_call_plan = realization_abi.call_plan.clone();
+                        .ok_or_else(invalid)?;
+                    if !realization_abi.scalar_parameters.is_empty()
+                        || realization_abi.structural_parameters.len() != 1
+                        || realization_abi.structural_parameters[0].structural_type
+                            != argument.instance.structural_type
+                        || realization_abi.structural_parameters[0].access
+                            != argument.instance.access
+                        || realization_abi.structural_parameters[0].shape
+                            != realization_parameter_shape
+                        || realization_abi.call_plan != expected_realization_call_plan
+                        || realization_abi.result.placement
+                            != *expected_realization_call_plan
+                                .result
+                                .as_ref()
+                                .ok_or_else(invalid)?
+                    {
+                        return Err(invalid());
+                    }
+                    realization_abi.call_plan.clone()
+                }
+                _ => return Err(invalid()),
+            };
             let identity = ForwardedDynamicDescriptorAdapterIdentity {
                 application: application.commitment,
                 row_index: u32::try_from(row_index).map_err(|_| invalid())?,
@@ -346,6 +421,9 @@ fn assigned_result_matches(
         ) => true,
         (AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore { scalar, .. }, result) => {
             assigned_result_matches(scalar, result)
+        }
+        (AssignedOperation::UnitBody(_), psi_terminal::ClosedConformanceCallableResult::Unit) => {
+            true
         }
         _ => false,
     }

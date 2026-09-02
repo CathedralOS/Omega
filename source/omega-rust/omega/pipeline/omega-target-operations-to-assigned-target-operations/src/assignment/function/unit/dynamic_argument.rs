@@ -11,10 +11,10 @@ pub(super) fn assign(
     body: &omega_target_operations::TargetUnitBody,
     target: NativeTarget,
     psi_operation: OperationId,
-    result: omega_target_operations::AbstractResult,
+    result: Option<omega_target_operations::AbstractResult>,
     callee: MachineId,
     call_plan: &omega_calling_conventions::CallPlan,
-    result_home: omega_target_operations::TargetUnitScalarHomeRequirement,
+    result_home: Option<omega_target_operations::TargetUnitScalarHomeRequirement>,
     structural_arguments: &[omega_target_operations::TargetStructuralArgument],
     dynamic_arguments: &[TargetDynamicDescriptorArgument],
     claim_transfers: &[ClaimTransfer],
@@ -30,14 +30,16 @@ pub(super) fn assign(
     if !structural_arguments.is_empty() || dynamic_arguments.is_empty() {
         return Err(invalid());
     }
-    let result_shape = match result.scalar_type {
-        ScalarType::Boolean => ValueShape::integer(1, 1),
-        ScalarType::Integer(integer_type) => {
-            super::scalar_call::fixed_integer_shape(result.value, integer_type)
-                .map_err(|_| invalid())?
-        }
-        ScalarType::IeeeFloat(_) => return Err(invalid()),
-    };
+    let result_shape = result
+        .map(|result| match result.scalar_type {
+            ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
+            ScalarType::Integer(integer_type) => {
+                super::scalar_call::fixed_integer_shape(result.value, integer_type)
+                    .map_err(|_| invalid())
+            }
+            ScalarType::IeeeFloat(_) => Err(invalid()),
+        })
+        .transpose()?;
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
@@ -46,17 +48,20 @@ pub(super) fn assign(
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters: vec![pointer_shape; parameter_count],
-            result: Some(result_shape),
+            result: result_shape,
         },
     )
     .map_err(|_| invalid())?;
     if &expected_plan != call_plan
-        || call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape)
+        || call_plan.result.as_ref().map(|placement| placement.shape) != result_shape
         || call_plan.parameters.len() != parameter_count
-        || result_home.defining_operation != psi_operation
-        || result_home.source_value != result.value
-        || result_home.scalar_type != result.scalar_type
-        || result_home.shape != result_shape
+        || result.zip(result_home).is_some_and(|(result, home)| {
+            home.defining_operation != psi_operation
+                || home.source_value != result.value
+                || home.scalar_type != result.scalar_type
+                || Some(home.shape) != result_shape
+        })
+        || result.is_some() != result_home.is_some()
     {
         return Err(invalid());
     }
@@ -143,27 +148,45 @@ pub(super) fn assign(
             })
         })
         .collect::<Result<Vec<_>, AssignmentError>>()?;
-    let result_home = super::scalar_call::allocate_unit_scalar_home(
-        result_home,
-        assigned_homes,
-        next_home,
-        AssignmentError::UnitScalarCallSourceMismatch(result.value),
-    )?;
+    let assigned_result_home = result
+        .zip(result_home)
+        .map(|(result, result_home)| {
+            super::scalar_call::allocate_unit_scalar_home(
+                result_home,
+                assigned_homes,
+                next_home,
+                AssignmentError::UnitScalarCallSourceMismatch(result.value),
+            )
+        })
+        .transpose()?;
 
-    Ok(
-        AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+    Ok(match (result, assigned_result_home) {
+        (Some(result), Some(result_home)) => {
+            AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+                psi_operation,
+                result,
+                callee,
+                call_plan: call_plan.clone(),
+                result_home,
+                copies: Vec::new(),
+                dynamic_arguments,
+                claim_transfers: claim_transfers.to_vec(),
+                requirement_obligations: requirement_obligations.to_vec(),
+                crash_continuations: crash_continuations.to_vec(),
+            }
+        }
+        (None, None) => AssignedUnitOperation::StructuralUnitCallWithDynamicArguments {
             psi_operation,
-            result,
             callee,
             call_plan: call_plan.clone(),
-            result_home,
             copies: Vec::new(),
             dynamic_arguments,
             claim_transfers: claim_transfers.to_vec(),
             requirement_obligations: requirement_obligations.to_vec(),
             crash_continuations: crash_continuations.to_vec(),
         },
-    )
+        _ => return Err(invalid()),
+    })
 }
 
 fn exact_pointer_register(

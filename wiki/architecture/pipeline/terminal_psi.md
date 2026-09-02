@@ -776,9 +776,11 @@ execution resolve the same rows without allocating a value ID or result home.
 Direct-selection forwarding remains outside Terminal because the descriptor-
 argument source vocabulary currently names only rebound descriptors and inbound
 parameters. The producer rejects that case rather than relabeling it. The
-Terminal-to-abstract boundary also rejects both dynamic Unit variants until a
-target-neutral table/adapter carrier exists, so this rung claims no native
-execution.
+Terminal-to-abstract boundary retains both dynamic Unit variants without a
+scalar definition. Local rebound dispatch and the exactly-once forwarded form
+now cross target lowering, assignment, native emission, object/image replay,
+and installation. The forwarded form remains two explicit roles: a result-less
+outer descriptor call and a result-less helper parameter-slot call.
 
 The same closed application now admits one exact mutation-bearing callable in
 Terminal form. Its checked row carries a primitive-field literal store through

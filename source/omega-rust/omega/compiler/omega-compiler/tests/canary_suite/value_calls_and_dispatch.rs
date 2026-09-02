@@ -1273,13 +1273,12 @@ fn assert_boolean_forwarded_native_custody(report: &CompileReport, target: &str)
     let [(caller, call)] = forwarded.as_slice() else {
         panic!("{target} should retain one forwarded Boolean result call")
     };
+    let semantic_result = call.semantic_result.expect("Boolean semantic result");
+    let result = call.result.as_ref().expect("Boolean physical result");
+    assert_eq!(semantic_result.scalar_type, psi_core::ScalarType::Boolean);
+    assert_eq!(result.home.scalar_type, psi_core::ScalarType::Boolean);
     assert_eq!(
-        call.semantic_result.scalar_type,
-        psi_core::ScalarType::Boolean
-    );
-    assert_eq!(call.result.home.scalar_type, psi_core::ScalarType::Boolean);
-    assert_eq!(
-        call.result.home.shape,
+        result.home.shape,
         omega_calling_conventions::ValueShape::integer(1, 1)
     );
     assert!(object.functions().iter().any(|function| {

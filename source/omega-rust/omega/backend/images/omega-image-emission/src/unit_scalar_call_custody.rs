@@ -134,12 +134,14 @@ fn validate_home_roster(
             function
                 .forwarded_dynamic_descriptor_calls
                 .iter()
-                .map(|call| {
-                    (
-                        call.operation_ordinal,
-                        CallSiteOwner::Operation(call.psi_operation),
-                        &call.result,
-                    )
+                .filter_map(|call| {
+                    call.result.as_ref().map(|result| {
+                        (
+                            call.operation_ordinal,
+                            CallSiteOwner::Operation(call.psi_operation),
+                            result,
+                        )
+                    })
                 }),
         )
         .collect::<Vec<_>>();
@@ -517,13 +519,14 @@ pub(super) fn exact_preceding_unit_scalar_home_producer_count(
         .forwarded_dynamic_descriptor_calls
         .iter()
         .filter(|producer| {
-            producer.result.home == home
-                && producer.operation_ordinal < consumer_operation_ordinal
-                && producer
-                    .result
-                    .code_offset
-                    .checked_add(producer.result.byte_count)
-                    .is_some_and(|end| end <= consumer_code_offset)
+            producer.result.as_ref().is_some_and(|result| {
+                result.home == home
+                    && producer.operation_ordinal < consumer_operation_ordinal
+                    && result
+                        .code_offset
+                        .checked_add(result.byte_count)
+                        .is_some_and(|end| end <= consumer_code_offset)
+            })
         })
         .count();
     internal + foreign + dynamic + forwarded

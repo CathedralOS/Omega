@@ -372,7 +372,7 @@ fn emit_function(
     let mut internal_unit_scalar_calls = Vec::new();
     let mut installed_provider_unit_scalar_calls = Vec::new();
     let mut dynamic_calls = Vec::new();
-    let mut dynamic_parameter_scalar_calls = Vec::new();
+    let mut dynamic_parameter_calls = Vec::new();
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_scalar_homes = Vec::new();
     let mut unit_integer_constants = Vec::new();
@@ -462,9 +462,10 @@ fn emit_function(
             unit_affine_cleanup = emitted.affine_cleanup;
             emitted.bytes
         }
-        AssignedOperation::ReturnDynamicParameterScalarCall { .. } => {
+        AssignedOperation::ReturnDynamicParameterScalarCall { .. }
+        | AssignedOperation::DynamicParameterUnitCall { .. } => {
             let emitted = dynamic_parameter::emit(&function.operation, function.machine, target)?;
-            scalar_stack_eligible = true;
+            scalar_stack_eligible = emitted.record.scalar_type.is_some();
             semantic_code_attribution.push(SemanticCodeAttribution {
                 site: SemanticCodeSite::Operation(emitted.record.psi_operation),
                 operation_ordinal: emitted.record.operation_ordinal,
@@ -477,7 +478,7 @@ fn emit_function(
                 code_offset: emitted.return_offset,
                 byte_count: emitted.return_byte_count,
             });
-            dynamic_parameter_scalar_calls.push(emitted.record);
+            dynamic_parameter_calls.push(emitted.record);
             emitted.bytes
         }
         operation @ AssignedOperation::ReturnStructuralCall { .. } => {
@@ -1163,7 +1164,7 @@ fn emit_function(
         internal_unit_scalar_calls,
         installed_provider_unit_scalar_calls,
         dynamic_calls,
-        dynamic_parameter_scalar_calls,
+        dynamic_parameter_calls,
         forwarded_dynamic_descriptor_calls,
         unit_scalar_homes,
         unit_integer_constants,
@@ -1410,7 +1411,7 @@ pub enum EmissionError {
     InvalidMixedStructuralScalarFunctionAbi(MachineId),
     InvalidDynamicDescriptorCallCustody(psi_core::OperationId),
     InvalidDynamicCallCustody(psi_core::OperationId),
-    InvalidDynamicParameterScalarCallCustody(psi_core::OperationId),
+    InvalidDynamicParameterCallCustody(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),
     UnsupportedAggregatePlacement,
     AggregatePlacementCoverageMismatch,

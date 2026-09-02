@@ -156,11 +156,11 @@ descriptor arguments, and parameter-slot dispatch. The selected native
 lowerer chooses the `{data, table}` entry placement, generates role-identified
 erased-data adapters, and emits distinct forwarded tables. Object and image
 replay bind caller-to-table, table-to-adapter, and adapter-to-realization
-relocations. Canonical installation format 63 retains the application/row/
+relocations. Canonical installation format 64 retains the application/row/
 realization identities and exact code/data spans needed to rejoin those facts.
-Its forwarding rows additionally retain the semantic scalar result and exact
-result/home carrier; they do not invent Terminal machine identities for
-native-only adapters. The bounded mutable form additionally carries `&mut
+Its forwarding rows retain an exact semantic and physical scalar result when
+one exists, while Unit rows explicitly retain neither; they do not invent
+Terminal machine identities for native-only adapters. The bounded mutable form additionally carries `&mut
 self` as one no-copy pointer and replays one Boolean or fixed-integer literal
 store into either a direct field or a primitive field one record projection
 below it, followed by an independently identified direct scalar field read and
@@ -172,9 +172,13 @@ they do not pass through an invented integer comparison.
 Local rebound Unit requirements use the same descriptor/table/receiver call
 record without a result carrier. Target assignment reserves only the aligned
 two-word descriptor region; machine and object replay require the call plan to
-have no result and publish no scalar home. Function parameter evidence retains
-authored access, so a borrowed receiver is not mistaken for an owned affine
-value at return. Forwarded Unit descriptors remain outside this native slice.
+have no result and publish no scalar home. Forwarded Unit requirements use the
+same result-neutral rule across two distinct roles: the attached caller
+materializes the descriptor and calls the transparent helper, and the helper
+calls through its incoming table slot before returning Unit. The generated
+adapter reads the realization ABI from the Unit body's native call plan.
+Function parameter evidence retains authored access, so a borrowed receiver is
+not mistaken for an owned affine value at return.
 
 D32 makes this boundary the owner of physical children for every settled
 boundary occurrence. The canonical Terminal artifact remains immutable while

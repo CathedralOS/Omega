@@ -35,6 +35,31 @@ fn machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
             transition { _ -> result }
         }
     "#;
+    machine_plan_from_source(source, target)
+}
+
+fn unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    machine_plan_from_source(
+        r#"
+            trait Touch { machine touch(&self); }
+            data Item { value: i32; }
+            Primary: Item satisfies Touch { machine touch(&self) {} }
+            data Main { decoy: Item; selected: Item; }
+            machine Main::run(&mut self) {
+                let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+                erased = &self.selected as &dyn Item::Primary;
+                forward(erased);
+            }
+            machine forward(erased: &dyn Touch) { erased.touch(); }
+        "#,
+        target,
+    )
+}
+
+fn machine_plan_from_source(
+    source: &str,
+    target: NativeTarget,
+) -> omega_machine_code::MachineCodePlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
@@ -50,6 +75,57 @@ fn machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
         lower_to_target_operations(&abstract_plan, target).expect("lower target operations");
     let assigned = assign_registers(&target_plan).expect("assign target operations");
     emit_machine_code(&assigned).expect("emit caller and helper")
+}
+
+#[test]
+fn object_image_and_installation_replay_result_less_forwarding() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = unit_machine_plan(target);
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .unwrap();
+        let [call] = caller.forwarded_dynamic_descriptor_calls.as_slice() else {
+            panic!("one result-less forwarded call expected")
+        };
+        assert!(call.semantic_result.is_none());
+        assert!(call.result.is_none());
+        assert!(caller.unit_scalar_homes.is_empty());
+        let helper = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == call.callee)
+            .unwrap();
+        let [parameter_call] = helper.dynamic_parameter_calls.as_slice() else {
+            panic!("one helper parameter-slot call expected")
+        };
+        assert!(parameter_call.source_value.is_none());
+        assert!(parameter_call.scalar_type.is_none());
+
+        let object = build_object_artifact(&plan).expect("replay result-less object evidence");
+        let image = emit_executable_image(&object, 3).expect("link result-less forwarded image");
+        validate_executable_image(&object, &image).expect("replay result-less linked image");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("build result-less installation");
+        let [installed_call] = installation.forwarded_dynamic_descriptor_calls() else {
+            panic!("one installed result-less forwarded call expected")
+        };
+        assert!(installed_call.semantic_result.is_none());
+        assert!(installed_call.result.is_none());
+        let [installed_parameter_call] = installation.dynamic_parameter_calls() else {
+            panic!("one installed result-less parameter call expected")
+        };
+        assert!(installed_parameter_call.source_value.is_none());
+        let encoded = encode_installation_record(&installation).expect("encode installation");
+        assert_eq!(
+            decode_installation_record(&encoded),
+            Ok(installation.clone())
+        );
+        validate_installation_record(&installation, &image)
+            .expect("replay result-less installed evidence");
+    }
 }
 
 #[test]
@@ -131,9 +207,9 @@ fn object_construction_binds_forwarded_tables_through_adapters() {
                 .find(|function| function.machine == caller.machine)
                 .expect("installed caller")
                 .unit_scalar_homes
-                .contains(&installed_call.result.home)
+                .contains(&installed_call.result.as_ref().unwrap().home)
         );
-        assert_eq!(installation.dynamic_parameter_scalar_calls().len(), 1);
+        assert_eq!(installation.dynamic_parameter_calls().len(), 1);
         let bytes = encode_installation_record(&installation).expect("encode installation");
         assert_eq!(decode_installation_record(&bytes), Ok(installation.clone()));
         validate_installation_record(&installation, &image)
@@ -160,6 +236,51 @@ fn object_construction_rejects_forwarded_adapter_byte_drift() {
         build_object_artifact(&plan),
         Err(ObjectError::InvalidForwardedDynamicDescriptorEvidence {
             caller: caller_id,
+            operation,
+        })
+    );
+}
+
+#[test]
+fn object_construction_rejects_fabricated_results_on_unit_forwarding() {
+    let mut plan = unit_machine_plan(NativeTarget::linux_x64());
+    let caller = plan
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let call = caller
+        .forwarded_dynamic_descriptor_calls
+        .first_mut()
+        .expect("result-less forwarded call");
+    call.semantic_result = Some(omega_abstract_operations::AbstractResult {
+        value: psi_core::ValueId::new(999).unwrap(),
+        scalar_type: psi_core::ScalarType::Boolean,
+    });
+    let caller_machine = caller.machine;
+    let operation = call.psi_operation;
+    assert_eq!(
+        build_object_artifact(&plan),
+        Err(ObjectError::InvalidForwardedDynamicDescriptorEvidence {
+            caller: caller_machine,
+            operation,
+        })
+    );
+
+    let mut plan = unit_machine_plan(NativeTarget::linux_x64());
+    let helper = plan
+        .functions
+        .iter_mut()
+        .find(|function| !function.dynamic_parameter_calls.is_empty())
+        .expect("forward helper");
+    let parameter_call = &mut helper.dynamic_parameter_calls[0];
+    parameter_call.scalar_type = Some(psi_core::ScalarType::Boolean);
+    let helper_machine = helper.machine;
+    let operation = parameter_call.psi_operation;
+    assert_eq!(
+        build_object_artifact(&plan),
+        Err(ObjectError::InvalidDynamicParameterCallEvidence {
+            caller: helper_machine,
             operation,
         })
     );
@@ -196,6 +317,8 @@ fn object_construction_rejects_forwarded_scalar_result_custody_drift() {
         .expect("entry caller");
     caller.forwarded_dynamic_descriptor_calls[0]
         .result
+        .as_mut()
+        .unwrap()
         .home
         .source_value = psi_core::ValueId::new(999).unwrap();
     assert_rejected(&drifted);
@@ -208,6 +331,8 @@ fn object_construction_rejects_forwarded_scalar_result_custody_drift() {
         .expect("entry caller");
     let result_offset = caller.forwarded_dynamic_descriptor_calls[0]
         .result
+        .as_ref()
+        .unwrap()
         .code_offset;
     caller.bytes[result_offset] ^= 1;
     assert_rejected(&drifted);

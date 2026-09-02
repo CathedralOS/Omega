@@ -6,7 +6,7 @@ use psi_terminal::ClosedConformanceApplicationCommitment;
 
 use super::{
     InstallationError, InstalledDynamicCall, InstalledDynamicConformanceSlot,
-    InstalledDynamicConformanceTable, InstalledDynamicParameterScalarCall,
+    InstalledDynamicConformanceTable, InstalledDynamicParameterCall,
     InstalledForwardedDynamicDescriptorAdapter, InstalledForwardedDynamicDescriptorCall,
     InstalledForwardedDynamicDescriptorSlot, InstalledForwardedDynamicDescriptorTable, Reader,
     internal_unit_scalar_call_codec::{decode_offset, encode_offset},
@@ -24,7 +24,7 @@ pub(super) fn encode_dynamic_conformance_custody(
     adapters: &[InstalledForwardedDynamicDescriptorAdapter],
     forwarded_tables: &[InstalledForwardedDynamicDescriptorTable],
     forwarded_calls: &[InstalledForwardedDynamicDescriptorCall],
-    parameter_calls: &[InstalledDynamicParameterScalarCall],
+    parameter_calls: &[InstalledDynamicParameterCall],
 ) -> Result<(), InstallationError> {
     push_u32(
         bytes,
@@ -156,12 +156,23 @@ pub(super) fn encode_dynamic_conformance_custody(
         push_u64(bytes, call.callee.get());
         bytes.extend_from_slice(&call.application_commitment.as_bytes());
         push_u64(bytes, call.source.get());
-        push_u64(bytes, call.semantic_result.value.get());
-        encode_scalar_type(bytes, call.semantic_result.scalar_type)?;
-        encode_unit_scalar_home(bytes, call.result.home)?;
-        encode_direct_placement(bytes, &call.result.source)?;
-        encode_offset(bytes, call.result.code_offset)?;
-        encode_offset(bytes, call.result.byte_count)?;
+        match (call.semantic_result, call.result.as_ref()) {
+            (None, None) => bytes.extend_from_slice(&[0; 8]),
+            (Some(semantic_result), Some(result)) => {
+                bytes.extend_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0]);
+                push_u64(bytes, semantic_result.value.get());
+                encode_scalar_type(bytes, semantic_result.scalar_type)?;
+                encode_unit_scalar_home(bytes, result.home)?;
+                encode_direct_placement(bytes, &result.source)?;
+                encode_offset(bytes, result.code_offset)?;
+                encode_offset(bytes, result.byte_count)?;
+            }
+            _ => {
+                return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
+                    call.machine,
+                ));
+            }
+        }
         push_u64(
             bytes,
             u64::try_from(call.text_offset).map_err(|_| {
@@ -178,23 +189,23 @@ pub(super) fn encode_dynamic_conformance_custody(
     push_u32(
         bytes,
         u32::try_from(parameter_calls.len())
-            .map_err(|_| InstallationError::TooManyDynamicParameterScalarCalls)?,
+            .map_err(|_| InstallationError::TooManyDynamicParameterCalls)?,
     );
     for call in parameter_calls {
         push_u64(bytes, call.machine.get());
         push_u64(bytes, call.operation.get());
-        push_u64(bytes, call.source_value.get());
+        push_u64(bytes, call.source_value.map_or(0, ValueId::get));
         push_u32(bytes, call.requirement_slot);
         push_u32(bytes, 0);
         push_u64(
             bytes,
             u64::try_from(call.text_offset)
-                .map_err(|_| InstallationError::InvalidDynamicParameterScalarCall(call.machine))?,
+                .map_err(|_| InstallationError::InvalidDynamicParameterCall(call.machine))?,
         );
         push_u64(
             bytes,
             u64::try_from(call.byte_count)
-                .map_err(|_| InstallationError::InvalidDynamicParameterScalarCall(call.machine))?,
+                .map_err(|_| InstallationError::InvalidDynamicParameterCall(call.machine))?,
         );
     }
     Ok(())
@@ -209,7 +220,7 @@ pub(super) fn decode_dynamic_conformance_custody(
         Vec<InstalledForwardedDynamicDescriptorAdapter>,
         Vec<InstalledForwardedDynamicDescriptorTable>,
         Vec<InstalledForwardedDynamicDescriptorCall>,
-        Vec<InstalledDynamicParameterScalarCall>,
+        Vec<InstalledDynamicParameterCall>,
     ),
     InstallationError,
 > {
@@ -389,7 +400,7 @@ pub(super) fn decode_dynamic_conformance_custody(
     }
     let forwarded_call_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyForwardedDynamicDescriptorCalls)?;
-    if forwarded_call_count > reader.remaining() / 158 {
+    if forwarded_call_count > reader.remaining() / 88 {
         return Err(InstallationError::UnexpectedEnd);
     }
     let mut forwarded_calls = Vec::with_capacity(forwarded_call_count);
@@ -407,17 +418,33 @@ pub(super) fn decode_dynamic_conformance_custody(
         let source = PlaceId::new(reader.u64()?).ok_or(
             InstallationError::InvalidForwardedDynamicDescriptorCall(machine),
         )?;
-        let semantic_result = omega_abstract_operations::AbstractResult {
-            value: ValueId::new(reader.u64()?).ok_or(
-                InstallationError::InvalidForwardedDynamicDescriptorCall(machine),
-            )?,
-            scalar_type: decode_scalar_type(reader)?,
-        };
-        let result = InternalUnitScalarCallResultRecord {
-            home: decode_unit_scalar_home(reader)?,
-            source: decode_direct_placement(reader)?,
-            code_offset: decode_offset(reader)?,
-            byte_count: decode_offset(reader)?,
+        let result_tag = reader.u8()?;
+        for _ in 0..7 {
+            if reader.u8()? != 0 {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+        }
+        let (semantic_result, result) = match result_tag {
+            0 => (None, None),
+            1 => (
+                Some(omega_abstract_operations::AbstractResult {
+                    value: ValueId::new(reader.u64()?).ok_or(
+                        InstallationError::InvalidForwardedDynamicDescriptorCall(machine),
+                    )?,
+                    scalar_type: decode_scalar_type(reader)?,
+                }),
+                Some(InternalUnitScalarCallResultRecord {
+                    home: decode_unit_scalar_home(reader)?,
+                    source: decode_direct_placement(reader)?,
+                    code_offset: decode_offset(reader)?,
+                    byte_count: decode_offset(reader)?,
+                }),
+            ),
+            _ => {
+                return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
+                    machine,
+                ));
+            }
         };
         let text_offset = usize::try_from(reader.u64()?)
             .map_err(|_| InstallationError::InvalidForwardedDynamicDescriptorCall(machine))?;
@@ -441,7 +468,7 @@ pub(super) fn decode_dynamic_conformance_custody(
         });
     }
     let parameter_call_count = usize::try_from(reader.u32()?)
-        .map_err(|_| InstallationError::TooManyDynamicParameterScalarCalls)?;
+        .map_err(|_| InstallationError::TooManyDynamicParameterCalls)?;
     if parameter_call_count > reader.remaining() / 48 {
         return Err(InstallationError::UnexpectedEnd);
     }
@@ -449,26 +476,21 @@ pub(super) fn decode_dynamic_conformance_custody(
     for _ in 0..parameter_call_count {
         let machine =
             MachineId::new(reader.u64()?).ok_or(InstallationError::ZeroFunctionIdentity)?;
-        let operation = OperationId::new(reader.u64()?).ok_or(
-            InstallationError::InvalidDynamicParameterScalarCall(machine),
-        )?;
-        let source_value = ValueId::new(reader.u64()?).ok_or(
-            InstallationError::InvalidDynamicParameterScalarCall(machine),
-        )?;
+        let operation = OperationId::new(reader.u64()?)
+            .ok_or(InstallationError::InvalidDynamicParameterCall(machine))?;
+        let source_value = ValueId::new(reader.u64()?);
         let requirement_slot = reader.u32()?;
         if reader.u32()? != 0 {
             return Err(InstallationError::NonzeroReservedField);
         }
         let text_offset = usize::try_from(reader.u64()?)
-            .map_err(|_| InstallationError::InvalidDynamicParameterScalarCall(machine))?;
+            .map_err(|_| InstallationError::InvalidDynamicParameterCall(machine))?;
         let byte_count = usize::try_from(reader.u64()?)
-            .map_err(|_| InstallationError::InvalidDynamicParameterScalarCall(machine))?;
+            .map_err(|_| InstallationError::InvalidDynamicParameterCall(machine))?;
         if byte_count == 0 {
-            return Err(InstallationError::InvalidDynamicParameterScalarCall(
-                machine,
-            ));
+            return Err(InstallationError::InvalidDynamicParameterCall(machine));
         }
-        parameter_calls.push(InstalledDynamicParameterScalarCall {
+        parameter_calls.push(InstalledDynamicParameterCall {
             machine,
             operation,
             source_value,

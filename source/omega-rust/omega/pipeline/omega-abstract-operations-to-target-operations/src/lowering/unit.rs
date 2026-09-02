@@ -4,6 +4,7 @@ mod body;
 mod boundary_call;
 mod conditional_exit;
 mod dynamic;
+mod dynamic_parameter;
 mod preflight;
 mod projected_argument;
 mod return_unit;
@@ -36,6 +37,9 @@ pub(super) fn lower_unit_function(
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
+    if let Some(lowered) = dynamic_parameter::lower(function, target)? {
+        return Ok(lowered);
+    }
     let bounded_conditional_exit = conditional_exit::has_bounded_shape(function);
     if !bounded_conditional_exit {
         validate_unit_function_shape(function)?;

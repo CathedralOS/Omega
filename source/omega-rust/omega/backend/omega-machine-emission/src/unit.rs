@@ -1300,10 +1300,14 @@ pub(super) fn emit_unit_body(
                     code_offset,
                 )?);
             }
-            AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+            operation @ (AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
                 psi_operation,
                 ..
-            } => {
+            }
+            | AssignedUnitOperation::StructuralUnitCallWithDynamicArguments {
+                psi_operation,
+                ..
+            }) => {
                 operation_site = Some(*psi_operation);
                 forwarded_dynamic_descriptor_calls.push(emit_forwarded_dynamic_descriptor_call(
                     operation,

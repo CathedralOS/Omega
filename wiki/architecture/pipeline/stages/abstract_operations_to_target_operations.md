@@ -158,6 +158,12 @@ relocation on x86-64 and AArch64. The exact three-block equality/exit
 continuation used by the direct rebound canary also reaches machine code and
 object replay. General attached-Unit CFG legalization remains open outside
 that explicitly bounded family.
+An exactly-once forwarded Unit descriptor also crosses this boundary without a
+fabricated result: the attached caller retains a
+`StructuralUnitCallWithDynamicArguments`, while the transparent helper becomes
+a function-level `DynamicParameterUnitCall`. Both reuse the scalar forwarding
+ABI planners with a `None` result shape; wider helper bodies and direct-
+selection descriptor sources remain fenced.
 Installed-provider scalar lowering currently admits one direct fixed signed
 `i32` parameter forwarded unchanged to one Unit-returning candidate. Wider or
 mixed scalars, computed arguments, runtime structural arguments in the same

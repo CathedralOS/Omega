@@ -31,7 +31,10 @@ pub(super) fn installed_forwarded_dynamic_scalar_result_is_canonical(
     function: &InstalledFunction,
     target: NativeTarget,
 ) -> bool {
-    let Some(result_shape) = scalar_home_shape(call.semantic_result.scalar_type) else {
+    let (Some(semantic_result), Some(result)) = (call.semantic_result, call.result.as_ref()) else {
+        return call.semantic_result.is_none() && call.result.is_none() && call.byte_count != 0;
+    };
+    let Some(result_shape) = scalar_home_shape(semantic_result.scalar_type) else {
         return false;
     };
     let Ok(pointer_bytes) = u16::try_from(target.pointer_size) else {
@@ -59,18 +62,18 @@ pub(super) fn installed_forwarded_dynamic_scalar_result_is_canonical(
     let Some(local_call_end) = local_call_offset.checked_add(call.byte_count) else {
         return false;
     };
-    let Some(result_end) = call.result.code_offset.checked_add(call.result.byte_count) else {
+    let Some(result_end) = result.code_offset.checked_add(result.byte_count) else {
         return false;
     };
 
-    call.semantic_result.value == call.result.home.source_value
-        && call.result.home.defining_operation == call.operation
-        && call.result.home.scalar_type == call.semantic_result.scalar_type
-        && call.result.home.shape == result_shape
-        && call.result.source == *expected_result
-        && function.unit_scalar_homes.contains(&call.result.home)
-        && call.result.byte_count != 0
-        && call.result.code_offset >= local_call_offset
+    semantic_result.value == result.home.source_value
+        && result.home.defining_operation == call.operation
+        && result.home.scalar_type == semantic_result.scalar_type
+        && result.home.shape == result_shape
+        && result.source == *expected_result
+        && function.unit_scalar_homes.contains(&result.home)
+        && result.byte_count != 0
+        && result.code_offset >= local_call_offset
         && result_end == local_call_end
 }
 
@@ -508,13 +511,13 @@ mod tests {
             application_commitment:
                 psi_terminal::ClosedConformanceApplicationCommitment::from_digest([1; 32]),
             source: PlaceId::new(3).expect("source"),
-            semantic_result: omega_abstract_operations::AbstractResult { value, scalar_type },
-            result: ForeignCallScalarResultRecord {
+            semantic_result: Some(omega_abstract_operations::AbstractResult { value, scalar_type }),
+            result: Some(ForeignCallScalarResultRecord {
                 home,
                 source: plan.result.expect("result placement"),
                 code_offset: 30,
                 byte_count: 10,
-            },
+            }),
             text_offset: 120,
             byte_count: 20,
         };
@@ -560,7 +563,8 @@ mod tests {
             ));
 
             let mut wrong_semantic_value = valid.clone();
-            wrong_semantic_value.semantic_result.value = ValueId::new(99).expect("different value");
+            wrong_semantic_value.semantic_result.as_mut().unwrap().value =
+                ValueId::new(99).expect("different value");
             assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
                 &wrong_semantic_value,
                 &function,
@@ -568,7 +572,11 @@ mod tests {
             ));
 
             let mut wrong_semantic_type = valid.clone();
-            wrong_semantic_type.semantic_result.scalar_type = match scalar_type {
+            wrong_semantic_type
+                .semantic_result
+                .as_mut()
+                .unwrap()
+                .scalar_type = match scalar_type {
                 ScalarType::Boolean => integer,
                 ScalarType::Integer(_) => ScalarType::Boolean,
                 ScalarType::IeeeFloat(_) => unreachable!(),
@@ -580,7 +588,8 @@ mod tests {
             ));
 
             let mut wrong_home = valid.clone();
-            wrong_home.result.home.source_value = ValueId::new(99).expect("different value");
+            wrong_home.result.as_mut().unwrap().home.source_value =
+                ValueId::new(99).expect("different value");
             assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
                 &wrong_home,
                 &function,
@@ -588,7 +597,7 @@ mod tests {
             ));
 
             let mut wrong_shape = valid.clone();
-            wrong_shape.result.home.shape = ValueShape::integer(8, 8);
+            wrong_shape.result.as_mut().unwrap().home.shape = ValueShape::integer(8, 8);
             assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
                 &wrong_shape,
                 &function,
@@ -604,7 +613,7 @@ mod tests {
             ));
 
             let mut wrong_placement = valid.clone();
-            wrong_placement.result.source.shape = ValueShape::integer(8, 8);
+            wrong_placement.result.as_mut().unwrap().source.shape = ValueShape::integer(8, 8);
             assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
                 &wrong_placement,
                 &function,
@@ -612,7 +621,7 @@ mod tests {
             ));
 
             let mut truncated_result = valid;
-            truncated_result.result.byte_count -= 1;
+            truncated_result.result.as_mut().unwrap().byte_count -= 1;
             assert!(!installed_forwarded_dynamic_scalar_result_is_canonical(
                 &truncated_result,
                 &function,
