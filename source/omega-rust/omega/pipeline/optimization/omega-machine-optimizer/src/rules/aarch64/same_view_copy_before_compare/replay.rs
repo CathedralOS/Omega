@@ -309,7 +309,7 @@ fn revision(
     inputs: &SameViewCopyInputs<'_>,
     functions: &[Aarch64SameViewCopyElisionFunction],
 ) -> Aarch64SameViewCopyElisionRevisionIdentity {
-    crate::rules::aarch64::elide_same_view_copy_before_return::revision_identity(
+    crate::rules::aarch64::same_view_copy_elision::revision_identity(
         inputs.source_identity,
         inputs.selected_identity,
         inputs.liveness_identity,

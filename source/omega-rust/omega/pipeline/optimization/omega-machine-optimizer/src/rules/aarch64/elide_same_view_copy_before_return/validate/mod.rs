@@ -10,7 +10,7 @@ mod roots;
 use omega_regalloc::{ValidatedLiveness, ValidatedSelectedAnalysis};
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
-use super::*;
+use crate::*;
 
 pub fn validate_aarch64_same_view_copy_elision<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -42,6 +42,6 @@ pub(crate) fn validate_from_inputs(
     if plan != expected {
         return Err(Aarch64SameViewCopyElisionError::ArtifactMismatch);
     }
-    let receipt = super::same_view_copy_elision_receipt(&plan);
+    let receipt = same_view_copy_elision_receipt(&plan);
     Ok(ValidatedAarch64SameViewCopyElision::new(plan, receipt))
 }

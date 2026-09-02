@@ -7,7 +7,7 @@ use crate::{
     Aarch64SameViewCopyInstructionDisposition,
 };
 
-use super::super::super::elide_same_view_copy_before_return::tests::fixture;
+use super::super::super::same_view_copy_elision::test_support::fixture;
 
 fn compute(
     fixture: &fixture::Fixture,

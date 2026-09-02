@@ -1,6 +1,6 @@
 use crate::Aarch64SameViewCopyElisionDecodeError;
 
-use super::super::super::elide_same_view_copy_before_return::tests::fixture;
+use super::super::super::same_view_copy_elision::test_support::fixture;
 
 #[test]
 fn codec_round_trip_and_malformed_envelopes_fail_closed() {

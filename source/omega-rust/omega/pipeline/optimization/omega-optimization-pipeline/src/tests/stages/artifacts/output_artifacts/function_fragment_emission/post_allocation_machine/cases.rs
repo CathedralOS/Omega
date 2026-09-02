@@ -55,6 +55,11 @@ pub(super) fn hosted_cases() -> Vec<HostedCase> {
             FixtureKind::ExactBinary,
             ExpectedActions::Zero,
         ),
+        (
+            Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1,
+            FixtureKind::ExactBinary,
+            ExpectedActions::Zero,
+        ),
     ] {
         cases.extend([
             arm64_case(rule, NativeTarget::linux_arm64(), fixture, actions),

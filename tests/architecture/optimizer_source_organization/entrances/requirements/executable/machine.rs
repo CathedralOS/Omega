@@ -46,6 +46,14 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_aarch64_same_view_copy_i64_before_compare_i64_left_operand",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_i64_right_operand/mod.rs",
+        coordination_marker: "pub fn optimize_aarch64_same_view_copy_i64_before_compare_i64_right_operand",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_i64_right_operand/validate.rs",
+        coordination_marker: "pub fn validate_aarch64_same_view_copy_i64_before_compare_i64_right_operand",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/mod.rs",
         coordination_marker: "pub fn optimize_aarch64_materialize_i64_with_shortest_movn_seed",
     },

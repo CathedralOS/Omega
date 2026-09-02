@@ -11,6 +11,7 @@ pub enum PostAllocationMachineRuleKind {
     Aarch64SameViewCopyElision,
     Aarch64SameViewCopyBeforeCompareZeroElision,
     Aarch64SameViewCopyBeforeCompareI64LeftOperandElision,
+    Aarch64SameViewCopyBeforeCompareI64RightOperandElision,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +38,7 @@ pub type PostAllocationMachineRuleCatalogEntry =
     OptimizationCatalogDescriptor<PostAllocationMachineRuleCatalogPayload>;
 
 /// Canonical post-allocation machine-rule order.
-pub const POST_ALLOCATION_MACHINE_RULE_CATALOG: [PostAllocationMachineRuleCatalogEntry; 8] = [
+pub const POST_ALLOCATION_MACHINE_RULE_CATALOG: [PostAllocationMachineRuleCatalogEntry; 9] = [
     PostAllocationMachineRuleCatalogEntry::new(
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
         PostAllocationMachineRuleCatalogPayload::new(
@@ -94,10 +95,17 @@ pub const POST_ALLOCATION_MACHINE_RULE_CATALOG: [PostAllocationMachineRuleCatalo
             PostAllocationMachineRuleKind::Aarch64SameViewCopyBeforeCompareI64LeftOperandElision,
         ),
     ),
+    PostAllocationMachineRuleCatalogEntry::new(
+        Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1,
+        PostAllocationMachineRuleCatalogPayload::new(
+            Architecture::Aarch64,
+            PostAllocationMachineRuleKind::Aarch64SameViewCopyBeforeCompareI64RightOperandElision,
+        ),
+    ),
 ];
 
 /// Compatibility order view derived from the owning descriptor table.
-pub const ORDERED_POST_ALLOCATION_MACHINE_RULES: [Optimization; 8] = [
+pub const ORDERED_POST_ALLOCATION_MACHINE_RULES: [Optimization; 9] = [
     POST_ALLOCATION_MACHINE_RULE_CATALOG[0].optimization(),
     POST_ALLOCATION_MACHINE_RULE_CATALOG[1].optimization(),
     POST_ALLOCATION_MACHINE_RULE_CATALOG[2].optimization(),
@@ -106,6 +114,7 @@ pub const ORDERED_POST_ALLOCATION_MACHINE_RULES: [Optimization; 8] = [
     POST_ALLOCATION_MACHINE_RULE_CATALOG[5].optimization(),
     POST_ALLOCATION_MACHINE_RULE_CATALOG[6].optimization(),
     POST_ALLOCATION_MACHINE_RULE_CATALOG[7].optimization(),
+    POST_ALLOCATION_MACHINE_RULE_CATALOG[8].optimization(),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,7 +1,7 @@
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 
-use super::super::*;
+use crate::*;
 
 pub(super) fn replay(
     inputs: &SameViewCopyInputs<'_>,
@@ -270,7 +270,7 @@ fn revision(
     inputs: &SameViewCopyInputs<'_>,
     functions: &[Aarch64SameViewCopyElisionFunction],
 ) -> Aarch64SameViewCopyElisionRevisionIdentity {
-    super::super::identity::revision_identity(
+    super::super::super::same_view_copy_elision::revision_identity(
         inputs.source_identity,
         inputs.selected_identity,
         inputs.liveness_identity,

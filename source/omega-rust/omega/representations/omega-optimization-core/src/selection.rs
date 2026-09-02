@@ -2,8 +2,8 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 14;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v14\0";
+const SELECTION_ENCODING_VERSION: u32 = 15;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v15\0";
 
 /// Closed execution phase for one explicitly named optimization. Phase
 /// projection routes a complete source-visible suite; it never replaces that
@@ -78,7 +78,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    19;
+    20;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -172,6 +172,11 @@ optimization_vocabulary! {
     Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1 = 19 => {
         case: "Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1",
         counter: "aarch64_elide_same_view_copy_i64_before_compare_i64_left_operand_v1",
+        phase: PostAllocationMachine
+    },
+    Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 = 20 => {
+        case: "Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1",
+        counter: "aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1",
         phase: PostAllocationMachine
     },
 }
@@ -392,6 +397,8 @@ mod tests {
     };
     use std::collections::BTreeSet;
 
+    mod identity_and_v15;
+
     #[test]
     fn authoritative_vocabulary_has_contiguous_tags_and_unique_nonempty_names() {
         // The descriptor macro generates both the enum and `ALL`; this test
@@ -512,16 +519,6 @@ mod tests {
             OptimizationSelections::decode(&old_version),
             Err(SelectionDecodeError::UnsupportedVersion(10))
         );
-    }
-
-    #[test]
-    fn identity_is_domain_stable_and_selection_sensitive() {
-        let empty = OptimizationSelections::default().identity();
-        let selected = OptimizationSelections::new([Optimization::ControlFlowCleanup])
-            .expect("unique selection")
-            .identity();
-        assert_ne!(empty, selected);
-        assert_eq!(empty, OptimizationSelections::default().identity());
     }
 
     #[test]

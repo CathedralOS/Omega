@@ -56,6 +56,20 @@ pub fn stage_optimized_aarch64_same_view_copy_before_compare_i64_left_operand_el
     )
 }
 
+pub fn stage_optimized_aarch64_same_view_copy_before_compare_i64_right_operand_elision_after_selected_lowering(
+    source: &StagedOptimizedRegisterHomesAfterSelectedLowering,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+) -> Result<
+    StagedOptimizedAarch64SameViewCopyElision,
+    OptimizedPostAllocationMachineOptimizationError,
+> {
+    stage(
+        source,
+        machine,
+        Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1,
+    )
+}
+
 pub fn validate_optimized_aarch64_same_view_copy_elision_after_selected_lowering_custody(
     source: &StagedOptimizedRegisterHomesAfterSelectedLowering,
     machine: &StagedOptimizedPostAllocationMachinePlan,

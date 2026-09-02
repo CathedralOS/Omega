@@ -8,9 +8,9 @@ use omega_selected_instructions::{
     SelectedInstructionKind,
 };
 
-use crate::PostAllocationMachineInstruction;
-
-use super::super::{Aarch64SameViewCopyElisionError, QualifiedPhysicalOperand};
+use crate::{
+    Aarch64SameViewCopyElisionError, PostAllocationMachineInstruction, QualifiedPhysicalOperand,
+};
 
 pub(super) struct PairEvidence {
     pub source: QualifiedPhysicalOperand,

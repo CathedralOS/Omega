@@ -1904,12 +1904,29 @@ decision. Only true language-semantic questions belong in
     compiler lowering does not produce the admitted same-view pair, so the
     compiler route honestly records zero actions on Linux and macOS AArch64;
     applied deletion remains proven at the machine-rule boundary.
+  - [x] Add the distinct ordered right-operand sibling
+    `Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1`. Its exact
+    adjacent-body descriptor admits only `CopyI64; CompareI64`, retains the
+    same-view/storage, footprint, liveness, and provenance requirements, and
+    binds the copy destination only to comparison operand one. The rule owns
+    its own contract, policy, independent validator, catalog row, build
+    selection, rollback name, and budget/corruption coverage; it shares only
+    the lower comparison-consumer mechanics and generic publication carrier.
+    The rule-neutral copy-elision artifact/codec moves out from under the
+    return rule into `same_view_copy_elision/artifact/`, with shared fixtures
+    under the adjacent `test_support/` rung, so no exact rule appears to own
+    another rule's wire format or tests. Artifact identity/codec V4 appends
+    policy tag `3`; selection identity V15 appends optimization tag `20`; the
+    revision domain remains V2 and downstream V9 frames learn the stable tag
+    without a schema fork. Linux and macOS AArch64 compiler publication
+    truthfully remains zero-action until ordinary lowering emits the admitted
+    pair; applied deletion remains proven at the machine-rule boundary.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
   compare/test selection, and scheduling where independently verifiable. The
   admitted same-view return-copy, before-compare-zero, and before-compare-I64-
-  left-operand cases are evidence for the first family, not completion of
-  general copy removal or a claim that current lowering produces any exact
-  candidate.
+  left- and right-operand cases are evidence for the first family, not
+  completion of general copy removal or a claim that current lowering produces
+  any exact candidate.
 - [x] Add target cost models as non-authoritative identities. The V1 entrance
   binds exact native-target identity to retained exact-or-bounded size
   knowledge while keeping latency explicitly unavailable. Machine-rule
@@ -2091,17 +2108,17 @@ unchecked rewrite or opt into lossy floating-point semantics.
   two-fusion AArch64 CBNZ fixture now pins a nonzero exact-success and
   first-over-boundary matrix for all five work axes; reauthenticated action
   corruption is independently refused in its named operational leaf, and its
-  direct publication crosses all eight shared custody mutations. True
-  Both exact AArch64 same-view copy-elision policies now have two-pair,
+  direct publication crosses all eight shared custody mutations.
+  All four exact AArch64 same-view copy-elision policies now have two-pair,
   independently replayed fixtures with exact usage `{5, 2, 2, 2, 3}` and
-  representable first-over failures on all five work axes. Both pin
+  representable first-over failures on all five work axes. All four pin
   applied/negative/equality outcomes, deterministic reconstruction,
   action/codec corruption, exact disabled/wrong-target routing, and all eight
-  generic publication-custody mutations. The before-compare-zero policy also
-  retains its distinct identity through Linux and macOS AArch64 object and
-  callable publication; current compiler-facing fixtures truthfully publish a
-  zero-action result rather than claiming a lowering-generated candidate.
-  True second-application idempotence remains open for all seven
+  generic publication-custody mutations. Each policy also retains its distinct
+  identity through Linux and macOS AArch64 object and callable publication;
+  current compiler-facing fixtures truthfully publish a zero-action result
+  rather than claiming a lowering-generated candidate.
+  True second-application idempotence remains open for all nine
   post-allocation machine rules: each
   publishes an immutable encoding-choice artifact, not a rewritten
   `PostAllocationMachinePlan` that it can honestly consume again.
@@ -2170,19 +2187,19 @@ unchecked rewrite or opt into lossy floating-point semantics.
   while pinning target and phase selections, encoding, ELF/COFF/Mach-O object
   form and text bytes, callable ABI, frameless exit policy, codecs, manifests,
   and deterministic container bytes. An adjacent post-allocation matrix now
-  covers all eight exact machine rules
-  across all 16 applicable hosted rule/OS pairs: Linux and Windows x64, plus
+  covers all nine exact machine rules
+  across all 18 applicable hosted rule/OS pairs: Linux and Windows x64, plus
   Linux and macOS Arm64. Every row runs twice and pins honest zero/nonzero
   action expectations, realization, encoding/layout manifests, fragment/text
   bytes, ELF/COFF/Mach-O containers, object artifacts, callable ABI/exit
-  policy, and exact selection custody. A closed eight-rule refusal matrix
+  policy, and exact selection custody. A closed nine-rule refusal matrix
   rejects each wrong architecture before execution. This still does not claim
   allocator or unwind completion:
   physical spill insertion, final frame layout, and unwind authority remain
   compiler prerequisites under P5 rather than an owner language decision.
 - [ ] Add versioned compile-time, memory, code-size, and runtime benchmarks.
 - [x] Publish exact-rule release notes and rollback procedures. The versioned
-  V1 inventory names all 19 canonical exact rules, phases, target
+  V1 inventory names all 20 canonical exact rules, phases, target
   applicability, experimental status, exact rollback spelling, supported
   compositions, and fail-closed carrier limits; its native-only runbook owns
   receipt capture, verification, and restoration.

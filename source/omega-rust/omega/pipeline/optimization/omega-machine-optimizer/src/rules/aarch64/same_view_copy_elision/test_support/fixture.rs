@@ -8,8 +8,7 @@ use omega_regalloc::{
     LivenessPosition,
 };
 use omega_register_model::{
-    RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
-    RegisterOperandAccess, RegisterUnitId, TargetRegisterEnvironmentIdentity,
+    RegisterConstraintCatalogIdentity, RegisterOperandAccess, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
 use omega_selected_instructions::{
@@ -37,6 +36,10 @@ use crate::{
 
 use super::super::SameViewCopyInputs;
 
+pub(crate) use super::{
+    compare_i64_right_operand_fixture, two_pair_compare_i64_right_operand_fixture,
+};
+
 pub(crate) struct Fixture {
     pub selected: SelectedInstructionPlan,
     pub selected_identity: SelectedInstructionPlanIdentity,
@@ -63,13 +66,6 @@ impl Fixture {
 
 pub(crate) fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(2, 1, 1, 1, 2).unwrap()
-}
-
-fn constraint() -> RegisterConstraintKey {
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Instruction,
-        variant: 0,
-    }
 }
 
 fn selected_operand(
@@ -127,7 +123,7 @@ fn alternative(
     }
 }
 
-pub(super) fn fixture() -> Fixture {
+pub(crate) fn fixture() -> Fixture {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
     let x0 = physical.model().view_named("x0").unwrap();
     let x30 = physical.model().view_named("x30").unwrap();
@@ -141,7 +137,7 @@ pub(super) fn fixture() -> Fixture {
     let copy = SelectedInstruction {
         id: copy_id,
         kind: SelectedInstructionKind::CopyI64,
-        constraint: constraint(),
+        constraint: super::constraint(),
         operands: vec![
             selected_operand(0, 1, RegisterOperandAccess::Use, x0.class, None),
             selected_operand(1, 2, RegisterOperandAccess::Def, x0.class, None),
@@ -157,7 +153,7 @@ pub(super) fn fixture() -> Fixture {
     let returned = SelectedInstruction {
         id: return_id,
         kind: SelectedInstructionKind::ReturnI64,
-        constraint: constraint(),
+        constraint: super::constraint(),
         operands: vec![selected_operand(
             0,
             2,
@@ -202,7 +198,7 @@ pub(super) fn fixture() -> Fixture {
         projected_structural_call_returns: vec![],
     };
     let selected_identity = SelectedInstructionPlanIdentity::from_bytes([2; 32]);
-    let through = sorted_units(x0.units.iter().chain(&x30.units).copied());
+    let through = super::sorted_units(x0.units.iter().chain(&x30.units).copied());
     let liveness = LivenessPlan {
         selected: selected_identity,
         optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"same-view-copy"),
@@ -328,7 +324,7 @@ pub(super) fn fixture() -> Fixture {
     }
 }
 
-pub(super) fn two_pair_fixture() -> Fixture {
+pub(crate) fn two_pair_fixture() -> Fixture {
     let mut fixture = fixture();
     let second_machine = MachineId::new(2).unwrap();
 
@@ -374,7 +370,7 @@ pub(crate) fn compare_fixture() -> Fixture {
         instruction: SelectedInstruction {
             id: return_id,
             kind: SelectedInstructionKind::ReturnUnit,
-            constraint: constraint(),
+            constraint: super::constraint(),
             operands: vec![],
             implicit_uses: x30.units.clone(),
             implicit_defs: pc.units.clone(),
@@ -387,7 +383,7 @@ pub(crate) fn compare_fixture() -> Fixture {
         psi_return_edge,
     };
 
-    let through = sorted_units(x0.units.iter().chain(&x30.units).copied());
+    let through = super::sorted_units(x0.units.iter().chain(&x30.units).copied());
     let live_block = &mut fixture.liveness.functions[0].blocks[0];
     let compare_live = &mut live_block.instructions[1];
     compare_live.virtual_uses = vec![VirtualRegisterId(2)];
@@ -545,7 +541,7 @@ pub(crate) fn compare_i64_left_operand_fixture() -> Fixture {
         },
     ];
 
-    let through = sorted_units(x0.units.iter().chain(&x1.units).chain(&x30.units).copied());
+    let through = super::sorted_units(x0.units.iter().chain(&x1.units).chain(&x30.units).copied());
     let live_block = &mut fixture.liveness.functions[0].blocks[0];
     live_block.instructions[0].virtual_live_in = vec![VirtualRegisterId(1), VirtualRegisterId(3)];
     live_block.instructions[0].virtual_live_out = vec![VirtualRegisterId(2), VirtualRegisterId(3)];
@@ -553,7 +549,8 @@ pub(crate) fn compare_i64_left_operand_fixture() -> Fixture {
     live_block.instructions[0].unit_live_out = through.clone();
     live_block.instructions[1].virtual_uses = vec![VirtualRegisterId(2), VirtualRegisterId(3)];
     live_block.instructions[1].virtual_live_in = vec![VirtualRegisterId(2), VirtualRegisterId(3)];
-    live_block.instructions[1].unit_uses = sorted_units(x0.units.iter().chain(&x1.units).copied());
+    live_block.instructions[1].unit_uses =
+        super::sorted_units(x0.units.iter().chain(&x1.units).copied());
     live_block.instructions[1].unit_live_in = through;
     live_block.instructions[1].unit_defs = nzcv.write_units.clone();
 
@@ -575,7 +572,7 @@ pub(crate) fn compare_i64_left_operand_fixture() -> Fixture {
     machine_compare
         .operands
         .push(physical_operand(1, 3, RegisterOperandAccess::Use, &x1));
-    machine_compare.unit_uses = sorted_units(x0.units.iter().chain(&x1.units).copied());
+    machine_compare.unit_uses = super::sorted_units(x0.units.iter().chain(&x1.units).copied());
     machine_compare.unit_defs = nzcv.write_units;
     fixture
 }
@@ -597,11 +594,4 @@ pub(crate) fn two_pair_compare_i64_left_operand_fixture() -> Fixture {
     fixture.source.functions.push(source);
 
     fixture
-}
-
-fn sorted_units(units: impl IntoIterator<Item = RegisterUnitId>) -> Vec<RegisterUnitId> {
-    let mut units = units.into_iter().collect::<Vec<_>>();
-    units.sort_unstable();
-    units.dedup();
-    units
 }

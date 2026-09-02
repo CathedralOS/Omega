@@ -336,7 +336,7 @@ fn revision(
     inputs: &SameViewCopyInputs<'_>,
     functions: &[Aarch64SameViewCopyElisionFunction],
 ) -> Aarch64SameViewCopyElisionRevisionIdentity {
-    super::identity::revision_identity(
+    super::super::same_view_copy_elision::revision_identity(
         inputs.source_identity,
         inputs.selected_identity,
         inputs.liveness_identity,

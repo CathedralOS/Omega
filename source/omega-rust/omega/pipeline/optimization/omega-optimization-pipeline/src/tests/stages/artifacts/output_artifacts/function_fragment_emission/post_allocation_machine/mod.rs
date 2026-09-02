@@ -18,7 +18,7 @@ fn every_exact_machine_rule_publishes_deterministically_on_its_hosted_targets() 
             .into_iter()
             .collect()
     );
-    assert_eq!(cases.len(), 16);
+    assert_eq!(cases.len(), 18);
 
     for case in cases {
         let first = artifacts::publish(realization::realize(case));
