@@ -52,11 +52,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = if plan.projected_structural_call_returns.is_empty() {
-        b"omega.terminal-selected-instructions.v12\0".as_slice()
-    } else {
-        b"omega.terminal-selected-instructions.v13\0".as_slice()
-    };
+    let domain = b"omega.terminal-selected-instructions.v14\0".as_slice();
     selected_instruction_plan_identity_with_schema(plan, domain, false)
 }
 
@@ -69,6 +65,18 @@ pub fn selected_instruction_plan_identity_v11_legacy(
         b"omega.terminal-selected-instructions.v11\0",
         true,
     )
+}
+
+#[doc(hidden)]
+pub fn selected_instruction_plan_identity_v13_legacy(
+    plan: &SelectedInstructionPlan,
+) -> SelectedInstructionPlanIdentity {
+    let domain = if plan.projected_structural_call_returns.is_empty() {
+        b"omega.terminal-selected-instructions.v12\0".as_slice()
+    } else {
+        b"omega.terminal-selected-instructions.v13\0".as_slice()
+    };
+    selected_instruction_plan_identity_with_schema(plan, domain, false)
 }
 
 fn selected_instruction_plan_identity_with_schema(
@@ -359,6 +367,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ExactSubtractI64 { .. } => 7,
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
         SelectedInstructionKind::ReturnUnit => 9,
+        SelectedInstructionKind::CompareI64 => 10,
     });
     match instruction.kind {
         SelectedInstructionKind::MaterializeI64 { value } => match value {
@@ -409,6 +418,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::CompareI64Zero
+        | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ReturnI64

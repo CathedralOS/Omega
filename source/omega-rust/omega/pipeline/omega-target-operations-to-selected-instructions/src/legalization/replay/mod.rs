@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Independent replay of a proposed legal-operation projection.
 
+mod conditions;
 mod custody;
 mod functions;
 mod leaf;

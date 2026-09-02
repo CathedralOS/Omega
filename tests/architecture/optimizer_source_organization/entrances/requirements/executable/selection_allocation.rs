@@ -74,6 +74,14 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn derive_source_function_rosters",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/conditions/mod.rs",
+        coordination_marker: "pub(super) fn derive",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/mod.rs",
+        coordination_marker: "pub(super) fn replay",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/mod.rs",
         coordination_marker: "pub(super) fn derive_leaf",
     },
@@ -114,6 +122,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "let body = catalog::build(&context)?",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/mod.rs",
+        coordination_marker: "pub(in crate::selection::construction::scalar) fn condition",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/structural_unit/mod.rs",
         coordination_marker: "let call = call::build(function, source, plan, layout, keys, catalog)?",
     },
@@ -152,6 +164,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/mod.rs",
         coordination_marker: "pub(super) fn validate_selected_blocks",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/mod.rs",
+        coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_choice/mod.rs",

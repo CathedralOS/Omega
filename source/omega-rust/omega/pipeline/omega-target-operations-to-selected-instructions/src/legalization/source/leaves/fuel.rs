@@ -21,7 +21,7 @@ pub(in crate::legalization::source) fn exact_edge_fuel(
     Ok(fuel)
 }
 
-pub(super) fn exact_operation_fuel(
+pub(in crate::legalization::source) fn exact_operation_fuel(
     node: &omega_optimization_unit::OptimizationNode,
     operation: OperationId,
     function: usize,

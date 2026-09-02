@@ -3,7 +3,7 @@
 use crate::selection::constraints::fixed_input_constraint;
 use crate::selection::shared::*;
 
-use super::model::ScalarConstructionContext;
+use super::model::{ConditionInputContext, ScalarConstructionContext};
 
 pub(super) fn reconstruct<'a>(
     function: usize,
@@ -12,32 +12,85 @@ pub(super) fn reconstruct<'a>(
     physical: &'a ValidatedPhysicalRegisterModel,
     catalog: &'a ValidatedRegisterConstraintCatalog,
 ) -> Result<ScalarConstructionContext<'a>, SelectedInstructionError> {
-    let input = fixed_input_constraint(
-        source.machine,
-        source.condition_source,
-        source.condition_parameter_index,
-        source.condition_register,
-        &constraints.fixed_inputs,
-    )
-    .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?;
-    let input_view = input.fixed_view;
-    let input_class = physical
-        .model()
-        .views
-        .iter()
-        .find(|view| view.id == input_view)
-        .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?
-        .class;
     let u64_type =
         ScalarType::Integer(psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"));
+    let condition_inputs = match &source.condition {
+        LegalizedCondition::DirectParameter {
+            parameter_index,
+            register,
+            definition_site,
+        } => vec![reconstruct_input(
+            function,
+            source.machine,
+            source.condition_source,
+            *parameter_index,
+            *register,
+            *definition_site,
+            ScalarType::Boolean,
+            constraints,
+            physical,
+        )?],
+        LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } => [left, right]
+            .into_iter()
+            .map(|parameter| {
+                reconstruct_input(
+                    function,
+                    source.machine,
+                    parameter.source_value,
+                    parameter.parameter_index,
+                    parameter.register,
+                    parameter.definition_site,
+                    u64_type,
+                    constraints,
+                    physical,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    };
     Ok(ScalarConstructionContext {
         function,
         source,
         constraints,
         physical,
         catalog,
-        input_class,
-        input_view,
+        condition_inputs,
         u64_type,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reconstruct_input(
+    function: usize,
+    machine: psi_core::MachineId,
+    source_value: psi_core::ValueId,
+    parameter_index: usize,
+    register: omega_target_operations::MachineRegister,
+    definition_site: ValueDefinitionSite,
+    scalar_type: ScalarType,
+    constraints: &SelectedSelectionConstraints,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<ConditionInputContext, SelectedInstructionError> {
+    let input = fixed_input_constraint(
+        machine,
+        source_value,
+        parameter_index,
+        register,
+        &constraints.fixed_inputs,
+    )
+    .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?;
+    let class = physical
+        .model()
+        .views
+        .iter()
+        .find(|view| view.id == input.fixed_view)
+        .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?
+        .class;
+    Ok(ConditionInputContext {
+        source_value,
+        parameter_index,
+        definition_site,
+        scalar_type,
+        class,
+        view: input.fixed_view,
     })
 }

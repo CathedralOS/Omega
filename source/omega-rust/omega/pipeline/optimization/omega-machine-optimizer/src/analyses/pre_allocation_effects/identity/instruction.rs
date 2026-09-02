@@ -84,6 +84,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ReturnI64 => 7,
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
         SelectedInstructionKind::ReturnUnit => 9,
+        SelectedInstructionKind::CompareI64 => 10,
     });
     match kind {
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
@@ -113,6 +114,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::CompareI64Zero
+        | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ReturnI64

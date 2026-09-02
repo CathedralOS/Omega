@@ -83,10 +83,18 @@ pub(super) enum LegalizationValidatorKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ScalarShapeConstraints {
+    pub condition: ScalarConditionShape,
+    pub entry_node_count: usize,
     pub block_offsets: [usize; 3],
     pub operation_count: usize,
     pub leaf_node_counts: [usize; 2],
     pub parameter_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ScalarConditionShape {
+    DirectBooleanParameter,
+    IntegerEqualU64Parameters,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,6 +157,8 @@ const fn scalar_form(
         recipe: LegalizationFormRecipe::Scalar(recipe),
         producer_matcher: LegalizationProducerMatcherKind::Scalar(producer_matcher),
         constraints: LegalizationShapeConstraints::Scalar(ScalarShapeConstraints {
+            condition: ScalarConditionShape::DirectBooleanParameter,
+            entry_node_count: 1,
             block_offsets,
             operation_count,
             leaf_node_counts,
@@ -160,6 +170,39 @@ const fn scalar_form(
         },
         validator: LegalizationValidatorKind::Scalar(validator),
     }
+}
+
+const fn integer_equal_scalar_form(
+    recipe: LegalizationRecipe,
+    producer_matcher: ScalarLegalizationMatcherKind,
+    block_offsets: [usize; 3],
+    operation_count: usize,
+    leaf_node_counts: [usize; 2],
+    parameter_count: usize,
+    projected_selected_instruction_count: usize,
+    introduced_temporary_count: usize,
+    validator: ScalarLegalizationValidatorKind,
+) -> LegalizationFormDescriptor {
+    let mut descriptor = scalar_form(
+        recipe,
+        producer_matcher,
+        block_offsets,
+        operation_count,
+        leaf_node_counts,
+        parameter_count,
+        projected_selected_instruction_count,
+        introduced_temporary_count,
+        validator,
+    );
+    descriptor.constraints = LegalizationShapeConstraints::Scalar(ScalarShapeConstraints {
+        condition: ScalarConditionShape::IntegerEqualU64Parameters,
+        entry_node_count: 2,
+        block_offsets,
+        operation_count,
+        leaf_node_counts,
+        parameter_count,
+    });
+    descriptor
 }
 
 const fn unit_form() -> LegalizationFormDescriptor {
@@ -206,7 +249,7 @@ const fn structural_unit_form(
 }
 
 /// The sole precedence, shape, and planning inventory for all current forms.
-pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 14] = [
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 15] = [
     scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
@@ -305,6 +348,17 @@ pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 14] = [
         13,
         0,
         ScalarLegalizationValidatorKind::ActiveResidentExactAddOriginalVictimChain,
+    ),
+    integer_equal_scalar_form(
+        LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1,
+        ScalarLegalizationMatcherKind::Immediate,
+        [0, 2, 4],
+        6,
+        [2, 2],
+        2,
+        6,
+        0,
+        ScalarLegalizationValidatorKind::Immediate,
     ),
     unit_form(),
     structural_unit_form(

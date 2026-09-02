@@ -132,6 +132,7 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::ReturnI64 => 7,
         MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
         MachineAlternativeFamily::ReturnUnit => 9,
+        MachineAlternativeFamily::CompareI64 => 10,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     match alternative.applicability {

@@ -11,10 +11,11 @@ use omega_selected_instructions::{
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::{
-    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
-    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
-    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
-    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_ZERO,
+    X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MATERIALIZE_I64,
+    X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, X86_64_MICROSOFT_RETURN,
+    X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
+    X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,6 +119,7 @@ fn selected_keys(
         add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: X86_64_COMPARE_I64_ZERO,
+        compare_i64: X86_64_COMPARE_I64,
         conditional_branch: X86_64_CONDITIONAL_BRANCH,
         return_i64,
         return_unit,
@@ -240,6 +242,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
     };
     let (reads, writes) = match semantic {
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
+        MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
         MachineSemanticKind::CopyI64 => (vec![0], vec![1]),
         MachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
@@ -253,7 +256,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
     };
     let (implicit_uses, implicit_defs, implicit_clobbers, memory, stack, trap, control) =
         match semantic {
-            MachineSemanticKind::CompareI64Zero => (
+            MachineSemanticKind::CompareI64Zero | MachineSemanticKind::CompareI64 => (
                 vec![],
                 units("rflags"),
                 vec![],
@@ -333,9 +336,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     match semantic {
-        MachineSemanticKind::CompareI64Zero | MachineSemanticKind::CopyI64 => {
-            MachineSizeKnowledge::ExactBytes(3)
-        }
+        MachineSemanticKind::CompareI64Zero
+        | MachineSemanticKind::CompareI64
+        | MachineSemanticKind::CopyI64 => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
         MachineSemanticKind::ExactAddI64 => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 4,

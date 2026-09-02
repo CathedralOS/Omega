@@ -83,8 +83,8 @@ fn legacy_reload_victim_identity_encoding_remains_byte_stable() {
     assert_eq!(
         actions.receipt().identity().bytes(),
         [
-            240, 75, 189, 19, 17, 69, 64, 108, 19, 182, 149, 209, 103, 71, 191, 72, 7, 122,
-            249, 131, 144, 237, 143, 157, 134, 229, 32, 221, 22, 47, 238, 21,
+            115, 46, 109, 227, 138, 156, 213, 54, 75, 196, 41, 36, 109, 247, 100, 25, 25, 232, 103,
+            220, 237, 188, 114, 223, 26, 1, 22, 93, 229, 77, 19, 7,
         ]
     );
     let mut wrong_policy = actions.plan().clone();

@@ -73,6 +73,7 @@ fn decode_kind(
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         },
         9 => SelectedInstructionKind::ReturnUnit,
+        10 => SelectedInstructionKind::CompareI64,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     })
 }
@@ -136,6 +137,7 @@ pub(crate) fn decode_alternative(
         7 => MachineAlternativeFamily::ReturnI64,
         8 => MachineAlternativeFamily::ExactSubtractI64Immediate,
         9 => MachineAlternativeFamily::ReturnUnit,
+        10 => MachineAlternativeFamily::CompareI64,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let key = MachineAlternativeKey {

@@ -12,9 +12,10 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::{
     AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64,
-    AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH,
-    AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT, AARCH64_MATERIALIZE_I64,
-    AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
+    AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64, AARCH64_COMPARE_I64_ZERO,
+    AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_RETURN,
+    AARCH64_DARWIN_RETURN_UNIT, AARCH64_MATERIALIZE_I64, AARCH64_SUBTRACT_I64,
+    AARCH64_SUBTRACT_I64_IMMEDIATE,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +101,7 @@ fn selected_keys(
         add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
+        compare_i64: AARCH64_COMPARE_I64,
         conditional_branch: AARCH64_CONDITIONAL_BRANCH,
         return_i64,
         return_unit,
@@ -157,6 +159,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
     };
     let (reads, writes) = match semantic {
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
+        MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
         MachineSemanticKind::CopyI64 => (vec![0], vec![1]),
         MachineSemanticKind::ExactAddI64 | MachineSemanticKind::ExactSubtractI64 => {
@@ -169,7 +172,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
     };
     let (implicit_uses, implicit_defs, trap, control) = match semantic {
-        MachineSemanticKind::CompareI64Zero => (
+        MachineSemanticKind::CompareI64Zero | MachineSemanticKind::CompareI64 => (
             vec![],
             units("nzcv"),
             MachineEncodedTrapBehavior::NeverV1,

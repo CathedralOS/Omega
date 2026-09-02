@@ -1,4 +1,4 @@
-use omega_legalized_operations::LegalizedLeafValue;
+use omega_legalized_operations::{LegalizedCondition, LegalizedLeafValue};
 use omega_selected_instructions::{SelectedFixedInputConstraint, SelectedSelectionConstraints};
 use omega_target_operations::MachineRegister;
 use omega_target_operations_to_selected_instructions::ValidatedLegalizedOperations;
@@ -12,14 +12,32 @@ pub(crate) fn selection_constraints(
 ) -> SelectedSelectionConstraints {
     let mut fixed_inputs = Vec::new();
     for function in &legalized.plan().functions {
-        push_fixed_input(
-            &mut fixed_inputs,
-            environment,
-            function.machine,
-            function.condition_source,
-            function.condition_parameter_index,
-            function.condition_register,
-        );
+        match &function.condition {
+            LegalizedCondition::DirectParameter {
+                parameter_index,
+                register,
+                ..
+            } => push_fixed_input(
+                &mut fixed_inputs,
+                environment,
+                function.machine,
+                function.condition_source,
+                *parameter_index,
+                *register,
+            ),
+            LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } => {
+                for parameter in [left, right] {
+                    push_fixed_input(
+                        &mut fixed_inputs,
+                        environment,
+                        function.machine,
+                        parameter.source_value,
+                        parameter.parameter_index,
+                        parameter.register,
+                    );
+                }
+            }
+        }
         for arm in [&function.when_true, &function.when_false] {
             let LegalizedLeafValue::EntryParameter {
                 parameter_index,

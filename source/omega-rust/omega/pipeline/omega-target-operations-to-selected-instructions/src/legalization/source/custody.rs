@@ -24,7 +24,16 @@ pub(super) fn validate_source_register_architecture(
     architecture: omega_target::Architecture,
 ) -> Result<(), LegalizationError> {
     if functions.iter().any(|function| {
-        function.condition_register.architecture() != architecture
+        let condition_register_mismatch = match &function.condition {
+            LegalizedCondition::DirectParameter { register, .. } => {
+                register.architecture() != architecture
+            }
+            LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } => {
+                left.register.architecture() != architecture
+                    || right.register.architecture() != architecture
+            }
+        };
+        condition_register_mismatch
             || match (&function.when_true.value, &function.when_false.value) {
                 (
                     SourceLeafValue::EntryParameter { register: left, .. },

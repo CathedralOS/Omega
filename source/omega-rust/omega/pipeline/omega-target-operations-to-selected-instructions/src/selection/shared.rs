@@ -5,8 +5,8 @@ pub(super) use omega_calling_conventions::{
     ValueLocation,
 };
 pub(super) use omega_legalized_operations::{
-    LegalizedCallUnit, LegalizedCallUnitArgument, LegalizedCallUnitParameter,
-    LegalizedFunction as SourceFunction, LegalizedImmediate as SourceImmediate,
+    LegalizationRecipe, LegalizedCallUnit, LegalizedCallUnitArgument, LegalizedCallUnitParameter,
+    LegalizedCondition, LegalizedFunction as SourceFunction, LegalizedImmediate as SourceImmediate,
     LegalizedLeaf as SourceLeaf, LegalizedLeafValue as SourceLeafValue, LegalizedOperationPlan,
     LegalizedOperationPlanIdentity, LegalizedProjectedStructuralCallReturn,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction,

@@ -30,7 +30,7 @@ pub(super) fn build(
         unreachable!("catalog selected the guarded-original family")
     };
     let result_class = row(context.catalog, context.constraints.keys.add_i64)?.operands[2].class;
-    let mut virtual_registers = vec![registers::condition(context)];
+    let mut virtual_registers = vec![registers::condition_input(context, 0, 0)];
     for (id, instruction, source_value, definition_site) in [
         (
             1,

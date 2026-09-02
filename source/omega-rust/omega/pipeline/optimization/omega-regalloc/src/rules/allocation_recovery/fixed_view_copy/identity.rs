@@ -27,6 +27,18 @@ pub(crate) fn fixed_view_copy_identity_v3_legacy(
     )
 }
 
+pub(crate) fn fixed_view_copy_identity_v4_legacy(
+    plan: &FixedViewCopyPlan,
+) -> FixedViewCopyIdentity {
+    fixed_view_copy_identity_with_schema(
+        plan,
+        b"omega.terminal-fixed-view-copies.v4\0",
+        omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v13_legacy(
+            &plan.transformed,
+        ),
+    )
+}
+
 fn fixed_view_copy_identity_with_schema(
     plan: &FixedViewCopyPlan,
     domain: &[u8],

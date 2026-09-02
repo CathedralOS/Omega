@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Canonical source-to-legal construction over the sole ordered form catalog.
 
+mod conditions;
 mod custody;
 mod functions;
 mod leaves;

@@ -27,6 +27,7 @@ pub(super) fn replay_leaf_value<'a>(
     Ok(match (recipe, expression, &proposed.value) {
         (
             LegalizationRecipe::ReturnU64ImmediateConditionalV1
+            | LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1
             | LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1
             | LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1
             | LegalizationRecipe::ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1,

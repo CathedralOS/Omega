@@ -6,9 +6,10 @@ pub(super) use omega_legalized_operations::{
     LegalizedActiveResidentExactAddChain as SourceActiveResidentExactAddChain,
     LegalizedActiveResidentExactAddOriginalVictimChain as SourceActiveResidentExactAddOriginalVictimChain,
     LegalizedBoundarySettlement, LegalizedCallUnit, LegalizedCallUnitArgument,
-    LegalizedCallUnitParameter, LegalizedExactAdd as SourceExactAdd,
-    LegalizedFunction as SourceFunction, LegalizedImmediate as SourceImmediate,
-    LegalizedLeaf as SourceLeaf, LegalizedLeafValue as SourceLeafValue,
+    LegalizedCallUnitParameter, LegalizedCondition, LegalizedConditionParameter,
+    LegalizedExactAdd as SourceExactAdd, LegalizedFunction as SourceFunction,
+    LegalizedImmediate as SourceImmediate, LegalizedLeaf as SourceLeaf,
+    LegalizedLeafValue as SourceLeafValue,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction, LegalizedTemporaryId,
     LegalizedUnitFunction as SourceUnitFunction,
 };
@@ -17,10 +18,13 @@ pub(super) use omega_optimization_unit::{
     PsiProvenance,
 };
 pub(super) use omega_target_operations::{
-    ScalarParameterLocation, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
-    TargetOperationPlan, TargetUnitOperation, TerminalPsiProvenance,
+    ScalarParameterLocation, TargetBooleanExpression, TargetConditionalIntegerArm,
+    TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
+    TargetUnitOperation, TerminalPsiProvenance,
 };
-pub(super) use psi_core::{EdgeId, IntegerSign, OperationId, ScalarType, StructuralPlaceKind};
+pub(super) use psi_core::{
+    EdgeId, IntegerSign, IntegerType, OperationId, ScalarType, StructuralPlaceKind, ValueId,
+};
 pub(super) use psi_terminal::StructuralPlaceDeclaration;
 
 pub(super) use crate::{LegalizationError, LegalizationError as Error};

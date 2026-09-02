@@ -19,9 +19,11 @@ fn function_relative_only_rel8_suite_shrinks_and_replays_without_selected_loweri
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(staged.selected_lowering_completion(), None);
     assert!(staged.function_relative_realization().is_none());
-    assert!(optimization_pipeline_report(&staged)
-        .function_relative()
-        .is_some());
+    assert!(
+        optimization_pipeline_report(&staged)
+            .function_relative()
+            .is_some()
+    );
     let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } =
         &mut staged
     else {

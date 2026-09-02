@@ -1,6 +1,7 @@
-use crate::selection::shared::*;
+//! Independent direct-Boolean compare-zero entry replay.
 
-use super::instruction_projection;
+use super::*;
+use crate::selection::validation::blocks::instruction_projection;
 
 pub(super) fn validate(
     function_index: usize,
@@ -11,10 +12,7 @@ pub(super) fn validate(
 ) -> Result<(), SelectedInstructionError> {
     let entry = &function.blocks[0];
     if entry.instructions.len() != 1 {
-        return Err(SelectedInstructionError::BlockProjectionMismatch {
-            function: function_index,
-            block: 0,
-        });
+        return mismatch(function_index);
     }
     instruction_projection::validate(
         function_index,
@@ -35,11 +33,26 @@ pub(super) fn validate(
         when_zero,
     } = &entry.terminator
     else {
-        return Err(SelectedInstructionError::BlockProjectionMismatch {
+        return mismatch(function_index);
+    };
+    validate_branch(function_index, source, instruction, keys, catalog)?;
+    let (expected_true, expected_false) = successors(source);
+    if when_nonzero != &expected_true || when_zero != &expected_false {
+        return Err(SelectedInstructionError::SuccessorProjectionMismatch {
             function: function_index,
             block: 0,
         });
-    };
+    }
+    Ok(())
+}
+
+pub(super) fn validate_branch(
+    function_index: usize,
+    source: &SourceFunction,
+    instruction: &SelectedInstruction,
+    keys: SelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<(), SelectedInstructionError> {
     instruction_projection::validate(
         function_index,
         instruction,
@@ -52,26 +65,9 @@ pub(super) fn validate(
             ..Default::default()
         },
         catalog,
-    )?;
-    let expected_true = SelectedSuccessor {
-        psi_edge: source.branch_true_edge,
-        block: SelectedBlockId(1),
-        source_target: source.true_block,
-        bindings: source.branch_true_bindings.clone(),
-        fuel: source.branch_true_fuel.clone(),
-    };
-    let expected_false = SelectedSuccessor {
-        psi_edge: source.branch_false_edge,
-        block: SelectedBlockId(2),
-        source_target: source.false_block,
-        bindings: source.branch_false_bindings.clone(),
-        fuel: source.branch_false_fuel.clone(),
-    };
-    if when_nonzero != &expected_true || when_zero != &expected_false {
-        return Err(SelectedInstructionError::SuccessorProjectionMismatch {
-            function: function_index,
-            block: 0,
-        });
-    }
-    Ok(())
+    )
+}
+
+pub(super) fn mismatch(function: usize) -> Result<(), SelectedInstructionError> {
+    Err(SelectedInstructionError::BlockProjectionMismatch { function, block: 0 })
 }

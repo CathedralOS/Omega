@@ -12,6 +12,7 @@ mod catalog;
 mod context;
 mod exact_binary_pair;
 mod immediate_pair;
+mod integer_equal_immediate_pair;
 mod model;
 mod parameter_pair;
 mod registers;

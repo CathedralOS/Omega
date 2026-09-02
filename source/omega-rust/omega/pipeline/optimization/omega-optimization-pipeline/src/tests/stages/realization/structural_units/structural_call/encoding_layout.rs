@@ -12,12 +12,16 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
         .expect("structural call must reach post-allocation machine custody");
     assert!(post.machine().plan().functions.is_empty());
     assert_eq!(post.machine().plan().structural_unit_functions.len(), 2);
-    assert!(post.machine().plan().structural_unit_functions[0]
-        .call
-        .is_some());
-    assert!(post.machine().plan().structural_unit_functions[1]
-        .call
-        .is_none());
+    assert!(
+        post.machine().plan().structural_unit_functions[0]
+            .call
+            .is_some()
+    );
+    assert!(
+        post.machine().plan().structural_unit_functions[1]
+            .call
+            .is_none()
+    );
     assert_eq!(post.custody().function_count(), 0);
     assert_eq!(post.custody().structural_unit_function_count(), 2);
     assert_eq!(post.machine().receipt().function_count(), 2);

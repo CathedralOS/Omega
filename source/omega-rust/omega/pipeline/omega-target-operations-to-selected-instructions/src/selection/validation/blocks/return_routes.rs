@@ -78,12 +78,20 @@ pub(super) fn validate(
             )
         }
         (SourceLeafValue::Immediate { .. }, SourceLeafValue::Immediate { .. }) => {
+            let [true_register, false_register] = if matches!(
+                source.condition,
+                LegalizedCondition::IntegerEqualParametersV1 { .. }
+            ) {
+                [VirtualRegisterId(2), VirtualRegisterId(3)]
+            } else {
+                [VirtualRegisterId(1), VirtualRegisterId(2)]
+            };
             immediate_return::validate(
                 function_index,
                 &function.blocks[1],
                 2,
                 3,
-                VirtualRegisterId(1),
+                true_register,
                 &source.when_true,
                 keys,
                 catalog,
@@ -93,7 +101,7 @@ pub(super) fn validate(
                 &function.blocks[2],
                 4,
                 5,
-                VirtualRegisterId(2),
+                false_register,
                 &source.when_false,
                 keys,
                 catalog,

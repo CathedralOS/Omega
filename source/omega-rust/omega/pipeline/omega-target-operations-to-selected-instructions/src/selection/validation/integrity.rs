@@ -8,7 +8,17 @@ pub(super) fn validate_dense(
 ) -> Result<(), SelectedInstructionError> {
     let (expected_register_count, expected_instruction_count) =
         match (&source.when_true.value, &source.when_false.value) {
-            (SourceLeafValue::Immediate { .. }, SourceLeafValue::Immediate { .. }) => (3, 6),
+            (SourceLeafValue::Immediate { .. }, SourceLeafValue::Immediate { .. }) => (
+                if matches!(
+                    source.condition,
+                    LegalizedCondition::IntegerEqualParametersV1 { .. }
+                ) {
+                    4
+                } else {
+                    3
+                },
+                6,
+            ),
             (
                 SourceLeafValue::ActiveResidentExactAddChain(..),
                 SourceLeafValue::Immediate { .. },
@@ -226,10 +236,23 @@ pub(super) fn validate_provenance_partition(
             function: function_index,
         });
     };
-    if !entry.instructions[0].provenance.fuel.is_empty()
+    let (expected_compare_fuel, expected_nonzero_fuel, expected_zero_fuel) = match &source.condition
+    {
+        LegalizedCondition::DirectParameter { .. } => (
+            &[][..],
+            source.branch_true_fuel.as_slice(),
+            source.branch_false_fuel.as_slice(),
+        ),
+        LegalizedCondition::IntegerEqualParametersV1 { fuel, .. } => (
+            fuel.as_slice(),
+            source.branch_false_fuel.as_slice(),
+            source.branch_true_fuel.as_slice(),
+        ),
+    };
+    if entry.instructions[0].provenance.fuel != expected_compare_fuel
         || !branch.provenance.fuel.is_empty()
-        || when_nonzero.fuel != source.branch_true_fuel
-        || when_zero.fuel != source.branch_false_fuel
+        || when_nonzero.fuel != expected_nonzero_fuel
+        || when_zero.fuel != expected_zero_fuel
     {
         return Err(SelectedInstructionError::ProvenancePartitionMismatch {
             function: function_index,

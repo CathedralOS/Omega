@@ -1,0 +1,130 @@
+//! Independent replay rejection for equality-condition and selected-graph corruption.
+
+use crate::tests::*;
+use omega_legalized_operations::LegalizedCondition;
+
+use super::fixture::staged_integer_equal_conditional;
+
+#[test]
+fn reflexive_equality_is_outside_the_two_distinct_parameter_family() {
+    let mut machine = conditional_u64_integer_equal_parameters_machine(19_100, [7, 9]);
+    let OperationKind::IntegerEqual { left, right } = &mut machine.blocks[0].operations[0].kind
+    else {
+        panic!("fixture must compare its two entry parameters")
+    };
+    *right = *left;
+    let module = conditional_immediate_module(machine.id, vec![machine]);
+    let semantic = psi_terminal_codec::encode_module(&module).unwrap();
+    let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+        recursive_components: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: Vec::new(),
+    })
+    .unwrap();
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+        assert!(matches!(
+            stage_optimized_instruction_selection(target),
+            Err(OptimizedSelectionPipelineError::Legalization(
+                LegalizationError::UnsupportedCondition { function: 0 }
+            ))
+        ));
+    }
+}
+
+#[test]
+fn equality_condition_custody_corruption_fails_closed_on_both_isas() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let staged = staged_integer_equal_conditional(target);
+        let original = staged.legalized().plan();
+        let validate = |plan| {
+            validate_legalized_operations(
+                staged.optimized_target().target_operations(),
+                staged.optimized_target().optimized().plan(),
+                staged.optimized_target().optimized().unit(),
+                plan,
+            )
+        };
+
+        let mut corrupted = original.clone();
+        let LegalizedCondition::IntegerEqualParametersV1 { operation, .. } =
+            &mut corrupted.functions[0].condition
+        else {
+            panic!("fixture must retain equality custody")
+        };
+        *operation = OperationId::new(19_099).unwrap();
+        assert_eq!(
+            validate(corrupted),
+            Err(LegalizationError::NonCanonicalLegalizedPlan)
+        );
+
+        let mut corrupted = original.clone();
+        let LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } =
+            &mut corrupted.functions[0].condition
+        else {
+            panic!("fixture must retain equality custody")
+        };
+        std::mem::swap(left, right);
+        assert_eq!(
+            validate(corrupted),
+            Err(LegalizationError::NonCanonicalLegalizedPlan)
+        );
+
+        let mut corrupted = original.clone();
+        let LegalizedCondition::IntegerEqualParametersV1 { fuel, .. } =
+            &mut corrupted.functions[0].condition
+        else {
+            panic!("fixture must retain equality custody")
+        };
+        fuel[0].units += 1;
+        assert_eq!(
+            validate(corrupted),
+            Err(LegalizationError::NonCanonicalLegalizedPlan)
+        );
+    }
+}
+
+#[test]
+fn equality_selected_graph_corruption_fails_closed_on_both_isas() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let staged = staged_integer_equal_conditional(target);
+
+        let mut corrupted = staged.selected().plan().clone();
+        let SelectedTerminator::ConditionalBranch {
+            when_nonzero,
+            when_zero,
+            ..
+        } = &mut corrupted.functions[0].blocks[0].terminator
+        else {
+            panic!("fixture must retain conditional branch")
+        };
+        std::mem::swap(when_nonzero, when_zero);
+        assert!(matches!(
+            validate_raw_selection(&staged, corrupted),
+            Err(SelectedInstructionError::SuccessorProjectionMismatch {
+                function: 0,
+                block: 0
+            })
+        ));
+
+        let mut corrupted = staged.selected().plan().clone();
+        corrupted.functions[0].blocks[0].instructions[0]
+            .provenance
+            .operations[0] = OperationId::new(19_099).unwrap();
+        assert!(matches!(
+            validate_raw_selection(&staged, corrupted),
+            Err(SelectedInstructionError::InstructionProjectionMismatch {
+                function: 0,
+                instruction: 0
+            })
+        ));
+    }
+}

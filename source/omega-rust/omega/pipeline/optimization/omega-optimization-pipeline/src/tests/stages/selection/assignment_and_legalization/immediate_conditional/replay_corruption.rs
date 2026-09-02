@@ -1,6 +1,7 @@
 //! Identity-bound legalization replay rejection for target, recipe, provenance, and fuel corruption.
 
 use crate::tests::*;
+use omega_legalized_operations::LegalizedCondition;
 
 #[test]
 fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_corruption() {
@@ -79,8 +80,15 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
         );
 
         let mut corrupted = original.clone();
-        corrupted.functions[0].condition_definition_site = ValueDefinitionSite::Node {
-            block: corrupted.functions[0].entry_block,
+        let entry_block = corrupted.functions[0].entry_block;
+        let LegalizedCondition::DirectParameter {
+            definition_site, ..
+        } = &mut corrupted.functions[0].condition
+        else {
+            panic!("fixture must retain a direct condition")
+        };
+        *definition_site = ValueDefinitionSite::Node {
+            block: entry_block,
             node: 0,
         };
         assert_ne!(legalized_operation_plan_identity(&corrupted), identity);

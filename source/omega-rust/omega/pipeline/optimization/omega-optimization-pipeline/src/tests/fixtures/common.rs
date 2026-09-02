@@ -192,6 +192,122 @@ pub(crate) fn conditional_immediate_artifact() -> (Vec<u8>, Vec<u8>) {
     conditional_immediate_artifact_with_type(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
 }
 
+pub(crate) fn conditional_u64_integer_equal_parameters_artifact() -> (Vec<u8>, Vec<u8>) {
+    let machine = conditional_u64_integer_equal_parameters_machine(19_000, [7, 9]);
+    let module = conditional_immediate_module(machine.id, vec![machine]);
+    let proof = ProofBundle {
+        recursive_components: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: Vec::new(),
+    };
+    (
+        psi_terminal_codec::encode_module(&module).unwrap(),
+        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+    )
+}
+
+pub(crate) fn conditional_u64_integer_equal_parameters_machine(
+    base: u64,
+    literals: [u128; 2],
+) -> TerminalMachine {
+    let machine = MachineId::new(base + 1).unwrap();
+    let entry = BlockId::new(base + 2).unwrap();
+    let when_true = BlockId::new(base + 3).unwrap();
+    let when_false = BlockId::new(base + 4).unwrap();
+    let left = ValueId::new(base + 5).unwrap();
+    let right = ValueId::new(base + 6).unwrap();
+    let condition = ValueId::new(base + 7).unwrap();
+    let true_value = ValueId::new(base + 8).unwrap();
+    let false_value = ValueId::new(base + 9).unwrap();
+    let result = ValueId::new(base + 10).unwrap();
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar_type = ScalarType::Integer(integer_type);
+    let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+    TerminalMachine {
+        id: machine,
+        attachment: None,
+        parameters: vec![
+            declaration(left, scalar_type),
+            declaration(right, scalar_type),
+        ],
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry,
+        blocks: vec![
+            Block {
+                id: entry,
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(base + 11).unwrap(),
+                    result: OperationResult::Scalar(declaration(condition, ScalarType::Boolean)),
+                    kind: OperationKind::IntegerEqual { left, right },
+                }],
+                terminator: Terminator::Conditional {
+                    condition,
+                    when_true: SuccessorEdge {
+                        edge: EdgeId::new(base + 14).unwrap(),
+                        target: when_true,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                    when_false: SuccessorEdge {
+                        edge: EdgeId::new(base + 15).unwrap(),
+                        target: when_false,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            },
+            Block {
+                id: when_true,
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(base + 12).unwrap(),
+                    result: OperationResult::Scalar(declaration(true_value, scalar_type)),
+                    kind: OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(literals[0]),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(base + 16).unwrap(),
+                    value: true_value,
+                    cleanup_actions: Vec::new(),
+                },
+            },
+            Block {
+                id: when_false,
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(base + 13).unwrap(),
+                    result: OperationResult::Scalar(declaration(false_value, scalar_type)),
+                    kind: OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(literals[1]),
+                    },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(base + 17).unwrap(),
+                    value: false_value,
+                    cleanup_actions: Vec::new(),
+                },
+            },
+        ],
+        contract: MachineContract {
+            id: ContractId::new(base + 18).unwrap(),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    }
+}
+
 pub(crate) fn conditional_immediate_machine(
     base: u64,
     integer_type: IntegerType,

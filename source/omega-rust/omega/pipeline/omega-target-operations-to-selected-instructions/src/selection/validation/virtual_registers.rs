@@ -9,38 +9,68 @@ pub(super) fn validate_virtual_registers(
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    let input = fixed_input_constraint(
-        source.machine,
-        source.condition_source,
-        source.condition_parameter_index,
-        source.condition_register,
-        &constraints.fixed_inputs,
-    )
-    .ok_or(SelectedInstructionError::MissingInputRegisterView {
-        function: function_index,
-    })?;
-    let Some(input_view) = physical
-        .model()
-        .views
-        .iter()
-        .find(|view| view.id == input.fixed_view)
-    else {
-        return Err(SelectedInstructionError::MissingInputRegisterView {
-            function: function_index,
-        });
-    };
     let u64_type =
         ScalarType::Integer(psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"));
-    let mut expected = vec![(
-        ScalarType::Boolean,
-        input_view.class,
-        VirtualRegisterOrigin::EntryParameter {
-            source_value: source.condition_source,
-            parameter_index: source.condition_parameter_index,
-        },
-        source.condition_definition_site,
-        Some(input.fixed_view),
-    )];
+    let condition_parameters = match &source.condition {
+        LegalizedCondition::DirectParameter {
+            parameter_index,
+            register,
+            definition_site,
+        } => vec![(
+            source.condition_source,
+            *parameter_index,
+            *register,
+            *definition_site,
+            ScalarType::Boolean,
+        )],
+        LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } => [left, right]
+            .into_iter()
+            .map(|parameter| {
+                (
+                    parameter.source_value,
+                    parameter.parameter_index,
+                    parameter.register,
+                    parameter.definition_site,
+                    u64_type,
+                )
+            })
+            .collect(),
+    };
+    let mut expected = Vec::new();
+    for (source_value, parameter_index, register, definition_site, scalar_type) in
+        condition_parameters
+    {
+        let input = fixed_input_constraint(
+            source.machine,
+            source_value,
+            parameter_index,
+            register,
+            &constraints.fixed_inputs,
+        )
+        .ok_or(SelectedInstructionError::MissingInputRegisterView {
+            function: function_index,
+        })?;
+        let Some(input_view) = physical
+            .model()
+            .views
+            .iter()
+            .find(|view| view.id == input.fixed_view)
+        else {
+            return Err(SelectedInstructionError::MissingInputRegisterView {
+                function: function_index,
+            });
+        };
+        expected.push((
+            scalar_type,
+            input_view.class,
+            VirtualRegisterOrigin::EntryParameter {
+                source_value,
+                parameter_index,
+            },
+            definition_site,
+            Some(input.fixed_view),
+        ));
+    }
     match (&source.when_true.value, &source.when_false.value) {
         (
             SourceLeafValue::ActiveResidentExactAddChain(chain),
@@ -430,6 +460,11 @@ pub(super) fn validate_virtual_registers(
                 function: function_index,
             });
         }
+    }
+    if function.virtual_registers.len() != expected.len() {
+        return Err(SelectedInstructionError::FunctionProjectionMismatch {
+            function: function_index,
+        });
     }
     for (index, (register, expected)) in function.virtual_registers.iter().zip(expected).enumerate()
     {

@@ -54,6 +54,7 @@ pub(super) fn prove_none(
                     }
                 }
                 MachineAlternativeFamily::CompareI64Zero
+                | MachineAlternativeFamily::CompareI64
                 | MachineAlternativeFamily::MaterializeI64
                 | MachineAlternativeFamily::CopyI64
                 | MachineAlternativeFamily::ExactAddI64

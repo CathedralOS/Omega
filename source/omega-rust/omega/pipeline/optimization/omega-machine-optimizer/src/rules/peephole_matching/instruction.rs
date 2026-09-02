@@ -217,6 +217,7 @@ fn whole_instruction_units_match(machine: &PostAllocationMachineInstruction) -> 
 fn semantic(kind: &SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
         SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
+        SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
         SelectedInstructionKind::MaterializeI64 { .. } => MachineSemanticKind::MaterializeI64,
         SelectedInstructionKind::CopyI64 => MachineSemanticKind::CopyI64,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,

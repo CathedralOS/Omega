@@ -90,6 +90,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ExactSubtractI64 { .. } => 7,
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
         SelectedInstructionKind::ReturnUnit => 9,
+        SelectedInstructionKind::CompareI64 => 10,
     };
     bytes.push(tag);
     match kind {
@@ -161,6 +162,24 @@ pub(in crate::rules::allocation_recovery::fixed_view_copy::codec) fn decode_kind
             ),
         },
         9 => SelectedInstructionKind::ReturnUnit,
+        10 => SelectedInstructionKind::CompareI64,
         tag => return Err(FixedViewCopyDecodeError::UnknownInstructionKind(tag)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compare_i64_uses_append_only_tag_ten() {
+        let mut bytes = Vec::new();
+        encode_kind(&mut bytes, SelectedInstructionKind::CompareI64);
+        assert_eq!(bytes, [10]);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(
+            decode_kind(&mut cursor).unwrap(),
+            SelectedInstructionKind::CompareI64
+        );
+    }
 }
