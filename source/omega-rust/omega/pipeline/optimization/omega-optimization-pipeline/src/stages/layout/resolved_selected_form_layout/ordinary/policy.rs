@@ -12,8 +12,24 @@ pub(in super::super) fn select(
         .count();
     if single_entry_count == selected.functions.len() {
         Ok(SelectedFunctionLayoutPolicy::SingleEntryBlockV1)
-    } else if single_entry_count == 0 {
+    } else if single_entry_count == 0
+        && selected.functions.iter().all(|function| {
+            matches!(
+                function.blocks.first().map(|block| &block.terminator),
+                Some(SelectedTerminator::ConditionalBranch { .. })
+            )
+        })
+    {
         Ok(SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1)
+    } else if single_entry_count == 0
+        && selected.functions.iter().all(|function| {
+            matches!(
+                function.blocks.first().map(|block| &block.terminator),
+                Some(SelectedTerminator::ConditionalBranchU64LessThan { .. })
+            )
+        })
+    {
+        Ok(SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1)
     } else {
         Err(
             OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(

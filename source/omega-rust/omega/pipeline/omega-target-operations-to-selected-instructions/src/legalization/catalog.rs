@@ -95,6 +95,7 @@ pub(super) struct ScalarShapeConstraints {
 pub(super) enum ScalarConditionShape {
     DirectBooleanParameter,
     IntegerEqualU64Parameters,
+    IntegerLessThanU64Parameters,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,8 +173,9 @@ const fn scalar_form(
     }
 }
 
-const fn integer_equal_scalar_form(
+const fn integer_comparison_scalar_form(
     recipe: LegalizationRecipe,
+    condition: ScalarConditionShape,
     producer_matcher: ScalarLegalizationMatcherKind,
     block_offsets: [usize; 3],
     operation_count: usize,
@@ -195,7 +197,7 @@ const fn integer_equal_scalar_form(
         validator,
     );
     descriptor.constraints = LegalizationShapeConstraints::Scalar(ScalarShapeConstraints {
-        condition: ScalarConditionShape::IntegerEqualU64Parameters,
+        condition,
         entry_node_count: 2,
         block_offsets,
         operation_count,
@@ -249,7 +251,7 @@ const fn structural_unit_form(
 }
 
 /// The sole precedence, shape, and planning inventory for all current forms.
-pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 15] = [
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 16] = [
     scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
@@ -349,8 +351,21 @@ pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 15] = [
         0,
         ScalarLegalizationValidatorKind::ActiveResidentExactAddOriginalVictimChain,
     ),
-    integer_equal_scalar_form(
+    integer_comparison_scalar_form(
         LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1,
+        ScalarConditionShape::IntegerEqualU64Parameters,
+        ScalarLegalizationMatcherKind::Immediate,
+        [0, 2, 4],
+        6,
+        [2, 2],
+        2,
+        6,
+        0,
+        ScalarLegalizationValidatorKind::Immediate,
+    ),
+    integer_comparison_scalar_form(
+        LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1,
+        ScalarConditionShape::IntegerLessThanU64Parameters,
         ScalarLegalizationMatcherKind::Immediate,
         [0, 2, 4],
         6,

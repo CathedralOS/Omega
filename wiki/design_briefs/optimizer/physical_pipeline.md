@@ -444,7 +444,7 @@ those joins. The crate-level `lib.rs` is only the responsibility map between
 the two stages, not a hidden third coordinator.
 
 Immediately below the legalization entrance, `catalog.rs` is the sole ordered
-inventory for all fifteen forms: ten scalar, one plain Unit, and four
+inventory for all sixteen forms: eleven scalar, one plain Unit, and four
 structural Unit. Each row names its typed recipe, producer matcher kind, exact
 source-shape constraints, non-authoritative structural cost, and independent
 validator kind. `source/matchers/` walks that catalog to recognize a form;
@@ -454,29 +454,29 @@ closed. The Unit recipe families are retained in the current legalized-plan
 identity. Structural selected-form validation separately reconstructs ABI
 layout and call constraints without importing selection construction helpers.
 
-The first runtime comparison vertical is deliberately narrower than the
-recursive target-expression vocabulary. Its sole candidate is a three-block
-unsigned-`U64` function with two distinct entry parameters,
-`[IntegerEqual, Conditional]` in the entry block, and one `U64` immediate
-return in each leaf. Runtime fixtures choose distinct leaf values so both
-outcomes are observable. Legalization represents the condition as a closed
-choice between the established direct Boolean parameter and this one ordered
-integer-equality form. The equality form retains its operation, result
-definition, exact two ordered parameter values, locations, and definitions,
-provenance, and fuel; producer and replay descend through mirrored condition
-rungs rather than adding another expression switch to the leaf classifier.
+The runtime comparison vertical is deliberately narrower than the recursive
+target-expression vocabulary. Its two exact candidates are three-block
+unsigned-`U64` functions with two distinct entry parameters, either
+`[IntegerEqual, Conditional]` or `[IntegerLessThan, Conditional]` in the entry
+block, and one `U64` immediate return in each leaf. Legalization represents the
+condition as a closed choice among the established direct Boolean parameter,
+ordered integer equality, and ordered integer strict less-than. Each comparison
+leaf retains its operation, result definition, exact parameter values,
+locations and definitions, provenance, and fuel through mirrored producer and
+replay rungs.
 
-Selected construction lowers that equality to one two-register comparison and
-retains four virtual registers: the ordered two inputs and one result register
-for each immediate leaf. The existing nonzero conditional branch remains the
-control semantic: after a
-register comparison, nonzero means not equal and therefore targets the source
-false leaf, while zero/equal fallthrough targets the source true leaf. This
-keeps x86 branch relaxation and the ordinary AArch64 conditional-branch layout
-unchanged. The AArch64 compare-zero/branch-nonzero fusion remains inapplicable
-because its exact producer still requires `CompareI64Zero`. Only the new
-two-register comparison receives new register-constraint, machine-effect, and
-ISA-encoding rows.
+Selected construction lowers either comparison to one two-register compare
+and retains four virtual registers. Equality reuses the existing nonzero
+branch with not-equal taken to the source false leaf and equal fallthrough to
+the source true leaf. Strict less-than instead owns
+`ConditionalBranchU64LessThan`: less/source-true is taken and
+not-less/source-false is fallthrough. Layout and function-fragment evidence
+therefore carry an exact predicate plus taken/fallthrough custody rather than
+misnaming every branch as nonzero. x86 baseline layout emits `JB rel32`; only
+the explicit branch-relaxation rule may change its alternative and bytes to
+`JB rel8`. AArch64 emits `B.LO`. The compare-zero/CBNZ fusion remains
+inapplicable to both two-register forms because its exact producer still
+requires `CompareI64Zero` and nonzero control.
 
 Scalar source-leaf construction enters through a sub-100-line `derive_leaf`
 coordinator. It admits the common node and return envelope, visibly routes

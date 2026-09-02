@@ -81,6 +81,7 @@ pub(super) fn validate(
             let [true_register, false_register] = if matches!(
                 source.condition,
                 LegalizedCondition::IntegerEqualParametersV1 { .. }
+                    | LegalizedCondition::IntegerLessThanParametersV1 { .. }
             ) {
                 [VirtualRegisterId(2), VirtualRegisterId(3)]
             } else {

@@ -66,6 +66,7 @@ pub(super) fn validate_declaration(
     let expected_barrier = if matches!(
         semantic,
         MachineSemanticKind::ConditionalBranchNonZero
+            | MachineSemanticKind::ConditionalBranchU64LessThan
             | MachineSemanticKind::ReturnI64
             | MachineSemanticKind::ReturnUnit
     ) {

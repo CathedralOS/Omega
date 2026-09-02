@@ -17,7 +17,7 @@ use psi_core::{
 use psi_terminal::TerminalPsiIdentity;
 use sha2::{Digest, Sha256};
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v3";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v4";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentEmissionPlan {
@@ -124,12 +124,19 @@ pub struct FunctionFragmentInstructionSpan {
 pub enum FunctionFragmentControlProvenance {
     None,
     ConditionalBranch {
-        when_nonzero: FunctionFragmentSuccessorProvenance,
-        when_zero: FunctionFragmentSuccessorProvenance,
+        predicate: FunctionFragmentConditionalBranchPredicate,
+        when_taken: FunctionFragmentSuccessorProvenance,
+        when_fallthrough: FunctionFragmentSuccessorProvenance,
     },
     Return {
         psi_return_edge: EdgeId,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FunctionFragmentConditionalBranchPredicate {
+    NonZeroV1,
+    U64LessThanV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,13 +150,14 @@ pub struct FunctionFragmentSuccessorProvenance {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentConditionalBranchEvidence {
+    pub predicate: FunctionFragmentConditionalBranchPredicate,
     pub source_block: SelectedBlockId,
-    pub when_nonzero_edge: EdgeId,
-    pub when_nonzero_block: SelectedBlockId,
-    pub when_nonzero_offset: u64,
-    pub when_zero_edge: EdgeId,
-    pub when_zero_block: SelectedBlockId,
-    pub when_zero_offset: u64,
+    pub when_taken_edge: EdgeId,
+    pub when_taken_block: SelectedBlockId,
+    pub when_taken_offset: u64,
+    pub when_fallthrough_edge: EdgeId,
+    pub when_fallthrough_block: SelectedBlockId,
+    pub when_fallthrough_offset: u64,
     pub byte_displacement: i64,
     pub decoded_register_reads: Vec<RegisterViewId>,
     pub decoded_effects: MachineEncodedEffects,
@@ -316,12 +324,14 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
     match control {
         FunctionFragmentControlProvenance::None => hasher.update([0]),
         FunctionFragmentControlProvenance::ConditionalBranch {
-            when_nonzero,
-            when_zero,
+            predicate,
+            when_taken,
+            when_fallthrough,
         } => {
             hasher.update([1]);
-            encode_successor(hasher, when_nonzero);
-            encode_successor(hasher, when_zero);
+            encode_branch_predicate(hasher, *predicate);
+            encode_successor(hasher, when_taken);
+            encode_successor(hasher, when_fallthrough);
         }
         FunctionFragmentControlProvenance::Return { psi_return_edge } => {
             hasher.update([2]);
@@ -370,13 +380,14 @@ fn encode_branch(hasher: &mut Sha256, branch: Option<&FunctionFragmentConditiona
         return;
     };
     hasher.update([1]);
+    encode_branch_predicate(hasher, branch.predicate);
     hasher.update(branch.source_block.0.to_le_bytes());
-    hasher.update(branch.when_nonzero_edge.get().to_le_bytes());
-    hasher.update(branch.when_nonzero_block.0.to_le_bytes());
-    hasher.update(branch.when_nonzero_offset.to_le_bytes());
-    hasher.update(branch.when_zero_edge.get().to_le_bytes());
-    hasher.update(branch.when_zero_block.0.to_le_bytes());
-    hasher.update(branch.when_zero_offset.to_le_bytes());
+    hasher.update(branch.when_taken_edge.get().to_le_bytes());
+    hasher.update(branch.when_taken_block.0.to_le_bytes());
+    hasher.update(branch.when_taken_offset.to_le_bytes());
+    hasher.update(branch.when_fallthrough_edge.get().to_le_bytes());
+    hasher.update(branch.when_fallthrough_block.0.to_le_bytes());
+    hasher.update(branch.when_fallthrough_offset.to_le_bytes());
     hasher.update(branch.byte_displacement.to_le_bytes());
     hasher.update((branch.decoded_register_reads.len() as u64).to_le_bytes());
     for read in &branch.decoded_register_reads {
@@ -398,8 +409,19 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
+        MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
+}
+
+fn encode_branch_predicate(
+    hasher: &mut Sha256,
+    predicate: FunctionFragmentConditionalBranchPredicate,
+) {
+    hasher.update([match predicate {
+        FunctionFragmentConditionalBranchPredicate::NonZeroV1 => 0,
+        FunctionFragmentConditionalBranchPredicate::U64LessThanV1 => 1,
+    }]);
 }
 
 fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {

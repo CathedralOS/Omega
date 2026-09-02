@@ -36,10 +36,11 @@ pub enum MachineSemanticKind {
     ReturnI64,
     ReturnUnit,
     CompareI64,
+    ConditionalBranchU64LessThan,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::CompareI64Zero,
         Self::MaterializeI64,
         Self::CopyI64,
@@ -51,6 +52,7 @@ impl MachineSemanticKind {
         Self::ReturnI64,
         Self::ReturnUnit,
         Self::CompareI64,
+        Self::ConditionalBranchU64LessThan,
     ];
 }
 
@@ -67,6 +69,7 @@ pub enum MachineAlternativeFamily {
     ReturnI64,
     ReturnUnit,
     CompareI64,
+    ConditionalBranchU64LessThan,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -83,6 +86,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ReturnI64 => Self::ReturnI64,
             MachineSemanticKind::ReturnUnit => Self::ReturnUnit,
             MachineSemanticKind::CompareI64 => Self::CompareI64,
+            MachineSemanticKind::ConditionalBranchU64LessThan => Self::ConditionalBranchU64LessThan,
         }
     }
 }

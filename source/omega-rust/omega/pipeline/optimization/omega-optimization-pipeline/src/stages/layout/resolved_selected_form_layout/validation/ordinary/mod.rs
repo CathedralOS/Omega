@@ -28,6 +28,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
+    policy: super::super::SelectedFunctionLayoutPolicy,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
     let selected_plan = selected.selected_plan();
@@ -59,6 +60,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
             physical,
             fusion,
             copy_elision,
+            policy,
             &mut pre_rows,
             candidate,
         )?;

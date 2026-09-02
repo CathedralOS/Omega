@@ -188,6 +188,7 @@ fn block_instructions(
 ) -> Vec<&SelectedInstruction> {
     let terminator = match &block.terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     };
     block

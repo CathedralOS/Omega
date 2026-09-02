@@ -90,9 +90,11 @@ pub(super) fn validate(
             disposition,
             &row.state,
         ),
-        (SelectedInstructionKind::ConditionalBranchNonZero, materialization)
-            if materialization.is_none_or(MaterializationDisposition::is_retained) =>
-        {
+        (
+            SelectedInstructionKind::ConditionalBranchNonZero
+            | SelectedInstructionKind::ConditionalBranchU64LessThan,
+            materialization,
+        ) if materialization.is_none_or(MaterializationDisposition::is_retained) => {
             if row.state
                 != (SelectedFormEncodingState::DeferredControl {
                     reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,

@@ -12,7 +12,7 @@ use crate::{
 
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout,
+    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
 };
 use super::{order, plan, row};
 
@@ -24,8 +24,9 @@ pub(in super::super) fn layout(
     physical: &ValidatedPhysicalRegisterModel,
     fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
     copy_elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
+    policy: SelectedFunctionLayoutPolicy,
 ) -> Result<ResolvedSelectedFunctionLayout, OptimizedResolvedSelectedFormLayoutError> {
-    let ordered = order::derive(function, fusion)?;
+    let ordered = order::derive(function, fusion, policy)?;
     let layout = plan::derive(architecture, &ordered, pre_rows)?;
     let mut blocks = Vec::with_capacity(ordered.len());
     for block in ordered {

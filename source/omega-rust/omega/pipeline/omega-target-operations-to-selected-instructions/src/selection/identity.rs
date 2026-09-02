@@ -1,5 +1,6 @@
 use super::shared::*;
 
+mod ordinary;
 mod primitives;
 mod projected_structural;
 
@@ -52,7 +53,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v14\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v15\0".as_slice();
     selected_instruction_plan_identity_with_schema(plan, domain, false)
 }
 
@@ -77,6 +78,17 @@ pub fn selected_instruction_plan_identity_v13_legacy(
         b"omega.terminal-selected-instructions.v13\0".as_slice()
     };
     selected_instruction_plan_identity_with_schema(plan, domain, false)
+}
+
+#[doc(hidden)]
+pub fn selected_instruction_plan_identity_v14_legacy(
+    plan: &SelectedInstructionPlan,
+) -> SelectedInstructionPlanIdentity {
+    selected_instruction_plan_identity_with_schema(
+        plan,
+        b"omega.terminal-selected-instructions.v14\0",
+        false,
+    )
 }
 
 fn selected_instruction_plan_identity_with_schema(
@@ -155,26 +167,7 @@ fn selected_instruction_plan_identity_with_schema(
             for instruction in &block.instructions {
                 encode_instruction(&mut bytes, instruction);
             }
-            match &block.terminator {
-                SelectedTerminator::ConditionalBranch {
-                    instruction,
-                    when_nonzero,
-                    when_zero,
-                } => {
-                    bytes.push(0);
-                    encode_instruction(&mut bytes, instruction);
-                    encode_successor(&mut bytes, when_nonzero);
-                    encode_successor(&mut bytes, when_zero);
-                }
-                SelectedTerminator::Return {
-                    instruction,
-                    psi_return_edge,
-                } => {
-                    bytes.push(1);
-                    encode_instruction(&mut bytes, instruction);
-                    bytes.extend_from_slice(&psi_return_edge.get().to_le_bytes());
-                }
-            }
+            ordinary::encode_terminator(&mut bytes, &block.terminator);
         }
     }
     bytes.extend_from_slice(
@@ -368,6 +361,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
+        SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
     });
     match instruction.kind {
         SelectedInstructionKind::MaterializeI64 { value } => match value {
@@ -421,6 +415,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ConditionalBranchNonZero
+        | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit => {}
     }

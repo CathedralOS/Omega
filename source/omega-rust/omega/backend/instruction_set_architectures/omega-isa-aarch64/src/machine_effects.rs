@@ -120,6 +120,7 @@ fn declaration(
         barrier: if matches!(
             semantic,
             MachineSemanticKind::ConditionalBranchNonZero
+                | MachineSemanticKind::ConditionalBranchU64LessThan
                 | MachineSemanticKind::ReturnI64
                 | MachineSemanticKind::ReturnUnit
         ) {
@@ -168,6 +169,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::ExactAddI64Immediate
         | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
         MachineSemanticKind::ConditionalBranchNonZero
+        | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ReturnI64
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
     };
@@ -178,7 +180,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             MachineEncodedTrapBehavior::NeverV1,
             MachineEncodedControlEffect::FallThroughV1,
         ),
-        MachineSemanticKind::ConditionalBranchNonZero => {
+        MachineSemanticKind::ConditionalBranchNonZero
+        | MachineSemanticKind::ConditionalBranchU64LessThan => {
             let mut uses = units("nzcv");
             uses.extend(units("pc"));
             uses.sort_unstable();
@@ -275,6 +278,22 @@ mod tests {
             assert_eq!(
                 subtract.alternatives[0].size,
                 MachineSizeKnowledge::ExactBytes(4)
+            );
+            let less_than_branch = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == MachineSemanticKind::ConditionalBranchU64LessThan)
+                .unwrap();
+            assert_eq!(less_than_branch.constraint, AARCH64_CONDITIONAL_BRANCH);
+            assert_eq!(less_than_branch.barrier, MachineBarrier::ControlFlow);
+            assert_eq!(less_than_branch.alternatives.len(), 1);
+            assert_eq!(
+                less_than_branch.alternatives[0].size,
+                MachineSizeKnowledge::ExactBytes(4)
+            );
+            assert_eq!(
+                less_than_branch.alternatives[0].encoded.control,
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1
             );
             assert!(validate_aarch64_machine_effect_catalog(target, &constraints, catalog).is_ok());
             let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();

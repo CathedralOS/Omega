@@ -6,13 +6,14 @@ use omega_register_model::{
 };
 use omega_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
-    VirtualRegisterId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedSuccessor,
+    SelectedTerminator, VirtualRegisterId,
 };
 use psi_core::{BlockId, EdgeId, MachineId};
 
 use super::compute::{
-    StructuralUnitInstructionFacts, compute_structural_unit_facts, reject_unsupported_constraints,
+    StructuralUnitInstructionFacts, compute_function, compute_structural_unit_facts,
+    reject_unsupported_constraints,
 };
 use crate::LivenessError;
 
@@ -86,6 +87,78 @@ fn structural_unit_call_and_terminal_callee_retain_exact_unit_liveness() {
     assert_eq!(callee.blocks[0].instructions.len(), 1);
     assert_eq!(callee.blocks[0].unit_live_in, callee_uses);
     assert_eq!(callee.blocks[0].instructions[0].unit_defs, callee_defs);
+}
+
+#[test]
+fn u64_less_than_successors_retain_semantic_polarity_order() {
+    let key = RegisterConstraintKey {
+        family: RegisterConstraintFamily::Instruction,
+        variant: 99,
+    };
+    let instruction = |id, kind| SelectedInstruction {
+        id: SelectedInstructionId(id),
+        kind,
+        constraint: key,
+        operands: Vec::new(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+        provenance: SelectedInstructionProvenance::default(),
+    };
+    let successor = |edge, block, source_target| SelectedSuccessor {
+        psi_edge: EdgeId::new(edge).unwrap(),
+        block: SelectedBlockId(block),
+        source_target: BlockId::new(source_target).unwrap(),
+        bindings: Vec::new(),
+        fuel: Vec::new(),
+    };
+    let function = SelectedFunction {
+        machine: MachineId::new(1).unwrap(),
+        attachment: None,
+        provenance: Default::default(),
+        entry_block: SelectedBlockId(0),
+        virtual_registers: Vec::new(),
+        blocks: vec![
+            SelectedBlock {
+                id: SelectedBlockId(0),
+                source_block: BlockId::new(1).unwrap(),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::ConditionalBranchU64LessThan {
+                    instruction: instruction(
+                        0,
+                        SelectedInstructionKind::ConditionalBranchU64LessThan,
+                    ),
+                    when_less: successor(1, 1, 2),
+                    when_not_less: successor(2, 2, 3),
+                },
+            },
+            SelectedBlock {
+                id: SelectedBlockId(1),
+                source_block: BlockId::new(2).unwrap(),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Return {
+                    instruction: instruction(1, SelectedInstructionKind::ReturnUnit),
+                    psi_return_edge: EdgeId::new(3).unwrap(),
+                },
+            },
+            SelectedBlock {
+                id: SelectedBlockId(2),
+                source_block: BlockId::new(3).unwrap(),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Return {
+                    instruction: instruction(2, SelectedInstructionKind::ReturnUnit),
+                    psi_return_edge: EdgeId::new(4).unwrap(),
+                },
+            },
+        ],
+    };
+
+    let liveness = compute_function(0, &function).unwrap();
+    assert_eq!(liveness.blocks[0].successors.len(), 2);
+    assert_eq!(liveness.blocks[0].successors[0].polarity_ordinal, 0);
+    assert_eq!(liveness.blocks[0].successors[0].target, SelectedBlockId(1));
+    assert_eq!(liveness.blocks[0].successors[1].polarity_ordinal, 1);
+    assert_eq!(liveness.blocks[0].successors[1].target, SelectedBlockId(2));
 }
 
 fn function_with_operand(access: RegisterOperandAccess) -> SelectedFunction {

@@ -2,11 +2,12 @@
 
 mod direct_parameter;
 mod integer_equal_parameters;
+mod integer_less_than_parameters;
 
 use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
 
-pub(super) struct ReplayedCondition<'a> {
+pub(in crate::legalization) struct ReplayedCondition<'a> {
     pub source: ValueId,
     pub shape: ScalarConditionShape,
     pub result_type: IntegerType,
@@ -39,9 +40,27 @@ pub(super) fn replay<'a>(
             proposed,
         ),
         (
-            TargetOperation::ReturnIntegerExpressionConditionalControl { .. },
+            TargetOperation::ReturnIntegerExpressionConditionalControl {
+                condition: TargetBooleanExpression::IntegerEqual { .. },
+                ..
+            },
             LegalizedCondition::IntegerEqualParametersV1 { .. },
         ) => integer_equal_parameters::replay(
+            function,
+            architecture,
+            target,
+            abstracted,
+            optimized,
+            proposed_source,
+            proposed,
+        ),
+        (
+            TargetOperation::ReturnIntegerExpressionConditionalControl {
+                condition: TargetBooleanExpression::IntegerLessThan { .. },
+                ..
+            },
+            LegalizedCondition::IntegerLessThanParametersV1 { .. },
+        ) => integer_less_than_parameters::replay(
             function,
             architecture,
             target,

@@ -17,7 +17,7 @@ use super::{
     SelectedStructuralUnitFunctionEncoding,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v8";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v9";
 
 pub(super) fn encoding_identity(
     selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
@@ -260,6 +260,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
+        MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

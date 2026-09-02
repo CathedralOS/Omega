@@ -166,6 +166,8 @@ pub(super) fn render_manifest(
             SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => "single-entry-block-v1",
             SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1 =>
                 "structural-unit-call-then-return-single-entry-block-v1",
+            SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 =>
+                "entry-then-not-less-fallthrough-then-less-v1",
         }
     )
     .unwrap();

@@ -10,6 +10,7 @@ use super::{CopyElision, Fusion, PreLayoutRows, order, plan, roster};
 
 use super::super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedFunctionLayout,
+    SelectedFunctionLayoutPolicy,
 };
 
 pub(super) fn validate(
@@ -19,6 +20,7 @@ pub(super) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
     fusion: Fusion<'_>,
     copy_elision: CopyElision<'_>,
+    policy: SelectedFunctionLayoutPolicy,
     pre_rows: &mut PreLayoutRows<'_>,
     candidate: &ResolvedSelectedFunctionLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
@@ -37,7 +39,7 @@ pub(super) fn validate(
     if machine_blocks.len() != machine.blocks.len() {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
-    let ordered = order::derive(selected, fusion)?;
+    let ordered = order::derive(selected, fusion, policy)?;
     if candidate.blocks.len() != ordered.len() {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }

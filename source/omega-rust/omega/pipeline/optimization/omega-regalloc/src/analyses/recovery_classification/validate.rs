@@ -394,6 +394,7 @@ fn replay_block_instructions(
     let mut instructions = block.instructions.iter().collect::<Vec<_>>();
     instructions.push(match &block.terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     });
     instructions

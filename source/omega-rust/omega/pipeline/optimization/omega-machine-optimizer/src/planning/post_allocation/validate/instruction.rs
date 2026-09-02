@@ -174,6 +174,10 @@ pub(super) fn selected_instructions(
         omega_selected_instructions::SelectedTerminator::ConditionalBranch {
             instruction, ..
         }
+        | omega_selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction,
+            ..
+        }
         | omega_selected_instructions::SelectedTerminator::Return { instruction, .. } => {
             instruction
         }

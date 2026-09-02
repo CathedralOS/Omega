@@ -61,9 +61,11 @@ pub(super) fn encode_row(
             physical,
             disposition,
         )?,
-        (SelectedInstructionKind::ConditionalBranchNonZero, materialization)
-            if materialization.is_none_or(MaterializationDisposition::is_retained) =>
-        {
+        (
+            SelectedInstructionKind::ConditionalBranchNonZero
+            | SelectedInstructionKind::ConditionalBranchU64LessThan,
+            materialization,
+        ) if materialization.is_none_or(MaterializationDisposition::is_retained) => {
             SelectedFormEncodingState::DeferredControl {
                 reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
             }

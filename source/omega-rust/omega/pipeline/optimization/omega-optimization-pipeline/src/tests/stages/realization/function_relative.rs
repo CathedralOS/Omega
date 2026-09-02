@@ -195,14 +195,15 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
         .unwrap();
     assert_eq!(branch.bytes[0], 0x75);
     let omega_machine_code::FunctionFragmentControlProvenance::ConditionalBranch {
-        when_nonzero,
-        when_zero,
+        when_taken,
+        when_fallthrough,
+        ..
     } = &branch.control
     else {
         panic!("resolved rel8 branch must retain both semantic successors")
     };
-    assert!(!when_nonzero.fuel.is_empty());
-    assert!(!when_zero.fuel.is_empty());
+    assert!(!when_taken.fuel.is_empty());
+    assert!(!when_fallthrough.fuel.is_empty());
     let record = emitted.manifest().record();
     assert_eq!(
         record.source_kind,
@@ -253,13 +254,12 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
         .find(|row| row.branch.is_some())
         .unwrap();
     let omega_machine_code::FunctionFragmentControlProvenance::ConditionalBranch {
-        when_nonzero,
-        ..
+        when_taken, ..
     } = &mut branch.control
     else {
         unreachable!()
     };
-    when_nonzero.fuel.clear();
+    when_taken.fuel.clear();
     let fuel_corruption_identity = emitted.fragments().recomputed_identity();
     assert_ne!(fuel_corruption_identity, emitted.custody().fragments());
     emitted.fragments_mut().identity = fuel_corruption_identity;

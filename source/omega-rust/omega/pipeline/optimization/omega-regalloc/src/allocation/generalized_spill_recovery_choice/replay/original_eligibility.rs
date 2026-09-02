@@ -55,6 +55,7 @@ pub(super) fn replay(
         .iter()
         .chain(std::iter::once(match &selected_block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         }))
         .map(|instruction| (instruction.id, instruction))

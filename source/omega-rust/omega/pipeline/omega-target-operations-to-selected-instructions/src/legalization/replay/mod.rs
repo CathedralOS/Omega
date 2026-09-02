@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Independent replay of a proposed legal-operation projection.
 
-mod conditions;
+pub(in crate::legalization) mod conditions;
 mod custody;
 mod functions;
 mod leaf;
@@ -13,6 +13,27 @@ use crate::legalization::projected_structural_call_return;
 use functions::{replay_function, replay_unit_function};
 use shared::*;
 use structural::replay_structural_unit_function;
+
+#[cfg(test)]
+pub(in crate::legalization) fn replay_condition_for_test<'a>(
+    function: usize,
+    architecture: omega_target::Architecture,
+    target: &'a omega_target_operations::TargetFunction,
+    abstracted: &omega_abstract_operations::AbstractFunction,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    proposed_source: ValueId,
+    proposed: &omega_legalized_operations::LegalizedCondition,
+) -> Result<conditions::ReplayedCondition<'a>, LegalizationError> {
+    conditions::replay(
+        function,
+        architecture,
+        target,
+        abstracted,
+        optimized,
+        proposed_source,
+        proposed,
+    )
+}
 
 /// Independently replay a proposed V9 legal projection against all three raw
 /// custody inputs. This module deliberately compares fields in place instead

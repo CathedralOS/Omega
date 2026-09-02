@@ -20,6 +20,7 @@ pub(super) fn ordered_instructions(block: &SelectedBlock) -> Vec<&SelectedInstru
         .iter()
         .chain(std::iter::once(match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         }))
         .collect()

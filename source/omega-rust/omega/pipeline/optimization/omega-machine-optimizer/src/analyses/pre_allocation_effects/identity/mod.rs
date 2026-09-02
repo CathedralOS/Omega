@@ -24,10 +24,23 @@ use values::{encode_len, encode_target};
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v6\0")
+}
+
+pub(crate) fn pre_allocation_machine_effect_identity_v5_legacy(
+    plan: &PreAllocationMachineEffectPlan,
+) -> PreAllocationMachineEffectIdentity {
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v5\0")
+}
+
+fn identity_with_domain(
+    plan: &PreAllocationMachineEffectPlan,
+    domain: &[u8],
+) -> PreAllocationMachineEffectIdentity {
     use sha2::{Digest, Sha256};
 
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-preallocation-machine-effects.v5\0");
+    bytes.extend_from_slice(domain);
     bytes.extend_from_slice(&encode_terminal_pre_allocation_machine_effect_content(plan));
     PreAllocationMachineEffectIdentity::from_bytes(Sha256::digest(bytes).into())
 }

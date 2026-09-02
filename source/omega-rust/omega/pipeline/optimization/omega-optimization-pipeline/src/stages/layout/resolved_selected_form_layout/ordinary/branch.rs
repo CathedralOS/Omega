@@ -2,9 +2,11 @@ use std::collections::BTreeMap;
 
 use omega_isa_aarch64::{
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-    encode_aarch64_selected_nonzero_branch_form,
+    encode_aarch64_selected_nonzero_branch_form, encode_aarch64_selected_u64_less_than_branch_form,
 };
-use omega_isa_x86_64::encode_x86_64_selected_nonzero_branch_form;
+use omega_isa_x86_64::{
+    encode_x86_64_selected_nonzero_branch_form, encode_x86_64_selected_u64_less_than_branch_form,
+};
 use omega_machine_optimizer::{
     Aarch64CbnzFusionAction, PostAllocationMachineInstruction, QualifiedPhysicalRead,
 };
@@ -15,7 +17,10 @@ use omega_selected_instructions::{
 };
 use omega_target::Architecture;
 
-use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedConditionalBranchEvidence};
+use super::super::{
+    OptimizedResolvedSelectedFormLayoutError, ResolvedConditionalBranchEvidence,
+    ResolvedConditionalBranchPredicate,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve(
@@ -31,41 +36,57 @@ pub(super) fn resolve(
     (Vec<u8>, Option<Box<ResolvedConditionalBranchEvidence>>),
     OptimizedResolvedSelectedFormLayoutError,
 > {
-    let SelectedTerminator::ConditionalBranch {
-        instruction: terminator,
-        when_nonzero,
-        when_zero,
-    } = &block.terminator
-    else {
-        return unexpected(instruction.id);
+    let (predicate, terminator, when_taken, when_fallthrough) = match &block.terminator {
+        SelectedTerminator::ConditionalBranch {
+            instruction,
+            when_nonzero,
+            when_zero,
+        } => (
+            ResolvedConditionalBranchPredicate::NonZeroV1,
+            instruction,
+            when_nonzero,
+            when_zero,
+        ),
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction,
+            when_less,
+            when_not_less,
+        } => (
+            ResolvedConditionalBranchPredicate::U64LessThanV1,
+            instruction,
+            when_less,
+            when_not_less,
+        ),
+        SelectedTerminator::Return { .. } => return unexpected(instruction.id),
     };
     if terminator.id != instruction.id {
         return unexpected(instruction.id);
     }
-    let nonzero_offset = *block_offsets.get(&when_nonzero.block).ok_or(
+    let taken_offset = *block_offsets.get(&when_taken.block).ok_or(
         OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
     )?;
-    let zero_offset = *block_offsets.get(&when_zero.block).ok_or(
+    let fallthrough_offset = *block_offsets.get(&when_fallthrough.block).ok_or(
         OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
     )?;
     let byte_count = branch_size(architecture);
     let branch_end = instruction_offset
         .checked_add(byte_count)
         .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    if zero_offset != branch_end {
+    if fallthrough_offset != branch_end {
         return Err(
             OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
         );
     }
     let displacement = match architecture {
-        Architecture::X86_64 => checked_delta(nonzero_offset, branch_end)?,
-        Architecture::Aarch64 => checked_delta(nonzero_offset, instruction_offset)?,
+        Architecture::X86_64 => checked_delta(taken_offset, branch_end)?,
+        Architecture::Aarch64 => checked_delta(taken_offset, instruction_offset)?,
     };
     let (bytes, register_reads, effects) = encode(
         architecture,
         physical,
         machine,
         fused,
+        predicate,
         displacement,
         instruction.id,
     )?;
@@ -93,13 +114,14 @@ pub(super) fn resolve(
     Ok((
         bytes,
         Some(Box::new(ResolvedConditionalBranchEvidence {
+            predicate,
             source_block: block.id,
-            when_nonzero_edge: when_nonzero.psi_edge,
-            when_nonzero_block: when_nonzero.block,
-            when_nonzero_offset: nonzero_offset,
-            when_zero_edge: when_zero.psi_edge,
-            when_zero_block: when_zero.block,
-            when_zero_offset: zero_offset,
+            when_taken_edge: when_taken.psi_edge,
+            when_taken_block: when_taken.block,
+            when_taken_offset: taken_offset,
+            when_fallthrough_edge: when_fallthrough.psi_edge,
+            when_fallthrough_block: when_fallthrough.block,
+            when_fallthrough_offset: fallthrough_offset,
             byte_displacement: displacement,
             decoded_register_reads: register_reads,
             decoded_effects: effects,
@@ -112,6 +134,7 @@ fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     machine: &PostAllocationMachineInstruction,
     fused: Option<(&QualifiedPhysicalRead, &Aarch64CbnzFusionAction)>,
+    predicate: ResolvedConditionalBranchPredicate,
     displacement: i64,
     instruction: SelectedInstructionId,
 ) -> Result<
@@ -122,8 +145,12 @@ fn encode(
     ),
     OptimizedResolvedSelectedFormLayoutError,
 > {
-    match (architecture, fused) {
-        (Architecture::Aarch64, Some((source_read, _))) => {
+    match (architecture, fused, predicate) {
+        (
+            Architecture::Aarch64,
+            Some((source_read, _)),
+            ResolvedConditionalBranchPredicate::NonZeroV1,
+        ) => {
             let encoded = encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
                 physical,
                 source_read.view,
@@ -136,8 +163,9 @@ fn encode(
                 encoded.footprint().encoded.clone(),
             ))
         }
-        (Architecture::X86_64, Some(_)) => unexpected(instruction),
-        (Architecture::X86_64, None) => {
+        (_, Some(_), ResolvedConditionalBranchPredicate::U64LessThanV1)
+        | (Architecture::X86_64, Some(_), _) => unexpected(instruction),
+        (Architecture::X86_64, None, ResolvedConditionalBranchPredicate::NonZeroV1) => {
             let encoded = encode_x86_64_selected_nonzero_branch_form(
                 physical,
                 machine.alternative.key,
@@ -150,8 +178,34 @@ fn encode(
                 encoded.footprint().encoded.clone(),
             ))
         }
-        (Architecture::Aarch64, None) => {
+        (Architecture::Aarch64, None, ResolvedConditionalBranchPredicate::NonZeroV1) => {
             let encoded = encode_aarch64_selected_nonzero_branch_form(
+                physical,
+                machine.alternative.key,
+                displacement,
+            )
+            .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
+            Ok((
+                encoded.bytes().to_vec(),
+                encoded.footprint().register_reads.clone(),
+                encoded.footprint().encoded.clone(),
+            ))
+        }
+        (Architecture::X86_64, None, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
+            let encoded = encode_x86_64_selected_u64_less_than_branch_form(
+                physical,
+                machine.alternative.key,
+                displacement,
+            )
+            .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
+            Ok((
+                encoded.bytes().to_vec(),
+                encoded.footprint().register_reads.clone(),
+                encoded.footprint().encoded.clone(),
+            ))
+        }
+        (Architecture::Aarch64, None, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
+            let encoded = encode_aarch64_selected_u64_less_than_branch_form(
                 physical,
                 machine.alternative.key,
                 displacement,

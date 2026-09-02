@@ -2,7 +2,7 @@
 use crate::*;
 pub(super) use omega_abstract_operations::CompletionClaimSource;
 pub(super) use omega_calling_conventions::{
-    CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, MachineRegister, ValueShape, evaluate_call_plan,
 };
 pub(super) use omega_optimization_core::OptimizationUnitIdentity;
 pub(super) use omega_optimization_unit::{
@@ -11,8 +11,9 @@ pub(super) use omega_optimization_unit::{
 pub(super) use omega_target::NativeTarget;
 pub(super) use omega_target_operations::TerminalPsiProvenance;
 pub(super) use psi_core::{
-    BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    OperationId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, OperationId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 pub(super) use psi_terminal::{
     BindingRelevance, ClaimTransfer, CompletionReceipt, EntryClaim, ProviderCandidateConformance,

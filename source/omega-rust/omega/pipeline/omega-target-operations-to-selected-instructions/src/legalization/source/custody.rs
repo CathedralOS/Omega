@@ -28,7 +28,8 @@ pub(super) fn validate_source_register_architecture(
             LegalizedCondition::DirectParameter { register, .. } => {
                 register.architecture() != architecture
             }
-            LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } => {
+            LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
+            | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. } => {
                 left.register.architecture() != architecture
                     || right.register.architecture() != architecture
             }

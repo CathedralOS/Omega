@@ -128,6 +128,11 @@ pub enum SelectedInstructionKind {
         accepted_fact: AcceptedObligationFactIdentity,
     },
     ConditionalBranchNonZero,
+    /// Branch on the unsigned-U64 less-than predicate established by the
+    /// immediately preceding comparison. The comparison remains a distinct
+    /// selected instruction; this zero-operand terminator names the exact
+    /// predicate consumed from target condition state.
+    ConditionalBranchU64LessThan,
     ReturnI64,
     /// Value-less semantic return. This is deliberately distinct from
     /// `ReturnI64` even on targets where both select the same opcode.
@@ -149,6 +154,14 @@ pub enum SelectedTerminator {
         instruction: SelectedInstruction,
         when_nonzero: SelectedSuccessor,
         when_zero: SelectedSuccessor,
+    },
+    /// Predicate-aware unsigned-U64 control. Keeping the semantic successors
+    /// distinct prevents later persistence and allocation stages from having
+    /// to infer ordering meaning from a generic nonzero/zero branch.
+    ConditionalBranchU64LessThan {
+        instruction: SelectedInstruction,
+        when_less: SelectedSuccessor,
+        when_not_less: SelectedSuccessor,
     },
     Return {
         instruction: SelectedInstruction,
