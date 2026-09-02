@@ -13,6 +13,11 @@ syntax customer uses a nominal node-kind sum over parallel indexed arenas,
 performs an explicit postorder fold and branch-selection rewrite, and serializes
 the transformed tree without recursion or heap allocation.
 
+A second Epsilon-shaped customer lays out and encodes all 21 Alpha opcodes from
+22 nominal symbolic item variants. It resolves forward labels, rejects malformed
+or incomplete programs before output, and emits exact target bytes. Supporting
+its positive target-to-byte conversion adds typed signed division to the compiler.
+
 The source is intentionally retained near the future canonical edge, but remains
 noncanonical. Its executable customer, rejection twins, exact measurements, and
 native/interpreted agreement gate live under

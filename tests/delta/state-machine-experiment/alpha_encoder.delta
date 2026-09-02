@@ -1,0 +1,540 @@
+# Symbolic Alpha layout and encoding over fixed typed arenas.
+# Input: label-count byte, fixed 12-byte item records, then 0xff.
+# Record bytes are kind, a, b, c, and eight immediate bytes.
+
+sum AlphaKind label halt imm mov add sub mul div mod load_byte store_byte load_word store_word jump jump_zero jump_nonzero jump_less jump_equal read write call return end
+
+array Kinds AlphaKind 128
+array As word 128
+array Bs word 128
+array Cs word 128
+array I0s word 128
+array I1s word 128
+array I2s word 128
+array I3s word 128
+array I4s word 128
+array I5s word 128
+array I6s word 128
+array I7s word 128
+array Labels word 256
+array Defined word 256
+
+machine write_target target_value word target_result word
+local target_divisor word
+local target_count word
+local target_one word
+local target_zero word
+state target_start
+const target_divisor 256
+const target_count 8
+const target_one 1
+const target_zero 0
+goto target_loop
+state target_loop
+write target_value
+div target_value target_value target_divisor
+sub target_count target_count target_one
+brzero target_count target_done target_loop
+state target_done
+return target_zero
+end
+
+machine main ignored word result word
+local current word
+local label_count word
+local item_count word
+local pc word
+local instruction_count word
+local binding_count word
+local scan word
+local kind_code word
+local a word
+local b word
+local c word
+local i0 word
+local i1 word
+local i2 word
+local i3 word
+local i4 word
+local i5 word
+local i6 word
+local i7 word
+local width word
+local target word
+local defined_value word
+local temp word
+local one word
+local eof word
+local end_code word
+local pending_kind AlphaKind
+local kind AlphaKind
+local kinds Kinds
+local as As
+local bs Bs
+local cs Cs
+local i0s I0s
+local i1s I1s
+local i2s I2s
+local i3s I3s
+local i4s I4s
+local i5s I5s
+local i6s I6s
+local i7s I7s
+local labels Labels
+local defined Defined
+state start
+const result 0
+const item_count 0
+const pc 0
+const instruction_count 0
+const binding_count 0
+const one 1
+const eof 18446744073709551615
+const end_code 255
+read label_count
+copy temp label_count
+sub temp temp eof
+brzero temp malformed read_item
+
+state read_item
+read kind_code
+copy temp kind_code
+sub temp temp eof
+brzero temp malformed end_test
+state end_test
+copy temp kind_code
+sub temp temp end_code
+brzero temp layout_done read_fields
+state read_fields
+read a
+read b
+read c
+read i0
+read i1
+read i2
+read i3
+read i4
+read i5
+read i6
+read i7
+copy temp i7
+sub temp temp eof
+brzero temp malformed decode_halt
+
+state decode_halt
+copy temp kind_code
+brzero temp kind_halt decode_imm
+state decode_imm
+copy temp kind_code
+sub temp temp one
+brzero temp kind_imm decode_mov
+state decode_mov
+const current 2
+copy temp kind_code
+sub temp temp current
+brzero temp kind_mov decode_add
+state decode_add
+const current 3
+copy temp kind_code
+sub temp temp current
+brzero temp kind_add decode_sub
+state decode_sub
+const current 4
+copy temp kind_code
+sub temp temp current
+brzero temp kind_sub decode_mul
+state decode_mul
+const current 5
+copy temp kind_code
+sub temp temp current
+brzero temp kind_mul decode_div
+state decode_div
+const current 6
+copy temp kind_code
+sub temp temp current
+brzero temp kind_div decode_mod
+state decode_mod
+const current 7
+copy temp kind_code
+sub temp temp current
+brzero temp kind_mod decode_load_byte
+state decode_load_byte
+const current 8
+copy temp kind_code
+sub temp temp current
+brzero temp kind_load_byte decode_store_byte
+state decode_store_byte
+const current 9
+copy temp kind_code
+sub temp temp current
+brzero temp kind_store_byte decode_load_word
+state decode_load_word
+const current 10
+copy temp kind_code
+sub temp temp current
+brzero temp kind_load_word decode_store_word
+state decode_store_word
+const current 11
+copy temp kind_code
+sub temp temp current
+brzero temp kind_store_word decode_jump
+state decode_jump
+const current 12
+copy temp kind_code
+sub temp temp current
+brzero temp kind_jump decode_jump_zero
+state decode_jump_zero
+const current 13
+copy temp kind_code
+sub temp temp current
+brzero temp kind_jump_zero decode_jump_nonzero
+state decode_jump_nonzero
+const current 14
+copy temp kind_code
+sub temp temp current
+brzero temp kind_jump_nonzero decode_jump_less
+state decode_jump_less
+const current 15
+copy temp kind_code
+sub temp temp current
+brzero temp kind_jump_less decode_jump_equal
+state decode_jump_equal
+const current 16
+copy temp kind_code
+sub temp temp current
+brzero temp kind_jump_equal decode_read
+state decode_read
+const current 17
+copy temp kind_code
+sub temp temp current
+brzero temp kind_read decode_write
+state decode_write
+const current 18
+copy temp kind_code
+sub temp temp current
+brzero temp kind_write decode_call
+state decode_call
+const current 19
+copy temp kind_code
+sub temp temp current
+brzero temp kind_call decode_return
+state decode_return
+const current 20
+copy temp kind_code
+sub temp temp current
+brzero temp kind_return decode_label
+state decode_label
+const current 21
+copy temp kind_code
+sub temp temp current
+brzero temp kind_label malformed
+
+state kind_label
+construct pending_kind AlphaKind label
+const width 0
+goto store_item
+state kind_halt
+construct pending_kind AlphaKind halt
+const width 2
+goto store_item
+state kind_imm
+construct pending_kind AlphaKind imm
+const width 10
+goto store_item
+state kind_mov
+construct pending_kind AlphaKind mov
+const width 3
+goto store_item
+state kind_add
+construct pending_kind AlphaKind add
+const width 3
+goto store_item
+state kind_sub
+construct pending_kind AlphaKind sub
+const width 3
+goto store_item
+state kind_mul
+construct pending_kind AlphaKind mul
+const width 3
+goto store_item
+state kind_div
+construct pending_kind AlphaKind div
+const width 3
+goto store_item
+state kind_mod
+construct pending_kind AlphaKind mod
+const width 3
+goto store_item
+state kind_load_byte
+construct pending_kind AlphaKind load_byte
+const width 3
+goto store_item
+state kind_store_byte
+construct pending_kind AlphaKind store_byte
+const width 3
+goto store_item
+state kind_load_word
+construct pending_kind AlphaKind load_word
+const width 3
+goto store_item
+state kind_store_word
+construct pending_kind AlphaKind store_word
+const width 3
+goto store_item
+state kind_jump
+construct pending_kind AlphaKind jump
+const width 9
+goto store_item
+state kind_jump_zero
+construct pending_kind AlphaKind jump_zero
+const width 10
+goto store_item
+state kind_jump_nonzero
+construct pending_kind AlphaKind jump_nonzero
+const width 10
+goto store_item
+state kind_jump_less
+construct pending_kind AlphaKind jump_less
+const width 11
+goto store_item
+state kind_jump_equal
+construct pending_kind AlphaKind jump_equal
+const width 11
+goto store_item
+state kind_read
+construct pending_kind AlphaKind read
+const width 2
+goto store_item
+state kind_write
+construct pending_kind AlphaKind write
+const width 2
+goto store_item
+state kind_call
+construct pending_kind AlphaKind call
+const width 9
+goto store_item
+state kind_return
+construct pending_kind AlphaKind return
+const width 1
+
+state store_item
+index-set-dyn kinds item_count pending_kind
+index-set-dyn as item_count a
+index-set-dyn bs item_count b
+index-set-dyn cs item_count c
+index-set-dyn i0s item_count i0
+index-set-dyn i1s item_count i1
+index-set-dyn i2s item_count i2
+index-set-dyn i3s item_count i3
+index-set-dyn i4s item_count i4
+index-set-dyn i5s item_count i5
+index-set-dyn i6s item_count i6
+index-set-dyn i7s item_count i7
+switch pending_kind AlphaKind label layout_label halt layout_instruction imm layout_instruction mov layout_instruction add layout_instruction sub layout_instruction mul layout_instruction div layout_instruction mod layout_instruction load_byte layout_instruction store_byte layout_instruction load_word layout_instruction store_word layout_instruction jump layout_instruction jump_zero layout_instruction jump_nonzero layout_instruction jump_less layout_instruction jump_equal layout_instruction read layout_instruction write layout_instruction call layout_instruction return layout_instruction endswitch
+state layout_label
+index-get-dyn defined_value defined a
+brzero defined_value bind_label malformed
+state bind_label
+index-set-dyn defined a one
+index-set-dyn labels a pc
+add binding_count binding_count one
+goto layout_next
+state layout_instruction
+add pc pc width
+add instruction_count instruction_count one
+state layout_next
+add item_count item_count one
+goto read_item
+
+state layout_done
+read current
+copy temp current
+sub temp temp eof
+brzero temp layout_closed malformed
+state layout_closed
+copy temp binding_count
+sub temp temp label_count
+brzero temp payload_test malformed
+state payload_test
+brzero pc malformed dense_start
+state dense_start
+const scan 0
+goto dense_loop
+state dense_loop
+copy temp label_count
+sub temp temp scan
+brzero temp validate_start dense_one
+state dense_one
+index-get-dyn defined_value defined scan
+brzero defined_value malformed dense_next
+state dense_next
+add scan scan one
+goto dense_loop
+
+state validate_start
+const scan 0
+goto validate_loop
+state validate_loop
+copy temp item_count
+sub temp temp scan
+brzero temp emit_start validate_item
+state validate_item
+index-get-dyn kind kinds scan
+index-get-dyn a as scan
+index-get-dyn b bs scan
+index-get-dyn c cs scan
+switch kind AlphaKind label validate_next halt validate_next imm validate_next mov validate_next add validate_next sub validate_next mul validate_next div validate_next mod validate_next load_byte validate_next store_byte validate_next load_word validate_next store_word validate_next jump validate_target_a jump_zero validate_target_b jump_nonzero validate_target_b jump_less validate_target_c jump_equal validate_target_c read validate_next write validate_next call validate_target_a return validate_next endswitch
+state validate_target_a
+copy target a
+goto validate_target
+state validate_target_b
+copy target b
+goto validate_target
+state validate_target_c
+copy target c
+state validate_target
+index-get-dyn defined_value defined target
+brzero defined_value malformed validate_next
+state validate_next
+add scan scan one
+goto validate_loop
+
+state emit_start
+const scan 0
+goto emit_loop
+state emit_loop
+copy temp item_count
+sub temp temp scan
+brzero temp success emit_item
+state emit_item
+index-get-dyn kind kinds scan
+index-get-dyn a as scan
+index-get-dyn b bs scan
+index-get-dyn c cs scan
+switch kind AlphaKind label emit_next halt emit_halt imm emit_imm mov emit_mov add emit_add sub emit_sub mul emit_mul div emit_div mod emit_mod load_byte emit_load_byte store_byte emit_store_byte load_word emit_load_word store_word emit_store_word jump emit_jump jump_zero emit_jump_zero jump_nonzero emit_jump_nonzero jump_less emit_jump_less jump_equal emit_jump_equal read emit_read write emit_write call emit_call return emit_return endswitch
+
+state emit_halt
+const current 0
+goto emit_r
+state emit_read
+const current 17
+goto emit_r
+state emit_write
+const current 18
+state emit_r
+write current
+write a
+goto emit_next
+
+state emit_imm
+const current 1
+write current
+write a
+index-get-dyn current i0s scan
+write current
+index-get-dyn current i1s scan
+write current
+index-get-dyn current i2s scan
+write current
+index-get-dyn current i3s scan
+write current
+index-get-dyn current i4s scan
+write current
+index-get-dyn current i5s scan
+write current
+index-get-dyn current i6s scan
+write current
+index-get-dyn current i7s scan
+write current
+goto emit_next
+
+state emit_mov
+const current 2
+goto emit_rr
+state emit_add
+const current 3
+goto emit_rr
+state emit_sub
+const current 4
+goto emit_rr
+state emit_mul
+const current 5
+goto emit_rr
+state emit_div
+const current 6
+goto emit_rr
+state emit_mod
+const current 7
+goto emit_rr
+state emit_load_byte
+const current 8
+goto emit_rr
+state emit_store_byte
+const current 9
+goto emit_rr
+state emit_load_word
+const current 10
+goto emit_rr
+state emit_store_word
+const current 11
+state emit_rr
+write current
+write a
+write b
+goto emit_next
+
+state emit_jump
+const current 12
+write current
+copy target a
+goto emit_target
+state emit_call
+const current 19
+write current
+copy target a
+goto emit_target
+state emit_target
+index-get-dyn target labels target
+call temp write_target target
+goto emit_next
+
+state emit_jump_zero
+const current 13
+goto emit_rt
+state emit_jump_nonzero
+const current 14
+state emit_rt
+write current
+write a
+index-get-dyn target labels b
+call temp write_target target
+goto emit_next
+
+state emit_jump_less
+const current 15
+goto emit_rrt
+state emit_jump_equal
+const current 16
+state emit_rrt
+write current
+write a
+write b
+index-get-dyn target labels c
+call temp write_target target
+goto emit_next
+
+state emit_return
+const current 20
+write current
+state emit_next
+add scan scan one
+goto emit_loop
+
+state success
+halt result
+state malformed
+const result 1
+halt result
+end
+
+entry main start

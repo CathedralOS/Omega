@@ -17,6 +17,7 @@ COMPILER="$OMEGA_PATH_DELTA/compiler/experiments/state_machine/delta_compiler.ga
 SAMPLE="$GATE_DIR/sample.delta"
 PARSER="$GATE_DIR/nested_parser.delta"
 TRANSFORM="$GATE_DIR/ast_transform.delta"
+ENCODER="$GATE_DIR/alpha_encoder.delta"
 
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
 "$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
@@ -24,7 +25,7 @@ stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/evaluator
 stamp_seed "$OMEGA_PATH_GAMMA/compiler/gamma_compiler_bytecode.tape" \
     "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/gamma-compiler" >/dev/null
 
-COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER TRANSFORM=$TRANSFORM EVALUATOR="$TMP/evaluator" \
+COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER TRANSFORM=$TRANSFORM ENCODER=$ENCODER EVALUATOR="$TMP/evaluator" \
     NATIVE_GAMMA="$TMP/gamma-compiler" TMP=$TMP python3 -c '
 import hashlib
 import os
@@ -53,9 +54,9 @@ native_delta = subprocess.run(
 )
 if native_delta.returncode != 0:
     raise SystemExit(f"native Gamma compilation exited {native_delta.returncode}")
-if len(native_delta.stdout) != 22339:
+if len(native_delta.stdout) != 22690:
     raise SystemExit(f"native Delta compiler is {len(native_delta.stdout)} bytes")
-if hashlib.sha256(native_delta.stdout).hexdigest() != "abaeead18c5523515ee0a975bed7fcf88052cedb413f6a2a633e4cd5a7afff24":
+if hashlib.sha256(native_delta.stdout).hexdigest() != "b3c8091d57b4b743bcdcab70e1ab4a1e363d0d60a5420804874fc0a90b83ad27":
     raise SystemExit("native Delta compiler identity changed")
 (temporary / "delta-compiler.tape").write_bytes(native_delta.stdout)
 '
@@ -63,7 +64,7 @@ if hashlib.sha256(native_delta.stdout).hexdigest() != "abaeead18c5523515ee0a975b
 stamp_seed "$TMP/delta-compiler.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/delta-compiler" >/dev/null
 
-COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER TRANSFORM=$TRANSFORM EVALUATOR="$TMP/evaluator" \
+COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER TRANSFORM=$TRANSFORM ENCODER=$ENCODER EVALUATOR="$TMP/evaluator" \
     NATIVE_DELTA="$TMP/delta-compiler" TMP=$TMP python3 -c '
 import hashlib
 import os
@@ -75,6 +76,7 @@ compiler = Path(os.environ["COMPILER"]).read_bytes()
 sample = Path(os.environ["SAMPLE"]).read_text()
 parser = Path(os.environ["PARSER"]).read_text()
 transform = Path(os.environ["TRANSFORM"]).read_text()
+encoder = Path(os.environ["ENCODER"]).read_text()
 temporary = Path(os.environ["TMP"])
 
 def interpreted(subject: str):
@@ -161,6 +163,16 @@ left = interpreted(ill_typed_transform)
 right = native(ill_typed_transform)
 if left.returncode != 2 or right.returncode != 2 or left.stdout != right.stdout:
     raise SystemExit("nominal array mismatch was not rejected identically")
+
+left = interpreted(encoder)
+right = native(encoder)
+if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
+    raise SystemExit("Alpha encoder interpreted/native compilation disagrees")
+if len(left.stdout) != 10842:
+    raise SystemExit(f"Alpha encoder tape is {len(left.stdout)} bytes")
+if hashlib.sha256(left.stdout).hexdigest() != "94df5d906a2ce105d07c5900bd8fdc6b81ce2cf3cbef6c131e310d62f07df6bb":
+    raise SystemExit("Alpha encoder tape identity changed")
+(temporary / "encoder.tape").write_bytes(left.stdout)
 '
 
 stamp_seed "$TMP/sample.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/sample" >/dev/null
@@ -220,4 +232,56 @@ for name, data, expected_status, expected_hex in cases:
         )
 '
 
-echo "Delta state-machine experiment: 636-line Gamma compiler produced identical 22,339-byte native compiler; 9,563-byte recursive AST customer passes with 10 rejection twins"
+stamp_seed "$TMP/encoder.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
+    "$TMP/encoder" >/dev/null
+ENCODER="$TMP/encoder" python3 -c '
+import os
+import subprocess
+
+def item(kind, a=0, b=0, c=0, immediate=b"\0" * 8):
+    return bytes((kind, a, b, c)) + immediate
+
+def program(label_count, *items):
+    return bytes((label_count,)) + b"".join(items) + b"\xff"
+
+items = [item(21, 0), item(0, 1), item(1, 2, immediate=bytes.fromhex("8877665544332211"))]
+items += [item(opcode, 3, 4) for opcode in range(2, 12)]
+items += [item(12, 1), item(13, 5, 1), item(14, 6, 1)]
+items += [item(15, 7, 8, 1), item(16, 9, 10, 1)]
+items += [item(17, 11), item(18, 12), item(19, 2), item(20), item(21, 1), item(0, 0), item(21, 2), item(20)]
+
+prefix = bytes((0, 1, 1, 2)) + bytes.fromhex("8877665544332211")
+prefix += b"".join(bytes((opcode, 3, 4)) for opcode in range(2, 12))
+target_one = 107
+target_two = 109
+expected = prefix
+expected += bytes((12,)) + target_one.to_bytes(8, "little")
+expected += bytes((13, 5)) + target_one.to_bytes(8, "little")
+expected += bytes((14, 6)) + target_one.to_bytes(8, "little")
+expected += bytes((15, 7, 8)) + target_one.to_bytes(8, "little")
+expected += bytes((16, 9, 10)) + target_one.to_bytes(8, "little")
+expected += bytes((17, 11, 18, 12, 19)) + target_two.to_bytes(8, "little")
+expected += bytes((20, 0, 0, 20))
+
+cases = [
+    ("all-opcodes", program(3, *items), 0, expected),
+    ("duplicate-label", program(1, item(21, 0), item(21, 0), item(0)), 1, b""),
+    ("missing-label", program(2, item(21, 0), item(0)), 1, b""),
+    ("extra-label", program(1, item(21, 0), item(21, 1), item(0)), 1, b""),
+    ("undefined-target", program(1, item(21, 0), item(12, 1)), 1, b""),
+    ("unknown-item", program(0, item(22), item(0)), 1, b""),
+    ("truncated-item", bytes((0, 0, 0)), 1, b""),
+    ("trailing-byte", program(0, item(0)) + b"x", 1, b""),
+    ("empty-payload", program(0), 1, b""),
+    ("item-capacity", program(0, *([item(0)] * 129)), 2, b""),
+]
+for name, data, expected_status, expected_output in cases:
+    result = subprocess.run([os.environ["ENCODER"]], input=data, stdout=subprocess.PIPE)
+    if result.returncode != expected_status or result.stdout != expected_output:
+        raise SystemExit(
+            f"{name}: {result.returncode}/{result.stdout.hex()}, "
+            f"expected {expected_status}/{expected_output.hex()}"
+        )
+'
+
+echo "Delta state-machine experiment: 643-line Gamma compiler produced identical 22,690-byte native compiler; recursive AST and 10,842-byte Alpha encoder customers pass"
