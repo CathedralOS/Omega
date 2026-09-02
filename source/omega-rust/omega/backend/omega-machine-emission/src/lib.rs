@@ -256,6 +256,13 @@ fn emit_function(
             unit_affine_cleanup = emitted.affine_cleanup;
             emitted.bytes
         }
+        AssignedOperation::ReturnDynamicParameterScalarCall {
+            psi_operation, ..
+        } => {
+            return Err(EmissionError::DynamicDescriptorEmissionUnsupported(
+                *psi_operation,
+            ));
+        }
         operation @ AssignedOperation::ReturnStructuralCall { .. } => {
             let emitted = structural_result::emit(operation, target, functions)?;
             internal_calls = emitted.internal_calls;
@@ -1101,6 +1108,7 @@ pub enum EmissionError {
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
     InvalidDynamicScalarCallCustody(psi_core::OperationId),
+    DynamicDescriptorEmissionUnsupported(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),
     UnsupportedAggregatePlacement,
     AggregatePlacementCoverageMismatch,

@@ -1,7 +1,7 @@
 use crate::assign_registers;
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_assigned_target_operations::{AssignedOperation, AssignedUnitOperation};
-use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use omega_calling_conventions::{evaluate_call_plan, CallSignature, CallingPolicy, ValueShape};
 use omega_psi_to_abstract_operations::lower_artifact_sections;
 use omega_target::NativeTarget;
 use omega_target_operations::{
@@ -68,7 +68,7 @@ fn target_plan(target: NativeTarget) -> omega_target_operations::TargetOperation
 }
 
 #[test]
-fn forwarded_descriptor_target_role_fails_closed_at_assignment() {
+fn assigns_forwarded_descriptor_registers_and_indirect_mechanism() {
     let target = NativeTarget::linux_x64();
     let pointer = ValueShape::integer(8, 8);
     let result = ValueShape::integer(4, 4);
@@ -137,9 +137,31 @@ fn forwarded_descriptor_target_role_fails_closed_at_assignment() {
             },
         }],
     };
+    let assigned = assign_registers(&plan).expect("assign forwarded descriptor call");
+    let function = assigned.functions.first().expect("assigned helper");
+    let omega_assigned_target_operations::AssignedOperation::ReturnDynamicParameterScalarCall {
+        parameter_abi,
+        mechanism,
+        table_slot_byte_offset,
+        ..
+    } = &function.operation
+    else {
+        panic!("forwarded descriptor keeps its assigned role")
+    };
     assert_eq!(
-        assign_registers(&plan),
-        Err(crate::AssignmentError::DynamicDescriptorAssignmentUnsupported(machine))
+        parameter_abi.instance,
+        omega_target_operations::MachineRegister::X86Rdi
+    );
+    assert_eq!(
+        parameter_abi.table,
+        omega_target_operations::MachineRegister::X86Rsi
+    );
+    assert_eq!(*table_slot_byte_offset, 0);
+    assert_eq!(
+        *mechanism,
+        omega_assigned_target_operations::AssignedDynamicParameterCallMechanism::X86MemoryIndirect {
+            table: omega_target_operations::MachineRegister::X86Rsi,
+        }
     );
 }
 
@@ -234,12 +256,10 @@ fn assigns_canonical_descriptor_and_distinct_rebound_source() {
         assert_ne!(initial.source_byte_offset, rebound.source_byte_offset);
         assert_eq!(initial.destination, rebound.destination);
         assert_eq!(dynamic.application.rows.len(), 2);
-        assert!(
-            target_plan
-                .functions
-                .iter()
-                .any(|function| function.machine == dynamic.dispatch.realization)
-        );
+        assert!(target_plan
+            .functions
+            .iter()
+            .any(|function| function.machine == dynamic.dispatch.realization));
     }
 }
 

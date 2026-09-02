@@ -11772,9 +11772,12 @@ checked-result arithmetic decision listed below.
   `{data, table}` function-entry ABI, a one-word erased slot-call ABI, and the
   checked byte offset of the required table slot. This role-specific target
   carrier cannot be mistaken for the helper's formerly inferred zero-argument
-  integer ABI, and assignment rejects it until physical homes and emitted
-  indirect-call mechanics land. Descriptor-bearing caller calls still fail
-  closed before target planning. The older
+  integer ABI. Assignment now rejoins those two calling plans, selects the
+  exact incoming data/table registers, and records either an x86-64 memory-
+  indirect call or an AArch64 load-and-indirect-call mechanism. Machine-code
+  emission and replay remain fail-closed until their role-specific custody
+  lands. Descriptor-bearing caller calls still fail closed before target
+  planning. The older
   direct and caller-local rebound lanes still cross target lowering,
   assignment, object replay, and x86-64/AArch64 execution unchanged.
 

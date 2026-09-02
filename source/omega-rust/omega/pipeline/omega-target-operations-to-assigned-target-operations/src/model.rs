@@ -4,7 +4,10 @@ use psi_core::{MachineId, OperationId, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignmentError {
-    DynamicDescriptorAssignmentUnsupported(MachineId),
+    DynamicDescriptorAssignmentMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     EntryFunctionMissing(MachineId),
     RankedCountdownAbiMismatch(ValueId),
     RankedCountdownRequiresRegister(ValueId),

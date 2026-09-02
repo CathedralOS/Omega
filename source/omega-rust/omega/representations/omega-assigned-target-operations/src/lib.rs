@@ -10,7 +10,9 @@ mod plan;
 mod scalar;
 mod unit;
 
-pub use operation::AssignedOperation;
+pub use operation::{
+    AssignedDynamicDescriptorParameterAbi, AssignedDynamicParameterCallMechanism, AssignedOperation,
+};
 pub use plan::{
     AssignedFunction, AssignedNativeCallbackArgument, AssignedOperationPlan,
     AssignedOperationPlanWithNativeCallbacks,
