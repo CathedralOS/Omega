@@ -24,7 +24,9 @@ use omega_executable_installation::{
 };
 use omega_isa_x86_64::{
     X86_64SemanticUnitWrapperEncodingRequest, X86_64SemanticUnitWrapperResolution,
-    validate_x86_64_resolved_semantic_unit_wrapper, validate_x86_64_semantic_unit_wrapper_template,
+    canonical_x86_64_semantic_unit_wrapper_encoding_request,
+    encode_x86_64_semantic_unit_wrapper_template, validate_x86_64_resolved_semantic_unit_wrapper,
+    validate_x86_64_semantic_unit_wrapper_template,
 };
 use psi_layout_plans::EntryStubId;
 
@@ -484,6 +486,170 @@ impl BoundEpochStackCompositionInput {
     pub const fn realization_evidence(&self) -> &EntryStackRealizationEvidence {
         &self.realization_evidence
     }
+}
+
+/// Exact generated-wrapper contribution to the live-adapter term of the UEFI
+/// same-stack inequality. The byte count is derived from the independently
+/// replayed wrapper request and all retained entry epochs; callers cannot
+/// supply it as a numeric assertion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneratedProgramStorageAdapterLiveFrameDemand {
+    evidence: EntryStackRealizationEvidence,
+    bytes: u64,
+    alignment: u64,
+}
+
+impl GeneratedProgramStorageAdapterLiveFrameDemand {
+    pub const fn bytes(&self) -> u64 {
+        self.bytes
+    }
+
+    pub const fn alignment(&self) -> u64 {
+        self.alignment
+    }
+
+    pub const fn semantic_boundary_commitment(&self) -> [u8; 32] {
+        self.evidence.boundary_contract_commitment
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.evidence.installed_code
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.evidence.entry
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_semantic_boundary_commitment_for_test(
+        mut self,
+        commitment: [u8; 32],
+    ) -> Self {
+        self.evidence.boundary_contract_commitment = commitment;
+        self
+    }
+}
+
+#[cfg(test)]
+impl BoundEpochStackCompositionInput {
+    pub(crate) fn without_generated_adapter_origin_for_test(mut self) -> Self {
+        self.realization_evidence.adapter_origin = AdapterStackRealizationOrigin::None;
+        self
+    }
+
+    pub(crate) fn with_first_adapter_epoch_bytes_for_test(mut self, bytes: u64) -> Self {
+        let mut realization = self.pure.realization.realization().clone();
+        realization.contexts[0].epochs[0].occupancy_by_domain[0].bytes = bytes;
+        let realization = validate_entry_stack_realization(realization).unwrap();
+        self.pure.realization = realization.clone();
+        self.realization_evidence.realization = realization;
+        self
+    }
+}
+
+/// Reconstruct the canonical generated wrapper and derive its live frame peak
+/// from every retained epoch. This is deliberately narrower than general epoch
+/// composition: only the receiver-free x86-64 ProgramStorage adapter shape is
+/// admitted.
+pub fn derive_generated_program_storage_adapter_live_frame_demand(
+    input: &BoundEpochStackCompositionInput,
+) -> Result<GeneratedProgramStorageAdapterLiveFrameDemand, ExternalRootDiagnostic> {
+    let evidence = input.realization_evidence();
+    let Some(generated) = evidence.generated_adapter() else {
+        return Err(ExternalRootDiagnostic(
+            "UEFI live adapter-frame demand lacks generated ProgramStorage wrapper evidence".into(),
+        ));
+    };
+    if evidence.arrival_origin() != ArrivalStackRealizationOrigin::NoHardwareArrival
+        || evidence.adapter_origin()
+            != AdapterStackRealizationOrigin::GeneratedProgramStorageSemanticWrapper
+        || evidence.architecture() != omega_target::Architecture::X86_64
+        || evidence.validation_receipt().is_some()
+        || evidence.target_rule_report_fingerprint().is_some()
+        || evidence.target_installation_validation_receipt().is_some()
+        || input.pure().realization != *evidence.realization()
+    {
+        return Err(ExternalRootDiagnostic(
+            "UEFI live adapter-frame demand has the wrong realization origin or custody".into(),
+        ));
+    }
+
+    let request = generated.request();
+    if request
+        != canonical_x86_64_semantic_unit_wrapper_encoding_request(
+            omega_target::NativeTarget::uefi_x64(),
+        )
+    {
+        return Err(ExternalRootDiagnostic(
+            "UEFI live adapter-frame demand is not the canonical x86-64 wrapper request".into(),
+        ));
+    }
+    let template = encode_x86_64_semantic_unit_wrapper_template(request).map_err(|_| {
+        ExternalRootDiagnostic(
+            "UEFI live adapter-frame demand could not reconstruct its wrapper template".into(),
+        )
+    })?;
+    let resolution = generated.resolution();
+    let replayed = validate_x86_64_resolved_semantic_unit_wrapper(
+        &template,
+        resolution.source,
+        resolution.wrapper_section_offset,
+        resolution.continuation_section_offset,
+        generated.resolved_bytes(),
+    )
+    .map_err(|_| {
+        ExternalRootDiagnostic(
+            "UEFI live adapter-frame demand failed exact wrapper-byte replay".into(),
+        )
+    })?;
+    if replayed.resolution() != resolution || replayed.bytes() != generated.resolved_bytes() {
+        return Err(ExternalRootDiagnostic(
+            "UEFI live adapter-frame demand changed wrapper call custody during replay".into(),
+        ));
+    }
+
+    let bytes = u64::from(request.outgoing_frame_byte_count);
+    let alignment = u64::from(request.pre_call_stack_alignment);
+    let realization = evidence.realization().realization();
+    if realization.contexts.is_empty() {
+        return Err(ExternalRootDiagnostic(
+            "UEFI live adapter-frame demand has no retained arrival context".into(),
+        ));
+    }
+    for context in &realization.contexts {
+        let expected_domain = evidence
+            .body_domains
+            .contexts()
+            .iter()
+            .find(|candidate| candidate.context == context.context)
+            .map(|candidate| candidate.domain);
+        if context.epochs.len() != 3
+            || context.epochs.iter().map(|epoch| epoch.stage).ne([
+                EntryStackStage::Enter,
+                EntryStackStage::Body,
+                EntryStackStage::Exit,
+            ])
+            || context.epochs.iter().any(|epoch| {
+                expected_domain != Some(epoch.active_domain)
+                    || epoch.occupancy_by_domain.as_slice()
+                        != [StackOccupancy {
+                            domain: epoch.active_domain,
+                            bytes,
+                            alignment,
+                        }]
+            })
+        {
+            return Err(ExternalRootDiagnostic(
+                "UEFI live adapter-frame demand drifted from its exact Enter/Body/Exit occupancy"
+                    .into(),
+            ));
+        }
+    }
+    Ok(GeneratedProgramStorageAdapterLiveFrameDemand {
+        evidence: evidence.clone(),
+        bytes,
+        alignment,
+    })
 }
 
 /// Bind an admitted opaque adapter realization to one exact provider summary,

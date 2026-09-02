@@ -1516,9 +1516,18 @@ Remaining:
   the readiness ledger's private authority plus both physical occurrence and
   live phase-lease coordinates, so equal public report IDs from another ledger
   cannot substitute; exact equality with the 131072-byte guarantee is admitted.
-  These coordinates are not yet derivation evidence: exact emitted-shell,
-  checked-adapter, continuation/provider WCSU producers and physical-arrival firmware-
-  conformance admission remain before the plan can authorize invocation. No
+  The first producer-authenticated term is now live for the receiver-free
+  x86-64 ProgramStorage wrapper's live adapter frames. A sealed derivation
+  replays the exact installed wrapper bytes and resolved private-continuation
+  call, requires generated-adapter rather than target/opaque origin, and
+  reconstructs the 72-byte/alignment-16 peak from every exact Enter/Body/Exit
+  occupancy. The stronger planner derives that term instead of accepting its
+  numeric value, and composition rejoins its semantic boundary commitment to
+  the independently validated ProgramStorage plan while keeping the distinct
+  physical UEFI-entry commitment separate. Missing origin, numeric-only
+  substitution, semantic-plan substitution, or epoch drift rejects. Exact
+  emitted-shell, continuation/provider WCSU, target-reserve, and physical-arrival firmware-
+  conformance producers remain before the plan can authorize invocation. No
   runtime stack address, stack storage, environment admission, or private-stack
   authority is granted.
 
@@ -1532,8 +1541,9 @@ Remaining:
   arrival contract, and rejects physical/semantic requirement conflation or
   root-order drift while returning every input for retry. The carrier remains
   non-clone and exposes no firmware input, `Extent`, root, or invocation
-  authority. Exact producer evidence for the four WCSU coordinates, generated
-  physical shell and checked-adapter realization, provider/root establishment,
+  authority. Exact producer evidence for the remaining three WCSU coordinates,
+  generated physical shell and the broader checked-adapter realization,
+  provider/root establishment,
   semantic installation, invocation, and status mapping remain open.
 
   The next provider/adapter composition edge is design-settled. Implement one
@@ -1557,11 +1567,12 @@ Remaining:
 
   Feed the closed
   `TargetSemantics::guaranteed_entry_stack<UefiX86_64>()` relation with exact
-  derivation evidence for generated shell WCSU, live adapter frames, maximum
-  nested continuation/provider WCSU, and one explicit reserve, or emit and
+  derivation evidence for generated shell WCSU, maximum nested
+  continuation/provider WCSU, and one explicit reserve, or emit and
   verify a private-stack switch that preserves the physical return state. The
-  current four-coordinate planning carrier deliberately does not authenticate
-  those producers. When stack and source storage share a parent allocation,
+  current carrier authenticates only the generated wrapper's live-frame term;
+  it deliberately does not authenticate the other three producers. When stack
+  and source storage share a parent allocation,
   conserve exact active-stack, retained-bootstrap, and disjoint contiguous
   InitialStorage partitions.
 
@@ -11865,10 +11876,15 @@ checked-result arithmetic decision listed below.
   integer/Boolean leaves. Layout still comes only from substituted instance
   fields. One direct erased-lifetime application around an otherwise eligible
   synthesized record instance now participates when it carries the exact
-  nonempty declared lifetime arity, no residual runtime arguments, and no
-  recursively lifetime-bearing field. Raw checked lifetime spellings remain
-  distinct while the sealed exact synthesized symbol supplies physical layout;
-  ordinary recast validation and precise loan sizing share that resolver.
+  nonempty declared lifetime arity and no residual runtime arguments. One
+  additional erased-lifetime record shell may occur beneath that root under
+  the same exact synthesized-symbol/origin rules. The bounded graph walk keys
+  memoized completions by symbol, shell depth, and entry context, so a shallow
+  sibling cannot authorize the same symbol through a deeper diamond. Raw
+  checked lifetime spellings remain distinct while the sealed exact
+  synthesized symbols supply physical layout; ordinary recast validation and
+  precise loan sizing share that resolver. The lifetime-shell fence beneath
+  an array is transitive through ordinary named record wrappers.
   Generic normalization rewrites
   concrete-machine cast targets and synthesizes recursively nonzero literal-
   array type arguments. Record lookup
@@ -11876,8 +11892,9 @@ checked-result arithmetic decision listed below.
   overflow fails closed before allocation. First/last/padding-byte mutations
   reject while immediate siblings remain disjoint. Runtime or merely bounded
   offsets, slices, total zero-size targets, open/unresolved, mixed, recursive,
-  or custom-canonical structured-const origins, nested/array lifetime-generic
-  shapes, malformed or nonphantom lifetime applications, machine/proposition
+  or custom-canonical structured-const origins, lifetime-generic arrays or
+  shapes deeper than two lifetime shells, malformed or nonphantom lifetime
+  applications, machine/proposition
   generic instances, invariant-bearing/erased/cased records, and other indexed
   recasts remain conservative.
   Scalar recast representation-set normalization and

@@ -318,6 +318,70 @@ fn generated_program_storage_boundary() -> ValidatedBoundaryEntryPlan {
     .expect("receiver-free ProgramStorage semantic continuation boundary")
 }
 
+pub(crate) fn generated_program_storage_adapter_live_frame_demand()
+-> GeneratedProgramStorageAdapterLiveFrameDemand {
+    derive_generated_program_storage_adapter_live_frame_demand(
+        &generated_program_storage_adapter_bound_input(),
+    )
+    .expect("canonical installed generated wrapper derives its live frame demand")
+}
+
+fn generated_program_storage_adapter_bound_input() -> BoundEpochStackCompositionInput {
+    let entry = entry_id(0x8f1);
+    let boundary = generated_program_storage_boundary();
+    let request = canonical_x86_64_semantic_unit_wrapper_encoding_request(
+        omega_target::NativeTarget::uefi_x64(),
+    );
+    let template =
+        encode_x86_64_semantic_unit_wrapper_template(request).expect("canonical wrapper template");
+    let resolved = resolve_x86_64_semantic_unit_wrapper_private_continuation(
+        &template,
+        template.relocation(),
+        16,
+        32,
+    )
+    .expect("resolved private continuation call");
+    let (code, installed_image) = installed_program_storage_wrapper(0x8f2, entry, resolved.bytes());
+    let machine = psi_core::MachineId::new(1).expect("machine identity");
+    let psi = psi_terminal::TerminalPsiIdentity {
+        vocabulary_marker: psi_terminal::VocabularyMarker,
+        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x8f; 32]),
+    };
+    let artifact = TestObject {
+        identity: psi,
+        entry: machine,
+        bytes: installed_image,
+    };
+    let demand = TestStackDemand {
+        identity: psi,
+        entry: machine,
+        contributing: BTreeSet::from([machine]),
+        admitted_reports: BTreeSet::new(),
+        admitted_commitments: BTreeSet::new(),
+    };
+    let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
+        .expect("terminal stack closure binds exact installed bytes");
+    let root = root_id(0x8f3, ExternalRootId::from_normalized_identity);
+    let provider = root_id(0x8f4, RootProviderId::from_normalized_identity);
+    let summary =
+        ProviderStackSummary::from_entry(root, provider, boundary.plan().state.stack, installed);
+    bind_x86_64_generated_program_storage_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        body_domains(&boundary, &[(1, StackDomainRef::Interrupted)]),
+        X86_64GeneratedProgramStorageAdapterEmission {
+            request,
+            template_bytes: template.bytes(),
+            resolved_bytes: resolved.bytes(),
+            wrapper_section_offset: 16,
+            continuation_section_offset: 32,
+        },
+    )
+    .expect("generated adapter binds exact installed entry and body evidence")
+}
+
 fn body_domains(
     boundary: &ValidatedBoundaryEntryPlan,
     contexts: &[(u64, StackDomainRef)],
@@ -1021,6 +1085,34 @@ fn generated_program_storage_adapter_replays_emitted_operations_and_composes_thr
         }),
         "the live 72-byte wrapper frame aligns before the 64-byte body WCSU",
     );
+}
+
+#[test]
+fn generated_program_storage_adapter_derives_live_frame_demand_from_exact_epochs() {
+    let bound = generated_program_storage_adapter_bound_input();
+    let demand = derive_generated_program_storage_adapter_live_frame_demand(&bound)
+        .expect("exact generated wrapper derives one live-frame contribution");
+    assert_eq!(demand.bytes(), 72);
+    assert_eq!(demand.alignment(), 16);
+    assert_eq!(
+        demand.installed_code(),
+        bound.realization_evidence().installed_code()
+    );
+    assert_eq!(demand.entry(), bound.realization_evidence().entry());
+    assert_eq!(
+        demand.semantic_boundary_commitment(),
+        bound.realization_evidence().boundary_contract_commitment(),
+    );
+
+    let missing_origin = bound.clone().without_generated_adapter_origin_for_test();
+    let error = derive_generated_program_storage_adapter_live_frame_demand(&missing_origin)
+        .expect_err("a generated-frame claim without generated origin must reject");
+    assert!(error.0.contains("wrong realization origin or custody"));
+
+    let drifted_epoch = bound.with_first_adapter_epoch_bytes_for_test(80);
+    let error = derive_generated_program_storage_adapter_live_frame_demand(&drifted_epoch)
+        .expect_err("an independently valid but drifted epoch must reject");
+    assert!(error.0.contains("exact Enter/Body/Exit occupancy"));
 }
 
 #[test]

@@ -241,7 +241,69 @@ fn direct_phantom_lifetime_generic_recast_protects_edges_but_not_siblings() {
 }
 
 #[test]
-fn lifetime_bearing_and_nested_lifetime_generic_recast_targets_remain_fenced() {
+fn one_nested_phantom_lifetime_record_recast_retains_exact_ranges() {
+    let checked = checked(
+        r#"
+            data Phantom<'region, T> { tag: u8; value: T; }
+            data Holder<'region, T> { nested: Phantom<'region, T>; }
+            data Cell { bytes: [u8; 32]; }
+            machine observe<'region>(value: &'region Holder<'region, u32>) {}
+            machine Cell::exercise<'region>(&mut self) {
+                let shared: &Holder<'region, u32> =
+                    &self.bytes[2] as &Holder<'region, u32>;
+                observe(shared);
+                let mutable: &mut Holder<'region, u32> =
+                    &mut self.bytes[12] as &mut Holder<'region, u32>;
+                mutable.nested.value = 1;
+            }
+        "#,
+    )
+    .expect("one nested phantom-lifetime record shell should check");
+
+    let holder = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Holder<u32>")
+        .expect("exact synthesized Holder<u32> instance");
+    assert_eq!(holder.lifetime_parameters.len(), 1);
+    assert!(holder.generic_instance.is_some());
+    assert!(checked.data_type_parameters(holder).is_empty());
+    let [psi_checked_trees::data::DataMember::Field(nested)] = checked.data_members(holder) else {
+        panic!("Holder<u32> keeps one exact nested field")
+    };
+    let psi_checked_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = checked
+        .type_reference_table
+        .type_reference(nested.type_reference)
+    else {
+        panic!("the nested lifetime shell remains explicit in checked trees")
+    };
+    assert_eq!(lifetime_arguments.len(), 1);
+    assert!(
+        checked
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .is_empty()
+    );
+    assert!(
+        checked
+            .data_definitions()
+            .iter()
+            .any(|data| data.symbol == *base_symbol && data.name.as_str() == "Phantom<u32>")
+    );
+
+    let loans = fixed_range_loans(&checked);
+    assert_eq!(loans.len(), 2, "one exact loan per nested lifetime shell");
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 10)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 12, 20)));
+}
+
+#[test]
+fn broader_lifetime_generic_recast_targets_remain_fenced() {
     for source in [
         r#"
             data Borrowed<'region, T> { source: &'region u32; value: T; }
@@ -253,18 +315,22 @@ fn lifetime_bearing_and_nested_lifetime_generic_recast_targets_remain_fenced() {
         "#,
         r#"
             data Phantom<'region, T> { tag: u8; value: T; }
-            data Holder<'region> { nested: Phantom<'region, u32>; }
-            data Cell { bytes: [u8; 32]; }
-            machine exercise<'region>(cell: &'region mut Cell) {
-                let view: &Holder<'region> = &cell.bytes[2] as &Holder<'region>;
-            }
-        "#,
-        r#"
-            data Phantom<'region, T> { tag: u8; value: T; }
             data Cell { bytes: [u8; 32]; }
             machine exercise<'region>(cell: &'region mut Cell) {
                 let view: &[Phantom<'region, u32>; 1] =
                     &cell.bytes[2] as &[Phantom<'region, u32>; 1];
+            }
+        "#,
+        r#"
+            data Phantom<'region, T> { tag: u8; value: T; }
+            data Wrapper<T> { value: T; }
+            data Holder<'region, T> {
+                values: [Wrapper<Phantom<'region, T>>; 1];
+            }
+            data Cell { bytes: [u8; 32]; }
+            machine exercise<'region>(cell: &'region mut Cell) {
+                let view: &Holder<'region, u32> =
+                    &cell.bytes[2] as &Holder<'region, u32>;
             }
         "#,
         r#"
@@ -284,9 +350,32 @@ fn lifetime_bearing_and_nested_lifetime_generic_recast_targets_remain_fenced() {
                     &cell.bytes[2] as &Erased<'region, u32>;
             }
         "#,
+        r#"
+            data Leaf<'region, T> { tag: u8; value: T; }
+            data Middle<'region, T> { leaf: Leaf<'region, T>; }
+            data Outer<'region, T> { middle: Middle<'region, T>; }
+            data Cell { bytes: [u8; 32]; }
+            machine exercise<'region>(cell: &'region mut Cell) {
+                let view: &Outer<'region, u32> =
+                    &cell.bytes[2] as &Outer<'region, u32>;
+            }
+        "#,
+        r#"
+            data Leaf<'region, T> { tag: u8; value: T; }
+            data Middle<'region, T> { leaf: Leaf<'region, T>; }
+            data Diamond<'region, T> {
+                direct: Leaf<'region, T>;
+                nested: Middle<'region, T>;
+            }
+            data Cell { bytes: [u8; 32]; }
+            machine exercise<'region>(cell: &'region mut Cell) {
+                let view: &Diamond<'region, u32> =
+                    &cell.bytes[2] as &Diamond<'region, u32>;
+            }
+        "#,
     ] {
         let diagnostics = checked(source).expect_err(
-            "nonphantom, nested, and array lifetime-generic targets must remain fenced",
+            "nonphantom, array, and deeper lifetime-generic targets must remain fenced",
         );
         assert!(
             diagnostics
