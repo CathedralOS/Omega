@@ -2087,42 +2087,43 @@ fn lower_realization_store_operations(
         .ok_or(LoweringError::Unsupported(
             "dynamic realization store self type is absent",
         ))?;
-    let (field_owner, path) = match store.carrier_path.as_slice() {
-        [] => (declaration, Vec::new()),
-        [CheckedUnitStructuralPathSegment::Field(identity)] if !identity.is_empty() => {
-            let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
-                return unsupported("dynamic realization store self must be a record");
-            };
-            let carriers = fields
-                .iter()
-                .filter(|field| {
-                    field.identity == *identity
-                        && !field.relevance.is_erased()
-                        && matches!(
-                            field.field_type,
-                            psi_terminal::StructuralFieldType::Structural(_)
-                        )
-                })
-                .collect::<Vec<_>>();
-            let [carrier] = carriers.as_slice() else {
-                return unsupported("dynamic realization store carrier is absent or ambiguous");
-            };
-            let psi_terminal::StructuralFieldType::Structural(nested) = carrier.field_type else {
-                unreachable!("carrier shape was checked above")
-            };
-            let nested = structural_types
-                .iter()
-                .find(|candidate| candidate.id == nested)
-                .ok_or(LoweringError::Unsupported(
-                    "dynamic realization store nested carrier type is absent",
-                ))?;
-            (
-                nested,
-                vec![psi_terminal::StructuralPathSegment::Field(identity.clone())],
-            )
+    let mut field_owner = declaration;
+    let mut path = Vec::with_capacity(store.carrier_path.len());
+    for segment in &store.carrier_path {
+        let CheckedUnitStructuralPathSegment::Field(identity) = segment else {
+            return unsupported("dynamic realization store carrier path is unsupported");
+        };
+        if identity.is_empty() {
+            return unsupported("dynamic realization store carrier path is unsupported");
         }
-        _ => return unsupported("dynamic realization store carrier path is unsupported"),
-    };
+        let psi_terminal::StructuralTypeShape::Record { fields } = &field_owner.shape else {
+            return unsupported("dynamic realization store self must be a record");
+        };
+        let carriers = fields
+            .iter()
+            .filter(|field| {
+                field.identity == *identity
+                    && !field.relevance.is_erased()
+                    && matches!(
+                        field.field_type,
+                        psi_terminal::StructuralFieldType::Structural(_)
+                    )
+            })
+            .collect::<Vec<_>>();
+        let [carrier] = carriers.as_slice() else {
+            return unsupported("dynamic realization store carrier is absent or ambiguous");
+        };
+        let psi_terminal::StructuralFieldType::Structural(nested) = carrier.field_type else {
+            unreachable!("carrier shape was checked above")
+        };
+        field_owner = structural_types
+            .iter()
+            .find(|candidate| candidate.id == nested)
+            .ok_or(LoweringError::Unsupported(
+                "dynamic realization store nested carrier type is absent",
+            ))?;
+        path.push(psi_terminal::StructuralPathSegment::Field(identity.clone()));
+    }
     let psi_terminal::StructuralTypeShape::Record { fields } = &field_owner.shape else {
         return unsupported("dynamic realization store self must be a record");
     };

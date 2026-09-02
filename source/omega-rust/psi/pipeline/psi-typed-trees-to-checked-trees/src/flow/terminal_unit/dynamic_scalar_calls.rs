@@ -1547,48 +1547,50 @@ fn checked_realization_structural_scalar_field_store_plan(
     let [attachment] = attachments.as_slice() else {
         return None;
     };
-    let (carrier_path, field_symbol, field_owner) = match destination.segments.as_slice() {
-        [psi_facts::PlaceSegment::Field { symbol }] if symbol.is_valid() => {
-            (Vec::new(), *symbol, *attachment)
-        }
-        [
-            psi_facts::PlaceSegment::Field {
-                symbol: carrier_symbol,
-            },
-            psi_facts::PlaceSegment::Field {
-                symbol: primitive_symbol,
-            },
-        ] if carrier_symbol.is_valid() && primitive_symbol.is_valid() => {
-            let carrier_fields = program
-                .data_members(attachment)
-                .iter()
-                .filter_map(|candidate| {
-                    let psi_typed_trees::data::DataMember::Field(field) = candidate else {
-                        return None;
-                    };
-                    (field.symbol == *carrier_symbol).then_some(field)
-                })
-                .collect::<Vec<_>>();
-            let [carrier_field] = carrier_fields.as_slice() else {
-                return None;
-            };
-            if carrier_field.relevance.is_erased() {
-                return None;
-            }
-            let nested = crate::field_domain::data_definition_for_field_type(
-                program,
-                carrier_field.type_reference,
-            )?;
-            (
-                vec![CheckedUnitStructuralPathSegment::Field(
-                    terminal_field_identity(program, carrier_field.symbol)?,
-                )],
-                *primitive_symbol,
-                nested,
-            )
-        }
-        _ => return None,
+    let (final_segment, carrier_segments) = destination.segments.split_last()?;
+    let psi_facts::PlaceSegment::Field {
+        symbol: field_symbol,
+    } = final_segment
+    else {
+        return None;
     };
+    if !field_symbol.is_valid()
+        || carrier_segments
+            .iter()
+            .any(|segment| !matches!(segment, psi_facts::PlaceSegment::Field { symbol } if symbol.is_valid()))
+    {
+        return None;
+    }
+    let mut field_owner = *attachment;
+    let mut carrier_path = Vec::with_capacity(carrier_segments.len());
+    for segment in carrier_segments {
+        let psi_facts::PlaceSegment::Field { symbol } = segment else {
+            return None;
+        };
+        let carrier_fields = program
+            .data_members(field_owner)
+            .iter()
+            .filter_map(|candidate| {
+                let psi_typed_trees::data::DataMember::Field(field) = candidate else {
+                    return None;
+                };
+                (field.symbol == *symbol).then_some(field)
+            })
+            .collect::<Vec<_>>();
+        let [carrier_field] = carrier_fields.as_slice() else {
+            return None;
+        };
+        if carrier_field.relevance.is_erased() {
+            return None;
+        }
+        carrier_path.push(CheckedUnitStructuralPathSegment::Field(
+            terminal_field_identity(program, carrier_field.symbol)?,
+        ));
+        field_owner = crate::field_domain::data_definition_for_field_type(
+            program,
+            carrier_field.type_reference,
+        )?;
+    }
     let fields = program
         .data_members(field_owner)
         .iter()
@@ -1596,7 +1598,7 @@ fn checked_realization_structural_scalar_field_store_plan(
             let psi_typed_trees::data::DataMember::Field(field) = candidate else {
                 return None;
             };
-            (field.symbol == field_symbol).then_some(field)
+            (field.symbol == *field_symbol).then_some(field)
         })
         .collect::<Vec<_>>();
     let [field] = fields.as_slice() else {

@@ -933,7 +933,9 @@ fn validate_operation_foundation(
                     | psi_terminal::StructuralAccess::WriteOnlyBorrow
             ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || !matches!(path.as_slice(), [] | [StructuralPathSegment::Field(_)])
+                || !path.iter().all(
+                    |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
+                )
                 || machine
                     .entry_claims
                     .iter()

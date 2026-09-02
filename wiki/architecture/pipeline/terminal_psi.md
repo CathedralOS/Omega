@@ -700,6 +700,10 @@ realization observes an exact direct `i32` leaf through
 separate operation. Verification independently rejoins the unrestricted
 parameter row, readable or writable access, empty qualification/claim custody,
 record path, relevant field, scalar type, and dominating SSA definition.
+The path may contain any finite nonempty-identity sequence of relevant record
+fields; fixed-index, case, erased, missing, and scalar-intermediate segments
+reject. Each consumer walks that exact sequence rather than trusting a
+producer-supplied accumulated offset.
 Canonical encoding, semantic observation, fixed fuel, and reference execution
 preserve the store across the projected call without asserting a native
 layout. Terminal-to-abstract lowering retains the complete rows, and optimizer

@@ -90,14 +90,18 @@ const PROJECTED_MUTATING_REALIZATION_SOURCE: &str = r#"
         value: i32;
     }
 
-    data Item [copy] {
+    data Envelope [copy] {
         payload: Payload;
+    }
+
+    data Item [copy] {
+        envelope: Envelope;
         code: i32;
     }
 
     Primary: Item satisfies Measure {
         machine measure(&mut self) -> i32 {
-            self.payload.value = 23;
+            self.envelope.payload.value = 23;
             transition { _ -> self.code }
         }
     }
@@ -1369,7 +1373,7 @@ fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
 }
 
 #[test]
-fn lowers_one_projected_mutating_realization_path_before_its_scalar_return() {
+fn lowers_nested_projected_mutating_realization_path_before_its_scalar_return() {
     let checked = checked_source(PROJECTED_MUTATING_REALIZATION_SOURCE);
     let store = direct_plan(&checked)
         .realization_structural_scalar_field_store
@@ -1377,9 +1381,10 @@ fn lowers_one_projected_mutating_realization_path_before_its_scalar_return() {
         .expect("checked projected realization field store");
     assert_eq!(
         store.carrier_path,
-        [psi_checked_trees::CheckedUnitStructuralPathSegment::Field(
-            "payload".into()
-        )]
+        [
+            psi_checked_trees::CheckedUnitStructuralPathSegment::Field("envelope".into()),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::Field("payload".into()),
+        ]
     );
     assert_eq!(store.field_identity, "value");
 
@@ -1407,7 +1412,27 @@ fn lowers_one_projected_mutating_realization_path_before_its_scalar_return() {
                 kind: OperationKind::IntegerStructuralField { .. },
                 ..
             }
-        ] if path == &[psi_terminal::StructuralPathSegment::Field("payload".into())]
+        ] if path == &[
+            psi_terminal::StructuralPathSegment::Field("envelope".into()),
+            psi_terminal::StructuralPathSegment::Field("payload".into()),
+        ]
+    ));
+
+    let mut redirected = lowered.semantic_module.clone();
+    let redirected_store = redirected
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            OperationKind::StructuralScalarFieldStore { path, .. } => Some(path),
+            _ => None,
+        })
+        .expect("nested store operation");
+    redirected_store[1] = psi_terminal::StructuralPathSegment::Field("missing".into());
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected),
+        Err(psi_terminal_verifier::ModuleError::InvalidStructuralScalarFieldStore { .. })
     ));
 }
 

@@ -1227,6 +1227,29 @@ fn assert_forwarded_dynamic_result_canary(
         });
         if fixture == "traits/runtime_local_named_dyn_boolean_pass_through_exit" {
             assert_boolean_forwarded_native_custody(&report, target);
+        } else if fixture
+            == "traits/runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit"
+        {
+            let object = report
+                .retained_native_artifact()
+                .expect("nested mutation keeps native custody")
+                .object();
+            let stores = object
+                .functions()
+                .iter()
+                .filter_map(|function| function.scalar_structural_scalar_field_store.as_ref())
+                .collect::<Vec<_>>();
+            let [store] = stores.as_slice() else {
+                panic!("{target} should retain one nested realization store")
+            };
+            assert_eq!(
+                store.path,
+                [
+                    psi_terminal::StructuralPathSegment::Field("envelope".into()),
+                    psi_terminal::StructuralPathSegment::Field("flags".into()),
+                ]
+            );
+            assert_eq!(store.field_byte_offset, 8);
         }
     }
     #[cfg(target_os = "linux")]
@@ -1354,7 +1377,7 @@ fn runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit_canary_ru
     assert_forwarded_dynamic_result_canary(
         "traits/runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit",
         "projected mutable forwarded named dynamic Boolean descriptor canary",
-        "the indirect slot must store true through the nested Flags path before returning the selected Item code",
+        "the indirect slot must store true through the nested Envelope/Flags path before returning the selected Item code",
     );
 }
 

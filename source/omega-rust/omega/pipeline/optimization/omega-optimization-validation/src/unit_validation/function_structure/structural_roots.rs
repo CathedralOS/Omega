@@ -272,10 +272,13 @@ pub(crate) fn validate_structural_root_operations(
                         )
                         && destination.qualifications.is_empty()
                         && destination.projected_qualifications.is_empty()
-                        && matches!(
-                            path.as_slice(),
-                            [psi_terminal::StructuralPathSegment::Field(_)]
-                        )
+                        && path.iter().all(|segment| {
+                            matches!(
+                                segment,
+                                psi_terminal::StructuralPathSegment::Field(identity)
+                                    if !identity.is_empty()
+                            )
+                        })
                         && function
                             .entry_claim_declarations
                             .iter()
