@@ -142,6 +142,7 @@ pub fn emit_pe_x86_64_executable(
     }
 
     Ok(ExecutableImageOutput {
+        final_image_layout: layout,
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
         bytes,

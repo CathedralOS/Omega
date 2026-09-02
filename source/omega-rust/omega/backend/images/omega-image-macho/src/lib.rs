@@ -122,6 +122,7 @@ pub fn emit_macho_aarch64_executable(
     bytes.extend(code_signature);
 
     Ok(ExecutableImageOutput {
+        final_image_layout: layout,
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
         bytes,

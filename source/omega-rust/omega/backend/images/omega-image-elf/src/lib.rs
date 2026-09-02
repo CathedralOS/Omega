@@ -209,6 +209,7 @@ fn emit_elf_executable(
     bytes.extend(&image.memory.data);
 
     Ok(ExecutableImageOutput {
+        final_image_layout: layout,
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
         bytes,

@@ -2319,7 +2319,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "4228ca396ba84642630bbeaa539bc9b0af4f24cda79dd33fc1ccc98677f1675c"
+        "4e9a3a348ad05c3bb662eeedd01f00936a8344c4f4d932762c06cd700fda62cc"
     );
 
     let mut changed_plan = plan;
@@ -2460,7 +2460,13 @@ fn installation_decoder_rejects_alternate_and_malformed_encodings() {
     );
 
     let mut changed_text_digest = bytes.clone();
-    changed_text_digest[108] ^= 1;
+    let compiler_text_validation = record.compiler_text_validation();
+    let encoded_text_digest = compiler_text_validation.encoded_text_digest.as_bytes();
+    let digest_offset = changed_text_digest
+        .windows(encoded_text_digest.len())
+        .position(|window| window == encoded_text_digest)
+        .expect("encoded compiler-text digest");
+    changed_text_digest[digest_offset] ^= 1;
     assert_eq!(
         decode_installation_record(&changed_text_digest),
         Err(InstallationError::InvalidCompilerTextDerivationDigest)

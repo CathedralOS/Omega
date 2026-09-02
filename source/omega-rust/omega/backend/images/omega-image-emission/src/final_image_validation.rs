@@ -80,6 +80,28 @@ fn validate_terminal_image_with_import_count(
             relocations.record_count()
         )));
     }
+    if output.final_image_layout.text_address != output.executable_regions.text_address
+        || output.final_text_bytes.len() != output.executable_regions.text_byte_count
+        || output.final_image_layout.text_address == 0
+    {
+        return Err(Diagnostic::error(
+            "terminal-Psi image section layout does not match its exact executable inventory",
+        ));
+    }
+    if !output.final_data_bytes.is_empty() {
+        let text_end = output
+            .final_image_layout
+            .text_address
+            .checked_add(output.final_text_bytes.len() as u64)
+            .ok_or_else(|| Diagnostic::error("terminal-Psi final text placement overflows"))?;
+        if output.final_image_layout.data_address < text_end
+            || output.final_image_layout.data_address % 8 != 0
+        {
+            return Err(Diagnostic::error(
+                "terminal-Psi initialized data has an invalid final placement",
+            ));
+        }
+    }
     if let Some(gap) = output.executable_regions.unclassified_gaps.first() {
         return Err(Diagnostic::error(format!(
             "terminal-Psi executable inventory left {} unclassified byte(s) at .text offset {}",

@@ -1285,6 +1285,12 @@ linear transitions return their inputs.
 
 Materialization resolves only sealed entry/data identities into a private copy.
 Installation separately validates W^X, cache/order visibility, and audience.
+The first compiler consumer with initialized data is deliberately narrow: an
+immutable dynamic-conformance table shares one frozen installed extent with
+text, with canonical zero padding preserving the target section gap. The
+terminal join retains the exact final layout and compares complete pre- and
+post-relocation text/data bytes. Freezing that whole extent is valid for this
+read-only table; it is not a general mutable-data or BSS installation model.
 Retirement requires exact realization identity plus quiescence, execute removal,
 restored write authority, and collision-resistant provider-canonical completion
 fact digests before returning placement. Incomplete drain quarantine retains

@@ -649,10 +649,16 @@ to its exact function symbol. A retained semantic row without a callable
 remains a zero trap; it is not deleted, collapsed, or assigned an invented
 function. Independent object and final-image replay validates descriptor
 bytes, table-address text relocations, the selected-slot load and call, exact
-function-slot relocations, and relocated final data. Runtime installation still
-rejects these tables until its record and loader can retain exact multi-section
-placement and relocation replay. Multi-block continuation remains independent
-unfinished work. None of these boundaries permit devirtualizing the call.
+function-slot relocations, and relocated final data. The canonical installation
+record retains the final text/data layout, initialized-data commitment, complete
+table/slot projection, and each rebound call's application, sources, selected
+slot, realization, and text interval. Runtime replay preserves the target
+section gap in one frozen extent, reapplies sealed entry/data relocations at the
+retained final addresses, and binds both pre-relocation and final text/data
+bytes to the installed occurrence. This is the bounded immutable-table lane,
+not general mutable initialized-data or BSS support. Multi-block continuation
+remains independent unfinished work. None of these boundaries permit
+devirtualizing the call.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts

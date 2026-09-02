@@ -1341,11 +1341,15 @@ remain open.
 The separate service-free, straight-line rebound-dynamic lane now reaches
 machine code, object construction, and direct executable-image emission with
 exact descriptor, private conformance-table, indirect-call, and final-data
-replay. It does not yet publish a D32 package-native artifact: runtime
-installation rejects the data-bearing table until installation records and the
-loader retain exact multi-section placement and relocation custody. That
-rejection is the current boundary, not evidence that the table was erased or
-that the call was devirtualized.
+replay. Its canonical installation record now retains exact final section
+placement, initialized-data commitment, table/slot custody, and rebound-call
+custody. The normalized loader replays sealed entry/data relocations in one
+frozen immutable extent and the terminal join compares exact unrelocated and
+materialized text/data bytes. It still does not publish a D32 package-native
+artifact: package-transaction/accepted-lock publication and the independent
+multi-block Console continuation remain unfinished. The installed-data seam is
+no longer that boundary; mutable general data and BSS remain outside this
+bounded lane.
 
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-

@@ -1,6 +1,9 @@
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
+#[cfg(feature = "installed-artifact")]
+use omega_image_emission::bind_installed_artifact;
 use omega_image_emission::{
-    InstallationError, build_installation_record, build_object_artifact, emit_executable_image,
+    build_installation_record, build_object_artifact, decode_installation_record,
+    emit_executable_image, encode_installation_record, validate_installation_record,
 };
 use omega_machine_emission::emit_machine_code;
 use omega_psi_to_abstract_operations::lower_artifact_sections;
@@ -14,6 +17,246 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
+
+#[cfg(feature = "installed-artifact")]
+mod installed_runtime {
+    use std::collections::BTreeMap;
+
+    use omega_executable_installation::{
+        AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactAuthorityCommitments,
+        ArtifactEntry, ArtifactId, ArtifactRelocationKind, CodePlacementAuthority, CodePlacementId,
+        DecodedArtifactRelocation, EntrySetId, FinalValidationCertificate, FinalValidationId,
+        InstallAuthority, InstallationAudience, InstallationDiagnostic, InstallationReceipt,
+        InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId,
+        MachineFootprintId, MaterializationReceipt, PlacementPlanId, RelocationSetId,
+        WxEnforcement, admit_executable, install_validated, materialize_admitted_artifact,
+        materialize_and_freeze, validate_final_placement,
+    };
+    use omega_image_emission::{
+        ExecutableImage, ObjectArtifact, project_installed_artifact_memory_images,
+    };
+    use omega_object_file::{RelocationKind, SectionKind};
+    use psi_core::MachineId;
+    use psi_extents::{
+        AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
+        ExtentRights, ExtentRootGrant, MappingEraId,
+    };
+    use psi_layout_plans::{
+        ArtifactInstallationScopeId, DataSymbolId, EntryStubId, PlacementConstraints,
+        PlacementPhase, PlacementSite, RelocationTarget,
+    };
+
+    fn install_id<T>(
+        identity: u64,
+        constructor: fn(u64) -> Result<T, InstallationDiagnostic>,
+    ) -> T {
+        constructor(identity).expect("normalized installation identity")
+    }
+
+    fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
+        constructor(identity).expect("normalized extent identity")
+    }
+
+    fn entry(machine: MachineId) -> EntryStubId {
+        EntryStubId::from_normalized_identity(machine.get()).expect("machine-backed entry")
+    }
+
+    fn data(index: usize) -> DataSymbolId {
+        DataSymbolId::from_normalized_identity(
+            0x1000_u64 + u64::try_from(index).expect("table index"),
+        )
+        .expect("table-backed data symbol")
+    }
+
+    fn relocation_kind(kind: RelocationKind) -> ArtifactRelocationKind {
+        match kind {
+            RelocationKind::Absolute64 => ArtifactRelocationKind::Absolute64,
+            RelocationKind::X86_64Relative32 => ArtifactRelocationKind::X86Relative32,
+            RelocationKind::Aarch64Page21 => ArtifactRelocationKind::Aarch64Page21,
+            RelocationKind::Aarch64PageOffset12 => ArtifactRelocationKind::Aarch64PageOffset12,
+            RelocationKind::Aarch64Branch26 => ArtifactRelocationKind::Aarch64Branch26,
+        }
+    }
+
+    pub fn install(object: &ObjectArtifact, image: &ExecutableImage) -> InstalledCode {
+        let memory = project_installed_artifact_memory_images(object, image)
+            .expect("project exact text/data memory image");
+        let data_offset = memory.data_offset().expect("dynamic table data offset");
+        let entries = object
+            .functions()
+            .iter()
+            .map(|function| {
+                ArtifactEntry::from_canonical_decode(
+                    entry(function.machine),
+                    u64::try_from(function.text_offset).expect("function text offset"),
+                )
+            })
+            .collect::<Vec<_>>();
+        let entry_addresses = object
+            .functions()
+            .iter()
+            .map(|function| {
+                (
+                    entry(function.machine),
+                    memory.layout().text_address
+                        + u64::try_from(function.text_offset).expect("function text offset"),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let data_addresses = object
+            .dynamic_conformance_tables()
+            .iter()
+            .enumerate()
+            .map(|(index, table)| {
+                (
+                    data(index),
+                    memory.layout().data_address
+                        + u64::try_from(table.data_offset).expect("table data offset"),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let relocations = object
+            .relocations()
+            .records()
+            .map(|(_, relocation)| {
+                let destination_offset = match relocation.section {
+                    SectionKind::Text => relocation.offset,
+                    SectionKind::Data => data_offset
+                        .checked_add(relocation.offset)
+                        .expect("flattened data relocation offset"),
+                    other => panic!("unsupported installed relocation section: {other:?}"),
+                };
+                let target = object
+                    .functions()
+                    .iter()
+                    .find(|function| function.symbol == relocation.symbol_handle)
+                    .map(|function| RelocationTarget::Entry(entry(function.machine)))
+                    .or_else(|| {
+                        object
+                            .dynamic_conformance_tables()
+                            .iter()
+                            .position(|table| table.symbol == relocation.symbol_handle)
+                            .map(|index| RelocationTarget::Data(data(index)))
+                    })
+                    .expect("closed installed relocation target");
+                DecodedArtifactRelocation {
+                    kind: relocation_kind(relocation.kind),
+                    destination_offset: u64::try_from(destination_offset)
+                        .expect("installed relocation offset"),
+                    target,
+                    addend: relocation.addend,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let scope = ArtifactInstallationScopeId::from_normalized_identity(1).expect("scope");
+        let constraints =
+            PlacementConstraints::new(None, 16, PlacementPhase::Load, None, Some(scope))
+                .expect("placement constraints");
+        let contracts = install_id(2, MachineContractSetId::from_normalized_identity);
+        let footprint = install_id(3, MachineFootprintId::from_normalized_identity);
+        let artifact = Artifact::from_canonical_decode(
+            install_id(4, ArtifactId::from_normalized_identity),
+            object.target().architecture,
+            memory.encoded().to_vec(),
+            contracts,
+            footprint,
+            install_id(5, PlacementPlanId::from_normalized_identity),
+            constraints,
+            install_id(6, EntrySetId::from_normalized_identity),
+            entries,
+            install_id(7, RelocationSetId::from_normalized_identity),
+            relocations,
+            ArtifactAuthorityCommitments::from_canonical_evidence(
+                contracts,
+                b"dynamic-table-test-contracts-v1",
+                footprint,
+                b"dynamic-table-test-footprint-v1",
+                None,
+                Some((scope, b"dynamic-table-test-scope-v1")),
+            ),
+        )
+        .expect("normalized dynamic-table artifact");
+        let admitted = admit_executable(
+            &artifact,
+            ArtifactAdmissionEvidence::from_validator(
+                install_id(8, AdmissionReceiptId::from_normalized_identity),
+                &artifact,
+                true,
+            ),
+        )
+        .expect("admitted dynamic-table artifact");
+        let rights = ExtentRights::from_normalized_identities([extent_id(
+            9,
+            ExtentRightId::from_normalized_identity,
+        )]);
+        let extent = ExtentRootGrant::from_admitted_provider(
+            psi_extents::ExtentProviderIssuance::from_normalized_identities([
+                10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+            ])
+            .expect("extent issuance"),
+            extent_id(23, ExtentLineageId::from_normalized_identity),
+            extent_id(24, AddressSpaceId::from_normalized_identity),
+            rights.clone(),
+            extent_id(25, ExtentProvenanceId::from_normalized_identity),
+            extent_id(26, MappingEraId::from_normalized_identity),
+        )
+        .mint(
+            memory.layout().text_address,
+            u64::try_from(memory.encoded().len()).expect("installed extent length"),
+        )
+        .expect("placement extent");
+        let placement = CodePlacementAuthority::from_admitted_provider(
+            install_id(27, CodePlacementId::from_normalized_identity),
+            install_id(1, InstallationScopeId::from_normalized_identity),
+            InstallationAudience::DormantLocal,
+            &extent,
+            rights,
+            constraints,
+            PlacementSite {
+                base_address: memory.layout().text_address,
+                phase: PlacementPhase::Load,
+                machine_regime: None,
+                installation_scope: Some(scope),
+            },
+        )
+        .claim(extent)
+        .expect("code placement");
+        let materialized =
+            materialize_admitted_artifact(&admitted, &placement, |target| match target {
+                RelocationTarget::Entry(identity) => entry_addresses.get(&identity).copied(),
+                RelocationTarget::Data(identity) => data_addresses.get(&identity).copied(),
+            })
+            .expect("materialized dynamic-table artifact");
+        assert_eq!(materialized.bytes(), memory.materialized());
+        let frozen = materialize_and_freeze(
+            &admitted,
+            placement,
+            materialized.clone(),
+            MaterializationReceipt::from_materialized(
+                &materialized,
+                install_id(29, MachineFootprintId::from_normalized_identity),
+                true,
+            ),
+        )
+        .expect("frozen dynamic-table artifact");
+        let validation = FinalValidationCertificate::from_validator(
+            install_id(30, FinalValidationId::from_normalized_identity),
+            &frozen,
+            true,
+        );
+        let validated = validate_final_placement(frozen, &validation)
+            .expect("validated dynamic-table artifact");
+        let authority = InstallAuthority::from_admitted_provider(&validated);
+        let receipt = InstallationReceipt::from_provider(
+            install_id(31, InstalledCodeId::from_normalized_identity),
+            &validated,
+            true,
+            WxEnforcement::HardwareEnforced,
+        );
+        install_validated(validated, authority, receipt).expect("installed dynamic-table artifact")
+    }
+}
 
 fn machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     let source = r#"
@@ -120,10 +363,46 @@ fn rebound_dynamic_call_materializes_complete_private_table_and_executes_image_r
         assert_ne!(image.output().final_data_bytes, vec![0; 16]);
         assert_ne!(&image.output().final_data_bytes[..8], &[0; 8]);
         assert_ne!(&image.output().final_data_bytes[8..], &[0; 8]);
-        assert!(matches!(
-            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"),),
-            Err(InstallationError::DynamicConformanceInstallationPending)
-        ));
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("dynamic table installation custody");
+        assert_eq!(installation.dynamic_conformance_tables().len(), 1);
+        assert_eq!(installation.dynamic_scalar_calls().len(), 1);
+        assert_eq!(installation.image_sections().data_byte_count, 16);
+        validate_installation_record(&installation, &image)
+            .expect("installation record must replay exact dynamic data");
+        let encoded = encode_installation_record(&installation).expect("encode installation");
+        assert_eq!(
+            decode_installation_record(&encoded),
+            Ok(installation.clone()),
+            "canonical installation codec retains dynamic table custody"
+        );
+
+        let call = &installation.dynamic_scalar_calls()[0];
+        let replacement = installation
+            .functions()
+            .iter()
+            .map(|function| function.machine)
+            .find(|machine| *machine != call.realization)
+            .expect("different in-artifact function");
+        let commitment = installation.dynamic_conformance_tables()[0]
+            .application_commitment
+            .as_bytes();
+        let commitment_offset = encoded
+            .windows(commitment.len())
+            .position(|window| window == commitment)
+            .expect("encoded dynamic application commitment");
+        let selected_slot =
+            usize::try_from(call.selected_table_byte_offset / 8).expect("selected dynamic slot");
+        let selected_target_offset = commitment_offset + 68 + selected_slot * 24;
+        let mut substituted = encoded;
+        substituted[selected_target_offset..selected_target_offset + 8]
+            .copy_from_slice(&replacement.get().to_le_bytes());
+        assert_eq!(
+            decode_installation_record(&substituted),
+            Err(omega_image_emission::InstallationError::InvalidDynamicScalarCall(call.machine)),
+            "a different valid function cannot replace the selected table realization"
+        );
     }
 }
 
@@ -149,4 +428,21 @@ fn object_replay_rejects_dynamic_slot_and_descriptor_byte_substitution() {
     let call = caller.dynamic_scalar_calls.first().expect("dynamic call");
     caller.bytes[call.rebound_instance.code_offset] ^= 1;
     assert!(build_object_artifact(&wrong_descriptor).is_err());
+}
+
+#[cfg(feature = "installed-artifact")]
+#[test]
+fn normalized_runtime_installs_and_binds_relocated_dynamic_table_data() {
+    let object = build_object_artifact(&machine_plan(NativeTarget::linux_x64()))
+        .expect("dynamic-table object");
+    let image = emit_executable_image(&object, 3).expect("dynamic-table image");
+    let installation =
+        build_installation_record(&image, ProfileDecisionId::new(2).expect("profile decision"))
+            .expect("dynamic-table installation record");
+    let installed = installed_runtime::install(&object, &image);
+
+    let joined = bind_installed_artifact(object, image, installation, installed)
+        .expect("exact relocated dynamic table must bind to installed occurrence");
+    assert_eq!(joined.installation().dynamic_conformance_tables().len(), 1);
+    assert_eq!(joined.installation().dynamic_scalar_calls().len(), 1);
 }
