@@ -351,6 +351,24 @@ fn dynamic_unit_machine_plan(target: NativeTarget) -> omega_machine_code::Machin
     compile_source(source, target)
 }
 
+fn changed_conformance_unit_machine_plan(
+    target: NativeTarget,
+) -> omega_machine_code::MachineCodePlan {
+    let source = r#"
+        trait Touch { machine touch(&self); }
+        data Item { value: i32; }
+        Primary: Item satisfies Touch { machine touch(&self) {} }
+        Secondary: Item satisfies Touch { machine touch(&self) {} }
+        data Main { decoy: Item; selected: Item; }
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Secondary;
+            erased.touch();
+        }
+    "#;
+    compile_source(source, target)
+}
+
 fn compile_source(source: &str, target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
@@ -428,6 +446,59 @@ fn rebound_dynamic_unit_call_replays_without_scalar_result_evidence() {
             Ok(installation),
             "canonical installation retains borrowed parameter access"
         );
+    }
+}
+
+#[test]
+fn changed_conformance_unit_replays_only_the_live_table_without_a_result() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = changed_conformance_unit_machine_plan(target);
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .expect("entry caller");
+        let [call] = caller.dynamic_calls.as_slice() else {
+            panic!("one changed-conformance Unit call expected: {caller:#?}")
+        };
+        assert!(call.result.is_none());
+        assert!(call.call_plan.result.is_none());
+        assert_ne!(
+            call.dynamic_dispatch.initial_application.commitment,
+            call.dynamic_dispatch.application.commitment
+        );
+        assert!(
+            call.dynamic_dispatch
+                .initial_application
+                .realization_callables
+                .is_empty()
+        );
+
+        let artifact = build_object_artifact(&plan)
+            .expect("materialize the live changed-conformance Unit table");
+        let [table] = artifact.dynamic_conformance_tables() else {
+            panic!("only the live changed-conformance Unit table should materialize")
+        };
+        assert_eq!(table.application, call.dynamic_dispatch.application);
+        assert_ne!(
+            table.application.commitment,
+            call.dynamic_dispatch.initial_application.commitment
+        );
+        let image =
+            emit_executable_image(&artifact, 3).expect("link the changed-conformance Unit table");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("retain changed-conformance Unit installation custody");
+        assert_eq!(installation.dynamic_calls().len(), 1);
+        assert_eq!(
+            installation.dynamic_calls()[0].application_commitment,
+            call.dynamic_dispatch.application.commitment
+        );
+        validate_installation_record(&installation, &image)
+            .expect("replay changed-conformance Unit installation");
+        let encoded = encode_installation_record(&installation)
+            .expect("encode changed-conformance Unit installation");
+        assert_eq!(decode_installation_record(&encoded), Ok(installation));
     }
 }
 

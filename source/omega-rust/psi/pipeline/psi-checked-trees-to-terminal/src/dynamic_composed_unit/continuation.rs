@@ -80,7 +80,7 @@ pub(super) fn lower(
         {
             Some(lower_initial_rebound_application(
                 checked,
-                plan,
+                plan.target_trait,
                 initial,
                 caller_machine,
             )?)

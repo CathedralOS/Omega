@@ -94,7 +94,7 @@ pub struct CheckedDynamicUnitRealizationCallablePlan {
     pub contract_commitment: MachineContractCommitment,
 }
 
-/// A Unit call after exactly one same-conformance descriptor reassignment.
+/// A Unit call after exactly one same-interface descriptor reassignment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedReboundDynamicUnitCallPlan {
     pub initial: CheckedDynamicSelectionPlan,
@@ -222,7 +222,7 @@ pub struct CheckedDynamicRealizationCallablePlan {
 }
 
 /// Checked custody for one local named-dynamic scalar call after exactly one
-/// same-conformance reassignment. This is a separate lane from direct
+/// same-interface reassignment. This is a separate lane from direct
 /// devirtualization: later Terminal lowering must consume both source versions
 /// as descriptor/table state.
 #[derive(Debug, Clone, PartialEq, Eq)]

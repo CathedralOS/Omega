@@ -227,6 +227,87 @@ fn verified_rebound_dynamic_unit_retains_exact_indirect_custody() {
 }
 
 #[test]
+fn verified_changed_conformance_unit_retains_both_applications() {
+    let source = r#"
+        trait Touch { machine touch(&self); }
+        data Item { value: i32; }
+        Primary: Item satisfies Touch { machine touch(&self) {} }
+        Secondary: Item satisfies Touch { machine touch(&self) {} }
+        data Main { decoy: Item; selected: Item; }
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Secondary;
+            erased.touch();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("changed-conformance Unit source lowers to verified Terminal Psi");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("verified changed-conformance Unit dispatch reaches target-neutral Omega");
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let (operation, dynamic) = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::CallDynamicUnit {
+                psi_operation,
+                dynamic_dispatch,
+                ..
+            } => Some((*psi_operation, dynamic_dispatch)),
+            _ => None,
+        })
+        .expect("changed-conformance Unit dispatch");
+    assert!(dynamic.has_complete_application_custody(caller.machine, operation));
+    assert_ne!(
+        dynamic.initial_application.commitment,
+        dynamic.application.commitment
+    );
+    assert!(dynamic.initial_application.realization_callables.is_empty());
+    assert_eq!(dynamic.application.realization_callables.len(), 1);
+
+    let optimization = reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).expect("nonzero test fuel schedule"),
+    )
+    .expect("changed-conformance Unit custody reconstructs into the optimizer");
+    validate_psi_optimization_unit(&optimization)
+        .expect("changed-conformance Unit optimizer custody validates independently");
+    let mut collapsed = optimization.clone();
+    let dynamic = collapsed
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == collapsed.entry)
+        .expect("entry optimization function")
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            AbstractOperation::CallDynamicUnit {
+                dynamic_dispatch, ..
+            } => Some(dynamic_dispatch),
+            _ => None,
+        })
+        .expect("changed-conformance Unit optimization dispatch");
+    dynamic.initial_application = dynamic.application.clone();
+    collapsed.identity = recompute_psi_optimization_unit_identity(&collapsed);
+    assert!(
+        validate_psi_optimization_unit(&collapsed).is_err(),
+        "collapsing the initial Unit conformance into the latest must reject"
+    );
+}
+
+#[test]
 fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
     let source = r#"
         trait Measure {

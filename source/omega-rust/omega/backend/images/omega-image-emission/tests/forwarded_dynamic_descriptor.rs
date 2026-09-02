@@ -104,6 +104,27 @@ fn unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePla
     )
 }
 
+fn changed_conformance_unit_machine_plan(
+    target: NativeTarget,
+) -> omega_machine_code::MachineCodePlan {
+    machine_plan_from_source(
+        r#"
+            trait Touch { machine touch(&self); }
+            data Item { value: i32; }
+            Primary: Item satisfies Touch { machine touch(&self) {} }
+            Secondary: Item satisfies Touch { machine touch(&self) {} }
+            data Main { decoy: Item; selected: Item; }
+            machine Main::run(&mut self) {
+                let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+                erased = &self.selected as &dyn Item::Secondary;
+                forward(erased);
+            }
+            machine forward(erased: &dyn Touch) { erased.touch(); }
+        "#,
+        target,
+    )
+}
+
 fn direct_unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     machine_plan_from_source(
         r#"
@@ -285,6 +306,60 @@ fn object_image_and_installation_replay_result_less_forwarding() {
         );
         validate_installation_record(&installation, &image)
             .expect("replay result-less installed evidence");
+    }
+}
+
+#[test]
+fn object_image_and_installation_replay_changed_conformance_unit_forwarding() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = changed_conformance_unit_machine_plan(target);
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .expect("entry caller");
+        let [call] = caller.forwarded_dynamic_descriptor_calls.as_slice() else {
+            panic!("one changed-conformance Unit forwarding call expected")
+        };
+        assert!(call.semantic_result.is_none());
+        assert!(call.result.is_none());
+        let [argument] = call.dynamic_arguments.as_slice() else {
+            panic!("one changed-conformance Unit descriptor argument expected")
+        };
+        let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+            initial_application,
+            application,
+            ..
+        } = &argument.custody.source
+        else {
+            panic!("changed-conformance Unit forwarding must retain rebound custody")
+        };
+        assert_ne!(initial_application.commitment, application.commitment);
+        assert!(initial_application.realization_callables.is_empty());
+
+        let object = build_object_artifact(&plan)
+            .expect("replay changed-conformance Unit forwarded object evidence");
+        let [table] = object.forwarded_dynamic_descriptor_tables() else {
+            panic!("only the live changed-conformance Unit table should materialize")
+        };
+        assert_eq!(table.application.commitment, application.commitment);
+        assert_ne!(table.application.commitment, initial_application.commitment);
+        let image = emit_executable_image(&object, 3)
+            .expect("link changed-conformance Unit forwarded image");
+        validate_executable_image(&object, &image)
+            .expect("replay changed-conformance Unit linked image");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("build changed-conformance Unit installation");
+        let [installed_call] = installation.forwarded_dynamic_descriptor_calls() else {
+            panic!("one installed changed-conformance Unit call expected")
+        };
+        assert!(installed_call.semantic_result.is_none());
+        assert!(installed_call.result.is_none());
+        validate_installation_record(&installation, &image)
+            .expect("replay changed-conformance Unit installed evidence");
+        let encoded = encode_installation_record(&installation).expect("encode installation");
+        assert_eq!(decode_installation_record(&encoded), Ok(installation));
     }
 }
 

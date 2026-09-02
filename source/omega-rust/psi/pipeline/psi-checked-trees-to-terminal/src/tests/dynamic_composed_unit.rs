@@ -371,6 +371,40 @@ const REBOUND_DYNAMIC_UNIT_SOURCE: &str = r#"
     }
 "#;
 
+const CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE: &str = r#"
+    trait Touch { machine touch(&self); }
+    data Item { value: i32; }
+
+    Primary: Item satisfies Touch { machine touch(&self) {} }
+    Secondary: Item satisfies Touch { machine touch(&self) {} }
+
+    data Main { decoy: Item; selected: Item; }
+
+    machine Main::run(&mut self) {
+        let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Secondary;
+        erased.touch();
+    }
+"#;
+
+const FORWARDED_CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE: &str = r#"
+    trait Touch { machine touch(&self); }
+    data Item { value: i32; }
+
+    Primary: Item satisfies Touch { machine touch(&self) {} }
+    Secondary: Item satisfies Touch { machine touch(&self) {} }
+
+    data Main { decoy: Item; selected: Item; }
+
+    machine Main::run(&mut self) {
+        let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Secondary;
+        forward(erased);
+    }
+
+    machine forward(erased: &dyn Touch) { erased.touch(); }
+"#;
+
 const FORWARDED_REBOUND_DYNAMIC_UNIT_SOURCE: &str = r#"
     trait Touch {
         machine touch(&self);
@@ -777,6 +811,68 @@ fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
     let artifact = produce_terminal_artifact(&checked, "Main::run")
         .expect("rebound dynamic Unit module encodes");
     assert_dynamic_unit_artifact_executes(&artifact);
+}
+
+#[test]
+fn retains_changed_conformance_unit_applications_without_a_scalar_result() {
+    let lowered = lower_machine(
+        &checked_source(CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE),
+        "Main::run",
+    )
+    .expect("changed-conformance dynamic Unit call lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("changed-conformance dynamic Unit module verifies");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 2);
+    assert_ne!(
+        catalog.selections[0].conformance_application_commitment,
+        catalog.selections[1].conformance_application_commitment
+    );
+    assert_eq!(
+        lowered
+            .semantic_module
+            .closed_conformance_applications
+            .len(),
+        2
+    );
+    assert!(matches!(
+        lowered.semantic_module.machines[0].blocks[0].operations[0],
+        Operation {
+            result: OperationResult::Unit,
+            kind: OperationKind::CallDynamicUnit { .. },
+            ..
+        }
+    ));
+}
+
+#[test]
+fn forwards_changed_conformance_unit_custody_without_a_scalar_result() {
+    let lowered = lower_machine(
+        &checked_source(FORWARDED_CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE),
+        "Main::run",
+    )
+    .expect("forwarded changed-conformance dynamic Unit call lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("forwarded changed-conformance dynamic Unit module verifies");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 2);
+    assert_ne!(
+        catalog.selections[0].conformance_application_commitment,
+        catalog.selections[1].conformance_application_commitment
+    );
+    assert_eq!(catalog.arguments.len(), 1);
+    assert_eq!(catalog.parameter_dispatches.len(), 1);
+    assert!(matches!(
+        catalog.arguments[0].source,
+        psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { .. }
+    ));
+    assert!(lowered.semantic_module.machines.iter().all(|machine| {
+        machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .all(|operation| operation.result == OperationResult::Unit)
+    }));
 }
 
 #[test]

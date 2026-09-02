@@ -12010,13 +12010,12 @@ checked-result arithmetic decision listed below.
   name the exact complete conformance.
 
   Current canonical status: exact one-selection local calls have a checked and
-  verified Terminal direct-devirtualization lane. Exact local scalar
+  verified Terminal direct-devirtualization lane. Exact local scalar or Unit
   reassignment retains ordered initializer/latest selections, both normalized
   structural sources, each selected conformance's complete row map, and the
   selected call/continuation in a distinct checked rebound lane. The two
   conformances may differ when their carrier, trait interface, access, and
-  normalized requirement roster remain exact. Unit reassignment remains the
-  narrower same-conformance lane. The scalar lane crosses
+  normalized requirement roster remain exact. Both result classes cross
   canonical Terminal, abstract operations, identity-bound optimizer
   reconstruction and validation, target lowering, and physical assignment.
   Each dynamic carrier retains its complete canonically ordered
@@ -12234,8 +12233,9 @@ checked-result arithmetic decision listed below.
   call roles on x86-64 and AArch64; the installed codec carries an explicit
   result-presence tag and rejects mismatched semantic/physical result pairs.
 
-  Changed-conformance scalar rebinding is now live for both a caller-local
-  dispatch and the existing transparent descriptor-parameter hop. Checking
+  Changed-conformance rebinding is now live for scalar and result-less Unit
+  calls, both as caller-local dispatch and through the existing transparent
+  descriptor-parameter hop. Checking
   requires two exact named conformances over one carrier and dynamic-trait
   interface. Terminal Psi retains two independently committed applications;
   verifier and abstract/optimizer custody reject either application being
@@ -12243,8 +12243,8 @@ checked-result arithmetic decision listed below.
   The initializer is overwritten before dispatch, so its application remains
   semantic custody without a fabricated callable table. Native/object/image
   construction materializes only the latest application's live private table,
-  and x86-64/AArch64 installation replay rejoins that table for both local and
-  forwarded scalar calls.
+  and x86-64/AArch64 installation replay rejoins that table for local and
+  forwarded calls without inventing a scalar carrier for Unit.
 
   Remaining work:
 
@@ -12263,8 +12263,7 @@ checked-result arithmetic decision listed below.
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
-  - extend changed-conformance custody to the result-less Unit lane, and extend
-    descriptors generally to stored/joined/escaping, aggregate-erased, and
+  - extend descriptors to stored/joined/escaping, aggregate-erased, and
     component-crossing forms.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target

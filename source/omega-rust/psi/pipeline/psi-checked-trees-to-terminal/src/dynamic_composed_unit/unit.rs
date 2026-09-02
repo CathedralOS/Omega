@@ -99,6 +99,20 @@ fn lower_dynamic_unit_machine(
     let callable_identity = selected.callable_identity.clone();
     let (application, selected_row) =
         lower_exact_unit_application(checked, plan, caller_machine, &lowered_realizations)?;
+    let initial_application = match lane {
+        DynamicLoweringLane::Rebound(initial)
+            if initial.fact.conformance != plan.selection.conformance
+                || initial.fact.rows != plan.selection.rows =>
+        {
+            Some(lower_initial_rebound_application(
+                checked,
+                plan.target_trait,
+                initial,
+                caller_machine,
+            )?)
+        }
+        _ => None,
+    };
 
     let mut next_block = 2_u64;
     let mut next_place = 2_u64;
@@ -120,6 +134,7 @@ fn lower_dynamic_unit_machine(
         caller_machine,
         call_operation,
         latest_source,
+        initial_application.as_ref(),
         &application,
         &selected_row,
         callable_identity,
@@ -177,7 +192,23 @@ fn lower_dynamic_unit_machine(
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
-            closed_conformance_applications: vec![application],
+            closed_conformance_applications: {
+                let mut applications = vec![application];
+                applications.extend(initial_application);
+                applications.sort_by(|left, right| {
+                    (
+                        left.owner,
+                        left.declaration_identity.as_str(),
+                        left.report_fingerprint,
+                    )
+                        .cmp(&(
+                            right.owner,
+                            right.declaration_identity.as_str(),
+                            right.report_fingerprint,
+                        ))
+                });
+                applications
+            },
             dynamic_dispatch,
             quotient_correspondences: Vec::new(),
             machines: {
@@ -270,9 +301,8 @@ fn validate_exact_unit_plan(
         && (initial.fact.statement_index != 0
             || initial.fact.binding != plan.receiver_binding
             || initial.fact.target_trait != plan.target_trait
-            || initial.fact.conformance != Some(plan.selected_conformance)
+            || initial.fact.conformance.is_none()
             || initial.fact.source_data != plan.selection.source_data
-            || initial.fact.rows != plan.selection.rows
             || initial.type_identity != plan.source_type_identity
             || initial.path.len() != 1
             || checked
@@ -579,6 +609,7 @@ fn lower_unit_call_custody(
     caller_machine: psi_core::MachineId,
     call_operation: psi_core::OperationId,
     latest_source: StructuralArgument,
+    initial_application: Option<&ClosedConformanceApplication>,
     application: &ClosedConformanceApplication,
     selected_row: &ClosedConformanceRow,
     callable_identity: String,
@@ -594,6 +625,9 @@ fn lower_unit_call_custody(
     };
     Ok(match lane {
         DynamicLoweringLane::Direct => {
+            if initial_application.is_some() {
+                return unsupported("direct dynamic Unit dispatch retained a rebound application");
+            }
             let mut catalog = TerminalDynamicDispatchCatalog {
                 parameters: Vec::new(),
                 arguments: Vec::new(),
@@ -682,8 +716,12 @@ fn lower_unit_call_custody(
                         owner: caller_machine,
                         ordinal: 0,
                         source: initial_source,
-                        conformance_application_report_fingerprint: application.report_fingerprint,
-                        conformance_application_commitment: application.commitment,
+                        conformance_application_report_fingerprint: initial_application
+                            .unwrap_or(application)
+                            .report_fingerprint,
+                        conformance_application_commitment: initial_application
+                            .unwrap_or(application)
+                            .commitment,
                     },
                     latest_selection,
                 ],
