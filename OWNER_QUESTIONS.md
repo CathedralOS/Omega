@@ -87,3 +87,27 @@ alias observation would distinguish them. This decision blocks general native
 structural-field stores and writeback. It does not block the explicitly bounded
 direct named-dynamic fixture whose stored value is consumed by the following
 projected call before the Unit returns.
+
+## Q3 — Ranked receiver-subplace transfer identity
+
+The product compiler requires ranked cyclic control to preserve a mutable
+receiver subplace across a backedge. The current ranked source and checked plan
+synthesize target `self` from source `self` as a whole receiver and retain only
+source/target parameter positions. Neither layer has a receiver projection path
+or a rule that identifies a projected referent as the next state's receiver.
+
+Choose the authored and semantic identity of that transfer:
+
+- keep `self` whole and carry `&mut self.field` as a separate explicit state
+  parameter, with the receiver and subloan both present in the cyclic frontier;
+- allow a transition to rebind the target state's `self` directly to a
+  projected source subplace, defining the required nominal-type and lifetime
+  relationship; or
+- keep the target receiver whole but add explicit external root-to-receiver
+  provenance, so the ranked carrier records that `self` denotes a subplace of
+  an enclosing owner without transferring a second parameter.
+
+These choices produce different checked frontier, alias, cleanup, ABI, and
+native replay obligations. This decision blocks only the first projected
+receiver-subplace ranked-countdown slice. Whole-receiver ranked countdowns and
+ranked work that does not require receiver projection may proceed unchanged.

@@ -64,22 +64,22 @@ use psi_proof_admission::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimContentProjection, ClaimTransfer,
-    CompletionReceipt, ContentConservationGuarantee, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContractClause,
-    CrashCause as TerminalCrashCause, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
-    EvidenceTermDeclaration, InstallationReachDependency, MachineContract, NominalAffineCleanup,
-    Operation, OperationKind, OperationResult, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificEvidenceUse,
-    OutcomeSpecificGuard, ProgramLocalRootIntroductionSchema, ProofOutput, ProofOutputCall,
-    ProofOutputRuntimeCall, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
-    ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
-    ProviderUnitSignature, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
-    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    Block, BoundaryContentGuarantee, BoundaryMachineDeclaration, ByteSequenceCarrier,
+    ClaimContentProjection, ClaimTransfer, CompletionReceipt, ContentConservationGuarantee,
+    ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
+    ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    EvidenceProjectionIdentity, EvidenceRequirementIdentity, EvidenceTermDeclaration,
+    InstallationReachDependency, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity,
+    OutcomeSpecificCallResultSubstitution, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
+    OutcomeSpecificEvidenceUse, OutcomeSpecificGuard, ProgramLocalRootIntroductionSchema,
+    ProofOutput, ProofOutputCall, ProofOutputRuntimeCall, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
+    ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StaticRequirementDispatch,
+    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
@@ -120,6 +120,7 @@ mod proof_recursion;
 mod quotient_correspondence;
 mod reborrow_restored_call_use;
 mod reborrow_root_handoff;
+mod retained_borrow_custody;
 mod scalar_call_closure;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
@@ -1339,6 +1340,10 @@ pub fn lower_machine(
         &lowered.source_call_occurrences,
         &lowered.semantic_module.machines,
         &mut lowered.semantic_module.reborrow_restored_call_uses,
+    )?;
+    retained_borrow_custody::retain_foreign_borrow_custodies(
+        checked,
+        &mut lowered.semantic_module,
     )?;
     if checked
         .facts

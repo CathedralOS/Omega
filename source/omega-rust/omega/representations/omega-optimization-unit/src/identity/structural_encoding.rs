@@ -85,9 +85,93 @@ pub(super) fn encode_boundary_machine(
     );
     bytes.slice(
         &declaration.content_guarantees,
-        encode_content_conservation_guarantee,
+        encode_boundary_content_guarantee,
     );
     encode_ids(bytes, &declaration.published_service_ceiling);
+}
+
+fn encode_boundary_content_guarantee(
+    bytes: &mut CanonicalBytes,
+    guarantee: &BoundaryContentGuarantee,
+) {
+    match guarantee {
+        BoundaryContentGuarantee::Conservation(guarantee) => {
+            bytes.u8(1);
+            encode_content_conservation_guarantee(bytes, guarantee);
+        }
+        BoundaryContentGuarantee::RetainedBorrow(custody) => {
+            bytes.u8(2);
+            encode_retained_borrow_custody(bytes, custody);
+        }
+    }
+}
+
+fn encode_retained_borrow_place(bytes: &mut CanonicalBytes, place: &RetainedBorrowPlace) {
+    bytes.u8(match place.version {
+        ContentPlaceVersion::Entry => 1,
+        ContentPlaceVersion::Current => 2,
+    });
+    match &place.root {
+        RetainedBorrowPlaceRoot::Parameter {
+            position,
+            identity,
+            is_self,
+        } => {
+            bytes.u8(1);
+            bytes.u32(*position);
+            bytes.string(identity);
+            bytes.boolean(*is_self);
+        }
+        RetainedBorrowPlaceRoot::Result => bytes.u8(2),
+    }
+    bytes.slice(&place.segments, |bytes, segment| match segment {
+        ContentPlaceSegment::Case(identity) => {
+            bytes.u8(1);
+            bytes.string(identity);
+        }
+        ContentPlaceSegment::Field(identity) => {
+            bytes.u8(2);
+            bytes.string(identity);
+        }
+        ContentPlaceSegment::FixedIndex(index) => {
+            bytes.u8(3);
+            bytes.u64(*index);
+        }
+    });
+}
+
+fn encode_retained_borrow_projection(
+    bytes: &mut CanonicalBytes,
+    projection: &RetainedBorrowContentProjection,
+) {
+    bytes.id(projection.semantic_domain);
+    bytes.string(&projection.carrier_identity);
+    bytes.id(projection.projection.identity.domain);
+    bytes.u64(projection.projection.identity.projection_report_fingerprint);
+    encode_content_algebra(bytes, &projection.projection.algebra);
+    encode_content_projection_expression(bytes, &projection.projection.expression);
+}
+
+fn encode_retained_borrow_custody(bytes: &mut CanonicalBytes, custody: &RetainedBorrowCustody) {
+    bytes.string(&custody.callable_identity);
+    encode_retained_borrow_place(bytes, &custody.source);
+    encode_retained_borrow_place(bytes, &custody.result);
+    bytes.u8(match custody.access {
+        StructuralAccess::Owned => 1,
+        StructuralAccess::SharedBorrow => 2,
+        StructuralAccess::MutableBorrow => 3,
+        StructuralAccess::WriteOnlyBorrow => 4,
+    });
+    bytes.u32(custody.callable_lifetime_parameter_count);
+    bytes.u32(custody.callable_lifetime_parameter_ordinal);
+    bytes.string(&custody.result_nominal_identity);
+    encode_multiplicity(bytes, custody.result_multiplicity);
+    bytes.u32(custody.result_lifetime_argument_count);
+    bytes.u32(custody.result_lifetime_argument_ordinal);
+    bytes.boolean(custody.result_lifetime_slot_is_erased);
+    bytes.id(custody.retained_semantic_domain);
+    encode_retained_borrow_projection(bytes, &custody.source_projection);
+    encode_retained_borrow_projection(bytes, &custody.result_projection);
 }
 
 pub(super) fn encode_domain_requirement(

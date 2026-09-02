@@ -636,8 +636,10 @@ Remaining:
   and ABI-placement mutations reject. The prior affine-owned token countdown
   remains accepted unchanged.
   This operation-free case does not claim product publication or subplace
-  custody. Later product-required slices must add a real projected receiver
-  subplace transfer, mixed operations in multi-state blocks, structural-result
+  custody. The first real projected receiver-subplace transfer is
+  **OWNER-BLOCKED** on the authored and semantic transfer identity in
+  `OWNER_QUESTIONS.md` Q3. Later product-required slices must add mixed
+  operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
   Darwin realizations for `read_byte`, `write_byte`, and `exit_process`. Do not
   bypass Terminal Psi, revive the deleted backend, or route around the failure
@@ -2179,17 +2181,17 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through nineteenth bounded represented-record levels are now live under
+  Third through twentieth bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant. One bounded
-  recursive classifier and validator owns every admitted depth instead of seventeen
+  recursive classifier and validator owns every admitted depth instead of eighteen
   hand-unrolled implementations while preserving the same diagnostic order.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A twentieth
+  storage, content, domain, provider, or establishment authority. A twenty-first
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -3814,15 +3816,18 @@ Remaining:
   internal. This adds no Terminal module field, operation, format, vocabulary,
   runtime outcome, or fuel charge.
 
-  The first runtime semantic-value comparison rung is also live for scalar
-  schemas. The interpreter-owned comparator requires both values to match the
-  verifier-derived exact Boolean, fixed-integer, binary32, or binary64 schema;
-  address-carrier schemas and malformed fixed integers reject, ordinary
-  unequal values return unequal, and
+  Runtime semantic-value comparison is live for scalar schemas and the first
+  bounded whole-root structural schema. The interpreter-owned scalar comparator
+  requires both values to match the verifier-derived exact Boolean,
+  fixed-integer, binary32, or binary64 schema; address-carrier schemas and
+  malformed fixed integers reject, ordinary unequal values return unequal, and
   IEEE values compare retained interchange bits so signed zero and NaN payloads
-  remain distinct. Structural comparison, trace construction, and refinement
-  authority remain absent. Continue D39 with canonical terminal-external rows;
-  structural exact runtime comparison; maximal finite and infinite trace
+  remain distinct. The structural comparator requires the exact structural
+  type, a canonical complete whole-root qualification roster, empty runtime
+  paths, and complete opaque value identity. Schemas with projected
+  qualifications and nested runtime values remain fenced. Trace construction
+  and refinement authority remain absent. Continue D39 with canonical terminal-external rows;
+  projected structural comparison; maximal finite and infinite trace
   refinement; and checked forgetting projections before any cross-profile
   replay. Every new operation classification and any producer-supplied
   weakening must remain fail closed. Carry an explicit checked
@@ -9019,7 +9024,7 @@ Owners:
   contract. Provider backing may not change a pinned public result type;
   concurrent foreign writes use External placement, while exclusive mutation
   returns the requirement's declared preserved/invalidated content outcome.
-  The first checked-only public-borrow rung is live: one content-bearing linear
+  The first checked and Terminal public-borrow rung is live: one content-bearing linear
   protocol result with exactly one erased lifetime slot may retain exactly one
   compatible whole direct shared parameter when the callable, parameter, and
   result all name the same explicit lifetime. The retained fact binds the exact
@@ -9028,7 +9033,12 @@ Owners:
   Unparameterized or elided results, different lifetimes, multiple compatible
   borrows, mutable/write-only access, `self`, nested carriers, structural
   subplaces/partitions, runtime generic arguments, and authored-equality
-  laundering remain rejected. Terminal/native-slot lowering, private
+  laundering remain rejected. Terminal lowering independently replays the
+  checked fact into one canonical declaration-only boundary content row with
+  the exact callable, source/result places, lifetime ordinal, result nominal
+  and semantic domain, and both complete projections. The row is format-72,
+  vocabulary-75 semantic identity and cannot be called, selected as a provider,
+  or mistaken for a Unit/scalar boundary result. Native-slot lowering, private
   snapshots, completion/reclamation, and provider backing remain later rungs.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
@@ -9659,9 +9669,9 @@ compiler concept is introduced.
   authorized routes remain insufficient. This is missing platform/provider
   engineering, not a language-design block.
   The checked-only qualification-correspondence carrier is now live for
-  existing statement transfers between exact parameter-rooted structural
-  Field/Case places and nested exact in-bounds `FixedIndex` paths through
-  literal-length fixed arrays. A separate deterministic proof ledger retains
+  existing statement transfers between exact parameter- or prior-state-local-
+  rooted structural Field/Case places and nested exact in-bounds `FixedIndex`
+  paths through literal-length fixed arrays. A separate deterministic proof ledger retains
   the source and destination fact handles, the fact's source place, the exact
   contextual source occurrence, destination place, formation point, unchanged
   qualification payload/domain, and exact `CheckedTransformation` evidence.
@@ -9669,14 +9679,17 @@ compiler concept is introduced.
   equality rather than label fallback, source-before-destination construction,
   exact statement-transfer origin/point, valid formation ownership, and
   identical payload/evidence. They also independently walk exact data members,
-  machine attachments, and literal array element types and reject every
-  out-of-bounds index. Every retained source, contextual source
+  machine attachments, local declarations, and literal array element types and
+  reject every out-of-bounds index. Every retained source, contextual source
   occurrence, and destination parameter root must belong to the formation
-  machine or exact formation state; same-shaped foreign-machine and sibling-
-  state parameter substitution rejects independently at production and replay.
-  Unknown, expression, type, runtime-indexed/ranged, nonliteral-length, local,
-  generic, label-only, invalid-member, or mismatched source occurrences remain
-  fail closed.
+  machine or exact formation state. A local root must belong to that exact
+  state and have exactly one matching declaration strictly before the formation
+  statement; production and replay independently re-resolve its declared type.
+  Same-shaped foreign-machine/sibling-state parameter or local substitution,
+  later, missing, duplicate, reordered, type-substituted, or symbol-substituted
+  local declarations reject. Unknown, expression, type, runtime-indexed/ranged,
+  nonliteral-length, generic, label-only, invalid-member, or mismatched source
+  occurrences remain fail closed.
   This carrier grants no admission or Terminal authority. Broader authored
   qualification-preserving transitions outside this narrow existing flow shape
   remain engineering work.
@@ -11290,16 +11303,17 @@ boundary without its corresponding checked law.
   non-call expressions, unresolved targets, generic/bodyless producers, and
   producers with parameters reject. The compiler-owned
   `core/external_binding.omg` now provides the exact three-width `DllImport`
-  vocabulary and the import-only first `Binding` rung as ordinary toolchain
+  vocabulary plus ordinary `Binding::DllImport` and `Binding::Syscall` cases
   source, with a production-frontend test pinning every case, payload, const
   binder, fixed-byte-array width, and nominal source owner. Psi now also
   exposes exact-symbol measured result evaluation plus the exact admitted
   checked-machine closure, so Omega never has to reselect a producer by
   spelling. The compiler now evaluates every exact ordinary `via` producer
   before provider derivation, validates the exact toolchain-owned closed
-  `Binding` vocabulary and const widths, decodes all four atomic import cases,
-  normalizes them against the selected target, and installs only the exact
-  table row as `ProviderBinding::Import`. Its durable receipt commits the
+  `Binding` vocabulary and const widths, decodes all four atomic import cases
+  plus exact syscalls, normalizes them against the selected target, and
+  installs only the exact table row as `ProviderBinding::Import` or
+  `ProviderBinding::Syscall`. Its durable receipt commits the
   producer package/callable/source closure, evaluator semantics and complete
   usage, evaluated value, materializer schema, vocabulary source, target,
   widths, and normalized locator. The complete table remains on the checked
@@ -11307,17 +11321,21 @@ boundary without its corresponding checked law.
   review now validates the complete retained-table/typed-expression bijection
   and selected target before projection, then records every package-owned
   ordinary leaf—including private and unselected leaves—as a structurally
-  distinct normalized import with its atomic raw locator, producer identity,
-  complete evaluation/materialization receipt, exact `via` custody, and
-  canonical schema-v118/row-v76 encoding. Candidate validation and selected
+  distinct normalized import or syscall with its atomic binding identity,
+  producer identity, complete evaluation/materialization receipt, exact `via`
+  custody, and canonical schema-v127/row-v85 encoding. Candidate validation and selected
   provider replay now consume the exact derived schema/provider/requirement/
   realization provenance plus the retained evaluated-binding table for trait,
   top-level-requirement, and operator rows. Every checked-adapter, segregated
   legacy external, and ordinary evaluated carrier is independently rejoined;
   missing table coverage, category drift, target drift, and binding or symbol
-  substitution reject without fallback. `Syscall` and
-  `VtableField` remain on their visibly segregated legacy carriers until their
-  own ordinary typed value vocabularies exist.
+  substitution reject without fallback. Ordinary `Binding::Syscall(number:
+  u64)` now requires an exact zero-width closed application, evaluates through
+  the same receipt-bearing path, validates Linux target applicability and the
+  downstream `u32` number range, normalizes to `ProviderBinding::Syscall`, and
+  projects as a review shape distinct from the retained legacy syscall form.
+  `VtableField` remains on its visibly segregated legacy carrier until its
+  ordinary typed value vocabulary exists.
   One sealed target-bound carrier validates and fingerprints atomic `PeByName`,
   `PeByOrdinal`, `ElfVersioned`, and `MachODylibSymbol` candidates, rejecting
   empty/NUL coordinates, zero PE ordinals, UEFI/PE conflation, non-Linux
@@ -12561,21 +12579,34 @@ checked-result arithmetic decision listed below.
   records, recursive or array-mediated paths, direct-sum coexistence, and
   target-dependent placement remain rejected; every shallower API retains its
   exact boundary.
-  The `omega-layout` materialization owner's 6,626-line regression corpus now
-  lives in a 4,305-line private test root over a focused 2,287-line
-  depth-eight-through-thirteen child. The 4,108-line production owner retains
-  all 45 production functions, all 20 public projection entry points, exact
-  module paths, diagnostics, and the complete 28-test crate behavior unchanged.
-  The matching 11,254-line Psi materialization owner is now a 4,404-line public
-  carrier/replay facade over private byte-derivation (5,329 lines), report-
-  identity (1,164 lines), and bounded sum-reachability (374 lines) owners. All
-  29 public carrier types, all 16 public validation entry points, all 51
-  production types, the complete function/method inventory, sibling
-  `SumReachability` import path, diagnostics, and the 31-test crate behavior are
-  unchanged. This is module ownership only; the fixed-depth reports and their
-  exact shallower/deeper rejection boundaries remain distinct.
+  The complete plural depth-fourteen fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-thirteen report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-thirteen carriers, preserves repeated
+  nominal occurrences, rebuilds every nested zero-padded image in authored
+  order, replays every layout and occurrence identity hash-free, and performs
+  one final atomic copy. Projection and replay share one memoized bounded walk
+  and global leaf ceiling across the complete cohort. Paths deeper than
+  fourteen records, recursive or array-mediated paths, direct-sum coexistence,
+  and target-dependent placement remain rejected; every shallower API retains
+  its exact boundary.
+  The `omega-layout` materialization owner's 7,003-line regression corpus now
+  lives in a 4,305-line private test root over a focused 2,698-line
+  depth-eight-through-fourteen child. The 4,355-line production owner retains
+  47 production functions, 21 public projection entry points, exact module
+  paths, diagnostics, and the complete 29-test crate behavior. The matching
+  12,034-line Psi materialization owner is now a 4,699-line public
+  carrier/replay facade over private byte-derivation (5,724 lines), report-
+  identity (1,237 lines), and bounded sum-reachability (374 lines) owners. Its
+  append-only public inventory now has 31 carrier types and 17 validation entry
+  points while preserving the sibling `SumReachability` import path and exact
+  diagnostics. This remains module ownership only; the fixed-depth reports and
+  their exact shallower/deeper rejection boundaries remain distinct.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  thirteen records, plural paths deeper than thirteen records, mixed
+  fourteen records, plural paths deeper than fourteen records, mixed
   common-field/case shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
@@ -13010,6 +13041,8 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
+- **RANKED-RECEIVER-SUBPLACE:** authored and semantic transfer identity in
+  `OWNER_QUESTIONS.md` Q3.
 - **SUM-MATERIALIZATION:** tagged/untagged case-placement vocabulary deferred
   in `wiki/design_briefs/programmable_layouts.md`; the conventional read-only
   materialization reports do not settle authorable `Layout` placement.

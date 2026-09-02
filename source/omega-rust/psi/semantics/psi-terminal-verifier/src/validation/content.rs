@@ -15,6 +15,16 @@ pub(super) fn validate_boundary_content_guarantees(
             ));
         }
         for guarantee in &boundary.content_guarantees {
+            let BoundaryContentGuarantee::Conservation(guarantee) = guarantee else {
+                let custody = match guarantee {
+                    BoundaryContentGuarantee::RetainedBorrow(custody) => custody,
+                    BoundaryContentGuarantee::Conservation(_) => unreachable!(),
+                };
+                if !validate_retained_borrow_custody(boundary, custody) {
+                    return Err(ModuleError::InvalidBoundaryContentGuarantee(boundary.id));
+                }
+                continue;
+            };
             let kinds =
                 validate_guarantee_places(&guarantee.structural_places, |kind| match kind {
                     StructuralPlaceKind::Parameter { position, is_self } => {
@@ -51,6 +61,69 @@ pub(super) fn validate_boundary_content_guarantees(
         }
     }
     Ok(())
+}
+
+fn validate_retained_projection(projection: &RetainedBorrowContentProjection) -> bool {
+    !projection.carrier_identity.is_empty()
+        && projection.semantic_domain.get() != 0
+        && projection.projection.identity.domain.get()
+            == u64::from(projection.semantic_domain.get())
+        && projection.projection.identity.projection_report_fingerprint != 0
+        && psi_language_semantics::content::terminal_projection_report_fingerprint(
+            &projection.projection.algebra,
+            &projection.projection.expression,
+        ) == projection.projection.identity.projection_report_fingerprint
+}
+
+fn validate_retained_borrow_custody(
+    boundary: &BoundaryMachineDeclaration,
+    custody: &psi_terminal::RetainedBorrowCustody,
+) -> bool {
+    let exact_source = matches!(
+        &custody.source,
+        psi_terminal::RetainedBorrowPlace {
+            version: psi_core::ContentPlaceVersion::Entry,
+            root: RetainedBorrowPlaceRoot::Parameter {
+                identity,
+                is_self: false,
+                ..
+            },
+            segments,
+        } if !identity.is_empty() && segments.is_empty()
+    );
+    let exact_result = matches!(
+        &custody.result,
+        psi_terminal::RetainedBorrowPlace {
+            version: psi_core::ContentPlaceVersion::Current,
+            root: RetainedBorrowPlaceRoot::Result,
+            segments,
+        } if segments.is_empty()
+    );
+    boundary.identity == custody.callable_identity
+        && boundary.attachment.is_none()
+        && boundary.scalar_parameters.is_empty()
+        && boundary.structural_parameters.is_empty()
+        && boundary.result.is_none()
+        && boundary.requires.is_empty()
+        && boundary.program_local_root_introductions.is_empty()
+        && boundary.published_service_ceiling.is_empty()
+        && exact_source
+        && exact_result
+        && custody.access == StructuralAccess::SharedBorrow
+        && custody.callable_lifetime_parameter_count > 0
+        && custody.callable_lifetime_parameter_ordinal < custody.callable_lifetime_parameter_count
+        && !custody.result_nominal_identity.is_empty()
+        && custody.result_multiplicity == StructuralMultiplicity::Linear
+        && custody.result_lifetime_argument_count == 1
+        && custody.result_lifetime_argument_ordinal == 0
+        && custody.result_lifetime_slot_is_erased
+        && custody.retained_semantic_domain == custody.result_projection.semantic_domain
+        && custody.result_nominal_identity == custody.result_projection.carrier_identity
+        && custody.source_projection.semantic_domain != custody.result_projection.semantic_domain
+        && custody.source_projection.projection.algebra
+            == custody.result_projection.projection.algebra
+        && validate_retained_projection(&custody.source_projection)
+        && validate_retained_projection(&custody.result_projection)
 }
 
 fn validate_guarantee_places(
@@ -532,11 +605,15 @@ fn validate_partition_producer(
             let guarantees = boundary
                 .content_guarantees
                 .iter()
-                .map(|guarantee| {
+                .filter_map(|guarantee| {
+                    let BoundaryContentGuarantee::Conservation(guarantee) = guarantee else {
+                        return None;
+                    };
                     (
                         guarantee.structural_places.as_slice(),
                         &guarantee.conservation,
                     )
+                        .into()
                 })
                 .collect::<Vec<_>>();
             validate_partition_guarantee_set(

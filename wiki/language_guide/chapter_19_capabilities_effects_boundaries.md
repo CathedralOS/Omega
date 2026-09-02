@@ -2087,6 +2087,17 @@ selection admits the realization and resources, but ordinary Omega control flow
 calls the registrar and selects the callback machine. A successful call creates
 the external root represented by `Registration`; rejection creates none.
 
+The first retained foreign-borrow carrier is deliberately narrower than native
+backing. A content-bearing linear result with one erased lifetime slot may bind
+one whole direct shared parameter only when both use the same explicit callable
+lifetime. Terminal Psi retains the exact callable, entry source and current
+result places, lifetime ordinal, result nominal and semantic domain, and both
+complete content projections in a declaration-only content contract. It has no
+callable result or native slot: boundary calls and provider settlement reject
+the row. Mutable or ambiguous sources, `self`, subplaces, nested carriers,
+runtime generic arguments, and lifetime or projection substitution remain
+outside this rung.
+
 A durable registration operation returns a linear package value. Its terminal
 operation unregisters the callback and releases any code or component lease
 owned by the registration. Per-instance state remains an ordinary Omega value;

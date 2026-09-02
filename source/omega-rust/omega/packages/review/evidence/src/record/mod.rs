@@ -101,7 +101,8 @@ pub use rows::{
 pub use signatures::{
     PackageReviewCallableConformance, PackageReviewCallableParameter,
     PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
-    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport, PackageReviewExternalBinding,
+    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
+    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
     PackageReviewExternalCallableParameter, PackageReviewExternalCallableSignature,
     PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
     PackageReviewExternalStaticParameter, PackageReviewForeignLocator,

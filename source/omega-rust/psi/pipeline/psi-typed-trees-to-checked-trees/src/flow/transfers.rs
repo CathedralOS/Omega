@@ -299,7 +299,7 @@ fn retain_qualification_correspondence(
     let ProgramPoint::Statement {
         machine_symbol,
         state_symbol,
-        ..
+        statement_index,
     } = formation
     else {
         return;
@@ -313,6 +313,7 @@ fn retain_qualification_correspondence(
             source_place,
             machine_symbol,
             state_symbol,
+            statement_index,
         )
         || !exact_structural_symbol_place(
             program,
@@ -320,6 +321,7 @@ fn retain_qualification_correspondence(
             source_occurrence_place,
             machine_symbol,
             state_symbol,
+            statement_index,
         )
         || !exact_structural_symbol_place(
             program,
@@ -327,6 +329,7 @@ fn retain_qualification_correspondence(
             destination_place,
             machine_symbol,
             state_symbol,
+            statement_index,
         )
         || !semantic.facts.is_valid(source_fact)
         || !semantic.facts.is_valid(destination_fact)
@@ -406,6 +409,7 @@ fn exact_structural_symbol_place(
     handle: PlaceHandle,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
+    formation_statement_index: usize,
 ) -> bool {
     if !semantic.places.is_valid(handle) {
         return false;
@@ -414,21 +418,19 @@ fn exact_structural_symbol_place(
     let psi_facts::PlaceRoot::Symbol(root) = place.root else {
         return false;
     };
-    if !root.is_valid()
-        || program.symbols.get(root).kind != psi_symbols::SymbolKind::Parameter
-        || !matches!(
-            program.symbols.get(root).parent,
-            parent if parent == machine_symbol || parent == state_symbol
-        )
-    {
+    if !root.is_valid() {
         return false;
     }
     let Some(segments) = semantic.place_segments.span(place.segments) else {
         return false;
     };
-    let Some(mut current) =
-        correspondence_root_type_reference(program, machine_symbol, state_symbol, root)
-    else {
+    let Some(mut current) = correspondence_root_type_reference(
+        program,
+        machine_symbol,
+        state_symbol,
+        formation_statement_index,
+        root,
+    ) else {
         return false;
     };
     let mut selected_variant = None;
@@ -522,25 +524,55 @@ fn correspondence_root_type_reference(
     program: &psi_typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
+    formation_statement_index: usize,
     root: SymbolHandle,
 ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
-    program
+    let machine = program
         .machines()
         .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-        .and_then(|machine| {
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)?;
+    match program.symbols.get(root).kind {
+        psi_symbols::SymbolKind::Parameter
+            if matches!(
+                program.symbols.get(root).parent,
+                parent if parent == machine_symbol || parent == state_symbol
+            ) =>
+        {
             program
-                .machine_states(machine)
+                .state_parameters(state)
                 .iter()
-                .find(|state| state.symbol == state_symbol)
-                .and_then(|state| {
-                    program
-                        .state_parameters(state)
-                        .iter()
-                        .find(|parameter| parameter.symbol == root)
-                        .map(|parameter| parameter.type_reference)
-                })
-        })
+                .find(|parameter| parameter.symbol == root)
+                .map(|parameter| parameter.type_reference)
+        }
+        psi_symbols::SymbolKind::Local
+            if program.symbols.get(root).parent == state_symbol
+                && formation_statement_index
+                    < program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .len() =>
+        {
+            let mut declarations = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .take(formation_statement_index)
+                .filter_map(|statement| {
+                    let psi_typed_trees::statement::StatementNode::LocalData(local) = statement
+                    else {
+                        return None;
+                    };
+                    (local.symbol == root).then_some(local.type_reference)
+                });
+            let declared_type = declarations.next()?;
+            declarations.next().is_none().then_some(declared_type)
+        }
+        _ => None,
+    }
 }
 
 fn correspondence_data_type<'program>(
@@ -628,10 +660,13 @@ mod tests {
         payload: FactPayload,
         evidence: QualificationEvidence,
         local: SymbolHandle,
+        exact_local: SymbolHandle,
         data_symbol: SymbolHandle,
         wrong_data_symbol: SymbolHandle,
         foreign_parameter: SymbolHandle,
         sibling_state_parameter: SymbolHandle,
+        foreign_local: SymbolHandle,
+        sibling_state_local: SymbolHandle,
     }
 
     fn correspondence_fixture() -> CorrespondenceFixture {
@@ -679,18 +714,37 @@ mod tests {
         let state = machine_members[0];
         let parameter = machine_members[1];
         let sibling_state = machine_members[2];
-        let sibling_state_parameter = SymbolTableBuilder::child_handles(symbols.insert_children(
+        let sibling_members = SymbolTableBuilder::child_handles(symbols.insert_children(
             sibling_state,
-            [(SymbolKind::Parameter, SymbolNameRef::Static("sibling_self"))],
+            [
+                (SymbolKind::Parameter, SymbolNameRef::Static("sibling_self")),
+                (SymbolKind::Local, SymbolNameRef::Static("sibling_local")),
+            ],
         ))
-        .next()
-        .expect("sibling state parameter");
-        let foreign_parameter = SymbolTableBuilder::child_handles(symbols.insert_children(
+        .collect::<Vec<_>>();
+        let sibling_state_parameter = sibling_members[0];
+        let sibling_state_local = sibling_members[1];
+        let foreign_members = SymbolTableBuilder::child_handles(symbols.insert_children(
             foreign_machine,
-            [(SymbolKind::Parameter, SymbolNameRef::Static("foreign_self"))],
+            [
+                (SymbolKind::Parameter, SymbolNameRef::Static("foreign_self")),
+                (SymbolKind::State, SymbolNameRef::Static("foreign_entry")),
+            ],
+        ))
+        .collect::<Vec<_>>();
+        let foreign_parameter = foreign_members[0];
+        let foreign_state = foreign_members[1];
+        let exact_local = SymbolTableBuilder::child_handles(
+            symbols.insert_children(state, [(SymbolKind::Local, SymbolNameRef::Static("local"))]),
+        )
+        .next()
+        .expect("exact state local");
+        let foreign_local = SymbolTableBuilder::child_handles(symbols.insert_children(
+            foreign_state,
+            [(SymbolKind::Local, SymbolNameRef::Static("foreign_local"))],
         ))
         .next()
-        .expect("foreign machine parameter");
+        .expect("foreign state local");
         let mut program = psi_typed_trees::TypedTrees {
             symbols: symbols.finish(),
             ..psi_typed_trees::TypedTrees::default()
@@ -736,6 +790,26 @@ mod tests {
                 is_self: true,
                 ..Default::default()
             },
+        );
+        program.statement_table.push_statement(
+            &mut state_node.statement_nodes,
+            psi_typed_trees::statement::StatementNode::LocalData(
+                psi_typed_trees::statement::TableLocalData {
+                    symbol: exact_local,
+                    name: psi_typed_trees::name::Identifier::generated("local"),
+                    type_reference: pair_type,
+                    initial_value: ExpressionHandle::invalid(),
+                    is_mutable: true,
+                },
+            ),
+        );
+        program.statement_table.push_statement(
+            &mut state_node.statement_nodes,
+            psi_typed_trees::statement::StatementNode::Expression(ExpressionHandle::invalid()),
+        );
+        program.statement_table.push_statement(
+            &mut state_node.statement_nodes,
+            psi_typed_trees::statement::StatementNode::Expression(ExpressionHandle::invalid()),
         );
         let mut machine_node = psi_typed_trees::machine::Machine {
             symbol: machine,
@@ -805,10 +879,13 @@ mod tests {
             payload,
             evidence,
             local,
+            exact_local,
             data_symbol,
             wrong_data_symbol: foreign_machine,
             foreign_parameter,
             sibling_state_parameter,
+            foreign_local,
+            sibling_state_local,
         }
     }
 
@@ -884,6 +961,25 @@ mod tests {
             .facts
             .get_mut(fixture.destination_fact)
             .place = FactPlace::Place(destination_place);
+    }
+
+    fn set_correspondence_roots(
+        fixture: &mut CorrespondenceFixture,
+        source_root: SymbolHandle,
+        destination_root: SymbolHandle,
+    ) {
+        fixture.semantic.places.get_mut(fixture.source_place).root =
+            psi_facts::PlaceRoot::Symbol(source_root);
+        fixture
+            .semantic
+            .places
+            .get_mut(fixture.source_occurrence_place)
+            .root = psi_facts::PlaceRoot::Symbol(source_root);
+        fixture
+            .semantic
+            .places
+            .get_mut(fixture.destination_place)
+            .root = psi_facts::PlaceRoot::Symbol(destination_root);
     }
 
     fn set_pair_field_type(
@@ -997,6 +1093,74 @@ mod tests {
         assert_eq!(retained.destination_place, fixture.destination_place);
         assert_eq!(retained.formation, fixture.formation);
         assert_eq!(retained.evidence, fixture.evidence);
+    }
+
+    #[test]
+    fn exact_prior_state_local_is_retained_as_either_endpoint() {
+        let mut local_source = correspondence_fixture();
+        let local = local_source.exact_local;
+        let parameter = match local_source
+            .semantic
+            .places
+            .get(local_source.destination_place)
+            .root
+        {
+            psi_facts::PlaceRoot::Symbol(root) => root,
+            _ => unreachable!("symbol root"),
+        };
+        set_correspondence_roots(&mut local_source, local, parameter);
+        retain(&mut local_source);
+        assert_eq!(local_source.semantic.qualification_correspondences.len(), 1);
+
+        let mut local_destination = correspondence_fixture();
+        let local = local_destination.exact_local;
+        let parameter = match local_destination
+            .semantic
+            .places
+            .get(local_destination.source_place)
+            .root
+        {
+            psi_facts::PlaceRoot::Symbol(root) => root,
+            _ => unreachable!("symbol root"),
+        };
+        set_correspondence_roots(&mut local_destination, parameter, local);
+        retain(&mut local_destination);
+        assert_eq!(
+            local_destination
+                .semantic
+                .qualification_correspondences
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn state_local_at_or_after_formation_is_not_retained() {
+        let mut fixture = correspondence_fixture();
+        let local = fixture.exact_local;
+        let parameter = match fixture.semantic.places.get(fixture.destination_place).root {
+            psi_facts::PlaceRoot::Symbol(root) => root,
+            _ => unreachable!("symbol root"),
+        };
+        set_correspondence_roots(&mut fixture, local, parameter);
+        fixture.formation = ProgramPoint::Statement {
+            machine_symbol: match fixture.formation {
+                ProgramPoint::Statement { machine_symbol, .. } => machine_symbol,
+                _ => unreachable!("statement formation"),
+            },
+            state_symbol: match fixture.formation {
+                ProgramPoint::Statement { state_symbol, .. } => state_symbol,
+                _ => unreachable!("statement formation"),
+            },
+            statement_index: 0,
+        };
+        fixture
+            .semantic
+            .facts
+            .get_mut(fixture.destination_fact)
+            .point = fixture.formation;
+        retain(&mut fixture);
+        assert!(fixture.semantic.qualification_correspondences.is_empty());
     }
 
     #[test]
@@ -1212,6 +1376,31 @@ mod tests {
                             .root = psi_facts::PlaceRoot::Symbol(foreign_root);
                     }
                     _ => unreachable!(),
+                }
+                retain(&mut fixture);
+                assert!(fixture.semantic.qualification_correspondences.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn foreign_machine_or_sibling_state_local_correspondence_is_not_retained() {
+        for sibling_state in [false, true] {
+            for endpoint in 0..2 {
+                let mut fixture = correspondence_fixture();
+                let excluded_root = if sibling_state {
+                    fixture.sibling_state_local
+                } else {
+                    fixture.foreign_local
+                };
+                let parameter = match fixture.semantic.places.get(fixture.destination_place).root {
+                    psi_facts::PlaceRoot::Symbol(root) => root,
+                    _ => unreachable!("symbol root"),
+                };
+                if endpoint == 0 {
+                    set_correspondence_roots(&mut fixture, excluded_root, parameter);
+                } else {
+                    set_correspondence_roots(&mut fixture, parameter, excluded_root);
                 }
                 retain(&mut fixture);
                 assert!(fixture.semantic.qualification_correspondences.is_empty());

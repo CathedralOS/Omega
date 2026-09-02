@@ -588,6 +588,89 @@ fn acceptance_views_publish_exact_statement_owned_qualification_correspondences(
     );
 }
 
+#[test]
+fn source_lowering_retains_prior_state_local_qualification_transfer_endpoints() {
+    let source = r#"
+        data Quantity { value: i32; }
+
+        domain Quantity::Additive;
+
+        operator Quantity::mark(value: &mut Quantity)
+        ensures
+            value in Quantity::Additive;
+
+        data Pair {
+            source: Quantity;
+            destination: Quantity;
+        }
+
+        data Main { pair: Pair; }
+
+        machine Main::run(&mut self) {
+            let mut local: Pair = self.pair;
+            Quantity::mark(&mut self.pair.source);
+            local.destination = self.pair.source;
+            self.pair.destination = local.destination;
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("a prior exact-state local should be a checked transfer endpoint");
+    let run = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .expect("run machine");
+    let state = checked.machine_states(run).first().expect("run state");
+    let acceptance = checked
+        .state_acceptance(run.symbol, state.symbol)
+        .expect("run state acceptance");
+    let correspondences = acceptance
+        .qualification_correspondences()
+        .collect::<Vec<_>>();
+    assert_eq!(correspondences.len(), 2);
+    assert_eq!(
+        correspondences
+            .iter()
+            .map(|row| row.formation)
+            .collect::<Vec<_>>(),
+        [
+            psi_facts::ProgramPoint::Statement {
+                machine_symbol: run.symbol,
+                state_symbol: state.symbol,
+                statement_index: 2,
+            },
+            psi_facts::ProgramPoint::Statement {
+                machine_symbol: run.symbol,
+                state_symbol: state.symbol,
+                statement_index: 3,
+            },
+        ]
+    );
+    assert_eq!(
+        correspondences
+            .iter()
+            .map(|row| crate::labels::canonical_place_label(
+                &checked,
+                &checked.facts.semantic,
+                checked.facts.semantic.places.get(row.source_place),
+            ))
+            .collect::<Vec<_>>(),
+        ["self.pair.source", "local.destination"]
+    );
+    assert_eq!(
+        correspondences
+            .iter()
+            .map(|row| crate::labels::canonical_place_label(
+                &checked,
+                &checked.facts.semantic,
+                checked.facts.semantic.places.get(row.destination_place),
+            ))
+            .collect::<Vec<_>>(),
+        ["local.destination", "self.pair.destination"]
+    );
+}
+
 fn parse_typed_trees(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

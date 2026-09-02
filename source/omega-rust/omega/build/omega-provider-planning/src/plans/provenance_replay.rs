@@ -195,12 +195,7 @@ fn derive_satisfies_plans_with_optional_evaluated_bindings(
                         }) else {
                             continue;
                         };
-                        (
-                            ProviderBinding::Import {
-                                evaluated: row.evaluated().clone(),
-                            },
-                            None,
-                        )
+                        (row.evaluated().provider_binding(), None)
                     }
                     (psi_language_semantics::MachineSupplyMode::CheckedBody, None)
                         if machine.body_is_present && !clause.via_expression.is_valid() =>
@@ -437,9 +432,7 @@ fn derive_top_level_requirement_plans_with_provenance(
                     }) else {
                         continue;
                     };
-                    ProviderBinding::Import {
-                        evaluated: row.evaluated().clone(),
-                    }
+                    row.evaluated().provider_binding()
                 }
                 _ => continue,
             };
@@ -638,9 +631,7 @@ fn derive_boundary_operator_plans_with_provenance(
                     }) else {
                         continue;
                     };
-                    ProviderBinding::Import {
-                        evaluated: row.evaluated().clone(),
-                    }
+                    row.evaluated().provider_binding()
                 }
                 (psi_language_semantics::MachineSupplyMode::CheckedBody, None)
                     if machine.body_is_present && !clause.via_expression.is_valid() =>
@@ -1555,6 +1546,59 @@ fn exact_top_level_external_realization<'typed>(
     Ok(*realization)
 }
 
+fn has_exact_top_level_ordinary_realization(
+    typed: &TypedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+) -> bool {
+    let requirements = typed
+        .machines()
+        .iter()
+        .filter(|requirement| {
+            requirement.supply_mode
+                == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                && ServiceSchema::from_typed_boundary_requirement(typed, requirement).as_ref()
+                    == Some(&plan.schema)
+                && typed
+                    .normalized_machine_overload_identity(requirement)
+                    .is_some_and(|identity| identity.identity() == row.requirement_identity)
+        })
+        .collect::<Vec<_>>();
+    let [requirement] = requirements.as_slice() else {
+        return false;
+    };
+    typed
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|owner| owner.as_str() == plan.provider_type)
+                && typed.symbols.symbol_package_identity(machine.symbol)
+                    == plan.origin_package_identity
+                && !machine.body_is_present
+                && matches!(
+                    machine.supply_mode,
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
+                        binding: None,
+                        mechanism: None,
+                    }
+                )
+                && typed
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .any(|conformance| {
+                        conformance.symbol == requirement.symbol
+                            && conformance.requirement_symbol == requirement.symbol
+                            && conformance.external_binding.is_none()
+                            && conformance.via_expression.is_valid()
+                    })
+        })
+        .count()
+        == 1
+}
+
 fn exact_invocation_service_name(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
@@ -1800,8 +1844,12 @@ pub fn validate_provider_plan_candidates(
                             .as_ref()
                             == Some(&plan.schema)
                 });
+                let is_retained_ordinary_binding =
+                    matches!(row.binding, ProviderBinding::Import { .. })
+                        || matches!(row.binding, ProviderBinding::Syscall { .. })
+                            && has_exact_top_level_ordinary_realization(typed, plan, row);
                 if is_top_level_requirement_plan
-                    && !matches!(row.binding, ProviderBinding::Import { .. })
+                    && !is_retained_ordinary_binding
                     && let Err(diagnostic) = exact_top_level_external_realization(typed, plan, row)
                 {
                     diagnostics.push(diagnostic);
@@ -2306,9 +2354,7 @@ fn replay_provider_row_binding(
                             plan.name, row.requirement_identity,
                         )));
                     }
-                    ProviderBinding::Import {
-                        evaluated: evaluated.evaluated().clone(),
-                    }
+                    evaluated.evaluated().provider_binding()
                 }
                 _ => {
                     return Err(psi_diagnostics::Diagnostic::error(format!(
@@ -2471,11 +2517,7 @@ pub fn validate_derived_provider_plan_candidates(
                 .any(|((row, requirement), realization)| {
                     *realization == evaluated.realization_machine()
                         && *requirement == evaluated.requirement()
-                        && matches!(
-                            &row.binding,
-                            ProviderBinding::Import { evaluated: candidate }
-                                if candidate == evaluated.evaluated()
-                        )
+                        && row.binding == evaluated.evaluated().provider_binding()
                 })
         });
         if !retained {

@@ -65,9 +65,9 @@ pub struct NormalizedForeignLocator {
     identity_digest: ForeignLocatorIdentityDigest,
 }
 
-/// Collision-resistant identity of one complete normalized locator. This is
-/// the dependency-light join used by evaluated-binding receipts; it grants no
-/// provider or loader authority.
+/// Collision-resistant identity of one complete normalized physical binding.
+/// Import locators and target-scoped syscall values share this dependency-light
+/// receipt join; it grants no provider, loader, or execution authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ForeignLocatorIdentityDigest([u8; 32]);
 
@@ -75,6 +75,21 @@ impl ForeignLocatorIdentityDigest {
     pub const fn as_bytes(self) -> [u8; 32] {
         self.0
     }
+}
+
+/// Collision-resistant identity of one target-scoped ordinary syscall value.
+/// This uses the existing locator digest carrier only as the dependency-light
+/// binding-receipt join; it grants no provider or execution authority.
+#[doc(hidden)]
+pub fn evaluated_syscall_identity_digest(
+    target: TargetProfile,
+    number: u32,
+) -> ForeignLocatorIdentityDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.evaluated-syscall-binding.sha256.v1\0");
+    hash_bytes(&mut digest, target.target_name().as_bytes());
+    digest.update(number.to_le_bytes());
+    ForeignLocatorIdentityDigest(digest.finalize().into())
 }
 
 impl NormalizedForeignLocator {
@@ -423,6 +438,19 @@ mod tests {
                 .non_authoritative_compatibility_fingerprint(),
             0xd6c3_45dc_fd2c_fba0,
             "the canonical PeByName fingerprint is stable",
+        );
+    }
+
+    #[test]
+    fn evaluated_syscall_identity_binds_exact_target_and_number() {
+        let baseline = evaluated_syscall_identity_digest(TargetProfile::LinuxX64, 60);
+        assert_ne!(
+            baseline,
+            evaluated_syscall_identity_digest(TargetProfile::LinuxX64, 61)
+        );
+        assert_ne!(
+            baseline,
+            evaluated_syscall_identity_digest(TargetProfile::LinuxArm64, 60)
         );
     }
 

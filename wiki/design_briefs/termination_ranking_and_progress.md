@@ -253,21 +253,26 @@ implementation is later substituted. This keeps generic and exported contract
 identity fixed across selection.
 
 The checked-only transition certificate covers an existing statement transfer
-only when both endpoints are exact parameter-rooted Field/Case places, possibly
-continued through nested in-bounds `FixedIndex` segments of literal-length
-fixed arrays, and the copied fact carries `CheckedTransformation` evidence. A
+only when both endpoints are exact parameter- or prior-state-local-rooted
+Field/Case places, possibly continued through nested in-bounds `FixedIndex`
+segments of literal-length fixed arrays, and the copied fact carries
+`CheckedTransformation` evidence. A
 separate proof ledger retains both fact identities, the fact's source place,
 the contextual source occurrence, destination place, formation point,
 qualification payload/domain, and evidence. Checked progress independently
 replays exact
 structural place equality, construction order, statement-transfer origin and
 point, formation ownership, unchanged payload/evidence, and the exact
-member/attachment/array type walk with literal index bounds. Label-only,
-unknown, expression, type, runtime-indexed/ranged, nonliteral-length, local,
-generic, and invalid-member relations produce no certificate. Each retained
+member/attachment/local-declaration/array type walk with literal index bounds.
+A local root must belong to the exact formation state and have exactly one
+matching declaration strictly before the formation statement; producer and
+replay independently re-resolve that declaration and its type. Label-only,
+unknown, expression, type, runtime-indexed/ranged, nonliteral-length, generic,
+and invalid-member relations produce no certificate. Each retained
 structural place root must belong to the formation machine or exact formation
-state; same-shaped foreign-machine and sibling-state parameter substitution
-rejects independently for the
+state; same-shaped foreign-machine or sibling-state parameter/local
+substitution, and later, missing, duplicate, reordered, type-substituted, or
+symbol-substituted local declarations reject independently for the
 source fact, contextual source occurrence, and destination. The ledger changes
 neither premise admission nor Terminal authority.
 
