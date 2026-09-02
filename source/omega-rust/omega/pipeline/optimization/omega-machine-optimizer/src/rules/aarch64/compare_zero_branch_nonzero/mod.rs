@@ -7,6 +7,9 @@ mod model;
 mod pattern;
 mod validate;
 
+#[cfg(test)]
+mod tests;
+
 pub use codec::Aarch64CbnzFusionDecodeError;
 pub use identity::aarch64_cbnz_fusion_identity;
 pub use model::*;

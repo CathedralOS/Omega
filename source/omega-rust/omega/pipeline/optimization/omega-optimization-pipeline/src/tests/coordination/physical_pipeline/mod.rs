@@ -9,6 +9,7 @@ mod aarch64_movn;
 mod aarch64_movn_after_active_resident;
 mod allocation_recovery;
 mod composition_rejections;
+mod equal_zero_parameter;
 mod phase_routing;
 mod x86_mov_after_active_resident;
 mod x86_mov_r64_sign_extended_after_active_resident;

@@ -239,16 +239,19 @@ Runtime condition legalization follows the same mirrored taxonomy as leaf
 legalization. `source/conditions/mod.rs` is the small producer coordination
 entrance over exact `direct_parameter`, `integer_equal_parameters`,
 `integer_less_than_parameters`, `integer_less_or_equal_parameters`,
-`integer_not_equal_parameters`, and `i64_less_than_parameters` leaves. The
-simple comparison leaves delegate only their common ordered-parameter mechanics
+`integer_not_equal_parameters`, `i64_less_than_parameters`, and
+`u64_equal_zero_parameter` leaves. The simple comparison leaves delegate only
+their common ordered-parameter mechanics
 to `integer_parameter_comparison`; each named leaf continues to own its
 predicate and exact integer type. The composite inequality leaf delegates its
 shared parameter projection to `integer_parameter_not_equal` while retaining
 the equality and Boolean-not chain itself. `replay/conditions/mod.rs` joins a
-tiny local model leaf to independently reconstruct those same six closed forms
+tiny local model leaf to independently reconstruct those same seven closed forms
 through its own mirrored comparison mechanics without importing producer
-helpers. The ordered
-legalization catalog selects the complete condition-plus-leaf recipe, so an
+helpers. The equal-zero leaf separately owns its authored immediate and single
+parameter projection; it does not widen the two-parameter comparison helper or
+hide constant custody in selection. The ordered legalization catalog selects
+the complete condition-plus-leaf recipe, so an
 immediate-leaf direct condition cannot overlap either signed or unsigned
 comparison custody. Condition leaves own operation, result definition, ordered
 operand links, type, ABI location, provenance, and fuel custody;
@@ -256,8 +259,9 @@ return-expression mechanics remain under the existing source/replay leaf
 rungs.
 
 Scalar selected construction mirrors that split below its sole family catalog.
-One `comparison_immediate_pair` family owns shared leaf materialization, while
-the entry-control rung owns separate direct-parameter, integer-equal-parameter,
+One `comparison_immediate_pair` family owns shared two-parameter leaf
+materialization, while the entry-control rung owns separate direct-parameter,
+integer-equal-parameter,
 integer-less-than-parameter, and integer-less-or-equal-parameter leaves. Equality
 constructs a two-register compare and deliberately maps the existing nonzero
 successor to the false source arm. Strict less-than constructs the same ordered
@@ -270,9 +274,11 @@ existing nonzero branch, mapping nonzero to source true and zero to source
 false without materializing a Boolean-not result. Signed strict less-than owns
 parallel `i64_less_than_parameters` construction and validation leaves and a
 distinct signed terminator; it does not widen the unsigned leaf or infer the
-predicate from register bits. Their independent validation siblings
-reconstruct the exact instruction, operands, provenance, predicate, and
-successor mapping. ISA constraint/effect catalogs and encoders remain
+predicate from register bits. The adjacent `equal_zero_immediate_pair` family
+owns the distinct three-register shape, and its `equal_zero_parameter` entry
+leaf makes the nonzero-to-false/zero-to-true mapping explicit. Their independent
+validation siblings reconstruct the exact instruction, operands, provenance,
+predicate, and successor mapping. ISA constraint/effect catalogs and encoders remain
 target-owned leaves rather than being hidden in the target-neutral selection
 entrance.
 

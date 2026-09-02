@@ -5,15 +5,16 @@ use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use omega_target::Architecture;
 
 use crate::{
-    aarch64_cbnz_fusion_identity, Aarch64CbnzFusionAction, Aarch64CbnzFusionAttempt,
-    Aarch64CbnzFusionAttemptOutcome, Aarch64CbnzFusionBlock, Aarch64CbnzFusionError,
-    Aarch64CbnzFusionFunction, Aarch64CbnzFusionIdentity, Aarch64CbnzFusionInstruction,
-    Aarch64CbnzFusionPlan, Aarch64CbnzFusionPolicy, Aarch64CbnzFusionWorkAxis,
-    Aarch64CbnzInstructionDisposition, QualifiedPhysicalRead, ValidatedPostAllocationMachinePlan,
+    Aarch64CbnzFusionAction, Aarch64CbnzFusionAttempt, Aarch64CbnzFusionAttemptOutcome,
+    Aarch64CbnzFusionBlock, Aarch64CbnzFusionError, Aarch64CbnzFusionFunction,
+    Aarch64CbnzFusionIdentity, Aarch64CbnzFusionInstruction, Aarch64CbnzFusionPlan,
+    Aarch64CbnzFusionPolicy, Aarch64CbnzFusionWorkAxis, Aarch64CbnzInstructionDisposition,
+    CbnzFusionInputs, QualifiedPhysicalRead, ValidatedPostAllocationMachinePlan,
+    aarch64_cbnz_fusion_identity,
 };
 
 use crate::rules::peephole_matching::{
-    match_instruction_pair, InstructionPairMatchError, InstructionPairTopology,
+    InstructionPairMatchError, InstructionPairTopology, match_instruction_pair,
 };
 
 pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
@@ -23,13 +24,31 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     budget: OptimizationWorkBudget,
 ) -> Result<Aarch64CbnzFusionPlan, Aarch64CbnzFusionError> {
-    validate_roots(selected, liveness, source, physical)?;
-    let selected_plan = selected.selected_plan();
-    let machine_plan = source.plan();
-    let live_plan = liveness.plan();
-    let nzcv = named_units(physical, "nzcv")?;
-    let pc = named_units(physical, "pc")?;
-    let mut functions = baseline_roster(source);
+    compute_from_inputs(
+        CbnzFusionInputs {
+            selected: selected.selected_plan(),
+            selected_identity: selected.selected_identity(),
+            liveness: liveness.plan(),
+            liveness_identity: liveness.receipt().identity(),
+            source: source.plan(),
+            source_identity: source.receipt().identity(),
+            physical,
+        },
+        budget,
+    )
+}
+
+pub(crate) fn compute_from_inputs(
+    inputs: CbnzFusionInputs<'_>,
+    budget: OptimizationWorkBudget,
+) -> Result<Aarch64CbnzFusionPlan, Aarch64CbnzFusionError> {
+    validate_roots(&inputs)?;
+    let selected_plan = inputs.selected;
+    let machine_plan = inputs.source;
+    let live_plan = inputs.liveness;
+    let nzcv = named_units(inputs.physical, "nzcv")?;
+    let pc = named_units(inputs.physical, "pc")?;
+    let mut functions = baseline_roster(machine_plan);
     let mut attempts = Vec::new();
     let mut actions = Vec::new();
     let mut usage = OptimizationWorkUsage::default();
@@ -42,11 +61,11 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
         )?;
         let iteration = usage.iterations;
         let input = super::identity::revision_identity(
-            source.receipt().identity(),
-            selected.selected_identity(),
-            liveness.receipt().identity(),
+            inputs.source_identity,
+            inputs.selected_identity,
+            inputs.liveness_identity,
             machine_plan.target,
-            physical.identity(),
+            inputs.physical.identity(),
             &functions,
         );
         let mut selected_candidate = None;
@@ -116,7 +135,7 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
                     live_compare,
                     live_branch,
                     live_block,
-                    physical,
+                    inputs.physical,
                 )
                 .map_err(map_match_error)?;
                 let read = matched
@@ -138,8 +157,6 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
                 });
                 let outcome = if already_fused {
                     Aarch64CbnzFusionAttemptOutcome::AlreadyFused
-                } else if !compare.provenance.fuel.is_empty() {
-                    Aarch64CbnzFusionAttemptOutcome::CompareCarriesFuel
                 } else if matched.dead_sets_live_out() {
                     Aarch64CbnzFusionAttemptOutcome::NzcvLiveOut
                 } else {
@@ -206,11 +223,11 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
             &source_read,
         )?;
         let output = super::identity::revision_identity(
-            source.receipt().identity(),
-            selected.selected_identity(),
-            liveness.receipt().identity(),
+            inputs.source_identity,
+            inputs.selected_identity,
+            inputs.liveness_identity,
             machine_plan.target,
-            physical.identity(),
+            inputs.physical.identity(),
             &functions,
         );
         actions.push(Aarch64CbnzFusionAction {
@@ -232,20 +249,20 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
     }
 
     let output_revision = super::identity::revision_identity(
-        source.receipt().identity(),
-        selected.selected_identity(),
-        liveness.receipt().identity(),
+        inputs.source_identity,
+        inputs.selected_identity,
+        inputs.liveness_identity,
         machine_plan.target,
-        physical.identity(),
+        inputs.physical.identity(),
         &functions,
     );
     let mut plan = Aarch64CbnzFusionPlan {
         identity: Aarch64CbnzFusionIdentity::from_bytes([0; 32]),
-        source: source.receipt().identity(),
-        selected: selected.selected_identity(),
-        liveness: liveness.receipt().identity(),
+        source: inputs.source_identity,
+        selected: inputs.selected_identity,
+        liveness: inputs.liveness_identity,
         target: machine_plan.target,
-        physical_register_model: physical.identity(),
+        physical_register_model: inputs.physical.identity(),
         policy: Aarch64CbnzFusionPolicy::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
         budget,
         usage,
@@ -258,39 +275,34 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
     Ok(plan)
 }
 
-fn validate_roots<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    liveness: &ValidatedLiveness,
-    source: &ValidatedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-) -> Result<(), Aarch64CbnzFusionError> {
-    let machine = source.plan();
-    if selected.selected_plan().target.architecture != Architecture::Aarch64
+fn validate_roots(inputs: &CbnzFusionInputs<'_>) -> Result<(), Aarch64CbnzFusionError> {
+    let machine = inputs.source;
+    if inputs.selected.target.architecture != Architecture::Aarch64
         || machine.target.architecture != Architecture::Aarch64
-        || physical.model().architecture != Architecture::Aarch64
+        || inputs.physical.model().architecture != Architecture::Aarch64
     {
         return Err(Aarch64CbnzFusionError::UnsupportedTarget(machine.target));
     }
-    if machine.selected != selected.selected_identity()
-        || selected.selected_plan().target != machine.target
-        || liveness.receipt().selected() != selected.selected_identity()
-        || liveness.plan().selected != selected.selected_identity()
-        || liveness.plan().target != machine.target
-        || machine.physical_register_model != physical.identity()
+    if machine.identity != inputs.source_identity
+        || machine.selected != inputs.selected_identity
+        || inputs.selected.target != machine.target
+        || omega_regalloc::liveness_identity(inputs.liveness) != inputs.liveness_identity
+        || inputs.liveness.selected != inputs.selected_identity
+        || inputs.liveness.target != machine.target
+        || machine.physical_register_model != inputs.physical.identity()
     {
         return Err(Aarch64CbnzFusionError::RootMismatch);
     }
-    if selected.selected_plan().functions.len() != machine.functions.len()
-        || selected.selected_plan().functions.len() != liveness.plan().functions.len()
+    if inputs.selected.functions.len() != machine.functions.len()
+        || inputs.selected.functions.len() != inputs.liveness.functions.len()
     {
         return Err(Aarch64CbnzFusionError::RootMismatch);
     }
     Ok(())
 }
 
-fn baseline_roster(source: &ValidatedPostAllocationMachinePlan) -> Vec<Aarch64CbnzFusionFunction> {
+fn baseline_roster(source: &crate::PostAllocationMachinePlan) -> Vec<Aarch64CbnzFusionFunction> {
     source
-        .plan()
         .functions
         .iter()
         .map(|function| Aarch64CbnzFusionFunction {

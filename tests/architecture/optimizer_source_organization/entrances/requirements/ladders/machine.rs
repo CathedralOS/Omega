@@ -38,6 +38,22 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "AArch64 compare-zero/nonzero-branch CBNZ fusion",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/pattern.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/validate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/identity.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/codec.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/tests/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/tests/fixture.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/tests/fuel.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/coordination/physical_pipeline/equal_zero_parameter.rs",
+        ],
+    },
+    SemanticLadder {
         family: "AArch64 non-terminal same-view copy elision",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/mod.rs",

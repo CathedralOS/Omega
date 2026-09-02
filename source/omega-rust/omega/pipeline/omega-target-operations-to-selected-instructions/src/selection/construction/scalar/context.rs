@@ -30,6 +30,17 @@ pub(super) fn reconstruct<'a>(
             constraints,
             physical,
         )?],
+        LegalizedCondition::U64EqualZeroParameterV1 { parameter, .. } => vec![reconstruct_input(
+            function,
+            source.machine,
+            parameter.source_value,
+            parameter.parameter_index,
+            parameter.register,
+            parameter.definition_site,
+            u64_type,
+            constraints,
+            physical,
+        )?],
         LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
         | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
         | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. }

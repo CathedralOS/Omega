@@ -1,4 +1,4 @@
-//! Two immediate-return arms.
+//! One U64 parameter compared with zero, controlling two immediate returns.
 
 use crate::selection::constraints::row;
 use crate::selection::shared::*;
@@ -8,14 +8,9 @@ use super::model::{ConstructedScalarBody, ScalarConstructionContext};
 use super::registers;
 
 pub(super) fn is_candidate(source: &SourceFunction) -> bool {
-    !matches!(
-        source.recipe,
-        LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1
-            | LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1
-            | LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1
-            | LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1
-            | LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1
-            | LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1
+    matches!(
+        source.condition,
+        LegalizedCondition::U64EqualZeroParameterV1 { .. }
     ) && matches!(source.when_true.value, SourceLeafValue::Immediate { .. })
         && matches!(source.when_false.value, SourceLeafValue::Immediate { .. })
 }
@@ -28,14 +23,14 @@ pub(super) fn build(
         ..
     } = &context.source.when_true.value
     else {
-        unreachable!("catalog selected the immediate-pair family")
+        unreachable!("catalog selected equal-zero immediate pair")
     };
     let SourceLeafValue::Immediate {
         definition_site: false_site,
         ..
     } = &context.source.when_false.value
     else {
-        unreachable!("catalog selected the immediate-pair family")
+        unreachable!("catalog selected equal-zero immediate pair")
     };
     let result_class =
         row(context.catalog, context.constraints.keys.materialize_i64)?.operands[0].class;

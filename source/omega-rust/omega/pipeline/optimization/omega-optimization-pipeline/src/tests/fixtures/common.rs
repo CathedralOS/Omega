@@ -206,6 +206,20 @@ pub(crate) fn conditional_u64_integer_equal_parameters_artifact() -> (Vec<u8>, V
     )
 }
 
+pub(crate) fn conditional_u64_equal_zero_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
+    let machine = conditional_u64_equal_zero_parameter_machine(20_000, [7, 9]);
+    let module = conditional_immediate_module(machine.id, vec![machine]);
+    let proof = ProofBundle {
+        recursive_components: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: Vec::new(),
+    };
+    (
+        psi_terminal_codec::encode_module(&module).unwrap(),
+        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+    )
+}
+
 pub(crate) fn conditional_u64_integer_less_than_parameters_artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = conditional_u64_integer_less_than_parameters_machine(19_200, [7, 9]);
     let module = conditional_immediate_module(machine.id, vec![machine]);
@@ -420,6 +434,25 @@ pub(crate) fn conditional_u64_integer_equal_parameters_machine(
             outcome_specific_ensures: Vec::new(),
         },
     }
+}
+
+pub(crate) fn conditional_u64_equal_zero_parameter_machine(
+    base: u64,
+    literals: [u128; 2],
+) -> TerminalMachine {
+    let mut machine = conditional_u64_integer_equal_parameters_machine(base, literals);
+    let zero = machine.parameters.pop().unwrap();
+    machine.blocks[0].operations.insert(
+        0,
+        Operation {
+            id: OperationId::new(base + 19).unwrap(),
+            result: OperationResult::Scalar(zero),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            },
+        },
+    );
+    machine
 }
 
 pub(crate) fn conditional_immediate_machine(

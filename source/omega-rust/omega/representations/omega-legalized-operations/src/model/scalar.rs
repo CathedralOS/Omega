@@ -70,6 +70,13 @@ pub enum LegalizedCondition {
         left: LegalizedConditionParameter,
         right: LegalizedConditionParameter,
     },
+    U64EqualZeroParameterV1 {
+        operation: OperationId,
+        result_definition_site: ValueDefinitionSite,
+        fuel: Vec<FuelSettlement>,
+        parameter: LegalizedConditionParameter,
+        zero: LegalizedImmediate,
+    },
 }
 
 /// One ordered entry-parameter operand of a legalized condition.

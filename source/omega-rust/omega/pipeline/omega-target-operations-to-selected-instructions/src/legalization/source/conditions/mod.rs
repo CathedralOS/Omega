@@ -8,6 +8,7 @@ mod integer_less_than_parameters;
 mod integer_not_equal_parameters;
 mod integer_parameter_comparison;
 mod integer_parameter_not_equal;
+mod u64_equal_zero_parameter;
 
 use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
@@ -32,6 +33,22 @@ pub(super) fn derive<'a>(
     match &target.operation {
         TargetOperation::ReturnIntegerConditionalControl { .. } => {
             direct_parameter::derive(function, target, abstracted, optimized)
+        }
+        TargetOperation::ReturnIntegerExpressionConditionalControl {
+            condition: TargetBooleanExpression::IntegerEqual { left, right, .. },
+            ..
+        } if matches!(
+            (left.as_ref(), right.as_ref()),
+            (
+                TargetIntegerExpression::Parameter { .. },
+                TargetIntegerExpression::Immediate {
+                    value: psi_core::IntegerValue::Unsigned(0),
+                    ..
+                }
+            )
+        ) =>
+        {
+            u64_equal_zero_parameter::derive(function, target, abstracted, optimized)
         }
         TargetOperation::ReturnIntegerExpressionConditionalControl {
             condition: TargetBooleanExpression::IntegerEqual { .. },
