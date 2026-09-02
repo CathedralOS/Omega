@@ -1,15 +1,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_boundary_applications::TerminalBoundaryApplicationCoverage;
+use omega_installation_evidence::ProviderExecutionEvidence;
 use omega_machine_code::BoundaryExecutionRecord;
-use omega_object_file::SectionKind;
+use omega_object_file::{RelocationKind, RelocationOrigin, SectionKind};
 use omega_optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::{
-    BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution,
+    BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution, NormalizedForeignCallBinding,
+    ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
 use psi_core::{IntegerSign, IntegerType, ScalarType};
 use psi_terminal::OperationKind;
@@ -17,7 +19,8 @@ use sha2::{Digest, Sha256};
 
 use super::{model::*, operator_applications::derive_operator_physical_span};
 use crate::{
-    NativePhysicalEvidenceScope, NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
+    NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan,
+    NativeSelectedProviderPlanDigest,
     boundary_applications::boundary_application_coverage_identity,
 };
 
@@ -28,6 +31,7 @@ pub(crate) fn derive_physical_evidence(
     object: &omega_image_emission::ObjectArtifact,
     image: &omega_image_emission::ExecutableImage,
     selected_provider_plans: &[NativeSelectedProviderPlan],
+    provider_executions: &[NativeProviderExecution],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
 ) -> Result<Option<NativePhysicalEvidence>, &'static str> {
     if matches!(scope, NativePhysicalEvidenceScope::Unavailable) {
@@ -40,7 +44,13 @@ pub(crate) fn derive_physical_evidence(
         .iter()
         .any(|machine| machine.ranked_scc.is_some())
         || !object.port_effects().is_empty()
-        || !object.object().layout.normalized_imports.is_empty()
+    {
+        return Ok(None);
+    }
+    if matches!(
+        scope,
+        NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ) && !object.object().layout.normalized_imports.is_empty()
     {
         return Ok(None);
     }
@@ -99,6 +109,28 @@ pub(crate) fn derive_physical_evidence(
         return Err("native physical evidence found a stale boundary settlement");
     }
 
+    let mut foreign_calls = BTreeMap::new();
+    for foreign in object.foreign_calls() {
+        let CallSiteOwner::Operation(operation) = foreign.owner else {
+            return Ok(None);
+        };
+        let key = (foreign.machine, operation);
+        if foreign_calls.insert(key, foreign).is_some() {
+            return Err("native physical evidence found duplicate normalized foreign calls");
+        }
+    }
+    let foreign_occurrence_keys = projection
+        .boundary_occurrences()
+        .iter()
+        .map(|occurrence| (occurrence.machine(), occurrence.operation()))
+        .collect::<BTreeSet<_>>();
+    if foreign_calls
+        .keys()
+        .any(|key| !foreign_occurrence_keys.contains(key))
+    {
+        return Err("native physical evidence found a stale normalized foreign call");
+    }
+
     let boundary_identities = module
         .boundary_machines
         .iter()
@@ -112,29 +144,10 @@ pub(crate) fn derive_physical_evidence(
             occurrence.boundary(),
             occurrence.operation_ordinal(),
         );
-        let Some(installed) = settlements.get(&key) else {
-            // A valid artifact may realize this Terminal occurrence through
-            // a normalized foreign/callback role outside the first D32 lane.
-            return Ok(None);
-        };
-        if !matches!(
-            (
-                installed.settlement.execution,
-                &installed.settlement.realization,
-            ),
-            (
-                BoundaryExecutionRecord::CompilerBuiltin(
-                    CompilerBuiltinExecution::LinuxExitGroupI32
-                ),
-                BoundaryRealization::LinuxExitGroupI32(_),
-            )
-        ) {
-            // The artifact remains usable, but this first D32 lane must not
-            // claim complete physical coverage for roles it cannot replay.
-            return Ok(None);
-        }
-        if installed.settlement.byte_count == 0 {
-            return Err("Linux exit-group physical child requires a nonempty emitted span");
+        let installed = settlements.get(&key);
+        let foreign = foreign_calls.get(&(occurrence.machine(), occurrence.operation()));
+        if installed.is_some() && foreign.is_some() {
+            return Err("native physical evidence found two realizations for one boundary call");
         }
         let requirement = boundary_identities
             .get(&occurrence.boundary())
@@ -151,16 +164,55 @@ pub(crate) fn derive_physical_evidence(
         let [selected_plan] = matching_plans.as_slice() else {
             return Err("native physical evidence cannot rejoin one exact selected provider plan");
         };
-        children.push(derive_exit_group_child(
-            occurrence,
-            projection.identity(),
-            requirement,
-            selected_plan.plan_digest(),
-            target,
-            object,
-            image,
-            installed,
-        )?);
+        match (installed, foreign) {
+            (Some(installed), None)
+                if matches!(
+                    (
+                        installed.settlement.execution,
+                        &installed.settlement.realization,
+                    ),
+                    (
+                        BoundaryExecutionRecord::CompilerBuiltin(
+                            CompilerBuiltinExecution::LinuxExitGroupI32
+                        ),
+                        BoundaryRealization::LinuxExitGroupI32(_),
+                    )
+                ) =>
+            {
+                if installed.settlement.byte_count == 0 {
+                    return Err("Linux exit-group physical child requires a nonempty emitted span");
+                }
+                children.push(derive_exit_group_child(
+                    occurrence,
+                    projection.identity(),
+                    requirement,
+                    selected_plan.plan_digest(),
+                    target,
+                    object,
+                    image,
+                    installed,
+                )?);
+            }
+            (None, Some(foreign)) => {
+                let Some(child) = derive_normalized_foreign_child(
+                    occurrence,
+                    projection.identity(),
+                    requirement,
+                    selected_plan,
+                    provider_executions,
+                    target,
+                    &module,
+                    object,
+                    image,
+                    foreign,
+                )?
+                else {
+                    return Ok(None);
+                };
+                children.push(child);
+            }
+            _ => return Ok(None),
+        }
     }
     for occurrence in projection.operator_occurrences() {
         let matching_references = boundary_application_coverage
@@ -486,16 +538,17 @@ fn derive_exit_group_child(
         return Err("Linux exit-group physical child unexpectedly contains a relocation");
     }
 
-    let catalog = NativeCompilerBuiltinCatalogIdentity::LinuxElfV1;
-    let execution =
-        BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::LinuxExitGroupI32);
-    let realization = BoundaryRealization::LinuxExitGroupI32(Default::default());
-    let parent_identity = boundary_trait_settlement_identity(
+    let role = BoundaryTraitSettlementRole::CompilerBuiltin {
+        catalog: NativeCompilerBuiltinCatalogIdentity::LinuxElfV1,
+        execution: CompilerBuiltinExecution::LinuxExitGroupI32,
+        realization: BoundaryRealization::LinuxExitGroupI32(Default::default()),
+        scalar_argument: *scalar_argument,
+    };
+    let parent_identity = builtin_boundary_trait_settlement_identity(
         occurrence,
         requirement_identity,
         selected_plan_digest,
         target,
-        catalog,
         scalar_argument,
     );
     let parent = PhysicalChildParent::BoundaryTraitSettlement(
@@ -504,10 +557,7 @@ fn derive_exit_group_child(
             requirement_identity: requirement_identity.to_owned(),
             selected_plan_digest,
             target,
-            catalog,
-            execution,
-            realization,
-            scalar_argument: *scalar_argument,
+            role,
             identity: parent_identity,
         }
         .into(),
@@ -544,12 +594,318 @@ fn derive_exit_group_child(
     .into())
 }
 
-fn boundary_trait_settlement_identity(
+#[allow(clippy::too_many_arguments)]
+fn derive_normalized_foreign_child(
+    occurrence: &OptimizedBoundaryOccurrence,
+    projection: NativeOptimizationProjectionIdentity,
+    requirement_identity: &str,
+    selected_plan: &NativeSelectedProviderPlan,
+    provider_executions: &[NativeProviderExecution],
+    target: NativeTarget,
+    module: &psi_terminal::TerminalModule,
+    object: &omega_image_emission::ObjectArtifact,
+    image: &omega_image_emission::ExecutableImage,
+    foreign: &omega_image_emission::ObjectForeignCall,
+) -> Result<Option<NativePhysicalChild>, &'static str> {
+    let matching_operations = module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == occurrence.machine())
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == occurrence.operation())
+        .collect::<Vec<_>>();
+    let [operation] = matching_operations.as_slice() else {
+        return Err("normalized foreign D41 occurrence does not rejoin one Terminal operation");
+    };
+    let OperationKind::BoundaryCall {
+        boundary,
+        arguments,
+        structural_arguments,
+        completion_receipts,
+    } = &operation.kind
+    else {
+        return Err("normalized foreign D41 occurrence is not a Terminal boundary call");
+    };
+    let declaration = module
+        .boundary_machines
+        .iter()
+        .find(|declaration| declaration.id == *boundary)
+        .ok_or("normalized foreign D41 occurrence names an absent boundary")?;
+    if *boundary != occurrence.boundary()
+        || declaration.identity != requirement_identity
+        || operation.result != psi_terminal::OperationResult::Unit
+        || !arguments.is_empty()
+        || !structural_arguments.is_empty()
+        || !completion_receipts.is_empty()
+        || !declaration.scalar_parameters.is_empty()
+        || !declaration.structural_parameters.is_empty()
+        || declaration.result.is_some()
+        || foreign.callback_address.is_some()
+        || foreign.scalar_result.is_some()
+        || !foreign.boundary_entry_plan.call.parameters.is_empty()
+        || foreign.boundary_entry_plan.call.result.is_some()
+        || !foreign
+            .boundary_entry_plan
+            .call
+            .callback_materializations
+            .is_empty()
+    {
+        return Ok(None);
+    }
+
+    let validated_plan = omega_calling_conventions::validate_boundary_entry_plan(
+        foreign.boundary_entry_plan.clone(),
+        &omega_calling_conventions::CallSignature::default(),
+    )
+    .map_err(|_| "normalized foreign D41 child contains an invalid boundary entry plan")?;
+    let boundary_plan_identity = validated_plan.contract_commitment_digest();
+    if validated_plan.plan() != &foreign.boundary_entry_plan
+        || foreign.locator.target().native_target() != target
+        || foreign.same_stack_contribution.requirement_identity() != requirement_identity
+        || foreign
+            .same_stack_contribution
+            .provider_plan_report_identity()
+            != selected_plan.report_identity()
+        || foreign
+            .same_stack_contribution
+            .provider_plan_commitment()
+            .as_bytes()
+            != *selected_plan.plan_digest().as_bytes()
+    {
+        return Err(
+            "normalized foreign D41 child changed its locator, boundary plan, or same-stack admission",
+        );
+    }
+
+    let execution_record = foreign.provider_execution;
+    if execution_record.provider_plan_report_identity != selected_plan.report_identity() {
+        return Err("normalized foreign D41 child names the wrong selected provider plan");
+    }
+    let matching_executions = provider_executions
+        .iter()
+        .filter(|execution| {
+            execution.requirement_identity() == requirement_identity
+                && execution.provider_plan_report_identity()
+                    == execution_record.provider_plan_report_identity
+                && execution.provider_execution_report_identity()
+                    == execution_record.provider_execution_report_identity
+                && execution.provider_execution_report_fingerprint()
+                    == execution_record.provider_execution_report_fingerprint
+                && execution.normalized_root_report_identity()
+                    == execution_record.normalized_root_report_identity
+                && execution.boundary_contract_report_fingerprint()
+                    == execution_record.boundary_contract_report_fingerprint
+        })
+        .count();
+    if matching_executions != 1 {
+        return Err("normalized foreign D41 child cannot rejoin one retained provider execution");
+    }
+    let plan_report_identity =
+        ProviderPlanReportIdentity::new(execution_record.provider_plan_report_identity)
+            .ok_or("normalized foreign D41 child has a zero provider-plan report identity")?;
+    let execution = ProviderExecutionBinding::from_execution_record(
+        plan_report_identity,
+        execution_record.provider_execution_report_identity,
+        execution_record.provider_execution_report_fingerprint,
+        execution_record.normalized_root_report_identity,
+        execution_record.boundary_contract_report_fingerprint,
+    )
+    .ok_or("normalized foreign D41 child has an invalid provider execution")?;
+
+    let matching_image_calls = image
+        .foreign_calls()
+        .iter()
+        .filter(|candidate| {
+            candidate.machine == foreign.machine && candidate.owner == foreign.owner
+        })
+        .collect::<Vec<_>>();
+    let [image_call] = matching_image_calls.as_slice() else {
+        return Err("normalized foreign D41 child does not rejoin one final-image call");
+    };
+    if *image_call != foreign {
+        return Err("normalized foreign D41 call custody changed before final-image emission");
+    }
+
+    let function = object
+        .functions()
+        .iter()
+        .find(|function| function.machine == occurrence.machine())
+        .ok_or("normalized foreign D41 child names an absent object function")?;
+    let relocation_code_offset = foreign
+        .text_offset
+        .checked_sub(function.text_offset)
+        .ok_or("normalized foreign D41 relocation precedes its function")?;
+    let (code_offset, byte_count, expected_kind) = match target.architecture {
+        Architecture::X86_64 => (
+            relocation_code_offset
+                .checked_sub(1)
+                .ok_or("x86 normalized foreign relocation has no call opcode")?,
+            5,
+            RelocationKind::X86_64Relative32,
+        ),
+        Architecture::Aarch64 => (relocation_code_offset, 4, RelocationKind::Aarch64Branch26),
+    };
+    let object_offset = function
+        .text_offset
+        .checked_add(code_offset)
+        .ok_or("normalized foreign D41 object span overflow")?;
+    let object_end = object_offset
+        .checked_add(byte_count)
+        .ok_or("normalized foreign D41 object end overflow")?;
+    let matching_imports = object
+        .object()
+        .layout
+        .normalized_imports
+        .iter()
+        .filter(|import| import.locator == foreign.locator)
+        .collect::<Vec<_>>();
+    let [import] = matching_imports.as_slice() else {
+        return Err("normalized foreign D41 child does not rejoin one object import");
+    };
+    let overlapping_relocations = object
+        .relocations()
+        .records()
+        .map(|(_, relocation)| relocation)
+        .filter(|relocation| {
+            relocation.section == SectionKind::Text
+                && ranges_overlap(
+                    object_offset,
+                    object_end,
+                    relocation.offset,
+                    relocation.offset.saturating_add(relocation.byte_width),
+                )
+        })
+        .collect::<Vec<_>>();
+    let [relocation] = overlapping_relocations.as_slice() else {
+        return Err("normalized foreign D41 child does not contain one exact import relocation");
+    };
+    let expected_origin = RelocationOrigin::SemanticOperation {
+        function_symbol_handle: function.symbol,
+        operation_identity: occurrence.operation().get(),
+    };
+    if relocation.origin != expected_origin
+        || relocation.offset != foreign.text_offset
+        || relocation.byte_width != 4
+        || relocation.symbol_handle != import.symbol
+        || relocation.addend != 0
+        || relocation.kind != expected_kind
+    {
+        return Err(
+            "normalized foreign D41 child changed import owner, symbol, addend, kind, or span",
+        );
+    }
+
+    let machine_span = native_byte_span(code_offset, byte_count);
+    let object_span = native_byte_span(object_offset, byte_count);
+    let final_image_span = object_span;
+    let machine_bytes = span(function.bytes(object), machine_span)?;
+    let object_bytes = span(object.text_bytes(), object_span)?;
+    let final_image_bytes = span(&image.output().final_text_bytes, final_image_span)?;
+    if machine_bytes != object_bytes {
+        return Err("normalized foreign D41 child changed before object custody");
+    }
+    let mutable_start = relocation
+        .offset
+        .checked_sub(object_offset)
+        .ok_or("normalized foreign D41 relocation precedes its call span")?;
+    let mutable_end = mutable_start
+        .checked_add(relocation.byte_width)
+        .ok_or("normalized foreign D41 relocation span overflow")?;
+    if mutable_end > byte_count
+        || object_bytes
+            .iter()
+            .zip(final_image_bytes)
+            .enumerate()
+            .any(|(index, (before, after))| {
+                (index < mutable_start || index >= mutable_end) && before != after
+            })
+    {
+        return Err("normalized foreign D41 bytes changed outside the exact import relocation");
+    }
+
+    let realization = NormalizedForeignCallBinding {
+        locator: foreign.locator.clone(),
+        boundary_entry_plan: foreign.boundary_entry_plan.clone(),
+        same_stack_contribution: foreign.same_stack_contribution.clone(),
+    };
+    let role = BoundaryTraitSettlementRole::AdmittedProvider {
+        execution,
+        realization,
+    };
+    let parent_identity = admitted_provider_boundary_trait_settlement_identity(
+        occurrence,
+        requirement_identity,
+        selected_plan.plan_digest(),
+        target,
+        execution,
+        boundary_plan_identity,
+        &foreign.locator,
+        foreign.same_stack_contribution.commitment().as_bytes(),
+    );
+    let parent = PhysicalChildParent::BoundaryTraitSettlement(
+        BoundaryTraitSettlementParts {
+            occurrence: *occurrence,
+            requirement_identity: requirement_identity.to_owned(),
+            selected_plan_digest: selected_plan.plan_digest(),
+            target,
+            role,
+            identity: parent_identity,
+        }
+        .into(),
+    );
+    let relocation = PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
+        normalized_foreign_call_relocation(
+            foreign.locator.identity_digest().as_bytes(),
+            boundary_plan_identity,
+            import.symbol,
+            relocation.origin,
+            relocation.offset,
+            relocation.byte_width,
+            relocation.addend,
+            relocation.kind,
+            *image.final_image_symbol_digest().as_bytes(),
+        ),
+    );
+    let machine_bytes_digest = sha256(machine_bytes);
+    let object_bytes_digest = sha256(object_bytes);
+    let final_image_bytes_digest = sha256(final_image_bytes);
+    let physical_occurrence = NativePhysicalOccurrence::Boundary(occurrence.identity());
+    let identity = physical_child_identity(
+        &parent,
+        projection,
+        physical_occurrence,
+        machine_span,
+        object_span,
+        final_image_span,
+        machine_bytes_digest,
+        object_bytes_digest,
+        final_image_bytes_digest,
+        relocation,
+    );
+    Ok(Some(
+        NativePhysicalChildParts {
+            parent,
+            projection,
+            occurrence: physical_occurrence,
+            machine_span,
+            object_span,
+            final_image_span,
+            machine_bytes_digest,
+            object_bytes_digest,
+            final_image_bytes_digest,
+            relocation,
+            identity,
+        }
+        .into(),
+    ))
+}
+
+fn builtin_boundary_trait_settlement_identity(
     occurrence: &OptimizedBoundaryOccurrence,
     requirement_identity: &str,
     selected_plan_digest: NativeSelectedProviderPlanDigest,
     target: NativeTarget,
-    catalog: NativeCompilerBuiltinCatalogIdentity,
     scalar_argument: &omega_target_operations::BoundaryScalarArgument,
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
@@ -558,9 +914,7 @@ fn boundary_trait_settlement_identity(
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.update(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.update([match catalog {
-        NativeCompilerBuiltinCatalogIdentity::LinuxElfV1 => 1,
-    }]);
+    digest.update([1]); // LinuxElfV1 compiler-builtin catalog.
     digest.update([1, 1]); // CompilerBuiltin::LinuxExitGroupI32 + realization.
     digest.update(scalar_argument.source_value.get().to_le_bytes());
     digest.update([1]); // exact signed i32 scalar schema
@@ -568,6 +922,48 @@ fn boundary_trait_settlement_identity(
         unreachable!("D41 settlement shape was checked")
     };
     digest.update(i32::try_from(value).expect("checked i32").to_le_bytes());
+    digest.finalize().into()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn admitted_provider_boundary_trait_settlement_identity(
+    occurrence: &OptimizedBoundaryOccurrence,
+    requirement_identity: &str,
+    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    target: NativeTarget,
+    execution: ProviderExecutionBinding,
+    boundary_plan_identity: [u8; 32],
+    locator: &omega_target::NormalizedForeignLocator,
+    same_stack_identity: [u8; 32],
+) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v1\0");
+    digest.update(occurrence.identity().bytes());
+    hash_bytes(&mut digest, requirement_identity.as_bytes());
+    digest.update(selected_plan_digest.as_bytes());
+    hash_target(&mut digest, target);
+    digest.update([2]); // AdmittedProvider::NormalizedForeignCall.
+    digest.update(
+        execution
+            .provider_plan_report_identity()
+            .get()
+            .to_le_bytes(),
+    );
+    digest.update(execution.provider_execution_report_identity().to_le_bytes());
+    digest.update(
+        execution
+            .provider_execution_report_fingerprint()
+            .to_le_bytes(),
+    );
+    digest.update(execution.normalized_root_report_identity().to_le_bytes());
+    digest.update(
+        execution
+            .boundary_contract_report_fingerprint()
+            .to_le_bytes(),
+    );
+    digest.update(locator.identity_digest().as_bytes());
+    digest.update(boundary_plan_identity);
+    digest.update(same_stack_identity);
     digest.finalize().into()
 }
 
@@ -601,7 +997,19 @@ fn physical_child_identity(
     digest.update([match relocation {
         PhysicalRelocationDisposition::DirectInstructionBytes => 1,
         PhysicalRelocationDisposition::ResolvedInternalCall => 2,
+        PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(_) => 3,
     }]);
+    if let PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(relocation) = relocation {
+        digest.update(relocation.locator_identity());
+        digest.update(relocation.boundary_plan_identity());
+        hash_object_symbol(&mut digest, relocation.object_symbol());
+        hash_relocation_origin(&mut digest, relocation.origin());
+        digest.update(canonical_usize(relocation.offset()));
+        digest.update(canonical_usize(relocation.byte_width()));
+        digest.update(relocation.addend().to_le_bytes());
+        digest.update([relocation_kind_tag(relocation.kind())]);
+        digest.update(relocation.final_image_symbol_identity());
+    }
     digest.finalize().into()
 }
 
@@ -661,6 +1069,39 @@ fn hash_target(digest: &mut Sha256, target: NativeTarget) {
     }]);
     digest.update(canonical_usize(target.pointer_size));
     digest.update(canonical_usize(target.pointer_alignment));
+}
+
+fn hash_object_symbol(digest: &mut Sha256, symbol: omega_object_file::ObjectSymbolHandle) {
+    digest.update([u8::from(symbol.is_valid())]);
+    digest.update(u64::from(symbol.arena_index()).to_le_bytes());
+    digest.update(u64::from(symbol.generation()).to_le_bytes());
+}
+
+fn hash_relocation_origin(digest: &mut Sha256, origin: RelocationOrigin) {
+    hash_object_symbol(digest, origin.symbol_handle());
+    let (tag, coordinate) = match origin {
+        RelocationOrigin::Instruction {
+            selected_instruction_index,
+            ..
+        } => (1, u64::from(selected_instruction_index)),
+        RelocationOrigin::SemanticOperation {
+            operation_identity, ..
+        } => (2, operation_identity),
+        RelocationOrigin::SemanticEdge { edge_identity, .. } => (3, edge_identity),
+        RelocationOrigin::Materialization { .. } => (4, 0),
+    };
+    digest.update([tag]);
+    digest.update(coordinate.to_le_bytes());
+}
+
+const fn relocation_kind_tag(kind: RelocationKind) -> u8 {
+    match kind {
+        RelocationKind::Aarch64Page21 => 1,
+        RelocationKind::Aarch64PageOffset12 => 2,
+        RelocationKind::Aarch64Branch26 => 3,
+        RelocationKind::Absolute64 => 4,
+        RelocationKind::X86_64Relative32 => 5,
+    }
 }
 
 fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {

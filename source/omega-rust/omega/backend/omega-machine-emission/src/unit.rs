@@ -1564,6 +1564,7 @@ pub(super) fn emit_unit_body(
                     offset: relocation_offset,
                     locator: foreign.locator.clone(),
                     provider_execution: (*provider_execution).into(),
+                    boundary_entry_plan: foreign.boundary_entry_plan.clone(),
                     call_plan: call_plan.clone(),
                     scalar_arguments: emitted_scalar_arguments,
                     callback_address,

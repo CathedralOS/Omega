@@ -169,6 +169,8 @@ pub struct ForeignCallRelocation {
     pub offset: usize,
     pub locator: omega_target::NormalizedForeignLocator,
     pub provider_execution: ProviderExecutionRecord,
+    /// Exact admitted boundary contract consumed before assignment.
+    pub boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
     /// Exact source-selected ABI plan consumed to emit this call.
     pub call_plan: omega_calling_conventions::CallPlan,
     /// Canonically ordered evaluated scalar arguments materialized before the
