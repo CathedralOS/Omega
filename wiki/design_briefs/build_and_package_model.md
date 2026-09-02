@@ -3865,9 +3865,12 @@ coordinates and a closed reason for each checked-implementation stand-down
 found on the pristine typed graph; the review projection rejects every row.
 Accepted and opaque supply stays trust-bearing rather than becoming a proof
 stand-down.
-This closes the in-memory review hole, but sealed/terminal propagation and any
-exact later-discharge ledger remain before admission evidence exists.
-Kernel-checked proofs are rechecked.
+This closes the in-memory review hole. The narrow identical-authored-assumption
+discharge now also has a source-handle-free canonical package-review row and
+ordinary-ledger replay: fresh projection and replay independently reconstruct
+the semantic question and invoke the proof kernel, while the original open row
+remains visible. Sealed/terminal propagation and accepted package authority
+remain before admission evidence exists.
 Accepted axioms and opaque boundary claims must remain explicit trust-bearing
 rows; authored postconditions remain obligations. Boundary providers must
 satisfy exact package-qualified requirement identities, so a same-spelled trait

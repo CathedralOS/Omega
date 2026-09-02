@@ -1606,6 +1606,20 @@ Remaining:
   introductions, and does not return to firmware. Add canaries for unmeasured
   retry, lost custody, provider use after exit, duplicated storage lineage, and
   a successful handoff that retains the firmware stack.
+  The first target-bounded state owner is now live as a sibling of the
+  returning application ledger. One non-clone map-required arrival retains the
+  exact Boot Services occurrence, allocation roster, surviving-stack evidence,
+  physical invocation, and nonzero attempt measure. Map acquisition consumes
+  that arrival into one exact snapshot/key pair. A stale-key result retires the
+  pair and either returns every live input under the next generation with the
+  measure decreased by exactly one, or returns the target-authored EFI error
+  with Boot Services still live when the measure is exhausted. Success consumes
+  Boot Services and yields a non-returning carrier holding the unchanged
+  allocation lineage, final snapshot, surviving stack, and exact exit receipt.
+  Foreign, stale, reordered, repeated-map, lost-lineage, zero/warning-status,
+  and post-exit provider attempts reject before state change. Native provider
+  invocation, descriptor decoding, final-map policy introductions, and the
+  checked source adapter remain engineering work.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless
@@ -3766,8 +3780,13 @@ Remaining:
   commitment, canonical assumptions and goal, and deterministic selected
   assumption. Construction and independent local replay both invoke the proof
   kernel; unsupported expressions remain uncertified and the original
-  stand-down remains present. This is an internal compiler product, not yet a
-  persistable package-evidence or accepted-lock authority.
+  stand-down remains present. Package review now independently rechecks that
+  exact semantic/kernel question and emits a source-handle-free canonical
+  discharge row alongside the still-visible stand-down row. Ordinary ledger
+  replay requires the package row, compiler certificate, and original open
+  obligation to rejoin exactly, and transitive composition preserves the
+  original package owner. This remains review evidence, not accepted-lock or
+  package-admission authority.
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Make the settled semantic-subject graph
   enforceable in canonical ledgers, certificates, artifact seals, deployment
   records, replay, and human-facing reports. The verifier reconstructs one
@@ -12990,9 +13009,17 @@ checked-result arithmetic decision listed below.
     and path and distinguishes unpublished from visible-but-cleanup-or-sync-
     incomplete state. Existing destinations are never replaced, restart load
     independently decodes and re-encodes exact bytes, and the adapter selects no
-    rollback, roll-forward, path, retention, or cohort policy. Add Cathedral's
-    path/retention selection and restart-to-runtime reconciliation around this
-    checked core.
+    rollback, roll-forward, path, retention, or cohort policy. The first
+    Cathedral-facing restart-to-runtime join now consumes that validated durable
+    receipt plus a caller-supplied rollback or roll-forward choice. Journal format
+    2 retains the collision-resistant installed-occurrence digest on every era row;
+    compact installed-code and artifact identities remain report-only. The join
+    requires the chosen era to be the exact current occurrence in the exact live
+    ledger, retains its opaque installed context in a non-clonable continuation,
+    and revalidates both durable bytes and live custody before use. It chooses and
+    mutates no runtime policy, and every rejection returns the durable receipt,
+    caller choice, and live ledger. Add Cathedral's path/retention selection and
+    consumption of the typed continuation around this checked core.
 - The provider-switchboard fixture now uses `Service<ClockHost> in Bound`; its
   provider remains checked Omega code. Continue migrating the remaining
   transitional bare boundary-trait runtime fields through the same exact

@@ -6,6 +6,7 @@ use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::source::ProjectedReviewRow;
 use crate::capture::source::contracts::project_contract_source_locations;
 use crate::record::{
+    PackageReviewContractEntailmentAssumptionDischarge,
     PackageReviewContractEntailmentOpenObligation, PackageReviewContractEntailmentOpenReason,
     PackageReviewContractKind,
 };
@@ -128,6 +129,77 @@ pub(in crate::capture) fn project_package_contract_entailment_open_obligations(
     }) {
         return Err(vec![Diagnostic::error(
             "package review contains a duplicate contract-entailment stand-down coordinate",
+        )]);
+    }
+    Ok(projected)
+}
+
+pub(in crate::capture) fn project_package_contract_entailment_assumption_discharges(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+    open_obligations: &[ProjectedReviewRow<PackageReviewContractEntailmentOpenObligation>],
+) -> Result<
+    Vec<ProjectedReviewRow<PackageReviewContractEntailmentAssumptionDischarge>>,
+    Vec<Diagnostic>,
+> {
+    let mut projected = Vec::new();
+    for certificate in &compilation
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges
+    {
+        if compilation
+            .symbols
+            .symbol_package_identity(certificate.machine_symbol())
+            != Some(package)
+        {
+            continue;
+        }
+        psi_typed_trees_to_checked_trees::recheck_contract_entailment_assumption_discharge(
+            &compilation.typed,
+            &compilation.facts.contract_plans,
+            certificate,
+        )
+        .map_err(|_| {
+            vec![Diagnostic::error(
+                "compiler-owned contract-entailment assumption certificate failed package-evidence recheck",
+            )]
+        })?;
+        let callable = nominal_identity(compilation, certificate.machine_symbol())?;
+        let commitment = certificate.machine_contract_commitment().as_bytes();
+        let matching = open_obligations
+            .iter()
+            .filter(|open| {
+                open.row.callable == callable
+                    && open.row.contract_position == certificate.contract_position()
+                    && open.row.fact_position == certificate.fact_position()
+                    && open.row.machine_contract_commitment == commitment
+            })
+            .collect::<Vec<_>>();
+        let [open] = matching.as_slice() else {
+            return Err(vec![Diagnostic::error(
+                "contract-entailment assumption certificate does not rejoin exactly one package-evidence obligation",
+            )]);
+        };
+        projected.push(ProjectedReviewRow {
+            row: PackageReviewContractEntailmentAssumptionDischarge {
+                obligation: open.row.clone(),
+                assumptions: certificate.assumptions().to_vec(),
+                goal: certificate.goal().clone(),
+                selected_assumption_position: certificate.selected_assumption_position(),
+            },
+            declaration: open.declaration,
+            nested_source_locations: open.nested_source_locations.clone(),
+        });
+    }
+    projected.sort_by(|left, right| left.row.cmp(&right.row));
+    if projected.windows(2).any(|rows| {
+        rows[0].row.obligation.callable == rows[1].row.obligation.callable
+            && rows[0].row.obligation.contract_position == rows[1].row.obligation.contract_position
+            && rows[0].row.obligation.fact_position == rows[1].row.obligation.fact_position
+    }) {
+        return Err(vec![Diagnostic::error(
+            "package review contains a duplicate contract-entailment assumption discharge coordinate",
         )]);
     }
     Ok(projected)

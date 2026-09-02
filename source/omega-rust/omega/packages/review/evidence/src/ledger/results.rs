@@ -53,13 +53,14 @@ impl OrdinaryPackageContractEntailmentOpenObligation {
 /// assumption certificate and independently rechecked against the retained
 /// checked program.
 ///
-/// This in-memory result replaces compiler-private machine handles with the
-/// stable reviewed callable identity carried by `obligation`. It is not yet a
-/// persistable package certificate or accepted-lock row.
+/// The result replaces compiler-private machine handles with the stable
+/// reviewed callable identity carried by `obligation` and retains the exact
+/// canonical `evidence_row`. It is not an accepted lock or admission decision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrdinaryPackageContractEntailmentAssumptionDischarge {
     obligation: PackageReviewContractEntailmentOpenObligation,
     row: OrdinaryPackageObligationRow,
+    evidence_row: OrdinaryPackageObligationRow,
     assumptions: Vec<psi_core::Proposition>,
     goal: psi_core::Proposition,
     selected_assumption_position: u32,
@@ -72,6 +73,10 @@ impl OrdinaryPackageContractEntailmentAssumptionDischarge {
 
     pub const fn row(&self) -> &OrdinaryPackageObligationRow {
         &self.row
+    }
+
+    pub const fn evidence_row(&self) -> &OrdinaryPackageObligationRow {
+        &self.evidence_row
     }
 
     pub fn assumptions(&self) -> &[psi_core::Proposition] {
@@ -519,33 +524,76 @@ pub fn reconstruct_ordinary_package_obligation_results(
                 "ordinary package obligation result reconstruction failed: {error}"
             ))]
         })?;
-    apply_contract_entailment_assumption_discharges(compilation, &mut results).map_err(
-        |error| {
-            vec![psi_diagnostics::Diagnostic::error(format!(
-                "ordinary package contract-entailment discharge reconstruction failed: {error}"
-            ))]
-        },
-    )?;
+    apply_contract_entailment_assumption_discharges(
+        compilation,
+        &projection,
+        &ledger,
+        &mut results,
+    )
+    .map_err(|error| {
+        vec![psi_diagnostics::Diagnostic::error(format!(
+            "ordinary package contract-entailment discharge reconstruction failed: {error}"
+        ))]
+    })?;
     Ok(results)
 }
 
 fn apply_contract_entailment_assumption_discharges(
     compilation: &omega_compiler::CheckedCompilation,
+    projection: &CheckedPackageReviewProjection,
+    ledger: &OrdinaryPackageObligationLedger,
     results: &mut OrdinaryPackageObligationResultSet,
 ) -> Result<(), OrdinaryPackageObligationLedgerRecoveryError> {
     let package = results.package;
-    for certificate in &compilation
-        .facts
-        .proof
-        .contract_entailment_assumption_discharges
+    let evidence_rows = ledger
+        .rows()
+        .iter()
+        .filter(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge
+        })
+        .collect::<Vec<_>>();
+    if evidence_rows.len() != projection.contract_entailment_assumption_discharges().len() {
+        return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+            "ordinary package contract-entailment discharges are not bijective with their canonical rows",
+        ));
+    }
+    for (discharge, evidence_row) in projection
+        .contract_entailment_assumption_discharges()
+        .iter()
+        .zip(evidence_rows)
     {
-        if compilation
-            .symbols
-            .symbol_package_identity(certificate.machine_symbol())
-            != Some(package)
-        {
-            continue;
+        if evidence_row.risk() != PackageReviewCanonicalRowRisk::Blocking {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package contract-entailment discharge evidence is not blocking",
+            ));
         }
+        let matching_certificates = compilation
+            .facts
+            .proof
+            .contract_entailment_assumption_discharges
+            .iter()
+            .filter(|certificate| {
+                compilation
+                    .symbols
+                    .symbol_package_identity(certificate.machine_symbol())
+                    == Some(package)
+                    && certificate.contract_position() == discharge.obligation.contract_position()
+                    && certificate.fact_position() == discharge.obligation.fact_position()
+                    && certificate.machine_contract_commitment().as_bytes()
+                        == discharge.obligation.machine_contract_commitment()
+                    && certificate.assumptions() == discharge.assumptions()
+                    && certificate.goal() == discharge.goal()
+                    && certificate.selected_assumption_position()
+                        == discharge.selected_assumption_position()
+                    && crate::capture::nominal_identity(compilation, certificate.machine_symbol())
+                        .is_ok_and(|callable| callable == *discharge.obligation.callable())
+            })
+            .collect::<Vec<_>>();
+        let [certificate] = matching_certificates.as_slice() else {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "persisted contract-entailment assumption discharge does not rejoin exactly one compiler certificate",
+            ));
+        };
         psi_typed_trees_to_checked_trees::recheck_contract_entailment_assumption_discharge(
             &compilation.typed,
             &compilation.facts.contract_plans,
@@ -556,24 +604,13 @@ fn apply_contract_entailment_assumption_discharges(
                 "compiler-owned contract-entailment assumption certificate failed local recheck",
             )
         })?;
-        let callable = crate::capture::nominal_identity(compilation, certificate.machine_symbol())
-            .map_err(|_| {
-                OrdinaryPackageObligationLedgerRecoveryError::new(
-                    "contract-entailment assumption certificate has no stable callable identity",
-                )
-            })?;
-        let commitment = certificate.machine_contract_commitment().as_bytes();
         let matching_positions = results
             .open_contract_entailment_obligations
             .iter()
             .enumerate()
             .filter_map(|(position, open)| {
                 let obligation = open.obligation();
-                (obligation.callable() == &callable
-                    && obligation.contract_position() == certificate.contract_position()
-                    && obligation.fact_position() == certificate.fact_position()
-                    && obligation.machine_contract_commitment() == commitment)
-                    .then_some(position)
+                (obligation == discharge.obligation()).then_some(position)
             })
             .collect::<Vec<_>>();
         let [position] = matching_positions.as_slice() else {
@@ -588,9 +625,10 @@ fn apply_contract_entailment_assumption_discharges(
             OrdinaryPackageContractEntailmentAssumptionDischarge {
                 obligation: open.obligation,
                 row: open.row,
-                assumptions: certificate.assumptions().to_vec(),
-                goal: certificate.goal().clone(),
-                selected_assumption_position: certificate.selected_assumption_position(),
+                evidence_row: (*evidence_row).clone(),
+                assumptions: discharge.assumptions().to_vec(),
+                goal: discharge.goal().clone(),
+                selected_assumption_position: discharge.selected_assumption_position(),
             },
         );
     }

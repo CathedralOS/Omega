@@ -22,7 +22,9 @@ entailment stands down on the pristine typed predecessor. Trust reporting and
 package review consume those retained phase facts; the driver does not keep a
 separate typed-tree snapshot or courier raw typed-derived rows around checking.
 Missing or duplicate template-classification rows reject, and package review
-rejects every unresolved stand-down.
+rejects every unresolved stand-down. The narrow identical-assumption discharge
+is separately projected as canonical source-handle-free evidence only after an
+independent semantic/kernel recheck; it grants no accepted package authority.
 
 Generic specialization retains the canonical pre-substitution template bytes,
 normalized template/instance identities, exact type and const arguments,

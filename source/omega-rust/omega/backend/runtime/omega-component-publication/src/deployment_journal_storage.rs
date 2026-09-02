@@ -8,9 +8,14 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use omega_executable_installation::InstalledCodeContext;
+use omega_image_emission::encode_installation_record;
+
 use crate::{
-    ComponentDeploymentJournalRecord, decode_component_deployment_journal,
-    encode_component_deployment_journal,
+    ComponentDeploymentEraOccurrence, ComponentDeploymentJournalRecord,
+    ComponentDeploymentRecoveryChoice, ComponentDeploymentRestartReconciliation,
+    RunnableComponentEraLedger, decode_component_deployment_journal,
+    encode_component_deployment_journal, reconcile_component_deployment_restart,
 };
 
 static STAGING_IDENTITY: AtomicU64 = AtomicU64::new(1);
@@ -147,6 +152,273 @@ impl DurablyStoredComponentDeploymentJournal {
     pub fn into_parts(self) -> (ComponentDeploymentJournalRecord, PathBuf) {
         (self.record, self.path)
     }
+}
+
+/// Caller-selected restart decision joined to one exact current runtime
+/// occurrence. The durable record remains report evidence; the retained
+/// installed context comes only from the live ledger and is deliberately not
+/// reconstructed by decoding journal bytes.
+#[derive(Debug)]
+#[must_use = "restart recovery custody must be consumed by the selected runtime policy"]
+pub struct ComponentDeploymentRuntimeRecoveryContinuation {
+    durable: DurablyStoredComponentDeploymentJournal,
+    choice: ComponentDeploymentRecoveryChoice,
+    occurrence: ComponentDeploymentEraOccurrence,
+    ledger: RunnableComponentEraLedger,
+    installed_context: InstalledCodeContext,
+}
+
+impl ComponentDeploymentRuntimeRecoveryContinuation {
+    pub const fn durable(&self) -> &DurablyStoredComponentDeploymentJournal {
+        &self.durable
+    }
+
+    pub const fn choice(&self) -> ComponentDeploymentRecoveryChoice {
+        self.choice
+    }
+
+    pub const fn occurrence(&self) -> ComponentDeploymentEraOccurrence {
+        self.occurrence
+    }
+
+    pub const fn ledger(&self) -> &RunnableComponentEraLedger {
+        &self.ledger
+    }
+
+    /// Rejoin the continuation to the same exact live ledger/component
+    /// occurrence before the caller-selected policy consumes it.
+    pub fn validate(&self) -> Result<(), ComponentDeploymentRuntimeRecoveryDiagnostic> {
+        self.durable.validate().map_err(|error| {
+            recovery_diagnostic(format!(
+                "durable deployment journal no longer validates: {error}"
+            ))
+        })?;
+        validate_live_recovery_occurrence(
+            &self.ledger,
+            self.durable.record(),
+            self.occurrence,
+            Some(&self.installed_context),
+        )
+        .map_err(recovery_diagnostic)?;
+        Ok(())
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        DurablyStoredComponentDeploymentJournal,
+        ComponentDeploymentRecoveryChoice,
+        RunnableComponentEraLedger,
+    ) {
+        (self.durable, self.choice, self.ledger)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentDeploymentRuntimeRecoveryDiagnostic(String);
+
+impl ComponentDeploymentRuntimeRecoveryDiagnostic {
+    pub fn diagnostic(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for ComponentDeploymentRuntimeRecoveryDiagnostic {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+impl std::error::Error for ComponentDeploymentRuntimeRecoveryDiagnostic {}
+
+/// Rejoin a caller-supplied Cathedral recovery choice to validated durable
+/// evidence and the exact current live runtime occurrence. This adapter never
+/// chooses, publishes, retires, or redirects an era.
+pub fn join_component_deployment_restart_to_runtime(
+    durable: DurablyStoredComponentDeploymentJournal,
+    choice: ComponentDeploymentRecoveryChoice,
+    expected_journal_identity: u64,
+    expected_binding_contract_identity: &str,
+    expected_entry_contract_identity: &str,
+    ledger: RunnableComponentEraLedger,
+) -> Result<ComponentDeploymentRuntimeRecoveryContinuation, ComponentDeploymentRuntimeRecoveryError>
+{
+    if let Err(error) = durable.validate() {
+        return Err(recovery_error(
+            durable,
+            choice,
+            ledger,
+            format!("durable deployment journal does not validate: {error}"),
+        ));
+    }
+    let reconciliation = match reconcile_component_deployment_restart(
+        durable.record(),
+        expected_journal_identity,
+        expected_binding_contract_identity,
+        expected_entry_contract_identity,
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            return Err(recovery_error(durable, choice, ledger, error.to_string()));
+        }
+    };
+    let ComponentDeploymentRestartReconciliation::PolicyRequired { choices, .. } = reconciliation
+    else {
+        return Err(recovery_error(
+            durable,
+            choice,
+            ledger,
+            "finalized deployment journal requires no rollback or roll-forward policy",
+        ));
+    };
+    if !choices.contains(&choice) {
+        return Err(recovery_error(
+            durable,
+            choice,
+            ledger,
+            "caller-selected deployment recovery choice is not available for this journal",
+        ));
+    }
+    if ledger.binding_contract_identity() != expected_binding_contract_identity
+        || ledger.entry_contract_identity() != expected_entry_contract_identity
+    {
+        return Err(recovery_error(
+            durable,
+            choice,
+            ledger,
+            "live component ledger names a different service slot",
+        ));
+    }
+    let occurrence = match choice {
+        ComponentDeploymentRecoveryChoice::RollBackToPrior => durable
+            .record()
+            .prior()
+            .expect("reconciliation offered rollback only with a prior era"),
+        ComponentDeploymentRecoveryChoice::RollForwardCandidate => durable.record().candidate(),
+    };
+    let installed_context =
+        match validate_live_recovery_occurrence(&ledger, durable.record(), occurrence, None) {
+            Ok(value) => value,
+            Err(diagnostic) => return Err(recovery_error(durable, choice, ledger, diagnostic)),
+        };
+    Ok(ComponentDeploymentRuntimeRecoveryContinuation {
+        durable,
+        choice,
+        occurrence,
+        ledger,
+        installed_context,
+    })
+}
+
+fn validate_live_recovery_occurrence(
+    ledger: &RunnableComponentEraLedger,
+    record: &ComponentDeploymentJournalRecord,
+    occurrence: ComponentDeploymentEraOccurrence,
+    expected_context: Option<&InstalledCodeContext>,
+) -> Result<InstalledCodeContext, String> {
+    if ledger.binding_contract_identity() != record.binding_contract_identity()
+        || ledger.entry_contract_identity() != record.entry_contract_identity()
+    {
+        return Err("recovery continuation names a different live component ledger".into());
+    }
+    if ledger.current_era() != Some(occurrence.era_identity()) {
+        return Err("caller-selected recovery era is not the current live era".into());
+    }
+    let retained = ledger
+        .retained_component(occurrence.era_identity())
+        .ok_or_else(|| {
+            "caller-selected recovery era has no retained runnable component".to_owned()
+        })?;
+    let installed_context = retained.installed().receipt_context();
+    if installed_context.occurrence_digest().as_bytes() != &occurrence.artifact_occurrence_digest()
+        || retained.installed_code().normalized_identity()
+            != occurrence.installed_code_report_identity()
+        || retained.artifact().normalized_identity() != occurrence.artifact_report_identity()
+    {
+        return Err(
+            "live runtime component does not match the journal's exact era occurrence".into(),
+        );
+    }
+    if expected_context.is_some_and(|expected| expected != &installed_context) {
+        return Err("live runtime component occurrence changed after recovery join".into());
+    }
+    if occurrence == record.candidate() {
+        let installation = encode_installation_record(retained.installed_artifact().installation())
+            .map_err(|error| {
+                format!("cannot replay live candidate installation evidence: {error}")
+            })?;
+        if installation != record.installation_record() {
+            return Err(
+                "live candidate has different canonical installation evidence than the journal"
+                    .into(),
+            );
+        }
+    }
+    Ok(installed_context)
+}
+
+#[derive(Debug)]
+pub struct ComponentDeploymentRuntimeRecoveryError {
+    durable: DurablyStoredComponentDeploymentJournal,
+    choice: ComponentDeploymentRecoveryChoice,
+    ledger: RunnableComponentEraLedger,
+    diagnostic: String,
+}
+
+impl ComponentDeploymentRuntimeRecoveryError {
+    pub const fn durable(&self) -> &DurablyStoredComponentDeploymentJournal {
+        &self.durable
+    }
+
+    pub const fn choice(&self) -> ComponentDeploymentRecoveryChoice {
+        self.choice
+    }
+
+    pub const fn ledger(&self) -> &RunnableComponentEraLedger {
+        &self.ledger
+    }
+
+    pub fn diagnostic(&self) -> &str {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        DurablyStoredComponentDeploymentJournal,
+        ComponentDeploymentRecoveryChoice,
+        RunnableComponentEraLedger,
+    ) {
+        (self.durable, self.choice, self.ledger)
+    }
+}
+
+impl std::fmt::Display for ComponentDeploymentRuntimeRecoveryError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+
+impl std::error::Error for ComponentDeploymentRuntimeRecoveryError {}
+
+fn recovery_error(
+    durable: DurablyStoredComponentDeploymentJournal,
+    choice: ComponentDeploymentRecoveryChoice,
+    ledger: RunnableComponentEraLedger,
+    diagnostic: impl Into<String>,
+) -> ComponentDeploymentRuntimeRecoveryError {
+    ComponentDeploymentRuntimeRecoveryError {
+        durable,
+        choice,
+        ledger,
+        diagnostic: diagnostic.into(),
+    }
+}
+
+fn recovery_diagnostic(
+    diagnostic: impl Into<String>,
+) -> ComponentDeploymentRuntimeRecoveryDiagnostic {
+    ComponentDeploymentRuntimeRecoveryDiagnostic(diagnostic.into())
 }
 
 /// Publish one new canonical phase record at an absent caller-selected path.

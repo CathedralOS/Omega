@@ -260,8 +260,85 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         1
     );
     let projection = project_checked_package_review(&checked)
-        .expect("review still exposes the structural-validator stand-down");
+        .expect("review persists the locally rechecked assumption discharge");
     assert_eq!(projection.contract_entailment_open_obligations().len(), 1);
+    let [persisted_discharge] = projection.contract_entailment_assumption_discharges() else {
+        panic!("one persisted contract-entailment assumption discharge")
+    };
+    assert_eq!(
+        persisted_discharge.obligation(),
+        &projection.contract_entailment_open_obligations()[0]
+    );
+    assert_eq!(
+        persisted_discharge.assumptions(),
+        [persisted_discharge.goal().clone()]
+    );
+    assert_eq!(persisted_discharge.selected_assumption_position(), 0);
+    let rows = projection
+        .canonical_rows()
+        .expect("encode contract-entailment discharge rows");
+    let discharge_rows = rows
+        .iter()
+        .filter(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge
+        })
+        .collect::<Vec<_>>();
+    let [discharge_row] = discharge_rows.as_slice() else {
+        panic!("one canonical contract-entailment discharge row")
+    };
+    assert_eq!(
+        discharge_row.risk(),
+        PackageReviewCanonicalRowRisk::Blocking
+    );
+    let recovered_row = decode_package_review_canonical_row(
+        &encode_package_review_canonical_row(discharge_row).expect("encode discharge envelope"),
+    )
+    .expect("recover discharge envelope");
+    assert_eq!(
+        recovered_row.kind(),
+        PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge
+    );
+    assert_eq!(recovered_row.key_bytes(), discharge_row.key_bytes());
+    assert_eq!(
+        recovered_row.canonical_bytes(),
+        discharge_row.canonical_bytes()
+    );
+    let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
+        checked
+            .dependency_closure()
+            .cloned()
+            .expect("fixture package closure"),
+        &rows,
+    )
+    .expect("construct discharge ledger");
+    let recovered_ledger = decode_ordinary_package_obligation_ledger(
+        &encode_ordinary_package_obligation_ledger(&ledger).expect("encode discharge ledger"),
+    )
+    .expect("recover discharge ledger");
+    validate_ordinary_package_obligation_ledger(&recovered_ledger, &checked)
+        .expect("recovered discharge ledger replays exactly");
+    let rows_without_discharge = rows
+        .iter()
+        .filter(|row| {
+            row.kind() != PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let incomplete_ledger = ordinary_package_obligation_ledger_from_compiler_rows(
+        checked
+            .dependency_closure()
+            .cloned()
+            .expect("fixture package closure"),
+        &rows_without_discharge,
+    )
+    .expect("construct ledger missing only discharge evidence");
+    let diagnostics = validate_ordinary_package_obligation_ledger(&incomplete_ledger, &checked)
+        .expect_err("missing persisted discharge row must reject exact ledger replay");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("ledger row count") })
+    );
 
     let results = reconstruct_ordinary_package_obligation_results(&checked)
         .expect("package evidence independently rechecks the compiler certificate");
@@ -279,6 +356,14 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     );
     assert_eq!(discharge.assumptions(), [discharge.goal().clone()]);
     assert_eq!(discharge.selected_assumption_position(), 0);
+    assert_eq!(
+        discharge.evidence_row().kind(),
+        PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge
+    );
+    assert_eq!(
+        discharge.evidence_row().canonical_bytes(),
+        discharge_row.canonical_bytes()
+    );
 
     let mut missing = checked.clone();
     missing
@@ -288,6 +373,13 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .clear();
     let missing_results = reconstruct_ordinary_package_obligation_results(&missing)
         .expect("a missing certificate must leave the obligation open");
+    let missing_projection = project_checked_package_review(&missing)
+        .expect("missing certificate retains only the open obligation");
+    assert!(
+        missing_projection
+            .contract_entailment_assumption_discharges()
+            .is_empty()
+    );
     assert!(
         missing_results
             .contract_entailment_assumption_discharges()
@@ -324,10 +416,37 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .contract_entailment_assumption_discharges[0] = changed;
     let diagnostics = reconstruct_ordinary_package_obligation_results(&tampered)
         .expect_err("changed certificate must fail local reconstruction");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("certificate failed") })
+    );
+
+    let original = &checked
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges[0];
+    let mut selected_tamper = checked.clone();
+    selected_tamper
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges[0] =
+        psi_checked_trees::CheckedContractEntailmentAssumptionDischarge::new(
+            original.machine_symbol(),
+            original.contract_position(),
+            original.fact_position(),
+            original.machine_contract_commitment(),
+            vec![original.goal().clone(), original.goal().clone()],
+            original.goal().clone(),
+            1,
+        )
+        .expect("well-formed selected-assumption tamper fixture");
+    let diagnostics = project_checked_package_review(&selected_tamper)
+        .expect_err("changed assumption roster/selection must fail package-evidence replay");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("certificate failed local recheck")
+            .contains("certificate failed package-evidence recheck")
     }));
 
     let mut duplicate = checked;
@@ -340,7 +459,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("does not rejoin exactly one open obligation")
+            .contains("duplicate contract-entailment assumption discharge coordinate")
     }));
 }
 

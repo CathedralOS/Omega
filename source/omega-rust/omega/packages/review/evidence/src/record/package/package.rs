@@ -1,8 +1,9 @@
 use super::super::{
     authority::{PackageReviewDangerousAuthority, PackageReviewDangerousAuthoritySlack},
     contracts::{
-        PackageReviewConstShape, PackageReviewContractEntailmentOpenObligation,
-        PackageReviewOperatorShape, PackageReviewPropositionShape,
+        PackageReviewConstShape, PackageReviewContractEntailmentAssumptionDischarge,
+        PackageReviewContractEntailmentOpenObligation, PackageReviewOperatorShape,
+        PackageReviewPropositionShape,
     },
     data::PackageReviewDataShape,
     domains::PackageReviewDomainShape,
@@ -38,6 +39,8 @@ pub struct CheckedPackageReviewProjection {
     pub(crate) callables: Vec<CheckedPackageCallableReview>,
     pub(crate) contract_entailment_open_obligations:
         Vec<PackageReviewContractEntailmentOpenObligation>,
+    pub(crate) contract_entailment_assumption_discharges:
+        Vec<PackageReviewContractEntailmentAssumptionDischarge>,
     pub(crate) external_executable_supply: Vec<PackageReviewExternalExecutableSupply>,
     pub(crate) dangerous_authorities: Vec<PackageReviewDangerousAuthority>,
     pub(crate) dangerous_authority_slack: Vec<PackageReviewDangerousAuthoritySlack>,
@@ -66,6 +69,8 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.callables == other.callables
             && self.contract_entailment_open_obligations
                 == other.contract_entailment_open_obligations
+            && self.contract_entailment_assumption_discharges
+                == other.contract_entailment_assumption_discharges
             && self.external_executable_supply == other.external_executable_supply
             && self.dangerous_authorities == other.dangerous_authorities
             && self.dangerous_authority_slack == other.dangerous_authority_slack

@@ -77,10 +77,11 @@ unsupported, malformed, duplicated, or nonjoining certificates leave the
 obligation open or reject. The manager may propagate remaining open obligations
 to a consuming root, but root policy cannot admit a later-discharge obligation.
 
-The discharge result is in-memory and source-handle-free; it has no persistence
-codec and is not an accepted lock or `PackageInstance`. The review row remains
-blocking because review records the compiler stand-down, while authority to
-close it comes only from the separate locally rechecked result.
+The source-handle-free discharge now has its own canonically encoded review
+row beside the still-blocking stand-down row. Fresh capture and ordinary-ledger
+replay independently recheck its exact semantic/kernel question before the
+local result closes that obligation. Neither row is an accepted lock,
+`PackageInstance`, root-policy decision, or package-admission authority.
 
 The crate root exports `project_checked_package_review` for ordinary checked
 review and the separately non-executable
@@ -89,7 +90,7 @@ total-direct `define` and position-preserving transport-backed `lift`
 correspondences. The manager owns comparison and policy; neither entrance
 admits a package or executable operation.
 
-The canonical review schema is version 126, row schema version 84, and
-canonical-row recovery envelope version 21. Exact vocabulary and revision
+The canonical review schema is version 128, row schema version 86, and
+canonical-row recovery envelope version 22. Exact vocabulary and revision
 notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

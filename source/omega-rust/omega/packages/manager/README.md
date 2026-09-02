@@ -26,9 +26,10 @@ turns that closure into compiler-issued facts and root-owned decisions. Its
 from the same closure, requires exact conflict bijections for open accepted
 claims, dangerous authorities, and external executable supplies, then accepts
 blocking rows only through their exact candidate-bound root policy. Contract-
-entailment obligations remain unadmittable while open; locally rechecked
-assumption discharges compose separately across the complete closure with
-their original package owners. The result remains review and policy state.
+entailment obligations remain unadmittable while open; canonically recorded,
+locally rechecked assumption discharges compose separately across the complete
+closure with their original package owners. The result remains review and
+policy state.
 `admission` owns the stronger consumer-side
 boundary: it rechecks live source custody and the complete reconstruction and
 policy replay before producing in-memory accepted ordinary evidence. That

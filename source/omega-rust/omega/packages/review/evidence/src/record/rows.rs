@@ -64,6 +64,9 @@ pub enum PackageReviewCanonicalRowKind {
     /// One exact checked contract obligation that remains open for a later
     /// discharge route. This row is blocking and is not a certificate.
     ContractEntailmentOpenObligation,
+    /// One exact assumption-citation discharge rechecked against the local
+    /// semantic program and proof kernel. This is evidence, not admission.
+    ContractEntailmentAssumptionDischarge,
     /// One exact consumer-supplied terminal-authority permission. This is a
     /// blocking policy grant, not evidence that a terminal leaf exercised it.
     TerminalAuthorityPermission,
@@ -319,6 +322,12 @@ impl CheckedPackageReviewProjection {
         &self,
     ) -> &[super::contracts::PackageReviewContractEntailmentOpenObligation] {
         &self.contract_entailment_open_obligations
+    }
+
+    pub fn contract_entailment_assumption_discharges(
+        &self,
+    ) -> &[super::contracts::PackageReviewContractEntailmentAssumptionDischarge] {
+        &self.contract_entailment_assumption_discharges
     }
 
     pub fn external_executable_supply(&self) -> &[PackageReviewExternalExecutableSupply] {

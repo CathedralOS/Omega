@@ -46,3 +46,35 @@ impl PackageReviewContractEntailmentOpenObligation {
         self.reason
     }
 }
+
+/// Source-handle-free evidence that one exact open contract-entailment
+/// obligation was discharged by citing an authored assumption.
+///
+/// The package row retains the complete canonical kernel question and the
+/// deterministic assumption selection. It grants no package admission or
+/// accepted-lock authority.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewContractEntailmentAssumptionDischarge {
+    pub(crate) obligation: PackageReviewContractEntailmentOpenObligation,
+    pub(crate) assumptions: Vec<psi_core::Proposition>,
+    pub(crate) goal: psi_core::Proposition,
+    pub(crate) selected_assumption_position: u32,
+}
+
+impl PackageReviewContractEntailmentAssumptionDischarge {
+    pub const fn obligation(&self) -> &PackageReviewContractEntailmentOpenObligation {
+        &self.obligation
+    }
+
+    pub fn assumptions(&self) -> &[psi_core::Proposition] {
+        &self.assumptions
+    }
+
+    pub const fn goal(&self) -> &psi_core::Proposition {
+        &self.goal
+    }
+
+    pub const fn selected_assumption_position(&self) -> u32 {
+        self.selected_assumption_position
+    }
+}

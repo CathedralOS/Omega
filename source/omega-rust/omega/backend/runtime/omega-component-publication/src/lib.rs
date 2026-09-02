@@ -274,6 +274,14 @@ impl RunnableComponentEraLedger {
         self.lifecycle.current_era()
     }
 
+    pub fn binding_contract_identity(&self) -> &str {
+        self.lifecycle.binding_contract_identity()
+    }
+
+    pub fn entry_contract_identity(&self) -> &str {
+        self.lifecycle.entry_contract_identity()
+    }
+
     pub fn live_eras(&self) -> impl Iterator<Item = (u64, ComponentEraEntryState, usize)> + '_ {
         self.lifecycle.live_eras()
     }

@@ -2,12 +2,13 @@ use super::super::declarations::encode_type_identity;
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
-    PackageReviewCallableContract, PackageReviewContractEntailmentOpenObligation,
-    PackageReviewContractEntailmentOpenReason, PackageReviewContractFact,
-    PackageReviewContractKind, PackageReviewPropositionApplication,
+    PackageReviewCallableContract, PackageReviewContractEntailmentAssumptionDischarge,
+    PackageReviewContractEntailmentOpenObligation, PackageReviewContractEntailmentOpenReason,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionApplication,
     PackageReviewPropositionBinderArgumentKind, PackageReviewPropositionBinderValue,
     PackageReviewPropositionEvidence,
 };
+use psi_core::{IntegerCarrier, IntegerSign, IntegerValue, Proposition, ScalarTerm, ScalarType};
 
 use super::declarations::{encode_evidence_interface, encode_proposition_binder};
 use super::expressions::encode_contract_expression;
@@ -35,6 +36,134 @@ pub(crate) fn encode_contract_entailment_open_obligation_value(
         PackageReviewContractEntailmentOpenReason::OutsideEntailmentLanguage => 2,
     });
     Ok(())
+}
+
+pub(crate) fn encode_contract_entailment_assumption_discharge(
+    encoder: &mut Encoder,
+    discharge: &PackageReviewContractEntailmentAssumptionDischarge,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &discharge.obligation.callable)?;
+    encoder.u32(discharge.obligation.contract_position);
+    encoder.u32(discharge.obligation.fact_position);
+    encode_contract_entailment_assumption_discharge_value(encoder, discharge)
+}
+
+pub(crate) fn encode_contract_entailment_assumption_discharge_value(
+    encoder: &mut Encoder,
+    discharge: &PackageReviewContractEntailmentAssumptionDischarge,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_contract_entailment_open_obligation_value(encoder, &discharge.obligation)?;
+    encoder.sequence(&discharge.assumptions, encode_assumption_proposition)?;
+    encode_assumption_proposition(encoder, &discharge.goal)?;
+    encoder.u32(discharge.selected_assumption_position);
+    Ok(())
+}
+
+fn encode_assumption_proposition(
+    encoder: &mut Encoder,
+    proposition: &Proposition,
+) -> Result<(), PackageReviewEncodingError> {
+    match proposition {
+        Proposition::Truth => encoder.byte(0),
+        Proposition::Falsehood => encoder.byte(1),
+        Proposition::Equal(left, right) => {
+            encoder.byte(2);
+            encode_assumption_scalar(encoder, left)?;
+            encode_assumption_scalar(encoder, right)?;
+        }
+        Proposition::LessThan(left, right) => {
+            encoder.byte(3);
+            encode_assumption_scalar(encoder, left)?;
+            encode_assumption_scalar(encoder, right)?;
+        }
+        Proposition::LessOrEqual(left, right) => {
+            encoder.byte(4);
+            encode_assumption_scalar(encoder, left)?;
+            encode_assumption_scalar(encoder, right)?;
+        }
+        Proposition::Conjunction(propositions) => {
+            encoder.byte(5);
+            encoder.sequence(propositions, encode_assumption_proposition)?;
+        }
+        Proposition::Disjunction(propositions) => {
+            encoder.byte(6);
+            encoder.sequence(propositions, encode_assumption_proposition)?;
+        }
+        _ => {
+            return Err(PackageReviewEncodingError::new(
+                "contract-entailment discharge contains a proposition outside its canonical package vocabulary",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn encode_assumption_scalar(
+    encoder: &mut Encoder,
+    scalar: &ScalarTerm,
+) -> Result<(), PackageReviewEncodingError> {
+    match scalar {
+        ScalarTerm::Value { id, scalar_type } => {
+            encoder.byte(0);
+            encoder.u64(id.get());
+            encode_assumption_scalar_type(encoder, *scalar_type)?;
+        }
+        ScalarTerm::Boolean(value) => {
+            encoder.byte(1);
+            encoder.boolean(*value);
+        }
+        ScalarTerm::Integer { scalar_type, value } => {
+            encoder.byte(2);
+            encode_assumption_integer_type(encoder, *scalar_type);
+            match value {
+                IntegerValue::Signed(value) => {
+                    encoder.byte(0);
+                    encoder.i128(*value);
+                }
+                IntegerValue::Unsigned(value) => {
+                    encoder.byte(1);
+                    encoder.u128(*value);
+                }
+            }
+        }
+        _ => {
+            return Err(PackageReviewEncodingError::new(
+                "contract-entailment discharge contains a scalar outside its canonical package vocabulary",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn encode_assumption_scalar_type(
+    encoder: &mut Encoder,
+    scalar_type: ScalarType,
+) -> Result<(), PackageReviewEncodingError> {
+    match scalar_type {
+        ScalarType::Boolean => encoder.byte(0),
+        ScalarType::Integer(integer_type) => {
+            encoder.byte(1);
+            encode_assumption_integer_type(encoder, integer_type);
+        }
+        ScalarType::IeeeFloat(_) => {
+            return Err(PackageReviewEncodingError::new(
+                "contract-entailment discharge contains a float scalar type",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn encode_assumption_integer_type(encoder: &mut Encoder, integer_type: psi_core::IntegerType) {
+    encoder.byte(match integer_type.carrier() {
+        IntegerCarrier::Fixed => 0,
+        IntegerCarrier::Address => 1,
+    });
+    encoder.byte(match integer_type.sign() {
+        IntegerSign::Signed => 0,
+        IntegerSign::Unsigned => 1,
+    });
+    encoder.u16(integer_type.bits());
 }
 
 pub(crate) fn encode_callable_contract(

@@ -1,15 +1,26 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 126 and row schema version 84. This file
+The canonical review schema is version 128 and row schema version 86. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
-The ordinary obligation-semantics schema is version 6. Its in-memory result
+The ordinary obligation-semantics schema is version 7. Its result
 vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
 external executable supplies, and exact terminal-authority permissions open
 for root admission, and compiler-retained contract-entailment stand-downs open
 for later discharge. The outer ledger encoding remains version 2; no new
 persistence authority is introduced.
+
+Schema v128 / row v86 / recovery v22 adds one exact source-handle-free
+contract-entailment assumption-discharge row. The row binds the original open
+obligation, package-qualified callable, contract/fact coordinates, strong
+machine-contract commitment, complete ordered kernel assumptions, canonical
+goal, and deterministic selected assumption. Fresh capture and ordinary-ledger
+replay independently reconstruct the semantic question and invoke the proof
+kernel; missing, duplicate, stale, reordered, or otherwise changed evidence
+rejects or leaves the obligation open. The open stand-down row remains visible,
+and the discharge row grants no accepted-lock, package-admission, policy, or
+executable authority.
 
 Schema v126 / row v84 / recovery v21 adds the first artifact-qualified D29
 symbolic boundary-demand row. A public generic callable's named boundary use

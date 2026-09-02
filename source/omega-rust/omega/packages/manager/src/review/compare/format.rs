@@ -337,6 +337,9 @@ pub(super) const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'sta
         PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation => {
             "contract_entailment_open_obligation"
         }
+        PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge => {
+            "contract_entailment_assumption_discharge"
+        }
         PackageReviewCanonicalRowKind::TerminalAuthorityPermission => {
             "terminal_authority_permission"
         }
@@ -366,6 +369,7 @@ pub(super) const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation => 18,
         PackageReviewCanonicalRowKind::TerminalAuthorityPermission => 19,
         PackageReviewCanonicalRowKind::BoundaryApplicationDemand => 20,
+        PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge => 21,
     }
 }
 

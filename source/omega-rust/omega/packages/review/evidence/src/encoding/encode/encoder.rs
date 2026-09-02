@@ -69,6 +69,14 @@ impl Encoder {
         self.append(&value.to_le_bytes());
     }
 
+    pub(crate) fn i128(&mut self, value: i128) {
+        self.append(&value.to_le_bytes());
+    }
+
+    pub(crate) fn u128(&mut self, value: u128) {
+        self.append(&value.to_le_bytes());
+    }
+
     pub(crate) fn usize(&mut self, value: usize) -> Result<(), PackageReviewEncodingError> {
         self.u64(u64::try_from(value).map_err(|_| {
             PackageReviewEncodingError::new(

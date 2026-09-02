@@ -279,7 +279,15 @@ canonical record without replacing an existing path, synchronizes both file and
 directory, and returns a non-clonable exact-byte replay receipt. A visible record
 whose staging cleanup or directory synchronization is incomplete remains an
 explicit recovery state; the adapter does not choose a Cathedral path,
-retention rule, cohort, rollback, or roll-forward action.
+retention rule, cohort, rollback, or roll-forward action. A caller may now
+supply one of the reported rollback or roll-forward choices to the typed
+restart-to-runtime join. Journal format 2 retains a collision-resistant
+installed-occurrence digest for every era row, while decoded records and compact
+identities remain report-only. The join accepts only the exact current era in
+the exact live ledger, retains its opaque installed context in a non-clonable
+continuation, revalidates durable bytes and live custody, and returns the durable
+receipt, caller choice, and live ledger on every mismatch. It performs no
+publication, retirement, redirection, path selection, or retention decision.
 
 ## Component Implementation Work
 
