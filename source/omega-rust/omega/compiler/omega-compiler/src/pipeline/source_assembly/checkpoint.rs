@@ -21,7 +21,7 @@ use std::sync::Arc;
 /// Immutable physical source and parse frontier formed before exact target
 /// generated sources or target-scoped imports join compilation.
 #[derive(Clone)]
-pub(super) struct ImmutableSourceParseCheckpoint {
+pub(in crate::pipeline) struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
     build_source_id: Option<psi_source::SourceId>,
@@ -30,14 +30,14 @@ pub(super) struct ImmutableSourceParseCheckpoint {
 }
 
 /// One exact-target child borrowing a shared immutable source checkpoint.
-pub(super) struct ExactTargetSourceAssembly<'a> {
+pub(in crate::pipeline) struct ExactTargetSourceAssembly<'a> {
     checkpoint: &'a ImmutableSourceParseCheckpoint,
     target_name: &'a str,
     package_inputs: Option<&'a PackageCompilationInputs>,
 }
 
 impl ImmutableSourceParseCheckpoint {
-    pub(super) fn prepare(
+    pub(in crate::pipeline) fn prepare(
         root_path: &Path,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
@@ -98,7 +98,7 @@ impl ImmutableSourceParseCheckpoint {
         })
     }
 
-    pub(super) fn for_exact_target<'a>(
+    pub(in crate::pipeline) fn for_exact_target<'a>(
         &'a self,
         target_name: &'a str,
         package_inputs: Option<&'a PackageCompilationInputs>,
@@ -111,7 +111,7 @@ impl ImmutableSourceParseCheckpoint {
         })
     }
 
-    pub(super) fn assemble_targetless(
+    pub(in crate::pipeline) fn assemble_targetless(
         &self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
@@ -202,7 +202,7 @@ impl ImmutableSourceParseCheckpoint {
 }
 
 impl ExactTargetSourceAssembly<'_> {
-    pub(super) fn assemble(
+    pub(in crate::pipeline) fn assemble(
         self,
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {

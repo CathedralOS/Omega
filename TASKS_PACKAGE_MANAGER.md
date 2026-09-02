@@ -254,10 +254,9 @@ explicitly.
 
 - [ ] **D54-EXPLICIT-MULTI-TARGET-ORCHESTRATION — fan out only where target
   semantics begin.**
-  - consume `ExplicitTargetSet` at the orchestration boundary and reuse the
-    landed immutable package source and compiler source/parse checkpoints, flat
-    build facts, and every other target-independent stage result across exact
-    target children;
+  - consume `ExplicitTargetSet` at the orchestration boundary, drive the landed
+    `PreparedCheckedSource` continuation across every canonical exact child,
+    and share flat build facts plus any later target-independent stage result;
   - reuse an identical checked/Terminal Psi or PCC product across target
     children only after exact strong-identity equality, then supply each native
     branch with its own target and lowering-authority inputs;
