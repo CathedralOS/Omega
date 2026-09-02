@@ -282,6 +282,146 @@ fn standalone_source_root(default_root: &Path, source: &Path) -> PathBuf {
         .unwrap_or_else(|| default_root.to_path_buf())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ReconciledPackageImport {
+    Toolchain(PathBuf),
+    Package(ReconciledPackageImportRequest),
+}
+
+/// One syntax-derived package import before an exact target contributes its
+/// generated-source bundles.
+///
+/// Physical source lookup is target-independent. Generated-source selection
+/// and physical/generated collision rejection remain exact-child work.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ReconciledPackageImportRequest {
+    package: psi_core::PackageKeyIdentity,
+    expected_root: PathBuf,
+    relative_path: PathBuf,
+    dependency_build_forbidden: bool,
+    requesting_source: PathBuf,
+}
+
+impl ReconciledPackageImportRequest {
+    pub(super) fn resolve_for_exact_target(
+        &self,
+        packages: &PackageCompilationInputs,
+    ) -> Result<PathBuf, Vec<Diagnostic>> {
+        if packages.package_root(self.package) != Some(self.expected_root.as_path()) {
+            return Err(vec![Diagnostic::error(
+                "exact-target package source root does not match its retained import request",
+            )]);
+        }
+        let relative_candidates = source_path_candidates(&self.relative_path);
+        let generated = packages
+            .generated_source_import_path(self.package, &relative_candidates)
+            .map_err(|error| vec![Diagnostic::error(error)])?;
+        let physical = source_path_candidates(&self.expected_root.join(&self.relative_path))
+            .into_iter()
+            .find(|candidate| candidate.exists());
+        let resolved = match (generated, physical) {
+            (Some(generated), Some(physical)) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "generated package source {} collides with physical package source {}",
+                    generated.display(),
+                    physical.display(),
+                ))]);
+            }
+            (Some(generated), None) => generated,
+            (None, _) => resolve_reconciled_relative_import(
+                self.expected_root.clone(),
+                &self.relative_path,
+                "package",
+            )?,
+        };
+        self.reject_dependency_build_import(&resolved)?;
+        Ok(resolved)
+    }
+
+    fn reject_dependency_build_import(&self, resolved: &Path) -> Result<(), Vec<Diagnostic>> {
+        if self.dependency_build_forbidden
+            && resolved.file_name().and_then(|name| name.to_str()) == Some("build.omg")
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "package import in {} may not load dependency build file {}",
+                self.requesting_source.display(),
+                resolved.display(),
+            ))]);
+        }
+        Ok(())
+    }
+}
+
+pub(super) fn reconciled_package_import(
+    requesting_source: &Path,
+    members: &[Identifier],
+    requester: Option<psi_core::PackageKeyIdentity>,
+    packages: &PackageCompilationInputs,
+) -> Result<ReconciledPackageImport, Vec<Diagnostic>> {
+    let Some(first) = members.first() else {
+        return Err(vec![Diagnostic::error(format!(
+            "{} contains an empty import path",
+            requesting_source.display()
+        ))]);
+    };
+    if is_bundled_core_path(members) {
+        return resolve_reconciled_import(bundled_omega_root(), &members[2..], "toolchain")
+            .map(ReconciledPackageImport::Toolchain);
+    }
+    if is_bundled_omega_path(members) {
+        return Err(vec![Diagnostic::error(format!(
+            "package-aware import `{}` in {} cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias",
+            identifier_path_text(members),
+            requesting_source.display(),
+        ))]);
+    }
+    let Some(requester) = requester else {
+        return Err(vec![Diagnostic::error(format!(
+            "cannot establish the reconciled package identity for import in {}",
+            requesting_source.display()
+        ))]);
+    };
+    let (package, source_root, path_members) =
+        match packages.dependency_target(requester, first.as_str()) {
+            Some(package) => (
+                package,
+                packages
+                    .package_root(package)
+                    .expect("validated dependency target retains a source root"),
+                &members[1..],
+            ),
+            None if packages.package_name(requester) == Some(first.as_str()) => (
+                requester,
+                packages
+                    .package_root(requester)
+                    .expect("validated requester retains a source root"),
+                &members[1..],
+            ),
+            None => (
+                requester,
+                packages
+                    .package_root(requester)
+                    .expect("validated requester retains a source root"),
+                members,
+            ),
+        };
+    let relative_path = path_members
+        .iter()
+        .fold(PathBuf::new(), |mut path, member| {
+            path.push(member.as_str());
+            path
+        });
+    Ok(ReconciledPackageImport::Package(
+        ReconciledPackageImportRequest {
+            package,
+            expected_root: source_root.to_path_buf(),
+            relative_path,
+            dependency_build_forbidden: package != requester,
+            requesting_source: requesting_source.to_path_buf(),
+        },
+    ))
+}
+
 /// Resolve imports exclusively through a reconciled, requester-local package
 /// graph. This path never reads or combines dependency rows from `build.omg`.
 pub fn discover_imports_with_packages(
@@ -310,76 +450,17 @@ pub fn discover_imports_with_packages(
             match item {
                 Item::Use(use_item) => {
                     let members = syntax_trees.items.identifier_path_members(use_item.path);
-                    let Some(first) = members.first() else {
-                        return Err(vec![Diagnostic::error(format!(
-                            "{} contains an empty import path",
-                            parsed_source.path.display()
-                        ))]);
-                    };
-
-                    if is_bundled_core_path(members) {
-                        imports.push(resolve_reconciled_import(
-                            bundled_omega_root(),
-                            &members[2..],
-                            "toolchain",
-                        )?);
-                        continue;
-                    }
-                    if is_bundled_omega_path(members) {
-                        return Err(vec![Diagnostic::error(format!(
-                            "package-aware import `{}` in {} cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias",
-                            identifier_path_text(members),
-                            parsed_source.path.display(),
-                        ))]);
-                    }
-
-                    let Some(requester) = requester else {
-                        return Err(vec![Diagnostic::error(format!(
-                            "cannot establish the reconciled package identity for import in {}",
-                            parsed_source.path.display()
-                        ))]);
-                    };
-
-                    let (target, source_root, path_members) =
-                        match packages.dependency_target(requester, first.as_str()) {
-                            Some(target) => (
-                                target,
-                                packages
-                                    .package_root(target)
-                                    .expect("validated dependency target retains a source root"),
-                                &members[1..],
-                            ),
-                            None if packages.package_name(requester) == Some(first.as_str()) => (
-                                requester,
-                                packages
-                                    .package_root(requester)
-                                    .expect("validated requester retains a source root"),
-                                &members[1..],
-                            ),
-                            None => (
-                                requester,
-                                packages
-                                    .package_root(requester)
-                                    .expect("validated requester retains a source root"),
-                                members,
-                            ),
-                        };
-                    let imported = resolve_reconciled_import_with_generated_source(
-                        source_root.to_path_buf(),
-                        target,
-                        path_members,
+                    match reconciled_package_import(
+                        &parsed_source.path,
+                        members,
+                        requester,
                         packages,
-                    )?;
-                    if target != requester
-                        && imported.file_name().and_then(|name| name.to_str()) == Some("build.omg")
-                    {
-                        return Err(vec![Diagnostic::error(format!(
-                            "package import in {} may not load dependency build file {}",
-                            parsed_source.path.display(),
-                            imported.display()
-                        ))]);
+                    )? {
+                        ReconciledPackageImport::Toolchain(imported) => imports.push(imported),
+                        ReconciledPackageImport::Package(request) => {
+                            imports.push(request.resolve_for_exact_target(packages)?)
+                        }
                     }
-                    imports.push(imported);
                 }
                 Item::Target(target) => {
                     let target_is_selected = selected_target_name
@@ -495,10 +576,20 @@ fn resolve_reconciled_import(
     source_path: &[Identifier],
     source_kind: &str,
 ) -> Result<PathBuf, Vec<Diagnostic>> {
-    let mut path = expected_root.clone();
+    let mut relative_path = PathBuf::new();
     for segment in source_path {
-        path.push(segment.as_str());
+        relative_path.push(segment.as_str());
     }
+
+    resolve_reconciled_relative_import(expected_root, &relative_path, source_kind)
+}
+
+fn resolve_reconciled_relative_import(
+    expected_root: PathBuf,
+    relative_path: &Path,
+    source_kind: &str,
+) -> Result<PathBuf, Vec<Diagnostic>> {
+    let path = expected_root.join(relative_path);
 
     let candidate = source_path_candidates(&path)
         .into_iter()
@@ -518,36 +609,6 @@ fn resolve_reconciled_import(
         ))]);
     }
     Ok(canonical)
-}
-
-fn resolve_reconciled_import_with_generated_source(
-    expected_root: PathBuf,
-    package: psi_core::PackageKeyIdentity,
-    source_path: &[Identifier],
-    packages: &PackageCompilationInputs,
-) -> Result<PathBuf, Vec<Diagnostic>> {
-    let mut relative = PathBuf::new();
-    for segment in source_path {
-        relative.push(segment.as_str());
-    }
-    let relative_candidates = source_path_candidates(&relative);
-    let generated = packages
-        .generated_source_import_path(package, &relative_candidates)
-        .map_err(|error| vec![Diagnostic::error(error)])?;
-
-    let physical_base = expected_root.join(&relative);
-    let physical = source_path_candidates(&physical_base)
-        .into_iter()
-        .find(|candidate| candidate.exists());
-    match (generated, physical) {
-        (Some(generated), Some(physical)) => Err(vec![Diagnostic::error(format!(
-            "generated package source {} collides with physical package source {}",
-            generated.display(),
-            physical.display(),
-        ))]),
-        (Some(generated), None) => Ok(generated),
-        (None, _) => resolve_reconciled_import(expected_root, source_path, "package"),
-    }
 }
 
 fn is_bundled_omega_path(path: &[Identifier]) -> bool {
