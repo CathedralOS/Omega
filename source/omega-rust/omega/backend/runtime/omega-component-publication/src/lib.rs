@@ -21,9 +21,11 @@ use omega_executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
 use omega_external_roots::{InstalledComponentProgressClosure, InstalledRootLedger};
 use omega_image_emission::InstalledArtifact;
 
+mod callback_registration;
 mod deployment_journal;
 mod deployment_journal_storage;
 
+pub use callback_registration::*;
 pub use deployment_journal::*;
 pub use deployment_journal_storage::*;
 
@@ -63,6 +65,16 @@ impl InstalledRunnableComponent {
 
     pub const fn installed(&self) -> &InstalledCode {
         self.artifact.installed()
+    }
+
+    /// Borrow the installed code and its root ledger as disjoint runtime
+    /// custody. Root handles may borrow the code while this owner continues to
+    /// mutate only the ledger for registration teardown and quiescence.
+    pub fn external_root_runtime(&mut self) -> InstalledRunnableExternalRootRuntime<'_> {
+        InstalledRunnableExternalRootRuntime {
+            installed: self.artifact.installed(),
+            roots: &mut self.roots,
+        }
     }
 }
 

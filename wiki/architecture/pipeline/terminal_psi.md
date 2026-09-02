@@ -3853,10 +3853,16 @@ and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
 format substitution fail closed. Terminal format 70 / vocabulary 73 assign
-source tag 9 and reject it under legacy formats. Checked/source production
-remains transitional because the pipeline retains no exact checked expression
-to Terminal owner/root/path correspondence. Other arbitrary Terminal values
-and every other nonliteral source remain transitional engineering work.
+source tag 9 and reject it under legacy formats. Checked/source production now
+covers one nonempty field/case path below a direct structural parameter in the
+owning top-level machine contract. Checked custody retains exact owner symbol,
+source parameter ordinal, normalized member identities, format, and fallback.
+Artifact-local lowering resolves that owner, replays the ordinal against its
+emitted structural-parameter table, and walks the retained structural types to
+produce the canonical root/path; wrong leaf format and write-only access reject.
+Fixed indexes, nested-state contracts, locals, computed structural sources,
+other arbitrary Terminal values, and every other nonliteral source remain
+transitional engineering work.
 The source-side exit checker admits the owning direct-result reflexivity form
 only after the exact authored `ensures` expression rejoins the checked
 `FloatMeaningEqual` row, both operands share one canonical proof value, and

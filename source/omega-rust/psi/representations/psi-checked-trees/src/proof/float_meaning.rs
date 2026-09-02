@@ -65,26 +65,39 @@ pub struct CheckedDirectMachineFloatResult {
     pub fallback: CheckedFloatProjectionInput,
 }
 
+/// Exact checked provenance for an IEEE leaf below one top-level structural
+/// machine parameter. Source handles remain checked-only; Terminal lowering
+/// rejoins the owner, parameter position, and complete retained member path to
+/// the emitted structural parameter/type tables.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDirectStructuralFloatLeaf {
+    pub owner_machine: psi_symbols::SymbolHandle,
+    pub field: crate::CheckedStructuralParameterField,
+    pub fallback: CheckedFloatProjectionInput,
+}
+
 /// The semantic source retained for one checked float projection.
 ///
 /// Exact literals carry their landed raw bits directly. The transitional
 /// coordinate remains only for source forms whose artifact-relative carrier
 /// has not landed; it must never be treated as an exact-literal identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedFloatProjectionSource {
     TransitionalInput(CheckedFloatProjectionInput),
     DirectMachineParameter(CheckedDirectMachineFloatParameter),
     DirectMachineResult(CheckedDirectMachineFloatResult),
+    DirectStructuralLeaf(CheckedDirectStructuralFloatLeaf),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
 }
 
 impl CheckedFloatProjectionSource {
-    pub const fn primitive(self) -> PrimitiveType {
+    pub const fn primitive(&self) -> PrimitiveType {
         match self {
             Self::TransitionalInput(input) => input.primitive,
             Self::DirectMachineParameter(parameter) => parameter.fallback.primitive,
             Self::DirectMachineResult(result) => result.fallback.primitive,
+            Self::DirectStructuralLeaf(leaf) => leaf.fallback.primitive,
             Self::ExactBinary32Literal(_) => PrimitiveType::F32,
             Self::ExactBinary64Literal(_) => PrimitiveType::F64,
         }
@@ -92,7 +105,7 @@ impl CheckedFloatProjectionSource {
 }
 
 /// Exact proof-only projection selected from the shared closed catalog.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedFloatMeaningProjection {
     pub result: CheckedProofValueDeclaration,
     pub source: CheckedFloatProjectionSource,
@@ -126,7 +139,7 @@ pub struct CheckedFloatMeaningEqualityProposition {
 impl CheckedFloatMeaningProjection {
     /// Independently replay the checked source/result shapes before this row
     /// crosses into Terminal Psi.
-    pub fn validate(self) -> Result<(), CheckedFloatMeaningProjectionError> {
+    pub fn validate(&self) -> Result<(), CheckedFloatMeaningProjectionError> {
         if self.result.value_type != CheckedProofOnlyValueType::FloatMeaning {
             return Err(CheckedFloatMeaningProjectionError::ResultTypeMismatch);
         }
@@ -137,7 +150,7 @@ impl CheckedFloatMeaningProjection {
         if self.source.primitive() != expected {
             return Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch);
         }
-        match self.source {
+        match &self.source {
             CheckedFloatProjectionSource::DirectMachineParameter(parameter)
                 if !parameter.owner_machine.is_valid() || !parameter.parameter.is_valid() =>
             {
@@ -145,6 +158,11 @@ impl CheckedFloatMeaningProjection {
             }
             CheckedFloatProjectionSource::DirectMachineResult(result)
                 if !result.owner_machine.is_valid() =>
+            {
+                return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
+            }
+            CheckedFloatProjectionSource::DirectStructuralLeaf(leaf)
+                if !leaf.owner_machine.is_valid() || leaf.field.path.is_empty() =>
             {
                 return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
             }

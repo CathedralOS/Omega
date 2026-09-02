@@ -162,7 +162,7 @@ pub(super) fn lower_checked_crash_route_buckets(
         .collect()
 }
 
-fn lower_structural_member_path(
+pub(crate) fn lower_structural_member_path(
     parameter_position: u32,
     path: &[psi_checked_trees::CheckedStructuralPredicatePathSegment],
     parameters: &[StructuralParameterDeclaration],

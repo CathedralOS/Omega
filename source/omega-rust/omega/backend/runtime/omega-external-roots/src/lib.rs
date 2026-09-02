@@ -571,6 +571,20 @@ impl InstalledExternalRoot<'_> {
         self.installed_code.identity()
     }
 
+    /// Replay one entry attribution against the complete installed-code
+    /// occurrence and the exact entry selected by this admitted root. This is
+    /// a descriptive equality gate only: it exposes no executable address or
+    /// registration authority.
+    pub fn binds_installed_entry(
+        &self,
+        installed_context: &InstalledCodeContext,
+        entry: EntryStubId,
+    ) -> bool {
+        self.installed_code.receipt_context() == *installed_context
+            && self.evidence.installed_code == *installed_context
+            && self.evidence.root.candidate.entry == entry
+    }
+
     pub fn installed_artifact_occurrence_digest(
         &self,
     ) -> omega_installation_evidence::InstalledArtifactOccurrenceDigest {

@@ -265,8 +265,16 @@ shape and requires the selected leaf to be the exact `IeeeFloat` format;
 write-only borrow roots and owner/root/path/leaf-kind/format substitution or
 duplicate tuples reject. Owned, shared-borrowed, and mutable-borrowed roots
 remain observable.
-Checked production remains transitional until an exact checked-expression to
-Terminal structural owner/root/path correspondence exists.
+Checked/source production now emits this carrier for a nonempty field/case path
+below one direct structural parameter in its owning top-level machine contract.
+The checked row retains exact owner symbol, source parameter ordinal,
+normalized member identities, format, and a transitional fallback. While both
+representations coexist, lowering resolves that owner into the emitted machine,
+replays the ordinal against its direct structural-parameter table, and walks the
+emitted structural types to derive the canonical root/path. Wrong leaf format
+and write-only access reject before the module is accepted. Fixed-index paths,
+nested-state contracts, locals, and computed structural sources remain
+transitional.
 
 ## Crash routes
 

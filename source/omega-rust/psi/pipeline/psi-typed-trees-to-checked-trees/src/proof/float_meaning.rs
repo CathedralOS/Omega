@@ -2,11 +2,12 @@
 
 use psi_checked_trees::{
     CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
-    CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
-    CheckedFloatMeaningProjectionOccurrence, CheckedFloatMeaningProjectionOccurrenceId,
-    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
-    CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
-    CheckedProofValueId, ContractProofFactKind, ProofFacts,
+    CheckedDirectStructuralFloatLeaf, CheckedFloatMeaningEqualityProposition,
+    CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionOccurrence,
+    CheckedFloatMeaningProjectionOccurrenceId, CheckedFloatProjectionInput,
+    CheckedFloatProjectionInputId, CheckedFloatProjectionSource, CheckedProofOnlyValueType,
+    CheckedProofPropositionId, CheckedProofValueDeclaration, CheckedProofValueId,
+    ContractProofFactKind, ProofFacts,
 };
 use psi_diagnostics::Diagnostic;
 use psi_numerics::float_projection::FloatProjectionOperation;
@@ -18,7 +19,7 @@ use psi_validation::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum CheckedFloatProjectionSourceKey {
     DirectMachineParameter {
         owner_machine: psi_symbols::SymbolHandle,
@@ -26,6 +27,10 @@ enum CheckedFloatProjectionSourceKey {
     },
     DirectMachineResult {
         owner_machine: psi_symbols::SymbolHandle,
+    },
+    DirectStructuralLeaf {
+        owner_machine: psi_symbols::SymbolHandle,
+        field: psi_checked_trees::CheckedStructuralParameterField,
     },
     ResolvedSymbol(psi_symbols::SymbolHandle),
     Binary32Literal(u32),
@@ -41,11 +46,7 @@ fn projection_source_key(
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> CheckedFloatProjectionSourceKey {
     match program.expression_table.expression(fact.source) {
-        ExpressionNode::Name(path) => path
-            .symbol
-            .is_valid()
-            .then(|| direct_machine_parameter_source(program, proof, fact))
-            .flatten()
+        ExpressionNode::Name(path) => direct_machine_parameter_source(program, proof, fact)
             .map(|(owner_machine, parameter)| {
                 CheckedFloatProjectionSourceKey::DirectMachineParameter {
                     owner_machine,
@@ -56,6 +57,16 @@ fn projection_source_key(
                 direct_machine_result_source(program, proof, fact).map(|owner_machine| {
                     CheckedFloatProjectionSourceKey::DirectMachineResult { owner_machine }
                 })
+            })
+            .or_else(|| {
+                direct_structural_float_leaf_source(program, proof, fact).map(
+                    |(owner_machine, field)| {
+                        CheckedFloatProjectionSourceKey::DirectStructuralLeaf {
+                            owner_machine,
+                            field,
+                        }
+                    },
+                )
             })
             .unwrap_or_else(|| {
                 if path.symbol.is_valid() {
@@ -73,8 +84,130 @@ fn projection_source_key(
             }
             _ => CheckedFloatProjectionSourceKey::TypedExpression(fact.source),
         },
-        _ => CheckedFloatProjectionSourceKey::TypedExpression(fact.source),
+        _ => direct_structural_float_leaf_source(program, proof, fact)
+            .map(
+                |(owner_machine, field)| CheckedFloatProjectionSourceKey::DirectStructuralLeaf {
+                    owner_machine,
+                    field,
+                },
+            )
+            .unwrap_or(CheckedFloatProjectionSourceKey::TypedExpression(
+                fact.source,
+            )),
     }
+}
+
+fn direct_machine_contract_owner(
+    program: &TypedTrees,
+    proof: &ProofFacts,
+    fact: ValidatedFloatMeaningProjectionInvocation,
+) -> Option<psi_symbols::SymbolHandle> {
+    let mut owners = proof.contract_facts.iter().filter_map(|(_, contract)| {
+        let psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol } = contract.owner
+        else {
+            return None;
+        };
+        proof_fact_contains_expression(program, contract.fact, fact.invocation)
+            .then_some(machine_symbol)
+    });
+    let owner = owners.next()?;
+    owners.next().is_none().then_some(owner)
+}
+
+fn direct_structural_float_leaf_source(
+    program: &TypedTrees,
+    proof: &ProofFacts,
+    fact: ValidatedFloatMeaningProjectionInvocation,
+) -> Option<(
+    psi_symbols::SymbolHandle,
+    psi_checked_trees::CheckedStructuralParameterField,
+)> {
+    let owner_machine = direct_machine_contract_owner(program, proof, fact)?;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == owner_machine)?;
+    let entry = program.machine_states(machine).first()?;
+    let parameters = program.state_parameters(entry);
+    let place = crate::flow::canonical_place_from_expression(program, fact.source)?;
+    let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    let parameter_position = parameters
+        .iter()
+        .position(|parameter| {
+            parameter.symbol == root
+                && !parameter.is_const
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .and_then(|position| u32::try_from(position).ok())?;
+    let path = place
+        .segments
+        .iter()
+        .map(|segment| match segment {
+            psi_facts::PlaceSegment::Field { symbol } => {
+                structural_member_identity(program, *symbol)
+                    .map(psi_checked_trees::CheckedStructuralPredicatePathSegment::Field)
+            }
+            psi_facts::PlaceSegment::Case { variant } => {
+                structural_member_identity(program, *variant)
+                    .map(psi_checked_trees::CheckedStructuralPredicatePathSegment::Case)
+            }
+            psi_facts::PlaceSegment::FixedIndex { .. }
+            | psi_facts::PlaceSegment::FixedRange { .. }
+            | psi_facts::PlaceSegment::Index { .. } => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if path.is_empty() {
+        return None;
+    }
+    Some((
+        owner_machine,
+        psi_checked_trees::CheckedStructuralParameterField {
+            parameter_position,
+            path,
+        },
+    ))
+}
+
+fn structural_member_identity(
+    program: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Option<String> {
+    program.data_definitions().iter().find_map(|data| {
+        program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                psi_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => Some(
+                    field
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                ),
+                psi_typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
+                    Some(
+                        variant
+                            .identity
+                            .map(|identity| format!("#{identity}"))
+                            .unwrap_or_else(|| variant.name.as_str().to_owned()),
+                    )
+                }
+                psi_typed_trees::data::DataMember::Variant(variant) => program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.symbol == symbol)
+                    .map(|field| {
+                        field
+                            .identity
+                            .map(|identity| format!("#{identity}"))
+                            .unwrap_or_else(|| field.name.as_str().to_owned())
+                    }),
+                psi_typed_trees::data::DataMember::Field(_) => None,
+            })
+    })
 }
 
 fn direct_machine_result_source(
@@ -91,17 +224,16 @@ fn direct_machine_result_source(
     if name.as_str() != "result" {
         return None;
     }
-    let mut owners = proof.contract_facts.iter().filter_map(|(_, contract)| {
-        let psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol } = contract.owner
-        else {
-            return None;
-        };
-        (contract.kind == ContractProofFactKind::Ensures
-            && proof_fact_contains_expression(program, contract.fact, fact.invocation))
-        .then_some(machine_symbol)
+    let owner_machine = direct_machine_contract_owner(program, proof, fact)?;
+    let owning_contract = proof.contract_facts.iter().any(|(_, contract)| {
+        matches!(
+            contract.owner,
+            psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+                if machine_symbol == owner_machine
+        ) && contract.kind == ContractProofFactKind::Ensures
+            && proof_fact_contains_expression(program, contract.fact, fact.invocation)
     });
-    let owner_machine = owners.next()?;
-    if owners.next().is_some() {
+    if !owning_contract {
         return None;
     }
     let machine = program
@@ -141,18 +273,7 @@ fn direct_machine_parameter_source(
     {
         return None;
     }
-    let mut owners = proof.contract_facts.iter().filter_map(|(_, contract)| {
-        let psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol } = contract.owner
-        else {
-            return None;
-        };
-        proof_fact_contains_expression(program, contract.fact, fact.invocation)
-            .then_some(machine_symbol)
-    });
-    let owner_machine = owners.next()?;
-    if owners.next().is_some() {
-        return None;
-    }
+    let owner_machine = direct_machine_contract_owner(program, proof, fact)?;
     let machine = program
         .machines()
         .iter()
@@ -391,7 +512,7 @@ pub(crate) fn bind_float_meaning_projection_facts(
                 {
                     Some(index) => index,
                     None => {
-                        transitional_source_keys.push(transitional);
+                        transitional_source_keys.push(transitional.clone());
                         transitional_source_keys.len() - 1
                     }
                 };
@@ -424,6 +545,16 @@ pub(crate) fn bind_float_meaning_projection_facts(
                             },
                         )
                     }
+                    CheckedFloatProjectionSourceKey::DirectStructuralLeaf {
+                        owner_machine,
+                        field,
+                    } => CheckedFloatProjectionSource::DirectStructuralLeaf(
+                        CheckedDirectStructuralFloatLeaf {
+                            owner_machine,
+                            field,
+                            fallback,
+                        },
+                    ),
                     CheckedFloatProjectionSourceKey::ResolvedSymbol(_)
                     | CheckedFloatProjectionSourceKey::TypedExpression(_) => {
                         CheckedFloatProjectionSource::TransitionalInput(fallback)
@@ -435,7 +566,7 @@ pub(crate) fn bind_float_meaning_projection_facts(
                 }
             }
         };
-        let projection_key = (source, fact.operation, contract);
+        let projection_key = (source.clone(), fact.operation, contract);
         let value_index = match projection_keys
             .iter()
             .position(|key| *key == projection_key)
@@ -946,7 +1077,7 @@ mod tests {
     }
 
     #[test]
-    fn member_cast_and_state_owned_sources_remain_transitional() {
+    fn direct_structural_member_retains_checked_owner_and_path() {
         let member_checked = crate::lower_typed_trees(lower_projection_fixture(
             r#"
                 data Sample { value: f32; }
@@ -956,14 +1087,31 @@ mod tests {
             "#,
         ))
         .expect("checked member source");
+        let CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) =
+            &member_checked.facts.proof.float_meaning_projections[0].source
+        else {
+            panic!("direct structural member should retain checked provenance")
+        };
         assert_eq!(
-            member_checked.facts.proof.float_meaning_projections[0].source,
-            transitional_source(CheckedFloatProjectionInput {
+            member_checked.symbols.name(leaf.owner_machine),
+            "member_source"
+        );
+        assert_eq!(leaf.field.parameter_position, 0);
+        assert_eq!(
+            leaf.field.path,
+            [psi_checked_trees::CheckedStructuralPredicatePathSegment::Field("value".to_owned())]
+        );
+        assert_eq!(
+            leaf.fallback,
+            CheckedFloatProjectionInput {
                 id: CheckedFloatProjectionInputId(0),
                 primitive: PrimitiveType::F32,
-            })
+            }
         );
+    }
 
+    #[test]
+    fn cast_and_state_owned_sources_remain_transitional() {
         let cast_checked = crate::lower_typed_trees(lower_projection_fixture(
             r#"
                 machine cast_source(value: f32)

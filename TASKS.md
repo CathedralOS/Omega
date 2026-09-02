@@ -8976,20 +8976,27 @@ Owners:
   performs registration. No callback-specific deployment pending/live carrier
   currently exists: the earlier custom object-store/manifest prototype and its
   callback registration modules were removed. Generic installed-code and
-  external-root primitives survive, including opaque callback replacement,
-  but they do not establish registrar success, live-registration capacity,
-  callback lease custody, or a source `Registration`. The first installed-entry
+  external-root primitives survive, including opaque callback replacement.
+  A first runtime bridge now joins the exact compiler-private entry
+  attribution to the complete installed-code occurrence and the exact entry of
+  an already-admitted root, then retains that attribution beside the provider's
+  successful reclaimable registration through unregister and root quiescence.
+  The runnable-component split borrow permits the root to pin code while only
+  its independent ledger is mutated; failed admission returns attribution,
+  root, provider receipt, and capacity, while failed unregister/quiescence
+  retains the registration and both receipts for retry. This bridge does not
+  yet establish the source `Registration` value or component-era lease. The first installed-entry
   attribution prerequisite is live: a caller-supplied, already-admitted
   `EntryStubId` can be joined to the unique exact format-50 private-function
   row, its final text offset and bytes, and the opaque installed-code
   occurrence. Identity, process-entry, absent-entry, interior-offset, and
   cross-occurrence substitution reject. This carrier does not derive an entry,
   resolve an address, publish code, admit an external root, or grant registrar,
-  capacity, lease, unregister, or quiescence authority. The next implementation
-  must join that pinned entry to an admitted root and exact provider result,
-  then preserve complete retry custody across provider success/failure,
-  unregister, and quiescence. This is engineering work under the settled
-  protocol, not evidence that the deleted carrier is still live.
+  capacity, lease, unregister, or quiescence authority by itself. The next
+  implementation must join the live runtime bridge to the exact component-era
+  lease and lower the package-visible linear `Registration`. This is
+  engineering work under the settled protocol, not evidence that the deleted
+  carrier is still live.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public
@@ -11126,9 +11133,14 @@ Remaining N6/N8 work:
   to be `IeeeFloat(format)`. Unknown owners or roots, erased/non-float leaves,
   invalid or substituted paths, format drift, and duplicate tuples reject.
   Terminal format 70 / vocabulary 73 encode this distinct source class; legacy
-  formats reject its tag. Checked/source production remains transitional
-  because no checked expression-to-Terminal structural-root/path correspondence
-  is retained. Still open are carriers for other arbitrary Terminal values,
+  formats reject its tag. Checked/source production is now live for a nonempty
+  field/case path below a direct structural parameter in the owning top-level
+  machine contract. Checked custody retains the exact owner, parameter ordinal,
+  normalized member identities, and fallback; while both representations exist,
+  lowering rejoins them to the emitted structural root and canonical Terminal
+  path and independently rejects wrong leaf format or write-only access. Fixed
+  indexes, nested-state contracts, locals, and computed structural sources stay
+  transitional. Still open are carriers for other arbitrary Terminal values,
   plus production proof-ledger discharge. The
   ordinary exit checker now discharges the direct owning-result reflexivity
   form without a label shortcut: the current `ensures` expression must rejoin its exact

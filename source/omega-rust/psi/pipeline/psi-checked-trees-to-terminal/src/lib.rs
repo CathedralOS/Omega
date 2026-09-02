@@ -1384,13 +1384,14 @@ pub fn lower_machine(
         .proof
         .float_meaning_projections
         .iter()
-        .copied()
+        .cloned()
         .map(|projection| {
             let direct_source = resolve_direct_float_source_binding(
                 checked,
                 &direct_float_source_machines,
                 &lowered.semantic_module.machines,
-                projection,
+                &lowered.semantic_module.structural_types,
+                projection.clone(),
             )?;
             lower_float_meaning_projection(projection, direct_source)
                 .map_err(LoweringError::InvalidFloatMeaningProjection)

@@ -7,11 +7,11 @@ use psi_checked_trees::{
 };
 use psi_core::{IeeeFloatFormat, MachineId, ScalarType};
 use psi_terminal::{
-    DirectMachineFloatParameter, DirectMachineFloatResult, FloatMeaningEqualityProposition,
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
-    FloatProjectionContractIdentity, FloatProjectionInput, FloatProjectionInputId,
-    ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId, TerminalMachine,
-    TerminalMachineResult,
+    DirectMachineFloatParameter, DirectMachineFloatResult, DirectStructuralFloatLeaf,
+    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+    FloatMeaningSource, FloatProjectionContractIdentity, FloatProjectionInput,
+    FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
+    ProofValueId, TerminalMachine, TerminalMachineResult,
 };
 
 use crate::{LoweringError, terminal_scalar_type};
@@ -85,6 +85,25 @@ pub fn lower_float_meaning_projection(
                 }),
             }
         }
+        CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) => {
+            let format = match leaf.fallback.primitive {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+            };
+            match direct_source {
+                Some(FloatMeaningSource::DirectStructuralLeaf(direct))
+                    if direct.format == format =>
+                {
+                    FloatMeaningSource::DirectStructuralLeaf(direct)
+                }
+                Some(_) => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+                    id: FloatProjectionInputId(leaf.fallback.id.0),
+                    format,
+                }),
+            }
+        }
         CheckedFloatProjectionSource::ExactBinary32Literal(bits) => {
             FloatMeaningSource::ExactBinary32Literal(bits)
         }
@@ -128,11 +147,13 @@ pub(crate) fn resolve_direct_float_source_binding(
     checked: &CheckedTrees,
     machine_bindings: &[(psi_symbols::SymbolHandle, MachineId)],
     terminal_machines: &[TerminalMachine],
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
     projection: CheckedFloatMeaningProjection,
 ) -> Result<Option<FloatMeaningSource>, LoweringError> {
-    let owner_machine = match projection.source {
+    let owner_machine = match &projection.source {
         CheckedFloatProjectionSource::DirectMachineParameter(parameter) => parameter.owner_machine,
         CheckedFloatProjectionSource::DirectMachineResult(result) => result.owner_machine,
+        CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) => leaf.owner_machine,
         _ => return Ok(None),
     };
     let Some((_, terminal_owner)) = machine_bindings
@@ -197,6 +218,38 @@ pub(crate) fn resolve_direct_float_source_binding(
                 DirectMachineFloatResult {
                     owner: *terminal_owner,
                     result: terminal_result.id,
+                    format,
+                },
+            )))
+        }
+        CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) => {
+            let format = match leaf.fallback.primitive {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return Err(invalid_source()),
+            };
+            let parameter = terminal_machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.position == leaf.field.parameter_position)
+                .ok_or_else(invalid_source)?;
+            if parameter.access == psi_terminal::StructuralAccess::WriteOnlyBorrow {
+                return Err(invalid_source());
+            }
+            let (root, path, actual) = crate::crash_routes::lower_structural_member_path(
+                leaf.field.parameter_position,
+                &leaf.field.path,
+                &terminal_machine.structural_parameters,
+                structural_types,
+            )?;
+            if actual != psi_terminal::StructuralFieldType::IeeeFloat(format) {
+                return Err(invalid_source());
+            }
+            Ok(Some(FloatMeaningSource::DirectStructuralLeaf(
+                DirectStructuralFloatLeaf {
+                    owner: *terminal_owner,
+                    field: psi_core::IeeeFloatStructuralField::new(root, path)
+                        .map_err(LoweringError::InvalidCrashPredicate)?,
                     format,
                 },
             )))
@@ -390,7 +443,7 @@ mod tests {
             format: IeeeFloatFormat::Binary64,
         };
         let lowered = lower_float_meaning_projection(
-            checked,
+            checked.clone(),
             Some(FloatMeaningSource::DirectMachineResult(direct)),
         )
         .unwrap();
