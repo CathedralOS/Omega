@@ -22,9 +22,9 @@ use omega_target::{
 };
 
 use crate::{
-    ExternalRootDiagnostic, UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId,
-    UefiFirmwareSessionId, UefiImageHandleOccurrenceId, UefiPhysicalInvocationId,
-    UefiSystemTableOccurrenceId,
+    ExternalRootDiagnostic, GeneratedProgramStorageAdapterLiveFrameDemand,
+    UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
+    UefiImageHandleOccurrenceId, UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
 };
 
 mod provider_projection;
@@ -827,9 +827,10 @@ impl UefiApplicationBootstrapSameStackDemandComponents {
 /// Planning result for the settled UEFI same-stack inequality.
 ///
 /// The result binds the complete four-term demand to one physical-arrival
-/// readiness and the exact target-owned numeric guarantee. It remains a plan,
-/// not runtime stack/environment admission or proof that the supplied demand
-/// coordinates came from emitted code.
+/// readiness and the exact target-owned numeric guarantee. The stronger
+/// constructor additionally retains exact generated-wrapper evidence for the
+/// live-adapter term; the other three terms remain unauthenticated numeric
+/// inputs. Neither form is runtime stack/environment admission.
 #[must_use = "UEFI same-stack budget plan must be retained for later adapter composition"]
 pub struct UefiApplicationBootstrapSameStackBudgetPlan {
     readiness_authority: u64,
@@ -843,6 +844,7 @@ pub struct UefiApplicationBootstrapSameStackBudgetPlan {
     physical_calling_plan_commitment: [u8; 32],
     target_entry_stack_guarantee: omega_target::TargetEntryStackGuarantee,
     components: UefiApplicationBootstrapSameStackDemandComponents,
+    generated_adapter_live_frame_demand: Option<GeneratedProgramStorageAdapterLiveFrameDemand>,
     required_entry_stack_bytes: u64,
 }
 
@@ -912,6 +914,12 @@ impl UefiApplicationBootstrapSameStackBudgetPlan {
         self.required_entry_stack_bytes
     }
 
+    pub const fn generated_adapter_live_frame_demand(
+        &self,
+    ) -> Option<&GeneratedProgramStorageAdapterLiveFrameDemand> {
+        self.generated_adapter_live_frame_demand.as_ref()
+    }
+
     pub const fn remaining_entry_stack_bytes(&self) -> u64 {
         self.target_entry_stack_guarantee
             .guaranteed_available_bytes()
@@ -951,6 +959,38 @@ impl UefiApplicationBootstrapSameStackBudgetPlan {
 pub fn plan_uefi_application_bootstrap_same_stack_budget(
     readiness: &UefiApplicationBootstrapAdapterInvocationReadiness<'_>,
     components: UefiApplicationBootstrapSameStackDemandComponents,
+) -> Result<UefiApplicationBootstrapSameStackBudgetPlan, ExternalRootDiagnostic> {
+    plan_uefi_application_bootstrap_same_stack_budget_inner(readiness, components, None)
+}
+
+/// Plan the same four-term inequality while deriving the live adapter-frame
+/// term from exact installed generated-wrapper evidence. The remaining three
+/// terms deliberately stay explicit numeric planning inputs until their own
+/// producer joins land.
+pub fn plan_uefi_application_bootstrap_same_stack_budget_with_generated_adapter(
+    readiness: &UefiApplicationBootstrapAdapterInvocationReadiness<'_>,
+    generated_shell_wcsu_bytes: u64,
+    generated_adapter_live_frame_demand: GeneratedProgramStorageAdapterLiveFrameDemand,
+    maximum_nested_continuation_provider_wcsu_bytes: u64,
+    target_reserve_bytes: u64,
+) -> Result<UefiApplicationBootstrapSameStackBudgetPlan, ExternalRootDiagnostic> {
+    let components = UefiApplicationBootstrapSameStackDemandComponents::new(
+        generated_shell_wcsu_bytes,
+        generated_adapter_live_frame_demand.bytes(),
+        maximum_nested_continuation_provider_wcsu_bytes,
+        target_reserve_bytes,
+    );
+    plan_uefi_application_bootstrap_same_stack_budget_inner(
+        readiness,
+        components,
+        Some(generated_adapter_live_frame_demand),
+    )
+}
+
+fn plan_uefi_application_bootstrap_same_stack_budget_inner(
+    readiness: &UefiApplicationBootstrapAdapterInvocationReadiness<'_>,
+    components: UefiApplicationBootstrapSameStackDemandComponents,
+    generated_adapter_live_frame_demand: Option<GeneratedProgramStorageAdapterLiveFrameDemand>,
 ) -> Result<UefiApplicationBootstrapSameStackBudgetPlan, ExternalRootDiagnostic> {
     if !readiness
         .arrival
@@ -1032,6 +1072,7 @@ pub fn plan_uefi_application_bootstrap_same_stack_budget(
         physical_calling_plan_commitment: readiness.physical_calling_plan_commitment,
         target_entry_stack_guarantee: guarantee.clone(),
         components,
+        generated_adapter_live_frame_demand,
         required_entry_stack_bytes,
     })
 }
@@ -1042,8 +1083,9 @@ pub fn plan_uefi_application_bootstrap_same_stack_budget(
 /// This is the first retained target-runtime adapter carrier. It owns the
 /// private physical-arrival custody, the exact four-term same-stack plan, and
 /// the independently checked semantic entry contract. It does not claim that
-/// a physical shell was emitted or invoked, that the stack contributors have
-/// acquired derivation evidence, or that either semantic root exists yet.
+/// a physical shell was emitted or invoked, that the other three stack
+/// contributors have acquired derivation evidence, or that either semantic
+/// root exists yet.
 #[must_use = "UEFI bootstrap adapter composition retains physical and semantic entry custody"]
 pub struct UefiApplicationBootstrapAdapterComposition<'occurrence> {
     readiness: UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
@@ -1240,6 +1282,16 @@ pub fn compose_uefi_application_bootstrap_adapter<'occurrence>(
             );
         }
     };
+    let Some(generated_adapter_live_frame_demand) =
+        same_stack_budget.generated_adapter_live_frame_demand()
+    else {
+        return reject(
+            readiness,
+            same_stack_budget,
+            semantic_entry,
+            "UEFI bootstrap adapter composition lacks exact generated live-frame evidence",
+        );
+    };
     if semantic_plan.plan().call.policy != CallingPolicy::MicrosoftX64
         || semantic_plan.plan().call.parameters.len() != 2
         || semantic_plan.plan().call.result.is_some()
@@ -1250,6 +1302,12 @@ pub fn compose_uefi_application_bootstrap_adapter<'occurrence>(
                 .arrival
                 .physical_contract
                 .calling_plan_report_fingerprint()
+        || generated_adapter_live_frame_demand.semantic_boundary_commitment()
+            != semantic_plan.contract_commitment_digest()
+        || generated_adapter_live_frame_demand.bytes()
+            != same_stack_budget.components.live_adapter_frames_wcsu_bytes
+        || generated_adapter_live_frame_demand.alignment()
+            != u64::from(semantic_plan.plan().call.stack_alignment)
     {
         return reject(
             readiness,
@@ -1711,6 +1769,19 @@ mod tests {
         semantic_entry_contract(exact_physical_contract())
     }
 
+    fn authenticated_adapter_budget(
+        readiness: &UefiApplicationBootstrapAdapterInvocationReadiness<'_>,
+    ) -> UefiApplicationBootstrapSameStackBudgetPlan {
+        plan_uefi_application_bootstrap_same_stack_budget_with_generated_adapter(
+            readiness,
+            4 * 1024,
+            crate::tests::generated_program_storage_adapter_live_frame_demand(),
+            96 * 1024,
+            16 * 1024,
+        )
+        .expect("generated wrapper live-frame evidence fits the UEFI guarantee")
+    }
+
     fn adapter_readiness<'a>(
         ledger: &mut UefiApplicationFirmwareLedger<'a>,
         bytes: &'a [u8],
@@ -1874,16 +1945,7 @@ mod tests {
         let bytes = valid_occurrence(120);
         let mut ledger = ledger(210);
         let readiness = adapter_readiness(&mut ledger, &bytes, 213);
-        let budget = plan_uefi_application_bootstrap_same_stack_budget(
-            &readiness,
-            UefiApplicationBootstrapSameStackDemandComponents::new(
-                4 * 1024,
-                8 * 1024,
-                96 * 1024,
-                16 * 1024,
-            ),
-        )
-        .unwrap();
+        let budget = authenticated_adapter_budget(&readiness);
         let adapter = compose_uefi_application_bootstrap_adapter(
             readiness,
             budget,
@@ -1907,7 +1969,7 @@ mod tests {
         );
         assert_eq!(
             adapter.same_stack_budget().required_entry_stack_bytes(),
-            124 * 1024,
+            4 * 1024 + 72 + 96 * 1024 + 16 * 1024,
         );
         assert_ne!(
             adapter.semantic_source_signature_identity().bytes(),
@@ -1928,6 +1990,65 @@ mod tests {
     }
 
     #[test]
+    fn adapter_composition_rejects_missing_or_substituted_generated_frame_evidence() {
+        let bytes = valid_occurrence(120);
+        let mut ledger = ledger(215);
+        let readiness = adapter_readiness(&mut ledger, &bytes, 218);
+        let numeric_only = plan_uefi_application_bootstrap_same_stack_budget(
+            &readiness,
+            UefiApplicationBootstrapSameStackDemandComponents::new(
+                4 * 1024,
+                72,
+                96 * 1024,
+                16 * 1024,
+            ),
+        )
+        .unwrap();
+        let error = compose_uefi_application_bootstrap_adapter(
+            readiness,
+            numeric_only,
+            exact_semantic_entry_contract(),
+        )
+        .expect_err("a numerically equal live-frame assertion is not generated evidence");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("lacks exact generated live-frame evidence")
+        );
+        let (readiness, _, _, _) = error.into_parts();
+
+        let substituted = crate::tests::generated_program_storage_adapter_live_frame_demand()
+            .with_semantic_boundary_commitment_for_test([0x5a; 32]);
+        let budget = plan_uefi_application_bootstrap_same_stack_budget_with_generated_adapter(
+            &readiness,
+            4 * 1024,
+            substituted,
+            96 * 1024,
+            16 * 1024,
+        )
+        .unwrap();
+        let error = compose_uefi_application_bootstrap_adapter(
+            readiness,
+            budget,
+            exact_semantic_entry_contract(),
+        )
+        .expect_err("generated evidence for another semantic ABI must reject");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("semantic and physical ABI identities are not distinct and exact")
+        );
+        let (readiness, _, _, _) = error.into_parts();
+        let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
+        let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
+        ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
+    }
+
+    #[test]
     fn adapter_composition_rejects_cross_ledger_stack_plan_and_returns_retry_inputs() {
         let first_bytes = valid_occurrence(120);
         let second_bytes = valid_occurrence(120);
@@ -1935,11 +2056,7 @@ mod tests {
         let mut second_ledger = ledger(220);
         let first_readiness = adapter_readiness(&mut first_ledger, &first_bytes, 223);
         let second_readiness = adapter_readiness(&mut second_ledger, &second_bytes, 223);
-        let first_budget = plan_uefi_application_bootstrap_same_stack_budget(
-            &first_readiness,
-            UefiApplicationBootstrapSameStackDemandComponents::new(4096, 8192, 98304, 16384),
-        )
-        .unwrap();
+        let first_budget = authenticated_adapter_budget(&first_readiness);
 
         let error = compose_uefi_application_bootstrap_adapter(
             second_readiness,
@@ -1987,11 +2104,7 @@ mod tests {
         let bytes = valid_occurrence(120);
         let mut ledger = ledger(230);
         let readiness = adapter_readiness(&mut ledger, &bytes, 233);
-        let budget = plan_uefi_application_bootstrap_same_stack_budget(
-            &readiness,
-            UefiApplicationBootstrapSameStackDemandComponents::new(4096, 8192, 98304, 16384),
-        )
-        .unwrap();
+        let budget = authenticated_adapter_budget(&readiness);
         let semantic_entry = semantic_entry_contract(physical_contract(
             "UefiPhysicalEntry::enter#lookalike",
             |_| {},

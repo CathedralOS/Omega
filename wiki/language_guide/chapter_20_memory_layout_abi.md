@@ -249,6 +249,12 @@ context-indexed sequence of entry epochs, with active-domain, per-domain
 occupancy/alignment, and nesting evidence. This realization is provider and
 installed-artifact evidence checked against the published `StatePlan`; it is
 not another source signature or architecture-specific language construct.
+The first UEFI consumer of this evidence derives the receiver-free x86-64
+ProgramStorage wrapper's live-frame contribution from its exact installed
+bytes, resolved private call, and canonical three-epoch occupancy. Equal raw
+byte counts, missing generated origin, or epoch drift do not satisfy that
+term; physical-entry and semantic-wrapper calling-plan commitments remain
+distinct.
 
 An outbound registrar plan may additionally contain private callback-
 materialization rows. Each maps one nominal static-machine binder slot to an
@@ -1314,12 +1320,16 @@ replayed against the exact resolved monomorphic carrier. Layout comes only from
 the substituted instance field types, never the encoded value or rendered
 name. A direct lifetime-only application of an otherwise eligible synthesized
 record instance also participates when the application has the exact nonempty
-declared lifetime arity, no residual runtime arguments, and no recursively
-lifetime-bearing field. Checked trees retain the authored lifetime spelling,
-while erased physical representation comes only from the exact synthesized
-symbol. This root-only exception is shared by ordinary recast validation and
-precise loan sizing; lifetime applications nested in records or arrays remain
-fenced. Open or unresolved applications and mixed, recursive, custom-canonical
+declared lifetime arity and no residual runtime arguments. Exactly one further
+lifetime-only synthesized record shell may occur beneath that root. Both
+shells independently replay their exact synthesized symbol, generic origin,
+declared lifetime arity, and empty residual runtime-argument list. Checked
+trees retain the authored lifetime spellings while erased physical
+representation comes only from those synthesized symbols. Ordinary recast
+validation and precise loan sizing share this bounded resolver. A
+lifetime-generic array or a third lifetime shell remains fenced; an ordinary
+named record wrapper beneath an array does not reset that fence. Open or
+unresolved applications and mixed, recursive, custom-canonical
 structured-const, malformed/nonphantom lifetime, machine, or proposition
 generic instances remain conservative.
 

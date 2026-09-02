@@ -333,16 +333,28 @@ fn closed_fact_free_record_symbol_is_eligible(
 
 const MAX_RECAST_RECORD_GRAPH_NODES: usize = 4096;
 const MAX_RECAST_RECORD_GRAPH_EDGES: usize = 16384;
+type RecordEligibilityContext = (u32, u32, usize, bool, bool);
 
 #[derive(Clone, Copy)]
 enum RecordEligibilityWork {
     Enter {
         symbol: psi_symbols::SymbolHandle,
-        lifetime_root: bool,
+        lifetime_shell_depth: usize,
+        entered_through_lifetime_shell: bool,
+        allow_lifetime_shell: bool,
     },
-    Type(TypeReferenceHandle),
-    Exit(psi_symbols::SymbolHandle),
+    Type {
+        type_reference: TypeReferenceHandle,
+        lifetime_shell_depth: usize,
+        allow_lifetime_shell: bool,
+    },
+    Exit {
+        symbol: psi_symbols::SymbolHandle,
+        context: RecordEligibilityContext,
+    },
 }
+
+const MAX_RECAST_PHANTOM_LIFETIME_SHELL_DEPTH: usize = 2;
 
 /// Bounded, memoized exact-symbol walk for recursively fact-free records.
 /// Explicit exit markers detect cycles without host recursion, while completed
@@ -375,7 +387,9 @@ fn fact_free_record_graph_is_eligible(
     }
     work.push(RecordEligibilityWork::Enter {
         symbol: root,
-        lifetime_root: permit_root_lifetime_parameters,
+        lifetime_shell_depth: usize::from(permit_root_lifetime_parameters),
+        entered_through_lifetime_shell: permit_root_lifetime_parameters,
+        allow_lifetime_shell: true,
     });
     let mut node_count = 0usize;
     let mut edge_count = 0usize;
@@ -384,13 +398,22 @@ fn fact_free_record_graph_is_eligible(
         match next {
             RecordEligibilityWork::Enter {
                 symbol,
-                lifetime_root,
+                lifetime_shell_depth,
+                entered_through_lifetime_shell,
+                allow_lifetime_shell,
             } => {
                 if !symbol.is_valid() {
                     return false;
                 }
                 let identity = (symbol.arena_index(), symbol.generation());
-                if complete.contains(&identity) {
+                let context = (
+                    identity.0,
+                    identity.1,
+                    lifetime_shell_depth,
+                    entered_through_lifetime_shell,
+                    allow_lifetime_shell,
+                );
+                if complete.contains(&context) {
                     continue;
                 }
                 if !visiting.insert(identity) {
@@ -405,7 +428,7 @@ fn fact_free_record_graph_is_eligible(
                 };
                 let members = program.data_members(data);
                 if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
-                    || (!lifetime_root && !data.lifetime_parameters.is_empty())
+                    || (!entered_through_lifetime_shell && !data.lifetime_parameters.is_empty())
                     || !program.data_type_parameters(data).is_empty()
                     || !closed_record_generic_origin_is_eligible(program, data)
                     || data.quotient.is_some()
@@ -416,7 +439,7 @@ fn fact_free_record_graph_is_eligible(
                 {
                     return false;
                 }
-                work.push(RecordEligibilityWork::Exit(symbol));
+                work.push(RecordEligibilityWork::Exit { symbol, context });
                 for member in members.iter().rev() {
                     let psi_typed_trees::data::DataMember::Field(field) = member else {
                         return false;
@@ -428,10 +451,18 @@ fn fact_free_record_graph_is_eligible(
                         Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
                         _ => return false,
                     };
-                    work.push(RecordEligibilityWork::Type(field.type_reference));
+                    work.push(RecordEligibilityWork::Type {
+                        type_reference: field.type_reference,
+                        lifetime_shell_depth,
+                        allow_lifetime_shell,
+                    });
                 }
             }
-            RecordEligibilityWork::Type(type_reference) => {
+            RecordEligibilityWork::Type {
+                type_reference,
+                lifetime_shell_depth,
+                allow_lifetime_shell,
+            } => {
                 if let Some(primitive) = exact_primitive_type(program, type_reference) {
                     if primitive == PrimitiveType::Bool || primitive.scalar_byte_size().is_none() {
                         return false;
@@ -446,7 +477,9 @@ fn fact_free_record_graph_is_eligible(
                         };
                         work.push(RecordEligibilityWork::Enter {
                             symbol: *symbol,
-                            lifetime_root: false,
+                            lifetime_shell_depth,
+                            entered_through_lifetime_shell: false,
+                            allow_lifetime_shell,
                         });
                     }
                     TypeReferenceNode::FixedArray {
@@ -457,14 +490,39 @@ fn fact_free_record_graph_is_eligible(
                             Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
                             _ => return false,
                         };
-                        work.push(RecordEligibilityWork::Type(*element_type));
+                        work.push(RecordEligibilityWork::Type {
+                            type_reference: *element_type,
+                            lifetime_shell_depth,
+                            allow_lifetime_shell: false,
+                        });
+                    }
+                    TypeReferenceNode::Generic { .. }
+                        if allow_lifetime_shell
+                            && lifetime_shell_depth > 0
+                            && lifetime_shell_depth < MAX_RECAST_PHANTOM_LIFETIME_SHELL_DEPTH =>
+                    {
+                        let Some(symbol) =
+                            phantom_lifetime_record_symbol_shape(program, type_reference)
+                        else {
+                            return false;
+                        };
+                        edge_count = match edge_count.checked_add(1) {
+                            Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
+                            _ => return false,
+                        };
+                        work.push(RecordEligibilityWork::Enter {
+                            symbol,
+                            lifetime_shell_depth: lifetime_shell_depth + 1,
+                            entered_through_lifetime_shell: true,
+                            allow_lifetime_shell,
+                        });
                     }
                     _ => return false,
                 }
             }
-            RecordEligibilityWork::Exit(symbol) => {
+            RecordEligibilityWork::Exit { symbol, context } => {
                 let identity = (symbol.arena_index(), symbol.generation());
-                if !visiting.remove(&identity) || !complete.insert(identity) {
+                if !visiting.remove(&identity) || !complete.insert(context) {
                     return false;
                 }
             }
@@ -473,16 +531,14 @@ fn fact_free_record_graph_is_eligible(
     true
 }
 
-/// Resolve the one direct erased-lifetime shell admitted by the indexed-loan
-/// rung to its exact synthesized runtime record symbol.
+/// Resolve one structurally valid erased-lifetime shell to its exact
+/// synthesized runtime record symbol.
 ///
 /// Generic-instance synthesis has already absorbed every Type/Const argument
 /// into `base_symbol`; the remaining `Generic` node carries only checked
-/// lifetime identity. This resolver is deliberately usable only at the root of
-/// a representation query. Recursive field/array normalization still rejects
-/// `Generic`, so a lifetime-bearing nested shape cannot enter through this
-/// exception.
-fn direct_phantom_lifetime_record_symbol(
+/// lifetime identity. Graph eligibility, nesting depth, cycles, and physical
+/// non-emptiness are checked separately by the bounded recast traversal.
+fn phantom_lifetime_record_symbol_shape(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<psi_symbols::SymbolHandle> {
@@ -536,7 +592,18 @@ fn direct_phantom_lifetime_record_symbol(
     {
         return None;
     }
-    fact_free_record_graph_is_eligible(program, instance.symbol, true).then_some(instance.symbol)
+    Some(instance.symbol)
+}
+
+/// Resolve the direct erased-lifetime root admitted by the indexed-loan rung.
+/// The graph walk may admit one further record shell below this root, but
+/// arrays and a third lifetime shell remain fail closed.
+fn direct_phantom_lifetime_record_symbol(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<psi_symbols::SymbolHandle> {
+    let symbol = phantom_lifetime_record_symbol_shape(program, type_reference)?;
+    fact_free_record_graph_is_eligible(program, symbol, true).then_some(symbol)
 }
 
 fn direct_record_view_type_is_fact_free(

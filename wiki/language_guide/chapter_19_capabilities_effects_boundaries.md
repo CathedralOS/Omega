@@ -1475,6 +1475,13 @@ generated adapter use follows the emitted stub, and opaque adapter use requires
 an admitted receipt. The body WCSU is charged only in the body epoch's execution
 domain. Nested `Interrupted` entry is relative to the active parent epoch, and
 unresolved contexts, stack domains, or evidence reject before publication.
+For the current receiver-free x86-64 ProgramStorage wrapper, the UEFI
+same-stack planner derives the live adapter-frame term from that exact
+installed generated evidence: all contexts must retain the canonical
+Enter/Body/Exit epochs and their wrapper-request-derived occupancy. A caller
+cannot replace it with an equal byte count, and its semantic wrapper commitment
+does not replace the separate physical UEFI-entry commitment. The shell,
+nested continuation/provider, and reserve terms remain separately fenced.
 
 The reusable extent, placed-view, checked-assembly, materialization, and root
 ledger model is specified in

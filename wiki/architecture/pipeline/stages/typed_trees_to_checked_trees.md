@@ -566,16 +566,22 @@ Current ownership is:
   integer/Boolean leaves. Substituted instance fields remain the only layout
   authority. One direct lifetime-only shell around an otherwise eligible
   synthesized record also uses its exact instance symbol when lifetime arity is
-  exact, runtime arguments are empty, and recursive fields contain no lifetime
-  application. Raw checked lifetime spellings stay distinct; the erased
-  physical representation and loan size share the same sealed resolver.
+  exact and runtime arguments are empty. One further lifetime-only synthesized
+  record shell may occur beneath that root under the same checks. The bounded
+  graph memoizes the complete symbol/depth/entry context, preventing a shallow
+  sibling from authorizing the same symbol through a deeper diamond. Raw
+  checked lifetime spellings stay distinct; the erased physical representation
+  and loan size share the same sealed resolver. Array descent disables
+  lifetime-shell admission for the complete descendant graph, including
+  ordinary named wrappers.
   Generic normalization rewrites
   concrete-machine cast targets and supports recursively nonzero literal-array
   type arguments. Record eligibility and representation recursion use exact
   symbol identity and require a nonzero, quotient-free, acyclic, all-relevant,
   recursively fact-free shape. Runtime or merely bounded offsets, slices, total
   zero-size targets, open/unresolved or mixed/recursive/custom-canonical
-  structured-const, nested/array or malformed/nonphantom lifetime applications,
+  structured-const, lifetime-generic arrays, shapes deeper than two lifetime
+  shells, or malformed/nonphantom lifetime applications,
   machine/proposition generic instances,
   invariant-bearing/erased/cased records, and other indexed recasts stay fenced
   because an element path cannot represent their complete target footprint.

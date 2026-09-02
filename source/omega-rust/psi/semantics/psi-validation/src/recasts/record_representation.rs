@@ -14,6 +14,7 @@ const MAX_RECAST_REPRESENTATION_WORK: usize = 16384;
 struct RepresentationBudget {
     depth: usize,
     work: usize,
+    lifetime_shell_depth: usize,
 }
 
 impl RepresentationBudget {
@@ -68,16 +69,22 @@ fn type_representation(
 ) -> Option<MutableRecordRepresentation> {
     let mut visiting = HashSet::new();
     visiting.try_reserve(256).ok()?;
-    let mut budget = RepresentationBudget { depth: 0, work: 0 };
+    let mut budget = RepresentationBudget {
+        depth: 0,
+        work: 0,
+        lifetime_shell_depth: 0,
+    };
     let phantom_lifetime_shell =
         super::direct_phantom_lifetime_record_symbol(program, type_reference);
     let mut representation = if let Some(symbol) = phantom_lifetime_shell {
+        budget.lifetime_shell_depth = 1;
         mutable_record_representation_inner(
             program,
             symbol,
             &mut visiting,
             &mut budget,
             allow_stored_integer_projection,
+            true,
         )?
     } else {
         mutable_record_type_representation(
@@ -86,6 +93,7 @@ fn type_representation(
             &mut visiting,
             &mut budget,
             allow_stored_integer_projection,
+            false,
         )?
     };
     if phantom_lifetime_shell.is_some() && representation.size == 0 {
@@ -108,6 +116,7 @@ fn mutable_record_representation_inner(
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
     allow_stored_integer_projection: bool,
+    allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
     budget.enter()?;
     let representation = mutable_record_representation_inner_body(
@@ -116,6 +125,7 @@ fn mutable_record_representation_inner(
         visiting,
         budget,
         allow_stored_integer_projection,
+        allow_lifetime_shell,
     );
     budget.leave();
     representation
@@ -127,6 +137,7 @@ fn mutable_record_representation_inner_body(
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
     allow_stored_integer_projection: bool,
+    allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
     if !symbol.is_valid() {
         return None;
@@ -165,6 +176,7 @@ fn mutable_record_representation_inner_body(
             visiting,
             budget,
             allow_stored_integer_projection,
+            allow_lifetime_shell,
         ) else {
             visiting.remove(&symbol_identity);
             return None;
@@ -220,6 +232,7 @@ fn mutable_record_representation_inner_body(
                 visiting,
                 budget,
                 allow_stored_integer_projection,
+                false,
             )?;
             let repeated = repeat_representation_with_stride(
                 &element,
@@ -281,6 +294,7 @@ fn mutable_record_type_representation(
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
     allow_stored_integer_projection: bool,
+    allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
     budget.enter()?;
     let representation = mutable_record_type_representation_body(
@@ -289,6 +303,7 @@ fn mutable_record_type_representation(
         visiting,
         budget,
         allow_stored_integer_projection,
+        allow_lifetime_shell,
     );
     budget.leave();
     representation
@@ -300,6 +315,7 @@ fn mutable_record_type_representation_body(
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
     allow_stored_integer_projection: bool,
+    allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
     if let Some(primitive) = super::exact_scalar_representation_type(program, type_reference) {
         let size = primitive.scalar_byte_size()?;
@@ -329,6 +345,7 @@ fn mutable_record_type_representation_body(
                 visiting,
                 budget,
                 allow_stored_integer_projection,
+                false,
             )?;
             let size = element.size.checked_mul(*length)?;
             let leaf_count = element.leaves.len().checked_mul(*length)?;
@@ -358,7 +375,26 @@ fn mutable_record_type_representation_body(
             visiting,
             budget,
             allow_stored_integer_projection,
+            allow_lifetime_shell,
         ),
+        TypeReferenceNode::Generic { .. }
+            if allow_lifetime_shell
+                && budget.lifetime_shell_depth > 0
+                && budget.lifetime_shell_depth < super::MAX_RECAST_PHANTOM_LIFETIME_SHELL_DEPTH =>
+        {
+            let symbol = super::phantom_lifetime_record_symbol_shape(program, type_reference)?;
+            budget.lifetime_shell_depth += 1;
+            let representation = mutable_record_representation_inner(
+                program,
+                symbol,
+                visiting,
+                budget,
+                allow_stored_integer_projection,
+                allow_lifetime_shell,
+            );
+            budget.lifetime_shell_depth -= 1;
+            representation.filter(|representation| representation.size > 0)
+        }
         // A non-scalar constraint is a fact over the aggregate rather than a
         // leaf representation fact. It cannot be preserved by this rung.
         TypeReferenceNode::Constrained { .. } | TypeReferenceNode::Reference { .. } => None,
@@ -803,6 +839,41 @@ mod tests {
         assert!(
             super::super::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn array_fence_survives_an_ordinary_named_wrapper() {
+        let mut fixture = phantom_fixture();
+        let wrapper_symbol = generated_data_symbol(&mut fixture.program, "Wrapper");
+        push_single_field_record(&mut fixture.program, wrapper_symbol, fixture.shell);
+        let wrapper_type = named_type(&mut fixture.program, wrapper_symbol, "Wrapper");
+        let array_type =
+            fixture
+                .program
+                .type_reference_table
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type: wrapper_type,
+                    length: FixedArrayLength::Literal(1),
+                });
+        let mut visiting = HashSet::new();
+        let mut budget = RepresentationBudget {
+            depth: 0,
+            work: 0,
+            lifetime_shell_depth: 1,
+        };
+
+        assert!(
+            mutable_record_type_representation(
+                &fixture.program,
+                array_type,
+                &mut visiting,
+                &mut budget,
+                true,
+                true,
+            )
+            .is_none(),
+            "array descent must not let a named wrapper re-enable lifetime shells"
         );
     }
 

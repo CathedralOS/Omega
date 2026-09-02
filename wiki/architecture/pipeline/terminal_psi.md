@@ -5191,6 +5191,13 @@ inspection surface makes no installed-root WCSU claim. External-root admission
 must join the emitted body demand with the separate context-indexed entry-epoch
 realization; it must never relabel target or opaque-provider arrival evidence as
 Terminal-Psi derivation.
+The current UEFI composition closes one narrow half of that join: its
+receiver-free x86-64 ProgramStorage adapter-frame term is derived from exact
+installed wrapper bytes, resolved private-call custody, and the canonical
+Enter/Body/Exit occupancy roster. Numeric equality alone is insufficient, and
+the semantic wrapper commitment remains distinct from the physical UEFI entry
+commitment. Shell, continuation/provider, reserve, and invocation evidence
+remain outside this rung.
 
 ## Implementation queue
 
