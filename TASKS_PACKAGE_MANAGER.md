@@ -252,13 +252,6 @@ explicitly.
     `EfiSystemTable`, provider drift, replay drift, and cleanup/multiplicity
     canaries.
 
-- [ ] **D54-EXPLICIT-MULTI-TARGET-ORCHESTRATION — fan out only where target
-  semantics begin.**
-  - reuse an identical checked/Terminal Psi or PCC product across target
-    children only after exact strong-identity equality, then supply each native
-    branch with its own target and lowering-authority inputs;
-  - add shared-Psi/different-lowerer and target-specific-Psi controls.
-
 - [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role through
   authority-bearing outputs.**
   - retain `{ PackageKey, BuildDeclarationKind }` through accepted lock rows,

@@ -193,6 +193,8 @@ impl ExactTargetCompileOutcome {
 #[derive(Debug)]
 pub struct MultiTargetCompileOutcomes {
     outcomes: Box<[ExactTargetCompileOutcome]>,
+    #[cfg(test)]
+    prepared_terminal_native_input_count: usize,
 }
 
 impl MultiTargetCompileOutcomes {
@@ -210,7 +212,31 @@ impl MultiTargetCompileOutcomes {
         );
         Self {
             outcomes: outcomes.into_boxed_slice(),
+            #[cfg(test)]
+            prepared_terminal_native_input_count: 0,
         }
+    }
+
+    pub(in crate::compiler) fn with_prepared_terminal_native_input_count(
+        self,
+        count: usize,
+    ) -> Self {
+        #[cfg(test)]
+        {
+            let mut outcomes = self;
+            outcomes.prepared_terminal_native_input_count = count;
+            outcomes
+        }
+        #[cfg(not(test))]
+        {
+            let _ = count;
+            self
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::compiler) const fn prepared_terminal_native_input_count(&self) -> usize {
+        self.prepared_terminal_native_input_count
     }
 
     pub const fn outcomes(&self) -> &[ExactTargetCompileOutcome] {

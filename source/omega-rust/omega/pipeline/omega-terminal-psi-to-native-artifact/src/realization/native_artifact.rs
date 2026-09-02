@@ -7,7 +7,10 @@ use super::{
     NativeRealizationRequest,
     boundary_applications::retain_boundary_application_coverage,
     diagnostics::realization_error,
-    input::lower_realization_input,
+    input::{
+        PreparedNativeRealizationInput, lower_realization_input,
+        reopen_prepared_native_realization_input,
+    },
     machine_code::emit_realization_machine_code,
     output::assemble_native_artifact,
     providers::{AdmittedNativeProviders, admit_native_providers},
@@ -17,6 +20,7 @@ pub(super) fn realize(
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     checked_scope: Option<&psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope>,
     request: NativeRealizationRequest<'_>,
+    prepared_input: Option<&PreparedNativeRealizationInput>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
     request
         .program_entry
@@ -39,7 +43,15 @@ pub(super) fn realize(
     let semantic_bytes = artifact.semantic_bytes();
     let proof_bytes = artifact.proof_bytes();
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
-    let input = lower_realization_input(semantic_bytes, proof_bytes, &request)?;
+    let input = match prepared_input {
+        Some(prepared) => reopen_prepared_native_realization_input(prepared, &artifact, &request)?,
+        None => lower_realization_input(
+            semantic_bytes,
+            proof_bytes,
+            request.profile,
+            request.optimization_selections,
+        )?,
+    };
     let AdmittedNativeProviders {
         settlements,
         executions,

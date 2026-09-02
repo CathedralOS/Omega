@@ -1,20 +1,35 @@
 use omega_optimization_core::OptimizationSelections;
 use psi_diagnostics::Diagnostic;
 
-pub(super) fn realize(
+pub(super) struct PreparedTerminalNativeArtifact {
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_boundary_operator_scope:
+        psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
+}
+
+impl PreparedTerminalNativeArtifact {
+    pub(super) const fn artifact(&self) -> &psi_terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+}
+
+pub(super) fn validate_terminal_authority_permissions(
     checked: &crate::pipeline::CheckedCompilation,
-    admission: super::admission::NativeOptimizationAdmission<'_>,
-    profile: &psi_proof_admission::AdmissionProfile,
     terminal_authority_permission_policy:
-        omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
-    optimization_selections: &OptimizationSelections,
-) -> Result<omega_terminal_psi_to_native_artifact::NativeArtifact, Vec<Diagnostic>> {
+        &omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+) -> Result<(), Vec<Diagnostic>> {
     super::super::terminal_authority_permissions::validate_package_terminal_authority_permissions(
         checked
             .resolved_semantic_bindings()
             .flat_map(|binding| binding.terminal_authority_permissions()),
-        &terminal_authority_permission_policy,
-    )?;
+        terminal_authority_permission_policy,
+    )
+}
+
+pub(super) fn prepare_terminal_artifact(
+    checked: &crate::pipeline::CheckedCompilation,
+    admission: &super::admission::NativeOptimizationAdmission,
+) -> Result<PreparedTerminalNativeArtifact, Vec<Diagnostic>> {
     let entry_machine = admission.program_entry.machine_name().to_owned();
     let produced =
         psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
@@ -34,6 +49,26 @@ pub(super) fn realize(
             "optimized direct native realization does not yet consume retained IEEE-FMA occurrence custody",
         )]);
     }
+    Ok(PreparedTerminalNativeArtifact {
+        artifact,
+        checked_boundary_operator_scope,
+    })
+}
+
+pub(super) fn realize(
+    checked: &crate::pipeline::CheckedCompilation,
+    admission: &super::admission::NativeOptimizationAdmission,
+    profile: &psi_proof_admission::AdmissionProfile,
+    terminal_authority_permission_policy:
+        omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+    optimization_selections: &OptimizationSelections,
+    prepared_terminal: PreparedTerminalNativeArtifact,
+    prepared_input: &omega_terminal_psi_to_native_artifact::PreparedNativeRealizationInput,
+) -> Result<omega_terminal_psi_to_native_artifact::NativeArtifact, Vec<Diagnostic>> {
+    let PreparedTerminalNativeArtifact {
+        artifact,
+        checked_boundary_operator_scope,
+    } = prepared_terminal;
     let terminal_module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
         |error| {
             vec![Diagnostic::error(format!(
@@ -74,10 +109,7 @@ pub(super) fn realize(
         calling_plans,
         admission.program_entry.fused_service_establishments(),
     );
-    omega_terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope(
-        artifact,
-        &checked_boundary_operator_scope,
-        omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
+    let request = omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
             target: admission.target,
             subsystem: checked.subsystem(),
             profile,
@@ -94,7 +126,12 @@ pub(super) fn realize(
             ieee_float_fma: &[],
             native_callbacks: &[],
             callback_thunks: &[],
-        },
+        };
+    omega_terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(
+        artifact,
+        &checked_boundary_operator_scope,
+        request,
+        prepared_input,
     )
 }
 

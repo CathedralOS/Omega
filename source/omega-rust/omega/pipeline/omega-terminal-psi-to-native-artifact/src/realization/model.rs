@@ -33,6 +33,7 @@ builtin_native_realization_conversion!(omega_target_operations::LinuxWriteLineRe
 builtin_native_realization_conversion!(omega_target_operations::LinuxExitGroupI32Realization);
 builtin_native_realization_conversion!(omega_target_operations::ClaimCompletionOnlyRealization);
 
+#[derive(Debug, Clone)]
 pub(crate) enum NativeRealizationInput {
     Unoptimized(omega_psi_to_abstract_operations::NativeArtifactOperationPlan),
     ExplicitOptimization(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),

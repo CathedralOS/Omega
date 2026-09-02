@@ -3012,6 +3012,15 @@ grants no authority to the current child. Git edges cannot be "resolved but not
 fetched": verifying a commit, tree, workspace declaration, and selected member
 already exercises host-routed acquisition and resolver-owned source validation.
 
+The maintained compiler applies the same boundary to native realization. Each
+child first forms its own canonical Terminal artifact. It may share the
+target-neutral verified abstract input only when the complete Terminal artifact
+identity, exact proof-admission profile, and optimized/unoptimized entrance are
+equal. Target, entry and calling plans, provider and foreign settlements,
+authority policy, physical evidence, and machine/image lowering remain local to
+the child. The sharing is merely compiler work reuse and creates no additional
+package, audit, or security claim.
+
 Target values are checked against the trusted toolchain target catalog at each
 exact child boundary. The catalog validates supplied identities; it does not
 provide an `all` deployment set because it may also contain abstract and local

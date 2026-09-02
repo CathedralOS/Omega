@@ -82,6 +82,138 @@ fn native_product_stop_rejoins_every_hosted_target() {
 }
 
 #[test]
+fn native_batch_reuses_exact_terminal_input_before_distinct_target_lowering() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .expect("compiler crate should have the repository above it");
+    let root = repository.join("tests/omega/pass/optimizer/no_selection_empty_entry/main.omg");
+    let targets = ExplicitTargetSet::from_caller_names(["linux_x64", "linux_arm64"])
+        .expect("hosted targets should canonicalize");
+    let batch = MultiTargetCompileRequest::from_target_set(targets, |profile| {
+        CompileRequest::new(CompileOptions {
+            root_path: root.clone(),
+            build_dir: Some(std::env::temp_dir().join(format!(
+                "omega-native-input-reuse-{}-{}",
+                std::process::id(),
+                profile.target_name(),
+            ))),
+            target_name: None,
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+    })
+    .expect("target factory should produce an exact native batch");
+
+    let outcomes = compile_targets(batch).expect("native batch request should admit");
+    assert_eq!(outcomes.prepared_terminal_native_input_count(), 1);
+    let artifacts = outcomes
+        .outcomes()
+        .iter()
+        .map(|outcome| {
+            outcome
+                .report()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{:?}: {:#?}",
+                        outcome.target_profile(),
+                        outcome.diagnostics()
+                    )
+                })
+                .retained_native_artifact()
+                .expect("native report retains its artifact")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        artifacts[0].psi_artifact().manifest().identity(),
+        artifacts[1].psi_artifact().manifest().identity(),
+    );
+    assert_ne!(artifacts[0].target(), artifacts[1].target());
+    assert_ne!(artifacts[0].identity(), artifacts[1].identity());
+    for outcome in outcomes.outcomes() {
+        let profile = outcome.target_profile();
+        let standalone = compile(
+            CompileRequest::new(CompileOptions {
+                root_path: root.clone(),
+                build_dir: Some(std::env::temp_dir().join(format!(
+                    "omega-native-input-standalone-{}-{}",
+                    std::process::id(),
+                    profile.target_name(),
+                ))),
+                target_name: Some(profile.target_name().to_owned()),
+            })
+            .with_requested_product(RequestedCompileProduct::NativeArtifact)
+            .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        )
+        .unwrap_or_else(|diagnostics| panic!("{profile:?}: {diagnostics:#?}"));
+        assert_eq!(
+            outcome
+                .report()
+                .expect("batched native child")
+                .retained_native_artifact()
+                .expect("batched artifact")
+                .identity(),
+            standalone
+                .retained_native_artifact()
+                .expect("standalone artifact")
+                .identity(),
+        );
+    }
+}
+
+#[test]
+fn native_batch_does_not_reuse_target_specific_terminal_input() {
+    let fixture = MultiTargetFixture::new(
+        r#"data LinuxMain { }
+machine LinuxMain::main(&mut self) { }
+data ArmMain { }
+machine ArmMain::main(&mut self) { }
+"#,
+        r#"target linux_x86_64 { }
+target linux_arm64 { }
+machine build(builder: &mut Build) {
+    builder.application("target-specific-terminal-input");
+    builder.roots.bind(linux_x86_64::ProgramEntry, LinuxMain::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, ArmMain::main);
+}
+"#,
+    );
+    let targets = ExplicitTargetSet::from_caller_names(["linux_x64", "linux_arm64"])
+        .expect("hosted targets should canonicalize");
+    let batch = MultiTargetCompileRequest::from_target_set(targets, |profile| {
+        fixture
+            .request(profile)
+            .with_requested_product(RequestedCompileProduct::NativeArtifact)
+            .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+    })
+    .expect("target factory should produce an exact native batch");
+
+    let outcomes = compile_targets(batch).expect("native batch request should admit");
+    let terminal_identities = outcomes
+        .outcomes()
+        .iter()
+        .map(|outcome| {
+            outcome
+                .report()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{:?}: {:#?}",
+                        outcome.target_profile(),
+                        outcome.diagnostics()
+                    )
+                })
+                .retained_native_artifact()
+                .expect("native report retains its artifact")
+                .psi_artifact()
+                .manifest()
+                .identity()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes.prepared_terminal_native_input_count(), 2);
+    assert_ne!(terminal_identities[0], terminal_identities[1]);
+}
+
+#[test]
 fn exact_target_batch_is_canonical_matches_standalone_and_continues_after_failure() {
     let fixture = MultiTargetFixture::new(
         "const ANSWER: u32 = 42;\n",
