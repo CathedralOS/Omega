@@ -64,6 +64,12 @@ pub struct MachineCodeFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
+    /// Independently supplied and emission-validated ABI for the bounded
+    /// fixed-integer-result function family with both scalar and structural
+    /// parameters. Mixed calls must join this row by exact machine identity;
+    /// caller records cannot manufacture it.
+    pub mixed_structural_scalar_abi:
+        Option<omega_target_operations::MixedStructuralScalarFunctionAbi>,
     /// Exact semantic return evidence for the bounded structural-call/scalar-
     /// return carrier. A Unit body may contain and discard a scalar-producing
     /// call, so object replay must not infer this role from mechanical shape.
@@ -789,6 +795,9 @@ pub struct InternalUnitCallRecord {
     /// Exact structural result custody for the bounded direct-return call
     /// family. Mutually exclusive with `result`; absent on Unit/scalar calls.
     pub structural_result: Option<InternalStructuralCallResult>,
+    /// Exact fixed-integer arguments in the scalar prefix of the shared call
+    /// plan. Aggregate-only calls retain the canonical empty roster.
+    pub scalar_arguments: Vec<InternalUnitScalarCallArgumentRecord>,
     pub arguments: Vec<InternalUnitCallArgumentRecord>,
     pub claim_transfers: Vec<ClaimTransfer>,
     pub operation_ordinal: usize,

@@ -36,6 +36,8 @@ pub struct AssignedFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
+    pub mixed_structural_scalar_abi:
+        Option<omega_target_operations::MixedStructuralScalarFunctionAbi>,
     pub provenance: TerminalPsiProvenance,
     pub operation: AssignedOperation,
 }

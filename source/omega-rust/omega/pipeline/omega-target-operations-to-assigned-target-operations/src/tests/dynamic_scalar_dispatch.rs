@@ -159,6 +159,7 @@ fn assigns_forwarded_descriptor_registers_and_indirect_mechanism() {
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![OperationId::new(1).unwrap()],
                 edges: vec![EdgeId::new(1).unwrap()],

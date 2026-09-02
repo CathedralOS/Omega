@@ -6,22 +6,31 @@ use omega_assigned_target_operations::{
     AssignedFunction, AssignedOperation, AssignedUnitBody, AssignedUnitOperation,
     AssignedUnitScalarArgumentSource,
 };
+use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use omega_machine_code::{
     InternalCallRelocation, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
-    InternalUnitScalarArgumentSourceRecord, UnitStructuralScalarFieldStoreRecord,
+    InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallArgumentRecord,
+    UnitCallStackEvidence, UnitStructuralScalarFieldStoreRecord,
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::CallSiteOwner;
 use psi_core::{IntegerType, IntegerValue, OperationId, ValueId};
 
 use super::{
-    Aarch64UnitParameterHome, X86UnitParameterHome, emit_aarch64_unit_call, emit_x86_64_unit_call,
+    Aarch64UnitParameterHome, X86UnitParameterHome, aarch64_outgoing_placement_extent, align_u32,
+    emit_aarch64_adjust_sp, emit_aarch64_aggregate_copy_from_home, emit_x86_64_adjust_sp,
+    emit_x86_64_aggregate_copy_from_home, outgoing_placement_extent, stack_adjustment_pair,
     unit_scalar_shape,
 };
 use crate::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
     aarch64_unit_stack_access, append_aarch64_instructions, emit_x86_64_stack_load_width,
     emit_x86_64_stack_store_width, integer_bits, require_native_integer_width,
+};
+
+use super::scalar_call::{
+    emit_aarch64_unit_scalar_argument, emit_x86_64_unit_scalar_argument,
+    unit_scalar_argument_source_record, validate_unit_scalar_argument,
 };
 
 pub(super) fn emit_structural_scalar_field_store(
@@ -145,6 +154,7 @@ pub(super) fn emit_structural_scalar_call(
     operation: &AssignedUnitOperation,
     target: NativeTarget,
     functions: &[AssignedFunction],
+    preceding_operations: &[AssignedUnitOperation],
     x86_homes: &[X86UnitParameterHome],
     aarch64_homes: &[Aarch64UnitParameterHome],
     bytes: &mut Vec<u8>,
@@ -157,6 +167,7 @@ pub(super) fn emit_structural_scalar_call(
         result,
         callee,
         call_plan,
+        scalar_arguments,
         copies,
         claim_transfers,
         ..
@@ -169,41 +180,97 @@ pub(super) fn emit_structural_scalar_call(
             *psi_operation,
         ));
     };
-    let result_shape = unit_scalar_shape(result.value, integer_type)?;
-    if call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape)
-        || call_plan.parameters.len() != copies.len()
-        || call_plan
-            .parameters
+    let invalid = || EmissionError::InvalidStructuralScalarCallCustody(*psi_operation);
+    let result_shape = unit_scalar_shape(result.value, integer_type).map_err(|_| invalid())?;
+    let scalar_shapes = scalar_arguments
+        .iter()
+        .map(|argument| {
+            unit_scalar_shape(
+                argument.source.source_value(),
+                argument.source.scalar_type(),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| invalid())?;
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: scalar_shapes
+                .iter()
+                .copied()
+                .chain(copies.iter().map(|copy| copy.shape))
+                .collect(),
+            result: Some(result_shape),
+        },
+    )
+    .map_err(|_| invalid())?;
+    let scalar_count = scalar_arguments.len();
+    let matching_callees = functions
+        .iter()
+        .filter(|function| function.machine == *callee)
+        .collect::<Vec<_>>();
+    let [callee_function] = matching_callees.as_slice() else {
+        return Err(invalid());
+    };
+    let mixed_abi_matches = if scalar_arguments.is_empty() {
+        true
+    } else {
+        callee_function
+            .mixed_structural_scalar_abi
+            .as_ref()
+            .is_some_and(|abi| {
+                exact_mixed_callee_abi_matches(
+                    abi,
+                    call_plan,
+                    result.scalar_type,
+                    scalar_arguments,
+                    copies,
+                )
+            })
+    };
+    if expected_call_plan != *call_plan
+        || call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape)
+        || call_plan.parameters.len() != scalar_count + copies.len()
+        || call_plan.parameters[..scalar_count]
+            .iter()
+            .zip(scalar_arguments)
+            .zip(&scalar_shapes)
+            .any(|((placement, argument), expected_shape)| {
+                placement.shape != *expected_shape
+                    || assigned_scalar_destination(placement) != Some(argument.destination)
+            })
+        || call_plan.parameters[scalar_count..]
             .iter()
             .zip(copies)
             .any(|(placement, copy)| placement != &copy.destination)
-        || !functions.iter().any(|function| {
-            function.machine == *callee
-                && assigned_integer_result_matches(&function.operation, integer_type)
-        })
+        || callee_function.fixed_integer_scalar_abi.is_some()
+        || !assigned_integer_result_matches(&callee_function.operation, integer_type)
+        || !mixed_abi_matches
+        || !explicit_callee_call_plan_matches(&callee_function.operation, call_plan, copies)
     {
-        return Err(EmissionError::InvalidStructuralScalarCallCustody(
-            *psi_operation,
-        ));
+        return Err(invalid());
     }
-    let argument_intervals = match target.architecture {
-        Architecture::X86_64 => emit_x86_64_unit_call(
+    let (scalar_argument_records, argument_intervals) = match target.architecture {
+        Architecture::X86_64 => emit_x86_64_mixed_call(
             bytes,
-            CallSiteOwner::Operation(*psi_operation),
+            *psi_operation,
             *callee,
+            call_plan,
+            scalar_arguments,
             copies,
-            target,
+            preceding_operations,
             x86_homes,
-            &[],
             internal_calls,
         )?,
-        Architecture::Aarch64 => emit_aarch64_unit_call(
+        Architecture::Aarch64 => emit_aarch64_mixed_call(
             bytes,
-            CallSiteOwner::Operation(*psi_operation),
+            *psi_operation,
             *callee,
+            call_plan,
+            scalar_arguments,
             copies,
+            preceding_operations,
             aarch64_homes,
-            &[],
             internal_calls,
         )?,
     };
@@ -213,6 +280,7 @@ pub(super) fn emit_structural_scalar_call(
         result: Some(result.scalar_type),
         semantic_result: Some(result.clone()),
         structural_result: None,
+        scalar_arguments: scalar_argument_records,
         arguments: copies
             .iter()
             .zip(argument_intervals)
@@ -244,6 +312,317 @@ pub(super) fn emit_structural_scalar_call(
         code_offset,
         byte_count: bytes.len() - code_offset,
     })
+}
+
+fn exact_mixed_callee_abi_matches(
+    abi: &omega_target_operations::MixedStructuralScalarFunctionAbi,
+    call_plan: &omega_calling_conventions::CallPlan,
+    result_type: psi_core::ScalarType,
+    scalar_arguments: &[omega_assigned_target_operations::AssignedUnitScalarCallArgument],
+    copies: &[omega_assigned_target_operations::AssignedAggregateCopy],
+) -> bool {
+    &abi.call_plan == call_plan
+        && abi.result.scalar_type
+            == match result_type {
+                psi_core::ScalarType::Integer(integer_type) => integer_type,
+                _ => return false,
+            }
+        && call_plan.result.as_ref() == Some(&abi.result.placement)
+        && abi.scalar_parameters.len() == scalar_arguments.len()
+        && abi
+            .scalar_parameters
+            .iter()
+            .zip(scalar_arguments)
+            .all(|(parameter, argument)| {
+                parameter.scalar_type == argument.source.scalar_type()
+                    && usize::try_from(argument.parameter_index)
+                        .ok()
+                        .and_then(|index| call_plan.parameters.get(index))
+                        == Some(&parameter.placement)
+                    && assigned_scalar_destination(&parameter.placement)
+                        == Some(argument.destination)
+            })
+        && abi.structural_parameters.len() == copies.len()
+        && abi
+            .structural_parameters
+            .iter()
+            .zip(copies)
+            .all(|(parameter, copy)| {
+                parameter.structural_type == copy.structural_type
+                    && parameter.shape == copy.shape
+                    && parameter.access == copy.access
+                    && parameter.placement == copy.destination
+            })
+}
+
+fn assigned_scalar_destination(
+    placement: &omega_calling_conventions::ValuePlacement,
+) -> Option<omega_assigned_target_operations::AssignedCallDestination> {
+    match placement.locations.as_slice() {
+        [
+            omega_calling_conventions::ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            },
+        ] if *byte_size == placement.shape.byte_size => {
+            Some(omega_assigned_target_operations::AssignedCallDestination::Register(*register))
+        }
+        [
+            omega_calling_conventions::ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            },
+        ] if *byte_size == placement.shape.byte_size => Some(
+            omega_assigned_target_operations::AssignedCallDestination::OutgoingStack {
+                byte_offset: *stack_byte_offset,
+            },
+        ),
+        _ => None,
+    }
+}
+
+fn explicit_callee_call_plan_matches(
+    operation: &AssignedOperation,
+    call_plan: &omega_calling_conventions::CallPlan,
+    copies: &[omega_assigned_target_operations::AssignedAggregateCopy],
+) -> bool {
+    match operation {
+        AssignedOperation::ReturnIntegerImmediate { .. }
+        | AssignedOperation::ReturnIntegerParameter { .. }
+        | AssignedOperation::ReturnIntegerExpression { .. } => true,
+        AssignedOperation::ScalarReturnWithCleanup {
+            call_plan: callee_call_plan,
+            structural_parameters,
+            ..
+        } => {
+            callee_call_plan == call_plan
+                && structural_parameters.len() == copies.len()
+                && structural_parameters
+                    .iter()
+                    .zip(copies)
+                    .all(|(parameter, copy)| {
+                        parameter.structural_type == copy.structural_type
+                            && parameter.shape == copy.shape
+                            && parameter.placement == copy.destination
+                    })
+        }
+        _ => false,
+    }
+}
+
+type AggregateArgumentInterval = (usize, usize, u32, u32);
+
+#[allow(clippy::too_many_arguments)]
+fn emit_x86_64_mixed_call(
+    bytes: &mut Vec<u8>,
+    psi_operation: OperationId,
+    callee: psi_core::MachineId,
+    call_plan: &omega_calling_conventions::CallPlan,
+    scalar_arguments: &[omega_assigned_target_operations::AssignedUnitScalarCallArgument],
+    copies: &[omega_assigned_target_operations::AssignedAggregateCopy],
+    preceding_operations: &[AssignedUnitOperation],
+    homes: &[X86UnitParameterHome],
+    internal_calls: &mut Vec<InternalCallRelocation>,
+) -> Result<
+    (
+        Vec<InternalUnitScalarCallArgumentRecord>,
+        Vec<AggregateArgumentInterval>,
+    ),
+    EmissionError,
+> {
+    for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
+        validate_unit_scalar_argument(
+            psi_operation,
+            parameter_index,
+            argument,
+            call_plan,
+            preceding_operations,
+        )
+        .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;
+    }
+    let outgoing_bytes = call_plan
+        .parameters
+        .iter()
+        .map(outgoing_placement_extent)
+        .try_fold(u32::from(call_plan.shadow_bytes), |extent, candidate| {
+            candidate.map(|value| extent.max(value))
+        })?;
+    let padding = (8 + 16 - (outgoing_bytes % 16)) % 16;
+    let call_stack_bytes = outgoing_bytes
+        .checked_add(padding)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    let mut allocation = None;
+    if call_stack_bytes != 0 {
+        let offset = bytes.len();
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, false);
+        allocation = Some((offset, bytes.len() - offset));
+    }
+
+    let mut scalar_records = Vec::with_capacity(scalar_arguments.len());
+    for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
+        let code_offset = bytes.len();
+        emit_x86_64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
+        scalar_records.push(InternalUnitScalarCallArgumentRecord {
+            parameter_index: argument.parameter_index,
+            source: unit_scalar_argument_source_record(argument.source),
+            destination: call_plan.parameters[parameter_index].clone(),
+            code_offset,
+            byte_count: bytes.len() - code_offset,
+        });
+    }
+
+    let mut aggregate_intervals = Vec::with_capacity(copies.len());
+    for copy in copies {
+        let code_offset = bytes.len();
+        let home = homes
+            .iter()
+            .find(|home| home.place == copy.place)
+            .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
+        if home.source != copy.source
+            || copy
+                .source_byte_offset
+                .checked_add(u32::from(copy.shape.byte_size))
+                .is_none_or(|end| end > u32::from(home.shape.byte_size))
+        {
+            return Err(EmissionError::UnitParameterHomeMismatch(copy.place));
+        }
+        emit_x86_64_aggregate_copy_from_home(bytes, copy, home, call_stack_bytes)?;
+        aggregate_intervals.push((
+            code_offset,
+            bytes.len() - code_offset,
+            home.byte_offset,
+            call_stack_bytes,
+        ));
+    }
+
+    bytes.push(0xe8);
+    let relocation_offset = bytes.len();
+    bytes.extend_from_slice(&0_i32.to_le_bytes());
+    let mut release = None;
+    if call_stack_bytes != 0 {
+        let offset = bytes.len();
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, true);
+        release = Some((offset, bytes.len() - offset));
+    }
+    internal_calls.push(InternalCallRelocation {
+        owner: CallSiteOwner::Operation(psi_operation),
+        target: callee,
+        unit_stack: Some(UnitCallStackEvidence {
+            outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
+        }),
+        scalar_stack: None,
+        offset: relocation_offset,
+    });
+    Ok((scalar_records, aggregate_intervals))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_aarch64_mixed_call(
+    bytes: &mut Vec<u8>,
+    psi_operation: OperationId,
+    callee: psi_core::MachineId,
+    call_plan: &omega_calling_conventions::CallPlan,
+    scalar_arguments: &[omega_assigned_target_operations::AssignedUnitScalarCallArgument],
+    copies: &[omega_assigned_target_operations::AssignedAggregateCopy],
+    preceding_operations: &[AssignedUnitOperation],
+    homes: &[Aarch64UnitParameterHome],
+    internal_calls: &mut Vec<InternalCallRelocation>,
+) -> Result<
+    (
+        Vec<InternalUnitScalarCallArgumentRecord>,
+        Vec<AggregateArgumentInterval>,
+    ),
+    EmissionError,
+> {
+    for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
+        validate_unit_scalar_argument(
+            psi_operation,
+            parameter_index,
+            argument,
+            call_plan,
+            preceding_operations,
+        )
+        .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;
+    }
+    let outgoing_bytes = call_plan
+        .parameters
+        .iter()
+        .map(aarch64_outgoing_placement_extent)
+        .try_fold(u32::from(call_plan.shadow_bytes), |extent, candidate| {
+            candidate.map(|value| extent.max(value))
+        })?;
+    let call_stack_bytes = align_u32(outgoing_bytes, 16)?;
+    let mut allocation = None;
+    if call_stack_bytes != 0 {
+        let mut instructions = Vec::new();
+        emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, false)?;
+        let offset = bytes.len();
+        append_aarch64_instructions(bytes, instructions);
+        allocation = Some((offset, bytes.len() - offset));
+    }
+
+    let mut scalar_records = Vec::with_capacity(scalar_arguments.len());
+    for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
+        let code_offset = bytes.len();
+        emit_aarch64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
+        scalar_records.push(InternalUnitScalarCallArgumentRecord {
+            parameter_index: argument.parameter_index,
+            source: unit_scalar_argument_source_record(argument.source),
+            destination: call_plan.parameters[parameter_index].clone(),
+            code_offset,
+            byte_count: bytes.len() - code_offset,
+        });
+    }
+
+    let mut aggregate_intervals = Vec::with_capacity(copies.len());
+    for copy in copies {
+        let home = homes
+            .iter()
+            .find(|home| home.place == copy.place)
+            .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
+        if home.source != copy.source
+            || copy
+                .source_byte_offset
+                .checked_add(u32::from(copy.shape.byte_size))
+                .is_none_or(|end| end > u32::from(home.shape.byte_size))
+        {
+            return Err(EmissionError::UnitParameterHomeMismatch(copy.place));
+        }
+        let mut instructions = Vec::new();
+        emit_aarch64_aggregate_copy_from_home(&mut instructions, copy, home, call_stack_bytes)?;
+        let code_offset = bytes.len();
+        append_aarch64_instructions(bytes, instructions);
+        aggregate_intervals.push((
+            code_offset,
+            bytes.len() - code_offset,
+            home.byte_offset,
+            call_stack_bytes,
+        ));
+    }
+
+    let relocation_offset = bytes.len();
+    bytes.extend_from_slice(&0x9400_0000_u32.to_le_bytes());
+    let mut release = None;
+    if call_stack_bytes != 0 {
+        let mut instructions = Vec::new();
+        emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, true)?;
+        let offset = bytes.len();
+        append_aarch64_instructions(bytes, instructions);
+        release = Some((offset, bytes.len() - offset));
+    }
+    internal_calls.push(InternalCallRelocation {
+        owner: CallSiteOwner::Operation(psi_operation),
+        target: callee,
+        unit_stack: Some(UnitCallStackEvidence {
+            outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
+        }),
+        scalar_stack: None,
+        offset: relocation_offset,
+    });
+    Ok((scalar_records, aggregate_intervals))
 }
 
 fn assigned_integer_result_matches(

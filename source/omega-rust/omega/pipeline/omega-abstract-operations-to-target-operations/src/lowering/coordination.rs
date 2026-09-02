@@ -1,5 +1,7 @@
 use super::function::lower_function;
-use super::scalar_abi::derive_fixed_integer_scalar_function_abi;
+use super::scalar_abi::{
+    derive_fixed_integer_scalar_function_abi, derive_mixed_structural_scalar_function_abi,
+};
 use super::shared::*;
 
 mod projected_qualifications;
@@ -54,6 +56,14 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         .iter()
         .map(|declaration| (declaration.id, declaration))
         .collect::<BTreeMap<_, _>>();
+    let mut mixed_structural_scalar_abis = BTreeMap::new();
+    for function in &plan.functions {
+        if let Some(abi) =
+            derive_mixed_structural_scalar_function_abi(function, target, &structural_types)?
+        {
+            mixed_structural_scalar_abis.insert(function.machine, abi);
+        }
+    }
     let boundary_machines = plan
         .boundary_machines
         .iter()
@@ -286,6 +296,8 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                 )?;
                 lowered.fixed_integer_scalar_abi =
                     fixed_integer_scalar_abis.get(&function.machine).cloned();
+                lowered.mixed_structural_scalar_abi =
+                    mixed_structural_scalar_abis.get(&function.machine).cloned();
                 Ok::<TargetFunction, LoweringError>(lowered)
             })
             .collect::<Result<Vec<_>, _>>()?,

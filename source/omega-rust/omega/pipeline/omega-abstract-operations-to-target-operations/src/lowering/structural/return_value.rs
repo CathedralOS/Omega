@@ -172,6 +172,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: None,
+mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance {
             operations: trivial_affine_locals
                 .iter()

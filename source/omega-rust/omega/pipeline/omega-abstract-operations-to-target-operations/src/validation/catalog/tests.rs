@@ -90,6 +90,7 @@ fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![constant_operation],
                 edges: vec![return_edge],
@@ -143,6 +144,7 @@ fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![call_operation],
                 edges: vec![return_edge],
@@ -225,6 +227,7 @@ fn byte_sequence_literal_pair() -> (AbstractFunction, TargetFunction) {
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],
                 edges: vec![edge],
@@ -295,6 +298,7 @@ fn integer_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],
                 edges: vec![edge],
@@ -363,6 +367,7 @@ fn ieee_float_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],
                 edges: vec![edge],
@@ -470,6 +475,7 @@ fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],
                 edges: vec![edge],

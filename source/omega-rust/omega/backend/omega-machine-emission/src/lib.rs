@@ -11,7 +11,9 @@ use omega_assigned_target_operations::{
 };
 #[cfg(test)]
 use omega_calling_conventions::ValueShape;
-use omega_calling_conventions::{ValueClass, ValueLocation, ValuePlacement};
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, ValueClass, ValueLocation, ValuePlacement, evaluate_call_plan,
+};
 #[cfg(test)]
 use omega_machine_code::{
     Aarch64ReturnLinkEvidence, ScalarConditionalBranchEvidence, ScalarConditionalCondition,
@@ -141,6 +143,135 @@ fn emit_machine_code_with_callback_rows(
     Ok(emitted)
 }
 
+fn validate_mixed_structural_scalar_abi(
+    function: &AssignedFunction,
+    target: NativeTarget,
+) -> Result<(), EmissionError> {
+    let Some(row) = function.mixed_structural_scalar_abi.as_ref() else {
+        return Ok(());
+    };
+    let invalid = || EmissionError::InvalidMixedStructuralScalarFunctionAbi(function.machine);
+    if row.scalar_parameters.is_empty() || row.structural_parameters.is_empty() {
+        return Err(invalid());
+    }
+    let Some((source_value, result_type)) = assigned_direct_integer_result(&function.operation)
+    else {
+        return Err(invalid());
+    };
+    let scalar_shapes = row
+        .scalar_parameters
+        .iter()
+        .map(|parameter| unit::unit_scalar_shape(parameter.value, parameter.scalar_type))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| invalid())?;
+    let result_shape =
+        unit::unit_scalar_shape(row.result.value, row.result.scalar_type).map_err(|_| invalid())?;
+    let expected_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: scalar_shapes
+                .iter()
+                .copied()
+                .chain(
+                    row.structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.shape),
+                )
+                .collect(),
+            result: Some(result_shape),
+        },
+    )
+    .map_err(|_| invalid())?;
+    let scalar_count = row.scalar_parameters.len();
+    if function.fixed_integer_scalar_abi.is_some()
+        || source_value != row.result.value
+        || result_type != row.result.scalar_type
+        || expected_plan != row.call_plan
+        || row.call_plan.parameters.len() != scalar_count + row.structural_parameters.len()
+        || row.call_plan.result.as_ref() != Some(&row.result.placement)
+        || row
+            .scalar_parameters
+            .iter()
+            .zip(&scalar_shapes)
+            .zip(&row.call_plan.parameters[..scalar_count])
+            .any(|((parameter, shape), placement)| {
+                parameter.placement != *placement || placement.shape != *shape
+            })
+        || row
+            .structural_parameters
+            .iter()
+            .zip(&row.call_plan.parameters[scalar_count..])
+            .any(|(parameter, placement)| parameter.placement != *placement)
+        || row
+            .scalar_parameters
+            .iter()
+            .map(|parameter| parameter.value)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != row.scalar_parameters.len()
+        || row
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.place)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != row.structural_parameters.len()
+        || !retained_scalar_cleanup_abi_matches(&function.operation, row)
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn assigned_direct_integer_result(operation: &AssignedOperation) -> Option<(ValueId, IntegerType)> {
+    match operation {
+        AssignedOperation::ReturnIntegerImmediate {
+            source_value,
+            scalar_type,
+            ..
+        }
+        | AssignedOperation::ReturnIntegerParameter {
+            source_value,
+            scalar_type,
+            ..
+        }
+        | AssignedOperation::ReturnIntegerExpression {
+            source_value,
+            scalar_type,
+            ..
+        } => Some((*source_value, *scalar_type)),
+        AssignedOperation::ScalarReturnWithCleanup { scalar, .. } => {
+            assigned_direct_integer_result(scalar)
+        }
+        _ => None,
+    }
+}
+
+fn retained_scalar_cleanup_abi_matches(
+    operation: &AssignedOperation,
+    row: &omega_target_operations::MixedStructuralScalarFunctionAbi,
+) -> bool {
+    match operation {
+        AssignedOperation::ReturnIntegerImmediate { scalar_type, .. }
+        | AssignedOperation::ReturnIntegerParameter { scalar_type, .. }
+        | AssignedOperation::ReturnIntegerExpression { scalar_type, .. } => {
+            *scalar_type == row.result.scalar_type
+        }
+        AssignedOperation::ScalarReturnWithCleanup {
+            scalar,
+            call_plan,
+            structural_parameters,
+            ..
+        } => {
+            assigned_direct_integer_result(scalar)
+                .is_some_and(|(_, scalar_type)| scalar_type == row.result.scalar_type)
+                && call_plan == &row.call_plan
+                && structural_parameters == &row.structural_parameters
+        }
+        _ => false,
+    }
+}
+
 fn callback_destination(
     destination: omega_assigned_target_operations::AssignedCallDestination,
 ) -> omega_machine_code::CallbackAddressDestination {
@@ -161,6 +292,7 @@ fn emit_function(
     functions: &[AssignedFunction],
     native_callbacks: &[AssignedNativeCallbackArgument],
 ) -> Result<MachineCodeFunction, EmissionError> {
+    validate_mixed_structural_scalar_abi(function, target)?;
     if let AssignedOperation::ScalarReturnWithCleanup {
         scalar,
         structural_types,
@@ -876,6 +1008,7 @@ fn emit_function(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+        mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
         structural_call_scalar_return: match &function.operation {
             AssignedOperation::ReturnStructuralScalarCall {
                 psi_edge,
@@ -1159,6 +1292,7 @@ pub enum EmissionError {
     InvalidInstalledProviderScalarCallCustody(psi_core::OperationId),
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
+    InvalidMixedStructuralScalarFunctionAbi(MachineId),
     InvalidDynamicDescriptorCallCustody(psi_core::OperationId),
     InvalidDynamicScalarCallCustody(psi_core::OperationId),
     InvalidDynamicParameterScalarCallCustody(psi_core::OperationId),

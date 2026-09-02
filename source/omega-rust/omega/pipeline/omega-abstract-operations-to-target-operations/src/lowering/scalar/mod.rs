@@ -4,7 +4,7 @@ mod conditional_control;
 mod conditional_route;
 mod conditional_scalar;
 mod expressions;
-mod setup;
+pub(in crate::lowering) mod setup;
 mod special_forms;
 mod straight_line;
 mod structural_call;

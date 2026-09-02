@@ -70,6 +70,7 @@ pub(super) fn lower_conditional(
                 machine: function.machine,
                 attachment: function.attachment,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: conditional_provenance(function, lowered.operations, lowered.edges),
                 operation: TargetOperation::ScalarReturnWithCleanup {
                     scalar: Box::new(TargetOperation::ReturnBooleanSharedConvergence {
@@ -102,6 +103,7 @@ pub(super) fn lower_conditional(
             machine: function.machine,
             attachment: function.attachment,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: conditional_provenance(function, lowered.operations, lowered.edges),
             operation: TargetOperation::BooleanControlWithCleanup {
                 control: lowered.control,
