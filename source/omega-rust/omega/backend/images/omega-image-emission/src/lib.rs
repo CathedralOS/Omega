@@ -283,7 +283,7 @@ pub struct ObjectFunction {
     pub installed_provider_unit_scalar_calls:
         Vec<omega_machine_code::InstalledProviderUnitScalarCallRecord>,
     pub dynamic_calls: Vec<omega_machine_code::DynamicCallRecord>,
-    pub dynamic_parameter_scalar_calls: Vec<omega_machine_code::DynamicParameterScalarCallRecord>,
+    pub dynamic_parameter_calls: Vec<omega_machine_code::DynamicParameterCallRecord>,
     pub forwarded_dynamic_descriptor_calls:
         Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
@@ -998,7 +998,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     function.machine,
                     &function.bytes,
                     &function.internal_calls,
-                    &function.dynamic_parameter_scalar_calls,
+                    &function.dynamic_parameter_calls,
                     &function.provenance,
                     &function.semantic_code_attribution,
                     stack,
@@ -2100,7 +2100,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 .installed_provider_unit_scalar_calls
                 .clone(),
             dynamic_calls: function.dynamic_calls.clone(),
-            dynamic_parameter_scalar_calls: function.dynamic_parameter_scalar_calls.clone(),
+            dynamic_parameter_calls: function.dynamic_parameter_calls.clone(),
             forwarded_dynamic_descriptor_calls: function.forwarded_dynamic_descriptor_calls.clone(),
             unit_scalar_homes: function.unit_scalar_homes.clone(),
             unit_integer_constants: function.unit_integer_constants.clone(),
@@ -2811,7 +2811,7 @@ fn validate_private_functions<'plan>(
                 .is_empty()
             || private.function.unit_scalar_abi.is_some()
             || !private.function.dynamic_calls.is_empty()
-            || !private.function.dynamic_parameter_scalar_calls.is_empty()
+            || !private.function.dynamic_parameter_calls.is_empty()
             || !private
                 .function
                 .forwarded_dynamic_descriptor_calls
@@ -3773,7 +3773,7 @@ pub enum ObjectError {
         caller: MachineId,
         operation: psi_core::OperationId,
     },
-    InvalidDynamicParameterScalarCallEvidence {
+    InvalidDynamicParameterCallEvidence {
         caller: MachineId,
         operation: psi_core::OperationId,
     },

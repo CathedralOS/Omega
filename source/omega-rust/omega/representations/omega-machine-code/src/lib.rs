@@ -139,7 +139,7 @@ pub struct MachineCodeFunction {
     /// scalar calls through an existential descriptor received as a function
     /// parameter. Unlike `dynamic_calls`, these rows do not materialize
     /// or relocate a table: the caller supplies both descriptor words.
-    pub dynamic_parameter_scalar_calls: Vec<DynamicParameterScalarCallRecord>,
+    pub dynamic_parameter_calls: Vec<DynamicParameterCallRecord>,
     /// Complete caller-side materialization and direct-call custody for
     /// existential descriptors passed to another Terminal machine.
     pub forwarded_dynamic_descriptor_calls: Vec<ForwardedDynamicDescriptorCallRecord>,
@@ -359,16 +359,16 @@ pub enum DynamicParameterCallMechanismRecord {
     },
 }
 
-/// Exact physical custody for a scalar call through one descriptor parameter.
+/// Exact physical custody for a call through one descriptor parameter.
 /// The callee-facing plan describes the helper's two-word entry while the
 /// dispatch plan describes the erased-data adapter ABI held in the selected
 /// table slot. Concrete realization layout is intentionally absent here.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DynamicParameterScalarCallRecord {
+pub struct DynamicParameterCallRecord {
     pub psi_edge: EdgeId,
     pub psi_operation: OperationId,
-    pub source_value: ValueId,
-    pub scalar_type: psi_core::ScalarType,
+    pub source_value: Option<ValueId>,
+    pub scalar_type: Option<psi_core::ScalarType>,
     pub parameter: psi_terminal::TerminalDynamicDescriptorParameter,
     pub requirement: psi_terminal::TerminalDynamicRequirement,
     pub function_call_plan: CallPlan,
@@ -433,8 +433,8 @@ pub struct ForwardedDynamicDescriptorAdapterRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForwardedDynamicDescriptorCallRecord {
     pub psi_operation: OperationId,
-    pub semantic_result: AbstractResult,
-    pub result: InternalUnitScalarCallResultRecord,
+    pub semantic_result: Option<AbstractResult>,
+    pub result: Option<InternalUnitScalarCallResultRecord>,
     pub callee: MachineId,
     pub call_plan: CallPlan,
     pub dynamic_arguments: Vec<ForwardedDynamicDescriptorArgumentRecord>,

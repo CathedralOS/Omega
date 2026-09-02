@@ -29,7 +29,7 @@ pub(super) fn validate_scalar_stack(
     machine: MachineId,
     bytes: &[u8],
     calls: &[omega_machine_code::InternalCallRelocation],
-    dynamic_parameter_calls: &[omega_machine_code::DynamicParameterScalarCallRecord],
+    dynamic_parameter_calls: &[omega_machine_code::DynamicParameterCallRecord],
     provenance: &TerminalPsiProvenance,
     attribution: &[SemanticCodeAttribution],
     evidence: &ScalarStackEvidence,
@@ -53,7 +53,7 @@ pub(super) fn validate_scalar_stack(
     } = &evidence.control_flow
     {
         if !dynamic_parameter_calls.is_empty() {
-            return Err(ObjectError::InvalidDynamicParameterScalarCallEvidence {
+            return Err(ObjectError::InvalidDynamicParameterCallEvidence {
                 caller: machine,
                 operation: dynamic_parameter_calls[0].psi_operation,
             });
@@ -86,7 +86,7 @@ pub(super) fn validate_scalar_stack(
     } = &evidence.control_flow
     {
         if !dynamic_parameter_calls.is_empty() {
-            return Err(ObjectError::InvalidDynamicParameterScalarCallEvidence {
+            return Err(ObjectError::InvalidDynamicParameterCallEvidence {
                 caller: machine,
                 operation: dynamic_parameter_calls[0].psi_operation,
             });
@@ -112,7 +112,7 @@ pub(super) fn validate_scalar_stack(
         evidence.control_flow
     {
         if !dynamic_parameter_calls.is_empty() {
-            return Err(ObjectError::InvalidDynamicParameterScalarCallEvidence {
+            return Err(ObjectError::InvalidDynamicParameterCallEvidence {
                 caller: machine,
                 operation: dynamic_parameter_calls[0].psi_operation,
             });
@@ -161,7 +161,7 @@ pub(super) fn validate_scalar_stack(
         .map(|call| (call.indirect_call_offset, call))
         .collect::<std::collections::BTreeMap<_, _>>();
     if dynamic_call_sites.len() != dynamic_parameter_calls.len() {
-        return Err(ObjectError::InvalidDynamicParameterScalarCallEvidence {
+        return Err(ObjectError::InvalidDynamicParameterCallEvidence {
             caller: machine,
             operation: dynamic_parameter_calls[0].psi_operation,
         });
@@ -194,7 +194,7 @@ pub(super) fn validate_scalar_stack(
                             .checked_add(8)
                             .ok_or(ObjectError::ScalarStackArithmeticOverflow(machine))?;
                         if !caller_live_bytes.is_multiple_of(evidence.stack_alignment) {
-                            return Err(ObjectError::InvalidDynamicParameterScalarCallEvidence {
+                            return Err(ObjectError::InvalidDynamicParameterCallEvidence {
                                 caller: machine,
                                 operation: call.psi_operation,
                             });
@@ -299,7 +299,7 @@ pub(super) fn validate_scalar_stack(
                         .remove(&offset)
                         .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
                     if !depth.is_multiple_of(evidence.stack_alignment) {
-                        return Err(ObjectError::InvalidDynamicParameterScalarCallEvidence {
+                        return Err(ObjectError::InvalidDynamicParameterCallEvidence {
                             caller: machine,
                             operation: call.psi_operation,
                         });
@@ -360,7 +360,7 @@ pub(super) fn validate_scalar_stack(
         });
     }
     if let Some((_, call)) = dynamic_call_sites.first_key_value() {
-        return Err(ObjectError::InvalidDynamicParameterScalarCallEvidence {
+        return Err(ObjectError::InvalidDynamicParameterCallEvidence {
             caller: machine,
             operation: call.psi_operation,
         });

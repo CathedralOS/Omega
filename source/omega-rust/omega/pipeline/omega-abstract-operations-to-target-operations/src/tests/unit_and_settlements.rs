@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn parameter_dynamic_unit_dispatch_stops_at_explicit_target_abi_fence() {
+fn parameter_dynamic_unit_dispatch_retains_two_word_result_less_abi() {
     let machine = MachineId::new(71).unwrap();
     let block = BlockId::new(72).unwrap();
     let operation = OperationId::new(73).unwrap();
@@ -64,10 +64,32 @@ fn parameter_dynamic_unit_dispatch_stops_at_explicit_target_abi_fence() {
         }],
     };
 
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64())
+        .expect("lower result-less descriptor parameter call");
+    let [function] = lowered.functions.as_slice() else {
+        panic!("one helper expected")
+    };
+    let TargetOperation::DynamicParameterUnitCall {
+        parameter_abi,
+        requirement,
+        function_call_plan,
+        dispatch_call_plan,
+        table_slot_byte_offset,
+        ..
+    } = &function.operation
+    else {
+        panic!("result-less helper carrier expected")
+    };
+    assert_eq!(parameter_abi.parameter.owner, machine);
     assert_eq!(
-        lower_to_target_operations(&plan, NativeTarget::linux_x64()),
-        Err(LoweringError::UnsupportedDynamicUnitDispatch { machine, operation })
+        requirement.result,
+        psi_terminal::ClosedConformanceCallableResult::Unit
     );
+    assert_eq!(function_call_plan.parameters.len(), 2);
+    assert!(function_call_plan.result.is_none());
+    assert_eq!(dispatch_call_plan.parameters.len(), 1);
+    assert!(dispatch_call_plan.result.is_none());
+    assert_eq!(*table_slot_byte_offset, 0);
 }
 
 #[test]

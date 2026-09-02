@@ -1,9 +1,9 @@
-//! Forwarded existential-descriptor scalar-call emission.
+//! Forwarded existential-descriptor parameter-call emission.
 
 use omega_assigned_target_operations::{AssignedDynamicParameterCallMechanism, AssignedOperation};
 use omega_machine_code::{
-    Aarch64ReturnLinkEvidence, DynamicParameterCallMechanismRecord,
-    DynamicParameterScalarCallRecord, ScalarCallStackEvidence,
+    Aarch64ReturnLinkEvidence, DynamicParameterCallMechanismRecord, DynamicParameterCallRecord,
+    ScalarCallStackEvidence,
 };
 use omega_target::{Architecture, NativeTarget};
 
@@ -15,7 +15,7 @@ use crate::{
 
 pub(super) struct EmittedDynamicParameterCall {
     pub bytes: Vec<u8>,
-    pub record: DynamicParameterScalarCallRecord,
+    pub record: DynamicParameterCallRecord,
     pub return_offset: usize,
     pub return_byte_count: usize,
 }
@@ -25,22 +25,62 @@ pub(super) fn emit(
     owner: psi_core::MachineId,
     target: NativeTarget,
 ) -> Result<EmittedDynamicParameterCall, EmissionError> {
-    let AssignedOperation::ReturnDynamicParameterScalarCall {
+    let (
         psi_edge,
         psi_operation,
-        source_value,
-        scalar_type,
+        scalar_result,
         parameter_abi,
         requirement,
         function_call_plan,
         dispatch_call_plan,
         table_slot_byte_offset,
         mechanism,
-    } = operation
-    else {
-        unreachable!("dynamic-parameter emitter receives only its exact role")
+    ) = match operation {
+        AssignedOperation::ReturnDynamicParameterScalarCall {
+            psi_edge,
+            psi_operation,
+            source_value,
+            scalar_type,
+            parameter_abi,
+            requirement,
+            function_call_plan,
+            dispatch_call_plan,
+            table_slot_byte_offset,
+            mechanism,
+        } => (
+            *psi_edge,
+            *psi_operation,
+            Some((*source_value, *scalar_type)),
+            parameter_abi,
+            requirement,
+            function_call_plan,
+            dispatch_call_plan,
+            *table_slot_byte_offset,
+            mechanism,
+        ),
+        AssignedOperation::DynamicParameterUnitCall {
+            psi_edge,
+            psi_operation,
+            parameter_abi,
+            requirement,
+            function_call_plan,
+            dispatch_call_plan,
+            table_slot_byte_offset,
+            mechanism,
+        } => (
+            *psi_edge,
+            *psi_operation,
+            None,
+            parameter_abi,
+            requirement,
+            function_call_plan,
+            dispatch_call_plan,
+            *table_slot_byte_offset,
+            mechanism,
+        ),
+        _ => unreachable!("dynamic-parameter emitter receives only its exact role"),
     };
-    let invalid = || EmissionError::InvalidDynamicParameterScalarCallCustody(*psi_operation);
+    let invalid = || EmissionError::InvalidDynamicParameterCallCustody(psi_operation);
     if parameter_abi.parameter.owner != owner
         || parameter_abi.parameter.ordinal != 0
         || parameter_abi
@@ -48,7 +88,7 @@ pub(super) fn emit(
             .requirements
             .get(usize::try_from(requirement.slot).map_err(|_| invalid())?)
             != Some(requirement)
-        || requirement.slot.checked_mul(8) != Some(*table_slot_byte_offset)
+        || requirement.slot.checked_mul(8) != Some(table_slot_byte_offset)
         || function_call_plan.result != dispatch_call_plan.result
         || dispatch_call_plan.parameters.len() != 1
         || function_call_plan.parameters.len() != 2
@@ -64,7 +104,7 @@ pub(super) fn emit(
                 Architecture::X86_64,
             ) if table == parameter_abi.table => emit_x86_64(
                 table,
-                *table_slot_byte_offset,
+                table_slot_byte_offset,
                 u32::from(dispatch_call_plan.shadow_bytes),
             )?,
             (
@@ -74,7 +114,7 @@ pub(super) fn emit(
                 },
                 Architecture::Aarch64,
             ) if table == parameter_abi.table => {
-                emit_aarch64(table, call_target, *table_slot_byte_offset)?
+                emit_aarch64(table, call_target, table_slot_byte_offset)?
             }
             _ => return Err(invalid()),
         };
@@ -84,18 +124,18 @@ pub(super) fn emit(
     };
     let return_offset = bytes.len() - return_byte_count;
     Ok(EmittedDynamicParameterCall {
-        record: DynamicParameterScalarCallRecord {
-            psi_edge: *psi_edge,
-            psi_operation: *psi_operation,
-            source_value: *source_value,
-            scalar_type: *scalar_type,
+        record: DynamicParameterCallRecord {
+            psi_edge,
+            psi_operation,
+            source_value: scalar_result.map(|result| result.0),
+            scalar_type: scalar_result.map(|result| result.1),
             parameter: parameter_abi.parameter.clone(),
             requirement: requirement.clone(),
             function_call_plan: function_call_plan.clone(),
             dispatch_call_plan: dispatch_call_plan.clone(),
             instance: parameter_abi.instance,
             table: parameter_abi.table,
-            table_slot_byte_offset: *table_slot_byte_offset,
+            table_slot_byte_offset,
             mechanism: physical_mechanism,
             indirect_call_offset: call_offset,
             indirect_call_byte_count: call_byte_count,
@@ -409,7 +449,7 @@ mod tests {
             let [function] = emitted.functions.as_slice() else {
                 panic!("one helper function")
             };
-            assert_eq!(function.dynamic_parameter_scalar_calls.len(), 1);
+            assert_eq!(function.dynamic_parameter_calls.len(), 1);
             assert_eq!(function.semantic_code_attribution.len(), 2);
             assert!(function.scalar_stack.is_some());
             assert!(function.dynamic_calls.is_empty());

@@ -11,7 +11,9 @@ use super::scalar_definitions::{
 };
 use super::structural_call::{StructuralCallLocalSource, lower_structural_unit_call};
 use super::structural_result::lower_structural_result_call;
-use super::structural_scalar::lower_dynamic_argument_scalar_call;
+use super::structural_scalar::{
+    lower_dynamic_argument_scalar_call, lower_dynamic_argument_unit_call,
+};
 use super::structural_scalar::{lower_field_store, lower_structural_scalar_call};
 
 pub(super) struct LoweredUnitBody {
@@ -350,8 +352,21 @@ pub(super) fn lower_unit_body(
                 &mut operations,
                 &mut provenance,
             )?,
-            AbstractOperation::CallUnitWithDynamicArguments { psi_operation, .. }
-            | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. } => {
+            AbstractOperation::CallUnitWithDynamicArguments { .. } => {
+                lower_dynamic_argument_unit_call(
+                    operation,
+                    function,
+                    target,
+                    functions,
+                    structural_types,
+                    &parameters_by_place,
+                    &mut shape_cache,
+                    &mut active,
+                    &mut operations,
+                    &mut provenance,
+                )?
+            }
+            AbstractOperation::CallDynamicParameterUnit { psi_operation, .. } => {
                 return Err(LoweringError::UnsupportedDynamicUnitDispatch {
                     machine: function.machine,
                     operation: *psi_operation,

@@ -313,6 +313,16 @@ pub enum AssignedUnitOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    StructuralUnitCallWithDynamicArguments {
+        psi_operation: OperationId,
+        callee: MachineId,
+        call_plan: CallPlan,
+        copies: Vec<AssignedAggregateCopy>,
+        dynamic_arguments: Vec<AssignedDynamicDescriptorArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     DynamicScalarCall {
         psi_operation: OperationId,
         result: AbstractResult,

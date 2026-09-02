@@ -90,7 +90,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 63;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 64;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -229,7 +229,7 @@ pub struct InstallationRecord {
     forwarded_dynamic_descriptor_adapters: Vec<InstalledForwardedDynamicDescriptorAdapter>,
     forwarded_dynamic_descriptor_tables: Vec<InstalledForwardedDynamicDescriptorTable>,
     forwarded_dynamic_descriptor_calls: Vec<InstalledForwardedDynamicDescriptorCall>,
-    dynamic_parameter_scalar_calls: Vec<InstalledDynamicParameterScalarCall>,
+    dynamic_parameter_calls: Vec<InstalledDynamicParameterCall>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
@@ -314,8 +314,8 @@ impl InstallationRecord {
         &self.forwarded_dynamic_descriptor_calls
     }
 
-    pub fn dynamic_parameter_scalar_calls(&self) -> &[InstalledDynamicParameterScalarCall] {
-        &self.dynamic_parameter_scalar_calls
+    pub fn dynamic_parameter_calls(&self) -> &[InstalledDynamicParameterCall] {
+        &self.dynamic_parameter_calls
     }
 
     pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
@@ -422,17 +422,17 @@ pub struct InstalledForwardedDynamicDescriptorCall {
     pub callee: MachineId,
     pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
     pub source: PlaceId,
-    pub semantic_result: omega_abstract_operations::AbstractResult,
-    pub result: omega_machine_code::InternalUnitScalarCallResultRecord,
+    pub semantic_result: Option<omega_abstract_operations::AbstractResult>,
+    pub result: Option<omega_machine_code::InternalUnitScalarCallResultRecord>,
     pub text_offset: usize,
     pub byte_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledDynamicParameterScalarCall {
+pub struct InstalledDynamicParameterCall {
     pub machine: MachineId,
     pub operation: OperationId,
-    pub source_value: ValueId,
+    pub source_value: Option<ValueId>,
     pub requirement_slot: u32,
     pub text_offset: usize,
     pub byte_count: usize,
@@ -790,7 +790,7 @@ where
         ),
         forwarded_dynamic_descriptor_tables: installed_forwarded_dynamic_descriptor_tables(image),
         forwarded_dynamic_descriptor_calls: installed_forwarded_dynamic_descriptor_calls(image)?,
-        dynamic_parameter_scalar_calls: installed_dynamic_parameter_scalar_calls(image)?,
+        dynamic_parameter_calls: installed_dynamic_parameter_calls(image)?,
         semantic_code_attribution: image.semantic_code_attribution().to_vec(),
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
@@ -1025,7 +1025,7 @@ pub fn encode_installation_record(
         &record.forwarded_dynamic_descriptor_adapters,
         &record.forwarded_dynamic_descriptor_tables,
         &record.forwarded_dynamic_descriptor_calls,
-        &record.dynamic_parameter_scalar_calls,
+        &record.dynamic_parameter_calls,
     )?;
     encode_semantic_code_attributions(
         &mut bytes,
@@ -1061,7 +1061,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         forwarded_dynamic_descriptor_adapters,
         forwarded_dynamic_descriptor_tables,
         forwarded_dynamic_descriptor_calls,
-        dynamic_parameter_scalar_calls,
+        dynamic_parameter_calls,
     ) = decode_dynamic_conformance_custody(&mut reader)?;
     let semantic_code_attribution = decode_semantic_code_attributions(&mut reader)?;
     let port_effects = decode_port_effects(&mut reader)?;
@@ -1087,7 +1087,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         forwarded_dynamic_descriptor_adapters,
         forwarded_dynamic_descriptor_tables,
         forwarded_dynamic_descriptor_calls,
-        dynamic_parameter_scalar_calls,
+        dynamic_parameter_calls,
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
@@ -1126,7 +1126,7 @@ pub fn validate_installation_record(
             != installed_forwarded_dynamic_descriptor_tables(image)
         || record.forwarded_dynamic_descriptor_calls
             != installed_forwarded_dynamic_descriptor_calls(image)?
-        || record.dynamic_parameter_scalar_calls != installed_dynamic_parameter_scalar_calls(image)?
+        || record.dynamic_parameter_calls != installed_dynamic_parameter_calls(image)?
         || record.semantic_code_attribution != image.semantic_code_attribution()
         || record.port_effects != image.port_effects()
         || record.boundary_settlements != image.boundary_settlements()
@@ -1433,20 +1433,20 @@ fn installed_forwarded_dynamic_descriptor_calls(
         .collect()
 }
 
-fn installed_dynamic_parameter_scalar_calls(
+fn installed_dynamic_parameter_calls(
     image: &ExecutableImage,
-) -> Result<Vec<InstalledDynamicParameterScalarCall>, InstallationError> {
+) -> Result<Vec<InstalledDynamicParameterCall>, InstallationError> {
     image
         .functions()
         .iter()
         .flat_map(|function| {
             function
-                .dynamic_parameter_scalar_calls
+                .dynamic_parameter_calls
                 .iter()
                 .map(move |call| (function, call))
         })
         .map(|(function, call)| {
-            Ok(InstalledDynamicParameterScalarCall {
+            Ok(InstalledDynamicParameterCall {
                 machine: function.machine,
                 operation: call.psi_operation,
                 source_value: call.source_value,
@@ -3484,27 +3484,24 @@ fn validate_installed_dynamic_conformance(
         .map(|function| (function.machine, function))
         .collect::<std::collections::BTreeMap<_, _>>();
     let mut parameter_call_sites = std::collections::BTreeSet::new();
-    for call in &record.dynamic_parameter_scalar_calls {
-        let function = functions.get(&call.machine).ok_or(
-            InstallationError::InvalidDynamicParameterScalarCall(call.machine),
-        )?;
-        let end = call.text_offset.checked_add(call.byte_count).ok_or(
-            InstallationError::InvalidDynamicParameterScalarCall(call.machine),
-        )?;
+    for call in &record.dynamic_parameter_calls {
+        let function = functions
+            .get(&call.machine)
+            .ok_or(InstallationError::InvalidDynamicParameterCall(call.machine))?;
+        let end = call
+            .text_offset
+            .checked_add(call.byte_count)
+            .ok_or(InstallationError::InvalidDynamicParameterCall(call.machine))?;
         let function_end = function
             .text_offset
             .checked_add(function.byte_count)
-            .ok_or(InstallationError::InvalidDynamicParameterScalarCall(
-                call.machine,
-            ))?;
+            .ok_or(InstallationError::InvalidDynamicParameterCall(call.machine))?;
         if call.byte_count == 0
             || call.text_offset < function.text_offset
             || end > function_end
             || !parameter_call_sites.insert((call.machine, call.operation))
         {
-            return Err(InstallationError::InvalidDynamicParameterScalarCall(
-                call.machine,
-            ));
+            return Err(InstallationError::InvalidDynamicParameterCall(call.machine));
         }
     }
     if sections.data_byte_count == 0 {
@@ -4132,7 +4129,7 @@ pub enum InstallationError {
     TooManyForwardedDynamicDescriptorTables,
     TooManyForwardedDynamicDescriptorSlots,
     TooManyForwardedDynamicDescriptorCalls,
-    TooManyDynamicParameterScalarCalls,
+    TooManyDynamicParameterCalls,
     TooManyInternalUnitCallArguments,
     TooManyInternalUnitScalarCallArguments,
     TooManyInternalUnitCallClaims,
@@ -4227,7 +4224,7 @@ pub enum InstallationError {
     InvalidForwardedDynamicDescriptorAdapter,
     InvalidForwardedDynamicDescriptorTable,
     InvalidForwardedDynamicDescriptorCall(MachineId),
-    InvalidDynamicParameterScalarCall(MachineId),
+    InvalidDynamicParameterCall(MachineId),
     InvalidUnitStructuralScalarFieldStore(MachineId),
     InvalidUnitAffineCleanup(MachineId),
     InvalidScalarControlAffineCleanupCount(usize),

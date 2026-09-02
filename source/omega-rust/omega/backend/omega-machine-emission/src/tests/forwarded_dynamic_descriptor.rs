@@ -61,6 +61,99 @@ fn assigned_plan(target: NativeTarget) -> omega_assigned_target_operations::Assi
     assign_registers(&target_plan).expect("assign forwarded descriptor ABI")
 }
 
+fn assigned_unit_plan(
+    target: NativeTarget,
+) -> omega_assigned_target_operations::AssignedOperationPlan {
+    let source = r#"
+        trait Touch {
+            machine touch(&self);
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Touch {
+            machine touch(&self) {}
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            forward(erased);
+        }
+
+        machine forward(erased: &dyn Touch) {
+            erased.touch();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("lower forwarded Unit descriptor source");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("admit Terminal artifact");
+    let target_plan = lower_to_target_operations(&abstract_plan, target)
+        .expect("lower result-less caller and helper to target operations");
+    assign_registers(&target_plan).expect("assign result-less forwarded descriptor ABI")
+}
+
+#[test]
+fn emits_result_less_forwarded_descriptor_and_helper_slot_calls() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let assigned = assigned_unit_plan(target);
+        let emitted = crate::emit_machine_code(&assigned)
+            .expect("emit result-less caller and descriptor helper");
+        let caller = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("entry caller");
+        let [call] = caller.forwarded_dynamic_descriptor_calls.as_slice() else {
+            panic!("one result-less forwarded descriptor call expected: {caller:#?}")
+        };
+        assert!(call.semantic_result.is_none());
+        assert!(call.result.is_none());
+        assert!(call.call_plan.result.is_none());
+        assert!(caller.unit_scalar_homes.is_empty());
+        let [argument] = call.dynamic_arguments.as_slice() else {
+            panic!("one forwarded descriptor argument expected")
+        };
+        assert_eq!(argument.adapters.len(), 1);
+        assert_eq!(
+            argument.adapters[0].result,
+            psi_terminal::ClosedConformanceCallableResult::Unit
+        );
+        assert!(argument.adapters[0].erased_call_plan.result.is_none());
+        assert!(argument.adapters[0].realization_call_plan.result.is_none());
+
+        let helper = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == call.callee)
+            .expect("forward helper");
+        let [parameter_call] = helper.dynamic_parameter_calls.as_slice() else {
+            panic!("one result-less parameter-slot call expected: {helper:#?}")
+        };
+        assert!(parameter_call.source_value.is_none());
+        assert!(parameter_call.scalar_type.is_none());
+        assert_eq!(
+            parameter_call.requirement.result,
+            psi_terminal::ClosedConformanceCallableResult::Unit
+        );
+        assert!(parameter_call.function_call_plan.result.is_none());
+        assert!(parameter_call.dispatch_call_plan.result.is_none());
+    }
+}
+
 #[test]
 fn emits_forwarded_descriptor_materializations_and_direct_helper_call() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -79,15 +172,17 @@ fn emits_forwarded_descriptor_materializations_and_direct_helper_call() {
             panic!("one descriptor argument expected")
         };
         assert_eq!(call.call_plan.parameters.len(), 2);
-        assert_eq!(call.call_plan.result.as_ref(), Some(&call.result.source));
-        assert_eq!(caller.unit_scalar_homes, [call.result.home]);
-        assert_eq!(call.result.home.defining_operation, call.psi_operation);
-        assert_eq!(call.result.home.source_value, call.semantic_result.value);
-        let result_end = call.result.code_offset + call.result.byte_count;
+        let result = call.result.as_ref().expect("scalar forwarded result");
+        let semantic_result = call.semantic_result.expect("scalar semantic result");
+        assert_eq!(call.call_plan.result.as_ref(), Some(&result.source));
+        assert_eq!(caller.unit_scalar_homes, [result.home]);
+        assert_eq!(result.home.defining_operation, call.psi_operation);
+        assert_eq!(result.home.source_value, semantic_result.value);
+        let result_end = result.code_offset + result.byte_count;
         assert_eq!(result_end, call.code_offset + call.byte_count);
         let call_end = call.direct_call_offset + call.direct_call_byte_count;
         assert_eq!(
-            call.result.code_offset,
+            result.code_offset,
             call.unit_stack.outbound.map_or(call_end, |outbound| {
                 outbound.release_offset + outbound.release_byte_count
             })
@@ -198,6 +293,6 @@ fn emits_forwarded_descriptor_materializations_and_direct_helper_call() {
             .iter()
             .find(|function| function.machine == call.callee)
             .expect("forwarded helper");
-        assert_eq!(helper.dynamic_parameter_scalar_calls.len(), 1);
+        assert_eq!(helper.dynamic_parameter_calls.len(), 1);
     }
 }

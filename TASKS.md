@@ -12034,7 +12034,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 63 retains compact strong-identity
+  relocation. Canonical installation format 64 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Each installed forwarding row also retains the semantic scalar
@@ -12094,7 +12094,7 @@ checked-result arithmetic decision listed below.
   return an independent selected code of 23. All three exit 70 on Linux x86-64
   while their target artifacts cross-link. Exact machine tests place the
   projected Boolean at byte offset 8 and reject path or accumulated-offset
-  drift before emission. Canonical installation format 63 retains this
+  drift before emission. Canonical installation format 64 retains this
   already-encoded path evidence.
 
   Boolean-returning forwarded calls now use the same producer-bound result-
@@ -12108,7 +12108,7 @@ checked-result arithmetic decision listed below.
   native canary selects `true` from the rebound instance, cross-links on both
   Linux architectures, and exits 70 on the hosted target. Object and
   installation replay rejoin the Boolean semantic result, call placement,
-  home roster, normalization/store interval, and canonical format-63 scalar
+  home roster, normalization/store interval, and canonical format-64 scalar
   tag. Integer-result forwarding remains unchanged.
 
   The first Unit-returning requirement rung now has checked custody without
@@ -12159,11 +12159,19 @@ checked-result arithmetic decision listed below.
   operation order even when no scalar home follows them. Machine parameter
   records now retain authored access, so shared/mutable borrows are not
   misclassified as owned affine values requiring cleanup; canonical
-  installation format 63 uses the prior reserved parameter byte for that
+  installation format 64 uses the prior reserved parameter byte for that
   access tag. Dynamic-source borrowing no longer suppresses cleanup of an
   independently owned root. Source-driven calls cross machine/object/image/
-  installation replay on all four native targets. The forwarded outer call
-  and parameter-slot helper remain fenced at target lowering.
+  installation replay on all four native targets. Forwarded Unit dispatch now
+  crosses the same complete path: target lowering preserves a distinct
+  result-less outer call and function-level helper slot call, assignment
+  shares the descriptor ABI planners while allocating no scalar home, and
+  machine evidence makes both semantic and physical results explicitly
+  absent. Adapter construction reads Unit realization ABI from the Unit
+  body's native call plan instead of requiring scalar-only mixed-result ABI
+  metadata. Object, image, and format-64 installation replay validate both
+  call roles on x86-64 and AArch64; the installed codec carries an explicit
+  result-presence tag and rejects mismatched semantic/physical result pairs.
 
   Remaining work:
 
@@ -12182,10 +12190,9 @@ checked-result arithmetic decision listed below.
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
-  - carry the forwarded outer call and parameter-slot helper through target
-    tables/adapters and result-less native evidence. Add an honest
-    direct-selection descriptor argument source before admitting direct
-    forwarding, and do not widen bodies or call forms first;
+  - add an honest direct-selection descriptor argument source before admitting
+    direct forwarding; do not relabel it as rebound custody or widen helper
+    bodies and call forms first;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

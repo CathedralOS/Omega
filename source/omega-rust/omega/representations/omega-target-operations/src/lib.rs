@@ -816,6 +816,19 @@ pub enum TargetUnitOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// One direct Unit-result call whose authored parameter roster contains
+    /// existential descriptors. The descriptor ABI is identical to the
+    /// scalar form, but no semantic result or durable scalar home exists.
+    StructuralUnitCallWithDynamicArguments {
+        psi_operation: OperationId,
+        callee: MachineId,
+        call_plan: CallPlan,
+        structural_arguments: Vec<TargetStructuralArgument>,
+        dynamic_arguments: Vec<TargetDynamicDescriptorArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// One exact rebound dynamic invocation. Both source versions are lowered
     /// against the selected realization ABI, but only `rebound_argument`
     /// supplies the runtime instance. The retained dispatch row is private
@@ -970,6 +983,18 @@ pub enum TargetOperation {
         psi_operation: OperationId,
         source_value: ValueId,
         scalar_type: ScalarType,
+        parameter_abi: TargetDynamicDescriptorParameterAbi,
+        requirement: TerminalDynamicRequirement,
+        function_call_plan: CallPlan,
+        dispatch_call_plan: CallPlan,
+        table_slot_byte_offset: u32,
+    },
+    /// Invoke one Unit-result requirement through an existential descriptor
+    /// parameter, then return Unit. This is a function-level carrier because
+    /// the descriptor pair is the helper's complete incoming ABI.
+    DynamicParameterUnitCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
         parameter_abi: TargetDynamicDescriptorParameterAbi,
         requirement: TerminalDynamicRequirement,
         function_call_plan: CallPlan,

@@ -70,6 +70,16 @@ pub enum AssignedOperation {
         table_slot_byte_offset: u32,
         mechanism: AssignedDynamicParameterCallMechanism,
     },
+    DynamicParameterUnitCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        parameter_abi: AssignedDynamicDescriptorParameterAbi,
+        requirement: TerminalDynamicRequirement,
+        function_call_plan: CallPlan,
+        dispatch_call_plan: CallPlan,
+        table_slot_byte_offset: u32,
+        mechanism: AssignedDynamicParameterCallMechanism,
+    },
     ReturnStructuralCall {
         psi_edge: EdgeId,
         psi_operation: OperationId,
