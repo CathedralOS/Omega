@@ -9997,11 +9997,23 @@ reach or trust, and private proof improvements do not change public identity.
   emission, object/image validation, and installation replay retain the common
   length-twenty-one root and exact twenty-operation/one-edge fuel ordinals.
   Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
-  artifact mutations reject; `[T; 22]` and wider prefixes remain fail closed
+  artifact mutations reject; other prefix drift remains fail closed
+  without runtime liveness state or a loop.
+
+  The next bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 22]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]`
+  and ordinary cleanup
+  `[20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
+  Checked production, Terminal verification, codec and interpretation, machine
+  emission, object/image validation, and installation replay retain the common
+  length-twenty-two root and exact twenty-one-operation/one-edge fuel ordinals.
+  Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
+  artifact mutations reject; `[T; 23]` and wider prefixes remain fail closed
   without runtime liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 8]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 21]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 22]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
@@ -11015,11 +11027,15 @@ Remaining N6/N8 work:
   wrong result classes, coordinate substitution, and format drift reject.
   Terminal format 67 / vocabulary 70 encode this distinct source class.
   Checked/source production remains transitional because no expression-to-
-  Terminal-call-operation correspondence is retained. Still open are carriers
-  for nested-state results, other arbitrary Terminal values, structural float leaves, plus production
-  proof-ledger discharge. The ordinary exit
-  checker now discharges the direct owning-result reflexivity form without a
-  label shortcut: the current `ensures` expression must rejoin its exact
+  Terminal-call-operation correspondence is retained. The formerly listed
+  distinct nested-state-result carrier is retired: authored states admit only
+  arrival `requires`, and completion of either the entry body or a nested state
+  produces the owning machine's declared result. That float source is therefore
+  the existing direct-machine-result carrier; no separate proof source or wire
+  tag is warranted. Still open are carriers for other arbitrary Terminal values
+  and structural float leaves, plus production proof-ledger discharge. The
+  ordinary exit checker now discharges the direct owning-result reflexivity
+  form without a label shortcut: the current `ensures` expression must rejoin its exact
   checked `FloatMeaningEqual` row, both operands must be the same canonical
   proof value, and that value must be the exiting machine's retained direct
   result. Distinct result/parameter terms still require evidence, and raw IEEE

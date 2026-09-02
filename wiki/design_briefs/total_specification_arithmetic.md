@@ -242,13 +242,17 @@ carrier retains exact `(owner MachineId, block BlockId, parameter ValueId,
 format)` identity and independently rejoins the direct scalar parameter table
 of that block. Machine parameters, machine results, and operation results
 cannot substitute. Source production remains transitional until a nested-state
-contract is proven to the emitted block coordinate. Nested-state results and
-other arbitrary Terminal values, structural leaves, locals, members, casts,
-const parameters, non-floats, foreign-owner sources, and other nonliteral forms
-remain transitional rather than production proof-ledger evidence. A separate
-Terminal-only call-result carrier retains exact `(owner MachineId, producer
-OperationId, result ValueId, format)` identity. It admits only scalar results
-of ordinary, structural-argument scalar, dynamic-descriptor scalar,
+contract is proven to the emitted block coordinate. Nested-state completion has
+no separate result source: states admit only arrival requirements and produce
+the owning machine's declared result, which is already represented by the
+direct-machine-result carrier. Other arbitrary Terminal values, structural
+leaves, locals, members, casts, const parameters, non-floats, foreign-owner
+sources, and other nonliteral forms remain transitional engineering rather than
+production proof-ledger evidence.
+
+A separate Terminal-only call-result carrier retains exact `(owner MachineId,
+producer OperationId, result ValueId, format)` identity. It admits only scalar
+results of ordinary, structural-argument scalar, dynamic-descriptor scalar,
 dynamic-parameter scalar, and boundary call operations. Non-call producers,
 Unit or structural calls, wrong result classes, and coordinate or format drift
 reject. Checked/source production remains transitional until an expression is

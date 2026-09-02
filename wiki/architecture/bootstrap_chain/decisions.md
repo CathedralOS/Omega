@@ -1718,6 +1718,10 @@ call operation classes. The operation-result and call-result checked/source
 producers remain transitional until expression-to-Terminal-operation
 correspondences exist; block-parameter source production remains transitional
 until nested-state contract identity is proven to the emitted block coordinate.
+There is no separate nested-state result source: authored states have arrival
+requirements but no exit guarantees, and state completion produces the owning
+machine's declared result. D40 therefore uses the existing direct-machine-
+result carrier for that value rather than adding a state- or exit-scoped term.
 Other landed source forms remain explicitly transitional until their artifact-
 relative carriers exist.
 
