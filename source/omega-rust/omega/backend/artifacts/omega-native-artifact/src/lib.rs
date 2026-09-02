@@ -24,16 +24,17 @@ mod physical;
 use boundary_applications::{
     boundary_application_coverage_identity, validate_boundary_application_coverage,
 };
-use physical::derive_physical_evidence;
 pub use physical::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, NativeByteSpan,
-    NativeCompilerBuiltinCatalogIdentity, NativeIdentityOptimizationProjection,
-    NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
-    NativePhysicalEvidenceParts, NativePhysicalOccurrence, OptimizedBoundaryOccurrence,
-    OptimizedOperatorOccurrence, PhysicalChildParent, PhysicalRelocationDisposition,
+    NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
+    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceParts,
+    NativePhysicalOccurrence, OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence,
+    PhysicalChildParent, PhysicalRelocationDisposition,
+    ValidatedOptimizedNativePhysicalEvidenceScope,
 };
+use physical::{derive_physical_evidence, derive_validated_optimization_scope};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v5\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v6\0";
 
 /// Collision-resistant identity of one complete, validated native artifact.
 ///
@@ -106,10 +107,38 @@ impl NativeSelectedProviderPlanDigest {
 /// handoff with complete checked D29 coverage custody. It does not make
 /// unsupported boundary/provider mechanisms disappear: those still produce
 /// no evidence during native replay.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativePhysicalEvidenceScope {
     Unavailable,
     UnoptimizedCompleteBoundaryEvidence,
+    ValidatedOptimizedProjection(ValidatedOptimizedNativePhysicalEvidenceScope),
+}
+
+impl NativePhysicalEvidenceScope {
+    /// Admit the exact surviving D29 operator and D41 boundary-call roster of
+    /// one independently validated optimized abstract projection.
+    pub fn from_validated_optimization(
+        optimized: &omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan,
+        boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
+    ) -> Result<Self, &'static str> {
+        let coverage_identity =
+            boundary_application_coverage_identity(Some(boundary_application_coverage))
+                .expect("present boundary-application coverage has an identity");
+        Ok(Self::ValidatedOptimizedProjection(
+            derive_validated_optimization_scope(
+                optimized,
+                boundary_application_coverage,
+                coverage_identity,
+            )?,
+        ))
+    }
+
+    const fn requires_boundary_application_coverage(&self) -> bool {
+        matches!(
+            self,
+            Self::UnoptimizedCompleteBoundaryEvidence | Self::ValidatedOptimizedProjection(_)
+        )
+    }
 }
 
 /// One selected provider plan projected into source-free native-artifact
@@ -391,7 +420,7 @@ impl NativeArtifact {
     /// projection and every currently supported physical child.
     pub fn from_emitted_parts(parts: NativeArtifactEmissionParts) -> Result<Self, &'static str> {
         let physical_evidence = derive_physical_evidence(
-            parts.physical_evidence_scope,
+            &parts.physical_evidence_scope,
             &parts.psi_artifact,
             parts.target,
             &parts.object,
@@ -487,7 +516,7 @@ impl NativeArtifact {
             &module,
             self.psi_artifact.manifest().semantic(),
             self.boundary_application_coverage.as_ref(),
-            self.physical_evidence_scope,
+            &self.physical_evidence_scope,
         )?;
         validate_ieee_float_fma_occurrences(&module, &self.object, &self.selected_provider_plans)?;
         if module.entry != self.object.entry() {
@@ -572,7 +601,7 @@ impl NativeArtifact {
             &required_executions,
         )?;
         let expected_physical_evidence = derive_physical_evidence(
-            self.physical_evidence_scope,
+            &self.physical_evidence_scope,
             &self.psi_artifact,
             self.target,
             &self.object,
@@ -665,7 +694,7 @@ impl NativeArtifact {
             boundary_application_coverage_identity: boundary_application_coverage_identity(
                 self.boundary_application_coverage.as_ref(),
             ),
-            physical_evidence_scope: self.physical_evidence_scope,
+            physical_evidence_scope: &self.physical_evidence_scope,
             physical_evidence_identity: self
                 .physical_evidence
                 .as_ref()
@@ -781,8 +810,8 @@ impl NativeArtifact {
         Ok(())
     }
 
-    pub const fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
-        self.physical_evidence_scope
+    pub fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
+        self.physical_evidence_scope.clone()
     }
 
     /// Complete D32 evidence for the currently supported physical lane.
@@ -961,7 +990,7 @@ struct NativeArtifactIdentityFields<'a> {
     terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
     terminal_authority_closure_review_identity: [u8; 32],
     boundary_application_coverage_identity: Option<[u8; 32]>,
-    physical_evidence_scope: NativePhysicalEvidenceScope,
+    physical_evidence_scope: &'a NativePhysicalEvidenceScope,
     physical_evidence_identity: Option<[u8; 32]>,
 }
 
@@ -1060,10 +1089,14 @@ fn derive_native_artifact_identity(
     );
     digest.update(fields.terminal_authority_closure_review_identity);
     hash_optional_digest(&mut digest, fields.boundary_application_coverage_identity);
-    digest.update([match fields.physical_evidence_scope {
-        NativePhysicalEvidenceScope::Unavailable => 0,
-        NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence => 1,
-    }]);
+    match fields.physical_evidence_scope {
+        NativePhysicalEvidenceScope::Unavailable => digest.update([0]),
+        NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence => digest.update([1]),
+        NativePhysicalEvidenceScope::ValidatedOptimizedProjection(scope) => {
+            digest.update([2]);
+            digest.update(scope.identity());
+        }
+    }
     hash_optional_digest(&mut digest, fields.physical_evidence_identity);
     NativeArtifactIdentity(digest.finalize().into())
 }
@@ -1294,7 +1327,7 @@ mod tests {
             boundary_application_coverage_identity: fixture
                 .boundary_application_marker
                 .map(|marker| [marker; 32]),
-            physical_evidence_scope: fixture.physical_evidence_scope,
+            physical_evidence_scope: &fixture.physical_evidence_scope,
             physical_evidence_identity: Some([fixture.physical_evidence_marker; 32]),
         })
     }

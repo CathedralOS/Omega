@@ -289,7 +289,7 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
-fn partial_rollback_routes_only_the_nonempty_effective_selection_and_fails_closed() {
+fn partial_rollback_retains_the_verified_psi_only_native_artifact() {
     let root = project(
         "partial-rollback-fail-closed",
         Some(
@@ -304,7 +304,7 @@ machine build(builder: &mut Build) {
         ),
     );
     let build_dir = root.join("build");
-    let diagnostics = omega_compiler::compile(
+    let report = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -316,27 +316,24 @@ machine build(builder: &mut Build) {
                 .expect("the partial rollback request must be unique"),
         ),
     )
-    .expect_err("a nonempty effective selection must still enter the verified optimizer lane");
-
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0].message.contains("`ControlFlowCleanup`"),
-        "unexpected diagnostic: {}",
-        diagnostics[0].message
+    .expect("the remaining Psi-only selection should enter verified native realization");
+    assert_eq!(
+        report
+            .optimization_rollback_receipt()
+            .expect("partial rollback receipt")
+            .effective()
+            .as_slice(),
+        &[Optimization::ControlFlowCleanup]
     );
-    assert!(
-        !diagnostics[0].message.contains("CopyPropagation"),
-        "disabled rule leaked into the effective optimizer selection: {}",
-        diagnostics[0].message
-    );
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("complete verified optimizer pipeline")
-    );
-    assert!(diagnostics[0].message.contains("no output was installed"));
-    assert!(!build_dir.join("omega-program").exists());
-    assert!(!build_dir.join("omega-program.exe").exists());
+    let artifact = report
+        .retained_native_artifact()
+        .expect("retain the verified optimized native artifact");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        omega_terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    assert_eq!(artifact.image().output().file_name, "omega-program.exe");
+    assert!(!artifact.image().output().bytes.is_empty());
 }
 
 #[test]

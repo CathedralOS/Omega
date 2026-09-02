@@ -262,6 +262,16 @@ verified eliminated occurrence needs no child. A byte digest, provider-plan
 fingerprint, asserted application string, or selected-dispatch rewrite alone
 establishes no physical coverage.
 
+The first verified non-identity continuation admits only Psi-phase
+optimizations. Its survivor projection is derived from the independently
+validated final abstract plan and binds that validation, its final unit,
+Terminal identity, final operation ordinals, and exact D29 coverage. The final
+plan then uses the ordinary target/assignment/emission backend, whose emitted
+bytes supply D32 spans. Requiring the separate selected-instruction pipeline
+here would add no authority because its bytes are not published. Optimization
+phases that actually select, allocate, rewrite, or lay out physical code remain
+fenced until their own complete custody reaches the native artifact.
+
 ## The cut
 
 `psi-checked-trees-to-terminal` is the sole executable semantic handoff.

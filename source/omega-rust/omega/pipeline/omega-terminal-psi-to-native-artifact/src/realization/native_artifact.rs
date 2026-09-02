@@ -4,13 +4,13 @@ use omega_native_artifact::NativeArtifact;
 use psi_diagnostics::Diagnostic;
 
 use super::{
+    NativeRealizationRequest,
     boundary_applications::retain_boundary_application_coverage,
     diagnostics::realization_error,
     input::lower_realization_input,
     machine_code::emit_realization_machine_code,
     output::assemble_native_artifact,
-    providers::{admit_native_providers, AdmittedNativeProviders},
-    NativeRealizationRequest,
+    providers::{AdmittedNativeProviders, admit_native_providers},
 };
 
 pub(super) fn realize(
@@ -48,17 +48,24 @@ pub(super) fn realize(
         terminal_artifact_identity,
         &request,
     )?;
-    let physical_evidence_scope = input.physical_evidence_scope(checked_scope);
-    let machine_code = emit_realization_machine_code(input, installation, &settlements, &request)?;
+    let initial_physical_evidence_scope = input.physical_evidence_scope(checked_scope);
+    let emitted = emit_realization_machine_code(
+        input,
+        installation,
+        &settlements,
+        boundary_application_coverage.as_ref(),
+        initial_physical_evidence_scope,
+        &request,
+    )?;
     assemble_native_artifact(
         artifact,
-        &machine_code,
+        &emitted.machine_code,
         executions,
         terminal_authority_policy_identity,
         terminal_authority_permission_policy_identity,
         terminal_authority_closure_review,
         boundary_application_coverage,
-        physical_evidence_scope,
+        emitted.physical_evidence_scope,
         &request,
     )
 }

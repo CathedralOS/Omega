@@ -886,6 +886,7 @@ dependencies = [
 name = "omega-native-artifact"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations",
  "omega-boundary-applications",
  "omega-effects",
  "omega-image-emission",
@@ -893,6 +894,7 @@ dependencies = [
  "omega-machine-code",
  "omega-object-file",
  "omega-optimization-core",
+ "omega-optimization-run-to-abstract-operations",
  "omega-target",
  "omega-target-operations",
  "psi-core",
