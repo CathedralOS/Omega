@@ -66,8 +66,12 @@ Delta, and the former Delta is Epsilon.
   1,048,572-item/label and payload bounds in 118,488,640 bytes including the
   static base. State-machine Delta does not justify inserting another
   functional rung on implementation necessity or full-profile backend source cost;
-  actual Epsilon semantic lowering and the need for independent raw-tape replay
-  are now the remaining language-choice questions. Its latest implementation is retained
+  actual Epsilon semantic lowering remains blocked on a concrete call/storage
+  choice. The retained customer has 505 definitions, 410 with multiple parameters,
+  maximum arity 13, and 152 direct-recursive definitions, while the experiment
+  has one global namespace and nonrecursive one-argument machines. Owner-scoped
+  names and either bounded call frames or explicit typed traversal frames must be
+  compared before normative Delta changes. Its latest implementation is retained
   at `source/delta/compiler/experiments/state_machine/delta_compiler.gamma`.
 - [ ] `source/epsilon/compiler/epsilon_compiler.delta` is incomplete; its tape is
   absent.

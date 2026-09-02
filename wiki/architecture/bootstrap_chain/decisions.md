@@ -3398,3 +3398,30 @@ The cost is 48 trusted compiler lines and 838 customer tape bytes. That trade is
 accepted for source auditability; native compactness is secondary on a frozen
 bootstrap rung. Actual Epsilon semantic lowering remains the final unresolved
 comparison before changing normative Delta.
+
+## D78 — Actual helper shape blocks premature Delta promotion
+
+The retained Epsilon compiler quantifies the next language decision. Its 505
+definitions have this parameter-arity distribution: 95 have arity 1, 162 have
+arity 2, 109 have arity 3, 60 have arity 4, 28 have arity 5, 32 have arity 6,
+and 19 have arity 7 through 13. Maximum arity is 13. Across definitions, 144
+parameter spellings are reused; `source` alone appears 279 times. Exact
+top-level body scans find 152 direct-recursive definitions before considering
+mutual recursion.
+
+The state-machine experiment has one exact global namespace, one parameter and
+one result per machine, and static nonrecursive call storage. These restrictions
+were useful while measuring control, arenas, recursive syntax, and Alpha encoding,
+but they are not an auditable representation of the actual Epsilon customer.
+Immediate translation would replace ordinary helper parameters with prefixed
+global variables and replace recursion with unrelated hand-built state, making
+source-size comparison meaningless.
+
+Normative functional Delta therefore remains unchanged. The next experiment
+must add owner-scoped members and machine-scoped variables, then compare two
+purpose-built call models on an actual Epsilon parser/checker slice: bounded
+typed call frames versus explicit typed traversal-frame arenas with nonrecursive
+helpers. General recursion, closures, heap allocation, and ambient stack growth
+remain out of scope. Promotion waits until one model preserves deterministic
+bounds and improves whole-customer readability without erasing the 709-line
+compiler advantage established by D71 through D77.
