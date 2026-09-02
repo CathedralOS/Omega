@@ -43,6 +43,7 @@ sha2 = "0.10"
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
+omega-assigned-target-operations = { path = "../../../representations/omega-assigned-target-operations" }
 omega-abstract-operations-to-target-operations = { path = "../../../pipeline/omega-abstract-operations-to-target-operations" }
 omega-psi-to-abstract-operations = { path = "../../../pipeline/omega-psi-to-abstract-operations" }
 omega-machine-emission = { path = "../../omega-machine-emission" }

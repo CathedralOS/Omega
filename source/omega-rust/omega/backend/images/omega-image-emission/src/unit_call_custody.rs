@@ -90,24 +90,8 @@ pub(super) fn validate_mixed_structural_scalar_abi(
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             != structural_count
-        || function.scalar_structural_parameters.len() != structural_count
-        || function.scalar_structural_parameter_homes.len() != structural_count
-        || abi
-            .structural_parameters
-            .iter()
-            .zip(&function.scalar_structural_parameters)
-            .zip(&function.scalar_structural_parameter_homes)
-            .any(|((parameter, retained), home)| {
-                retained.place != parameter.place
-                    || retained.structural_type != parameter.structural_type
-                    || retained.multiplicity != parameter.multiplicity
-                    || retained.shape != parameter.shape
-                    || home.place != parameter.place
-                    || home.structural_type != parameter.structural_type
-                    || home.multiplicity != parameter.multiplicity
-                    || home.shape != parameter.shape
-                    || home.source != parameter.placement
-            })
+        || !function.scalar_structural_parameters.is_empty()
+        || !function.scalar_structural_parameter_homes.is_empty()
     {
         return Err(invalid());
     }
@@ -382,6 +366,7 @@ pub(super) fn validate_internal_unit_call_custody(
         }
         Some(home)
     };
+    let scalar_count = custody.scalar_arguments.len();
     if custody.byte_count == 0
         || custody.code_offset > relocation.offset
         || relocation_end > end
@@ -396,7 +381,7 @@ pub(super) fn validate_internal_unit_call_custody(
             })
             .count()
             != 1
-        || expected_plan.parameters.len() != custody.arguments.len()
+        || expected_plan.parameters.len() != scalar_count + custody.arguments.len()
         || custody.arguments.windows(2).any(|pair| {
             pair[0]
                 .code_offset
@@ -406,7 +391,7 @@ pub(super) fn validate_internal_unit_call_custody(
         || custody
             .arguments
             .iter()
-            .zip(&expected_plan.parameters)
+            .zip(&expected_plan.parameters[scalar_count..])
             .any(|(argument, destination)| {
                 let parameter_source = parameter_homes
                     .iter()
