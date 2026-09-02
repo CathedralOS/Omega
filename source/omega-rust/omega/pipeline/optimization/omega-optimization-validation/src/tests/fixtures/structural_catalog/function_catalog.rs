@@ -87,6 +87,7 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                             }],
                         },
                         callee,
+                        arguments: Vec::new(),
                         structural_arguments: vec![psi_terminal::StructuralArgument {
                             place: caller_input,
                             path: Vec::new(),

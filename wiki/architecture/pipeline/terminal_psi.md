@@ -3799,7 +3799,7 @@ parameter table and rejects write-only borrow access; owned, shared-borrowed,
 and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
-format substitution fail closed. Terminal format 68 / vocabulary 71 assign
+format substitution fail closed. Terminal format 69 / vocabulary 72 assign
 source tag 9 and reject it under legacy formats. Checked/source production
 remains transitional because the pipeline retains no exact checked expression
 to Terminal owner/root/path correspondence. Other arbitrary Terminal values

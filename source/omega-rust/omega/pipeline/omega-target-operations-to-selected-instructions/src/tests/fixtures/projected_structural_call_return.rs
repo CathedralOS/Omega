@@ -113,6 +113,7 @@ pub(in crate::tests) fn projected_fixture(
                 }],
             },
             callee: MachineId::new(2).unwrap(),
+            arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: caller_parameter,
                 access: StructuralAccess::Owned,

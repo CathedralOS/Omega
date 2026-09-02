@@ -11065,7 +11065,7 @@ Remaining N6/N8 work:
   through the owner's declared structural types and requires the selected leaf
   to be `IeeeFloat(format)`. Unknown owners or roots, erased/non-float leaves,
   invalid or substituted paths, format drift, and duplicate tuples reject.
-  Terminal format 68 / vocabulary 71 encode this distinct source class; legacy
+  Terminal format 69 / vocabulary 72 encode this distinct source class; legacy
   formats reject its tag. Checked/source production remains transitional
   because no checked expression-to-Terminal structural-root/path correspondence
   is retained. Still open are carriers for other arbitrary Terminal values,
@@ -11894,7 +11894,7 @@ checked-result arithmetic decision listed below.
   Checked Psi publishes the exact caller/callee coordinate, dense runtime-
   parameter position, bare trait, source binding, and selected conformance for
   each descriptor transfer. Introduced in Terminal format 64 / vocabulary 67
-  and retained by current format 68 / vocabulary 71, these rows carry
+  and retained by current format 69 / vocabulary 72, these rows carry
   target-neutral descriptor parameters, ordered requirement slots, call
   arguments sourced from either a rebound local descriptor or an inbound
   descriptor parameter, and parameter-slot dispatches. Canonical validation
