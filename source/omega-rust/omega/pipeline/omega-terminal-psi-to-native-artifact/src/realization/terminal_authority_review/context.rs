@@ -7,8 +7,9 @@ use omega_abstract_operations::{
     AbstractOperationPlan, AbstractParameterDynamicDispatch,
 };
 use omega_effects::{
-    SelectedProviderPlanFacts, TerminalMechanismIdentity,
+    CheckedPhysicalTerminalMechanismIdentity, SelectedProviderPlanFacts, TerminalMechanismIdentity,
     provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow},
+    terminal_mechanism_identity_bytes,
 };
 use psi_core::{BoundaryMachineId, MachineId};
 use psi_terminal::{ClosedConformanceApplication, ClosedConformanceApplicationCommitment};
@@ -20,6 +21,11 @@ use crate::realization::{
 };
 
 type DynamicBindings = BTreeMap<u32, ClosedConformanceApplication>;
+
+pub(super) struct ReachableAuthorityEdges {
+    pub(super) boundaries: BTreeSet<BoundaryMachineId>,
+    pub(super) checked_physical: Vec<TerminalMechanismIdentity>,
+}
 
 fn binding_identity(
     machine: MachineId,
@@ -46,10 +52,12 @@ pub(super) struct ReviewContext<'a> {
     pub(super) permission_policy: &'a TerminalAuthorityPermissionPolicy,
     pub(super) mechanisms: BTreeMap<BoundaryMachineId, TerminalMechanismIdentity>,
     pub(super) installed_candidates: &'a [psi_terminal::ProviderCandidateConformance],
+    target_profile: omega_target::TargetProfile,
 }
 
 impl<'a> ReviewContext<'a> {
     pub(super) fn new(
+        target_profile: omega_target::TargetProfile,
         plan: &'a AbstractOperationPlan,
         selected: &'a SelectedProviderPlanFacts,
         physical_policy: &'a TerminalAuthorityPolicy,
@@ -104,6 +112,7 @@ impl<'a> ReviewContext<'a> {
             permission_policy,
             mechanisms: mechanism_map,
             installed_candidates,
+            target_profile,
         })
     }
 
@@ -140,6 +149,13 @@ impl<'a> ReviewContext<'a> {
                 methods.len()
             ));
         }
+        if plan.target != self.target_profile.target_name() {
+            return Err(format!(
+                "reachable requirement `{requirement}` selected target `{}` instead of exact profile `{}`",
+                plan.target,
+                self.target_profile.target_name(),
+            ));
+        }
         Ok((plan, row))
     }
 
@@ -169,13 +185,14 @@ impl<'a> ReviewContext<'a> {
         Ok(mechanism)
     }
 
-    pub(super) fn reachable_boundaries(
+    pub(super) fn reachable_authority_edges(
         &self,
         entry: MachineId,
-    ) -> Result<BTreeSet<BoundaryMachineId>, String> {
+    ) -> Result<ReachableAuthorityEdges, String> {
         let mut pending = vec![(entry, DynamicBindings::new())];
         let mut visited = BTreeSet::new();
         let mut boundaries = BTreeSet::new();
+        let mut checked_physical = BTreeMap::new();
         while let Some((machine, bindings)) = pending.pop() {
             if !visited.insert(binding_identity(machine, &bindings)) {
                 continue;
@@ -204,15 +221,37 @@ impl<'a> ReviewContext<'a> {
                     AuthorityEdge::Boundary(boundary) => {
                         boundaries.insert(boundary);
                     }
-                    AuthorityEdge::UnsupportedCheckedPhysical => {
-                        return Err(format!(
-                            "reachable machine {machine:?} uses a checked physical terminal operation unsupported by the current D45 role sum"
-                        ));
+                    AuthorityEdge::CheckedPortWrite { service, port } => {
+                        if !function.published_service_ceiling.contains(&service) {
+                            return Err(format!(
+                                "reachable machine {machine:?} uses PortWrite outside its verified service ceiling"
+                            ));
+                        }
+                        if self.target_profile.native_target().architecture
+                            != omega_target::Architecture::X86_64
+                        {
+                            return Err(format!(
+                                "reachable machine {machine:?} uses x86 PortWrite on non-x86 target profile `{}`",
+                                self.target_profile.target_name(),
+                            ));
+                        }
+                        let mechanism: TerminalMechanismIdentity =
+                            CheckedPhysicalTerminalMechanismIdentity::port_write(
+                                self.target_profile,
+                                port,
+                            )
+                            .into();
+                        checked_physical
+                            .entry(terminal_mechanism_identity_bytes(mechanism))
+                            .or_insert(mechanism);
                     }
                 }
             }
         }
-        Ok(boundaries)
+        Ok(ReachableAuthorityEdges {
+            boundaries,
+            checked_physical: checked_physical.into_values().collect(),
+        })
     }
 
     fn bind_dynamic_arguments(

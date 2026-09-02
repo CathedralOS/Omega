@@ -14,7 +14,10 @@ pub(super) enum AuthorityEdge<'operation> {
     },
     DynamicParameterDispatch(&'operation AbstractParameterDynamicDispatch),
     Boundary(BoundaryMachineId),
-    UnsupportedCheckedPhysical,
+    CheckedPortWrite {
+        service: psi_core::ServiceId,
+        port: u16,
+    },
 }
 
 /// Exhaustive match: adding an abstract operation forces an explicit D45
@@ -51,7 +54,10 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
             arguments: dynamic_arguments,
         },
         AbstractOperation::BoundaryCall { boundary, .. } => AuthorityEdge::Boundary(*boundary),
-        AbstractOperation::PortWrite { .. } => AuthorityEdge::UnsupportedCheckedPhysical,
+        AbstractOperation::PortWrite { service, port, .. } => AuthorityEdge::CheckedPortWrite {
+            service: *service,
+            port: *port,
+        },
         AbstractOperation::DynamicDescriptorParameter { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. }
         | AbstractOperation::StructuralScalarFieldStore { .. }

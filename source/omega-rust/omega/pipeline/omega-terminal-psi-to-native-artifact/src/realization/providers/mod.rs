@@ -55,7 +55,7 @@ pub(crate) fn admit_native_providers<'request>(
     let terminal_authority_closure_review =
         crate::realization::terminal_authority_review::review_terminal_authority_closure(
             terminal_artifact_identity,
-            request.target,
+            request.program_entry.source().target_slot().owner,
             input.plan(),
             request.selected_provider_plans,
             &request.terminal_authority_policy,

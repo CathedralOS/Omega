@@ -1,8 +1,9 @@
 use super::*;
 use omega_abstract_operations::{AbstractFunction, AbstractOperation, AbstractOperationPlan};
 use omega_effects::{
+    CheckedPhysicalTerminalMechanismIdentity, CompilerIntrinsicExecutionIdentity,
+    TerminalAuthorityClass, TerminalAuthorityDisposition, TerminalMechanismIdentity,
     provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema},
-    CompilerIntrinsicExecutionIdentity, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
 use psi_core::{BoundaryMachineId, MachineId};
 
@@ -119,6 +120,27 @@ fn function(machine: u32, boundary_ids: &[u32]) -> AbstractFunction {
     }
 }
 
+fn port_write_function(machine: u32, ports: &[u16]) -> AbstractFunction {
+    let service = psi_core::ServiceId::new(1).unwrap();
+    let mut function = function(machine, &[]);
+    function.published_service_ceiling = vec![service];
+    for (index, port) in ports.iter().enumerate() {
+        function.operations.insert(
+            index,
+            AbstractOperation::PortWrite {
+                psi_operation: psi_core::OperationId::new(
+                    function.machine.get().saturating_mul(10) + index as u64 + 1,
+                )
+                .unwrap(),
+                service,
+                port: *port,
+                value: index as u8,
+            },
+        );
+    }
+    function
+}
+
 fn abstract_plan(
     boundaries: Vec<psi_terminal::BoundaryMachineDeclaration>,
     provider_candidates: Vec<psi_terminal::ProviderCandidateConformance>,
@@ -161,6 +183,19 @@ fn installed_candidate(
     }
 }
 
+fn installed_port_write_candidate(
+    boundary: u32,
+    requirement: &str,
+    provider: &str,
+    candidate_identity: &str,
+    machine: u32,
+) -> psi_terminal::ProviderCandidateConformance {
+    let mut candidate =
+        installed_candidate(boundary, requirement, provider, candidate_identity, machine);
+    candidate.refinement.realized_service_ceiling = vec![psi_core::ServiceId::new(1).unwrap()];
+    candidate
+}
+
 fn permission_policy(
     plans: &[&ProviderPlan],
     permitted: TerminalAuthorityDisposition,
@@ -187,6 +222,26 @@ fn intrinsic_mechanism(boundary: u32) -> AdmittedTerminalMechanism {
     }
 }
 
+fn checked_port_write_mechanism(
+    target: omega_target::TargetProfile,
+    port: u16,
+) -> TerminalMechanismIdentity {
+    CheckedPhysicalTerminalMechanismIdentity::port_write(target, port).into()
+}
+
+fn checked_port_write_policy(
+    target: omega_target::TargetProfile,
+    port: u16,
+) -> TerminalAuthorityPolicy {
+    super::super::terminal_authority_policy::terminal_authority_policy_with_rows(vec![
+        super::super::terminal_authority_policy::TerminalAuthorityPolicyRow::new(
+            checked_port_write_mechanism(target, port),
+            TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::PortIo]),
+        ),
+    ])
+    .expect("one exact checked PortWrite row")
+}
+
 #[test]
 fn intrinsic_leaf_requires_exact_service_permission() {
     let leaf = selected_plan(
@@ -211,7 +266,7 @@ fn intrinsic_leaf_requires_exact_service_permission() {
     );
     let receipt = review_terminal_authority_closure(
         [7; 32],
-        omega_target::NativeTarget::linux_x64(),
+        omega_target::TargetProfile::LinuxX64,
         &plan,
         &selected,
         &physical,
@@ -228,22 +283,24 @@ fn intrinsic_leaf_requires_exact_service_permission() {
     );
 
     let denied = permission_policy(&[&leaf], TerminalAuthorityDisposition::from_classes([]));
-    assert!(review_terminal_authority_closure(
-        [7; 32],
-        omega_target::NativeTarget::linux_x64(),
-        &plan,
-        &selected,
-        &physical,
-        &denied,
-        &[intrinsic_mechanism(1)],
-        &[],
-    )
-    .expect_err("exercised class exceeds empty permission")
-    .contains("exceeds"));
+    assert!(
+        review_terminal_authority_closure(
+            [7; 32],
+            omega_target::TargetProfile::LinuxX64,
+            &plan,
+            &selected,
+            &physical,
+            &denied,
+            &[intrinsic_mechanism(1)],
+            &[],
+        )
+        .expect_err("exercised class exceeds empty permission")
+        .contains("exceeds")
+    );
     assert!(
             review_terminal_authority_closure(
                 [7; 32],
-                omega_target::NativeTarget::linux_x64(),
+                omega_target::TargetProfile::LinuxX64,
                 &plan,
                 &selected,
                 &physical,
@@ -300,7 +357,7 @@ fn checked_adapter_expands_to_selected_terminal_leaf() {
     );
     let receipt = review_terminal_authority_closure(
         [8; 32],
-        omega_target::NativeTarget::linux_x64(),
+        omega_target::TargetProfile::LinuxX64,
         &plan,
         &selected,
         &physical,
@@ -349,7 +406,7 @@ fn internal_call_edges_are_part_of_the_reviewed_closure() {
     );
     let receipt = review_terminal_authority_closure(
         [11; 32],
-        omega_target::NativeTarget::linux_x64(),
+        omega_target::TargetProfile::LinuxX64,
         &plan,
         &selected,
         &physical,
@@ -363,24 +420,18 @@ fn internal_call_edges_are_part_of_the_reviewed_closure() {
 }
 
 #[test]
-fn checked_physical_operations_without_a_role_fail_closed() {
-    let mut entry = function(1, &[]);
-    entry.operations.insert(
-        0,
-        AbstractOperation::PortWrite {
-            psi_operation: psi_core::OperationId::new(1).unwrap(),
-            service: psi_core::ServiceId::new(1).unwrap(),
-            port: 0x80,
-            value: 0,
-        },
+fn root_checked_physical_operation_has_no_provider_permission_context() {
+    let plan = abstract_plan(
+        Vec::new(),
+        Vec::new(),
+        vec![port_write_function(1, &[0x80])],
     );
-    let plan = abstract_plan(Vec::new(), Vec::new(), vec![entry]);
     let selected =
         SelectedProviderPlanFacts::from_selected_plans(Vec::new()).expect("empty selected closure");
     assert!(
             review_terminal_authority_closure(
                 [12; 32],
-                omega_target::NativeTarget::linux_x64(),
+                omega_target::TargetProfile::LinuxX64,
                 &plan,
                 &selected,
                 &super::super::terminal_authority_policy::current_terminal_authority_policy(),
@@ -388,9 +439,226 @@ fn checked_physical_operations_without_a_role_fail_closed() {
                 &[],
                 &[],
             )
-            .expect_err("unsupported checked physical role rejects")
-            .contains("checked physical terminal operation unsupported")
+            .expect_err("root physical operation has no selected provider permission")
+            .contains("no selected provider requirement custody")
         );
+}
+
+#[test]
+fn checked_adapter_port_write_requires_exact_physical_and_service_policy() {
+    let adapter = selected_plan(
+        "adapter",
+        "AdapterProvider",
+        ADAPTER_REQUIREMENT,
+        ProviderBinding::CheckedAdapter {
+            machine_identity: "AdapterProvider::run".to_owned(),
+            machine_package_identity: None,
+        },
+    );
+    let selected = SelectedProviderPlanFacts::from_selected_plans(vec![adapter.clone()])
+        .expect("selected checked adapter");
+    let candidate = installed_port_write_candidate(
+        1,
+        ADAPTER_REQUIREMENT,
+        "AdapterProvider",
+        "AdapterProvider::run",
+        2,
+    );
+    let plan = abstract_plan(
+        vec![boundary(1, ADAPTER_REQUIREMENT)],
+        vec![candidate.clone()],
+        vec![function(1, &[1]), port_write_function(2, &[0x03f8])],
+    );
+    let physical = checked_port_write_policy(omega_target::TargetProfile::LinuxX64, 0x03f8);
+    let permitted = permission_policy(
+        &[&adapter],
+        TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::PortIo]),
+    );
+    let receipt = review_terminal_authority_closure(
+        [13; 32],
+        omega_target::TargetProfile::LinuxX64,
+        &plan,
+        &selected,
+        &physical,
+        &permitted,
+        &[],
+        &[candidate.clone()],
+    )
+    .expect("selected checked adapter retains one exact PortWrite leaf");
+    assert_eq!(receipt.leaves().len(), 1);
+    assert_eq!(
+        receipt.leaves()[0].requirement_identity(),
+        ADAPTER_REQUIREMENT
+    );
+    assert_eq!(
+        receipt.leaves()[0].mechanism(),
+        checked_port_write_mechanism(omega_target::TargetProfile::LinuxX64, 0x03f8),
+    );
+    assert_eq!(
+        receipt.leaves()[0].exercised().classes(),
+        &[TerminalAuthorityClass::PortIo],
+    );
+
+    for wrong_policy in [
+        super::super::terminal_authority_policy::current_terminal_authority_policy(),
+        checked_port_write_policy(omega_target::TargetProfile::LinuxX64, 0x0080),
+        checked_port_write_policy(omega_target::TargetProfile::WindowsX64, 0x03f8),
+    ] {
+        assert!(
+            review_terminal_authority_closure(
+                [13; 32],
+                omega_target::TargetProfile::LinuxX64,
+                &plan,
+                &selected,
+                &wrong_policy,
+                &permitted,
+                &[],
+                &[candidate.clone()],
+            )
+            .expect_err("missing, wrong-port, or wrong-profile physical row rejects")
+            .contains("does not classify")
+        );
+    }
+
+    let denied = permission_policy(&[&adapter], TerminalAuthorityDisposition::from_classes([]));
+    assert!(
+        review_terminal_authority_closure(
+            [13; 32],
+            omega_target::TargetProfile::LinuxX64,
+            &plan,
+            &selected,
+            &physical,
+            &denied,
+            &[],
+            &[candidate],
+        )
+        .expect_err("PortIo cannot exceed the selected requirement permission")
+        .contains("exceeds")
+    );
+}
+
+#[test]
+fn checked_adapter_port_write_rejects_service_target_and_plural_mechanism_drift() {
+    let adapter = selected_plan(
+        "adapter",
+        "AdapterProvider",
+        ADAPTER_REQUIREMENT,
+        ProviderBinding::CheckedAdapter {
+            machine_identity: "AdapterProvider::run".to_owned(),
+            machine_package_identity: None,
+        },
+    );
+    let selected = SelectedProviderPlanFacts::from_selected_plans(vec![adapter.clone()])
+        .expect("selected checked adapter");
+    let candidate = installed_port_write_candidate(
+        1,
+        ADAPTER_REQUIREMENT,
+        "AdapterProvider",
+        "AdapterProvider::run",
+        2,
+    );
+    let permitted = permission_policy(
+        &[&adapter],
+        TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::PortIo]),
+    );
+    let physical = super::super::terminal_authority_policy::terminal_authority_policy_with_rows(
+        [0x03f8, 0x0080]
+            .into_iter()
+            .map(|port| {
+                super::super::terminal_authority_policy::TerminalAuthorityPolicyRow::new(
+                    checked_port_write_mechanism(omega_target::TargetProfile::LinuxX64, port),
+                    TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::PortIo]),
+                )
+            })
+            .collect(),
+    )
+    .unwrap();
+
+    let plural = abstract_plan(
+        vec![boundary(1, ADAPTER_REQUIREMENT)],
+        vec![candidate.clone()],
+        vec![function(1, &[1]), port_write_function(2, &[0x03f8, 0x0080])],
+    );
+    assert!(
+        review_terminal_authority_closure(
+            [14; 32],
+            omega_target::TargetProfile::LinuxX64,
+            &plural,
+            &selected,
+            &physical,
+            &permitted,
+            &[],
+            &[candidate.clone()],
+        )
+        .expect_err("one requirement cannot smuggle two distinct checked mechanisms")
+        .contains("repeats")
+    );
+
+    let mut missing_service = port_write_function(2, &[0x03f8]);
+    missing_service.published_service_ceiling.clear();
+    let missing_service = abstract_plan(
+        vec![boundary(1, ADAPTER_REQUIREMENT)],
+        vec![candidate.clone()],
+        vec![function(1, &[1]), missing_service],
+    );
+    assert!(
+        review_terminal_authority_closure(
+            [14; 32],
+            omega_target::TargetProfile::LinuxX64,
+            &missing_service,
+            &selected,
+            &physical,
+            &permitted,
+            &[],
+            &[candidate.clone()],
+        )
+        .expect_err("operation outside the checked service ceiling rejects")
+        .contains("outside its verified service ceiling")
+    );
+
+    let one = abstract_plan(
+        vec![boundary(1, ADAPTER_REQUIREMENT)],
+        vec![candidate.clone()],
+        vec![function(1, &[1]), port_write_function(2, &[0x03f8])],
+    );
+    assert!(
+        review_terminal_authority_closure(
+            [14; 32],
+            omega_target::TargetProfile::LinuxArm64,
+            &one,
+            &selected,
+            &physical,
+            &permitted,
+            &[],
+            &[candidate.clone()],
+        )
+        .expect_err("PortWrite remains fenced on a non-x86 target")
+        .contains("selected target")
+    );
+
+    let mut arm_adapter = adapter;
+    arm_adapter.target = "linux_arm64".to_owned();
+    let arm_selected = SelectedProviderPlanFacts::from_selected_plans(vec![arm_adapter.clone()])
+        .expect("selected AArch64 checked adapter");
+    let arm_permitted = permission_policy(
+        &[&arm_adapter],
+        TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::PortIo]),
+    );
+    let arm_physical = checked_port_write_policy(omega_target::TargetProfile::LinuxArm64, 0x03f8);
+    assert!(
+        review_terminal_authority_closure(
+            [14; 32],
+            omega_target::TargetProfile::LinuxArm64,
+            &one,
+            &arm_selected,
+            &arm_physical,
+            &arm_permitted,
+            &[],
+            &[candidate],
+        )
+        .expect_err("checked PortWrite remains fenced on AArch64")
+        .contains("uses x86 PortWrite on non-x86 target")
+    );
 }
 
 #[test]
@@ -441,7 +709,7 @@ fn checked_adapter_cycles_and_unsupported_roles_fail_closed() {
     assert!(
             review_terminal_authority_closure(
                 [9; 32],
-                omega_target::NativeTarget::linux_x64(),
+                omega_target::TargetProfile::LinuxX64,
                 &plan,
                 &selected,
                 &super::super::terminal_authority_policy::current_terminal_authority_policy(),
@@ -469,7 +737,7 @@ fn checked_adapter_cycles_and_unsupported_roles_fail_closed() {
     assert!(
             review_terminal_authority_closure(
                 [10; 32],
-                omega_target::NativeTarget::linux_x64(),
+                omega_target::TargetProfile::LinuxX64,
                 &syscall_plan,
                 &syscall_selected,
                 &super::super::terminal_authority_policy::current_terminal_authority_policy(),

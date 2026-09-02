@@ -66,6 +66,7 @@ pub use selected_provider_plans::{
 };
 pub use service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
 pub use terminal_authority::{
+    CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     NormalizedForeignTerminalMechanismIdentity, TerminalAuthorityClass,
     TerminalAuthorityClosureLeaf, TerminalAuthorityClosureReviewBuildError,

@@ -534,6 +534,16 @@ identity. Complete selected-provider-closure traversal and the service/schema
 permission join remain separate, later work; this rung does not grant provider
 execution or same-stack custody.
 
+Version 4 adds one bounded checked-physical role. An x86 `PortWrite` beneath
+an exact installed selected checked adapter retains the deployment profile and
+port in its physical mechanism identity. It must also occur inside that
+machine's verified service ceiling, have one explicit receiving-policy row for
+`PortIo`, and fit the enclosing selected requirement's independently accepted
+service permission. The value written remains ordinary event data. Direct-root
+use without provider context, non-x86 use, profile or port substitution, or two
+distinct checked mechanisms beneath one requirement reject. This comparison
+records closure containment only and grants no I/O or invocation authority.
+
 Review reports an excess as an explicit containment failure, and accepted
 realization rejects it. For example, a filesystem provider whose selected
 Linux binding reaches a process-execution syscall does not become safe because

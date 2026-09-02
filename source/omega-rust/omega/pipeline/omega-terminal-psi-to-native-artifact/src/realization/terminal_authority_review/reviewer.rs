@@ -2,7 +2,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_effects::{provider_plan::ProviderBinding, TerminalAuthorityClosureLeaf};
+use omega_effects::{
+    TerminalAuthorityClosureLeaf, TerminalMechanismIdentity,
+    provider_plan::{ProviderBinding, ProviderPlanDigest, ServiceSchemaDigest},
+};
 use psi_core::BoundaryMachineId;
 
 use super::context::ReviewContext;
@@ -76,8 +79,15 @@ impl<'a> Reviewer<'a> {
                         candidates.len()
                     ));
                 };
-                let nested = self.context.reachable_boundaries(candidate.candidate)?;
-                for nested_boundary in nested {
+                let schema = selected_plan.schema.identity_digest();
+                let provider_plan = selected_plan.identity_digest();
+                let nested = self
+                    .context
+                    .reachable_authority_edges(candidate.candidate)?;
+                for mechanism in nested.checked_physical {
+                    self.admit_leaf(schema, requirement, provider_plan, mechanism)?;
+                }
+                for nested_boundary in nested.boundaries {
                     self.expand_boundary(nested_boundary)?;
                 }
                 self.active_requirements.remove(requirement);
@@ -86,51 +96,13 @@ impl<'a> Reviewer<'a> {
                 let mechanism = self
                     .context
                     .exact_mechanism(boundary, &selected_row.binding)?;
-                let exercised = self
-                    .context
-                    .physical_policy
-                    .classify(mechanism)
-                    .map_err(|unclassified| {
-                        format!(
-                            "receiving terminal-authority policy does not classify {:?} required by `{requirement}`",
-                            unclassified.mechanism()
-                        )
-                    })?;
                 let schema = selected_plan.schema.identity_digest();
-                let permitted = self
-                    .context
-                    .permission_policy
-                    .permission_for(schema, requirement)
-                    .map_err(|_| {
-                        format!(
-                            "receiving terminal-authority permission policy has no exact row for `{requirement}`"
-                        )
-                    })?;
-                let leaf = TerminalAuthorityClosureLeaf::new(
+                self.admit_leaf(
                     schema,
-                    requirement.to_owned(),
+                    requirement,
                     selected_plan.identity_digest(),
                     mechanism,
-                    exercised,
-                    permitted,
-                )
-                .map_err(|error| {
-                    format!(
-                        "terminal mechanism for `{requirement}` exceeds its exact service permission: {error:?}"
-                    )
-                })?;
-                let key = (
-                    schema,
-                    requirement.to_owned(),
-                    selected_plan.identity_digest(),
-                );
-                if let Some(previous) = self.leaves.insert(key, leaf.clone()) {
-                    if previous != leaf {
-                        return Err(format!(
-                            "selected provider closure substituted the terminal mechanism for `{requirement}`"
-                        ));
-                    }
-                }
+                )?;
             }
             ProviderBinding::StringBackedImportBootstrap { .. } => {
                 return Err(format!(
@@ -157,6 +129,56 @@ impl<'a> Reviewer<'a> {
                     "selected requirement `{requirement}` uses the unsupported table-function terminal role"
                 ));
             }
+        }
+        Ok(())
+    }
+
+    fn admit_leaf(
+        &mut self,
+        schema: ServiceSchemaDigest,
+        requirement: &str,
+        provider_plan: ProviderPlanDigest,
+        mechanism: TerminalMechanismIdentity,
+    ) -> Result<(), String> {
+        let exercised = self
+            .context
+            .physical_policy
+            .classify(mechanism)
+            .map_err(|unclassified| {
+                format!(
+                    "receiving terminal-authority policy does not classify {:?} required by `{requirement}`",
+                    unclassified.mechanism()
+                )
+            })?;
+        let permitted = self
+            .context
+            .permission_policy
+            .permission_for(schema, requirement)
+            .map_err(|_| {
+                format!(
+                    "receiving terminal-authority permission policy has no exact row for `{requirement}`"
+                )
+            })?;
+        let leaf = TerminalAuthorityClosureLeaf::new(
+            schema,
+            requirement.to_owned(),
+            provider_plan,
+            mechanism,
+            exercised,
+            permitted,
+        )
+        .map_err(|error| {
+            format!(
+                "terminal mechanism for `{requirement}` exceeds its exact service permission: {error:?}"
+            )
+        })?;
+        let key = (schema, requirement.to_owned(), provider_plan);
+        if let Some(previous) = self.leaves.insert(key, leaf.clone())
+            && previous != leaf
+        {
+            return Err(format!(
+                "selected provider closure repeats `{requirement}` with a distinct terminal mechanism"
+            ));
         }
         Ok(())
     }
