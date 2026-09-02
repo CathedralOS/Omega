@@ -2,8 +2,8 @@ use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::phase_transitions::{
     SelectedExecutionSettlementInput, TypedToCheckedSettlementInput,
     resolve_seeded_syntax_extension, settle_selected_execution,
-    symbol_resolved_trees_to_seeded_plain_data_base, syntax_trees_to_symbol_resolved_trees,
-    type_seeded_plain_data_extension, typed_trees_to_checked_trees,
+    symbol_resolved_trees_to_seeded_base, syntax_trees_to_symbol_resolved_trees,
+    type_seeded_extension, typed_trees_to_checked_trees,
 };
 use crate::pipeline::source_assembly::source_files_to_syntax_trees_for_engine;
 use crate::pipeline::timing::CompileTimings;
@@ -684,7 +684,7 @@ struct CheckedFrontend {
 }
 
 enum CheckedFrontendTyping {
-    Continuable(psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase),
+    Continuable(psi_symbol_resolved_trees_to_typed_trees::SeededTypingBase),
     Complete(psi_typed_trees::TypedTrees),
 }
 
@@ -714,15 +714,14 @@ impl CheckedFrontend {
 /// executes.
 ///
 /// The coherent base frontend, exact prepared build projection, reach and
-/// authority verdicts, package declaration verdict, and transitional syntax
-/// needed by the bounded seeded continuation or its whole-program fallback
-/// stay coupled across execution.
+/// authority verdicts, package declaration verdict, and frozen base syntax
+/// needed to bind a generated extension stay coupled across execution.
 struct AdmittedBuildCheckpoint {
     frontend: CheckedFrontend,
     admitted_build: crate::pipeline::build_config::AdmittedBuildProgram,
     package_authority_verdict:
         Option<crate::pipeline::package_declaration_admission::AuthoredDeclarationAuthorityVerdict>,
-    transitional_final_syntax: crate::pipeline::source_assembly::AssembledSyntax,
+    base_syntax: crate::pipeline::source_assembly::AssembledSyntax,
 }
 
 struct ExecutedBuildCheckpoint {
@@ -730,37 +729,12 @@ struct ExecutedBuildCheckpoint {
     computed_build_config: crate::pipeline::build_config::ComputedBuildConfig,
     package_authority_verdict:
         Option<crate::pipeline::package_declaration_admission::AuthoredDeclarationAuthorityVerdict>,
-    selected_build_identity: Option<(psi_source::SourceSpan, String)>,
-    transitional_final_syntax: crate::pipeline::source_assembly::AssembledSyntax,
+    base_syntax: crate::pipeline::source_assembly::AssembledSyntax,
 }
 
 impl AdmittedBuildCheckpoint {
     fn execute(self) -> Result<ExecutedBuildCheckpoint, Vec<Diagnostic>> {
         let selected_build_symbol = self.admitted_build.selected_build_machine_symbol();
-        let selected_build_identity = selected_build_symbol
-            .map(|symbol| -> Result<_, Vec<Diagnostic>> {
-                let source_span = self
-                    .frontend
-                    .typed()
-                    .symbols
-                    .symbol_source_span(symbol)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "selected build machine has no exact authored source occurrence",
-                        )]
-                    })?;
-                let callable_identity = self
-                    .admitted_build
-                    .selected_build_machine_callable_identity()
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "selected build machine has no admitted callable identity",
-                        )]
-                    })?
-                    .to_owned();
-                Ok((source_span, callable_identity))
-            })
-            .transpose()?;
         let computed_build_config = self.admitted_build.execute()?;
         if computed_build_config.selected_build_machine_symbol != selected_build_symbol {
             return Err(vec![Diagnostic::error(
@@ -771,8 +745,7 @@ impl AdmittedBuildCheckpoint {
             frontend: self.frontend,
             computed_build_config,
             package_authority_verdict: self.package_authority_verdict,
-            selected_build_identity,
-            transitional_final_syntax: self.transitional_final_syntax,
+            base_syntax: self.base_syntax,
         })
     }
 }
@@ -805,7 +778,7 @@ fn lower_checked_frontend(
         )?;
     let build_source_id = syntax.build_source_id;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
-    let mut typing_base = symbol_resolved_trees_to_seeded_plain_data_base(resolved, timings)?;
+    let mut typing_base = symbol_resolved_trees_to_seeded_base(resolved, timings)?;
     pre_check.evaluate(typing_base.typed_mut())?;
     // Build evaluation consumes this coherent private typed stage before the
     // final checked-tree lowering. Bind trait-valued parameter-field calls now
@@ -819,21 +792,41 @@ fn lower_checked_frontend(
     })
 }
 
-enum SeededPlainDataAttempt {
-    Complete(psi_typed_trees::TypedTrees),
-    Rebuild(psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase),
-}
-
-fn try_seeded_plain_data_extension(
-    base: psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase,
+fn try_seeded_extension(
+    base: psi_symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     assembled: &crate::pipeline::source_assembly::AssembledSyntax,
-    extension: &crate::pipeline::source_assembly::RetainedGeneratedSyntaxExtension,
+    extension: crate::pipeline::source_assembly::RetainedGeneratedSyntaxExtension,
+    package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
-) -> Result<SeededPlainDataAttempt, Vec<Diagnostic>> {
-    let (extension_syntax, sources) = extension.seeded_inputs(assembled)?;
+) -> Result<psi_typed_trees::TypedTrees, Vec<Diagnostic>> {
+    let retained_prefix = base.typed().clone();
+    let mut wire_schema_frontier = retained_prefix.wire_schemas().len();
+    let (extension_units, sources) = extension.into_pre_resolution_inputs(assembled)?;
+    let mut extension_syntax =
+        psi_syntax_trees::SyntaxTrees::new(psi_source::SourceId(assembled.sources.len()));
+    let mut pre_checks = Vec::with_capacity(extension_units.len());
+    for unit in extension_units {
+        reject_target_scoped_generated_machines(&unit)?;
+        let evaluated = match package_inputs {
+            Some(package_inputs) => {
+                psi_build_time_evaluation::evaluate_pre_resolution_with_sources_and_authority(
+                    unit,
+                    sources.clone(),
+                    Arc::new(package_inputs.clone()),
+                )
+            }
+            None => psi_build_time_evaluation::evaluate_pre_resolution_with_sources(
+                unit,
+                sources.clone(),
+            ),
+        }?;
+        let (unit, pre_check) = evaluated.into_syntax_and_pre_check();
+        extension_syntax.extend_from(&unit);
+        pre_checks.push(pre_check);
+    }
     let seeded = resolve_seeded_syntax_extension(
         base.resolved_base_for_extension(),
-        extension_syntax,
+        &extension_syntax,
         sources,
         timings,
     )?;
@@ -846,21 +839,56 @@ fn try_seeded_plain_data_extension(
                 "generated-source authored-selection suffix could not join the retained typed base: {error:?}"
             ))]
         })?;
-    match type_seeded_plain_data_extension(rebased, base, timings) {
-        Ok(typed) => Ok(SeededPlainDataAttempt::Complete(typed)),
-        Err((base, error)) if error.is_rebuild_fallback() => {
-            Ok(SeededPlainDataAttempt::Rebuild(base))
-        }
+    let mut typed = match type_seeded_extension(rebased, base, timings) {
+        Ok(typed) => Ok(typed),
         Err((
             _,
-            psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataContinuationError::Lowering(
+            psi_symbol_resolved_trees_to_typed_trees::SeededContinuationError::Lowering(
                 diagnostic,
             ),
         )) => Err(vec![diagnostic]),
+        Err((
+            _,
+            psi_symbol_resolved_trees_to_typed_trees::SeededContinuationError::UnsupportedExtensionShape,
+        )) => Err(vec![Diagnostic::error(
+            "generated source uses a declaration shape not yet supported by retained-checkpoint continuation; reconstructing a second frontend is forbidden",
+        )]),
         Err((_, error)) => Err(vec![Diagnostic::error(format!(
-            "generated-source seeded typing violated its retained-base invariant: {error:?}"
+            "generated-source continuation violated its retained-base invariant: {error:?}"
         ))]),
+    }?;
+    for pre_check in pre_checks {
+        pre_check.evaluate_extension(&mut typed, wire_schema_frontier)?;
+        wire_schema_frontier = typed.wire_schemas().len();
     }
+    if !psi_symbol_resolved_trees_to_typed_trees::retained_typed_base_is_exact_prefix(
+        &retained_prefix,
+        &typed,
+    ) {
+        return Err(vec![Diagnostic::error(
+            "generated-source pre-check evaluation changed the retained typed base",
+        )]);
+    }
+    Ok(typed)
+}
+
+fn reject_target_scoped_generated_machines(
+    syntax: &psi_syntax_trees::SyntaxTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    for item in syntax.root_items() {
+        let psi_syntax_trees::item::Item::Machine(machine) = item else {
+            continue;
+        };
+        let Some(target) = &machine.target else {
+            continue;
+        };
+        return Err(vec![Diagnostic::error(format!(
+            "generated target-scoped machine `{}` requires extension-aware target-selection custody, which retained-checkpoint continuation does not yet provide",
+            machine.name,
+        ))
+        .with_source_span(target.source_span())]);
+    }
+    Ok(())
 }
 
 fn compile_to_checked_inner(
@@ -998,13 +1026,12 @@ fn compile_to_checked_inner_with_replay(
         frontend: executed_frontend,
         computed_build_config,
         package_authority_verdict,
-        selected_build_identity: prepass_build_identity,
-        transitional_final_syntax: frozen_syntax,
+        base_syntax: frozen_syntax,
     } = (AdmittedBuildCheckpoint {
         frontend,
         admitted_build,
         package_authority_verdict,
-        transitional_final_syntax: frozen_syntax,
+        base_syntax: frozen_syntax,
     })
     .execute()?;
     frontend = executed_frontend;
@@ -1020,9 +1047,8 @@ fn compile_to_checked_inner_with_replay(
         let package_root = package_inputs
             .package_root(package_inputs.root())
             .expect("validated package inputs retain their root package");
-        let mut final_syntax = frozen_syntax;
         let extension = crate::pipeline::source_assembly::retain_generated_syntax_extension(
-            &final_syntax,
+            &frozen_syntax,
             package_root,
             Some(package_inputs.root()),
             &computed_build_config.generated_sources,
@@ -1035,76 +1061,29 @@ fn compile_to_checked_inner_with_replay(
                 )]
             })?;
         generated_source_custody.extend(extension.generated_source_custody().iter().cloned());
-        let mut use_rebuild = true;
-        if extension.is_nonempty_data_only() {
-            let CheckedFrontend {
-                typing,
-                selected_target_machine_declarations,
-                build_source_id,
-            } = frontend;
-            let CheckedFrontendTyping::Continuable(typing_base) = typing else {
-                return Err(vec![Diagnostic::error(
-                    "generated-source seeded typing lost its retained frontend base",
-                )]);
-            };
-            match try_seeded_plain_data_extension(
-                typing_base,
-                &final_syntax,
-                &extension,
-                &mut timings,
-            )? {
-                SeededPlainDataAttempt::Complete(typed) => {
-                    frontend = CheckedFrontend {
-                        typing: CheckedFrontendTyping::Complete(typed),
-                        selected_target_machine_declarations,
-                        build_source_id,
-                    };
-                    use_rebuild = false;
-                }
-                SeededPlainDataAttempt::Rebuild(typing_base) => {
-                    frontend = CheckedFrontend {
-                        typing: CheckedFrontendTyping::Continuable(typing_base),
-                        selected_target_machine_declarations,
-                        build_source_id,
-                    };
-                }
-            }
-        }
-        if use_rebuild {
-            extension.append_to(&mut final_syntax)?;
-            frontend = lower_checked_frontend(
-                final_syntax,
-                target_name,
-                Some(package_inputs),
-                &mut timings,
-            )?;
-            let Some((source_span, callable_identity)) = prepass_build_identity else {
-                return Err(vec![Diagnostic::error(
-                    "generated-source handoff has no selected build machine to rebind",
-                )]);
-            };
-            let matching = frontend
-                .typed()
-                .machines()
-                .iter()
-                .filter(|machine| {
-                    frontend.typed().symbols.symbol_source_span(machine.symbol) == Some(source_span)
-                        && frontend
-                            .typed()
-                            .normalized_machine_overload_identity(machine)
-                            .is_some_and(|identity| identity.identity() == callable_identity)
-                })
-                .map(|machine| machine.symbol)
-                .collect::<Vec<_>>();
-            let [selected] = matching.as_slice() else {
-                return Err(vec![Diagnostic::error(
-                    "final compilation could not exactly rebind the build machine executed by the frozen prepass",
-                )]);
-            };
-            Some(*selected)
-        } else {
-            computed_build_config.selected_build_machine_symbol
-        }
+        let CheckedFrontend {
+            typing,
+            selected_target_machine_declarations,
+            build_source_id,
+        } = frontend;
+        let CheckedFrontendTyping::Continuable(typing_base) = typing else {
+            return Err(vec![Diagnostic::error(
+                "generated-source continuation lost its retained frontend base",
+            )]);
+        };
+        let typed = try_seeded_extension(
+            typing_base,
+            &frozen_syntax,
+            extension,
+            Some(package_inputs),
+            &mut timings,
+        )?;
+        frontend = CheckedFrontend {
+            typing: CheckedFrontendTyping::Complete(typed),
+            selected_target_machine_declarations,
+            build_source_id,
+        };
+        computed_build_config.selected_build_machine_symbol
     };
     let CheckedFrontend {
         typing,
@@ -1369,4 +1348,29 @@ fn compile_to_checked_inner_with_replay(
             .contract_entailment_stand_downs,
         timings,
     })
+}
+
+#[cfg(test)]
+mod continuation_tests {
+    use super::reject_target_scoped_generated_machines;
+
+    #[test]
+    fn generated_target_scoped_machine_rejects_before_seeded_resolution() {
+        let source = "linux_x86_64 machine generated() -> u64 { 3 }";
+        let tokens = crate::lexer::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize generated target machine");
+        let syntax = crate::parser::parse_syntax_trees_with_id(psi_source::SourceId(0), &tokens)
+            .expect("parse generated target machine");
+
+        let diagnostics = reject_target_scoped_generated_machines(&syntax)
+            .expect_err("target-scoped generated machines need exact target custody");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("extension-aware target-selection custody")
+        );
+    }
 }

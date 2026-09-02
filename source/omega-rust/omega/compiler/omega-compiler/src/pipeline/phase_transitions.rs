@@ -90,12 +90,12 @@ pub(super) fn syntax_trees_to_symbol_resolved_trees(
     })
 }
 
-pub(super) fn symbol_resolved_trees_to_seeded_plain_data_base(
+pub(super) fn symbol_resolved_trees_to_seeded_base(
     resolved: SymbolResolvedTrees,
     timings: &mut CompileTimings,
-) -> Result<psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase, Vec<Diagnostic>> {
+) -> Result<psi_symbol_resolved_trees_to_typed_trees::SeededTypingBase, Vec<Diagnostic>> {
     timings.record(SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, || {
-        psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_plain_data_base(
+        psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
             resolved,
         )
         .map_err(|diagnostic| vec![diagnostic])
@@ -118,19 +118,19 @@ pub(super) fn resolve_seeded_syntax_extension(
     })
 }
 
-pub(super) fn type_seeded_plain_data_extension(
+pub(super) fn type_seeded_extension(
     source: psi_syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
-    base: psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase,
+    base: psi_symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     timings: &mut CompileTimings,
 ) -> Result<
     TypedTrees,
     (
-        psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase,
-        psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataContinuationError,
+        psi_symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+        psi_symbol_resolved_trees_to_typed_trees::SeededContinuationError,
     ),
 > {
     timings.record_result(SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, || {
-        psi_symbol_resolved_trees_to_typed_trees::lower_seeded_plain_data_extension(source, base)
+        psi_symbol_resolved_trees_to_typed_trees::lower_seeded_extension(source, base)
     })
 }
 

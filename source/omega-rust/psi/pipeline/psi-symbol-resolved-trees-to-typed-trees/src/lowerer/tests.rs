@@ -1,7 +1,7 @@
 use super::{
-    SeededPlainDataContinuationError, exact_field_symbol, exact_top_level_data_symbol,
-    lower_seeded_plain_data_extension, lower_symbol_resolved_trees,
-    lower_symbol_resolved_trees_to_seeded_plain_data_base, plain_data_extension_shape_is_supported,
+    SeededContinuationError, exact_field_symbol, exact_top_level_data_symbol,
+    lower_seeded_extension, lower_symbol_resolved_trees,
+    lower_symbol_resolved_trees_to_seeded_base, plain_data_extension_shape_is_supported,
     resolved_root_shape_is_supported,
 };
 use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
@@ -17,10 +17,7 @@ use std::sync::Arc;
 fn seeded_plain_data_inputs(
     base_source: &str,
     extension_source: &str,
-) -> (
-    super::SeededPlainDataTypingBase,
-    RebasedSeededSymbolResolvedTrees,
-) {
+) -> (super::SeededTypingBase, RebasedSeededSymbolResolvedTrees) {
     let mut base_sources = SourceMap::default();
     let base_id = base_sources
         .add(PathBuf::from("base.omg"), base_source.to_owned())
@@ -32,8 +29,8 @@ fn seeded_plain_data_inputs(
     .expect("parse base");
     let resolved = lower_syntax_trees_with_sources(&base_syntax, Arc::new(base_sources.clone()))
         .expect("resolve base");
-    let typing_base = lower_symbol_resolved_trees_to_seeded_plain_data_base(resolved)
-        .expect("type retained base");
+    let typing_base =
+        lower_symbol_resolved_trees_to_seeded_base(resolved).expect("type retained base");
     assert_eq!(typing_base.typed().symbols.source_files().count(), 1);
     let mut sources = base_sources;
     let extension_id = sources
@@ -72,10 +69,7 @@ fn seeded_plain_data_inputs(
 fn seeded_normalized_plain_data_inputs(
     base_source: &str,
     extension_source: &str,
-) -> (
-    super::SeededPlainDataTypingBase,
-    RebasedSeededSymbolResolvedTrees,
-) {
+) -> (super::SeededTypingBase, RebasedSeededSymbolResolvedTrees) {
     let mut base_sources = SourceMap::default();
     let base_id = base_sources
         .add(PathBuf::from("base.omg"), base_source.to_owned())
@@ -87,8 +81,8 @@ fn seeded_normalized_plain_data_inputs(
     .expect("parse base");
     let resolved = lower_syntax_trees_with_sources(&base_syntax, Arc::new(base_sources.clone()))
         .expect("resolve base");
-    let typing_base = lower_symbol_resolved_trees_to_seeded_plain_data_base(resolved)
-        .expect("type retained base");
+    let typing_base =
+        lower_symbol_resolved_trees_to_seeded_base(resolved).expect("type retained base");
     let mut sources = base_sources;
     let extension_id = sources
         .add_with_metadata_and_resolution_stratum(
@@ -3565,8 +3559,8 @@ fn seeded_plain_data_continuation_appends_named_data_and_preserves_typed_sidecar
         .collect::<Vec<_>>();
     let resolved_ledger = extension.trees().authored_declaration_selections().clone();
 
-    let typed = lower_seeded_plain_data_extension(extension, base)
-        .expect("plain generated data should append");
+    let typed =
+        lower_seeded_extension(extension, base).expect("plain generated data should append");
 
     assert_eq!(
         typed.data_definitions().len(),
@@ -3656,7 +3650,7 @@ fn seeded_plain_data_continuation_appends_exact_erased_lifetime_data_graph() {
         .collect::<Vec<_>>();
     let resolved_ledger = extension.trees().authored_declaration_selections().clone();
 
-    let typed = lower_seeded_plain_data_extension(extension, base)
+    let typed = lower_seeded_extension(extension, base)
         .expect("erased lifetime-only generated data should append");
 
     assert_eq!(
@@ -3799,7 +3793,7 @@ fn seeded_plain_data_continuation_appends_owner_local_type_parameter_data() {
     let before = base.typed().clone();
     let resolved_ledger = extension.trees().authored_declaration_selections().clone();
 
-    let typed = lower_seeded_plain_data_extension(extension, base)
+    let typed = lower_seeded_extension(extension, base)
         .expect("owner-local type-parameter data should append");
 
     assert_eq!(
@@ -3890,7 +3884,7 @@ fn seeded_plain_data_continuation_appends_one_exact_local_primitive_instance() {
         .collect::<Vec<_>>();
     let resolved_ledger = extension.trees().authored_declaration_selections().clone();
 
-    let typed = lower_seeded_plain_data_extension(extension, base)
+    let typed = lower_seeded_extension(extension, base)
         .expect("one local primitive instance should append");
 
     assert_eq!(
@@ -4763,7 +4757,7 @@ fn seeded_lifetime_type_argument_gate_rejects_origin_routing_mutations() {
             extension.trees(),
             base.typed().data_definitions().len(),
         ),
-        "a permuted nested lifetime route remains on the rebuild path until it has distinct identity"
+        "a permuted nested lifetime route remains rejected until it has distinct identity"
     );
 }
 
@@ -5013,7 +5007,7 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
         "a same-spelled domain without an authored selection cannot mint identity"
     );
 
-    let typed = lower_seeded_plain_data_extension(extension, base)
+    let typed = lower_seeded_extension(extension, base)
         .expect("the exact declared-domain instance should use the seeded continuation");
     let instance = typed
         .data_definitions()
@@ -5046,7 +5040,7 @@ fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
             extension.trees(),
             base.typed().data_definitions().len(),
         ),
-        "transparent domain aliases remain on the full-rebuild path"
+        "transparent domain aliases remain outside the retained continuation cohort"
     );
 }
 
@@ -5548,7 +5542,7 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
             seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
         let before = base.typed().data_definitions().len();
         let const_before = base.typed().const_declarations().len();
-        let typed = lower_seeded_plain_data_extension(extension, base)
+        let typed = lower_seeded_extension(extension, base)
             .unwrap_or_else(|_| panic!("{name} should use the seeded continuation"));
         assert!(typed.data_definitions().len() > before, "{name}");
         assert_eq!(
@@ -5574,12 +5568,12 @@ fn seeded_plain_data_continuation_fences_unsupported_normalized_generic_instance
         let (base, extension) =
             seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
         let expected = base.typed().clone();
-        let Err((returned, error)) = lower_seeded_plain_data_extension(extension, base) else {
-            panic!("{name} must remain on the rebuild path")
+        let Err((returned, error)) = lower_seeded_extension(extension, base) else {
+            panic!("{name} must reject transactionally")
         };
         assert_eq!(
             error,
-            SeededPlainDataContinuationError::UnsupportedExtensionShape,
+            SeededContinuationError::UnsupportedExtensionShape,
             "{name}"
         );
         assert_eq!(returned.into_typed(), expected, "{name}");
@@ -5614,7 +5608,7 @@ fn seeded_plain_data_continuation_retains_base_owned_type_application_graph() {
         .collect::<Vec<_>>();
     let resolved_ledger = extension.trees().authored_declaration_selections().clone();
 
-    let typed = lower_seeded_plain_data_extension(extension, base)
+    let typed = lower_seeded_extension(extension, base)
         .expect("the complete base-owned type-application graph should append");
 
     assert_eq!(
@@ -5896,26 +5890,60 @@ fn seeded_plain_data_continuation_accepts_broader_base_owned_generic_application
     ] {
         let (base, extension) = seeded_normalized_plain_data_inputs(base_source, extension_source);
         let before = base.typed().data_definitions().len();
-        let typed = lower_seeded_plain_data_extension(extension, base)
+        let typed = lower_seeded_extension(extension, base)
             .unwrap_or_else(|(_, error)| panic!("{name} should continue: {error:?}"));
         assert!(typed.data_definitions().len() > before, "{name}");
     }
 }
 
 #[test]
-fn seeded_plain_data_continuation_returns_exact_base_for_non_data_suffix() {
-    let (base, extension) =
-        seeded_plain_data_inputs("data Authored { value: u32; }", "machine generated() {}");
-    let expected = base.typed().clone();
-
-    let (returned, error) = lower_seeded_plain_data_extension(extension, base)
-        .expect_err("non-data roots stay on the rebuild path");
-
-    assert_eq!(
-        error,
-        SeededPlainDataContinuationError::UnsupportedExtensionShape
+fn seeded_continuation_appends_a_generated_machine_without_relowering_the_base() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+        "pub machine generated() -> u64 { 3 }",
     );
-    assert_eq!(returned.into_typed(), expected);
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("ordinary generated machine should append from the retained base");
+
+    assert_eq!(typed.machines().len(), expected.machines().len() + 1);
+    assert_eq!(
+        &typed.machines()[..expected.machines().len()],
+        expected.machines()
+    );
+    assert_eq!(typed.machines().last().unwrap().name.as_str(), "generated");
+    assert_eq!(typed.data_definitions(), expected.data_definitions());
+}
+
+#[test]
+fn seeded_continuation_attaches_a_monomorphic_method_to_its_exact_generated_data() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; }",
+        "data Generated { value: u32; } machine Generated::read(&self) -> u32 { self.value }",
+    );
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("ordinary attached method should append from the retained base");
+
+    let generated = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Generated")
+        .expect("generated data");
+    let method = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Generated::read")
+        .expect("generated attached method");
+    assert_eq!(method.attached_data_symbol, generated.symbol);
+    assert_eq!(
+        typed.symbols.get(method.symbol).parent,
+        typed.symbols.root()
+    );
+    assert_eq!(
+        &typed.data_definitions()[..expected.data_definitions().len()],
+        expected.data_definitions()
+    );
 }
 
 #[test]
@@ -5938,12 +5966,10 @@ fn seeded_plain_data_continuation_fences_runtime_generic_and_invalid_lifetime_fi
             extension_source,
         );
         let expected = base.typed().clone();
-        let (returned, error) = lower_seeded_plain_data_extension(extension, base)
-            .expect_err("runtime-generic or invalid lifetime fields require the rebuild path");
-        assert_eq!(
-            error,
-            SeededPlainDataContinuationError::UnsupportedExtensionShape
+        let (returned, error) = lower_seeded_extension(extension, base).expect_err(
+            "runtime-generic or invalid lifetime fields are rejected by the retained continuation",
         );
+        assert_eq!(error, SeededContinuationError::UnsupportedExtensionShape);
         assert_eq!(returned.into_typed(), expected);
     }
 }
@@ -5954,12 +5980,9 @@ fn seeded_plain_data_continuation_rejects_cross_paired_resolved_base_transaction
     let (_, right_extension) = seeded_plain_data_inputs("data Right {}", "data Added {}");
     let expected = left.typed().clone();
 
-    let (returned, error) = lower_seeded_plain_data_extension(right_extension, left)
+    let (returned, error) = lower_seeded_extension(right_extension, left)
         .expect_err("resolved and typed bases cannot be cross-paired");
 
-    assert_eq!(
-        error,
-        SeededPlainDataContinuationError::CrossPairedResolvedBase
-    );
+    assert_eq!(error, SeededContinuationError::CrossPairedResolvedBase);
     assert_eq!(returned.into_typed(), expected);
 }

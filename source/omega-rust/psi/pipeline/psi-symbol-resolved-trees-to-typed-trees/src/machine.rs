@@ -315,8 +315,18 @@ pub(crate) fn lower_machine(
 pub(crate) fn settle_satisfied_declarations(
     program: &mut typed::TypedTrees,
 ) -> Result<(), Diagnostic> {
+    settle_satisfied_declarations_from(program, 0)
+}
+
+/// Settle only machines appended after a retained typed checkpoint. Existing
+/// conformance rows and their authored-selection custody are immutable input
+/// to the continuation and must never be recorded a second time.
+pub(crate) fn settle_satisfied_declarations_from(
+    program: &mut typed::TypedTrees,
+    machine_frontier: usize,
+) -> Result<(), Diagnostic> {
     let mut updates = Vec::new();
-    for machine in program.machines() {
+    for machine in program.machines().iter().skip(machine_frontier) {
         let exposure = machine_interface_exposure(machine);
         for (ordinal, conformance) in program
             .machine_trait_conformances(machine)

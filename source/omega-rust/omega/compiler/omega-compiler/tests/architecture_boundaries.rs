@@ -453,12 +453,49 @@ fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
     );
     assert!(
         checked_entry.contains("retain_generated_syntax_extension("),
-        "checked orchestration must retain generated syntax as an explicit extension before the transitional whole-program pass"
+        "checked orchestration must retain generated syntax as an explicit continuation input"
+    );
+    assert!(
+        checked_entry.contains("pre_check.evaluate_extension(&muttyped"),
+        "each generated unit must consume its matching post-typing continuation"
+    );
+    assert!(
+        checked_entry.contains("retained_typed_base_is_exact_prefix("),
+        "checked orchestration must validate the retained semantic prefix after extension pre-check"
     );
     assert!(
         !checked_entry.contains("compute_build_config("),
         "checked orchestration must consume the admitted carrier instead of using the compatibility wrapper"
     );
+    assert_eq!(
+        checked_entry.matches("lower_checked_frontend(").count(),
+        2,
+        "checked orchestration must contain one frontend definition and exactly one call site"
+    );
+    for retired_reconstruction in [
+        "use_rebuild",
+        "append_to(",
+        "prepass_build_identity",
+        "selected_build_identity",
+        "rebindthebuildmachine",
+    ] {
+        assert!(
+            !checked_entry.contains(retired_reconstruction),
+            "D18 must not retain whole-frontend reconstruction machinery `{retired_reconstruction}`"
+        );
+    }
+
+    let source_assembly_path = repo_root
+        .join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/source_assembly.rs");
+    let source_assembly = fs::read_to_string(&source_assembly_path).unwrap_or_else(|error| {
+        panic!("failed to read {}: {error}", source_assembly_path.display())
+    });
+    for retired_carrier in ["seeded_syntax_trees", "pub(super)files:", "fnappend_to("] {
+        assert!(
+            !without_ascii_whitespace(&source_assembly).contains(retired_carrier),
+            "generated-source custody must not retain reconstruction-only carrier `{retired_carrier}`"
+        );
+    }
 }
 
 #[test]
