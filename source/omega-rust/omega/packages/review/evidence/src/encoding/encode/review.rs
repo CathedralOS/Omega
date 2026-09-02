@@ -5,7 +5,9 @@ use super::declarations::{
 };
 use super::encoder::Encoder;
 use super::values::callables::{encode_callable, encode_external_executable_supply};
-use super::values::contracts::encode_contract_entailment_open_obligation;
+use super::values::contracts::{
+    encode_contract_entailment_assumption_discharge, encode_contract_entailment_open_obligation,
+};
 use super::values::declarations::{
     encode_const_shape, encode_operator_shape, encode_proposition_shape,
 };
@@ -50,6 +52,10 @@ pub(crate) fn encode_with_limits(
     encoder.sequence(
         &review.contract_entailment_open_obligations,
         encode_contract_entailment_open_obligation,
+    )?;
+    encoder.sequence(
+        &review.contract_entailment_assumption_discharges,
+        encode_contract_entailment_assumption_discharge,
     )?;
     encoder.sequence(&review.dangerous_authorities, encode_dangerous_authority)?;
     encoder.sequence(

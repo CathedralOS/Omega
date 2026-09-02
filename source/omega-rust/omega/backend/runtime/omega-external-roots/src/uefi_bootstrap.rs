@@ -31,6 +31,8 @@ mod provider_projection;
 pub use provider_projection::*;
 mod handle_protocol_provider;
 pub use handle_protocol_provider::*;
+mod os_handoff;
+pub use os_handoff::*;
 
 static NEXT_LEDGER_AUTHORITY: AtomicU64 = AtomicU64::new(1);
 

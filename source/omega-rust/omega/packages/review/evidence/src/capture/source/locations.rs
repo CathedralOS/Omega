@@ -29,6 +29,7 @@ pub(crate) fn validate_canonical_row_source_limits(
         .chain(&sources.semantic_dependencies)
         .chain(&sources.callables)
         .chain(&sources.contract_entailment_open_obligations)
+        .chain(&sources.contract_entailment_assumption_discharges)
         .chain(&sources.external_executable_supply)
         .chain(&sources.dangerous_authorities)
         .chain(&sources.dangerous_authority_slack)

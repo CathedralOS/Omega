@@ -250,6 +250,18 @@ to the next attempt. No destructor pretends to perform this fallible protocol.
 Descriptor stepping uses the supplied stride, not `sizeof`, and every typed
 projection is proven inside the returned byte extent.
 
+The first runtime-independent handoff owner now models that bounded state graph
+separately from the returning application ledger. Its non-clone arrival owns
+the exact Boot Services occurrence, allocation roster, surviving-stack
+evidence, physical invocation, and attempt measure. Acquiring a map binds one
+fresh snapshot/key pair. Stale-key replay retires that pair and returns the
+unchanged live custody at the next generation with exactly one fewer attempt;
+exhaustion returns the target-authored EFI error while retaining Boot Services.
+Success removes Boot Services and transfers the unchanged allocation lineage,
+final snapshot, stack evidence, and exact exit receipt into a non-returning
+carrier. Native calls, descriptor interpretation, and policy-qualified new
+physical-memory introductions remain outside this first state-model rung.
+
 `ExitBootServices` has per-claim dispositions. Boot services and boot-scoped
 protocol providers end; already allocated storage preserves exact occurrence
 lineage while transferring from firmware to program custody; separately

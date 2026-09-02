@@ -1115,6 +1115,7 @@ fn journal_acceptance() -> ComponentDeploymentAcceptanceSnapshot {
 #[test]
 fn deployment_journal_roundtrips_all_phases_and_leaves_recovery_policy_open() {
     let fixture = runnable_fixture(40_000);
+    let fixture_occurrence_digest = *fixture.runnable.installed().occurrence_digest().as_bytes();
     let mut ledger = lifecycle();
     let current_candidate = candidate(20, &fixture.runnable);
     let receipt = ComponentEraPublicationReceipt::from_runtime(
@@ -1138,6 +1139,10 @@ fn deployment_journal_roundtrips_all_phases_and_leaves_recovery_policy_open() {
     let decoded =
         decode_component_deployment_journal(&prepared_bytes).expect("decode Prepared journal");
     assert_eq!(&decoded, prepared.record());
+    assert_eq!(
+        decoded.candidate().artifact_occurrence_digest(),
+        fixture_occurrence_digest
+    );
     assert_eq!(
         reconcile_component_deployment_restart(&decoded, 900, "CodecBinding/v1", "CodecEntry/v1",)
             .expect("Prepared reconciliation"),
@@ -1393,6 +1398,186 @@ fn durable_deployment_journal_storage_is_no_clobber_and_replays_exact_bytes() {
     assert!(load_durable_component_deployment_journal(path.clone()).is_err());
 
     std::fs::remove_dir_all(&root).expect("remove owned journal storage fixture");
+}
+
+#[test]
+fn cathedral_selected_restart_recovery_joins_prior_and_candidate_runtime_occurrences() {
+    let prior = runnable_fixture(56_000);
+    let candidate_fixture = runnable_fixture(57_000);
+    let mut ledger = lifecycle();
+
+    let prior_candidate = candidate(40, &prior.runnable);
+    let prior_receipt = ComponentEraPublicationReceipt::from_runtime(
+        560,
+        ledger.lifecycle(),
+        &prior_candidate,
+        true,
+        false,
+    );
+    ledger
+        .publish(prior_candidate, prior_receipt, prior.runnable)
+        .expect("publish prior runtime occurrence");
+
+    let next_candidate = candidate(41, &candidate_fixture.runnable);
+    let next_receipt = ComponentEraPublicationReceipt::from_runtime(
+        570,
+        ledger.lifecycle(),
+        &next_candidate,
+        true,
+        true,
+    );
+    let prepared = prepare_component_deployment(
+        960,
+        &ledger,
+        next_candidate,
+        next_receipt,
+        candidate_fixture.runnable,
+        journal_acceptance(),
+    )
+    .expect("prepare replacement journal");
+    let durable_record = prepared.record().clone();
+    let root = std::env::temp_dir().join(format!(
+        "omega-component-journal-recovery-{}-{}",
+        std::process::id(),
+        durable_record.journal_identity(),
+    ));
+    std::fs::create_dir(&root).expect("fresh restart recovery directory");
+    let path = root.join("prepared.journal");
+    let stored = durably_store_component_deployment_journal(durable_record.clone(), path)
+        .expect("store exact Prepared journal");
+
+    let rollback = join_component_deployment_restart_to_runtime(
+        stored,
+        ComponentDeploymentRecoveryChoice::RollBackToPrior,
+        960,
+        "CodecBinding/v1",
+        "CodecEntry/v1",
+        ledger,
+    )
+    .expect("caller-selected rollback rejoins the current prior occurrence");
+    assert_eq!(rollback.occurrence().era_identity(), 40);
+    rollback
+        .validate()
+        .expect("rollback continuation retains exact live custody");
+    let (stored, choice, mut ledger) = rollback.into_parts();
+    assert_eq!(choice, ComponentDeploymentRecoveryChoice::RollBackToPrior);
+
+    let _activated = prepared
+        .activate(&durable_record, &mut ledger)
+        .expect("activate candidate after durable Prepared record");
+    let roll_forward = join_component_deployment_restart_to_runtime(
+        stored,
+        ComponentDeploymentRecoveryChoice::RollForwardCandidate,
+        960,
+        "CodecBinding/v1",
+        "CodecEntry/v1",
+        ledger,
+    )
+    .expect("caller-selected roll-forward rejoins the current candidate occurrence");
+    assert_eq!(roll_forward.occurrence().era_identity(), 41);
+    roll_forward
+        .validate()
+        .expect("roll-forward continuation retains exact live custody");
+    drop(roll_forward);
+    std::fs::remove_dir_all(&root).expect("remove owned restart recovery fixture");
+}
+
+#[test]
+fn restart_recovery_returns_inputs_on_occurrence_mismatch_and_durable_tamper() {
+    let expected = runnable_fixture_at(58_000, 0x1000);
+    let substituted = runnable_fixture_at(58_000, 0x3000);
+    assert_eq!(expected.installed_code, substituted.installed_code);
+    assert_eq!(
+        expected.runnable.artifact(),
+        substituted.runnable.artifact()
+    );
+    assert_ne!(
+        expected.runnable.installed().occurrence_digest(),
+        substituted.runnable.installed().occurrence_digest(),
+        "fixture must collide only in compact report identities"
+    );
+
+    let expected_ledger = lifecycle();
+    let expected_candidate = candidate(42, &expected.runnable);
+    let expected_receipt = ComponentEraPublicationReceipt::from_runtime(
+        580,
+        expected_ledger.lifecycle(),
+        &expected_candidate,
+        true,
+        false,
+    );
+    let prepared = prepare_component_deployment(
+        961,
+        &expected_ledger,
+        expected_candidate,
+        expected_receipt,
+        expected.runnable,
+        journal_acceptance(),
+    )
+    .expect("prepare expected occurrence journal");
+    let record = prepared.record().clone();
+    let root = std::env::temp_dir().join(format!(
+        "omega-component-journal-recovery-mismatch-{}-{}",
+        std::process::id(),
+        record.journal_identity(),
+    ));
+    std::fs::create_dir(&root).expect("fresh recovery mismatch directory");
+    let path = root.join("prepared.journal");
+    let stored = durably_store_component_deployment_journal(record, path.clone())
+        .expect("store expected occurrence journal");
+
+    let mut substituted_ledger = lifecycle();
+    let substituted_candidate = candidate(42, &substituted.runnable);
+    let substituted_receipt = ComponentEraPublicationReceipt::from_runtime(
+        581,
+        substituted_ledger.lifecycle(),
+        &substituted_candidate,
+        true,
+        false,
+    );
+    substituted_ledger
+        .publish(
+            substituted_candidate,
+            substituted_receipt,
+            substituted.runnable,
+        )
+        .expect("publish collision-equal substituted occurrence");
+
+    let error = join_component_deployment_restart_to_runtime(
+        stored,
+        ComponentDeploymentRecoveryChoice::RollForwardCandidate,
+        961,
+        "CodecBinding/v1",
+        "CodecEntry/v1",
+        substituted_ledger,
+    )
+    .expect_err("compact report identity cannot substitute another live occurrence");
+    assert!(error.diagnostic().contains("exact era occurrence"));
+    let (stored, choice, substituted_ledger) = error.into_parts();
+    assert_eq!(
+        choice,
+        ComponentDeploymentRecoveryChoice::RollForwardCandidate
+    );
+
+    let mut corrupted = std::fs::read(&path).expect("read durable recovery journal");
+    let last = corrupted.len() - 1;
+    corrupted[last] ^= 1;
+    std::fs::write(&path, corrupted).expect("tamper durable recovery journal");
+    let error = join_component_deployment_restart_to_runtime(
+        stored,
+        choice,
+        961,
+        "CodecBinding/v1",
+        "CodecEntry/v1",
+        substituted_ledger,
+    )
+    .expect_err("tampered durable bytes reject before the runtime join");
+    assert!(error.diagnostic().contains("does not validate"));
+    let (stored, returned_choice, _substituted_ledger) = error.into_parts();
+    assert_eq!(returned_choice, choice);
+    assert_eq!(stored.path(), path);
+    drop(stored);
+    std::fs::remove_dir_all(&root).expect("remove owned recovery mismatch fixture");
 }
 
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {

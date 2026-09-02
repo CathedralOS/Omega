@@ -102,6 +102,7 @@ const fn canonical_risk(kind: PackageReviewCanonicalRowKind) -> PackageReviewCan
         | PackageReviewCanonicalRowKind::BoundaryApplicationRealization
         | PackageReviewCanonicalRowKind::BoundaryApplicationDemand
         | PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence
+        | PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge
         | PackageReviewCanonicalRowKind::TerminalAuthorityPermission => {
             PackageReviewCanonicalRowRisk::Blocking
         }
@@ -136,6 +137,7 @@ fn decode_kind(
         18 => Ok(PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation),
         19 => Ok(PackageReviewCanonicalRowKind::TerminalAuthorityPermission),
         20 => Ok(PackageReviewCanonicalRowKind::BoundaryApplicationDemand),
+        21 => Ok(PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical package-review row contains an unknown kind tag",
         )),

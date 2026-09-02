@@ -154,6 +154,28 @@ normalized_id!(
     UefiBootServicesPhaseLeaseId,
     "UEFI Boot Services phase lease"
 );
+normalized_id!(UefiOsHandoffId, "UEFI OS-handoff");
+normalized_id!(
+    UefiOsHandoffBootServicesId,
+    "UEFI OS-handoff Boot Services occurrence"
+);
+normalized_id!(
+    UefiOsHandoffAllocationRosterId,
+    "UEFI OS-handoff allocation roster"
+);
+normalized_id!(
+    UefiOsHandoffStackEvidenceId,
+    "UEFI OS-handoff surviving stack evidence"
+);
+normalized_id!(
+    UefiMemoryMapSnapshotId,
+    "UEFI memory-map snapshot occurrence"
+);
+normalized_id!(UefiMemoryMapKeyId, "UEFI memory-map key occurrence");
+normalized_id!(
+    UefiExitBootServicesReceiptId,
+    "UEFI ExitBootServices success receipt"
+);
 
 mod fixed_fuel;
 pub use fixed_fuel::*;

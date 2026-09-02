@@ -9,7 +9,7 @@ use omega_image_emission::{
 use crate::{InstalledRunnableComponent, RunnableComponentEraLedger};
 
 const MAGIC: &[u8; 8] = b"OMGCJNL1";
-pub const COMPONENT_DEPLOYMENT_JOURNAL_FORMAT_VERSION: u32 = 1;
+pub const COMPONENT_DEPLOYMENT_JOURNAL_FORMAT_VERSION: u32 = 2;
 const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
 const MAX_FIELD_BYTES: usize = 1024 * 1024;
 const MAX_ADMISSIONS: usize = 4096;
@@ -24,6 +24,7 @@ pub enum ComponentDeploymentJournalPhase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentDeploymentEraOccurrence {
     era_identity: u64,
+    artifact_occurrence_digest: [u8; 32],
     installed_code_report_identity: u64,
     artifact_report_identity: u64,
 }
@@ -50,23 +51,31 @@ impl ComponentDeploymentLiveEraSnapshot {
 impl ComponentDeploymentEraOccurrence {
     pub fn new(
         era_identity: u64,
+        artifact_occurrence_digest: [u8; 32],
         installed_code_report_identity: u64,
         artifact_report_identity: u64,
     ) -> Result<Self, ComponentDeploymentJournalError> {
-        if era_identity == 0 || installed_code_report_identity == 0 || artifact_report_identity == 0
+        if era_identity == 0
+            || artifact_occurrence_digest == [0; 32]
+            || installed_code_report_identity == 0
+            || artifact_report_identity == 0
         {
             return Err(ComponentDeploymentJournalError::new(
-                "deployment-era occurrence and report identities cannot be zero",
+                "deployment-era occurrence digest and report identities cannot be zero",
             ));
         }
         Ok(Self {
             era_identity,
+            artifact_occurrence_digest,
             installed_code_report_identity,
             artifact_report_identity,
         })
     }
     pub const fn era_identity(self) -> u64 {
         self.era_identity
+    }
+    pub const fn artifact_occurrence_digest(self) -> [u8; 32] {
+        self.artifact_occurrence_digest
     }
     pub const fn installed_code_report_identity(self) -> u64 {
         self.installed_code_report_identity
@@ -286,6 +295,7 @@ pub fn prepare_component_deployment(
         };
         let occurrence = match ComponentDeploymentEraOccurrence::new(
             era_identity,
+            *retained.installed().occurrence_digest().as_bytes(),
             retained.installed_code().normalized_identity(),
             retained.artifact().normalized_identity(),
         ) {
@@ -319,6 +329,7 @@ pub fn prepare_component_deployment(
         };
         match ComponentDeploymentEraOccurrence::new(
             era_identity,
+            *retained.installed().occurrence_digest().as_bytes(),
             retained.installed_code().normalized_identity(),
             retained.artifact().normalized_identity(),
         ) {
@@ -363,6 +374,7 @@ pub fn prepare_component_deployment(
     };
     let candidate_occurrence = match ComponentDeploymentEraOccurrence::new(
         candidate.era_identity,
+        *candidate.artifact_occurrence_digest.as_bytes(),
         candidate.artifact_instance_compatibility_report_identity,
         runnable.artifact().normalized_identity(),
     ) {
@@ -941,6 +953,7 @@ fn validate_bytes(value: &[u8], label: &str) -> Result<(), ComponentDeploymentJo
 }
 fn put_occurrence(out: &mut Vec<u8>, value: ComponentDeploymentEraOccurrence) {
     put_u64(out, value.era_identity);
+    out.extend_from_slice(&value.artifact_occurrence_digest);
     put_u64(out, value.installed_code_report_identity);
     put_u64(out, value.artifact_report_identity);
 }
@@ -1007,6 +1020,14 @@ impl<'a> Cursor<'a> {
     fn occurrence(
         &mut self,
     ) -> Result<ComponentDeploymentEraOccurrence, ComponentDeploymentJournalError> {
-        ComponentDeploymentEraOccurrence::new(self.u64()?, self.u64()?, self.u64()?)
+        let era_identity = self.u64()?;
+        let mut artifact_occurrence_digest = [0; 32];
+        artifact_occurrence_digest.copy_from_slice(self.take(32)?);
+        ComponentDeploymentEraOccurrence::new(
+            era_identity,
+            artifact_occurrence_digest,
+            self.u64()?,
+            self.u64()?,
+        )
     }
 }

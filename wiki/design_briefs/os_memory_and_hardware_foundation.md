@@ -158,6 +158,17 @@ physical-memory regions admitted by target memory policy. Physical-space,
 rights, and algebra-denominated backing are never inferred from bare firmware
 geometry.
 
+The first separate handoff state owner is live without extending the returning
+profile. Its map-required and map-acquired carriers linearly retain the Boot
+Services occurrence, allocation roster, surviving-stack evidence, exact
+snapshot/key pair, physical invocation, generation, and target-supplied attempt
+bound. Stale-key replay strictly decrements the measure before returning all
+live custody; exhaustion retains Boot Services with the authored EFI error;
+success consumes Boot Services and transfers the original allocations, final
+snapshot, stack evidence, and exit receipt. This is the target-independent
+custody graph only; firmware invocation, descriptor decoding, final-map policy,
+and checked adapter realization remain open.
+
 The active handoff stack is accounted independently from the source-visible
 residual. Before the final exit attempt the adapter switches to a target-owned
 stack whose cross-exit lifetime is proved, or proves the incoming stack has the

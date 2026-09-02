@@ -1452,6 +1452,17 @@ providers while transferring already allocated storage under the same
 occurrence lineage. Runtime services and newly claimable final-map regions
 follow their own post-exit contracts.
 
+The first implementation rung keeps this OS-handoff graph in a distinct
+non-clone runtime owner. Each map-required arrival names Boot Services,
+allocation and surviving-stack custody, the physical invocation, and the exact
+remaining measure. A fresh map/key pair may be attempted once. Stale-key
+failure returns the same live inputs only after decreasing the measure; final
+exhaustion returns the target-authored EFI error with Boot Services live.
+Success has no Boot Services output and instead carries the unchanged
+allocation lineage, final snapshot, surviving stack, and exact exit receipt.
+This carrier does not itself invoke firmware or grant claims over newly
+described memory.
+
 `C` satisfies the ordinary core `CallingPolicy` relationship; its compile-time
 machine evaluates the normalized signature to an accepted or structured-
 rejected boundary plan. Accepted plans are compiler-validated and canonicalized.

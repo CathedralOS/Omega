@@ -649,15 +649,23 @@ and directory synchronization. Its non-clonable receipt independently replays
 the path and exact canonical bytes. A post-publication cleanup or directory-
 sync failure is reported as possibly visible rather than rolled back, and no
 existing destination is replaced. Cathedral still selects paths, retention,
-cohorts, and rollback versus roll-forward, and owns restart-to-runtime
-reconciliation.
+cohorts, and rollback versus roll-forward. The first Cathedral-facing
+restart-to-runtime join accepts that explicit choice and a validated durable
+receipt, then rejoins the selected era to the exact current live ledger and
+retained runnable occurrence. Journal format 2 carries the collision-resistant
+installed-occurrence digest on every era row; decoded rows and compact report
+identities still grant no authority. The resulting non-clonable continuation
+retains the exact live installed context and revalidates durable and runtime
+custody. Rejection returns the durable receipt, caller choice, and live ledger;
+the join does not publish, retire, redirect, or otherwise choose runtime policy.
 
 Activated journal custody also retains the opaque exact installed-code context
 captured from the runnable carrier. Finalization rejoins that context and the
 canonical installation bytes to the ledger's retained runnable occurrence;
-the serialized installed/artifact `u64` values are explicitly report
-identities and cannot authorize a collision-equal substitution. Component-era
-publication receipts and program-local epoch leases retain the complete era
+the serialized installed/artifact `u64` values remain report identities, while
+the collision-resistant occurrence digest prevents a collision-equal
+substitution. Component-era publication receipts and program-local epoch
+leases retain the complete era
 candidate rather than only its compact projections.
 
 ## Implementation work
