@@ -161,6 +161,12 @@ realization identities and exact code/data spans needed to rejoin those facts.
 Both a direct local selection and a once-rebound descriptor may supply the
 one-hop argument under their distinct semantic source identities; forwarding
 does not manufacture a rebound merely to obtain a physical descriptor.
+An unambiguous additional scalar helper hop retains its incoming descriptor as
+a parameter source. Target assignment proves that the two incoming registers
+are exactly the next helper's two outgoing registers, and machine emission
+records a normal direct call plus return without rebuilding the descriptor or
+its table. Object and image replay of this additional machine-code row remains
+the next bounded frontier.
 Its forwarding rows retain an exact semantic and physical scalar result when
 one exists, while Unit rows explicitly retain neither; they do not invent
 Terminal machine identities for native-only adapters. The bounded mutable form additionally carries `&mut

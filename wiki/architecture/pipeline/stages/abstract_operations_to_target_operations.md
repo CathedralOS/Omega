@@ -172,7 +172,9 @@ An unambiguous scalar descriptor chain may now cross an additional transparent
 helper. The function-level target carrier retains a parameter source rather
 than fabricating a structural-field argument, and accepts only an unchanged
 two-word native ABI handoff. Physical assignment preserves the same source and
-destination registers. Machine emission remains the next fail-closed boundary.
+destination registers. Machine emission records the ordinary direct helper
+call without materializing either descriptor word; object replay remains the
+next fail-closed boundary.
 Installed-provider scalar lowering currently admits one direct fixed signed
 `i32` parameter forwarded unchanged to one Unit-returning candidate. Wider or
 mixed scalars, computed arguments, runtime structural arguments in the same

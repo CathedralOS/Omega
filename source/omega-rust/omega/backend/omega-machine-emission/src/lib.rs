@@ -41,6 +41,7 @@ pub use x86_fma::{EmittedX86ScalarFmaFragment, emit_feature_required_x86_scalar_
 mod ranked_countdown;
 
 mod dynamic_parameter;
+mod forwarded_dynamic_parameter;
 
 mod scalar_store;
 mod structural_result;
@@ -373,6 +374,7 @@ fn emit_function(
     let mut installed_provider_unit_scalar_calls = Vec::new();
     let mut dynamic_calls = Vec::new();
     let mut dynamic_parameter_calls = Vec::new();
+    let mut forwarded_dynamic_parameter_calls = Vec::new();
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_scalar_homes = Vec::new();
     let mut unit_integer_constants = Vec::new();
@@ -462,10 +464,24 @@ fn emit_function(
             unit_affine_cleanup = emitted.affine_cleanup;
             emitted.bytes
         }
-        AssignedOperation::ReturnForwardedDynamicParameterScalarCall { psi_operation, .. } => {
-            return Err(EmissionError::InvalidDynamicDescriptorCallCustody(
-                *psi_operation,
-            ));
+        AssignedOperation::ReturnForwardedDynamicParameterScalarCall { .. } => {
+            let emitted = forwarded_dynamic_parameter::emit(function, target, functions)?;
+            scalar_stack_eligible = true;
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Operation(emitted.record.psi_operation),
+                operation_ordinal: emitted.record.operation_ordinal,
+                code_offset: emitted.record.code_offset,
+                byte_count: emitted.record.byte_count,
+            });
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(emitted.record.psi_edge),
+                operation_ordinal: 1,
+                code_offset: emitted.return_offset,
+                byte_count: emitted.return_byte_count,
+            });
+            internal_calls.push(emitted.relocation);
+            forwarded_dynamic_parameter_calls.push(emitted.record);
+            emitted.bytes
         }
         AssignedOperation::ReturnDynamicParameterScalarCall { .. }
         | AssignedOperation::DynamicParameterUnitCall { .. } => {
@@ -1170,6 +1186,7 @@ fn emit_function(
         installed_provider_unit_scalar_calls,
         dynamic_calls,
         dynamic_parameter_calls,
+        forwarded_dynamic_parameter_calls,
         forwarded_dynamic_descriptor_calls,
         unit_scalar_homes,
         unit_integer_constants,

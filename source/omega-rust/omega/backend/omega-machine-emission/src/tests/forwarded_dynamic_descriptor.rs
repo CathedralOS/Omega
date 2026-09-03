@@ -74,6 +74,34 @@ fn assigned_direct_plan(
     )
 }
 
+fn assigned_multi_hop_plan(
+    target: NativeTarget,
+) -> omega_assigned_target_operations::AssignedOperationPlan {
+    assigned_scalar_plan_from_source(
+        target,
+        r#"
+        trait Measure { machine measure(&self) -> i32; }
+        data Item { value: i32; }
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> i32 { transition { _ -> self.value } }
+        }
+        data Main { selected: Item; }
+        machine Main::run(&self) {
+            let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
+            let result: i32 = forward(erased);
+        }
+        machine forward(erased: &dyn Measure) -> i32 {
+            let result: i32 = finish(erased);
+            transition { _ -> result }
+        }
+        machine finish(erased: &dyn Measure) -> i32 {
+            let result: i32 = erased.measure();
+            transition { _ -> result }
+        }
+    "#,
+    )
+}
+
 fn assigned_scalar_plan_from_source(
     target: NativeTarget,
     source: &str,
@@ -215,6 +243,96 @@ fn emits_direct_selection_scalar_forwarding_with_a_durable_result_home() {
             ))
         );
     }
+}
+
+#[test]
+fn emits_parameter_sourced_forwarding_as_a_direct_helper_call() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let assigned = assigned_multi_hop_plan(target);
+        let emitted = crate::emit_machine_code(&assigned)
+            .expect("emit parameter-sourced descriptor helper chain");
+        let helpers = emitted
+            .functions
+            .iter()
+            .filter(|function| !function.forwarded_dynamic_parameter_calls.is_empty())
+            .collect::<Vec<_>>();
+        let [helper] = helpers.as_slice() else {
+            panic!("one parameter-forwarding helper expected: {emitted:#?}")
+        };
+        let [call] = helper.forwarded_dynamic_parameter_calls.as_slice() else {
+            unreachable!()
+        };
+        assert!(matches!(
+            &call.argument.source,
+            omega_target_operations::AbstractDynamicDescriptorSource::Parameter(source)
+                if source == &call.parameter
+        ));
+        assert_eq!(call.argument.target.owner, call.callee);
+        assert_eq!(call.function_call_plan, call.callee_call_plan);
+        assert_eq!(call.instance, call.instance_destination);
+        assert_eq!(call.table, call.table_destination);
+        assert_eq!(call.operation_ordinal, 0);
+        assert_eq!(call.code_offset, 0);
+        assert_eq!(
+            call.byte_count,
+            call.direct_call_offset
+                + call.direct_call_byte_count
+                + match target.architecture {
+                    Architecture::X86_64 => call
+                        .call_stack
+                        .outbound
+                        .map_or(0, |stack| stack.release_byte_count),
+                    Architecture::Aarch64 => 8,
+                }
+        );
+        assert!(helper.scalar_stack.is_some());
+        let [relocation] = helper.internal_calls.as_slice() else {
+            panic!("one direct helper relocation expected")
+        };
+        assert_eq!(relocation.target, call.callee);
+        assert_eq!(relocation.scalar_stack.as_ref(), Some(&call.call_stack));
+        assert_eq!(
+            relocation.offset,
+            match target.architecture {
+                Architecture::X86_64 => call.direct_call_offset + 1,
+                Architecture::Aarch64 => call.direct_call_offset,
+            }
+        );
+        let final_helper = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == call.callee)
+            .expect("final dynamic dispatch helper");
+        assert_eq!(final_helper.dynamic_parameter_calls.len(), 1);
+    }
+}
+
+#[test]
+fn rejects_parameter_sourced_forwarding_register_drift_before_emission() {
+    let mut assigned = assigned_multi_hop_plan(NativeTarget::linux_x64());
+    let rejected = assigned
+        .functions
+        .iter_mut()
+        .find_map(|function| {
+            let omega_assigned_target_operations::AssignedOperation::ReturnForwardedDynamicParameterScalarCall {
+                psi_operation,
+                instance_destination,
+                table_destination,
+                ..
+            } = &mut function.operation
+            else {
+                return None;
+            };
+            *table_destination = *instance_destination;
+            Some(*psi_operation)
+        })
+        .expect("parameter-sourced forwarding helper");
+    assert_eq!(
+        crate::emit_machine_code(&assigned),
+        Err(crate::EmissionError::InvalidDynamicDescriptorCallCustody(
+            rejected
+        ))
+    );
 }
 
 #[test]

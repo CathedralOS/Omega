@@ -103,6 +103,12 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
             parameter_abi,
             function_call_plan,
             ..
+        }
+        | AssignedOperation::ReturnForwardedDynamicParameterScalarCall {
+            scalar_type,
+            parameter_abi,
+            function_call_plan,
+            ..
         } => (Some(*scalar_type), parameter_abi, function_call_plan),
         AssignedOperation::DynamicParameterUnitCall {
             parameter_abi,
