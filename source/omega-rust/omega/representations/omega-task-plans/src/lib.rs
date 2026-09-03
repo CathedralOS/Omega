@@ -8,6 +8,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+pub use psi_core::SuspensionCrossingId;
+
 mod wcsu;
 pub use wcsu::{
     AdmittedSameStackContribution, ComposedTaskStackDemand,
@@ -57,7 +59,6 @@ normalized_id!(
 );
 normalized_id!(TaskStackCompositionId, "task-stack-composition");
 normalized_id!(StackPlanProjectionId, "stack-plan-projection");
-normalized_id!(SuspensionCrossingId, "suspension-crossing");
 normalized_id!(TaskRuntimeId, "task-runtime");
 normalized_id!(TaskRuntimeInstanceId, "task-runtime-instance");
 normalized_id!(TaskRuntimeInvocationId, "task-runtime-invocation");
@@ -938,7 +939,7 @@ fn activation_plan_report_fingerprint(
     fingerprint.flag(plan.may_block);
     fingerprint.word(plan.canonical_suspension_crossings.len() as u64);
     for crossing in &plan.canonical_suspension_crossings {
-        fingerprint.word(crossing.identity.normalized_identity());
+        fingerprint.word(crossing.identity.get());
         fingerprint.flag(crossing.suspension_allowed);
         fingerprint.flag(crossing.preserve_cpu);
         fingerprint.flag(crossing.preserve_host_thread);
@@ -1087,7 +1088,7 @@ mod tests {
             may_suspend: true,
             may_block: false,
             canonical_suspension_crossings: vec![CanonicalSuspensionCrossing {
-                identity: id(7, SuspensionCrossingId::from_normalized_identity),
+                identity: SuspensionCrossingId::new(7).expect("nonzero crossing identity"),
                 suspension_allowed: true,
                 preserve_cpu: true,
                 preserve_host_thread: false,

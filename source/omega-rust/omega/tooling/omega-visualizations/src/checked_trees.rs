@@ -3153,7 +3153,7 @@ pub fn task_activation_manifest_json(
                 json.push(',');
             }
             json.push_str("{\"identity\": \"0x");
-            json.push_str(&format!("{:016x}", crossing.identity.normalized_identity()));
+            json.push_str(&format!("{:016x}", crossing.identity.get()));
             json.push_str("\", \"suspension_allowed\": ");
             json.push_str(if crossing.suspension_allowed {
                 "true"

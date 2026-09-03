@@ -53,6 +53,9 @@ fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOp
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -177,6 +180,9 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -295,6 +301,9 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,

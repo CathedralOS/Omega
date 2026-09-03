@@ -289,6 +289,9 @@ pub(super) fn lower(
                 applications
             },
             dynamic_dispatch,
+            suspension_call_plan_count: 0,
+            suspension_call_sites: Vec::new(),
+            suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: {
                 let mut machines = vec![TerminalMachine {

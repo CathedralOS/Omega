@@ -164,11 +164,11 @@ storage containing no live `T` is a separate feature.
 > path and leaf meet that same non-observation referee. That direct-call form may
 > finish with exactly one in-bounds literal index into a nonempty fixed-array
 > leaf of unrestricted primitive elements. Its bounded nested successor may use
-> exactly two ordered literal indexes through a recursively literal fixed array,
+> two or three ordered literal indexes through a recursively literal fixed array,
 > either directly or after the eligible field prefix, when the ultimate leaf is
-> an unrestricted non-Atomic primitive. The ordered fields and one or two
+> an unrestricted non-Atomic primitive. The ordered fields and one, two, or three
 > `FixedIndex` segments cross checked and Terminal replay.
-> It cannot be retained in a local alias. Dynamic, range, and third-index
+> It cannot be retained in a local alias. Dynamic, range, and fourth-index
 > subloans remain gated, as do whole nested-array and aggregate elements,
 > record-held slice descriptors, sum projection, and opaque providers.
 > Structural parameters and calls preserve

@@ -130,6 +130,7 @@ mod structural_return;
 mod structural_scalar_return;
 mod structural_types;
 mod structural_unit_control;
+mod suspension_call_plan;
 mod unit_cleanup;
 use attached_unit::lower_root_service_reach;
 use attached_unit::{
@@ -251,7 +252,7 @@ pub struct LoweredCallbackTerminalPsi {
 /// One exact checked source call joined to its emitted Terminal operation.
 /// Source handles are deliberately confined to the producer result and never
 /// enter the canonical Terminal artifact.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredSourceCallOccurrence {
     pub source_site: Option<psi_checked_trees::NominalMachineUseSite>,
     pub source_state: psi_symbols::SymbolHandle,
@@ -259,6 +260,10 @@ pub struct LoweredSourceCallOccurrence {
     pub call_ordinal: usize,
     pub terminal_operation: OperationId,
     pub source_target: psi_symbols::SymbolHandle,
+    /// Scalar environment immediately before this call, ordered as checked
+    /// state parameters followed by established local bindings. Empty means
+    /// this lowering route does not expose an exact scalar frontier mapping.
+    pub source_values_before_call: Vec<ValueDeclaration>,
 }
 
 /// One exact selected checked IEEE FMA use joined to its emitted Terminal
@@ -833,6 +838,17 @@ impl OperationBuffer {
         operation: OperationId,
         target: psi_symbols::SymbolHandle,
     ) -> Result<(), LoweringError> {
+        self.record_source_call_with_values(coordinate, source_site, operation, target, &[])
+    }
+
+    fn record_source_call_with_values(
+        &mut self,
+        coordinate: SourceCallCoordinate,
+        source_site: Option<psi_checked_trees::NominalMachineUseSite>,
+        operation: OperationId,
+        target: psi_symbols::SymbolHandle,
+        source_values_before_call: &[ValueDeclaration],
+    ) -> Result<(), LoweringError> {
         if self.source_calls.iter().any(|existing| {
             existing.source_state == coordinate.state
                 && existing.statement_index == coordinate.statement_index
@@ -847,6 +863,7 @@ impl OperationBuffer {
             call_ordinal: coordinate.call_ordinal,
             terminal_operation: operation,
             source_target: target,
+            source_values_before_call: source_values_before_call.to_vec(),
         });
         Ok(())
     }
@@ -1343,6 +1360,12 @@ pub fn lower_machine(
         &lowered.source_call_occurrences,
         &lowered.semantic_module.machines,
         &mut lowered.semantic_module.reborrow_restored_call_uses,
+    )?;
+    suspension_call_plan::retain_suspension_call_plans(
+        checked,
+        &source_machines,
+        &lowered.source_call_occurrences,
+        &mut lowered.semantic_module,
     )?;
     retained_borrow_custody::retain_foreign_borrow_custodies(
         checked,

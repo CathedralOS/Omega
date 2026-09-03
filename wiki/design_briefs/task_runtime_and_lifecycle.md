@@ -577,6 +577,25 @@ arguments remain TR3–TR8 work.
     Bounded-response and termination profiles reject it; safety still retains
     every parked value and claim without duplication or discard.
 
+The first bounded Terminal retention rung is format 74 / vocabulary 77. It
+consumes an exact checked crossing for a receiver-free direct scalar call and
+publishes a canonical call-site row plus a detailed plan. Their shared
+operation, crossing, exact callee, and frontier commitment bind primitive
+scalar parameters, straight-line locals, and call arguments with empty claim
+rosters and exact four-axis policies. Independent verification rejoins the pair
+to the call and visible SSA values; missing, duplicate, redirected,
+understated, type-, storage-, and policy-drifted rows reject. The catalog
+changes no local operation, edge, terminator, or cleanup route.
+Receiver-bearing, threaded-local, persistent, structural, claim-bearing, Unit,
+boundary, and dynamic frontiers remain fail closed pending exact place/claim
+joins.
+
+The independent site catches stale plan deletion or drift, but a coordinated
+rewrite of count, site, commitment, and plan is not reconstructible from
+`OperationKind::Call` yet. The next carrier must bind an authoritative
+possibly-suspending crossing roster on the call side before arbitrary rewritten
+modules are considered complete.
+
 ## Engineering sequence
 
 1. Retire the stage-1 synchronous `spawn` desugar and erased `Join<T>` parser
@@ -615,10 +634,11 @@ arguments remain TR3–TR8 work.
 6. Implement fixed nonmoving stack lowering, WCSU-backed `StackPlan`, stack
    reservation, and a first provider. A future stackless plan is a separate
    lowering, not a runtime contract mode.
-7. Retain one Terminal suspension-call plan keyed by the exact call operation
-   and existing `SuspensionCrossingId`; preserve its checked live frontier and
-   carry demands without adding a local suspension terminator. Join that row in
-   activation realization to inherited CPU/thread preservation demands,
+7. Extend the bounded receiver-free scalar Terminal suspension-call plan to
+   exact persistent, structural, claim-bearing, receiver, threaded-local, Unit,
+   boundary, and dynamic frontiers without rederiving checked liveness. Join
+   the retained row in activation realization to inherited CPU/thread
+   preservation demands,
    `ActivationCarryObligations`, the WCSU `StackPlan`, stack lease, and selected
    runtime evidence. Then expand the current conservative suspension-safe-loan
    subset without weakening the storage/alias/cancellation theorem.

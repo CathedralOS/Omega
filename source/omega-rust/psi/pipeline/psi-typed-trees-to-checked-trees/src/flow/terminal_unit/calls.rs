@@ -1166,9 +1166,33 @@ fn checked_double_literal_index_path(path: &[CheckedUnitStructuralPathSegment]) 
     )
 }
 
+fn checked_triple_literal_index_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
+    matches!(
+        path,
+        [
+            CheckedUnitStructuralPathSegment::FixedIndex(_),
+            CheckedUnitStructuralPathSegment::FixedIndex(_),
+            CheckedUnitStructuralPathSegment::FixedIndex(_),
+        ]
+    )
+}
+
 fn checked_double_literal_indexed_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
     let [
         fields @ ..,
+        CheckedUnitStructuralPathSegment::FixedIndex(_),
+        CheckedUnitStructuralPathSegment::FixedIndex(_),
+    ] = path
+    else {
+        return false;
+    };
+    checked_nonempty_field_path(fields)
+}
+
+fn checked_triple_literal_indexed_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
+    let [
+        fields @ ..,
+        CheckedUnitStructuralPathSegment::FixedIndex(_),
         CheckedUnitStructuralPathSegment::FixedIndex(_),
         CheckedUnitStructuralPathSegment::FixedIndex(_),
     ] = path
@@ -1191,6 +1215,22 @@ fn place_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
 fn place_double_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
     let [
         fields @ ..,
+        psi_facts::PlaceSegment::FixedIndex { .. },
+        psi_facts::PlaceSegment::FixedIndex { .. },
+    ] = path
+    else {
+        return false;
+    };
+    !fields.is_empty()
+        && fields
+            .iter()
+            .all(|segment| matches!(segment, psi_facts::PlaceSegment::Field { .. }))
+}
+
+fn place_triple_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
+    let [
+        fields @ ..,
+        psi_facts::PlaceSegment::FixedIndex { .. },
         psi_facts::PlaceSegment::FixedIndex { .. },
         psi_facts::PlaceSegment::FixedIndex { .. },
     ] = path
@@ -1241,27 +1281,41 @@ pub(super) fn ordinary_projected_call_is_supported(
     let double_literal_indexed_field_path =
         checked_double_literal_indexed_field_path(&arguments[0].path);
     let double_literal_index_path = checked_double_literal_index_path(&arguments[0].path);
+    let triple_literal_indexed_field_path =
+        checked_triple_literal_indexed_field_path(&arguments[0].path);
+    let triple_literal_index_path = checked_triple_literal_index_path(&arguments[0].path);
     let write_only_subloan_path = (field_path
         || literal_indexed_field_path
         || single_literal_index_path
         || double_literal_indexed_field_path
-        || double_literal_index_path)
+        || double_literal_index_path
+        || triple_literal_indexed_field_path
+        || triple_literal_index_path)
         && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
         && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
     if field_path && !allow_field_path_projection && !write_only_subloan_path {
         return false;
     }
-    if (literal_indexed_field_path || double_literal_indexed_field_path) && !write_only_subloan_path
+    if (literal_indexed_field_path
+        || double_literal_indexed_field_path
+        || triple_literal_indexed_field_path)
+        && !write_only_subloan_path
     {
         return false;
     }
     if !field_path
         && !literal_indexed_field_path
         && !double_literal_indexed_field_path
+        && !triple_literal_indexed_field_path
         && !matches!(
             arguments[0].path.as_slice(),
             [CheckedUnitStructuralPathSegment::FixedIndex(_)]
                 | [
+                    CheckedUnitStructuralPathSegment::FixedIndex(_),
+                    CheckedUnitStructuralPathSegment::FixedIndex(_),
+                ]
+                | [
+                    CheckedUnitStructuralPathSegment::FixedIndex(_),
                     CheckedUnitStructuralPathSegment::FixedIndex(_),
                     CheckedUnitStructuralPathSegment::FixedIndex(_),
                 ]
@@ -1833,14 +1887,16 @@ pub(super) fn structural_call_arguments(
                     u64::try_from(*index).ok()?,
                 )]
             }
-            segments @ [
-                psi_facts::PlaceSegment::FixedIndex { .. },
-                psi_facts::PlaceSegment::FixedIndex { .. },
-            ] if allow_fixed_index_projection
-                && caller_parameters
-                    .get(source_index)?
-                    .qualifications
-                    .is_empty() =>
+            segments @ [psi_facts::PlaceSegment::FixedIndex { .. }, ..]
+                if matches!(segments.len(), 2 | 3)
+                    && segments.iter().all(|segment| {
+                        matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. })
+                    })
+                    && allow_fixed_index_projection
+                    && caller_parameters
+                        .get(source_index)?
+                        .qualifications
+                        .is_empty() =>
             {
                 let projected_type = crate::flow::project_type_reference_from_segments(
                     program,
@@ -1875,7 +1931,8 @@ pub(super) fn structural_call_arguments(
                         && (segments.iter().all(|segment| {
                             matches!(segment, psi_facts::PlaceSegment::Field { .. })
                         }) || place_literal_indexed_field_path(segments)
-                            || place_double_literal_indexed_field_path(segments))))
+                            || place_double_literal_indexed_field_path(segments)
+                            || place_triple_literal_indexed_field_path(segments))))
                     && caller_parameters
                         .get(source_index)?
                         .qualifications
@@ -1899,7 +1956,8 @@ pub(super) fn structural_call_arguments(
                         }
                         psi_facts::PlaceSegment::FixedIndex { index }
                             if place_literal_indexed_field_path(segments)
-                                || place_double_literal_indexed_field_path(segments) =>
+                                || place_double_literal_indexed_field_path(segments)
+                                || place_triple_literal_indexed_field_path(segments) =>
                         {
                             u64::try_from(*index)
                                 .ok()
@@ -2432,32 +2490,32 @@ fn structural_signature_with_affine_pair(
             .statements(state.statement_nodes)
             .is_empty()
         && matches!(parameters.len(), 2 | 3))
-        .then(|| {
-            let TypeReferenceNode::Reference { referee, .. } = program
-                .type_reference_table
-                .type_reference(parameters[0].type_reference)
-            else {
-                return None;
-            };
-            let primitive = program.primitive_type_reference(*referee)?;
-            parameters
-                .iter()
-                .all(|parameter| {
-                    let TypeReferenceNode::Reference { referee, .. } = program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference)
-                    else {
-                        return false;
-                    };
-                    !parameter.is_self
-                        && !parameter.is_const
-                        && program.primitive_type_reference(*referee) == Some(primitive)
-                        && structural_access_for_type_reference(program, parameter.type_reference)
-                            == Some(CheckedStructuralAccess::SharedBorrow)
-                })
-                .then_some(primitive)
-        })
-        .flatten();
+    .then(|| {
+        let TypeReferenceNode::Reference { referee, .. } = program
+            .type_reference_table
+            .type_reference(parameters[0].type_reference)
+        else {
+            return None;
+        };
+        let primitive = program.primitive_type_reference(*referee)?;
+        parameters
+            .iter()
+            .all(|parameter| {
+                let TypeReferenceNode::Reference { referee, .. } = program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                else {
+                    return false;
+                };
+                !parameter.is_self
+                    && !parameter.is_const
+                    && program.primitive_type_reference(*referee) == Some(primitive)
+                    && structural_access_for_type_reference(program, parameter.type_reference)
+                        == Some(CheckedStructuralAccess::SharedBorrow)
+            })
+            .then_some(primitive)
+    })
+    .flatten();
     let mut structural_parameters = Vec::new();
     let mut scalar_parameters = Vec::new();
     let mut fused_service_parameter_count = 0_usize;

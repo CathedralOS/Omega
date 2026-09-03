@@ -46,6 +46,294 @@ fn checked_source(source: &str) -> psi_checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
+fn checked_scalar_suspension_fixture() -> psi_checked_trees::CheckedTrees {
+    checked_source(
+        r#"
+            machine wait(value: bool) -> bool
+            requires true == true
+            ensures true == true
+            { value }
+
+            machine root(parameter: bool) -> bool
+            requires true == true
+            ensures true == true
+            {
+                let local: bool = true;
+                let parked: bool = wait(local);
+                parameter && local
+            }
+        "#,
+    )
+}
+
+fn scalar_fixture_call_coordinate(
+    checked: &psi_checked_trees::CheckedTrees,
+) -> (SymbolHandle, SymbolHandle, usize, usize, SymbolHandle) {
+    let root = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "root")
+        .expect("root machine");
+    let state = checked.machine_states(root).first().expect("root state");
+    let target = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "wait")
+        .expect("wait machine")
+        .symbol;
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .machines
+        .iter()
+        .find(|graph| graph.machine == root.symbol)
+        .expect("root scalar graph");
+    let binding = graph.states[0]
+        .bindings
+        .iter()
+        .find(|binding| {
+            matches!(
+                binding.value,
+                psi_checked_trees::CheckedScalarBindingValue::DirectCall {
+                    target_machine,
+                    ..
+                } if target_machine == target
+            )
+        })
+        .expect("real checked wait call binding");
+    let psi_checked_trees::CheckedScalarBindingValue::DirectCall { call_ordinal, .. } =
+        binding.value
+    else {
+        unreachable!()
+    };
+    (
+        root.symbol,
+        state.symbol,
+        usize::try_from(binding.statement_ordinal).unwrap(),
+        usize::try_from(call_ordinal).unwrap(),
+        target,
+    )
+}
+
+#[test]
+fn receiver_free_scalar_suspension_plan_rejoins_parameter_local_and_argument_frontier() {
+    let mut checked = checked_scalar_suspension_fixture();
+    let root = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "root")
+        .expect("root machine");
+    let state = checked.machine_states(root).first().expect("root state");
+    let parameter = checked
+        .state_parameters(state)
+        .first()
+        .expect("scalar parameter");
+    let parameter_symbol = parameter.symbol;
+    let parameter_type = parameter.type_reference;
+    let psi_typed_trees::statement::StatementNode::LocalData(local) =
+        &checked.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("first statement is the scalar local")
+    };
+    let local_symbol = local.symbol;
+    let local_type = local.type_reference;
+    let (root_symbol, state_symbol, statement_index, call_ordinal, target) =
+        scalar_fixture_call_coordinate(&checked);
+    assert_eq!((statement_index, call_ordinal), (1, 0));
+    let live = |storage, origin| psi_checked_trees::SuspensionCrossingLiveValueFact {
+        type_reference: local_type,
+        storage,
+        origin,
+        claims: Vec::new(),
+        effective: psi_language_semantics::CarryPolicy::PERMISSIVE,
+    };
+    checked
+        .facts
+        .carry
+        .suspension_crossings
+        .push(psi_checked_trees::SuspensionCrossingCarryFact {
+            machine: root_symbol,
+            state: state_symbol,
+            statement_index,
+            call_ordinal,
+            target,
+            receiver: None,
+            effective: psi_language_semantics::CarryPolicy::PERMISSIVE,
+            live_values: vec![
+                psi_checked_trees::SuspensionCrossingLiveValueFact {
+                    type_reference: parameter_type,
+                    storage: psi_checked_trees::SuspensionCrossingStorage::Parameter,
+                    origin: psi_checked_trees::SuspensionCrossingValueOrigin::Parameter {
+                        symbol: parameter_symbol,
+                        position: 0,
+                    },
+                    claims: Vec::new(),
+                    effective: psi_language_semantics::CarryPolicy::PERMISSIVE,
+                },
+                live(
+                    psi_checked_trees::SuspensionCrossingStorage::Local,
+                    psi_checked_trees::SuspensionCrossingValueOrigin::Local {
+                        symbol: local_symbol,
+                        statement_index: 0,
+                        environment_position: 1,
+                    },
+                ),
+                live(
+                    psi_checked_trees::SuspensionCrossingStorage::CallArgument,
+                    psi_checked_trees::SuspensionCrossingValueOrigin::CallArgument { position: 0 },
+                ),
+            ],
+        });
+    let lowered = lower_machine(&checked, "root").expect("bounded scalar suspension lowers");
+    let [site] = lowered.semantic_module.suspension_call_sites.as_slice() else {
+        panic!("one exact suspension call site")
+    };
+    let [plan] = lowered.semantic_module.suspension_call_plans.as_slice() else {
+        panic!("one exact suspension call plan")
+    };
+    assert_eq!(site.operation, plan.operation);
+    assert_eq!(site.crossing, plan.crossing);
+    assert_eq!(
+        site.frontier_commitment,
+        psi_terminal::suspension_frontier_commitment(plan)
+    );
+    for storage in [
+        psi_terminal::TerminalSuspensionStorage::Parameter,
+        psi_terminal::TerminalSuspensionStorage::Local,
+        psi_terminal::TerminalSuspensionStorage::CallArgument,
+    ] {
+        assert!(plan.live_values.iter().any(|live| live.storage == storage));
+    }
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("exact suspension plan verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("suspension plan encodes");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("suspension plan decodes"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
+fn unsupported_receiver_suspension_frontier_fails_closed() {
+    let mut checked = checked_scalar_suspension_fixture();
+    let (root_symbol, state_symbol, statement_index, call_ordinal, target) =
+        scalar_fixture_call_coordinate(&checked);
+    checked
+        .facts
+        .carry
+        .suspension_crossings
+        .push(psi_checked_trees::SuspensionCrossingCarryFact {
+            machine: root_symbol,
+            state: state_symbol,
+            statement_index,
+            call_ordinal,
+            target,
+            receiver: Some(root_symbol),
+            effective: psi_language_semantics::CarryPolicy::PERMISSIVE,
+            live_values: Vec::new(),
+        });
+    assert!(matches!(
+        lower_machine(&checked, "root"),
+        Err(LoweringError::Unsupported(
+            "receiver-bearing suspension frontier lacks an exact Terminal receiver place join"
+        ))
+    ));
+}
+
+#[test]
+fn unsupported_staged_local_suspension_frontier_fails_closed() {
+    let mut checked = checked_source(
+        r#"
+            machine wait(value: bool) -> bool
+            requires true == true
+            ensures true == true
+            { value }
+
+            machine root(parameter: bool) -> bool
+            requires true == true
+            ensures true == true
+            {
+                let local: bool = true;
+                let parked: bool = wait(local && parameter);
+                local
+            }
+        "#,
+    );
+    let (root, state, statement_index, call_ordinal, target) =
+        scalar_fixture_call_coordinate(&checked);
+    let root_state = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == root)
+        .and_then(|machine| {
+            checked
+                .machine_states(machine)
+                .iter()
+                .find(|candidate| candidate.symbol == state)
+        })
+        .expect("root state");
+    let psi_typed_trees::statement::StatementNode::LocalData(local) = &checked
+        .statement_table
+        .statements(root_state.statement_nodes)[0]
+    else {
+        panic!("first statement is local data")
+    };
+    let local_symbol = local.symbol;
+    let local_type = local.type_reference;
+    checked
+        .facts
+        .carry
+        .suspension_crossings
+        .push(psi_checked_trees::SuspensionCrossingCarryFact {
+            machine: root,
+            state,
+            statement_index,
+            call_ordinal,
+            target,
+            receiver: None,
+            effective: psi_language_semantics::CarryPolicy::PERMISSIVE,
+            live_values: vec![psi_checked_trees::SuspensionCrossingLiveValueFact {
+                type_reference: local_type,
+                storage: psi_checked_trees::SuspensionCrossingStorage::Local,
+                origin: psi_checked_trees::SuspensionCrossingValueOrigin::Local {
+                    symbol: local_symbol,
+                    statement_index: 0,
+                    environment_position: 0,
+                },
+                claims: Vec::new(),
+                effective: psi_language_semantics::CarryPolicy::PERMISSIVE,
+            }],
+        });
+    let result = lower_machine(&checked, "root");
+    assert!(
+        matches!(
+            result,
+            Err(LoweringError::Unsupported(
+                "suspension frontier source value origin is inexact"
+            ))
+        ),
+        "unexpected staged-local fence result: {result:?}"
+    );
+}
+
+#[test]
+fn ordinary_scalar_lowering_keeps_suspension_catalogs_empty() {
+    let checked = checked_source(
+        r#"
+            machine identity(value: bool) -> bool
+            requires true == true
+            ensures true == true
+            { value }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "identity").expect("ordinary scalar lowering");
+    assert_eq!(lowered.semantic_module.suspension_call_plan_count, 0);
+    assert!(lowered.semantic_module.suspension_call_sites.is_empty());
+    assert!(lowered.semantic_module.suspension_call_plans.is_empty());
+}
+
 fn checked_float_projection_source(source: &str) -> psi_checked_trees::CheckedTrees {
     const FLOAT_MEANING: &str = "data FloatMeaning { }";
     const FLOAT_PROJECTIONS: &str = r#"
@@ -1883,12 +2171,12 @@ fn two_index_write_only_subloan_crosses_source_codec_and_verification() {
     psi_terminal_verifier::validate_module(&missing_inner)
         .expect_err("omitting the inner coordinate must reject exact target rejoin");
 
-    let mut third_index = decoded.clone();
-    mutate_path(&mut third_index, &|path| {
+    let mut index_beyond_leaf = decoded.clone();
+    mutate_path(&mut index_beyond_leaf, &|path| {
         path.push(StructuralPathSegment::FixedIndex(0));
     });
-    psi_terminal_verifier::validate_module(&third_index)
-        .expect_err("a third write-only subloan index must remain fenced");
+    psi_terminal_verifier::validate_module(&index_beyond_leaf)
+        .expect_err("an index beyond the selected primitive leaf must reject");
 
     let mut source_access_drifted = decoded.clone();
     source_access_drifted.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
@@ -1944,6 +2232,132 @@ fn field_prefixed_two_index_write_only_subloan_crosses_terminal() {
     assert_eq!(&decoded, module);
     psi_terminal_verifier::validate_module(&decoded)
         .expect("verify field-prefixed two-index write-only subloan");
+}
+
+#[test]
+fn three_index_write_only_subloan_crosses_source_codec_and_verification() {
+    let source = r#"
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(values: &write [[[u16; 4]; 3]; 2]) {
+            Sink::fill(&write values[1][2][3]);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Root::forward").expect("lower three-index forwarding");
+    let module = &lowered.semantic_module;
+
+    let [call] = module.machines[0].blocks[0].operations.as_slice() else {
+        panic!("three-index caller emits one forwarding call")
+    };
+    assert!(matches!(
+        &call.kind,
+        OperationKind::CallUnit { structural_arguments, .. }
+            if matches!(structural_arguments.as_slice(), [argument]
+                if argument.access == StructuralAccess::WriteOnlyBorrow
+                    && argument.path == [
+                        StructuralPathSegment::FixedIndex(1),
+                        StructuralPathSegment::FixedIndex(2),
+                        StructuralPathSegment::FixedIndex(3),
+                    ])
+    ));
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode three-index module");
+    let decoded = psi_terminal_codec::decode_module(&encoded).expect("decode three-index module");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded)
+        .expect("verify three-index write-only subloan");
+
+    let mutate_path = |module: &mut TerminalModule,
+                       mutation: &dyn Fn(&mut Vec<StructuralPathSegment>)| {
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            panic!("three-index caller call")
+        };
+        mutation(&mut structural_arguments[0].path);
+    };
+
+    for (position, invalid_index) in [(0, 2), (1, 3), (2, 4)] {
+        let mut out_of_bounds = decoded.clone();
+        mutate_path(&mut out_of_bounds, &|path| {
+            path[position] = StructuralPathSegment::FixedIndex(invalid_index);
+        });
+        psi_terminal_verifier::validate_module(&out_of_bounds)
+            .expect_err("every three-index array bound must replay independently");
+    }
+
+    let mut fourth_index = decoded;
+    mutate_path(&mut fourth_index, &|path| {
+        path.push(StructuralPathSegment::FixedIndex(0));
+    });
+    psi_terminal_verifier::validate_module(&fourth_index)
+        .expect_err("a fourth write-only subloan index must remain fenced");
+}
+
+#[test]
+fn field_prefixed_three_index_write_only_subloan_crosses_terminal() {
+    let source = r#"
+        data Outer [copy] { values: [[[u16; 4]; 3]; 2]; sibling: u16; }
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.values[1][2][3]);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Root::forward")
+        .expect("lower field-prefixed three-index forwarding");
+    let module = &lowered.semantic_module;
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("field-prefixed three-index forwarding call")
+    };
+    assert!(matches!(
+        structural_arguments[0].path.as_slice(),
+        [
+            StructuralPathSegment::Field(_),
+            StructuralPathSegment::FixedIndex(1),
+            StructuralPathSegment::FixedIndex(2),
+            StructuralPathSegment::FixedIndex(3),
+        ]
+    ));
+    let encoded = psi_terminal_codec::encode_module(module)
+        .expect("encode field-prefixed three-index module");
+    let mut decoded = psi_terminal_codec::decode_module(&encoded)
+        .expect("decode field-prefixed three-index module");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded)
+        .expect("verify field-prefixed three-index write-only subloan");
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut decoded.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("field-prefixed three-index decoded call")
+    };
+    structural_arguments[0].path.swap(0, 1);
+    psi_terminal_verifier::validate_module(&decoded)
+        .expect_err("reordering a field and fixed-index segment must reject");
 }
 
 #[test]
@@ -2833,7 +3247,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &73_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &74_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -2914,7 +3328,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &73_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &74_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

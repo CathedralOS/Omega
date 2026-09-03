@@ -9,5 +9,6 @@ name = "omega_task_plans"
 path = "src/lib.rs"
 
 [dependencies]
+psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 sha2 = "0.10.9"

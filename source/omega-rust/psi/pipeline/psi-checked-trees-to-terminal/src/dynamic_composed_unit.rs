@@ -321,6 +321,9 @@ fn lower_dynamic_composed_unit_machine(
                 applications
             },
             dynamic_dispatch,
+            suspension_call_plan_count: 0,
+            suspension_call_sites: Vec::new(),
+            suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: {
                 let mut machines = vec![TerminalMachine {
@@ -1666,6 +1669,7 @@ fn dynamic_source_call_occurrences_for_chain(
             .map_err(|_| LoweringError::Unsupported("direct dynamic call ordinal exceeds usize"))?,
         terminal_operation: caller_operation,
         source_target: first_state,
+        source_values_before_call: Vec::new(),
     }];
     for (transfer, helper) in plan.forwarding_transfers.iter().zip(helpers) {
         occurrences.push(LoweredSourceCallOccurrence {
@@ -1683,6 +1687,7 @@ fn dynamic_source_call_occurrences_for_chain(
             })?,
             terminal_operation: helper.operation,
             source_target: transfer.target_state,
+            source_values_before_call: Vec::new(),
         });
     }
     let final_helper = helpers.last().ok_or(LoweringError::Unsupported(
@@ -1699,6 +1704,7 @@ fn dynamic_source_call_occurrences_for_chain(
         })?,
         terminal_operation: final_helper.operation,
         source_target: plan.requirement,
+        source_values_before_call: Vec::new(),
     });
     Ok(occurrences)
 }
@@ -1723,6 +1729,7 @@ fn dynamic_source_call_occurrences(
             psi_checked_trees::CheckedDynamicScalarCallOrigin::Local => plan.requirement,
             psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { state, .. } => state,
         },
+        source_values_before_call: Vec::new(),
     }];
     if let (
         Some(helper),
@@ -1742,6 +1749,7 @@ fn dynamic_source_call_occurrences(
             })?,
             terminal_operation: helper.operation,
             source_target: plan.requirement,
+            source_values_before_call: Vec::new(),
         });
     }
     Ok(occurrences)

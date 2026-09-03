@@ -49,10 +49,11 @@ mod structural_operations;
 mod structural_qualification_rosters;
 mod structural_result_contracts;
 mod structural_scalar_fields;
+mod suspension_call_plan;
 
 use call_graph::validate_call_graph;
 use conformance_applications::validate_closed_conformance_applications;
-pub use error::{ContractClauseKind, ModuleError};
+pub use error::{ContractClauseKind, ModuleError, SuspensionCallPlanError};
 use evidence::{validate_evidence_contract_lanes, validate_proposition_vocabulary};
 pub(crate) use foundation::structural_leaf_type;
 pub use foundation::{ServiceCeilingOwner, StructuralSignatureOwner};
@@ -875,6 +876,7 @@ fn validate_module_with_policy(
     for machine in &module.machines {
         machine::validate_machine(module, machine, &machines, &mut registry, policy)?;
     }
+    suspension_call_plan::validate_suspension_call_plans(module)?;
     validate_call_graph(module)?;
     if !registry.machines.contains(&module.entry) {
         return Err(ModuleError::UnknownEntryMachine(module.entry));

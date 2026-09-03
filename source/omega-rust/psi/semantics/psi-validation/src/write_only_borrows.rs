@@ -639,83 +639,58 @@ fn write_only_element_assignment_index(
 
 /// Admit one exact literal primitive element of either a direct fixed-array
 /// root or an already-admitted common-field path only at the direct checked-call
-/// boundary. The bounded nested successor admits exactly two literal indexes
+/// boundary. The bounded nested successors admit at most three literal indexes
 /// through recursively literal fixed arrays. Dynamic indices, ranges,
-/// aggregate elements, and a third array projection remain excluded.
+/// aggregate elements, and a fourth array projection remain excluded.
 fn write_only_literal_indexed_direct_call_subloan(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    if !matches!(
-        program.expression_table.expression(indexed.index),
-        ExpressionNode::Integer(_)
-    ) {
+    let mut collection = expression;
+    let mut indices = Vec::with_capacity(3);
+    while let ExpressionNode::Indexed(indexed) = program.expression_table.expression(collection) {
+        if indices.len() == 3
+            || !matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Integer(_)
+            )
+        {
+            return false;
+        }
+        indices.push(indexed.index);
+        collection = indexed.collection;
+    }
+    if indices.is_empty() {
         return false;
     }
-    let collection_type = direct_write_only_root(program, indexed.collection, roots)
+
+    let Some(mut collection_type) = direct_write_only_root(program, collection, roots)
         .filter(|root| root.is_parameter)
         .map(|root| root.referee)
-        .or_else(|| write_only_record_field_type(program, indexed.collection, roots));
-    if let Some(collection_type) = collection_type {
-        let Some((element_type, _)) =
+        .or_else(|| write_only_record_field_type(program, collection, roots))
+    else {
+        return false;
+    };
+    for index in indices.into_iter().rev() {
+        let Some((element_type, length)) =
             fixed_unrestricted_write_only_array_shape(program, collection_type)
         else {
             return false;
         };
-        return is_unrestricted_scalar(program, element_type)
-            && write_only_element_assignment_index(program, expression, roots)
-                == Some(indexed.index);
+        let Some(index) = program
+            .expression_table
+            .constant_integer_value(index)
+            .and_then(|value| usize::try_from(value).ok())
+        else {
+            return false;
+        };
+        if index >= length {
+            return false;
+        }
+        collection_type = element_type;
     }
-
-    let ExpressionNode::Indexed(outer_indexed) =
-        program.expression_table.expression(indexed.collection)
-    else {
-        return false;
-    };
-    if !matches!(
-        program.expression_table.expression(outer_indexed.index),
-        ExpressionNode::Integer(_)
-    ) {
-        return false;
-    }
-    let collection_type = direct_write_only_root(program, outer_indexed.collection, roots)
-        .filter(|root| root.is_parameter)
-        .map(|root| root.referee)
-        .or_else(|| write_only_record_field_type(program, outer_indexed.collection, roots));
-    let Some(collection_type) = collection_type else {
-        return false;
-    };
-    let Some((inner_array_type, outer_length)) =
-        fixed_unrestricted_write_only_array_shape(program, collection_type)
-    else {
-        return false;
-    };
-    let Some((element_type, inner_length)) =
-        fixed_unrestricted_write_only_array_shape(program, inner_array_type)
-    else {
-        return false;
-    };
-    let Some(outer_index) = program
-        .expression_table
-        .constant_integer_value(outer_indexed.index)
-        .and_then(|value| usize::try_from(value).ok())
-    else {
-        return false;
-    };
-    let Some(inner_index) = program
-        .expression_table
-        .constant_integer_value(indexed.index)
-        .and_then(|value| usize::try_from(value).ok())
-    else {
-        return false;
-    };
-    outer_index < outer_length
-        && inner_index < inner_length
-        && is_unrestricted_scalar(program, element_type)
+    is_unrestricted_scalar(program, collection_type)
 }
 
 fn diagnose_unsupported_write_only_assignment_target(
@@ -814,7 +789,7 @@ fn validate_expression(
             ReferenceAccess::WriteOnly => {
                 if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path optionally followed by one or two in-bounds literal fixed-array indexes only as a direct checked-call argument"
+                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path optionally followed by one, two, or three in-bounds literal fixed-array indexes only as a direct checked-call argument"
                     )));
                 }
             }

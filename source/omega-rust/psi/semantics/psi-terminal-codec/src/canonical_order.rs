@@ -20,6 +20,46 @@ use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALA
 pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     if !strictly_increasing(
         module
+            .suspension_call_sites
+            .iter()
+            .map(|site| (site.operation, site.crossing)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "suspension call sites by operation and crossing",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .suspension_call_plans
+            .iter()
+            .map(|plan| (plan.operation, plan.crossing)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "suspension call plans by operation and crossing",
+        ));
+    }
+    for plan in &module.suspension_call_plans {
+        if !strictly_increasing(
+            plan.live_values
+                .iter()
+                .map(|live| (&live.place, live.storage, live.value_type, live.effective)),
+        ) {
+            return Err(CodecError::NonCanonicalOrder(
+                "suspension live values by place, storage, type, and policy",
+            ));
+        }
+        if plan
+            .live_values
+            .iter()
+            .any(|live| !strictly_increasing(live.claims.iter().copied()))
+        {
+            return Err(CodecError::NonCanonicalOrder(
+                "suspension live claims by ClaimId",
+            ));
+        }
+    }
+    if !strictly_increasing(
+        module
             .dynamic_dispatch
             .parameters
             .iter()

@@ -121,8 +121,11 @@ Suspension is an operational property of an ordinary machine. Independent
 of each is the corresponding negative guarantee. A suspended activation retains
 its fixed nonmoving stack. Checked source already derives one canonical
 `SuspensionCrossingId`, exact live frontier, and four-axis carry policy for each
-possibly suspending call. Remaining work is Terminal/runtime retention and
-expansion of the conservative suspension-safe-loan subset.
+possibly suspending call. A first bounded Terminal rung now retains an injected
+checked crossing for a receiver-free direct scalar call whose complete frontier
+contains only primitive scalar parameters, straight-line locals, and call
+arguments with no live claims. General Terminal/runtime retention and expansion
+of the conservative suspension-safe-loan subset remain.
 
 Positive progress remains separate. Pinned operation contracts may carry
 owner-classified `ProgressProfile` domains established through exact admitted
@@ -150,9 +153,12 @@ The constraints are:
 
 Suspension composes through ordinary calls, with the suspension plan propagated/
 inferred and WCSU providing the activation's fixed stack bound. Public
-operational clauses are explicit ceilings; private omissions infer. Terminal
-retention, park/resume lowering, and evidence-backed widening of the
-suspension-safe-loan subset remain engineering work under the settled model.
+operational clauses are explicit ceilings; private omissions infer. Format 74 /
+vocabulary 77 preserve the bounded scalar Terminal site/plan pair without
+adding a CFG edge. Structural, persistent, receiver-bearing, threaded-local,
+claim-bearing, Unit, boundary, and dynamic frontiers, park/resume lowering, and
+evidence-backed widening of the suspension-safe-loan subset remain engineering
+work under the settled model.
 See
 [effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md).
 

@@ -19,8 +19,28 @@ pub enum ContractClauseKind {
     Crash,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SuspensionCallPlanError {
+    CountMismatch,
+    SiteMismatch,
+    NonCanonical,
+    DuplicateOperation,
+    DuplicateCrossing,
+    UnknownOperation,
+    RedirectedToNonCall,
+    UnderstatedPolicy,
+    UnknownPlace,
+    TypeMismatch,
+    InvalidClaimFrontier,
+    InvalidCallArgument,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    InvalidSuspensionCallPlan {
+        operation: Option<OperationId>,
+        reason: SuspensionCallPlanError,
+    },
     NonCanonicalDynamicDescriptorParameterOrder,
     DuplicateDynamicDescriptorParameter {
         owner: MachineId,

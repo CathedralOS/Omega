@@ -26,7 +26,7 @@ fn selected_executor_with_incompatible_affinity_evidence_rejects() {
         may_suspend: true,
         may_block: false,
         canonical_suspension_crossings: vec![CanonicalSuspensionCrossing {
-            identity: id(7, SuspensionCrossingId::from_normalized_identity),
+            identity: SuspensionCrossingId::new(7).expect("nonzero crossing identity"),
             suspension_allowed: true,
             preserve_cpu: true,
             preserve_host_thread: false,

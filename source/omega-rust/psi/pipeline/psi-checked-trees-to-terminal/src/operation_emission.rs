@@ -356,6 +356,7 @@ pub(super) fn emit_scalar_binding(
         call,
         &call.crash_continuations,
         parameters,
+        parameters,
         &arguments,
         next_value_identity,
         operations,
@@ -503,6 +504,7 @@ pub(super) fn emit_staged_scalar_call_binding(
         call,
         &call.parameter_relative_crash_routes,
         &arguments,
+        &current_parameters[..caller_value_count],
         &arguments,
         next_value_identity,
         operations,
@@ -535,6 +537,7 @@ fn emit_direct_call_operation(
     call: &LoweredDirectCallBinding,
     crash_routes: &[psi_checked_trees::CrashRouteBucket],
     crash_values: &[ValueDeclaration],
+    source_values_before_call: &[ValueDeclaration],
     arguments: &[ValueDeclaration],
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
@@ -563,7 +566,13 @@ fn emit_direct_call_operation(
         .checked_add(1)
         .expect("generated value identity advances after a direct call");
     let operation = operations.allocate();
-    operations.record_source_call(call.source_coordinate, None, operation, call.target_machine)?;
+    operations.record_source_call_with_values(
+        call.source_coordinate,
+        None,
+        operation,
+        call.target_machine,
+        source_values_before_call,
+    )?;
     operations.push(Operation {
         id: operation,
         result: psi_terminal::OperationResult::Scalar(ValueDeclaration {

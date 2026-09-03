@@ -3908,6 +3908,9 @@ fn write_only_primitive_store_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
     }
@@ -4083,6 +4086,9 @@ fn hard_root_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
     }
@@ -4289,6 +4295,9 @@ fn partial_affine_field_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
     }
@@ -4550,6 +4559,9 @@ fn nominal_affine_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, cleanup],
     }

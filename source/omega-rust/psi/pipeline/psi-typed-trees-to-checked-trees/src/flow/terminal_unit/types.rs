@@ -1031,6 +1031,28 @@ impl<'program> ShapeCollector<'program> {
                                 == Multiplicity::Unrestricted
                 )
             );
+            let unrestricted_twice_nested_primitive_array_element = matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(*element_type),
+                TypeReferenceNode::FixedArray {
+                    element_type: middle_type,
+                    length: psi_typed_trees::types::FixedArrayLength::Literal(1..),
+                } if matches!(
+                    self.program.type_reference_table.type_reference(*middle_type),
+                    TypeReferenceNode::FixedArray {
+                        element_type: leaf_type,
+                        length: psi_typed_trees::types::FixedArrayLength::Literal(1..),
+                    } if matches!(
+                        self.program.type_reference_table.type_reference(*leaf_type),
+                        TypeReferenceNode::Named { name, .. }
+                            if !name.as_str().starts_with("Atomic")
+                                && self.program.primitive_type_reference(*leaf_type).is_some()
+                                && crate::checks::type_multiplicity(self.program, *leaf_type)
+                                    == Multiplicity::Unrestricted
+                    )
+                )
+            );
             if *length == 0
                 || !substitutions.is_empty()
                 || (!matches!(
@@ -1038,11 +1060,13 @@ impl<'program> ShapeCollector<'program> {
                         .type_reference_table
                         .type_reference(*element_type),
                     TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                ) && !unrestricted_nested_primitive_array_element)
+                ) && !unrestricted_nested_primitive_array_element
+                    && !unrestricted_twice_nested_primitive_array_element)
                 || (crate::checks::type_multiplicity(self.program, *element_type)
                     != Multiplicity::Linear
                     && !unrestricted_primitive_element
-                    && !unrestricted_nested_primitive_array_element)
+                    && !unrestricted_nested_primitive_array_element
+                    && !unrestricted_twice_nested_primitive_array_element)
                 || !self.in_progress.insert(identity.clone())
             {
                 return None;
