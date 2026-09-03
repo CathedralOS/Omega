@@ -30,6 +30,7 @@ pub(super) fn lower_structural_unit_call(
     let AbstractOperation::CallUnit {
         psi_operation,
         callee,
+        arguments: scalar_arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -38,6 +39,12 @@ pub(super) fn lower_structural_unit_call(
     else {
         unreachable!("structural Unit-call lowering receives only Unit calls")
     };
+    if !scalar_arguments.is_empty() {
+        return Err(LoweringError::UnsupportedUnitCallScalarArguments {
+            machine: function.machine,
+            operation: *psi_operation,
+        });
+    }
     let callee_function = functions
         .get(callee)
         .copied()

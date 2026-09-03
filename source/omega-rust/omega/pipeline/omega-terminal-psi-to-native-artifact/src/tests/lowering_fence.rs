@@ -843,18 +843,41 @@ fn parameter_sourced_write_only_store_caller_reaches_verified_terminal_execution
             value: replacement,
         }]
     );
-    assert!(matches!(
-        omega_psi_to_abstract_operations::lower_artifact_sections(
-            &semantic,
-            &proof,
-            &psi_proof_admission::AdmissionProfile::default(),
-        ),
-        Err(omega_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
-            omega_psi_to_abstract_operations::LoweringError::UnsupportedUnitCallScalarArguments(
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
+        &semantic,
+        &proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("scalar-bearing Unit call reaches target-neutral Omega");
+    let abstract_root = abstract_plan
+        .functions
+        .iter()
+        .find(|function| function.machine == abstract_plan.entry)
+        .expect("abstract caller is retained");
+    let omega_abstract_operations::AbstractOperation::CallUnit {
+        arguments: abstract_arguments,
+        ..
+    } = &abstract_root.operations[0]
+    else {
+        panic!("abstract caller retains one ordinary Unit call")
+    };
+    assert_eq!(abstract_arguments, &[scalar_parameter.id]);
+    let target_result = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+        &abstract_plan,
+        omega_target::NativeTarget::linux_x64(),
+    );
+    assert!(
+        matches!(
+        &target_result,
+        Err(
+            omega_abstract_operations_to_target_operations::LoweringError::UnsupportedUnitCallScalarArguments {
+                machine,
                 operation,
-            )
-        )) if operation == call.id
-    ));
+            }
+        ) if *machine == abstract_plan.entry && *operation == call.id
+        ),
+        "unexpected target boundary: {target_result:?}"
+    );
 
     let mut missing_argument = lowered.semantic_module.clone();
     let entry = missing_argument.entry;

@@ -116,6 +116,7 @@ fn call_graph_marks_mutual_recursion() {
         node(O::CallUnit {
             psi_operation: id(501, psi_core::OperationId::new),
             callee: second.machine,
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -127,6 +128,7 @@ fn call_graph_marks_mutual_recursion() {
         node(O::CallUnit {
             psi_operation: id(502, psi_core::OperationId::new),
             callee: first.machine,
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),

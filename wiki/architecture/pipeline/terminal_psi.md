@@ -729,9 +729,11 @@ fail closed. Terminal format 77/vocabulary 80 now retains an ordinary
 verifies their exact arity and types against the callee, transports them through
 canonical bytes, and binds them in reference execution. This admits a semantic
 caller that forwards one scalar parameter into the write-only-store callee.
-Target-neutral abstract lowering still rejects scalar-bearing `CallUnit`
-explicitly, so native caller transport and general parameter forwarding remain
-open rather than being silently erased.
+Abstract lowering and optimizer identity/dataflow now retain and revalidate the
+same scalar arguments. Abstract-to-Target lowering rejects scalar-bearing
+`CallUnit` explicitly until the target call/ABI carrier exists, so native caller
+transport and general parameter forwarding remain open rather than being
+silently erased.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

@@ -98,6 +98,7 @@ pub(in crate::tests) fn structural_call_fixture() -> (
                     AbstractOperation::CallUnit {
                         psi_operation: call,
                         callee,
+                        arguments: Vec::new(),
                         structural_arguments: caller_places
                             .into_iter()
                             .map(|place| StructuralArgument {

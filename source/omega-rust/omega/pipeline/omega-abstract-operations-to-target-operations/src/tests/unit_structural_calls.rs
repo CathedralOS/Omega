@@ -84,6 +84,7 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
                     AbstractOperation::CallUnit {
                         psi_operation: OperationId::new(1).unwrap(),
                         callee,
+                        arguments: Vec::new(),
                         structural_arguments: vec![psi_terminal::StructuralArgument {
                             place: root_place,
                             access: StructuralAccess::Owned,

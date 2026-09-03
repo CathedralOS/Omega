@@ -183,6 +183,7 @@ fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
                     AbstractOperation::CallUnit {
                         psi_operation: OperationId::new(43).unwrap(),
                         callee: helper,
+                        arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
@@ -419,6 +420,7 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
     let executable_call = AbstractOperation::CallUnit {
         psi_operation: OperationId::new(1).unwrap(),
         callee: helper,
+        arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
@@ -496,6 +498,7 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
         AbstractOperation::CallUnit {
             psi_operation: OperationId::new(2).unwrap(),
             callee: helper,
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),

@@ -142,6 +142,7 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
     unit_use.functions[0].blocks[0].nodes[0].operation = AbstractOperation::CallUnit {
         psi_operation,
         callee: machine,
+        arguments: Vec::new(),
         structural_arguments: vec![provider_argument],
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),

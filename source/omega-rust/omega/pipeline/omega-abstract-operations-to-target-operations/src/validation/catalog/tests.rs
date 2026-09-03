@@ -131,6 +131,7 @@ fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
                 AbstractOperation::CallUnit {
                     psi_operation: call_operation,
                     callee,
+                    arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),

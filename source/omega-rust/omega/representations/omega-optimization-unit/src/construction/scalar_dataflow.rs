@@ -160,7 +160,9 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
 pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
-        O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => arguments.clone(),
+        O::Call { arguments, .. }
+        | O::CallUnit { arguments, .. }
+        | O::BoundaryCall { arguments, .. } => arguments.clone(),
         O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
             vec![value.value]
         }

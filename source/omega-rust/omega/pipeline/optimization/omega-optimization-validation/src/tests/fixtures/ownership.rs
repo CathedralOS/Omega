@@ -129,6 +129,7 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
                     AbstractOperation::CallUnit {
                         psi_operation: id(4_859, OperationId::new),
                         callee,
+                        arguments: Vec::new(),
                         structural_arguments: vec![psi_terminal::StructuralArgument {
                             place: caller_place,
                             path: vec![psi_terminal::StructuralPathSegment::Field("right".into())],
@@ -202,6 +203,7 @@ pub(crate) fn partial_affine_quartet_unit() -> PsiOptimizationUnit {
     let projected_call = |psi_operation, index| AbstractOperation::CallUnit {
         psi_operation,
         callee,
+        arguments: Vec::new(),
         structural_arguments: vec![psi_terminal::StructuralArgument {
             place: caller_place,
             path: vec![psi_terminal::StructuralPathSegment::FixedIndex(index)],
