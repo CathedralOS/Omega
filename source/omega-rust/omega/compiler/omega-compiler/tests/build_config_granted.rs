@@ -103,7 +103,7 @@ machine build(builder: &mut Build) {{
     let output_descriptor: i32 = builder.output.create(generated, 438);
     let output_count: i64 = builder.output.write(
         output_descriptor,
-        "data Generated {{ base: Main; }}\npub data MachineConfig {{ count: u8; enabled: bool; }}\npub data ConfigIndexed<const C: MachineConfig> {{ marker: u8; }}\npub machine identity<'value, T>(value: &'value T) -> &'value T {{ value }}\npub machine width<const N: u64>(value: [u8; N]) {{}}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {{}}\n"
+        "data Generated {{ base: Main; }}\npub data MachineConfig {{ count: u8; enabled: bool; }}\npub data ConfigIndexed<const C: MachineConfig> {{ marker: u8; }}\npub machine identity<'value, T>(value: &'value T) -> &'value T {{ value }}\npub machine bounded<T [copy]>(value: &T) {{}}\npub machine width<const N: u64>(value: [u8; N]) {{}}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {{}}\n"
     );
     let output_close: i32 = builder.output.close(output_descriptor);
     builder.output.include_source(generated);
@@ -170,6 +170,22 @@ machine build(builder: &mut Build) {{
             .map(|parameter| parameter.as_str())
             .collect::<Vec<_>>(),
         ["value"]
+    );
+    let bounded = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "bounded")
+        .expect("generated property-bounded machine reaches final checked program");
+    let [bounded_parameter] = checked.typed.machine_type_parameters(bounded) else {
+        panic!("generated bounded machine retains one Type parameter")
+    };
+    assert_eq!(
+        bounded_parameter.bounds,
+        psi_typed_trees::data::DataProperties {
+            carry: None,
+            multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+        },
     );
     let width = checked
         .typed
@@ -320,7 +336,7 @@ machine build(builder: &mut Build) {{
         .staged_output_tree()
         .expect("complete replay retains the staged output tree");
     assert_eq!(staged.entry_count(), 1);
-    let expected_generated = b"data Generated { base: Main; }\npub data MachineConfig { count: u8; enabled: bool; }\npub data ConfigIndexed<const C: MachineConfig> { marker: u8; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\npub machine width<const N: u64>(value: [u8; N]) {}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {}\n";
+    let expected_generated = b"data Generated { base: Main; }\npub data MachineConfig { count: u8; enabled: bool; }\npub data ConfigIndexed<const C: MachineConfig> { marker: u8; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\npub machine bounded<T [copy]>(value: &T) {}\npub machine width<const N: u64>(value: [u8; N]) {}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {}\n";
     assert_eq!(staged.file_bytes(), expected_generated.len() as u64);
 
     assert_eq!(

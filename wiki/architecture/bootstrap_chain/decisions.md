@@ -468,8 +468,9 @@ exact retained or newly generated data declaration, and checked-body generic
 machines with an authored-order erased-lifetime telescope plus exact machine-
 parented ordinary `Type` or const binders whose carrier is scalar or an exact
 validated structured-data shape. Structured const occurrences replay the
-exact binder symbol/name and matching template carrier. Type-property bounds,
-machine/proposition binders, conformance bounds,
+exact binder symbol/name and matching template carrier. Ordinary `Type`
+binders retain their complete authored multiplicity and four-axis carry-
+property bounds. Machine/proposition binders, conformance bounds,
 `satisfies`, and broader supply/operational forms remain outside these
 first generic cohorts. Satisfied-declaration
 settlement, domain constraints, qualification casts, fixed-byte literal
@@ -501,8 +502,9 @@ conformance visibility, unit-local normalization, generated-machine and
 attached-method continuation, dependency-bundle no-rerun, target-scoped
 rejection, retained-prefix preservation, generated transitive-dependency
 rejection at the final authority replay, exact generic-machine lifetime-
-telescope and scalar/structured-const carrier/value custody, transactional rejection of
-unadmitted binder kinds, and structural absence of the retired rebuild path.
+telescope, Type-property bounds, and scalar/structured-const carrier/value
+custody, transactional rejection of unadmitted binder kinds, and structural
+absence of the retired rebuild path.
 
 Package orchestration processes dependencies in deterministic dependency order
 and retains durable source bundles, commitments, and review evidence between
