@@ -70,6 +70,14 @@ functional language required by Epsilon.
   lines and an 11,004-byte tape: 609 additional low-level lines and 254 additional
   control transfers versus selected Gamma. D92 therefore retains Gamma and keeps
   constructor/match semantics in the more readable staged compiler.
+- [x] A purely interpreted Forth-Gamma experiment eliminates per-program Beta
+  expansion and adds named values plus readable quoted emission. Its 890-line
+  Beta interpreter produces a 5,145-byte tape, but its Delta compiler remains
+  1,451 lines across 555 tiny words; total authored source is 79 lines larger
+  than the functional route. It passes recursive Nat/List/rope, malformed,
+  empty-index, and 100,000-tail witnesses, while 3,001-function compilation
+  exceeds 600 seconds and unreachable names/stack effects remain unchecked.
+  D93 retains the experiment without selecting it.
 - [x] A noncanonical 565-line current-Gamma compiler now emits Alpha directly
   for scalar Functional Delta: `Int` functions, parameters, lexical `let`,
   conditionals, arithmetic/comparison, nested calls, and direct recursion. Its
