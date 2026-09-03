@@ -805,9 +805,9 @@ local result interval.
 A bare dynamic parameter may also be passed onward unchanged to a bare
 parameter of the same trait. Checked custody distinguishes a descriptor made
 from an owner-local selection from one sourced from an incoming parameter and
-retains the original exact selection through an unambiguous call edge. This is
-not yet an executable multi-hop promise: Terminal lowering currently consumes
-one forwarding hop. A parameter state with multiple inbound call sites is a
+retains the original exact selection through a complete unambiguous chain of
+such call edges. Terminal and native lowering preserve every helper rather than
+collapsing the chain. A parameter state with multiple inbound call sites is a
 real descriptor join and does not acquire parameter-forwarding custody merely
 because the incoming interfaces have the same spelling.
 
@@ -830,17 +830,15 @@ fixed-integer result-home lane. A Boolean-returning forwarded call instead
 uses an exact one-byte Boolean home and branches directly on that value after
 the indirect call. Indexed/case projections, address and IEEE-float literals,
 computed values, repeated destinations, and a fourth store remain outside this
-bounded rung. An
-operation-free, argument-free Unit-returning requirement may now be retained
-at the checked layer for a terminal direct or once-rebound local descriptor
-call. One transparent forwarding machine may accept that descriptor as its
-only parameter and perform the Unit call as its sole statement. Both call
-coordinates are retained, and the plan deliberately has no result carrier.
-The once-rebound local form now reaches target assignment, native machine
-emission, table relocation, object/image replay, and installation on all four
-native targets using one result-neutral dynamic-call record. It publishes no
-scalar home. The transparent forwarded form remains outside the current
-native rung.
+bounded rung. An operation-free, argument-free Unit-returning requirement may
+be retained for a terminal direct or once-rebound local descriptor call and
+through a finite transparent forwarding chain. Every helper accepts the
+descriptor as its only parameter; intermediate helpers pass it onward, and only
+the final helper performs the dynamic Unit call. Every coordinate is retained,
+and the plan deliberately has no result carrier. Direct, rebound, and forwarded
+forms reach target assignment, native machine emission, table relocation,
+object/final-image replay, and installation on all four native targets. They
+publish no scalar home.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected
@@ -1094,15 +1092,16 @@ independently rederive the helper chain, interface and call-plan custody,
 unchanged register handoff, direct-call relocation and opcode shape, and
 semantic attribution. Installation format 67 retains the compact source,
 callee, scalar, parameter-ordinal, and exact text-span projection and rejects
-codec or projection drift. Unit results, continuation-bearing callers, and
-native process observation are not yet in this native lane. Result-less Unit
-chains do reach verified Terminal Psi: each intermediate helper explicitly
-calls the next with the incoming descriptor parameter, only the final helper
-dispatches through the requirement slot, and no helper acquires a scalar result
-or value identity. Target and assigned forms now retain a distinct
-result-neutral helper call, exact source/target interfaces, both no-result
-two-word call plans, and an unchanged descriptor-register handoff. Machine
-emission uses an explicit Unit stack/link carrier; object, final-image, and
+codec or projection drift. A scalar caller may consume the final result in its
+checked conditional/effect continuation; the complete helper chain remains
+explicit, and a Linux native canary observes the selected realization through
+process exit status. Result-less Unit chains use the same explicit structure:
+each intermediate helper calls the next with the incoming descriptor parameter,
+only the final helper dispatches through the requirement slot, and no helper
+acquires a scalar result or value identity. Target and assigned forms retain a
+distinct result-neutral helper call, exact source/target interfaces, both
+no-result two-word call plans, and an unchanged descriptor-register handoff.
+Machine emission uses an explicit Unit stack/link carrier; object, final-image, and
 format-67 installation replay preserve the helper chain while requiring source
 value and scalar type to remain jointly absent.
 
