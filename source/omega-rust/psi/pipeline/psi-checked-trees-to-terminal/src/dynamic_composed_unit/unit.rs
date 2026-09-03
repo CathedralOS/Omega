@@ -118,7 +118,7 @@ fn lower_dynamic_unit_machine(
     let mut next_place = 2_u64;
     let mut next_operation = 2_u64;
     let mut next_edge = 2_u64;
-    let forwarded_helper = forwarded_unit_helper_ids(
+    let forwarded_helpers = forwarded_unit_helper_ids(
         plan,
         &lowered_realizations,
         &mut next_block,
@@ -139,8 +139,12 @@ fn lower_dynamic_unit_machine(
         &selected_row,
         callable_identity,
         realization_machine,
-        forwarded_helper,
+        forwarded_helpers.first().copied(),
     )?;
+    let mut dynamic_dispatch = dynamic_dispatch;
+    if forwarded_helpers.len() > 1 {
+        extend_unit_parameter_forwarding_catalog(&mut dynamic_dispatch, &forwarded_helpers)?;
+    }
     let caller_reach = lower_installation_machine_service_ceiling(
         checked,
         plan.caller_machine,
@@ -164,11 +168,13 @@ fn lower_dynamic_unit_machine(
         &mut next_place,
         &mut next_edge,
     )?;
-    let forwarded_helper_machine = forwarded_helper
-        .map(|ids| {
-            materialize_forwarded_unit_helper(checked, plan, &application, &selected_row, ids)
-        })
-        .transpose()?;
+    let forwarded_helper_machines = materialize_forwarded_unit_helper_chain(
+        checked,
+        plan,
+        &application,
+        &selected_row,
+        &forwarded_helpers,
+    )?;
     let caller_block = block_id(1);
 
     Ok(LoweredTerminalPsi {
@@ -248,7 +254,7 @@ fn lower_dynamic_unit_machine(
                     contract: empty_terminal_contract(caller_machine.get()),
                 }];
                 machines.extend(realization_machines);
-                machines.extend(forwarded_helper_machine);
+                machines.extend(forwarded_helper_machines);
                 machines
             },
         },
@@ -258,10 +264,10 @@ fn lower_dynamic_unit_machine(
             evidence: Vec::new(),
         },
         debug_map: None,
-        source_call_occurrences: unit_source_call_occurrences(
+        source_call_occurrences: unit_source_call_occurrences_for_chain(
             plan,
             call_operation,
-            forwarded_helper,
+            &forwarded_helpers,
         )?,
         selected_ieee_float_fma_occurrences: Vec::new(),
     })
@@ -377,6 +383,15 @@ fn validate_exact_unit_plan(
             parameter,
         )?,
     };
+    let forwarded_path_matches = match plan.origin {
+        CheckedDynamicUnitCallOrigin::Local => plan.forwarding_transfers.is_empty(),
+        CheckedDynamicUnitCallOrigin::Forwarded {
+            machine,
+            state,
+            parameter,
+            ..
+        } => validate_unit_forwarding_transfer_path(checked, plan, machine, state, parameter)?,
+    };
     let matching = calls
         .iter()
         .filter(|call| {
@@ -390,9 +405,15 @@ fn validate_exact_unit_plan(
                             && call.service_reach == plan.checked_call_service_reach
                     }
                     CheckedDynamicUnitCallOrigin::Forwarded { state, .. } => {
+                        let first_state = plan
+                            .forwarding_transfers
+                            .first()
+                            .map(|transfer| transfer.caller_state)
+                            .unwrap_or(state);
                         !call.has_receiver
-                            && call.target_symbol == state
+                            && call.target_symbol == first_state
                             && forwarded_coordinates_match
+                            && forwarded_path_matches
                     }
                 }
         })
@@ -794,17 +815,124 @@ fn lower_unit_call_custody(
     })
 }
 
+fn validate_unit_forwarding_transfer_path(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicUnitCallPlan,
+    final_machine: psi_symbols::SymbolHandle,
+    final_state: psi_symbols::SymbolHandle,
+    final_parameter: psi_symbols::SymbolHandle,
+) -> Result<bool, LoweringError> {
+    let transfers = &checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .transfers;
+    let first_machine = plan
+        .forwarding_transfers
+        .first()
+        .map(|transfer| transfer.caller_machine)
+        .unwrap_or(final_machine);
+    let first_state = plan
+        .forwarding_transfers
+        .first()
+        .map(|transfer| transfer.caller_state)
+        .unwrap_or(final_state);
+    let roots = transfers
+        .iter()
+        .filter(|transfer| {
+            transfer.caller_machine == plan.caller_machine
+                && transfer.caller_state == plan.caller_state
+                && transfer.coordinate == plan.coordinate
+                && transfer.target_machine == first_machine
+                && transfer.target_state == first_state
+                && transfer.parameter_position == 0
+                && transfer.target_trait == plan.target_trait
+                && transfer.source_binding == plan.receiver_binding
+                && transfer.source
+                    == psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+                && transfer.selection == plan.selection
+        })
+        .collect::<Vec<_>>();
+    let [root] = roots.as_slice() else {
+        return Ok(false);
+    };
+    let mut machine = root.target_machine;
+    let mut state = root.target_state;
+    let mut source_parameter = root.parameter;
+    for transfer in &plan.forwarding_transfers {
+        if transfers
+            .iter()
+            .filter(|candidate| *candidate == transfer)
+            .count()
+            != 1
+            || transfer.caller_machine != machine
+            || transfer.caller_state != state
+            || transfer.parameter_position != 0
+            || transfer.target_trait != plan.target_trait
+            || transfer.source_binding != source_parameter
+            || transfer.source
+                != (psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                    parameter_position: 0,
+                })
+            || transfer.selection != plan.selection
+            || !validate_parameter_forwarding_call(checked, transfer)?
+        {
+            return Ok(false);
+        }
+        machine = transfer.target_machine;
+        state = transfer.target_state;
+        source_parameter = transfer.parameter;
+    }
+    Ok(machine == final_machine && state == final_state && source_parameter == final_parameter)
+}
+
+fn extend_unit_parameter_forwarding_catalog(
+    catalog: &mut TerminalDynamicDispatchCatalog,
+    helpers: &[ForwardedUnitHelperIds],
+) -> Result<(), LoweringError> {
+    let [template] = catalog.parameters.as_slice() else {
+        return unsupported("multi-hop dynamic Unit forwarding lost its first parameter interface");
+    };
+    let template = template.clone();
+    let [dispatch] = catalog.parameter_dispatches.as_mut_slice() else {
+        return unsupported("multi-hop dynamic Unit forwarding lost its final parameter dispatch");
+    };
+    for helper in &helpers[1..] {
+        let mut parameter = template.clone();
+        parameter.owner = helper.machine;
+        catalog.parameters.push(parameter);
+    }
+    for pair in helpers.windows(2) {
+        catalog.arguments.push(TerminalDynamicDescriptorArgument {
+            owner: pair[0].machine,
+            operation: pair[0].operation,
+            parameter_ordinal: 0,
+            source: TerminalDynamicDescriptorSource::Parameter { ordinal: 0 },
+        });
+    }
+    let final_helper = helpers.last().ok_or(LoweringError::Unsupported(
+        "multi-hop dynamic Unit forwarding has no final helper",
+    ))?;
+    dispatch.owner = final_helper.machine;
+    dispatch.operation = final_helper.operation;
+    Ok(())
+}
+
 fn forwarded_unit_helper_ids(
     plan: &CheckedDynamicUnitCallPlan,
     realizations: &[LoweredDynamicRealization],
     next_block: &mut u64,
     next_operation: &mut u64,
     next_edge: &mut u64,
-) -> Result<Option<ForwardedUnitHelperIds>, LoweringError> {
+) -> Result<Vec<ForwardedUnitHelperIds>, LoweringError> {
     if !matches!(plan.origin, CheckedDynamicUnitCallOrigin::Forwarded { .. }) {
-        return Ok(None);
+        if !plan.forwarding_transfers.is_empty() {
+            return unsupported("local dynamic Unit call retained forwarding transfers");
+        }
+        return Ok(Vec::new());
     }
-    let machine = realizations
+    let first_machine = realizations
         .iter()
         .map(|realization| realization.machine.get())
         .max()
@@ -815,28 +943,33 @@ fn forwarded_unit_helper_ids(
         .ok_or(LoweringError::Unsupported(
             "forwarded dynamic Unit helper machine identity overflowed",
         ))?;
-    Ok(Some(ForwardedUnitHelperIds {
-        machine: machine_id(machine),
-        block: block_id(allocate_dense(next_block)?),
-        operation: operation_id(allocate_dense(next_operation)?),
-        edge: edge_id(allocate_dense(next_edge)?),
-    }))
+    (0..=plan.forwarding_transfers.len())
+        .map(|ordinal| {
+            let ordinal = u64::try_from(ordinal).map_err(|_| {
+                LoweringError::Unsupported("forwarded dynamic Unit helper count exceeds u64")
+            })?;
+            Ok(ForwardedUnitHelperIds {
+                machine: machine_id(first_machine.checked_add(ordinal).ok_or(
+                    LoweringError::Unsupported(
+                        "forwarded dynamic Unit helper machine identity overflowed",
+                    ),
+                )?),
+                block: block_id(allocate_dense(next_block)?),
+                operation: operation_id(allocate_dense(next_operation)?),
+                edge: edge_id(allocate_dense(next_edge)?),
+            })
+        })
+        .collect()
 }
 
 fn materialize_forwarded_unit_helper(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicUnitCallPlan,
     application: &ClosedConformanceApplication,
     selected_row: &ClosedConformanceRow,
     ids: ForwardedUnitHelperIds,
+    source_machine: psi_symbols::SymbolHandle,
+    next_helper: Option<psi_core::MachineId>,
 ) -> Result<TerminalMachine, LoweringError> {
-    let CheckedDynamicUnitCallOrigin::Forwarded {
-        machine: source_machine,
-        ..
-    } = plan.origin
-    else {
-        return unsupported("forwarded Unit helper requires a forwarded checked origin");
-    };
     let checked_contract = checked
         .facts
         .contract_plans
@@ -887,11 +1020,20 @@ fn materialize_forwarded_unit_helper(
             operations: vec![Operation {
                 id: ids.operation,
                 result: OperationResult::Unit,
-                kind: OperationKind::CallDynamicParameterUnit {
-                    parameter_ordinal: 0,
-                    requirement_slot,
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
+                kind: match next_helper {
+                    Some(callee) => OperationKind::CallUnit {
+                        callee,
+                        structural_arguments: Vec::new(),
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
+                    None => OperationKind::CallDynamicParameterUnit {
+                        parameter_ordinal: 0,
+                        requirement_slot,
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
                 },
             }],
             terminator: Terminator::ReturnUnit {
@@ -901,6 +1043,48 @@ fn materialize_forwarded_unit_helper(
         }],
         contract: empty_terminal_contract(ids.machine.get()),
     })
+}
+
+fn materialize_forwarded_unit_helper_chain(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicUnitCallPlan,
+    application: &ClosedConformanceApplication,
+    selected_row: &ClosedConformanceRow,
+    helpers: &[ForwardedUnitHelperIds],
+) -> Result<Vec<TerminalMachine>, LoweringError> {
+    if helpers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let CheckedDynamicUnitCallOrigin::Forwarded {
+        machine: final_source_machine,
+        ..
+    } = plan.origin
+    else {
+        return unsupported("forwarded Unit helper chain requires a forwarded checked origin");
+    };
+    if plan.forwarding_transfers.len() + 1 != helpers.len() {
+        return unsupported("forwarded Unit helper chain length drifted from checked custody");
+    }
+    helpers
+        .iter()
+        .enumerate()
+        .map(|(index, ids)| {
+            let source_machine = plan
+                .forwarding_transfers
+                .get(index)
+                .map(|transfer| transfer.caller_machine)
+                .unwrap_or(final_source_machine);
+            let next_helper = helpers.get(index + 1).map(|next| next.machine);
+            materialize_forwarded_unit_helper(
+                checked,
+                application,
+                selected_row,
+                *ids,
+                source_machine,
+                next_helper,
+            )
+        })
+        .collect()
 }
 
 fn lower_exact_unit_application(
@@ -1085,5 +1269,75 @@ fn unit_source_call_occurrences(
             source_target: plan.requirement,
         });
     }
+    Ok(occurrences)
+}
+
+fn unit_source_call_occurrences_for_chain(
+    plan: &CheckedDynamicUnitCallPlan,
+    caller_operation: psi_core::OperationId,
+    helpers: &[ForwardedUnitHelperIds],
+) -> Result<Vec<LoweredSourceCallOccurrence>, LoweringError> {
+    if helpers.len() <= 1 {
+        return unit_source_call_occurrences(plan, caller_operation, helpers.first().copied());
+    }
+    let CheckedDynamicUnitCallOrigin::Forwarded {
+        state: final_state,
+        coordinate: final_coordinate,
+        ..
+    } = plan.origin
+    else {
+        return unsupported("forwarded Unit source-call chain requires a forwarded checked origin");
+    };
+    let first_state = plan
+        .forwarding_transfers
+        .first()
+        .ok_or(LoweringError::Unsupported(
+            "multi-hop Unit source-call chain lost its first transfer",
+        ))?
+        .caller_state;
+    let mut occurrences = vec![LoweredSourceCallOccurrence {
+        source_site: None,
+        source_state: plan.caller_state,
+        statement_index: usize::try_from(plan.coordinate.statement_index).map_err(|_| {
+            LoweringError::Unsupported("dynamic Unit statement coordinate exceeds usize")
+        })?,
+        call_ordinal: usize::try_from(plan.coordinate.call_ordinal)
+            .map_err(|_| LoweringError::Unsupported("dynamic Unit call ordinal exceeds usize"))?,
+        terminal_operation: caller_operation,
+        source_target: first_state,
+    }];
+    for (transfer, helper) in plan.forwarding_transfers.iter().zip(helpers) {
+        occurrences.push(LoweredSourceCallOccurrence {
+            source_site: None,
+            source_state: transfer.caller_state,
+            statement_index: usize::try_from(transfer.coordinate.statement_index).map_err(
+                |_| {
+                    LoweringError::Unsupported(
+                        "Unit parameter-forwarding statement coordinate exceeds usize",
+                    )
+                },
+            )?,
+            call_ordinal: usize::try_from(transfer.coordinate.call_ordinal).map_err(|_| {
+                LoweringError::Unsupported("Unit parameter-forwarding call ordinal exceeds usize")
+            })?,
+            terminal_operation: helper.operation,
+            source_target: transfer.target_state,
+        });
+    }
+    let final_helper = helpers.last().ok_or(LoweringError::Unsupported(
+        "multi-hop Unit source-call chain has no final helper",
+    ))?;
+    occurrences.push(LoweredSourceCallOccurrence {
+        source_site: None,
+        source_state: final_state,
+        statement_index: usize::try_from(final_coordinate.statement_index).map_err(|_| {
+            LoweringError::Unsupported("forwarded dynamic Unit statement coordinate exceeds usize")
+        })?,
+        call_ordinal: usize::try_from(final_coordinate.call_ordinal).map_err(|_| {
+            LoweringError::Unsupported("forwarded dynamic Unit call ordinal exceeds usize")
+        })?,
+        terminal_operation: final_helper.operation,
+        source_target: plan.requirement,
+    });
     Ok(occurrences)
 }
