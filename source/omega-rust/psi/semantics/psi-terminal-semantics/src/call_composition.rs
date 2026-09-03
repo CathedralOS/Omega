@@ -160,7 +160,7 @@ impl CallCompositionSemanticRow {
             schema: CallCompositionSchema {
                 target: CallTargetRule::ExactModuleMachine,
                 result: CallResultRule::UnitCalleeResult,
-                arguments: CallArgumentRule::StructuralPositionalArguments,
+                arguments: CallArgumentRule::ScalarAndStructuralPositionalArguments,
                 requirements: CallRequirementRule::EnumerateStructuralRequires,
                 transfers: CallTransferRule::ExactClaimTransfers,
                 outcomes: CallOutcomeRule::ImportStructuralEnsures,

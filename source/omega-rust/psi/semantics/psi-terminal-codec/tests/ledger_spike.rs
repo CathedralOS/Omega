@@ -177,6 +177,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
                 id: operation_id(10),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
+                    arguments: Vec::new(),
                     callee: machine_id(20),
                     structural_arguments: vec![StructuralArgument {
                         place: caller_place,

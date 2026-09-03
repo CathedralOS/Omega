@@ -964,6 +964,7 @@ fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies(
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                arguments: Vec::new(),
                 callee: second_helper.id,
                 structural_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
@@ -996,6 +997,7 @@ fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies(
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                arguments: Vec::new(),
                 callee: helper.id,
                 structural_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
@@ -1133,6 +1135,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                arguments: Vec::new(),
                 callee: machine_id(3),
                 structural_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
@@ -1150,6 +1153,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -1201,6 +1205,7 @@ fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                arguments: Vec::new(),
                 callee: machine_id(3),
                 structural_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
@@ -2286,6 +2291,7 @@ fn projected_move_blocks_later_whole_root_use() {
         id: operation_id(6),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: vec![StructuralArgument {
                 place: place_id(1),
@@ -3756,6 +3762,7 @@ fn unit_calls_preserve_exact_crash_routes_and_remain_acyclic() {
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: machine_id(2),
             structural_arguments: vec![StructuralArgument {
                 place: place_id(2),
@@ -3982,6 +3989,7 @@ fn hard_root_module() -> TerminalModule {
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
+                    arguments: Vec::new(),
                     callee: machine_id(2),
                     structural_arguments: vec![StructuralArgument {
                         place: place_id(1),
@@ -4218,6 +4226,7 @@ fn partial_affine_field_module() -> TerminalModule {
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
+                    arguments: Vec::new(),
                     callee: machine_id(2),
                     structural_arguments: vec![StructuralArgument {
                         place: place_id(1),
@@ -4836,6 +4845,7 @@ fn two_root_one_executable_nominal_affine_module() -> TerminalModule {
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -4866,6 +4876,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -4913,6 +4924,7 @@ fn two_call_executable_nominal_affine_module() -> TerminalModule {
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: machine_id(4),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -4946,6 +4958,7 @@ fn three_call_executable_nominal_affine_module() -> TerminalModule {
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: machine_id(5),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -4983,6 +4996,7 @@ fn five_call_executable_nominal_affine_module() -> TerminalModule {
             id: operation_id(raw - 2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                arguments: Vec::new(),
                 callee: helper.id,
                 structural_arguments: Vec::new(),
                 claim_transfers: Vec::new(),

@@ -693,6 +693,7 @@ fn lower_unit_call_custody(
                     });
                 OperationKind::CallUnit {
                     callee: helper.machine,
+                    arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -716,6 +717,7 @@ fn lower_unit_call_custody(
                     });
                 OperationKind::CallUnit {
                     callee: realization_machine,
+                    arguments: Vec::new(),
                     structural_arguments: vec![latest_source],
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -793,6 +795,7 @@ fn lower_unit_call_custody(
                     });
                 OperationKind::CallUnit {
                     callee: helper.machine,
+                    arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -1043,6 +1046,7 @@ fn materialize_forwarded_unit_helper(
                 kind: match next_helper {
                     Some(callee) => OperationKind::CallUnit {
                         callee,
+                        arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),

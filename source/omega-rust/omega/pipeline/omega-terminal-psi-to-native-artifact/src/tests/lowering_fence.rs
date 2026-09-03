@@ -753,6 +753,138 @@ fn verified_parameter_sourced_write_only_store_reaches_canonical_installation() 
 }
 
 #[test]
+fn parameter_sourced_write_only_store_caller_reaches_verified_terminal_execution() {
+    let checked = checked(
+        r#"
+            data Sink {}
+            machine Sink::fill(destination: &write i32, replacement: i32) {
+                destination = replacement;
+            }
+
+            data Root {}
+            machine Root::enter(destination: &mut i32, replacement: i32) {
+                Sink::fill(&write destination, replacement);
+            }
+        "#,
+    );
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("parameter-sourced store caller reaches verified Terminal production");
+    let root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine is retained");
+    let [scalar_parameter] = root.parameters.as_slice() else {
+        panic!("caller retains one scalar parameter")
+    };
+    let [structural_parameter] = root.structural_parameters.as_slice() else {
+        panic!("caller retains one structural parameter")
+    };
+    let call = &root.blocks[0].operations[0];
+    let psi_terminal::OperationKind::CallUnit {
+        arguments,
+        structural_arguments,
+        ..
+    } = &call.kind
+    else {
+        panic!("entry operation is the Unit call")
+    };
+    assert_eq!(arguments, &[scalar_parameter.id]);
+    assert!(matches!(
+        structural_arguments.as_slice(),
+        [argument] if argument.place == structural_parameter.place
+            && argument.path.is_empty()
+            && argument.access == psi_terminal::StructuralAccess::WriteOnlyBorrow
+    ));
+
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode scalar/structural Unit caller semantics");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&semantic).expect("decode Unit caller semantics"),
+        lowered.semantic_module
+    );
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("encode Unit caller proof bundle");
+    let psi_core::ScalarType::Integer(integer) = scalar_parameter.scalar_type else {
+        panic!("caller parameter is an integer")
+    };
+    let structural = psi_terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 17,
+        structural_type: structural_parameter.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let replacement = psi_terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: integer,
+        value: psi_core::IntegerValue::Signed(23),
+    };
+    let mut handler = psi_terminal_interpreter::AcceptTerminalEffects;
+    let executed = psi_terminal_interpreter::interpret_terminal_artifact_with_structural_primitive_values_measured(
+        &semantic,
+        &proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+        &[replacement],
+        std::slice::from_ref(&structural),
+        &[psi_terminal_interpreter::TerminalStructuralPrimitiveValue {
+            argument_index: 0,
+            value: psi_terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: psi_core::IntegerValue::Signed(1),
+            },
+        }],
+        &mut handler,
+    )
+    .expect("verified Unit caller forwards its scalar into write-only storage");
+    assert_eq!(
+        executed.structural_primitive_values(),
+        &[psi_terminal_interpreter::TerminalStructuralPrimitiveValue {
+            argument_index: 0,
+            value: replacement,
+        }]
+    );
+    assert!(matches!(
+        omega_psi_to_abstract_operations::lower_artifact_sections(
+            &semantic,
+            &proof,
+            &psi_proof_admission::AdmissionProfile::default(),
+        ),
+        Err(omega_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
+            omega_psi_to_abstract_operations::LoweringError::UnsupportedUnitCallScalarArguments(
+                operation,
+            )
+        )) if operation == call.id
+    ));
+
+    let mut missing_argument = lowered.semantic_module.clone();
+    let entry = missing_argument.entry;
+    let missing_call = missing_argument
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .expect("mutated caller remains present")
+        .blocks[0]
+        .operations
+        .first_mut()
+        .expect("mutated caller retains its call");
+    let psi_terminal::OperationKind::CallUnit { arguments, .. } = &mut missing_call.kind else {
+        panic!("mutated entry operation remains the Unit call")
+    };
+    arguments.clear();
+    let missing_operation = missing_call.id;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&missing_argument),
+        Err(
+            psi_terminal_verifier::ModuleError::CallArgumentArityMismatch {
+                operation,
+                expected: 1,
+                actual: 0,
+            }
+        ) if operation == missing_operation
+    ));
+}
+
+#[test]
 fn verified_boolean_write_only_store_reaches_canonical_installation() {
     let checked = checked(
         r#"

@@ -23,11 +23,17 @@ pub(super) fn lower(
     Ok(match operation.kind.clone() {
         OperationKind::CallUnit {
             callee,
+            arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
         } => {
+            if !arguments.is_empty() {
+                return Err(LoweringError::UnsupportedUnitCallScalarArguments(
+                    operation.id,
+                ));
+            }
             let dynamic_arguments = lower_dynamic_arguments(
                 machine,
                 operation,
@@ -398,6 +404,7 @@ mod tests {
             (
                 OperationResult::Unit,
                 OperationKind::CallUnit {
+                    arguments: Vec::new(),
                     callee,
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),

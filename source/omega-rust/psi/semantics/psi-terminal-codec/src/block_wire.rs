@@ -123,6 +123,7 @@ pub(super) fn encode_block_for_result_paths(
             }
             OperationKind::CallUnit {
                 callee,
+                arguments,
                 structural_arguments,
                 claim_transfers,
                 requirement_obligations,
@@ -130,6 +131,10 @@ pub(super) fn encode_block_for_result_paths(
             } => {
                 writer.u8(34);
                 writer.id(callee);
+                writer.len("unit-call scalar arguments", arguments.len())?;
+                for argument in arguments {
+                    writer.id(argument);
+                }
                 encode_structural_arguments(writer, &structural_arguments)?;
                 writer.len("unit-call claim transfers", claim_transfers.len())?;
                 for transfer in claim_transfers {
@@ -970,6 +975,7 @@ pub(super) fn decode_block_for_result_paths(
             }
             34 => OperationKind::CallUnit {
                 callee: reader.id("MachineId")?,
+                arguments: decode_ids(reader, "ValueId")?,
                 structural_arguments: decode_structural_arguments(reader)?,
                 claim_transfers: decode_counted(reader, |reader| {
                     Ok(ClaimTransfer {

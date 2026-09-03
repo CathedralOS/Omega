@@ -334,6 +334,7 @@ pub(super) fn validate_unit_operation_static(
         }
         OperationKind::CallUnit {
             callee,
+            arguments: _,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -346,7 +347,7 @@ pub(super) fn validate_unit_operation_static(
                     operation: operation.id,
                     callee: *callee,
                 })?;
-            if callee.result != TerminalMachineResult::Unit || !callee.parameters.is_empty() {
+            if callee.result != TerminalMachineResult::Unit {
                 return Err(ModuleError::UnitCallTargetHasScalarSignature {
                     operation: operation.id,
                     callee: callee.id,

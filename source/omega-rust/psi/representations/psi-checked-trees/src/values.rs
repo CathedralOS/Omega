@@ -155,6 +155,13 @@ pub enum CheckedScalarExpressionRole {
         call_ordinal: u32,
         argument_ordinal: u32,
     },
+    /// Primitive argument to an in-module Unit call, keyed by the exact call
+    /// coordinate and dense scalar-parameter order. Structural arguments keep
+    /// their separate checked custody rows.
+    UnitCallArgument {
+        call_ordinal: u32,
+        argument_ordinal: u32,
+    },
     /// Right-hand side of one direct typed assignment. The coordinate remains
     /// statement-local and does not imply that every assignment is admitted
     /// by a later executable plan.

@@ -141,6 +141,7 @@ fn restored_call_use_module() -> TerminalModule {
                         id: operation,
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
+                            arguments: Vec::new(),
                             callee,
                             structural_arguments: vec![StructuralArgument {
                                 place: caller_place,
@@ -251,6 +252,7 @@ fn exact_two_and_three_member_shared_freeze_cohorts_validate_and_fence_roster_dr
             id: id(2, OperationId::new),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                arguments: Vec::new(),
                 callee: observer,
                 structural_arguments: vec![
                     StructuralArgument {

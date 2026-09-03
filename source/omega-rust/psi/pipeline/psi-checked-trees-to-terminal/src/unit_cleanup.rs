@@ -229,6 +229,7 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
             target_state,
             target_contract_report_fingerprint,
             service_reach,
+            scalar_arguments,
             structural_arguments,
             claim_transfers,
         } = operation
@@ -243,6 +244,7 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
                 .iter()
                 .any(|(helper, _, _)| helper == target_machine)
             || !service_summary_is_empty(*service_reach)
+            || !scalar_arguments.is_empty()
             || !structural_arguments.is_empty()
             || !claim_transfers.is_empty()
         {
@@ -564,11 +566,13 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
                         &operation.kind,
                         OperationKind::CallUnit {
                             callee,
+                            arguments,
                             structural_arguments,
                             claim_transfers,
                             requirement_obligations,
                             crash_continuations,
                         } if callee == helper
+                            && arguments.is_empty()
                             && structural_arguments.is_empty()
                             && claim_transfers.is_empty()
                             && requirement_obligations.is_empty()

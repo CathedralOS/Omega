@@ -31,7 +31,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        79
+        80
     }
 }
 
@@ -2087,9 +2087,11 @@ pub enum OperationKind {
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
-    /// Invoke one in-module Unit machine with positional structural arguments.
+    /// Invoke one in-module Unit machine with independently retained
+    /// positional scalar and structural arguments.
     CallUnit {
         callee: MachineId,
+        arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,

@@ -406,6 +406,7 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
         for operation in &target_block.operations {
             let OperationKind::CallUnit {
                 callee,
+                arguments,
                 structural_arguments,
                 claim_transfers,
                 requirement_obligations,
@@ -421,6 +422,7 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
                     .iter()
                     .any(|candidate| candidate.cleanup_machine == *callee)
                 || !target_helper_ids.insert(*callee)
+                || !arguments.is_empty()
                 || !structural_arguments.is_empty()
                 || !claim_transfers.is_empty()
                 || !requirement_obligations.is_empty()

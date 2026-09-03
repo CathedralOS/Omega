@@ -47,6 +47,7 @@ fn lowers_both_internal_unit_leaves_to_one_canonical_target() {
             [Operation {
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
+                    arguments,
                     callee,
                     structural_arguments,
                     claim_transfers,
@@ -54,7 +55,7 @@ fn lowers_both_internal_unit_leaves_to_one_canonical_target() {
                     crash_continuations,
                 },
                 ..
-            }] if *callee == target.id
+            }] if arguments.is_empty() && *callee == target.id
                 && structural_arguments.is_empty()
                 && claim_transfers.is_empty()
                 && requirement_obligations.is_empty()

@@ -87,6 +87,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     &parameter_types,
                                     &locals,
                                     exact_integer_casts,
+                                    false,
                                 )
                             {
                                 expressions.extend(arguments);
@@ -169,6 +170,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
+                                false,
                             )
                         {
                             expressions.extend(arguments);
@@ -274,6 +276,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             &parameter_types,
                             &locals,
                             exact_integer_casts,
+                            true,
                         ) {
                             expressions.extend(arguments);
                         }
@@ -463,6 +466,7 @@ fn lower_boundary_call_arguments(
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
+    admit_internal_unit: bool,
 ) -> Option<Vec<CheckedLocatedScalarExpression>> {
     let target_symbol = match call_site {
         crate::CallSite::Statement(call) => call.target_symbol,
@@ -482,7 +486,7 @@ fn lower_boundary_call_arguments(
                 .iter()
                 .any(|signature| signature.symbol == target_symbol)
     });
-    if !is_boundary {
+    if !is_boundary && !admit_internal_unit {
         return None;
     }
 
@@ -521,9 +525,16 @@ fn lower_boundary_call_arguments(
         output.push(CheckedLocatedScalarExpression {
             state: state.symbol,
             statement_ordinal,
-            role: CheckedScalarExpressionRole::BoundaryCallArgument {
-                call_ordinal: u32::try_from(call_ordinal).ok()?,
-                argument_ordinal: u32::try_from(scalar_index).ok()?,
+            role: if is_boundary {
+                CheckedScalarExpressionRole::BoundaryCallArgument {
+                    call_ordinal: u32::try_from(call_ordinal).ok()?,
+                    argument_ordinal: u32::try_from(scalar_index).ok()?,
+                }
+            } else {
+                CheckedScalarExpressionRole::UnitCallArgument {
+                    call_ordinal: u32::try_from(call_ordinal).ok()?,
+                    argument_ordinal: u32::try_from(scalar_index).ok()?,
+                }
             },
             expression: lowered?,
         });
