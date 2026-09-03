@@ -29,11 +29,6 @@ struct SourceFileException {
 /// production/test ceiling. New files and unlisted growth still fail closed.
 const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[
     SourceFileException {
-        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/unit/structural_scalar.rs",
-        ceiling: 623,
-        semantic_reason: "structural-scalar assignment and field layout replay remain colocated",
-    },
-    SourceFileException {
         path: "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/structural_encoding.rs",
         ceiling: 669,
         semantic_reason: "the canonical structural identity vocabulary remains one encoding owner",
