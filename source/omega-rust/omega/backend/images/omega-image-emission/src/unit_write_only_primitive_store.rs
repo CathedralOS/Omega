@@ -2,8 +2,8 @@
 
 use omega_calling_conventions::{ValueLocation, ValueShape};
 use omega_machine_code::{
-    InternalUnitScalarArgumentSourceRecord, MachineCodeFunction, SemanticCodeSite,
-    UnitWriteOnlyPrimitiveStoreRecord,
+    MachineCodeFunction, SemanticCodeSite, UnitWriteOnlyPrimitiveStoreRecord,
+    UnitWriteOnlyPrimitiveStoreSourceRecord,
 };
 use omega_target::NativeTarget;
 use psi_core::ScalarType;
@@ -38,7 +38,7 @@ fn validate_store(
     let parameter_index = usize::try_from(store.destination.position).ok()?;
     let parameter = function.unit_parameters.get(parameter_index)?;
     let home = function.unit_parameter_homes.get(parameter_index)?;
-    let InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+    let UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
         defining_operation,
         source_value,
         scalar_type,

@@ -490,7 +490,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 .unit_parameter_homes
                 .get(parameter_index)
                 .ok_or_else(invalid)?;
-            let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            let omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
                 defining_operation,
                 source_value,
                 scalar_type,

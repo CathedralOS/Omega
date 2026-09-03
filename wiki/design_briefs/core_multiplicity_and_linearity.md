@@ -127,8 +127,9 @@ primitive referent's exact width/alignment, selects a borrowed-reference ABI on
 x86-64 and AArch64, and retains the exact declaration, placement, immediate,
 and semantic operation. Its Boolean sibling retains an exact one-byte referent
 and preceding Boolean definition through target lowering and independent
-physical assignment, then stops at a dedicated machine-emission fence without
-an integer surrogate. Fixed-integer physical assignment and machine emission
+physical assignment without an integer surrogate. Machine emission rejoins
+those facts and emits an exact one-byte store with a dedicated source record;
+object construction remains the Boolean fence. Fixed-integer physical assignment and machine emission
 independently replay those joins before producing the non-observing store
 bytes. A dedicated custody row binds every fact to the exact code interval and
 bytes, which object construction replays independently and installation

@@ -7,7 +7,7 @@ use omega_assigned_target_operations::{
 };
 use omega_calling_conventions::ValueShape;
 use omega_machine_code::{
-    InternalUnitScalarArgumentSourceRecord, UnitWriteOnlyPrimitiveStoreRecord,
+    UnitWriteOnlyPrimitiveStoreRecord, UnitWriteOnlyPrimitiveStoreSourceRecord,
 };
 use omega_target::{Architecture, NativeTarget};
 use psi_core::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
@@ -27,6 +27,7 @@ pub(super) fn emit_write_only_primitive_store(
     x86_homes: &[X86UnitParameterHome],
     aarch64_homes: &[Aarch64UnitParameterHome],
     established_integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
+    established_boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
     bytes: &mut Vec<u8>,
     operation_ordinal: usize,
     code_offset: usize,
@@ -42,22 +43,58 @@ pub(super) fn emit_write_only_primitive_store(
         unreachable!("whole-root store router supplied another operation")
     };
     let invalid = || EmissionError::InvalidWriteOnlyPrimitiveStoreCustody(*psi_operation);
-    let AssignedUnitScalarArgumentSource::IntegerImmediate {
-        defining_operation,
-        source_value,
-        scalar_type,
-        value,
-    } = *source
-    else {
-        return Err(invalid());
+    let (source_record, destination_scalar_type, byte_size, bits) = match *source {
+        AssignedUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => {
+            if established_integer_constants.get(&source_value)
+                != Some(&(defining_operation, scalar_type, value))
+            {
+                return Err(invalid());
+            }
+            let byte_size = require_native_integer_width(source_value, scalar_type)? / 8;
+            (
+                UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
+                    defining_operation,
+                    source_value,
+                    scalar_type,
+                    value,
+                },
+                ScalarType::Integer(scalar_type),
+                byte_size,
+                integer_bits(source_value, scalar_type, value)?,
+            )
+        }
+        AssignedUnitScalarArgumentSource::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+        } => {
+            if established_boolean_constants.get(&source_value)
+                != Some(&(defining_operation, value))
+            {
+                return Err(invalid());
+            }
+            (
+                UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
+                    defining_operation,
+                    source_value,
+                    value,
+                },
+                ScalarType::Boolean,
+                1,
+                u64::from(value),
+            )
+        }
+        _ => return Err(invalid()),
     };
     let parameter_index = usize::try_from(destination.position).map_err(|_| invalid())?;
     let parameter = body.parameters.get(parameter_index).ok_or_else(invalid)?;
-    let byte_size = require_native_integer_width(source_value, scalar_type)? / 8;
     let expected_shape = ValueShape::borrowed_reference(byte_size, byte_size.min(8));
-    if established_integer_constants.get(&source_value)
-        != Some(&(defining_operation, scalar_type, value))
-        || destination.is_self
+    if destination.is_self
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
         || !matches!(
             destination.access,
@@ -66,8 +103,7 @@ pub(super) fn emit_write_only_primitive_store(
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
         || destination_type.id != destination.structural_type
-        || destination_type.shape
-            != StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(scalar_type))
+        || destination_type.shape != StructuralTypeShape::PrimitiveScalar(destination_scalar_type)
         || !body
             .structural_types
             .iter()
@@ -82,7 +118,6 @@ pub(super) fn emit_write_only_primitive_store(
     {
         return Err(invalid());
     }
-    let bits = integer_bits(source_value, scalar_type, value)?;
     let (parameter_home_byte_offset, parameter_home_indirect) = match target.architecture {
         Architecture::X86_64 => {
             let home = x86_homes
@@ -112,12 +147,7 @@ pub(super) fn emit_write_only_primitive_store(
         destination: destination.clone(),
         destination_type: destination_type.clone(),
         destination_placement: destination_placement.clone(),
-        source: InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-            defining_operation,
-            source_value,
-            scalar_type,
-            value,
-        },
+        source: source_record,
         parameter_home_byte_offset,
         parameter_home_indirect,
         operation_ordinal,

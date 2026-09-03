@@ -706,8 +706,10 @@ declaration, placement, immediate, and operation identity. Physical assignment
 independently replays that custody. The Boolean sibling now retains its exact
 preceding Boolean definition, one-byte primitive referent, borrowed-reference
 placement, and literal through target lowering and independent physical
-assignment on both native architectures; it stops at a dedicated machine
-emission fence rather than masquerading as an integer immediate. Fixed-integer
+assignment on both native architectures rather than masquerading as an integer
+immediate. Machine emission independently rejoins that definition and emits an
+exact one-byte store with dedicated source and code-interval custody. Boolean
+object construction remains an explicit fence. Fixed-integer
 machine emission independently revalidates the destination, type, placement,
 immediate, and exact parameter home, emits
 the target store, and binds every fact to its exact code interval and bytes in

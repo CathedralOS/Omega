@@ -83,7 +83,8 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   non-observing primitive replacement. Fixed integers derive their exact native
   referent shape; Booleans retain a distinct one-byte referent and preceding
   Boolean definition. Both select borrowed-reference placement and cross
-  independent physical assignment, while Boolean machine emission remains an
+  independent physical assignment. Boolean machine emission then rejoins the
+  definition and emits an exact one-byte store; object construction remains the
   explicit downstream fence.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw

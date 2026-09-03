@@ -936,6 +936,7 @@ pub(super) fn emit_unit_body(
     let mut established_affine_locals = Vec::new();
     let mut established_byte_sequences = std::collections::BTreeMap::new();
     let mut established_integer_constants = std::collections::BTreeMap::new();
+    let mut established_boolean_constants = std::collections::BTreeMap::new();
     let mut established_affine_scalar_records = std::collections::BTreeMap::new();
     let mut established_ieee_float_constants = std::collections::BTreeMap::new();
     let mut pending_conditional: Option<(usize, usize, u8)> = None;
@@ -1044,10 +1045,20 @@ pub(super) fn emit_unit_body(
                     operation_ordinal,
                 });
             }
-            AssignedUnitOperation::BooleanConstant { psi_operation, .. } => {
-                return Err(EmissionError::UnsupportedUnitBooleanConstant(
-                    *psi_operation,
-                ));
+            AssignedUnitOperation::BooleanConstant {
+                psi_operation,
+                result,
+                value,
+            } => {
+                operation_site = Some(*psi_operation);
+                if established_boolean_constants
+                    .insert(*result, (*psi_operation, *value))
+                    .is_some()
+                {
+                    return Err(EmissionError::InvalidUnitBooleanConstantCustody(
+                        *psi_operation,
+                    ));
+                }
             }
             AssignedUnitOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
                 operation_site = Some(*psi_operation);
@@ -1058,6 +1069,7 @@ pub(super) fn emit_unit_body(
                     &x86_homes,
                     &aarch64_homes,
                     &established_integer_constants,
+                    &established_boolean_constants,
                     &mut bytes,
                     operation_ordinal,
                     code_offset,
