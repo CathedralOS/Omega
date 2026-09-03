@@ -14,8 +14,12 @@ pub(super) fn lower(
             "direct dynamic result control cannot also retain a caller field store",
         );
     }
+    let stored = match lane {
+        DynamicLoweringLane::Stored(stored) => Some(stored),
+        _ => None,
+    };
     let catalogs =
-        crate::attached_unit::lower_dynamic_control_catalogs(checked, plan, continuation)?;
+        crate::attached_unit::lower_dynamic_control_catalogs(checked, plan, continuation, stored)?;
     if !catalogs.internal_targets.is_empty() || catalogs.next_place != 1 {
         return unsupported(
             "direct dynamic continuation requires scalar-only boundary effect leaves",
@@ -44,7 +48,8 @@ pub(super) fn lower(
     )?;
 
     let caller_machine = machine_id(1);
-    let call_operation = operation_id(1);
+    let has_descriptor_store = matches!(lane, DynamicLoweringLane::Stored(_));
+    let call_operation = operation_id(if has_descriptor_store { 2 } else { 1 });
     let call_result_value = value_id(1);
     let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
     let call_result = ValueDeclaration {
@@ -195,11 +200,21 @@ pub(super) fn lower(
     if forwarded_helpers.len() > 1 {
         extend_parameter_forwarding_catalog(&mut dynamic_dispatch, &forwarded_helpers)?;
     }
-    let mut caller_operations = vec![Operation {
+    let mut caller_operations = Vec::new();
+    if has_descriptor_store {
+        caller_operations.push(Operation {
+            id: operation_id(1),
+            result: OperationResult::Unit,
+            kind: OperationKind::StoreDynamicDescriptor {
+                descriptor_ordinal: 0,
+            },
+        });
+    }
+    caller_operations.push(Operation {
         id: call_operation,
         result: OperationResult::Scalar(call_result),
         kind: call_kind,
-    }];
+    });
     caller_operations.extend(guard_operations);
     let mut caller_blocks = vec![Block {
         id: caller_block,

@@ -2,87 +2,118 @@
 
 use super::super::shared::*;
 use super::boundary_call::lower_boundary_call;
-use super::dynamic::lower_dynamic_scalar_call;
+use super::dynamic::{
+    lower_dynamic_scalar_call, lower_stored_descriptor, lower_stored_dynamic_scalar_call,
+};
 use super::scalar_call::KnownUnitInteger;
 use super::scalar_definitions::lower_integer_constant;
 use super::structural_scalar::lower_dynamic_argument_scalar_call;
 
 pub(super) fn has_bounded_shape(function: &AbstractFunction) -> bool {
+    let Some(prefix_len) = dynamic_prefix_len(function) else {
+        return false;
+    };
+    let shift = prefix_len - 1;
     let common = function.block_entries.len() == 3
-        && !function.operations.is_empty()
         && function
             .block_entries
             .iter()
             .all(|entry| entry.parameters.is_empty())
         && function.block_entries[0].block == function.entry
         && function.block_entries[0].operation_offset == 0
-        && matches!(
-            function.operations[0],
-            AbstractOperation::CallDynamicScalar { .. }
-                | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
-        );
+        && function.operations.len() >= prefix_len;
     if !common {
         return false;
     }
-    let integer = function.operations.len() == 10
-        && function.block_entries[1].operation_offset == 4
-        && function.block_entries[2].operation_offset == 7
+    let integer = function.operations.len() == 10 + shift
+        && function.block_entries[1].operation_offset == 4 + shift
+        && function.block_entries[2].operation_offset == 7 + shift
         && matches!(
-            function.operations[1],
+            function.operations[prefix_len],
             AbstractOperation::IntegerConstant { .. }
         )
         && matches!(
-            function.operations[2],
+            function.operations[prefix_len + 1],
             AbstractOperation::IntegerEqual { .. }
         )
         && matches!(
-            function.operations[3],
+            function.operations[prefix_len + 2],
             AbstractOperation::Conditional { .. }
         )
         && matches!(
-            function.operations[4],
+            function.operations[prefix_len + 3],
             AbstractOperation::IntegerConstant { .. }
         )
         && matches!(
-            function.operations[5],
+            function.operations[prefix_len + 4],
             AbstractOperation::BoundaryCall { .. }
         )
-        && matches!(function.operations[6], AbstractOperation::ReturnUnit { .. })
         && matches!(
-            function.operations[7],
+            function.operations[prefix_len + 5],
+            AbstractOperation::ReturnUnit { .. }
+        )
+        && matches!(
+            function.operations[prefix_len + 6],
             AbstractOperation::IntegerConstant { .. }
         )
         && matches!(
-            function.operations[8],
+            function.operations[prefix_len + 7],
             AbstractOperation::BoundaryCall { .. }
         )
-        && matches!(function.operations[9], AbstractOperation::ReturnUnit { .. });
-    let boolean = function.operations.len() == 8
-        && function.block_entries[1].operation_offset == 2
-        && function.block_entries[2].operation_offset == 5
         && matches!(
-            function.operations[1],
+            function.operations[prefix_len + 8],
+            AbstractOperation::ReturnUnit { .. }
+        );
+    let boolean = function.operations.len() == 8 + shift
+        && function.block_entries[1].operation_offset == 2 + shift
+        && function.block_entries[2].operation_offset == 5 + shift
+        && matches!(
+            function.operations[prefix_len],
             AbstractOperation::Conditional { .. }
         )
         && matches!(
-            function.operations[2],
+            function.operations[prefix_len + 1],
             AbstractOperation::IntegerConstant { .. }
         )
         && matches!(
-            function.operations[3],
+            function.operations[prefix_len + 2],
             AbstractOperation::BoundaryCall { .. }
         )
-        && matches!(function.operations[4], AbstractOperation::ReturnUnit { .. })
         && matches!(
-            function.operations[5],
+            function.operations[prefix_len + 3],
+            AbstractOperation::ReturnUnit { .. }
+        )
+        && matches!(
+            function.operations[prefix_len + 4],
             AbstractOperation::IntegerConstant { .. }
         )
         && matches!(
-            function.operations[6],
+            function.operations[prefix_len + 5],
             AbstractOperation::BoundaryCall { .. }
         )
-        && matches!(function.operations[7], AbstractOperation::ReturnUnit { .. });
+        && matches!(
+            function.operations[prefix_len + 6],
+            AbstractOperation::ReturnUnit { .. }
+        );
     common && (integer || boolean)
+}
+
+fn dynamic_prefix_len(function: &AbstractFunction) -> Option<usize> {
+    match function.operations.as_slice() {
+        [
+            AbstractOperation::CallDynamicScalar { .. }
+            | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. },
+            ..,
+        ] => Some(1),
+        [
+            AbstractOperation::StoreDynamicDescriptor { stored, .. },
+            AbstractOperation::CallStoredDynamicScalar {
+                dynamic_dispatch, ..
+            },
+            ..,
+        ] if *stored == dynamic_dispatch.stored => Some(2),
+        _ => None,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -115,9 +146,12 @@ pub(super) fn lower(
     let mut integer_constants = BTreeMap::new();
     let mut scalar_values = BTreeMap::new();
 
-    let result_home = match &function.operations[0] {
+    let prefix_len = dynamic_prefix_len(function)
+        .ok_or(LoweringError::UnitFunctionNotStraightLine(function.machine))?;
+    let result_index = prefix_len - 1;
+    let result_home = match &function.operations[result_index] {
         AbstractOperation::CallDynamicScalar { .. } => lower_dynamic_scalar_call(
-            &function.operations[0],
+            &function.operations[result_index],
             function,
             target,
             functions,
@@ -131,7 +165,34 @@ pub(super) fn lower(
         )?,
         AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
             lower_dynamic_argument_scalar_call(
+                &function.operations[result_index],
+                function,
+                target,
+                functions,
+                structural_types,
+                &parameters_by_place,
+                &mut shape_cache,
+                &mut active,
+                &mut scalar_values,
+                &mut operations,
+                &mut provenance,
+            )?
+        }
+        AbstractOperation::CallStoredDynamicScalar { .. } => {
+            lower_stored_descriptor(
                 &function.operations[0],
+                function,
+                target,
+                functions,
+                structural_types,
+                &parameters_by_place,
+                &mut shape_cache,
+                &mut active,
+                &mut operations,
+                &mut provenance,
+            )?;
+            lower_stored_dynamic_scalar_call(
+                &function.operations[result_index],
                 function,
                 target,
                 functions,
@@ -147,7 +208,7 @@ pub(super) fn lower(
         _ => unreachable!("bounded shape fixes the dynamic scalar operation"),
     };
     let boolean_control = result_home.scalar_type == ScalarType::Boolean;
-    if boolean_control != (function.operations.len() == 8) {
+    if boolean_control != (function.operations.len() == 8 + (prefix_len - 1)) {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));
@@ -161,14 +222,30 @@ pub(super) fn lower(
         false_boundary,
         false_return,
     ) = if boolean_control {
-        (1, 2, 3, 4, 5, 6, 7)
+        (
+            prefix_len,
+            prefix_len + 1,
+            prefix_len + 2,
+            prefix_len + 3,
+            prefix_len + 4,
+            prefix_len + 5,
+            prefix_len + 6,
+        )
     } else {
-        (3, 4, 5, 6, 7, 8, 9)
+        (
+            prefix_len + 2,
+            prefix_len + 3,
+            prefix_len + 4,
+            prefix_len + 5,
+            prefix_len + 6,
+            prefix_len + 7,
+            prefix_len + 8,
+        )
     };
     if !boolean_control {
         lower_constant(
             function,
-            &function.operations[1],
+            &function.operations[prefix_len],
             false,
             &mut integer_constants,
             &mut scalar_values,
@@ -246,7 +323,7 @@ pub(super) fn lower(
             result,
             left,
             right,
-        } = function.operations[2]
+        } = function.operations[prefix_len + 1]
         else {
             unreachable!("bounded integer shape fixes the equality operation")
         };

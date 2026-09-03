@@ -228,6 +228,10 @@ pub(super) fn assign_known_unit_scalar_source(
                             if *result_home == home
                     ) || matches!(
                         operation,
+                        TargetUnitOperation::StoredDynamicScalarCall { result_home, .. }
+                            if *result_home == home
+                    ) || matches!(
+                        operation,
                         TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
                             result_home,
                             ..

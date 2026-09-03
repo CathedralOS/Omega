@@ -151,6 +151,7 @@ pub(super) fn admit<'a>(
             transition_ordinal,
             when_true,
             when_true_state.symbol,
+            &[],
         )?,
         successor(
             program,
@@ -164,6 +165,7 @@ pub(super) fn admit<'a>(
             transition_ordinal.checked_add(1)?,
             when_false,
             when_false_state.symbol,
+            &[],
         )?,
     ];
     Some(Topology {
@@ -258,6 +260,7 @@ pub(super) fn successor(
     ordinal: u32,
     transition: &psi_typed_trees::statement::TableTransition,
     expected: SymbolHandle,
+    admitted_local_discards: &[SymbolHandle],
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
     let TransitionTargetNode::Named {
         path, arguments, ..
@@ -316,15 +319,35 @@ pub(super) fn successor(
         }
         _ => return None,
     };
-    let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
-        machine.symbol,
-        source_state.symbol,
-        ordinal,
-    )?;
-    if cleanup.target_state != expected
-        || !cleanup
-            .trivial_affine_discard_parameter_positions
-            .is_empty()
+    if admitted_local_discards.is_empty() {
+        let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
+            machine.symbol,
+            source_state.symbol,
+            ordinal,
+        )?;
+        if cleanup.target_state != expected
+            || !cleanup
+                .trivial_affine_discard_parameter_positions
+                .is_empty()
+        {
+            return None;
+        }
+    } else if admitted_local_discards.len() != 1
+        || !source_parameters.is_empty()
+        || !target_parameters.is_empty()
+        || !source_claims.is_empty()
+        || !target_claims.is_empty()
+        || !super::super::types::return_unit_affine_discards(
+            program,
+            facts,
+            machine.symbol,
+            source_state.symbol,
+            source_parameters,
+            program.state_parameters(source_state),
+            &[],
+            admitted_local_discards,
+        )?
+        .is_empty()
     {
         return None;
     }

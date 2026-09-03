@@ -1,0 +1,44 @@
+use omega_language_std::console;
+
+trait Measure {
+    machine measure(&self) -> i32;
+}
+
+data Item [copy] {
+    value: i32;
+}
+
+Primary: Item satisfies Measure {
+    machine measure(&self) -> i32 {
+        transition {
+            _ -> self.value
+        }
+    }
+}
+
+data Holder<'item> {
+    handler: &'item dyn Measure;
+}
+
+data Main {
+    console: Console;
+    item: Item;
+}
+
+machine Main::main<'item>(&mut self) {
+    let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+    let holder: Holder<'item> = Holder { handler: erased };
+    let result: i32 = holder.handler.measure();
+    transition result == 0 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

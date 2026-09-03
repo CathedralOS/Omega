@@ -1232,7 +1232,7 @@ fn build_checked_dynamic_scalar_call(
         unit_continuation: None,
     };
     plan.unit_continuation = super::composed_control::build_direct_dynamic_unit_continuation(
-        program, facts, shapes, boundaries, machine, state, &plan,
+        program, facts, shapes, boundaries, machine, state, &plan, stored,
     );
     let retained_statement_count = usize::try_from(plan.coordinate.statement_index)
         .ok()?

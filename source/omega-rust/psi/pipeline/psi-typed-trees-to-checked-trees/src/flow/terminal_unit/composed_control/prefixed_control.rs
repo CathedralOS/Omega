@@ -102,6 +102,7 @@ pub(super) fn build(
             0,
             true_transition,
             when_true.symbol,
+            &[],
         )?,
         super::topology::successor(
             program,
@@ -115,6 +116,7 @@ pub(super) fn build(
             1,
             false_transition,
             when_false.symbol,
+            &[],
         )?,
     ];
     let leaves = [

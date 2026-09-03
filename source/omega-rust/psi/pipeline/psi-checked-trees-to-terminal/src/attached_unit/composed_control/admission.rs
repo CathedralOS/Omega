@@ -143,6 +143,7 @@ pub(crate) fn admit_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
     plan: &psi_checked_trees::CheckedDynamicScalarCallPlan,
     continuation: &'a psi_checked_trees::CheckedDynamicUnitContinuationPlan,
+    stored: Option<&psi_checked_trees::CheckedStoredDynamicScalarCallPlan>,
 ) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, String)>, LoweringError> {
     let [when_true, when_false] = continuation.leaves.as_slice() else {
         return unsupported("direct dynamic continuation requires exactly two effect leaves");
@@ -192,24 +193,51 @@ pub(crate) fn admit_dynamic_continuation<'a>(
         return unsupported("direct dynamic continuation drifted from its checked control graph");
     }
     for edge in [&continuation.when_true, &continuation.when_false] {
-        let cleanup = checked
-            .facts
-            .flow
-            .terminal_structural_control_cleanups
-            .for_edge(
-                plan.caller_machine,
-                plan.caller_state,
-                edge.statement_ordinal,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "direct dynamic continuation lost its checked cleanup edge",
-            ))?;
-        if cleanup.target_state != edge.target_state
-            || !cleanup
-                .trivial_affine_discard_parameter_positions
-                .is_empty()
-        {
-            return unsupported("direct dynamic continuation cleanup edge drifted after checking");
+        if let Some(local) = continuation.trivial_affine_local_discard {
+            let Some(stored) = stored else {
+                return unsupported(
+                    "direct dynamic continuation fabricated a stored local discard",
+                );
+            };
+            if stored.storage.destination_binding != local
+                || checked
+                    .facts
+                    .flow
+                    .terminal_structural_control_cleanups
+                    .for_edge(
+                        plan.caller_machine,
+                        plan.caller_state,
+                        edge.statement_ordinal,
+                    )
+                    .is_some()
+                || !exact_stored_local_drop(checked, plan, local)
+            {
+                return unsupported(
+                    "stored dynamic continuation local cleanup drifted after checking",
+                );
+            }
+        } else {
+            let cleanup = checked
+                .facts
+                .flow
+                .terminal_structural_control_cleanups
+                .for_edge(
+                    plan.caller_machine,
+                    plan.caller_state,
+                    edge.statement_ordinal,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "direct dynamic continuation lost its checked cleanup edge",
+                ))?;
+            if cleanup.target_state != edge.target_state
+                || !cleanup
+                    .trivial_affine_discard_parameter_positions
+                    .is_empty()
+            {
+                return unsupported(
+                    "direct dynamic continuation cleanup edge drifted after checking",
+                );
+            }
         }
     }
     let attachment = exact_attachment_identity(checked, &plan.caller_attachment_type_identity)?;
@@ -225,6 +253,43 @@ pub(crate) fn admit_dynamic_continuation<'a>(
         return unsupported("direct dynamic continuation retained a non-boundary effect leaf");
     }
     Ok(boundaries)
+}
+
+fn exact_stored_local_drop(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedDynamicScalarCallPlan,
+    local: psi_symbols::SymbolHandle,
+) -> bool {
+    let drops = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == plan.caller_machine
+                && event.state_symbol == plan.caller_state
+                && event.source == psi_language_semantics::PermissionEventSource::StateExit
+                && event.kind == psi_language_semantics::PermissionEventKind::AffineDrop
+        })
+        .map(|(_, event)| event)
+        .collect::<Vec<_>>();
+    let [drop] = drops.as_slice() else {
+        return false;
+    };
+    drop.root == psi_facts::PlaceRoot::Symbol(local)
+        && drop.access == psi_language_semantics::PermissionAccess::Owned
+        && drop.multiplicity == Multiplicity::Affine
+        && drop.claim_identity == psi_language_semantics::PermissionClaimIdentity::Unknown
+        && drop.provenance == psi_language_semantics::PermissionProvenance::Unknown
+        && !drop.obligation_live
+        && checked
+            .facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(drop.segments)
+            .is_empty()
 }
 
 pub(super) fn exact_attachment<'a>(

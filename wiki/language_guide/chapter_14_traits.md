@@ -821,10 +821,14 @@ establishment and call operations, descriptor and selection ordinals,
 application commitment, source place, shared home, selected slot, realization,
 and both text intervals. Decoding and image-binding replay reject malformed,
 reordered, table-substituted, source-substituted, or interval-drifted rows. The
-image/installation replay covers all four native targets; a rooted native
-canary separately exercises the stored reload and indirect call through the
-compiler-produced image. Consuming its scalar result in later control flow is
-a separate, still-open widening.
+image/installation replay covers all four native targets. The returned scalar
+may feed the bounded immediate equality/effect diamond. Checked custody names
+the descriptor-owning affine local's exact no-code state-exit drop rather than
+treating a missing generic edge-cleanup row as permission to forget it. Target
+lowering admits the store/call pair as the diamond's prefix, and physical
+assignment rejoins later scalar uses to the stored call's durable result home.
+A rooted native canary carries that path through both native architectures; on
+a matching Linux host the result selects the expected exit arm.
 Those consumers use the same complete normalized maps.
 Replaceable-component crossing is not another descriptor rung: it is forbidden
 below, and uses a boundary requirement or a consumer-owned local proxy instead.

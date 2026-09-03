@@ -59,6 +59,46 @@ const STORED_DYNAMIC_SOURCE: &str = r#"
     }
 "#;
 
+const STORED_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
+    boundary trait Console {
+        machine exit_process(return_code: i32) reaches Console;
+    }
+
+    trait Measure {
+        machine measure(&self) -> i32;
+    }
+
+    data Item [copy] { value: i32; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Holder<'item> {
+        handler: &'item dyn Measure;
+    }
+
+    data Main {
+        console: Console;
+        item: Item;
+    }
+
+    machine Main::run<'item>(&mut self) reaches Console {
+        let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+        let holder: Holder<'item> = Holder { handler: erased };
+        let result: i32 = holder.handler.measure();
+        transition result == 0 {
+            true -> good()
+            _ -> bad()
+        }
+
+        state good(&mut self) { self.console.exit_process(70); }
+        state bad(&mut self) { self.console.exit_process(71); }
+    }
+"#;
+
 const DIRECT_DYNAMIC_INTEGER_STORE_SOURCE: &str = r#"
     trait Measure {
         machine measure(&self) -> i32;
@@ -646,6 +686,75 @@ fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
     assert_eq!(
         unsupported_message(&checked),
         "stored dynamic descriptor drifted from checked aggregate custody"
+    );
+}
+
+#[test]
+fn lowers_stored_dynamic_result_into_console_effect_control() {
+    let checked = checked_source(STORED_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    assert_eq!(
+        checked.facts.dynamic_conformances.storages.len(),
+        1,
+        "stored control fixture should retain descriptor storage"
+    );
+    let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [plan] = catalog.stored_scalar_calls.as_slice() else {
+        panic!("one checked stored dynamic control plan expected, got {catalog:#?}")
+    };
+    assert!(plan.call.unit_continuation.is_some());
+
+    let lowered = lower_machine(&checked, "Main::run")
+        .expect("stored dynamic result control lowers as one module");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("stored dynamic result control verifies");
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("stored dynamic caller");
+    assert_eq!(caller.blocks.len(), 3);
+    assert!(matches!(
+        caller.blocks[0].operations[0].kind,
+        OperationKind::StoreDynamicDescriptor {
+            descriptor_ordinal: 0
+        }
+    ));
+    assert!(matches!(
+        caller.blocks[0].operations[1].kind,
+        OperationKind::CallDynamicScalar {
+            descriptor_ordinal: 0,
+            ..
+        }
+    ));
+    assert!(matches!(
+        caller.blocks[0].terminator,
+        Terminator::Conditional { .. }
+    ));
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("stored dynamic result control has canonical source-free encoding");
+    assert_eq!(
+        psi_terminal_codec::decode_module(artifact.semantic_bytes())
+            .expect("decode stored dynamic control module"),
+        lowered.semantic_module
+    );
+
+    let mut tampered = checked.clone();
+    let stored = &mut tampered
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .stored_scalar_calls[0];
+    stored
+        .call
+        .unit_continuation
+        .as_mut()
+        .expect("stored control continuation")
+        .trivial_affine_local_discard = Some(stored.storage.source_binding);
+    assert_eq!(
+        unsupported_message(&tampered),
+        "stored dynamic continuation local cleanup drifted after checking"
     );
 }
 
