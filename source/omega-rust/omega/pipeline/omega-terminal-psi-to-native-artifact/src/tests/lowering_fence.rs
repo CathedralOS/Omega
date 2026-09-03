@@ -783,6 +783,7 @@ fn parameter_sourced_write_only_store_caller_reaches_verified_terminal_execution
     };
     let call = &root.blocks[0].operations[0];
     let psi_terminal::OperationKind::CallUnit {
+        callee: call_callee,
         arguments,
         structural_arguments,
         ..
@@ -862,125 +863,161 @@ fn parameter_sourced_write_only_store_caller_reaches_verified_terminal_execution
         panic!("abstract caller retains one ordinary Unit call")
     };
     assert_eq!(abstract_arguments, &[scalar_parameter.id]);
-    let target_plan = omega_abstract_operations_to_target_operations::lower_to_target_operations(
-        &abstract_plan,
+    for native_target in [
         omega_target::NativeTarget::linux_x64(),
-    )
-    .expect("scalar-bearing Unit call reaches Target IR");
-    let target_root = target_plan
-        .functions
-        .iter()
-        .find(|function| function.machine == target_plan.entry)
-        .expect("target caller is retained");
-    let omega_target_operations::TargetOperation::UnitBody(target_body) = &target_root.operation
-    else {
-        panic!("target caller remains a Unit body")
-    };
-    let omega_target_operations::TargetUnitOperation::Call {
-        call_plan,
-        scalar_arguments,
-        ..
-    } = &target_body.operations[0]
-    else {
-        panic!("target caller retains one ordinary Unit call")
-    };
-    assert_eq!(call_plan.parameters.len(), 2);
-    assert!(matches!(
-        scalar_arguments.as_slice(),
-        [omega_target_operations::TargetUnitScalarCallArgument {
-            parameter_index: 0,
-            source: omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
-                parameter_index: 0,
-                source_value,
-                scalar_type,
-            },
-            placement,
-        }] if *source_value == scalar_parameter.id
-            && *scalar_type == integer
-            && placement == &call_plan.parameters[0]
-    ));
-    let mut corrupted_target = target_plan.clone();
-    let corrupted_entry = corrupted_target.entry;
-    let omega_target_operations::TargetOperation::UnitBody(corrupted_body) = &mut corrupted_target
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == corrupted_entry)
-        .expect("corrupted target caller is retained")
-        .operation
-    else {
-        unreachable!()
-    };
-    let omega_target_operations::TargetUnitOperation::Call {
-        scalar_arguments, ..
-    } = &mut corrupted_body.operations[0]
-    else {
-        unreachable!()
-    };
-    let omega_target_operations::TargetUnitScalarArgumentSource::Parameter { source_value, .. } =
-        &mut scalar_arguments[0].source
-    else {
-        unreachable!()
-    };
-    *source_value = psi_core::ValueId::new(9_999_999).unwrap();
-    assert!(matches!(
-        omega_target_operations_to_assigned_target_operations::assign_registers(
-            &corrupted_target
-        ),
-        Err(
-            omega_target_operations_to_assigned_target_operations::AssignmentError::UnitCallCustodyMismatch {
-                machine,
-                operation,
-            }
-        ) if machine == abstract_plan.entry && operation == call.id
-    ));
-    let assigned_plan =
-        omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
-            .expect("scalar-bearing Unit call reaches assigned Target IR");
-    let assigned_root = assigned_plan
-        .functions
-        .iter()
-        .find(|function| function.machine == assigned_plan.entry)
-        .expect("assigned caller is retained");
-    let omega_assigned_target_operations::AssignedOperation::UnitBody(assigned_body) =
-        &assigned_root.operation
-    else {
-        panic!("assigned caller remains a Unit body")
-    };
-    let omega_assigned_target_operations::AssignedUnitOperation::Call {
-        call_plan: assigned_call_plan,
-        scalar_arguments: assigned_scalar_arguments,
-        ..
-    } = &assigned_body.operations[0]
-    else {
-        panic!("assigned caller retains one ordinary Unit call")
-    };
-    assert_eq!(assigned_call_plan, call_plan);
-    assert!(matches!(
-        assigned_scalar_arguments.as_slice(),
-        [omega_assigned_target_operations::AssignedUnitScalarCallArgument {
-            parameter_index: 0,
-            source: omega_assigned_target_operations::AssignedUnitScalarArgumentSource::Parameter {
-                parameter_index: 0,
-                source_value,
-                scalar_type,
-                ..
-            },
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target_plan =
+            omega_abstract_operations_to_target_operations::lower_to_target_operations(
+                &abstract_plan,
+                native_target,
+            )
+            .expect("scalar-bearing Unit call reaches Target IR");
+        let target_root = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == target_plan.entry)
+            .expect("target caller is retained");
+        let omega_target_operations::TargetOperation::UnitBody(target_body) =
+            &target_root.operation
+        else {
+            panic!("target caller remains a Unit body")
+        };
+        let omega_target_operations::TargetUnitOperation::Call {
+            call_plan,
+            scalar_arguments,
             ..
-        }] if *source_value == scalar_parameter.id && *scalar_type == integer
-    ));
-    let emission_result = omega_machine_emission::emit_machine_code(&assigned_plan);
-    assert!(
-        matches!(
-        &emission_result,
-        Err(
-            omega_machine_emission::EmissionError::UnsupportedUnitCallScalarArguments {
-                machine,
-                operation,
-            }
-        ) if *machine == abstract_plan.entry && *operation == call.id
-        ),
-        "unexpected emission boundary: {emission_result:?}"
-    );
+        } = &target_body.operations[0]
+        else {
+            panic!("target caller retains one ordinary Unit call")
+        };
+        assert_eq!(call_plan.parameters.len(), 2);
+        assert!(matches!(
+            scalar_arguments.as_slice(),
+            [omega_target_operations::TargetUnitScalarCallArgument {
+                parameter_index: 0,
+                source: omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: 0,
+                    source_value,
+                    scalar_type,
+                },
+                placement,
+            }] if *source_value == scalar_parameter.id
+                && *scalar_type == integer
+                && placement == &call_plan.parameters[0]
+        ));
+        let mut corrupted_target = target_plan.clone();
+        let corrupted_entry = corrupted_target.entry;
+        let omega_target_operations::TargetOperation::UnitBody(corrupted_body) =
+            &mut corrupted_target
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == corrupted_entry)
+                .expect("corrupted target caller is retained")
+                .operation
+        else {
+            unreachable!()
+        };
+        let omega_target_operations::TargetUnitOperation::Call {
+            scalar_arguments, ..
+        } = &mut corrupted_body.operations[0]
+        else {
+            unreachable!()
+        };
+        let omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
+            source_value, ..
+        } = &mut scalar_arguments[0].source
+        else {
+            unreachable!()
+        };
+        *source_value = psi_core::ValueId::new(9_999_999).unwrap();
+        assert!(matches!(
+            omega_target_operations_to_assigned_target_operations::assign_registers(
+                &corrupted_target
+            ),
+            Err(
+                omega_target_operations_to_assigned_target_operations::AssignmentError::UnitCallCustodyMismatch {
+                    machine,
+                    operation,
+                }
+            ) if machine == abstract_plan.entry && operation == call.id
+        ));
+        let assigned_plan =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
+                .expect("scalar-bearing Unit call reaches assigned Target IR");
+        let assigned_root = assigned_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == assigned_plan.entry)
+            .expect("assigned caller is retained");
+        let omega_assigned_target_operations::AssignedOperation::UnitBody(assigned_body) =
+            &assigned_root.operation
+        else {
+            panic!("assigned caller remains a Unit body")
+        };
+        let omega_assigned_target_operations::AssignedUnitOperation::Call {
+            call_plan: assigned_call_plan,
+            scalar_arguments: assigned_scalar_arguments,
+            ..
+        } = &assigned_body.operations[0]
+        else {
+            panic!("assigned caller retains one ordinary Unit call")
+        };
+        assert_eq!(assigned_call_plan, call_plan);
+        assert!(matches!(
+            assigned_scalar_arguments.as_slice(),
+            [omega_assigned_target_operations::AssignedUnitScalarCallArgument {
+                parameter_index: 0,
+                source: omega_assigned_target_operations::AssignedUnitScalarArgumentSource::Parameter {
+                    parameter_index: 0,
+                    source_value,
+                    scalar_type,
+                    ..
+                },
+                ..
+            }] if *source_value == scalar_parameter.id && *scalar_type == integer
+        ));
+        let emitted = omega_machine_emission::emit_machine_code(&assigned_plan)
+            .expect("scalar-bearing Unit call reaches machine-code custody");
+        let emitted_root = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("emitted caller is retained");
+        let [emitted_call] = emitted_root.internal_unit_calls.as_slice() else {
+            panic!("emitted caller retains one internal Unit call")
+        };
+        assert_eq!(emitted_call.target, *call_callee);
+        assert!(matches!(
+            emitted_call.scalar_arguments.as_slice(),
+            [omega_machine_code::InternalUnitScalarCallArgumentRecord {
+                parameter_index: 0,
+                source: omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                    parameter_index: 0,
+                    source_value,
+                    scalar_type,
+                    ..
+                },
+                destination,
+                ..
+            }] if *source_value == scalar_parameter.id
+                && *scalar_type == integer
+                && destination == &call_plan.parameters[0]
+        ));
+        let object_result = omega_image_emission::build_object_artifact(&emitted);
+        assert!(
+            matches!(
+            &object_result,
+            Err(
+                omega_image_emission::ObjectError::UnsupportedInternalUnitCallScalarArguments {
+                    caller,
+                    operation,
+                }
+            ) if *caller == abstract_plan.entry && *operation == call.id
+            ),
+            "unexpected object boundary: {object_result:?}"
+        );
+    }
 
     let mut missing_argument = lowered.semantic_module.clone();
     let entry = missing_argument.entry;

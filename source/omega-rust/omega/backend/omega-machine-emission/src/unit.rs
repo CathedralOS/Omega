@@ -36,6 +36,7 @@ use installed_provider::emit_installed_provider_scalar_call;
 use scalar_call::emit_unit_scalar_call;
 use structural_scalar::{
     emit_structural_result_call, emit_structural_scalar_call, emit_structural_scalar_field_store,
+    emit_unit_result_call,
 };
 use write_only_primitive_store::emit_write_only_primitive_store;
 
@@ -1257,7 +1258,7 @@ pub(super) fn emit_unit_body(
                     },
                 );
             }
-            AssignedUnitOperation::Call {
+            call_operation @ AssignedUnitOperation::Call {
                 psi_operation,
                 callee,
                 result,
@@ -1267,81 +1268,93 @@ pub(super) fn emit_unit_body(
                 ..
             } => {
                 if !scalar_arguments.is_empty() {
-                    return Err(EmissionError::UnsupportedUnitCallScalarArguments {
-                        machine: owner.ok_or(EmissionError::UnsupportedAggregatePlacement)?,
-                        operation: *psi_operation,
+                    operation_site = Some(*psi_operation);
+                    internal_unit_calls.push(emit_unit_result_call(
+                        call_operation,
+                        &body.scalar_parameters,
+                        target,
+                        functions,
+                        &body.operations[..operation_ordinal],
+                        &x86_homes,
+                        &aarch64_homes,
+                        &mut bytes,
+                        &mut internal_calls,
+                        operation_ordinal,
+                        code_offset,
+                    )?);
+                } else {
+                    operation_site = Some(*psi_operation);
+                    let argument_intervals = match target.architecture {
+                        Architecture::X86_64 => emit_x86_64_unit_call(
+                            &mut bytes,
+                            CallSiteOwner::Operation(*psi_operation),
+                            *callee,
+                            copies,
+                            target,
+                            &x86_homes,
+                            &established_affine_locals,
+                            &established_affine_scalar_records,
+                            &mut internal_calls,
+                        )?,
+                        Architecture::Aarch64 => emit_aarch64_unit_call(
+                            &mut bytes,
+                            CallSiteOwner::Operation(*psi_operation),
+                            *callee,
+                            copies,
+                            &aarch64_homes,
+                            &established_affine_locals,
+                            &established_affine_scalar_records,
+                            &mut internal_calls,
+                        )?,
+                    };
+                    internal_unit_calls.push(InternalUnitCallRecord {
+                        owner: CallSiteOwner::Operation(*psi_operation),
+                        target: *callee,
+                        result: *result,
+                        semantic_result: None,
+                        structural_result: None,
+                        scalar_arguments: Vec::new(),
+                        arguments: copies
+                            .iter()
+                            .zip(argument_intervals)
+                            .map(
+                                |(
+                                    copy,
+                                    (
+                                        code_offset,
+                                        byte_count,
+                                        source_home_byte_offset,
+                                        call_stack_bytes,
+                                    ),
+                                )| {
+                                    InternalUnitCallArgumentRecord {
+                                        place: copy.place,
+                                        access: copy.access,
+                                        path: copy.path.clone(),
+                                        root_structural_type: copy.root_structural_type,
+                                        structural_type: copy.structural_type,
+                                        shape: copy.shape,
+                                        source_byte_offset: copy.source_byte_offset,
+                                        source_home_byte_offset,
+                                        call_stack_bytes,
+                                        fixed_array_length: copy.fixed_array_length,
+                                        element_stride: copy.element_stride,
+                                        source: copy.source.clone(),
+                                        destination: copy.destination.clone(),
+                                        code_offset,
+                                        byte_count,
+                                        bytes: bytes[code_offset..code_offset + byte_count]
+                                            .to_vec(),
+                                    }
+                                },
+                            )
+                            .collect(),
+                        claim_transfers: claim_transfers.clone(),
+                        operation_ordinal,
+                        code_offset,
+                        byte_count: bytes.len() - code_offset,
                     });
                 }
-                operation_site = Some(*psi_operation);
-                let argument_intervals = match target.architecture {
-                    Architecture::X86_64 => emit_x86_64_unit_call(
-                        &mut bytes,
-                        CallSiteOwner::Operation(*psi_operation),
-                        *callee,
-                        copies,
-                        target,
-                        &x86_homes,
-                        &established_affine_locals,
-                        &established_affine_scalar_records,
-                        &mut internal_calls,
-                    )?,
-                    Architecture::Aarch64 => emit_aarch64_unit_call(
-                        &mut bytes,
-                        CallSiteOwner::Operation(*psi_operation),
-                        *callee,
-                        copies,
-                        &aarch64_homes,
-                        &established_affine_locals,
-                        &established_affine_scalar_records,
-                        &mut internal_calls,
-                    )?,
-                };
-                internal_unit_calls.push(InternalUnitCallRecord {
-                    owner: CallSiteOwner::Operation(*psi_operation),
-                    target: *callee,
-                    result: *result,
-                    semantic_result: None,
-                    structural_result: None,
-                    scalar_arguments: Vec::new(),
-                    arguments: copies
-                        .iter()
-                        .zip(argument_intervals)
-                        .map(
-                            |(
-                                copy,
-                                (
-                                    code_offset,
-                                    byte_count,
-                                    source_home_byte_offset,
-                                    call_stack_bytes,
-                                ),
-                            )| {
-                                InternalUnitCallArgumentRecord {
-                                    place: copy.place,
-                                    access: copy.access,
-                                    path: copy.path.clone(),
-                                    root_structural_type: copy.root_structural_type,
-                                    structural_type: copy.structural_type,
-                                    shape: copy.shape,
-                                    source_byte_offset: copy.source_byte_offset,
-                                    source_home_byte_offset,
-                                    call_stack_bytes,
-                                    fixed_array_length: copy.fixed_array_length,
-                                    element_stride: copy.element_stride,
-                                    source: copy.source.clone(),
-                                    destination: copy.destination.clone(),
-                                    code_offset,
-                                    byte_count,
-                                    bytes: bytes[code_offset..code_offset + byte_count].to_vec(),
-                                }
-                            },
-                        )
-                        .collect(),
-                    claim_transfers: claim_transfers.clone(),
-                    operation_ordinal,
-                    code_offset,
-                    byte_count: bytes.len() - code_offset,
-                });
             }
             AssignedUnitOperation::ScalarCall {
                 psi_operation,

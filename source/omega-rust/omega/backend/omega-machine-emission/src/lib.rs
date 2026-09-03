@@ -1438,10 +1438,6 @@ pub enum EmissionError {
     UnitOperationAfterReturn,
     UnitFunctionHasNoReturn,
     UnitCallStackAreaNotEncodable,
-    UnsupportedUnitCallScalarArguments {
-        machine: MachineId,
-        operation: psi_core::OperationId,
-    },
     InvalidUnitScalarCallCustody(psi_core::OperationId),
     InvalidUnitBooleanConstantCustody(psi_core::OperationId),
     InvalidInstalledProviderScalarCallCustody(psi_core::OperationId),

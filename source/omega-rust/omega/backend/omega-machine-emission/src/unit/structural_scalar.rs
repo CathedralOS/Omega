@@ -151,6 +151,160 @@ pub(super) fn emit_structural_scalar_field_store(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_unit_result_call(
+    operation: &AssignedUnitOperation,
+    caller_scalar_parameters: &[omega_target_operations::UnitScalarAbiValue],
+    target: NativeTarget,
+    functions: &[AssignedFunction],
+    preceding_operations: &[AssignedUnitOperation],
+    x86_homes: &[X86UnitParameterHome],
+    aarch64_homes: &[Aarch64UnitParameterHome],
+    bytes: &mut Vec<u8>,
+    internal_calls: &mut Vec<InternalCallRelocation>,
+    operation_ordinal: usize,
+    code_offset: usize,
+) -> Result<InternalUnitCallRecord, EmissionError> {
+    let AssignedUnitOperation::Call {
+        psi_operation,
+        callee,
+        result: None,
+        call_plan,
+        scalar_arguments,
+        copies,
+        claim_transfers,
+        ..
+    } = operation
+    else {
+        return Err(EmissionError::UnsupportedAggregatePlacement);
+    };
+    let invalid = || EmissionError::InvalidUnitScalarCallCustody(*psi_operation);
+    let scalar_shapes = scalar_arguments
+        .iter()
+        .map(|argument| {
+            unit_scalar_shape(
+                argument.source.source_value(),
+                argument.source.scalar_type(),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: scalar_shapes
+                .iter()
+                .copied()
+                .chain(copies.iter().map(|copy| copy.shape))
+                .collect(),
+            result: None,
+        },
+    )
+    .map_err(|_| invalid())?;
+    let matching_callees = functions
+        .iter()
+        .filter(|function| function.machine == *callee)
+        .collect::<Vec<_>>();
+    let [callee_function] = matching_callees.as_slice() else {
+        return Err(invalid());
+    };
+    let AssignedOperation::UnitBody(callee_body) = &callee_function.operation else {
+        return Err(invalid());
+    };
+    let scalar_count = scalar_arguments.len();
+    if scalar_count == 0
+        || expected_call_plan != *call_plan
+        || call_plan.result.is_some()
+        || callee_body.call_plan != *call_plan
+        || callee_body.scalar_parameters.len() != scalar_count
+        || callee_body.parameters.len() != copies.len()
+        || callee_body
+            .scalar_parameters
+            .iter()
+            .zip(scalar_arguments)
+            .enumerate()
+            .any(|(index, (parameter, argument))| {
+                usize::try_from(argument.parameter_index) != Ok(index)
+                    || parameter.scalar_type != argument.source.scalar_type()
+                    || call_plan.parameters.get(index) != Some(&parameter.placement)
+            })
+        || callee_body.parameters.iter().zip(copies).enumerate().any(
+            |(index, (parameter, copy))| {
+                parameter.structural_type != copy.structural_type
+                    || parameter.access != copy.access
+                    || parameter.shape != copy.shape
+                    || call_plan.parameters.get(scalar_count + index) != Some(&parameter.placement)
+                    || parameter.placement != copy.destination
+            },
+        )
+    {
+        return Err(invalid());
+    }
+    let (scalar_argument_records, argument_intervals) = match target.architecture {
+        Architecture::X86_64 => emit_x86_64_mixed_call(
+            bytes,
+            *psi_operation,
+            *callee,
+            call_plan,
+            scalar_arguments,
+            caller_scalar_parameters,
+            copies,
+            preceding_operations,
+            x86_homes,
+            internal_calls,
+        )?,
+        Architecture::Aarch64 => emit_aarch64_mixed_call(
+            bytes,
+            *psi_operation,
+            *callee,
+            call_plan,
+            scalar_arguments,
+            caller_scalar_parameters,
+            copies,
+            preceding_operations,
+            aarch64_homes,
+            internal_calls,
+        )?,
+    };
+    Ok(InternalUnitCallRecord {
+        owner: CallSiteOwner::Operation(*psi_operation),
+        target: *callee,
+        result: None,
+        semantic_result: None,
+        structural_result: None,
+        scalar_arguments: scalar_argument_records,
+        arguments: copies
+            .iter()
+            .zip(argument_intervals)
+            .map(
+                |(copy, (code_offset, byte_count, source_home_byte_offset, call_stack_bytes))| {
+                    InternalUnitCallArgumentRecord {
+                        place: copy.place,
+                        access: copy.access,
+                        path: copy.path.clone(),
+                        root_structural_type: copy.root_structural_type,
+                        structural_type: copy.structural_type,
+                        shape: copy.shape,
+                        source_byte_offset: copy.source_byte_offset,
+                        source_home_byte_offset,
+                        call_stack_bytes,
+                        fixed_array_length: copy.fixed_array_length,
+                        element_stride: copy.element_stride,
+                        source: copy.source.clone(),
+                        destination: copy.destination.clone(),
+                        code_offset,
+                        byte_count,
+                        bytes: bytes[code_offset..code_offset + byte_count].to_vec(),
+                    }
+                },
+            )
+            .collect(),
+        claim_transfers: claim_transfers.clone(),
+        operation_ordinal,
+        code_offset,
+        byte_count: bytes.len() - code_offset,
+    })
+}
+
 pub(super) fn emit_structural_scalar_call(
     operation: &AssignedUnitOperation,
     target: NativeTarget,
@@ -259,6 +413,7 @@ pub(super) fn emit_structural_scalar_call(
             *callee,
             call_plan,
             scalar_arguments,
+            &[],
             copies,
             preceding_operations,
             x86_homes,
@@ -270,6 +425,7 @@ pub(super) fn emit_structural_scalar_call(
             *callee,
             call_plan,
             scalar_arguments,
+            &[],
             copies,
             preceding_operations,
             aarch64_homes,
@@ -435,6 +591,7 @@ pub(super) fn emit_structural_result_call(
             *callee,
             call_plan,
             scalar_arguments,
+            &[],
             copies,
             preceding_operations,
             x86_homes,
@@ -446,6 +603,7 @@ pub(super) fn emit_structural_result_call(
             *callee,
             call_plan,
             scalar_arguments,
+            &[],
             copies,
             preceding_operations,
             aarch64_homes,
@@ -601,6 +759,7 @@ fn emit_x86_64_mixed_call(
     callee: psi_core::MachineId,
     call_plan: &omega_calling_conventions::CallPlan,
     scalar_arguments: &[omega_assigned_target_operations::AssignedUnitScalarCallArgument],
+    caller_scalar_parameters: &[omega_target_operations::UnitScalarAbiValue],
     copies: &[omega_assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
     homes: &[X86UnitParameterHome],
@@ -618,6 +777,7 @@ fn emit_x86_64_mixed_call(
             parameter_index,
             argument,
             call_plan,
+            caller_scalar_parameters,
             preceding_operations,
         )
         .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;
@@ -705,6 +865,7 @@ fn emit_aarch64_mixed_call(
     callee: psi_core::MachineId,
     call_plan: &omega_calling_conventions::CallPlan,
     scalar_arguments: &[omega_assigned_target_operations::AssignedUnitScalarCallArgument],
+    caller_scalar_parameters: &[omega_target_operations::UnitScalarAbiValue],
     copies: &[omega_assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
     homes: &[Aarch64UnitParameterHome],
@@ -722,6 +883,7 @@ fn emit_aarch64_mixed_call(
             parameter_index,
             argument,
             call_plan,
+            caller_scalar_parameters,
             preceding_operations,
         )
         .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;
