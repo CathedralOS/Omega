@@ -352,44 +352,15 @@ pub(super) fn validate_unit_operation_static(
                     callee: callee.id,
                 });
             }
-            if structural_arguments.iter().any(|argument| {
-                !argument.path.is_empty()
-                    && !matches!(
-                        argument.path.as_slice(),
-                        [StructuralPathSegment::FixedIndex(_)]
-                            | [
-                                StructuralPathSegment::FixedIndex(_),
-                                StructuralPathSegment::FixedIndex(_),
-                            ]
-                            | [
-                                StructuralPathSegment::FixedIndex(_),
-                                StructuralPathSegment::FixedIndex(_),
-                                StructuralPathSegment::FixedIndex(_),
-                            ]
-                    )
-                    && !is_write_only_subloan_path(&argument.path)
-            }) {
+            if structural_arguments
+                .iter()
+                .any(|argument| !is_admitted_unit_call_argument_path(argument))
+            {
                 return Err(ModuleError::InvalidStructuralArgumentPath {
                     operation: operation.id,
                     argument_index: structural_arguments
                         .iter()
-                        .position(|argument| {
-                            !argument.path.is_empty()
-                                && !matches!(
-                                    argument.path.as_slice(),
-                                    [StructuralPathSegment::FixedIndex(_)]
-                                        | [
-                                            StructuralPathSegment::FixedIndex(_),
-                                            StructuralPathSegment::FixedIndex(_),
-                                        ]
-                                        | [
-                                            StructuralPathSegment::FixedIndex(_),
-                                            StructuralPathSegment::FixedIndex(_),
-                                            StructuralPathSegment::FixedIndex(_),
-                                        ]
-                                )
-                                && !is_write_only_subloan_path(&argument.path)
-                        })
+                        .position(|argument| !is_admitted_unit_call_argument_path(argument))
                         .unwrap_or_default() as u32,
                 });
             }
@@ -420,12 +391,8 @@ pub(super) fn validate_unit_operation_static(
                 .iter()
                 .zip(&callee.structural_parameters)
                 .position(|(argument, expected)| {
-                    (is_literal_indexed_field_path(&argument.path)
-                        || is_double_literal_indexed_field_path(&argument.path)
-                        || is_triple_literal_indexed_field_path(&argument.path)
-                        || ((is_single_literal_index_path(&argument.path)
-                            || is_double_literal_index_path(&argument.path)
-                            || is_triple_literal_index_path(&argument.path))
+                    (is_bounded_literal_indexed_field_path(&argument.path)
+                        || (is_bounded_direct_literal_index_path(&argument.path)
                             && argument.access == StructuralAccess::WriteOnlyBorrow))
                         && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
                 })
@@ -1380,70 +1347,43 @@ fn structural_paths_may_overlap(
     left.iter().zip(right).all(|(left, right)| left == right)
 }
 
-fn is_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
-    let Some((StructuralPathSegment::FixedIndex(_), fields)) = path.split_last() else {
-        return false;
-    };
-    is_nonempty_field_path(fields)
+const MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH: usize = 4;
+
+fn bounded_literal_index_path(path: &[StructuralPathSegment]) -> Option<&[StructuralPathSegment]> {
+    let field_count = path
+        .iter()
+        .position(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))?;
+    let (fields, indexes) = path.split_at(field_count);
+    (!indexes.is_empty()
+        && indexes.len() <= MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
+        && fields
+            .iter()
+            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+        && indexes
+            .iter()
+            .all(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_))))
+    .then_some(fields)
 }
 
-fn is_single_literal_index_path(path: &[StructuralPathSegment]) -> bool {
-    matches!(path, [StructuralPathSegment::FixedIndex(_)])
+fn is_bounded_direct_literal_index_path(path: &[StructuralPathSegment]) -> bool {
+    bounded_literal_index_path(path).is_some_and(|fields| fields.is_empty())
 }
 
-fn is_double_literal_index_path(path: &[StructuralPathSegment]) -> bool {
-    matches!(
-        path,
-        [
-            StructuralPathSegment::FixedIndex(_),
-            StructuralPathSegment::FixedIndex(_),
-        ]
-    )
+fn is_bounded_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
+    bounded_literal_index_path(path).is_some_and(|fields| !fields.is_empty())
 }
 
-fn is_triple_literal_index_path(path: &[StructuralPathSegment]) -> bool {
-    matches!(
-        path,
-        [
-            StructuralPathSegment::FixedIndex(_),
-            StructuralPathSegment::FixedIndex(_),
-            StructuralPathSegment::FixedIndex(_),
-        ]
-    )
-}
-
-fn is_double_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
-    let [
-        fields @ ..,
-        StructuralPathSegment::FixedIndex(_),
-        StructuralPathSegment::FixedIndex(_),
-    ] = path
-    else {
-        return false;
-    };
-    is_nonempty_field_path(fields)
-}
-
-fn is_triple_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
-    let [
-        fields @ ..,
-        StructuralPathSegment::FixedIndex(_),
-        StructuralPathSegment::FixedIndex(_),
-        StructuralPathSegment::FixedIndex(_),
-    ] = path
-    else {
-        return false;
-    };
-    is_nonempty_field_path(fields)
+fn is_admitted_unit_call_argument_path(argument: &StructuralArgument) -> bool {
+    argument.path.is_empty()
+        || is_nonempty_field_path(&argument.path)
+        || is_bounded_literal_indexed_field_path(&argument.path)
+        || (is_bounded_direct_literal_index_path(&argument.path)
+            && (argument.path.len() < MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
+                || argument.access == StructuralAccess::WriteOnlyBorrow))
 }
 
 fn is_literal_indexed_write_only_path(path: &[StructuralPathSegment]) -> bool {
-    is_literal_indexed_field_path(path)
-        || is_double_literal_indexed_field_path(path)
-        || is_triple_literal_indexed_field_path(path)
-        || is_single_literal_index_path(path)
-        || is_double_literal_index_path(path)
-        || is_triple_literal_index_path(path)
+    bounded_literal_index_path(path).is_some()
 }
 
 fn is_write_only_subloan_path(path: &[StructuralPathSegment]) -> bool {

@@ -932,6 +932,44 @@ impl<'program> ShapeCollector<'program> {
         self.add_data_shape(identity, data.clone(), binders, Vec::new())
     }
 
+    fn is_unrestricted_nonatomic_primitive(&self, type_reference: TypeReferenceHandle) -> bool {
+        matches!(
+            self.program
+                .type_reference_table
+                .type_reference(type_reference),
+            TypeReferenceNode::Named { name, .. }
+                if !name.as_str().starts_with("Atomic")
+                    && self.program.primitive_type_reference(type_reference).is_some()
+                    && crate::checks::type_multiplicity(self.program, type_reference)
+                        == Multiplicity::Unrestricted
+        )
+    }
+
+    fn is_bounded_literal_array_of_unrestricted_primitive(
+        &self,
+        type_reference: TypeReferenceHandle,
+        remaining_array_depth: usize,
+    ) -> bool {
+        if remaining_array_depth == 0 {
+            return false;
+        }
+        let TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(1..),
+        } = self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        else {
+            return false;
+        };
+        self.is_unrestricted_nonatomic_primitive(*element_type)
+            || self.is_bounded_literal_array_of_unrestricted_primitive(
+                *element_type,
+                remaining_array_depth - 1,
+            )
+    }
+
     pub(super) fn add_type(
         &mut self,
         type_reference: TypeReferenceHandle,
@@ -1005,54 +1043,10 @@ impl<'program> ShapeCollector<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
-            let unrestricted_primitive_element = matches!(
-                self.program
-                    .type_reference_table
-                    .type_reference(*element_type),
-                TypeReferenceNode::Named { name, .. }
-                    if !name.as_str().starts_with("Atomic")
-                        && self.program.primitive_type_reference(*element_type).is_some()
-                        && crate::checks::type_multiplicity(self.program, *element_type)
-                            == Multiplicity::Unrestricted
-            );
-            let unrestricted_nested_primitive_array_element = matches!(
-                self.program
-                    .type_reference_table
-                    .type_reference(*element_type),
-                TypeReferenceNode::FixedArray {
-                    element_type: leaf_type,
-                    length: psi_typed_trees::types::FixedArrayLength::Literal(1..),
-                } if matches!(
-                    self.program.type_reference_table.type_reference(*leaf_type),
-                    TypeReferenceNode::Named { name, .. }
-                        if !name.as_str().starts_with("Atomic")
-                            && self.program.primitive_type_reference(*leaf_type).is_some()
-                            && crate::checks::type_multiplicity(self.program, *leaf_type)
-                                == Multiplicity::Unrestricted
-                )
-            );
-            let unrestricted_twice_nested_primitive_array_element = matches!(
-                self.program
-                    .type_reference_table
-                    .type_reference(*element_type),
-                TypeReferenceNode::FixedArray {
-                    element_type: middle_type,
-                    length: psi_typed_trees::types::FixedArrayLength::Literal(1..),
-                } if matches!(
-                    self.program.type_reference_table.type_reference(*middle_type),
-                    TypeReferenceNode::FixedArray {
-                        element_type: leaf_type,
-                        length: psi_typed_trees::types::FixedArrayLength::Literal(1..),
-                    } if matches!(
-                        self.program.type_reference_table.type_reference(*leaf_type),
-                        TypeReferenceNode::Named { name, .. }
-                            if !name.as_str().starts_with("Atomic")
-                                && self.program.primitive_type_reference(*leaf_type).is_some()
-                                && crate::checks::type_multiplicity(self.program, *leaf_type)
-                                    == Multiplicity::Unrestricted
-                    )
-                )
-            );
+            let unrestricted_primitive_element =
+                self.is_unrestricted_nonatomic_primitive(*element_type);
+            let unrestricted_nested_primitive_array_element =
+                self.is_bounded_literal_array_of_unrestricted_primitive(*element_type, 3);
             if *length == 0
                 || !substitutions.is_empty()
                 || (!matches!(
@@ -1060,13 +1054,11 @@ impl<'program> ShapeCollector<'program> {
                         .type_reference_table
                         .type_reference(*element_type),
                     TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                ) && !unrestricted_nested_primitive_array_element
-                    && !unrestricted_twice_nested_primitive_array_element)
+                ) && !unrestricted_nested_primitive_array_element)
                 || (crate::checks::type_multiplicity(self.program, *element_type)
                     != Multiplicity::Linear
                     && !unrestricted_primitive_element
-                    && !unrestricted_nested_primitive_array_element
-                    && !unrestricted_twice_nested_primitive_array_element)
+                    && !unrestricted_nested_primitive_array_element)
                 || !self.in_progress.insert(identity.clone())
             {
                 return None;

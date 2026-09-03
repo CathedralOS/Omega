@@ -1462,11 +1462,19 @@ Remaining:
   header coverage, reserved-zero field, and CRC. The lifecycle join requires
   that occurrence's admitted address to equal the still-private System Table
   `BootServices` field and pins the nonzero `HandleProtocol` function row at
-  ordinal 21 / byte 152 without exposing or invoking its address. One consumed,
-  closed provider outcome for the exact Loaded Image GUID can establish only
-  non-null, nonempty, non-wrapping image base/size correspondence for the same
-  opaque image-handle occurrence. Rejection returns complete provider custody
-  for retry or release, and firmware return remains blocked until release.
+  ordinal 21 / byte 152 without exposing its address. One sealed target-runtime
+  executor now consumes the bound operands and calls exactly that retained
+  service once through the UEFI/Microsoft-x64 ABI with the physical image
+  handle, Loaded Image GUID, and exact borrowed output slot. Its non-clone
+  receipt privately retains the returned `EFI_STATUS` and output value; only
+  the closed Success code may proceed, while InvalidParameter, Unsupported, an
+  unknown code, or a null/drifted output returns the complete executed custody
+  for release rather than admitting caller-authored evidence. The target-owned
+  96-byte/alignment-8 `EFI_LOADED_IMAGE_PROTOCOL` layout then validates revision
+  `0x1000` and reads `ImageBase` / `ImageSize` only from bytes 64 / 72 before
+  admitting non-null, nonempty, non-wrapping geometry for the same opaque
+  image-handle occurrence. Layout rejection also retains the exact execution
+  receipt; an executed call is never replayed as a retry.
   This is not an `Extent`, a `Granted` root, a physical shell, the target
   adapter, semantic installation, or native execution.
 
@@ -1481,10 +1489,11 @@ Remaining:
   native-layout Loaded Image GUID, the private service function, and one
   borrowed, initially zero interface-output slot under RCX/RDX/R8. Address-free
   occurrence provenance and stale output reject while returning the plan and
-  slot; successful provider outcome admission requires the reported interface
-  to equal the retained slot and returns complete bound custody on rejection.
-  No public raw pointer projection, call operation, emitted bytes, firmware
-  execution, image root, or adapter/shell claim is added.
+  slot. The bounded execution receipt described above is the only input to
+  outcome/correspondence admission: callers can provide neither status nor
+  interface address nor image geometry. No public raw pointer projection,
+  emitted bytes, image `Extent` or root, semantic installation, or complete
+  adapter/shell claim is added.
 
   The first adapter-composition typestate now consumes the complete physical-
   arrival custody before `BootServices` provider projection. It independently
@@ -1545,7 +1554,7 @@ Remaining:
   non-clone and exposes no firmware input, `Extent`, root, or invocation
   authority. Exact producer evidence for the remaining three WCSU coordinates,
   generated physical shell and the broader checked-adapter realization,
-  provider/root establishment,
+  provider-to-root establishment beyond the bounded Loaded Image call,
   semantic installation, invocation, and status mapping remain open.
 
   The next provider/adapter composition edge is design-settled. Implement one
@@ -6556,25 +6565,27 @@ Owners:
   non-observing replacement referee. One successor additionally permits that
   field path to end in exactly one in-bounds literal index of a nonempty literal
   fixed-array leaf with an unrestricted primitive element. The bounded nested
-  successors now permit two or three in-bounds literal indexes when the field
-  leaf is a recursively literal fixed array whose ultimate element is an
+  successors now permit two, three, or four in-bounds literal indexes when the
+  field leaf is a recursively literal fixed array whose ultimate element is an
   unrestricted non-Atomic primitive. Checked and Terminal custody retain the
-  ordered `Field` identities followed by the exact one, two, or three `FixedIndex`
-  segments; the independent verifier replays every field and array shape,
-  bound, type, multiplicity, and write-only access. The same literal-index
-  subloan accepts a direct `&write [P; N]` parameter root, or the exact nested
-  `&write [[P; I]; O]` or `&write [[[P; I]; M]; O]` form for the two- and
-  three-index rungs, when every selected length is nonzero and literal and `P`
+  ordered `Field` identities followed by the exact one, two, three, or four
+  `FixedIndex` segments; the independent verifier replays every field and array
+  shape, bound, type, multiplicity, and write-only access. The same
+  literal-index subloan accepts a direct `&write [P; N]` parameter root, or the
+  exact nested
+  `&write [[P; I]; O]`, `&write [[[P; I]; M]; O]`, or
+  `&write [[[[P; I]; M]; N]; O]` form for the two-, three-, and four-index
+  rungs, when every selected length is nonzero and literal and `P`
   is an unrestricted non-Atomic primitive.
   Checked planning plus Terminal replay independently rejoin the complete
   ordered path, array shapes, bounds, element type, multiplicity, and
   write-only access. Reusable local aliases, dynamic or range projection, a
-  fourth index, case/payload, qualified/generic/invariant/constrained paths,
+  fifth index, case/payload, qualified/generic/invariant/constrained paths,
   whole nested-array or aggregate elements,
   multi-parameter structural calls, and provider boundaries remain fenced.
-  Exact unrestricted record-leaf and one-, two-, or three-index canaries cross
-  checked Unit planning, Terminal codec replay, and verification. Neither form
-  creates a Terminal write event.
+  Exact unrestricted record-leaf and one-, two-, three-, or four-index canaries
+  cross checked Unit planning, Terminal codec replay, and verification. Neither
+  form creates a Terminal write event.
 
   The first forwarding-only Terminal rung is also live. Checked and Terminal
   structural parameter and call-argument rows carry a closed

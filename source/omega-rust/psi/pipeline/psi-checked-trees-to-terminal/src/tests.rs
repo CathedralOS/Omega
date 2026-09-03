@@ -2295,12 +2295,12 @@ fn three_index_write_only_subloan_crosses_source_codec_and_verification() {
             .expect_err("every three-index array bound must replay independently");
     }
 
-    let mut fourth_index = decoded;
-    mutate_path(&mut fourth_index, &|path| {
+    let mut index_beyond_leaf = decoded;
+    mutate_path(&mut index_beyond_leaf, &|path| {
         path.push(StructuralPathSegment::FixedIndex(0));
     });
-    psi_terminal_verifier::validate_module(&fourth_index)
-        .expect_err("a fourth write-only subloan index must remain fenced");
+    psi_terminal_verifier::validate_module(&index_beyond_leaf)
+        .expect_err("an index beyond the selected primitive leaf must reject");
 }
 
 #[test]
@@ -2358,6 +2358,160 @@ fn field_prefixed_three_index_write_only_subloan_crosses_terminal() {
     structural_arguments[0].path.swap(0, 1);
     psi_terminal_verifier::validate_module(&decoded)
         .expect_err("reordering a field and fixed-index segment must reject");
+}
+
+#[test]
+fn four_index_write_only_subloan_crosses_source_codec_and_verification() {
+    let source = r#"
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(values: &write [[[[u16; 5]; 4]; 3]; 2]) {
+            Sink::fill(&write values[1][2][3][4]);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Root::forward").expect("lower four-index forwarding");
+    let module = &lowered.semantic_module;
+
+    let [call] = module.machines[0].blocks[0].operations.as_slice() else {
+        panic!("four-index caller emits one forwarding call")
+    };
+    assert!(matches!(
+        &call.kind,
+        OperationKind::CallUnit { structural_arguments, .. }
+            if matches!(structural_arguments.as_slice(), [argument]
+                if argument.access == StructuralAccess::WriteOnlyBorrow
+                    && argument.path == [
+                        StructuralPathSegment::FixedIndex(1),
+                        StructuralPathSegment::FixedIndex(2),
+                        StructuralPathSegment::FixedIndex(3),
+                        StructuralPathSegment::FixedIndex(4),
+                    ])
+    ));
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode four-index module");
+    let decoded = psi_terminal_codec::decode_module(&encoded).expect("decode four-index module");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify four-index write-only subloan");
+
+    let mutate_path = |module: &mut TerminalModule,
+                       mutation: &dyn Fn(&mut Vec<StructuralPathSegment>)| {
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            panic!("four-index caller call")
+        };
+        mutation(&mut structural_arguments[0].path);
+    };
+
+    for (position, invalid_index) in [(0, 2), (1, 3), (2, 4), (3, 5)] {
+        let mut out_of_bounds = decoded.clone();
+        mutate_path(&mut out_of_bounds, &|path| {
+            path[position] = StructuralPathSegment::FixedIndex(invalid_index);
+        });
+        psi_terminal_verifier::validate_module(&out_of_bounds)
+            .expect_err("every four-index array bound must replay independently");
+    }
+
+    let mut shared_depth_four = decoded.clone();
+    shared_depth_four.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    shared_depth_four.machines[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut shared_depth_four.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("four-index shared-access mutation call")
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    psi_terminal_verifier::validate_module(&shared_depth_four)
+        .expect_err("the fourth direct index is admitted only for exact write-only access");
+
+    let mut fifth_index = decoded;
+    mutate_path(&mut fifth_index, &|path| {
+        path.push(StructuralPathSegment::FixedIndex(0));
+    });
+    psi_terminal_verifier::validate_module(&fifth_index)
+        .expect_err("a fifth write-only subloan index must remain fenced");
+}
+
+#[test]
+fn field_prefixed_four_index_write_only_subloan_crosses_terminal() {
+    let source = r#"
+        data Outer [copy] { values: [[[[u16; 5]; 4]; 3]; 2]; sibling: u16; }
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.values[1][2][3][4]);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Root::forward")
+        .expect("lower field-prefixed four-index forwarding");
+    let module = &lowered.semantic_module;
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("field-prefixed four-index forwarding call")
+    };
+    assert!(matches!(
+        structural_arguments[0].path.as_slice(),
+        [
+            StructuralPathSegment::Field(_),
+            StructuralPathSegment::FixedIndex(1),
+            StructuralPathSegment::FixedIndex(2),
+            StructuralPathSegment::FixedIndex(3),
+            StructuralPathSegment::FixedIndex(4),
+        ]
+    ));
+    let encoded =
+        psi_terminal_codec::encode_module(module).expect("encode field-prefixed four-index module");
+    let decoded = psi_terminal_codec::decode_module(&encoded)
+        .expect("decode field-prefixed four-index module");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded)
+        .expect("verify field-prefixed four-index write-only subloan");
+
+    let mutate_path = |module: &mut TerminalModule,
+                       mutation: &dyn Fn(&mut Vec<StructuralPathSegment>)| {
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            panic!("field-prefixed four-index decoded call")
+        };
+        mutation(&mut structural_arguments[0].path);
+    };
+
+    let mut fifth_index = decoded.clone();
+    mutate_path(&mut fifth_index, &|path| {
+        path.push(StructuralPathSegment::FixedIndex(0));
+    });
+    psi_terminal_verifier::validate_module(&fifth_index)
+        .expect_err("a field-prefixed fifth write-only subloan index must remain fenced");
+
+    let mut reordered = decoded;
+    mutate_path(&mut reordered, &|path| path.swap(0, 1));
+    psi_terminal_verifier::validate_module(&reordered)
+        .expect_err("reordering a field and four-index suffix must reject");
 }
 
 #[test]

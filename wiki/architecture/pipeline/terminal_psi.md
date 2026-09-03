@@ -673,12 +673,12 @@ projection; malformed path, target type/access, source access, qualification,
 arity, or provider substitution rejects. Reusable local or re-entrant reborrow
 authority does not follow. One direct write-only literal fixed-array parameter
 root may carry exactly one in-bounds literal `FixedIndex` to an unrestricted
-non-Atomic primitive element. The bounded nested successors admit two or three
-ordered in-bounds `FixedIndex` segments through a recursively literal fixed
-array, either directly or after the eligible field prefix, when the ultimate
-element is likewise an unrestricted non-Atomic primitive. The verifier
+non-Atomic primitive element. The bounded nested successors admit two, three,
+or four ordered in-bounds `FixedIndex` segments through a recursively literal
+fixed array, either directly or after the eligible field prefix, when the
+ultimate element is likewise an unrestricted non-Atomic primitive. The verifier
 independently rejoins every array shape, bound, element type, multiplicity, and
-write-only access. Dynamic, range, fourth-index, whole nested-array, and
+write-only access. Dynamic, range, fifth-index, whole nested-array, and
 aggregate-element paths remain absent. The verifier also rejects widening,
 target disagreement, overlapping exclusive arguments, and Boolean structural
 observation through write-only access.

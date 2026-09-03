@@ -107,9 +107,9 @@ also satisfy ordinary displaced-custody and invariant-window rules. An opaque
 provider's compliance is admitted unless target isolation enforces it; that
 does not widen the authority recorded in the source or artifact contract.
 The bounded direct-call subloan may select one literal fixed-array index, or
-two or three through a recursively literal fixed array, only when every bound is
+two, three, or four through a recursively literal fixed array, only when every bound is
 static and the ultimate leaf is an unrestricted non-Atomic primitive. Dynamic,
-range, fourth-index, and aggregate-leaf projections remain outside that rung.
+range, fifth-index, and aggregate-leaf projections remain outside that rung.
 
 Post-restoration call evidence now admits one direct exclusive child, one
 shared child, or one exact two- or three-member concurrent shared-freeze
