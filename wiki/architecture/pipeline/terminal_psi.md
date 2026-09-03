@@ -721,10 +721,11 @@ the replacement source when it is the machine's sole scalar parameter and
 matches the primitive referent exactly. Checked planning retains the authored
 structural/scalar parameter partition; Terminal verification and target-neutral
 abstract lowering preserve the runtime value identity without fabricating a
-constant. The first physical sublane admits exact signed `i32` and independently
-replays its incoming `RDI`/`X0` placement, destination home, machine bytes, and
-installation source record on both Linux targets. Other fixed widths remain
-fail closed. Terminal format 77/vocabulary 80 now retains an ordinary
+constant. The native sublane admits every non-address fixed integer
+(`i8`/`u8` through `i64`/`u64`) and independently replays its exact width,
+sign, incoming `RDI`/`X0` placement, destination home, machine bytes, and
+installation source record on both Linux targets. Terminal format 77/vocabulary
+80 now retains an ordinary
 `CallUnit`'s scalar arguments independently from its structural arguments,
 verifies their exact arity and types against the callee, transports them through
 canonical bytes, and binds them in reference execution. This admits a semantic
@@ -740,8 +741,10 @@ destination, interval, and relocation custody. Object construction now
 independently rejoins the Unit callee ABI, caller parameter source, exact
 zero-byte same-register transfer, structural copy, stack evidence, and call
 bytes. Installation format 75 transports and replays the same custody on both
-Linux targets. This completes the one-`i32` caller-to-write-only-store lane;
-broader parameter forwarding remains fail closed.
+Linux targets. This completes the one-parameter native-fixed-integer
+caller-to-write-only-store lane; additional scalar parameters, computed
+sources, Boolean/IEEE runtime sources, and non-native integer carriers remain
+fail closed.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

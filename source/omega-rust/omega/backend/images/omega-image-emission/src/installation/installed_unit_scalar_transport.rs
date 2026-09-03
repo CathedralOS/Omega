@@ -5,7 +5,7 @@ use omega_calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
 };
 use omega_machine_code::SemanticCodeSite;
-use omega_target::{Architecture, NativeTarget};
+use omega_target::NativeTarget;
 use omega_target_operations::CallSiteOwner;
 use psi_core::MachineId;
 use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
@@ -504,14 +504,15 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                         .parameters
                         .get(scalar_parameter_index)
                         .ok_or_else(invalid)?;
-                    let scalar_shape = ValueShape::integer(4, 4);
-                    let expected_register = match record.target.architecture {
-                        Architecture::X86_64 => {
-                            omega_target_operations::MachineRegister::X86Rdi
-                        }
-                        Architecture::Aarch64 => {
-                            omega_target_operations::MachineRegister::Aarch64X(0)
-                        }
+                    let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
+                    let scalar_shape = ValueShape::integer(width, width.min(8));
+                    let [ValueLocation::Register {
+                        register: expected_register,
+                        value_byte_offset: 0,
+                        byte_size: placed_byte_size,
+                    }] = scalar_parameter.placement.locations.as_slice()
+                    else {
+                        return Err(invalid());
                     };
                     let expected_plan = evaluate_call_plan(
                         CallingPolicy::native_for_target(record.target),
@@ -526,28 +527,22 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                             && abi.parameters.len() == 1
                             && function.unit_parameters.len() == 1
                             && scalar_type.carrier() == psi_core::IntegerCarrier::Fixed
-                            && scalar_type.sign() == psi_core::IntegerSign::Signed
-                            && scalar_type.bits() == 32
+                            && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
                             && scalar_parameter.value == source_value
                             && scalar_parameter.scalar_type
                                 == psi_core::ScalarType::Integer(scalar_type)
                             && scalar_parameter.placement.shape == scalar_shape
-                            && scalar_parameter.placement.locations.as_slice()
-                                == [ValueLocation::Register {
-                                    register: expected_register,
-                                    value_byte_offset: 0,
-                                    byte_size: 4,
-                                }]
+                            && *placed_byte_size == width
                             && location
                                 == omega_machine_code::UnitScalarParameterLocationRecord::Register(
-                                    expected_register,
+                                    *expected_register,
                                 )
                             && abi.call_plan == expected_plan
                             && abi.call_plan.parameters.first()
                                 == Some(&scalar_parameter.placement)
                             && abi.call_plan.parameters.get(1) == Some(&home.source),
                         psi_core::ScalarType::Integer(scalar_type),
-                        4,
+                        width,
                         None,
                     )
                 }

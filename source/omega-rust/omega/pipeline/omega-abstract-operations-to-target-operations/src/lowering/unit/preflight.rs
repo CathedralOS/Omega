@@ -68,7 +68,6 @@ fn has_bounded_scalar_parameter_shape(function: &AbstractFunction) -> bool {
             scalar_type: ScalarType::Integer(scalar_type),
             ..
         }] if scalar_type.carrier() == psi_core::IntegerCarrier::Fixed
-            && scalar_type.sign() == psi_core::IntegerSign::Signed
-            && scalar_type.bits() == 32
+            && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
     )
 }
