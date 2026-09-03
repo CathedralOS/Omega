@@ -32,7 +32,7 @@ pub(crate) fn derive_boundary_settlement(
     };
     let AbstractOperation::BoundaryCall {
         psi_operation,
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary,
         arguments,
         structural_arguments,

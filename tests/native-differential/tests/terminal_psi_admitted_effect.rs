@@ -578,7 +578,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: settlement_operation,
-                    result: None,
+                    result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                     boundary,
                     arguments: Vec::new(),
                     structural_arguments: settlement_arguments.clone(),
@@ -780,7 +780,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             operations: vec![
                 AbstractOperation::BoundaryCall {
                     psi_operation: settlement_operation,
-                    result: Some(result),
+                    result: omega_abstract_operations::AbstractBoundaryResult::Scalar(result),
                     boundary,
                     arguments: Vec::new(),
                     structural_arguments: direct_arguments.clone(),

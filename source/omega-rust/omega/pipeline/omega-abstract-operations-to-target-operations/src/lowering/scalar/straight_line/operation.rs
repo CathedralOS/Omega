@@ -70,7 +70,7 @@ pub(super) fn lower_operation(
             boundary,
             ..
         } => {
-            if result.is_some() {
+            if !result.is_unit() {
                 return Err(
                     LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
                         machine: function.machine,

@@ -346,7 +346,7 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
     };
     let completion = |psi_operation| AbstractOperation::BoundaryCall {
         psi_operation,
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary,
         arguments: Vec::new(),
         structural_arguments: vec![psi_terminal::StructuralArgument {

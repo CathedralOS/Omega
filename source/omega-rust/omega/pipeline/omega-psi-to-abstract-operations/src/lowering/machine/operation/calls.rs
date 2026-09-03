@@ -288,10 +288,22 @@ pub(super) fn lower(
             completion_claim_sources.sort();
             AbstractOperation::BoundaryCall {
                 psi_operation: operation.id,
-                result: operation.result.scalar().map(|result| AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                }),
+                result: match &operation.result {
+                    psi_terminal::OperationResult::Unit => {
+                        omega_abstract_operations::AbstractBoundaryResult::Unit
+                    }
+                    psi_terminal::OperationResult::Scalar(result) => {
+                        omega_abstract_operations::AbstractBoundaryResult::Scalar(AbstractResult {
+                            value: result.id,
+                            scalar_type: result.scalar_type,
+                        })
+                    }
+                    psi_terminal::OperationResult::Structural(result) => {
+                        omega_abstract_operations::AbstractBoundaryResult::Structural(
+                            result.clone(),
+                        )
+                    }
+                },
                 boundary,
                 arguments,
                 structural_arguments,

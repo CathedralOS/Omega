@@ -38,7 +38,7 @@ pub(in crate::tests) fn claim_completion_settlement_fixture() -> (
     abstract_plan.functions[0].operations = vec![
         AbstractOperation::BoundaryCall {
             psi_operation: OperationId::new(1).unwrap(),
-            result: None,
+            result: omega_abstract_operations::AbstractBoundaryResult::Unit,
             boundary,
             arguments: Vec::new(),
             structural_arguments: vec![structural_arguments[0].clone()],
@@ -47,7 +47,7 @@ pub(in crate::tests) fn claim_completion_settlement_fixture() -> (
         },
         AbstractOperation::BoundaryCall {
             psi_operation: second_operation,
-            result: None,
+            result: omega_abstract_operations::AbstractBoundaryResult::Unit,
             boundary,
             arguments: Vec::new(),
             structural_arguments: vec![structural_arguments[1].clone()],

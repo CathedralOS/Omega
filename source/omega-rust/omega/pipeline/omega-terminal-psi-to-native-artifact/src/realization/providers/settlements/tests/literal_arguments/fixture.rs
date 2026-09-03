@@ -79,7 +79,7 @@ pub(super) fn abstract_plan(
         .collect::<Vec<_>>();
     operations.push(omega_abstract_operations::AbstractOperation::BoundaryCall {
         psi_operation: call_operation,
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary,
         arguments: cases.iter().map(|case| case.value).collect(),
         structural_arguments: Vec::new(),

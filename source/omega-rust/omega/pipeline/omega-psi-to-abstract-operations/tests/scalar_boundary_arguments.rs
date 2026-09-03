@@ -1,19 +1,21 @@
-use omega_abstract_operations::AbstractOperation;
+use omega_abstract_operations::{AbstractBoundaryResult, AbstractOperation};
 use omega_psi_to_abstract_operations::lower_artifact_sections;
 use psi_core::{
-    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ScalarType, ValueId,
+    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, PlaceId, ScalarType,
+    StructuralTypeId, ValueId,
 };
 use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, MachineContract, Operation, OperationKind, OperationResult,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_terminal_verifier::ProofBundle;
 
 #[test]
-fn preserves_scalar_boundary_arguments_in_authored_order() {
+fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     let boolean = ValueDeclaration {
         id: value_id(1),
         scalar_type: ScalarType::Boolean,
@@ -28,7 +30,7 @@ fn preserves_scalar_boundary_arguments_in_authored_order() {
     };
     let boundary = boundary_id(1);
     let operation = operation_id(1);
-    let module = TerminalModule {
+    let mut module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
@@ -115,6 +117,7 @@ fn preserves_scalar_boundary_arguments_in_authored_order() {
     let [
         AbstractOperation::BoundaryCall {
             psi_operation,
+            result,
             boundary: lowered_boundary,
             arguments,
             ..
@@ -125,8 +128,67 @@ fn preserves_scalar_boundary_arguments_in_authored_order() {
         panic!("fixture lowers to a boundary call followed by Unit return")
     };
     assert_eq!(*psi_operation, operation);
+    assert_eq!(result, &AbstractBoundaryResult::Unit);
     assert_eq!(*lowered_boundary, boundary);
     assert_eq!(arguments, &[byte.id, boolean.id]);
+
+    let structural_type = structural_type_id(1);
+    let place = place_id(1);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::BoundaryResult".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    module.boundary_machines[0].result = psi_terminal::BoundaryMachineResult::Structural(
+        psi_terminal::BoundaryStructuralResultDeclaration {
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        },
+    );
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place,
+            kind: psi_core::StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type,
+            },
+        });
+    module.machines[0].blocks[0].operations[0].result =
+        OperationResult::Structural(StructuralOperationResult {
+            place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        });
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!("fixture returns Unit")
+    };
+    trivial_affine_discards.push(place);
+    let semantic = encode_module(&module).expect("structural boundary artifact encodes");
+    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("verified structural boundary call lowers into Omega");
+    let AbstractOperation::BoundaryCall { result, .. } = &plan.functions[0].operations[0] else {
+        panic!("fixture retains its boundary call")
+    };
+    assert_eq!(
+        result,
+        &AbstractBoundaryResult::Structural(StructuralOperationResult {
+            place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        })
+    );
 }
 
 fn machine_id(value: u32) -> MachineId {
@@ -155,4 +217,12 @@ fn contract_id(value: u32) -> ContractId {
 
 fn value_id(value: u32) -> ValueId {
     ValueId::new(u64::from(value)).unwrap()
+}
+
+fn place_id(value: u32) -> PlaceId {
+    PlaceId::new(u64::from(value)).unwrap()
+}
+
+fn structural_type_id(value: u32) -> StructuralTypeId {
+    StructuralTypeId::new(u64::from(value)).unwrap()
 }

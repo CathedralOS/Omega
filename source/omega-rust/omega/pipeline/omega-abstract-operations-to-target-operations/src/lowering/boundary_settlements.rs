@@ -47,7 +47,7 @@ pub(super) fn lower_linux_exit_group_i32(
         },
         AbstractOperation::BoundaryCall {
             psi_operation,
-            result: None,
+            result: omega_abstract_operations::AbstractBoundaryResult::Unit,
             boundary: called_boundary,
             arguments: call_arguments,
             structural_arguments,

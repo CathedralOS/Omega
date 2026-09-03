@@ -616,10 +616,12 @@ fn abstract_plan(
             operations: vec![
                 omega_abstract_operations::AbstractOperation::BoundaryCall {
                     psi_operation: psi_core::OperationId::new(830).unwrap(),
-                    result: Some(omega_abstract_operations::AbstractResult {
-                        value: runtime,
-                        scalar_type,
-                    }),
+                    result: omega_abstract_operations::AbstractBoundaryResult::Scalar(
+                        omega_abstract_operations::AbstractResult {
+                            value: runtime,
+                            scalar_type,
+                        },
+                    ),
                     boundary: producer,
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -628,7 +630,7 @@ fn abstract_plan(
                 },
                 omega_abstract_operations::AbstractOperation::BoundaryCall {
                     psi_operation: psi_core::OperationId::new(831).unwrap(),
-                    result: None,
+                    result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                     boundary: consumer,
                     arguments: vec![runtime],
                     structural_arguments: Vec::new(),

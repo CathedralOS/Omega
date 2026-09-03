@@ -66,7 +66,7 @@ pub(super) fn lower_boundary_call(
                     .copied()
                     .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
                 let has_scalar_argument = !arguments.is_empty();
-                if result.is_some()
+                if !result.is_unit()
                     || callee.result != AbstractFunctionResult::Unit
                     || arguments.len() != callee.parameters.len()
                     || arguments.len() != declaration.scalar_parameters.len()
@@ -326,7 +326,7 @@ pub(super) fn lower_boundary_call(
                     *boundary,
                     declaration,
                     *psi_operation,
-                    *result,
+                    result.scalar(),
                     &foreign.boundary_entry_plan,
                 )?;
                 let scalar_arguments = lower_normalized_foreign_scalar_arguments_with_result(
@@ -380,7 +380,7 @@ pub(super) fn lower_boundary_call(
                 provenance.operations.push(*psi_operation);
                 return Ok(());
             }
-            if result.is_some() {
+            if !result.is_unit() {
                 return Err(
                     LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
                         machine: function.machine,

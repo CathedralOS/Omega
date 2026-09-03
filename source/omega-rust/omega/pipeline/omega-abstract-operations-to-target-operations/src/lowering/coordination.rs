@@ -218,7 +218,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                 content: source.content.clone(),
             })
             .collect::<Vec<_>>();
-        if result.is_some()
+        if !result.is_unit()
             || installed.scalar_arguments != *arguments
             || installed.structural_arguments != *structural_arguments
             || installed.completion_claim_sources != exact_sources

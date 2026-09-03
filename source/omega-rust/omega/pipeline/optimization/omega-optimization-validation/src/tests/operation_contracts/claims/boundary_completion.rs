@@ -43,7 +43,7 @@ fn accepts_content_only_boundary_completion_and_rejects_correspondence_corruptio
         };
     baseline.functions[0].blocks[0].nodes[0].operation = AbstractOperation::BoundaryCall {
         psi_operation,
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary: boundary_id,
         arguments: Vec::new(),
         structural_arguments,

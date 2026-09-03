@@ -40,7 +40,7 @@ pub(super) fn lower_special_form(
     if let [
         AbstractOperation::BoundaryCall {
             psi_operation,
-            result: Some(boundary_result),
+            result: omega_abstract_operations::AbstractBoundaryResult::Scalar(boundary_result),
             boundary,
             arguments: _,
             structural_arguments,

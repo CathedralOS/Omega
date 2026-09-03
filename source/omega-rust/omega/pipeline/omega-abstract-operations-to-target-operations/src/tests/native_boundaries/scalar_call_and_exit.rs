@@ -29,7 +29,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         },
         AbstractOperation::BoundaryCall {
             psi_operation: OperationId::new(971).unwrap(),
-            result: None,
+            result: omega_abstract_operations::AbstractBoundaryResult::Unit,
             boundary,
             arguments: vec![exit_value],
             structural_arguments: Vec::new(),

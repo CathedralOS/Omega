@@ -201,7 +201,7 @@ fn boundary_requirement_consumes_a_dominating_operation_result_qualification() {
     let mut boundary_node = return_block.nodes[return_index].clone();
     boundary_node.operation = AbstractOperation::BoundaryCall {
         psi_operation: id(4_704, OperationId::new),
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary,
         arguments: Vec::new(),
         structural_arguments: vec![psi_terminal::StructuralArgument {

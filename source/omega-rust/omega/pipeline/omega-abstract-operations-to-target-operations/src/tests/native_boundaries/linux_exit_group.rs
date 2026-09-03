@@ -60,7 +60,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: settlement_operation,
-                    result: None,
+                    result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                     boundary,
                     arguments: vec![value],
                     structural_arguments: Vec::new(),

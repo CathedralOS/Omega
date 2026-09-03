@@ -32,7 +32,7 @@ pub(crate) fn expected_definitions(
         | O::CallDynamicParameterScalar { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
-            result: Some(result),
+            result: omega_abstract_operations::AbstractBoundaryResult::Scalar(result),
             ..
         } => Some((result.value, result.scalar_type)),
         O::BooleanConstant { result, .. }

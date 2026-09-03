@@ -33,7 +33,7 @@ pub(crate) fn provider_attachment_specialization_unit() -> PsiOptimizationUnit {
     };
     let call = |psi_operation, boundary| AbstractOperation::BoundaryCall {
         psi_operation,
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),

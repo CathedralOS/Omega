@@ -132,7 +132,7 @@ fn installed_provider_plan() -> (
                 operations: vec![
                     AbstractOperation::BoundaryCall {
                         psi_operation: operation,
-                        result: None,
+                        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                         boundary,
                         arguments: Vec::new(),
                         structural_arguments: vec![argument.clone()],
@@ -296,7 +296,7 @@ fn installed_scalar_provider_plan() -> (
                 operations: vec![
                     AbstractOperation::BoundaryCall {
                         psi_operation: operation,
-                        result: None,
+                        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                         boundary,
                         arguments: vec![caller_value],
                         structural_arguments: Vec::new(),

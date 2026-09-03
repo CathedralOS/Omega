@@ -910,12 +910,18 @@ Remaining:
   the exact structural operation result and deterministically discards an
   unused affine result. The verifier and format-75/vocabulary-78 codec replay
   that closed result role, and source-to-checked plus source-to-Terminal
-  round-trip controls exercise a `ByteRead` sum. Structural boundary effects
-  still fail closed in the interpreter, optimizer/native carriers remain
-  Unit/scalar-only, and no Linux `read(0, ..., 1)` lowering is claimed. The
-  next rung is an exact structural effect-result carrier through abstract,
-  target, assignment, and native receipt custody, followed by the Linux read
-  realization and an executable echo canary.
+  round-trip controls exercise a `ByteRead` sum. Abstract lowering and the
+  optimization unit now preserve the same closed result role: a structural
+  boundary result retains its exact caller-local place, nominal type,
+  multiplicity, qualification frontier, and claims rather than collapsing
+  back into an optional scalar. Optimization identity and validation replay
+  that complete row, while scalar-definition indexing admits only the scalar
+  role. Structural boundary effects still fail closed in the interpreter;
+  target, assignment, and native receipt carriers remain Unit/scalar-only, and
+  no Linux `read(0, ..., 1)` lowering is claimed. The next rung must first add
+  canonical target layout for closed sums and an exact structural-result home,
+  then carry that home through target assignment and native receipt custody
+  before adding the Linux read realization and executable echo canary.
 
   `InterruptMaskGuard::restore`, `InterruptAcknowledgement::complete`,
   `Task::request_cancel`, and `Task::finish` now use the public top-level

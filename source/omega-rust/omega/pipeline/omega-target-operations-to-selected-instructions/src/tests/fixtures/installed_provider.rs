@@ -136,7 +136,7 @@ pub(in crate::tests) fn installed_provider_legalization_fixture() -> (
     abstract_plan.functions[0].entry_claims = caller_claims.clone();
     abstract_plan.functions[0].operations[0] = AbstractOperation::BoundaryCall {
         psi_operation: operation,
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary,
         arguments: Vec::new(),
         structural_arguments: arguments.clone(),
