@@ -12526,10 +12526,15 @@ checked-result arithmetic decision listed below.
     target-neutral operations retaining the same selection, aggregate/field
     identity, closed application, and selected callable. Optimization-unit
     construction gives both rows canonical identity and independently rejects a
-    reload whose custody drifts from its unique earlier same-block store. Native
-    two-word aggregate layout, materialization, reload, and artifact replay remain
-    to be added; Abstract-to-Target lowering rejects both operations explicitly
-    until that physical carrier exists. Do not extend local
+    reload whose custody drifts from its unique earlier same-block store.
+    Abstract-to-Target lowering now derives the selected realization ABI and
+    exact instance projection for both rows. Physical assignment allocates one
+    aligned 16-byte descriptor home at establishment and requires the later call
+    to reuse that exact ABI/home before allocating its distinct scalar result
+    home; it rejects reconstructed or substituted stores. Machine encoding,
+    object/image/installation replay, and native execution remain to be added;
+    machine emission rejects the split establishment/reload explicitly until its
+    byte and relocation evidence exists. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a

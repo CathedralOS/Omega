@@ -807,9 +807,12 @@ executes the selected realization through the stored field. Terminal-to-Abstract
 lowering retains distinct store and reload operations with the same selection,
 aggregate/field identity, closed application, and selected callable. Optimizer
 identity and independent validation preserve the unique earlier same-block store
-join. Physical two-word native materialization, reload, and artifact replay remain
-open; Abstract-to-Target lowering rejects these operations until that carrier is
-implemented.
+join. Target lowering derives the selected realization call ABI and instance
+projection for both operations. Physical assignment allocates one aligned
+16-byte descriptor home at establishment and requires the call to reload that
+same home before giving its scalar result a distinct home. Machine encoding and
+object/image/installation replay remain open; machine emission rejects this
+split pair until its bytes and relocation evidence are defined.
 Those consumers use the same complete normalized maps.
 Replaceable-component crossing is not another descriptor rung: it is forbidden
 below, and uses a boundary requirement or a consumer-owned local proxy instead.

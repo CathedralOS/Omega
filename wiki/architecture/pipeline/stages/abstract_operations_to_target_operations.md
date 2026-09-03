@@ -94,9 +94,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   later allocates the canonical two-word descriptor and durable result home.
 - Aggregate-stored descriptors arrive as separate target-neutral store and
   reload/call operations that retain one identical selected application and
-  aggregate-field identity. This stage currently rejects them explicitly: the
-  target vocabulary must first define the two-word local, establishment write,
-  reload, and indirect-call custody as one replayable physical contract.
+  aggregate-field identity. This stage derives one selected realization call
+  plan and one exact projected instance argument for both operations; it does
+  not reconstruct the descriptor from its ordinal or collapse the call to a
+  direct invocation.
 - `lowering/scalar/special_forms.rs` also owns the bounded scalar helper-to-
   helper forwarding form. It independently rejoins the incoming descriptor
   parameter to the callee's identical interface and retains both native

@@ -3,6 +3,119 @@
 use super::scalar_call::allocate_unit_scalar_home;
 use crate::assignment::shared::*;
 
+pub(super) fn assign_stored_descriptor(
+    machine: MachineId,
+    target: NativeTarget,
+    psi_operation: OperationId,
+    stored: &omega_target_operations::AbstractStoredDynamicDescriptor,
+    source_argument: &omega_target_operations::TargetStructuralArgument,
+    next_scalar_home: &mut u32,
+) -> Result<AssignedUnitOperation, AssignmentError> {
+    let invalid = || AssignmentError::StoredDynamicDescriptorCustodyMismatch {
+        machine,
+        operation: psi_operation,
+    };
+    if !stored.has_complete_custody(machine, psi_operation)
+        || source_argument.place != stored.selection.source.place
+        || source_argument.access != stored.selection.source.access
+        || source_argument.path != stored.selection.source.path
+        || source_argument.access == psi_terminal::StructuralAccess::Owned
+    {
+        return Err(invalid());
+    }
+    let (descriptor_abi, descriptor_home_byte_offset) =
+        assign_descriptor(target, next_scalar_home, &invalid)?;
+    Ok(AssignedUnitOperation::StoreDynamicDescriptor {
+        psi_operation,
+        stored: stored.clone(),
+        descriptor_abi,
+        descriptor_home_byte_offset,
+        source_copy: assigned_copy(source_argument),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn assign_stored_scalar_call(
+    machine: MachineId,
+    target: NativeTarget,
+    psi_operation: OperationId,
+    result: omega_target_operations::AbstractResult,
+    dynamic_dispatch: &omega_target_operations::AbstractStoredDynamicDispatch,
+    call_plan: &omega_calling_conventions::CallPlan,
+    result_requirement: omega_target_operations::TargetUnitScalarHomeRequirement,
+    source_argument: &omega_target_operations::TargetStructuralArgument,
+    requirement_obligations: &[psi_core::ObligationId],
+    crash_continuations: &[psi_terminal::CrashRouteBucket],
+    preceding_assigned_operations: &[AssignedUnitOperation],
+    assigned_scalar_homes: &mut BTreeMap<ValueId, AssignedUnitScalarHome>,
+    next_scalar_home: &mut u32,
+) -> Result<AssignedUnitOperation, AssignmentError> {
+    let invalid = || AssignmentError::StoredDynamicScalarCallCustodyMismatch {
+        machine,
+        operation: psi_operation,
+    };
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![source_argument.shape],
+            result: Some(result_requirement.shape),
+        },
+    )
+    .map_err(|_| invalid())?;
+    let source_copy = assigned_copy(source_argument);
+    let stores = preceding_assigned_operations
+        .iter()
+        .filter_map(|operation| match operation {
+            AssignedUnitOperation::StoreDynamicDescriptor {
+                stored,
+                descriptor_abi,
+                descriptor_home_byte_offset,
+                source_copy: stored_source,
+                ..
+            } if stored == &dynamic_dispatch.stored && stored_source == &source_copy => {
+                Some((*descriptor_abi, *descriptor_home_byte_offset))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(descriptor_abi, descriptor_home_byte_offset)] = stores.as_slice() else {
+        return Err(invalid());
+    };
+    if result.value != result_requirement.source_value
+        || result.scalar_type != result_requirement.scalar_type
+        || result_requirement.defining_operation != psi_operation
+        || call_plan != &expected_call_plan
+        || call_plan.parameters.as_slice() != std::slice::from_ref(&source_argument.destination)
+        || call_plan.result.as_ref().map(|placement| placement.shape)
+            != Some(result_requirement.shape)
+        || source_argument.place != dynamic_dispatch.stored.selection.source.place
+        || source_argument.access != dynamic_dispatch.stored.selection.source.access
+        || source_argument.path != dynamic_dispatch.stored.selection.source.path
+        || source_argument.access == psi_terminal::StructuralAccess::Owned
+        || !dynamic_dispatch.has_complete_custody(machine, psi_operation)
+    {
+        return Err(invalid());
+    }
+    let result_home = allocate_unit_scalar_home(
+        result_requirement,
+        assigned_scalar_homes,
+        next_scalar_home,
+        invalid(),
+    )?;
+    Ok(AssignedUnitOperation::StoredDynamicScalarCall {
+        psi_operation,
+        result,
+        dynamic_dispatch: dynamic_dispatch.clone(),
+        call_plan: call_plan.clone(),
+        result_home,
+        descriptor_abi: *descriptor_abi,
+        descriptor_home_byte_offset: *descriptor_home_byte_offset,
+        source_copy,
+        requirement_obligations: requirement_obligations.to_vec(),
+        crash_continuations: crash_continuations.to_vec(),
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign(
     machine: MachineId,

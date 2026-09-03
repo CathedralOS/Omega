@@ -25,32 +25,28 @@ pub(super) fn assign(
     };
     let mut assigned_scalar_homes = BTreeMap::new();
     let mut next_scalar_home = scalar_call::unit_scalar_home_start(body, target)?;
-    let operations = body
-        .operations
-        .iter()
-        .enumerate()
-        .map(|(operation_index, operation)| {
-            let native_callback = match operation {
-                TargetUnitOperation::NormalizedForeignCall { psi_operation, .. } => {
-                    native_callbacks
-                        .iter()
-                        .find(|callback| callback.terminal_operation == *psi_operation)
-                }
-                _ => None,
-            };
-            operation::assign(
-                function.machine,
-                function.attachment,
-                body,
-                operation,
-                &body.operations[..operation_index],
-                target,
-                native_callback,
-                &mut assigned_scalar_homes,
-                &mut next_scalar_home,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut operations = Vec::with_capacity(body.operations.len());
+    for (operation_index, operation) in body.operations.iter().enumerate() {
+        let native_callback = match operation {
+            TargetUnitOperation::NormalizedForeignCall { psi_operation, .. } => native_callbacks
+                .iter()
+                .find(|callback| callback.terminal_operation == *psi_operation),
+            _ => None,
+        };
+        let assigned = operation::assign(
+            function.machine,
+            function.attachment,
+            body,
+            operation,
+            &body.operations[..operation_index],
+            &operations,
+            target,
+            native_callback,
+            &mut assigned_scalar_homes,
+            &mut next_scalar_home,
+        )?;
+        operations.push(assigned);
+    }
 
     Ok(AssignedOperation::UnitBody(AssignedUnitBody {
         structural_types: body.structural_types.clone(),
