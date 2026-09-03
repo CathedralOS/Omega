@@ -360,6 +360,7 @@ pub(super) fn validate_complete_unit_stack_evidence(
         if crate::runtime_scalar_custody::linux_write_byte_custody_is_exact(
             target,
             settlement,
+            boundary_settlements,
             integer_constants,
             scalar_homes,
             |home, consumer_ordinal, consumer_offset| {

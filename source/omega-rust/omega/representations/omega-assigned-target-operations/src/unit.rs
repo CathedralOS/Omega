@@ -109,6 +109,21 @@ pub struct AssignedStructuralHome {
     pub byte_offset: u32,
 }
 
+impl AssignedStructuralHome {
+    /// Return the exact scalar shape at one case payload offset. `None`
+    /// rejects an offset that does not name exactly one retained field.
+    pub fn layout_field(&self, case_index: usize, byte_offset: u32) -> Option<ValueShape> {
+        self.requirement
+            .layout
+            .cases
+            .get(case_index)?
+            .fields
+            .iter()
+            .find(|field| u32::from(field.byte_offset) == byte_offset)
+            .map(|field| field.shape)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignedBoundaryResult {
     Unit,
@@ -220,6 +235,23 @@ pub struct AssignedNormalizedForeignScalarArgument {
     pub parameter_index: u32,
     pub source: AssignedUnitScalarArgumentSource,
     pub placement: ValuePlacement,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AssignedUnitStructuralCasePayload {
+    pub field: psi_core::StructuralFieldId,
+    pub field_byte_offset: u32,
+    pub home: AssignedUnitScalarHome,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedUnitStructuralCaseSuccessor {
+    pub psi_edge: EdgeId,
+    pub case: psi_core::StructuralCaseId,
+    pub case_tag: i32,
+    pub operation_ordinal: u32,
+    pub nominal_return_edge: EdgeId,
+    pub payloads: Vec<AssignedUnitStructuralCasePayload>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -383,6 +415,10 @@ pub enum AssignedUnitOperation {
         rebound_copy: AssignedAggregateCopy,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
+    },
+    StructuralCase {
+        source: AssignedStructuralHome,
+        cases: Vec<AssignedUnitStructuralCaseSuccessor>,
     },
     ConditionalIntegerEqual {
         psi_operation: OperationId,

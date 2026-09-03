@@ -2408,6 +2408,29 @@ fn runtime_console_byte_read_return_catalog_replays_both_linux_targets() {
 }
 
 #[test]
+fn runtime_console_byte_inspection_replays_validated_cross_target_artifacts() {
+    // The structural result home, case tag, and selected payload must replay
+    // through both maintained Linux native paths.
+    let canary = pass_canary("host/runtime_console_byte_inspection_exit");
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let compilation =
+            compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
+                &canary, target,
+            )
+            .unwrap_or_else(|error| {
+                panic!("runtime byte inspection must compile for {target}: {error:?}")
+            });
+        compilation
+            .retained_native_artifact()
+            .unwrap_or_else(|| panic!("runtime byte inspection must retain {target} artifact"))
+            .validate()
+            .unwrap_or_else(|error| {
+                panic!("runtime byte inspection must validate {target} artifact: {error}")
+            });
+    }
+}
+
+#[test]
 fn runtime_console_byte_replay_cross_target_canary_compiles() {
     // The final-byte certificate must replay both byte composites under each
     // settled target adapter: Linux syscall, Darwin direct import, and the

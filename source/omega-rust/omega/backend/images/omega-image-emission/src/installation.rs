@@ -3556,9 +3556,16 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && exact_nominal_tail
             }
             BoundaryRealization::LinuxWriteByteI32(_) => {
+                let machine_settlements = record
+                    .boundary_settlements
+                    .iter()
+                    .filter(|candidate| candidate.machine == installed.machine)
+                    .map(|candidate| candidate.settlement.clone())
+                    .collect::<Vec<_>>();
                 linux_write_byte_custody_is_exact(
                     record.target,
                     &installed.settlement,
+                    &machine_settlements,
                     &function.unit_integer_constants,
                     &function.unit_scalar_homes,
                     |home, consumer_ordinal, consumer_offset| {

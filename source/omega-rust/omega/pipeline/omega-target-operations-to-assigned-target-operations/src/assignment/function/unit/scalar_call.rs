@@ -236,6 +236,11 @@ pub(super) fn assign_known_unit_scalar_source(
                             result_home,
                             ..
                         } if *result_home == home
+                    ) || matches!(
+                        operation,
+                        TargetUnitOperation::StructuralCase { cases, .. }
+                            if cases.iter().flat_map(|case| &case.payloads)
+                                .any(|payload| payload.home == home)
                     )
                 })
                 .count();

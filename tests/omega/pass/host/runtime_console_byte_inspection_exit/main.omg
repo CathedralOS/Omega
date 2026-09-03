@@ -1,0 +1,24 @@
+// Consume one affine ByteRead through exactly one explicit sum arm. Byte
+// forwards its selected payload to stdout; Eof exits without a write.
+use omega_language_std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let r: ByteRead = self.console.read_byte();
+    transition r {
+        ByteRead::Byte { value } -> byte(value)
+        ByteRead::Eof -> eof()
+    }
+
+    state byte(&mut self, value: i32) {
+        self.console.write_byte(value);
+        self.console.exit_process(70);
+    }
+
+    state eof(&mut self) {
+        self.console.exit_process(70);
+    }
+}

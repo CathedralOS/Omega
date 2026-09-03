@@ -123,6 +123,8 @@ pub(super) fn validate_unit_affine_cleanup(
         .filter(|argument| argument.path.is_empty())
         .map(|argument| argument.place)
         .collect::<std::collections::BTreeSet<_>>();
+    let inspected_roots =
+        crate::runtime_scalar_custody::inspected_linux_read_byte_roots(boundary_settlements);
     let expected_local_prefix = local_places
         .iter()
         .rev()
@@ -167,6 +169,7 @@ pub(super) fn validate_unit_affine_cleanup(
     let structural_result_prefix = structural_results
         .into_iter()
         .map(|(_, place)| place)
+        .filter(|place| !inspected_roots.contains(place))
         .collect::<Vec<_>>();
     let local_operations = cleanup
         .locals
