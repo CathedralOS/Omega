@@ -4055,3 +4055,54 @@ is now 364 rather than 520 lines smaller, while its complete authored route is
 remains selected. Further reductions should continue to centralize duplicated
 semantic invariants; they must not trade explicit control for opaque tables or
 weaken static validation.
+
+## D95 — Epsilon repetition does not yet justify broadening Delta
+
+D95 tests five proposed Delta mechanisms against the exact 8,733-line
+Delta-authored Epsilon compiler. A structured top-level-form inventory finds
+seven optional declarations, 25 parse-outcome declarations, 26 recursive list
+types, 23 reverse functions, seven catalog lookup results, nine catalog
+traversals, 29 span accessors, three candidate types, and six candidate merge
+functions.
+
+Each candidate receives an intentionally impossible gross ceiling: every
+identified Epsilon declaration and helper disappears, while the corresponding
+Delta language, compiler, runtime, and proof machinery cost zero lines.
+
+```text
+generic option/result       96 lines
+generic list/reverse/count 265 lines
+generic catalog/map        206 lines
+source span accessors      164 lines
+candidate minimum fold      77 lines
+combined ceiling           808 lines (9.2%)
+```
+
+Constructor shapes prevent several nominal substitutions. Option payloads are
+both `0/1` and `0/3`; parse outcomes are `1/2` and `2/2`; catalog results use
+four shapes and preserve owner, field/case, state, and data-shape custody. A
+generic map would additionally require generic key equality and one indexed
+representation while most owner-qualified traversal policy remained in
+Epsilon.
+
+Two current-Delta kernels test abstractions that need no hypothetical generic
+semantics. Replacing repeated expression `(start, end)` fields with a nominal
+`SourceSpan` grows the kernel from 15 to 19 lines and from 597 to 759 source
+bytes, although its generated Gamma receipt falls by 95 bytes. Extracting one
+three-way offset comparison across census, type-formation, and final-diagnostic
+candidate policies grows the kernel from 54 to 59 lines and its receipt from
+3,290 to 3,487 bytes. Equal-offset behavior is phase policy: retain-left,
+conflict-on-kind, and reason-union respectively.
+
+Generic lists remain the only credible candidate. Twenty-five of 26 recursive
+types have the ordinary empty/cons shape, with 167 lines of specialized reverse
+functions and 14 lines of specialized counts. A fair implementation requires
+parametric ADTs and parametric recursive functions; an erased list would weaken
+Delta typing and a declaration macro would not remove traversal duplication.
+Reopen this candidate only after complete selected Delta type checking can
+measure its actual Gamma implementation and proof cost.
+
+The current Epsilon size is therefore not primarily explained by these five
+missing mechanisms. Most growth remains Epsilon-owned parsing, diagnostic
+ordering, identity custody, type formation, resolution, control checking, and
+Alpha encoding. Delta remains unchanged.

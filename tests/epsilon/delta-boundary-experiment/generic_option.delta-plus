@@ -1,0 +1,4 @@
+; Hypothetical syntax, intentionally not current Delta.
+(data Option<T> (None) (Some T))
+(data Result<T> (Ok T) (Err EpsilonRejectReason Int))
+(def main () Int 0)

@@ -78,6 +78,13 @@ functional language required by Epsilon.
   empty-index, and 100,000-tail witnesses, while 3,001-function compilation
   exceeds 600 seconds and unreachable names/stack effects remain unchecked.
   D93 retains the experiment without selecting it.
+- [x] The Delta abstraction-boundary experiment accounts for five repeated
+  Epsilon mechanisms. Even granting each feature for free, generic sums, lists,
+  catalogs, spans, and candidate folds can remove at most 808 of 8,733 lines
+  (9.2%). Executable span and candidate-fold kernels grow authored Delta source;
+  catalog result/key policy is heterogeneous; generic sums save at most 96
+  declaration lines. Parametric immutable lists remain the only candidate worth
+  reopening after complete Delta type checking.
 - [x] A noncanonical 565-line current-Gamma compiler now emits Alpha directly
   for scalar Functional Delta: `Int` functions, parameters, lexical `let`,
   conditionals, arithmetic/comparison, nested calls, and direct recursion. Its

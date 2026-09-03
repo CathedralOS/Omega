@@ -1,0 +1,15 @@
+(data SpanExpression
+  (SpanLiteral Int Int Int)
+  (SpanBinary Int Int SpanExpression SpanExpression))
+(def span_expression_start ((value SpanExpression)) Int
+  (match value
+    ((SpanLiteral start end literal) start)
+    ((SpanBinary start end left right) start)))
+(def span_expression_end ((value SpanExpression)) Int
+  (match value
+    ((SpanLiteral start end literal) end)
+    ((SpanBinary start end left right) end)))
+(def main () Int
+  (let value SpanExpression
+    (SpanBinary 2 9 (SpanLiteral 2 3 1) (SpanLiteral 8 9 2))
+    (+ (span_expression_start value) (span_expression_end value))))
