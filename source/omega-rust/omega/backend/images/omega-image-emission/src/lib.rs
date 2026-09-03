@@ -48,6 +48,7 @@ mod structural_condition_read;
 mod structural_return;
 mod unit_affine_cleanup;
 mod unit_call_custody;
+mod unit_dynamic_descriptor_join;
 mod unit_scalar_call_custody;
 mod unit_stack;
 mod unit_structural_scalar_field_store;
@@ -100,6 +101,7 @@ use unit_call_custody::{
     validate_internal_unit_call_custody, validate_mixed_structural_scalar_abi,
     validate_unit_affine_scalar_records,
 };
+use unit_dynamic_descriptor_join::validate_unit_dynamic_descriptor_join;
 use unit_scalar_call_custody::validate_internal_unit_scalar_calls;
 use unit_stack::{
     validate_complete_unit_stack_evidence, validate_foreign_unit_call_stack,
@@ -746,6 +748,7 @@ fn build_object_artifact_with_x86_feature_profile(
         .collect::<std::collections::BTreeMap<_, _>>();
     for function in &plan.functions {
         validate_mixed_structural_scalar_abi(plan.target, function)?;
+        validate_unit_dynamic_descriptor_join(plan.target, function)?;
         if let Some(previous) = previous
             && previous >= function.machine
         {
@@ -3969,6 +3972,7 @@ pub enum ObjectError {
         caller: MachineId,
         operation: psi_core::OperationId,
     },
+    InvalidUnitDynamicDescriptorJoin(MachineId),
     InvalidCallbackAddressCustody {
         caller: MachineId,
         owner: CallSiteOwner,

@@ -291,7 +291,7 @@ fn assigned_multi_hop_unit_plan(
     )
 }
 
-fn assigned_scalar_plan_from_source(
+pub(super) fn assigned_scalar_plan_from_source(
     target: NativeTarget,
     source: &str,
 ) -> omega_assigned_target_operations::AssignedOperationPlan {

@@ -1,0 +1,116 @@
+use omega_abstract_operations_to_target_operations::lower_to_target_operations;
+use omega_image_emission::{ObjectError, build_object_artifact, validate_executable_image};
+use omega_machine_emission::emit_machine_code;
+use omega_psi_to_abstract_operations::lower_artifact_sections;
+use omega_target::NativeTarget;
+use omega_target_operations_to_assigned_target_operations::assign_registers;
+use psi_proof_admission::AdmissionProfile;
+use psi_source_files_to_tokens::Lexer;
+use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use psi_terminal_codec::{encode_module, encode_proof_bundle};
+use psi_tokens_to_syntax_trees::parse_syntax_trees;
+use psi_typed_trees_to_checked_trees::lower_typed_trees;
+
+const SOURCE: &str = r#"
+    trait Measure { machine measure(&self) -> bool; }
+    data Item [copy] { marker: bool; }
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+    data Main [copy] { first: Item; second: Item; }
+    machine Main::run(&self, choose_first: bool) {
+        transition choose_first {
+            true -> take_first()
+            _ -> take_second()
+        }
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+fn emitted_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("lower joined dynamic source");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("admit Terminal artifact");
+    let target_plan =
+        lower_to_target_operations(&abstract_plan, target).expect("lower target operations");
+    let assigned = assign_registers(&target_plan).expect("assign target operations");
+    emit_machine_code(&assigned).expect("emit joined machine code")
+}
+
+#[test]
+fn object_and_image_replay_joined_descriptor_control() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let emitted = emitted_plan(target);
+        let expected_error = ObjectError::InvalidUnitDynamicDescriptorJoin(emitted.entry);
+
+        let mut bad_condition_branch = emitted.clone();
+        let caller = bad_condition_branch
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == bad_condition_branch.entry)
+            .expect("joined caller");
+        let condition = caller.semantic_code_attribution[0];
+        let condition_end = condition.code_offset + condition.byte_count;
+        caller.bytes[condition_end - 1] ^= 1;
+        assert_eq!(
+            build_object_artifact(&bad_condition_branch),
+            Err(expected_error.clone())
+        );
+
+        let mut bad_join_branch = emitted.clone();
+        let caller = bad_join_branch
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == bad_join_branch.entry)
+            .expect("joined caller");
+        let join = caller.semantic_code_attribution[2];
+        caller.bytes[join.code_offset + join.byte_count - 1] ^= 1;
+        assert_eq!(
+            build_object_artifact(&bad_join_branch),
+            Err(expected_error.clone())
+        );
+
+        let mut collapsed_source = emitted.clone();
+        let caller = collapsed_source
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == collapsed_source.entry)
+            .expect("joined caller");
+        let first_source = caller.forwarded_dynamic_descriptor_calls[0].dynamic_arguments[0]
+            .custody
+            .source
+            .clone();
+        caller.forwarded_dynamic_descriptor_calls[1].dynamic_arguments[0]
+            .custody
+            .source = first_source;
+        assert!(build_object_artifact(&collapsed_source).is_err());
+
+        let object = build_object_artifact(&emitted).expect("validate joined object custody");
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("link joined descriptor image");
+        validate_executable_image(&object, &image).expect("replay joined descriptor image");
+    }
+}

@@ -1215,7 +1215,6 @@ fn emit_function(
 }
 
 #[allow(clippy::too_many_arguments)]
-
 fn emit_structural_parameter_return(
     source: psi_core::PlaceId,
     source_placement: &ValuePlacement,
@@ -1513,7 +1512,6 @@ pub enum EmissionError {
     AssignedFrameSizeMismatch,
     ConditionalBranchDistanceNotEncodable,
     ConditionalBranchEncodingInvalid,
-    UnitBooleanParameterControlUnsupported,
     InternalCallRelocationOffsetNotEncodable,
     BooleanNotEncodingInvalid,
     UnsupportedCallArgumentRegister(MachineRegister),
