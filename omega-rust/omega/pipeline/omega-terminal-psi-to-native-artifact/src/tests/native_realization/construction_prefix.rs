@@ -15,7 +15,7 @@ fn construction_prefix_source(prefix_length: usize) -> String {
 
 #[test]
 fn construction_prefix_reaches_native_image_and_installation_custody() {
-    for prefix_length in 2_usize..=24 {
+    for prefix_length in 2_usize..=25 {
         let source = construction_prefix_source(prefix_length);
         let checked = checked(&source);
         let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(
