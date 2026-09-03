@@ -614,9 +614,13 @@ independent closed applications and realization machines. Canonical
 verification, codec replay, source-call occurrence accounting, and
 interpretation cover both branches. Promotion retains the structural carrier
 shapes needed by the joined plan after consuming the direct candidates.
-Target-neutral abstract and physical selection, aggregate storage beyond the
-bounded single-field local form below, returns, forwarding after the join, and
-component crossings remain fenced.
+Target-neutral lowering then preserves the conditional and both descriptor-
+bearing calls, including their distinct selection/application sources and one
+shared helper parameter dispatch. Optimization reconstruction independently
+validates that graph and rejects replacing either predecessor with the other.
+Physical selection, aggregate storage beyond the bounded single-field local
+form below, returns, forwarding after the join, and component crossings remain
+fenced.
 
 The first Terminal aggregate-storage rung accepts only the checked immutable
 one-field record initialized from one earlier exact shared-borrow selection.
