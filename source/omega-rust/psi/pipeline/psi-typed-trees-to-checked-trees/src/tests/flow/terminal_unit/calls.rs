@@ -1059,6 +1059,92 @@ fn retains_exact_field_prefixed_three_index_write_only_subloan() {
 }
 
 #[test]
+fn retains_exact_four_index_direct_root_write_only_subloan() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(values: &write [[[[u16; 5]; 4]; 3]; 2]) {
+            Sink::fill(&write values[1][2][3][4]);
+        }
+        "#,
+    );
+    let forward = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("four-index write-only caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("four-index attenuation should retain its checked call")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one four-index write-only argument")
+    };
+    assert_eq!(
+        argument.access,
+        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    assert_eq!(
+        argument.path,
+        [
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(4),
+        ]
+    );
+}
+
+#[test]
+fn retains_exact_field_prefixed_four_index_write_only_subloan() {
+    let checked = checked(
+        r#"
+        data Outer [copy] { values: [[[[u16; 5]; 4]; 3]; 2]; sibling: u16; }
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.values[1][2][3][4]);
+        }
+        "#,
+    );
+    let forward = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("field-prefixed four-index write-only caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("field-prefixed four-index attenuation should retain its checked call")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one field-prefixed four-index write-only argument")
+    };
+    assert!(matches!(
+        argument.path.as_slice(),
+        [
+            psi_checked_trees::CheckedUnitStructuralPathSegment::Field(_),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(4),
+        ]
+    ));
+}
+
+#[test]
 fn write_only_common_field_subloan_does_not_bypass_ordinary_call_shape() {
     for (name, source) in [
         (
@@ -2359,6 +2445,31 @@ fn fences_nested_fixed_array_projection_without_partial_plan() {
             CheckedUnitStructuralTypeShape::FixedArray { .. }
         )),
         "a rejected nested array must not leave a retained placeholder shape"
+    );
+}
+
+#[test]
+fn fences_four_index_direct_shared_projection_without_widening_legacy_calls() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::inspect(value: &u16) {}
+
+        data Root {}
+        machine Root::forward(values: &[[[[u16; 2]; 2]; 2]; 2]) {
+            Sink::inspect(&values[0][0][0][0]);
+        }
+        "#,
+    );
+
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "Root::forward"))
+            .is_none(),
+        "four direct indexes must not widen the legacy non-write projected-call cohort"
     );
 }
 

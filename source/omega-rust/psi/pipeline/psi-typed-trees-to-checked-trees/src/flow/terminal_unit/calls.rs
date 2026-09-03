@@ -1145,102 +1145,42 @@ fn checked_nonempty_field_path(path: &[CheckedUnitStructuralPathSegment]) -> boo
             .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
 }
 
-fn checked_literal_indexed_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
-    let Some((CheckedUnitStructuralPathSegment::FixedIndex(_), fields)) = path.split_last() else {
-        return false;
-    };
-    checked_nonempty_field_path(fields)
+const MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH: usize = 4;
+
+fn checked_bounded_literal_index_path(
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Option<&[CheckedUnitStructuralPathSegment]> {
+    let field_count = path
+        .iter()
+        .position(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_)))?;
+    let (fields, indexes) = path.split_at(field_count);
+    (!indexes.is_empty()
+        && indexes.len() <= MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
+        && fields
+            .iter()
+            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
+        && indexes
+            .iter()
+            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_))))
+    .then_some(fields)
 }
 
-fn checked_single_literal_index_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
-    matches!(path, [CheckedUnitStructuralPathSegment::FixedIndex(_)])
-}
-
-fn checked_double_literal_index_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
-    matches!(
-        path,
-        [
-            CheckedUnitStructuralPathSegment::FixedIndex(_),
-            CheckedUnitStructuralPathSegment::FixedIndex(_),
-        ]
-    )
-}
-
-fn checked_triple_literal_index_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
-    matches!(
-        path,
-        [
-            CheckedUnitStructuralPathSegment::FixedIndex(_),
-            CheckedUnitStructuralPathSegment::FixedIndex(_),
-            CheckedUnitStructuralPathSegment::FixedIndex(_),
-        ]
-    )
-}
-
-fn checked_double_literal_indexed_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
-    let [
-        fields @ ..,
-        CheckedUnitStructuralPathSegment::FixedIndex(_),
-        CheckedUnitStructuralPathSegment::FixedIndex(_),
-    ] = path
-    else {
-        return false;
-    };
-    checked_nonempty_field_path(fields)
-}
-
-fn checked_triple_literal_indexed_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
-    let [
-        fields @ ..,
-        CheckedUnitStructuralPathSegment::FixedIndex(_),
-        CheckedUnitStructuralPathSegment::FixedIndex(_),
-        CheckedUnitStructuralPathSegment::FixedIndex(_),
-    ] = path
-    else {
-        return false;
-    };
-    checked_nonempty_field_path(fields)
-}
-
-fn place_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
-    let Some((psi_facts::PlaceSegment::FixedIndex { .. }, fields)) = path.split_last() else {
-        return false;
-    };
-    !fields.is_empty()
+fn place_bounded_literal_index_path(
+    path: &[psi_facts::PlaceSegment],
+) -> Option<&[psi_facts::PlaceSegment]> {
+    let field_count = path
+        .iter()
+        .position(|segment| matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. }))?;
+    let (fields, indexes) = path.split_at(field_count);
+    (!indexes.is_empty()
+        && indexes.len() <= MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
         && fields
             .iter()
             .all(|segment| matches!(segment, psi_facts::PlaceSegment::Field { .. }))
-}
-
-fn place_double_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
-    let [
-        fields @ ..,
-        psi_facts::PlaceSegment::FixedIndex { .. },
-        psi_facts::PlaceSegment::FixedIndex { .. },
-    ] = path
-    else {
-        return false;
-    };
-    !fields.is_empty()
-        && fields
+        && indexes
             .iter()
-            .all(|segment| matches!(segment, psi_facts::PlaceSegment::Field { .. }))
-}
-
-fn place_triple_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
-    let [
-        fields @ ..,
-        psi_facts::PlaceSegment::FixedIndex { .. },
-        psi_facts::PlaceSegment::FixedIndex { .. },
-        psi_facts::PlaceSegment::FixedIndex { .. },
-    ] = path
-    else {
-        return false;
-    };
-    !fields.is_empty()
-        && fields
-            .iter()
-            .all(|segment| matches!(segment, psi_facts::PlaceSegment::Field { .. }))
+            .all(|segment| matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. })))
+    .then_some(fields)
 }
 
 pub(super) fn ordinary_projected_call_is_supported(
@@ -1276,51 +1216,25 @@ pub(super) fn ordinary_projected_call_is_supported(
     }
 
     let field_path = checked_nonempty_field_path(&arguments[0].path);
-    let literal_indexed_field_path = checked_literal_indexed_field_path(&arguments[0].path);
-    let single_literal_index_path = checked_single_literal_index_path(&arguments[0].path);
-    let double_literal_indexed_field_path =
-        checked_double_literal_indexed_field_path(&arguments[0].path);
-    let double_literal_index_path = checked_double_literal_index_path(&arguments[0].path);
-    let triple_literal_indexed_field_path =
-        checked_triple_literal_indexed_field_path(&arguments[0].path);
-    let triple_literal_index_path = checked_triple_literal_index_path(&arguments[0].path);
-    let write_only_subloan_path = (field_path
-        || literal_indexed_field_path
-        || single_literal_index_path
-        || double_literal_indexed_field_path
-        || double_literal_index_path
-        || triple_literal_indexed_field_path
-        || triple_literal_index_path)
+    let literal_index_fields = checked_bounded_literal_index_path(&arguments[0].path);
+    let literal_index_path = literal_index_fields.is_some();
+    let literal_indexed_field_path = literal_index_fields.is_some_and(|fields| !fields.is_empty());
+    let write_only_subloan_path = (field_path || literal_index_path)
         && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
         && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
     if field_path && !allow_field_path_projection && !write_only_subloan_path {
         return false;
     }
-    if (literal_indexed_field_path
-        || double_literal_indexed_field_path
-        || triple_literal_indexed_field_path)
+    if literal_indexed_field_path && !write_only_subloan_path {
+        return false;
+    }
+    if literal_index_fields.is_some_and(|fields| fields.is_empty())
+        && arguments[0].path.len() == MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
         && !write_only_subloan_path
     {
         return false;
     }
-    if !field_path
-        && !literal_indexed_field_path
-        && !double_literal_indexed_field_path
-        && !triple_literal_indexed_field_path
-        && !matches!(
-            arguments[0].path.as_slice(),
-            [CheckedUnitStructuralPathSegment::FixedIndex(_)]
-                | [
-                    CheckedUnitStructuralPathSegment::FixedIndex(_),
-                    CheckedUnitStructuralPathSegment::FixedIndex(_),
-                ]
-                | [
-                    CheckedUnitStructuralPathSegment::FixedIndex(_),
-                    CheckedUnitStructuralPathSegment::FixedIndex(_),
-                    CheckedUnitStructuralPathSegment::FixedIndex(_),
-                ]
-        )
-    {
+    if !field_path && !literal_index_path {
         return false;
     }
 
@@ -1888,7 +1802,15 @@ pub(super) fn structural_call_arguments(
                 )]
             }
             segments @ [psi_facts::PlaceSegment::FixedIndex { .. }, ..]
-                if matches!(segments.len(), 2 | 3)
+                if (matches!(segments.len(), 2 | 3)
+                    || (segments.len() == MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
+                        && target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                        && caller_parameters.get(source_index)?.access
+                            == CheckedStructuralAccess::WriteOnlyBorrow
+                        && structural_access_for_type_reference(
+                            program,
+                            target.type_reference,
+                        )? == CheckedStructuralAccess::WriteOnlyBorrow))
                     && segments.iter().all(|segment| {
                         matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. })
                     })
@@ -1930,9 +1852,8 @@ pub(super) fn structural_call_arguments(
                         )? == CheckedStructuralAccess::WriteOnlyBorrow
                         && (segments.iter().all(|segment| {
                             matches!(segment, psi_facts::PlaceSegment::Field { .. })
-                        }) || place_literal_indexed_field_path(segments)
-                            || place_double_literal_indexed_field_path(segments)
-                            || place_triple_literal_indexed_field_path(segments))))
+                        }) || place_bounded_literal_index_path(segments)
+                            .is_some_and(|fields| !fields.is_empty()))))
                     && caller_parameters
                         .get(source_index)?
                         .qualifications
@@ -1955,9 +1876,8 @@ pub(super) fn structural_call_arguments(
                             ))
                         }
                         psi_facts::PlaceSegment::FixedIndex { index }
-                            if place_literal_indexed_field_path(segments)
-                                || place_double_literal_indexed_field_path(segments)
-                                || place_triple_literal_indexed_field_path(segments) =>
+                            if place_bounded_literal_index_path(segments)
+                                .is_some_and(|fields| !fields.is_empty()) =>
                         {
                             u64::try_from(*index)
                                 .ok()
