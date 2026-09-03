@@ -1261,10 +1261,17 @@ pub(super) fn emit_unit_body(
                 psi_operation,
                 callee,
                 result,
+                scalar_arguments,
                 copies,
                 claim_transfers,
                 ..
             } => {
+                if !scalar_arguments.is_empty() {
+                    return Err(EmissionError::UnsupportedUnitCallScalarArguments {
+                        machine: owner.ok_or(EmissionError::UnsupportedAggregatePlacement)?,
+                        operation: *psi_operation,
+                    });
+                }
                 operation_site = Some(*psi_operation);
                 let argument_intervals = match target.architecture {
                     Architecture::X86_64 => emit_x86_64_unit_call(

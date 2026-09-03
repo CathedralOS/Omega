@@ -27,6 +27,11 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   sources, reduces each argument to an exact register or outgoing-stack
   destination, and assigns one ordered, non-reused scalar result home after
   the structural parameter-home prefix.
+- `assignment/function/unit/operation.rs` applies the same exact plan/source
+  replay to ordinary Unit-result calls. Its bounded forwarding lane binds an
+  incoming fixed-integer caller parameter to the scalar prefix of the callee
+  ABI while keeping structural copies in the remaining suffix; machine
+  emission is the next explicit fence.
 - `assignment/function/unit/structural_scalar.rs` independently reconstructs
   the bounded projected integer-field store and structural scalar call,
   including carrier layout, source definition, field offset, projected copy,

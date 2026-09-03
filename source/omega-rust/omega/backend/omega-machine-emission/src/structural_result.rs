@@ -73,6 +73,8 @@ pub(super) fn emit(
                     psi_operation: *psi_operation,
                     callee: *callee,
                     result: None,
+                    call_plan: callee_call_plan.clone(),
+                    scalar_arguments: Vec::new(),
                     copies: copies.clone(),
                     claim_transfers: claim_transfers.clone(),
                     requirement_obligations: requirement_obligations.clone(),

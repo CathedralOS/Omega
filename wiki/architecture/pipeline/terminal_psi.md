@@ -732,9 +732,11 @@ caller that forwards one scalar parameter into the write-only-store callee.
 Abstract lowering and optimizer identity/dataflow retain and revalidate the
 same scalar arguments. Abstract-to-Target lowering now derives one complete
 call plan with a scalar prefix and structural suffix while preserving the exact
-caller source. Target-to-assigned lowering rejects scalar-bearing `CallUnit`
-explicitly until physical source assignment exists, so native caller transport
-and general parameter forwarding remain open rather than being silently erased.
+caller source. Target-to-assigned lowering now independently replays that plan
+and binds the caller's scalar parameter to its exact incoming physical
+location. Machine emission rejects scalar-bearing `CallUnit` explicitly until
+it emits the argument transfer, so native caller transport and general
+parameter forwarding remain open rather than being silently erased.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan
