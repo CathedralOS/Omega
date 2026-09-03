@@ -472,6 +472,38 @@ const JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE: &str = r#"
     }
 "#;
 
+const JOINED_DYNAMIC_UNIT_FORWARD_SOURCE: &str = r#"
+    trait Touch { machine touch(&self); }
+
+    data Item { value: i32; }
+
+    Primary: Item satisfies Touch { machine touch(&self) {} }
+    Secondary: Item satisfies Touch { machine touch(&self) {} }
+
+    data Main { first: Item; second: Item; }
+
+    machine Main::run(&self, choose_first: bool) {
+        transition choose_first {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Touch = &self.first as &dyn Item::Primary;
+            forward(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Touch = &self.second as &dyn Item::Secondary;
+            forward(selected);
+        }
+    }
+
+    machine forward(erased: &dyn Touch) { relay(erased); }
+    machine relay(erased: &dyn Touch) { finish(erased); }
+    machine finish(erased: &dyn Touch) { erased.touch(); }
+"#;
+
 const MULTI_HOP_DYNAMIC_INTEGER_SOURCE: &str = r#"
     trait Measure {
         machine measure(&self) -> i32;
@@ -1394,6 +1426,112 @@ fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
     assert_eq!(
         unsupported_message(&checked),
         "direct dynamic call drifted from checked flow custody",
+    );
+}
+
+#[test]
+fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
+    let mut checked = checked_source(JOINED_DYNAMIC_UNIT_FORWARD_SOURCE);
+    let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(checked_catalog.direct_unit_calls.is_empty());
+    let [joined] = checked_catalog.joined_unit_calls.as_slice() else {
+        panic!("one checked result-less join expected: {checked_catalog:#?}")
+    };
+    assert_eq!(joined.when_true.call.forwarding_transfers.len(), 2);
+    assert_eq!(
+        joined.when_true.call.forwarding_transfers,
+        joined.when_false.call.forwarding_transfers,
+    );
+
+    let lowered =
+        lower_machine(&checked, "Main::run").expect("the result-less descriptor join should lower");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("the result-less joined Terminal module should verify");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 2);
+    assert_eq!(catalog.parameters.len(), 3);
+    assert_eq!(catalog.arguments.len(), 4);
+    assert_eq!(catalog.parameter_dispatches.len(), 1);
+    assert!(
+        catalog.parameters[0]
+            .requirements
+            .iter()
+            .all(|requirement| {
+                requirement.result == psi_terminal::ClosedConformanceCallableResult::Unit
+            })
+    );
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("joined dynamic Unit caller");
+    assert_eq!(caller.blocks.len(), 3);
+    assert!(caller.blocks[1..].iter().all(|block| {
+        matches!(
+            block.operations.as_slice(),
+            [Operation {
+                result: OperationResult::Unit,
+                kind: OperationKind::CallUnit { .. },
+                ..
+            }]
+        )
+    }));
+    assert_eq!(lowered.source_call_occurrences.len(), 5);
+
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("result-less joined module should encode canonically");
+    assert_eq!(
+        psi_terminal_codec::decode_module(artifact.semantic_bytes())
+            .expect("result-less joined module should decode"),
+        lowered.semantic_module,
+    );
+    let [self_parameter] = caller.structural_parameters.as_slice() else {
+        panic!("joined dynamic Unit caller requires structural self")
+    };
+    for choose_first in [true, false] {
+        let structural = psi_terminal_interpreter::TerminalStructuralValue {
+            opaque_identity: 1,
+            structural_type: self_parameter.structural_type,
+            qualifications: self_parameter.qualifications.clone(),
+            path: Vec::new(),
+        };
+        let mut execution =
+            psi_terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &psi_proof_admission::AdmissionProfile::default(),
+                &[psi_terminal_interpreter::TerminalScalarValue::Boolean(
+                    choose_first,
+                )],
+                &[structural],
+            )
+            .expect("result-less joined artifact should start");
+        let mut meter = psi_terminal_fuel::TerminalFuelMeter::unbounded();
+        assert_eq!(
+            execution
+                .resume(&mut meter)
+                .expect("result-less joined artifact should execute"),
+            psi_terminal_interpreter::TerminalExecutionStatus::Complete(
+                psi_terminal_interpreter::TerminalExecutionResult::Unit,
+            ),
+        );
+    }
+
+    let [joined] = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .joined_unit_calls
+        .as_mut_slice()
+    else {
+        unreachable!("checked above")
+    };
+    joined.when_false.successor.target_state = joined.when_true.successor.target_state;
+    assert_eq!(
+        unsupported_message(&checked),
+        "joined dynamic control plan drifted from checked custody",
     );
 }
 

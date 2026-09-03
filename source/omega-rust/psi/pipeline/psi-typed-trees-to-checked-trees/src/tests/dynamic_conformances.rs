@@ -1780,3 +1780,53 @@ fn two_branch_dynamic_calls_retain_both_terminal_join_predecessors() {
             .any(|plan| plan.identity == first.source_type_identity)
     );
 }
+
+#[test]
+fn two_branch_dynamic_unit_calls_share_one_checked_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Touch { machine touch(&self); }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Touch { machine touch(&self) {} }
+        Secondary: Item satisfies Touch { machine touch(&self) {} }
+
+        data Main { first: Item; second: Item; }
+
+        machine Main::run(&self, choose_first: bool) {
+            transition choose_first {
+                true -> take_first()
+                _ -> take_second()
+            }
+
+            state take_first(&self) {
+                let selected: &dyn Touch = &self.first as &dyn Item::Primary;
+                finish(selected);
+            }
+
+            state take_second(&self) {
+                let selected: &dyn Touch = &self.second as &dyn Item::Secondary;
+                finish(selected);
+            }
+        }
+
+        machine finish(erased: &dyn Touch) { erased.touch(); }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(dynamic.direct_unit_calls.is_empty(), "{dynamic:#?}");
+    assert!(dynamic.rebound_unit_calls.is_empty());
+    let [joined] = dynamic.joined_unit_calls.as_slice() else {
+        panic!("one atomic result-less join expected: {dynamic:#?}")
+    };
+    assert_ne!(
+        joined.when_true.call.selection.conformance,
+        joined.when_false.call.selection.conformance,
+    );
+    assert_eq!(joined.scalar_parameters.len(), 1);
+    assert_eq!(
+        joined.when_true.call.forwarding_transfers,
+        joined.when_false.call.forwarding_transfers,
+    );
+}

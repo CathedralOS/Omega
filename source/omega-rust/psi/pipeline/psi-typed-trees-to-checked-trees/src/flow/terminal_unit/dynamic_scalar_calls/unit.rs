@@ -590,6 +590,10 @@ fn forwarded_unit_transfer_path_is_exact(forwarded: &ForwardedDynamicUnitCall<'_
     {
         return false;
     }
+    let [root_path] = forwarded.transfer.source_paths.as_slice() else {
+        return false;
+    };
+    let mut expected_path = root_path.clone();
     let mut machine = forwarded.transfer.target_machine;
     let mut state = forwarded.transfer.target_state;
     for transfer in &forwarded.prior_transfers {
@@ -599,8 +603,11 @@ fn forwarded_unit_transfer_path_is_exact(forwarded: &ForwardedDynamicUnitCall<'_
                 != (psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 })
-            || transfer.sole_selection() != forwarded.transfer.sole_selection()
         {
+            return false;
+        }
+        expected_path.edges.push(transfer.edge());
+        if !transfer.source_paths.contains(&expected_path) {
             return false;
         }
         machine = transfer.target_machine;

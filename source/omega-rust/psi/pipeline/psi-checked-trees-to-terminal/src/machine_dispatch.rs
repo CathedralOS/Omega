@@ -8,8 +8,9 @@ use crate::attached_unit::{lower_composed_unit_control_machine, lower_unit_effec
 use crate::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::dynamic_composed_unit::{
     lower_direct_dynamic_composed_unit_machine, lower_direct_dynamic_unit_machine,
-    lower_joined_dynamic_composed_unit_machine, lower_rebound_dynamic_composed_unit_machine,
-    lower_rebound_dynamic_unit_machine, lower_stored_dynamic_composed_unit_machine,
+    lower_joined_dynamic_composed_unit_machine, lower_joined_dynamic_unit_machine,
+    lower_rebound_dynamic_composed_unit_machine, lower_rebound_dynamic_unit_machine,
+    lower_stored_dynamic_composed_unit_machine,
 };
 use crate::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
@@ -115,6 +116,18 @@ pub(super) fn lower_selected_machine(
         .iter()
         .filter(|plan| plan.caller_machine == selection.machine)
         .collect::<Vec<_>>();
+    let joined_dynamic_unit_plans = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .joined_unit_calls
+        .iter()
+        .filter(|plan| plan.caller_machine == selection.machine)
+        .collect::<Vec<_>>();
+    if !joined_dynamic_plans.is_empty() && !joined_dynamic_unit_plans.is_empty() {
+        return unsupported("scalar and Unit dynamic joins compete for one caller");
+    }
     if !joined_dynamic_plans.is_empty() {
         let [plan] = joined_dynamic_plans.as_slice() else {
             return unsupported("joined dynamic dispatch plan is duplicated for one caller");
@@ -124,6 +137,23 @@ pub(super) fn lower_selected_machine(
         }
         return routed_machine(
             lower_joined_dynamic_composed_unit_machine(checked, plan),
+            SelectedMachineRoute::JoinedDynamicComposedUnit {
+                realization_machines: [
+                    plan.when_true.call.realization_machine,
+                    plan.when_false.call.realization_machine,
+                ],
+            },
+        );
+    }
+    if !joined_dynamic_unit_plans.is_empty() {
+        let [plan] = joined_dynamic_unit_plans.as_slice() else {
+            return unsupported("joined dynamic Unit plan is duplicated for one caller");
+        };
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("joined dynamic Unit dispatch requires an attached caller");
+        }
+        return routed_machine(
+            lower_joined_dynamic_unit_machine(checked, plan),
             SelectedMachineRoute::JoinedDynamicComposedUnit {
                 realization_machines: [
                     plan.when_true.call.realization_machine,

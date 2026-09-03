@@ -61,10 +61,20 @@ pub(super) fn validate_unit_dynamic_descriptor_join(
         || second.operation_ordinal != 3
         || first.callee != second.callee
         || first.psi_operation == second.psi_operation
-        || first.semantic_result.map(|result| result.scalar_type) != Some(ScalarType::Boolean)
-        || second.semantic_result.map(|result| result.scalar_type) != Some(ScalarType::Boolean)
-        || first.result.is_none()
-        || second.result.is_none()
+        || !matches!(
+            (
+                first.semantic_result.map(|result| result.scalar_type),
+                second.semantic_result.map(|result| result.scalar_type),
+                first.result.is_some(),
+                second.result.is_some(),
+            ),
+            (
+                Some(ScalarType::Boolean),
+                Some(ScalarType::Boolean),
+                true,
+                true
+            ) | (None, None, false, false)
+        )
         || first_argument.custody.target != second_argument.custody.target
         || first_argument.custody.source == second_argument.custody.source
         || parameter.placement.shape != omega_calling_conventions::ValueShape::integer(1, 1)

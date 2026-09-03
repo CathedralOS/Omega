@@ -34,6 +34,10 @@ pub struct CheckedDynamicDispatchPlans {
     /// or continuation may be inferred for this lane.
     pub direct_unit_calls: Vec<CheckedDynamicUnitCallPlan>,
     pub rebound_unit_calls: Vec<CheckedReboundDynamicUnitCallPlan>,
+    /// Result-less counterpart to `joined_scalar_calls`. Each branch retains
+    /// one exact Unit call while the enclosing row owns the shared Boolean
+    /// split and descriptor-parameter join.
+    pub joined_unit_calls: Vec<CheckedJoinedDynamicUnitCallPlan>,
 }
 
 /// The first source-level runtime descriptor phi. Each branch retains its
@@ -54,6 +58,23 @@ pub struct CheckedJoinedDynamicScalarCallPlan {
 pub struct CheckedJoinedDynamicScalarCallBranchPlan {
     pub successor: CheckedStructuralControlSuccessorPlan,
     pub call: CheckedDynamicScalarCallPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedJoinedDynamicUnitCallPlan {
+    pub caller_machine: SymbolHandle,
+    pub entry_state: SymbolHandle,
+    pub caller_attachment_type_identity: String,
+    pub scalar_parameters: Vec<crate::CheckedStructuralScalarParameterPlan>,
+    pub guard: CheckedScalarExpression,
+    pub when_true: CheckedJoinedDynamicUnitCallBranchPlan,
+    pub when_false: CheckedJoinedDynamicUnitCallBranchPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedJoinedDynamicUnitCallBranchPlan {
+    pub successor: CheckedStructuralControlSuccessorPlan,
+    pub call: CheckedDynamicUnitCallPlan,
 }
 
 /// One complete checked scalar call whose descriptor reaches the receiver
