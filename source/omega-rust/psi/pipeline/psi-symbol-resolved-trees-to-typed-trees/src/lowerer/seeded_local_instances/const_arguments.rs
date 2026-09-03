@@ -37,19 +37,6 @@ pub(super) fn parameter_is_supported(
         }
 }
 
-pub(super) fn scalar_parameter_is_supported(
-    source: &SymbolResolvedTrees,
-    owner: SymbolHandle,
-    parameter: &TypeParameter,
-) -> bool {
-    parameter_is_supported(source, owner, parameter)
-        && matches!(
-            &parameter.kind,
-            TypeParameterKind::Const { type_reference }
-                if scalar_carrier(source, type_reference).is_some()
-        )
-}
-
 pub(super) fn closed_argument_is_supported(
     source: &SymbolResolvedTrees,
     parameter: &TypeParameter,

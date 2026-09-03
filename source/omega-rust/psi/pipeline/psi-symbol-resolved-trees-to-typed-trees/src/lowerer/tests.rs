@@ -3,6 +3,7 @@ use super::{
     lower_seeded_extension, lower_symbol_resolved_trees,
     lower_symbol_resolved_trees_to_seeded_base, plain_data_extension_shape_is_supported,
     resolved_root_shape_is_supported, retained_typed_base_is_exact_prefix,
+    seeded_extension_shape_is_supported,
 };
 use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use psi_source_files_to_tokens::Lexer;
@@ -6111,10 +6112,158 @@ fn seeded_continuation_appends_a_scalar_const_generic_machine_with_exact_binder_
 }
 
 #[test]
+fn seeded_continuation_appends_a_structured_const_generic_machine_with_exact_custody() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Config { count: u8; enabled: bool; } data Indexed<const C: Config> { marker: u8; } machine authored() -> u32 { 1 }",
+        "pub machine generated<const C: Config>(value: Indexed<C>) {}",
+    );
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("structured-const generated machine should append from the retained base");
+
+    assert!(retained_typed_base_is_exact_prefix(&expected, &typed));
+    assert_eq!(typed.machines().len(), expected.machines().len() + 1);
+    let generated = typed.machines().last().expect("generated generic machine");
+    let [const_parameter] = typed.machine_type_parameters(generated) else {
+        panic!("generated machine retains one exact const parameter")
+    };
+    assert_eq!(const_parameter.name.as_str(), "C");
+    assert_eq!(
+        typed.symbols.get(const_parameter.symbol).parent,
+        generated.symbol
+    );
+    let psi_typed_trees::data::TypeParameterKind::Const { type_reference } = &const_parameter.kind
+    else {
+        panic!("generated machine retains the structured const binder kind")
+    };
+    let config = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Config")
+        .expect("retained structured const carrier");
+    assert!(matches!(
+        typed.type_reference_table.type_reference(*type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if *symbol == config.symbol && name.as_str() == "Config"
+    ));
+    let indexed = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Indexed")
+        .expect("retained indexed data template");
+    let [state] = typed.machine_states(generated) else {
+        panic!("generated machine retains one entry state")
+    };
+    let [value] = typed.state_parameters(state) else {
+        panic!("generated machine retains one value parameter")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = typed
+        .type_reference_table
+        .type_reference(value.type_reference)
+    else {
+        panic!("value retains the structured const application")
+    };
+    assert_eq!(*base_symbol, indexed.symbol);
+    let [argument] = typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("structured const application retains one argument")
+    };
+    assert!(matches!(
+        typed.type_reference_table.type_reference(*argument),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if *symbol == const_parameter.symbol && name.as_str() == "C"
+    ));
+}
+
+#[test]
+fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exactly() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Config { count: u8; enabled: bool; } data Indexed<const C: Config> { marker: u8; } machine authored() -> u32 { 1 }",
+        "pub machine generated<const C: Config>(value: Indexed<C>) {}",
+    );
+    let data_frontier = base.resolved.data_definitions.len();
+    let machine_frontier = base.resolved.machines.len();
+    let resolved = extension.trees().clone();
+    assert!(seeded_extension_shape_is_supported(
+        &resolved,
+        data_frontier,
+        machine_frontier,
+    ));
+
+    let generated = &resolved.machines[machine_frontier];
+    let [const_parameter] = resolved.data_type_parameters(generated.type_parameters) else {
+        panic!("generated machine retains one structured const parameter")
+    };
+    let mut carrier_name_drift = resolved.clone();
+    let [parameter] = carrier_name_drift
+        .tables
+        .declarations
+        .data_type_parameters
+        .span_mut_or_empty(generated.type_parameters)
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
+        &mut parameter.kind
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Named { name, .. } = type_reference else {
+        unreachable!()
+    };
+    *name = psi_symbol_resolved_trees::name::DiagnosticName::generated("WrongConfig");
+    assert!(
+        !seeded_extension_shape_is_supported(&carrier_name_drift, data_frontier, machine_frontier,),
+        "a structured const carrier name cannot drift from its exact symbol",
+    );
+
+    let [state_handle] = resolved.machine_state_handles(generated.states) else {
+        panic!("generated machine retains one state")
+    };
+    let state = resolved.machine_state(*state_handle);
+    let [value] = resolved.state_parameters(state.parameters) else {
+        panic!("generated machine retains one value parameter")
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &value.type_reference
+    else {
+        panic!("value remains an indexed generic application")
+    };
+    let mut occurrence_name_drift = resolved.clone();
+    let [argument] = occurrence_name_drift
+        .tables
+        .declarations
+        .child_type_references
+        .span_mut_or_empty(application.arguments)
+    else {
+        panic!("indexed application retains one structured const argument")
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument else {
+        unreachable!()
+    };
+    assert_eq!(*symbol, const_parameter.symbol);
+    *name = psi_symbol_resolved_trees::name::DiagnosticName::generated("WrongC");
+    assert!(
+        !seeded_extension_shape_is_supported(
+            &occurrence_name_drift,
+            data_frontier,
+            machine_frontier,
+        ),
+        "a structured const value occurrence cannot drift from its exact binder",
+    );
+}
+
+#[test]
 fn seeded_generic_machine_continuation_rejects_unadmitted_binder_kinds_transactionally() {
     for extension_source in [
         "machine generated<T [copy]>() {}",
-        "data Shape { value: u8; } machine generated<const S: Shape>() {}",
+        "data Recursive { value: Recursive; } machine generated<const S: Recursive>() {}",
         "machine generated<machine Selected>() where machine Selected() -> u8; {}",
     ] {
         let (base, extension) = seeded_plain_data_inputs(
@@ -6123,7 +6272,7 @@ fn seeded_generic_machine_continuation_rejects_unadmitted_binder_kinds_transacti
         );
         let expected = base.typed().clone();
         let (returned, error) = lower_seeded_extension(extension, base).expect_err(
-            "only lifetime, plain Type, and scalar const binders enter this generic-machine rung",
+            "only settled lifetime, Type, and const binders enter this generic-machine rung",
         );
         assert_eq!(error, SeededContinuationError::UnsupportedExtensionShape);
         assert_eq!(returned.into_typed(), expected);

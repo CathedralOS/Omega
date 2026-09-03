@@ -103,7 +103,7 @@ machine build(builder: &mut Build) {{
     let output_descriptor: i32 = builder.output.create(generated, 438);
     let output_count: i64 = builder.output.write(
         output_descriptor,
-        "data Generated {{ base: Main; }}\npub machine identity<'value, T>(value: &'value T) -> &'value T {{ value }}\npub machine width<const N: u64>(value: [u8; N]) {{}}\n"
+        "data Generated {{ base: Main; }}\npub data MachineConfig {{ count: u8; enabled: bool; }}\npub data ConfigIndexed<const C: MachineConfig> {{ marker: u8; }}\npub machine identity<'value, T>(value: &'value T) -> &'value T {{ value }}\npub machine width<const N: u64>(value: [u8; N]) {{}}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {{}}\n"
     );
     let output_close: i32 = builder.output.close(output_descriptor);
     builder.output.include_source(generated);
@@ -185,6 +185,74 @@ machine build(builder: &mut Build) {{
         width_parameter.kind,
         psi_typed_trees::data::TypeParameterKind::Const { .. }
     ));
+    let configured = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "configured")
+        .expect("generated structured-const machine reaches final checked program");
+    let [config_parameter] = checked.typed.machine_type_parameters(configured) else {
+        panic!("generated configured machine retains one const parameter")
+    };
+    let machine_config = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "MachineConfig")
+        .expect("generated structured const carrier reaches final checked program");
+    let config_indexed = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "ConfigIndexed")
+        .expect("generated structured const template reaches final checked program");
+    let psi_typed_trees::data::TypeParameterKind::Const { type_reference } = config_parameter.kind
+    else {
+        panic!("configured.C remains a const binder")
+    };
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if *symbol == machine_config.symbol && name.as_str() == "MachineConfig"
+    ));
+    let [configured_state] = checked.typed.machine_states(configured) else {
+        panic!("configured retains one entry state")
+    };
+    let [configured_value] = checked.typed.state_parameters(configured_state) else {
+        panic!("configured retains one value parameter")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        arguments,
+        ..
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(configured_value.type_reference)
+    else {
+        panic!("configured value retains the structured const application")
+    };
+    assert_eq!(*base_symbol, config_indexed.symbol);
+    assert_eq!(base_name.as_str(), "ConfigIndexed");
+    let [config_argument] = checked
+        .typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("configured value retains one structured const argument")
+    };
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(*config_argument),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if *symbol == config_parameter.symbol && name.as_str() == "C"
+    ));
     let build = checked
         .typed
         .machines()
@@ -252,7 +320,7 @@ machine build(builder: &mut Build) {{
         .staged_output_tree()
         .expect("complete replay retains the staged output tree");
     assert_eq!(staged.entry_count(), 1);
-    let expected_generated = b"data Generated { base: Main; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\npub machine width<const N: u64>(value: [u8; N]) {}\n";
+    let expected_generated = b"data Generated { base: Main; }\npub data MachineConfig { count: u8; enabled: bool; }\npub data ConfigIndexed<const C: MachineConfig> { marker: u8; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\npub machine width<const N: u64>(value: [u8; N]) {}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {}\n";
     assert_eq!(staged.file_bytes(), expected_generated.len() as u64);
 
     assert_eq!(

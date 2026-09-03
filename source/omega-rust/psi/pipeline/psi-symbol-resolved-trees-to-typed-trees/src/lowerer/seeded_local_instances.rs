@@ -17,12 +17,28 @@ pub(super) fn parameter_is_supported(
     const_arguments::parameter_is_supported(source, owner, parameter)
 }
 
-pub(super) fn scalar_const_parameter_is_supported(
+pub(super) fn const_parameter_is_supported(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
     parameter: &psi_symbol_resolved_trees::data::TypeParameter,
 ) -> bool {
-    const_arguments::scalar_parameter_is_supported(source, owner, parameter)
+    matches!(
+        parameter.kind,
+        psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+    ) && const_arguments::parameter_is_supported(source, owner, parameter)
+}
+
+pub(super) fn structured_const_parameter_is_supported(
+    source: &SymbolResolvedTrees,
+    owner: SymbolHandle,
+    parameter: &psi_symbol_resolved_trees::data::TypeParameter,
+) -> bool {
+    const_parameter_is_supported(source, owner, parameter)
+        && matches!(
+            &parameter.kind,
+            psi_symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+                if structured_const_arguments::carrier_is_supported(source, type_reference)
+        )
 }
 
 pub(super) fn const_declaration_is_supported(
@@ -298,7 +314,7 @@ fn instance_argument_name(
     }
 }
 
-fn template_argument_is_supported(
+pub(super) fn template_argument_is_supported(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
     owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
