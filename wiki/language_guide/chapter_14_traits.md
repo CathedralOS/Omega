@@ -1085,10 +1085,11 @@ an explicit helper call. It does not collapse the chain into a direct dispatch.
 A state with multiple inbound call sites is deliberately not treated as such a
 chain because the incoming descriptor would require an explicit join rule.
 Canonical Terminal artifacts preserve this distinction. Native target lowering
-is still fail closed for chains longer than the existing one-hop form until a
-scalar target operation can carry a parameter-sourced descriptor argument
-without pretending it came from a structural field. Unit results and
-continuation-bearing callers are likewise not yet in this bounded lane.
+and physical assignment now preserve longer scalar chains in a distinct direct-
+helper carrier, including the unchanged incoming and outgoing two-word ABI.
+Machine emission is still fail closed until that carrier has corresponding
+call-site and artifact replay evidence. Unit results and continuation-bearing
+callers are likewise not yet in this bounded lane.
 
 Code that wants a local dynamic interface over a component owns a local proxy:
 

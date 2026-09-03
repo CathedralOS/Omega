@@ -19,6 +19,7 @@ pub(super) fn assign_operation(
             structural::scalar_call_result::assign(function.machine, operation, target)
         }
         operation @ (TargetOperation::ReturnDynamicParameterScalarCall { .. }
+        | TargetOperation::ReturnForwardedDynamicParameterScalarCall { .. }
         | TargetOperation::DynamicParameterUnitCall { .. }) => {
             dynamic_parameter::assign(function, operation, target)
         }

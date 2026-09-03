@@ -15,6 +15,11 @@ pub(super) fn lower_special_form(
     let mut active = prepared.active_shapes.clone();
     let call_plan = prepared.call_plan.clone();
     let target_structural_parameters = prepared.target_structural_parameters.clone();
+    if let Some(lowered) =
+        lower_forwarded_dynamic_parameter_return(function, function_result, target, functions)?
+    {
+        return Ok(Some(lowered));
+    }
     if let Some(lowered) = lower_dynamic_parameter_return(function, function_result, target)? {
         return Ok(Some(lowered));
     }
@@ -116,6 +121,137 @@ pub(super) fn lower_special_form(
     }
 
     Ok(None)
+}
+
+fn lower_forwarded_dynamic_parameter_return(
+    function: &AbstractFunction,
+    function_result: AbstractResult,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+) -> Result<Option<TargetFunction>, LoweringError> {
+    let [
+        AbstractOperation::DynamicDescriptorParameter { parameter },
+        AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            psi_operation,
+            result,
+            callee,
+            structural_arguments,
+            dynamic_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        },
+        AbstractOperation::Return {
+            psi_edge,
+            result: returned_result,
+            value,
+            scalar_type,
+            cleanup_actions,
+        },
+    ] = function.operations.as_slice()
+    else {
+        return Ok(None);
+    };
+    let [argument] = dynamic_arguments.as_slice() else {
+        return Err(LoweringError::InvalidDynamicDispatch {
+            machine: function.machine,
+            operation: *psi_operation,
+        });
+    };
+    let AbstractDynamicDescriptorSource::Parameter(source_parameter) = &argument.source else {
+        return Ok(None);
+    };
+    let invalid = || LoweringError::InvalidDynamicDispatch {
+        machine: function.machine,
+        operation: *psi_operation,
+    };
+    let callee_function = functions
+        .get(callee)
+        .copied()
+        .ok_or(LoweringError::UnknownCallTarget(*callee))?;
+    let callee_result = callee_function.result.scalar().ok_or_else(invalid)?;
+    let Some(AbstractOperation::DynamicDescriptorParameter {
+        parameter: callee_parameter,
+    }) = callee_function.operations.first()
+    else {
+        return Err(invalid());
+    };
+    if function.attachment.is_some()
+        || callee_function.attachment.is_some()
+        || !function.parameters.is_empty()
+        || !function.structural_parameters.is_empty()
+        || !callee_function.parameters.is_empty()
+        || !callee_function.structural_parameters.is_empty()
+        || parameter != source_parameter
+        || parameter.owner != function.machine
+        || parameter.ordinal != 0
+        || !matches!(
+            parameter.access,
+            psi_terminal::StructuralAccess::SharedBorrow
+                | psi_terminal::StructuralAccess::MutableBorrow
+        )
+        || callee_parameter != &argument.target
+        || callee_parameter.owner != *callee
+        || callee_parameter.ordinal != 0
+        || !argument.has_complete_custody(function.machine, *psi_operation, *callee)
+        || !structural_arguments.is_empty()
+        || *returned_result != function_result.value
+        || *value != result.value
+        || *scalar_type != result.scalar_type
+        || callee_result.scalar_type != result.scalar_type
+        || !claim_transfers.is_empty()
+        || !requirement_obligations.is_empty()
+        || !crash_continuations.is_empty()
+        || !cleanup_actions.is_empty()
+        || !function.published_service_ceiling.is_empty()
+        || !callee_function.published_service_ceiling.is_empty()
+    {
+        return Err(invalid());
+    }
+    let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
+    let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
+    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+    let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
+    let signature = CallSignature {
+        parameters: vec![pointer_shape, pointer_shape],
+        result: Some(result_shape),
+    };
+    let function_call_plan =
+        evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
+            .map_err(LoweringError::AbiPlan)?;
+    let callee_call_plan = evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
+        .map_err(LoweringError::AbiPlan)?;
+    let [instance, table] = function_call_plan.parameters.as_slice() else {
+        return Err(invalid());
+    };
+    Ok(Some(TargetFunction {
+        machine: function.machine,
+        attachment: function.attachment,
+        fixed_integer_scalar_abi: None,
+        mixed_structural_scalar_abi: None,
+        provenance: TerminalPsiProvenance {
+            operations: vec![*psi_operation],
+            edges: vec![*psi_edge],
+        },
+        operation: TargetOperation::ReturnForwardedDynamicParameterScalarCall {
+            psi_edge: *psi_edge,
+            psi_operation: *psi_operation,
+            source_value: result.value,
+            scalar_type: result.scalar_type,
+            callee: *callee,
+            argument: argument.clone(),
+            parameter_abi: TargetDynamicDescriptorParameterAbi {
+                parameter: parameter.clone(),
+                instance: instance.clone(),
+                table: table.clone(),
+            },
+            function_call_plan,
+            callee_call_plan,
+            claim_transfers: claim_transfers.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
+        },
+    }))
 }
 
 fn lower_dynamic_parameter_return(

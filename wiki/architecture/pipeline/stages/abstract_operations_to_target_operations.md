@@ -92,6 +92,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   selected realization. It derives the realization's structural argument and
   scalar result ABI while preserving both source copies; physical assignment
   later allocates the canonical two-word descriptor and durable result home.
+- `lowering/scalar/special_forms.rs` also owns the bounded scalar helper-to-
+  helper forwarding form. It independently rejoins the incoming descriptor
+  parameter to the callee's identical interface and retains both native
+  two-word call plans without reconstructing a local selection.
 - `lowering/unit/conditional_exit.rs` owns the exact attached-Unit control
   diamond used by a rebound dynamic result followed by two admitted
   nonreturning boundary leaves. The ten-operation integer form retains its
@@ -164,6 +168,11 @@ fabricated result: the attached caller retains a
 a function-level `DynamicParameterUnitCall`. Both reuse the scalar forwarding
 ABI planners with a `None` result shape; wider helper bodies and direct-
 selection descriptor sources remain fenced.
+An unambiguous scalar descriptor chain may now cross an additional transparent
+helper. The function-level target carrier retains a parameter source rather
+than fabricating a structural-field argument, and accepts only an unchanged
+two-word native ABI handoff. Physical assignment preserves the same source and
+destination registers. Machine emission remains the next fail-closed boundary.
 Installed-provider scalar lowering currently admits one direct fixed signed
 `i32` parameter forwarded unchanged to one Unit-returning candidate. Wider or
 mixed scalars, computed arguments, runtime structural arguments in the same

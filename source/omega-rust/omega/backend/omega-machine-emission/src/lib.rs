@@ -462,6 +462,11 @@ fn emit_function(
             unit_affine_cleanup = emitted.affine_cleanup;
             emitted.bytes
         }
+        AssignedOperation::ReturnForwardedDynamicParameterScalarCall { psi_operation, .. } => {
+            return Err(EmissionError::InvalidDynamicDescriptorCallCustody(
+                *psi_operation,
+            ));
+        }
         AssignedOperation::ReturnDynamicParameterScalarCall { .. }
         | AssignedOperation::DynamicParameterUnitCall { .. } => {
             let emitted = dynamic_parameter::emit(&function.operation, function.machine, target)?;
