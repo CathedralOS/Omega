@@ -1,7 +1,5 @@
 use omega_compiler::compile_to_checked_with_packages;
-use omega_effects::{
-    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission, TerminalAuthorityClass,
-};
+use omega_effects::{PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission};
 use omega_package_compilation::AcceptedSemanticBindingRole;
 use omega_package_evidence::record::{
     PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
@@ -16,7 +14,7 @@ use omega_package_manager::review::{
 };
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use psi_source::SourceOrigin;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -268,7 +266,7 @@ fn real_standard_library_has_a_complete_ordinary_review_entry() {
 }
 
 #[test]
-fn real_filesystem_host_schema_accepts_explicit_portable_facet_rows() {
+fn real_filesystem_host_schema_accepts_settled_portable_facet_rows() {
     let tree = TempTree::new();
     let consumer = tree.package("filesystem-consumer");
     let standard_library = repository_standard_library();
@@ -312,29 +310,175 @@ fn real_filesystem_host_schema_accepts_explicit_portable_facet_rows() {
     // locate human-reviewed rows in the real checked schema; the emitted rows
     // are keyed by the schema digest and complete normalized requirement
     // identity, and production candidate discovery never runs this mapping.
-    let specifications = [
-        ("read", PortableFilesystemAuthorityFacet::ContentRead),
-        ("write", PortableFilesystemAuthorityFacet::ContentWrite),
+    let specifications: &[(&str, &[PortableFilesystemAuthorityFacet])] = &[
         (
-            "read_metadata",
-            PortableFilesystemAuthorityFacet::MetadataQuery,
+            "create",
+            &[
+                PortableFilesystemAuthorityFacet::ContentWrite,
+                PortableFilesystemAuthorityFacet::NamespaceMutation,
+                PortableFilesystemAuthorityFacet::MetadataMutation,
+            ],
+        ),
+        ("open", &PortableFilesystemAuthorityFacet::ALL),
+        ("open_create", &PortableFilesystemAuthorityFacet::ALL),
+        ("read", &[PortableFilesystemAuthorityFacet::ContentRead]),
+        ("write", &[PortableFilesystemAuthorityFacet::ContentWrite]),
+        ("read_at", &[PortableFilesystemAuthorityFacet::ContentRead]),
+        (
+            "write_at",
+            &[PortableFilesystemAuthorityFacet::ContentWrite],
         ),
         (
-            "read_dir",
-            PortableFilesystemAuthorityFacet::DirectoryEnumeration,
+            "remove",
+            &[PortableFilesystemAuthorityFacet::NamespaceMutation],
         ),
         (
-            "rename",
-            PortableFilesystemAuthorityFacet::NamespaceMutation,
+            "create_dir",
+            &[
+                PortableFilesystemAuthorityFacet::NamespaceMutation,
+                PortableFilesystemAuthorityFacet::MetadataMutation,
+            ],
+        ),
+        (
+            "remove_dir",
+            &[PortableFilesystemAuthorityFacet::NamespaceMutation],
+        ),
+        (
+            "create_dir_name",
+            &[
+                PortableFilesystemAuthorityFacet::NamespaceMutation,
+                PortableFilesystemAuthorityFacet::MetadataMutation,
+            ],
+        ),
+        ("open_at", &PortableFilesystemAuthorityFacet::ALL),
+        (
+            "unlink_at",
+            &[PortableFilesystemAuthorityFacet::NamespaceMutation],
         ),
         (
             "set_permissions",
-            PortableFilesystemAuthorityFacet::MetadataMutation,
+            &[PortableFilesystemAuthorityFacet::MetadataMutation],
+        ),
+        (
+            "set_file_permissions",
+            &[PortableFilesystemAuthorityFacet::MetadataMutation],
+        ),
+        (
+            "rename",
+            &[PortableFilesystemAuthorityFacet::NamespaceMutation],
+        ),
+        (
+            "hard_link",
+            &[PortableFilesystemAuthorityFacet::NamespaceMutation],
+        ),
+        (
+            "symlink",
+            &[PortableFilesystemAuthorityFacet::NamespaceMutation],
+        ),
+        (
+            "canonicalize",
+            &[PortableFilesystemAuthorityFacet::MetadataQuery],
+        ),
+        (
+            "read_dir",
+            &[PortableFilesystemAuthorityFacet::DirectoryEnumeration],
+        ),
+        (
+            "find_first",
+            &[PortableFilesystemAuthorityFacet::DirectoryEnumeration],
+        ),
+        (
+            "find_next",
+            &[PortableFilesystemAuthorityFacet::DirectoryEnumeration],
+        ),
+        (
+            "create_hard_link",
+            &[PortableFilesystemAuthorityFacet::NamespaceMutation],
+        ),
+        ("open_path_handle", &PortableFilesystemAuthorityFacet::ALL),
+        (
+            "final_path_name_by_handle",
+            &[PortableFilesystemAuthorityFacet::MetadataQuery],
+        ),
+        (
+            "set_file_time",
+            &[PortableFilesystemAuthorityFacet::MetadataMutation],
+        ),
+        (
+            "remove_name",
+            &[PortableFilesystemAuthorityFacet::NamespaceMutation],
+        ),
+        (
+            "remove_dir_name",
+            &[PortableFilesystemAuthorityFacet::NamespaceMutation],
+        ),
+        (
+            "read_metadata",
+            &[PortableFilesystemAuthorityFacet::MetadataQuery],
+        ),
+        (
+            "read_file_metadata",
+            &[PortableFilesystemAuthorityFacet::MetadataQuery],
+        ),
+        (
+            "read_symlink_metadata",
+            &[PortableFilesystemAuthorityFacet::MetadataQuery],
+        ),
+        ("set_len", &[PortableFilesystemAuthorityFacet::ContentWrite]),
+        (
+            "set_file_times",
+            &[PortableFilesystemAuthorityFacet::MetadataMutation],
+        ),
+        (
+            "change_owner",
+            &[PortableFilesystemAuthorityFacet::MetadataMutation],
+        ),
+        (
+            "change_owner_no_follow",
+            &[PortableFilesystemAuthorityFacet::MetadataMutation],
+        ),
+        (
+            "change_file_owner",
+            &[PortableFilesystemAuthorityFacet::MetadataMutation],
         ),
     ];
+    let unresolved = [
+        "close",
+        "seek",
+        "read_link",
+        "find_close",
+        "close_handle",
+        "get_osfhandle",
+        "lock_file_ex",
+        "unlock_file",
+        "get_last_error",
+        "sync",
+        "sync_data",
+        "duplicate",
+        "lock_file",
+        "errno",
+    ];
+    let classified_names = specifications
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(unresolved)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        classified_names.len(),
+        candidate.service_schema().methods.len(),
+        "the explicit and unresolved cohorts must partition the real schema",
+    );
+    assert!(
+        candidate
+            .service_schema()
+            .methods
+            .iter()
+            .all(|method| classified_names.contains(method.name.as_str()))
+    );
+    let mut expected_permissions = BTreeMap::new();
     let permissions = specifications
         .iter()
-        .map(|(name, facet)| {
+        .map(|(name, facets)| {
             let methods = candidate
                 .service_schema()
                 .methods
@@ -347,11 +491,20 @@ fn real_filesystem_host_schema_accepts_explicit_portable_facet_rows() {
                     methods.len()
                 );
             };
-            ServiceTerminalAuthorityPermission::for_filesystem_facets(
+            let permission = ServiceTerminalAuthorityPermission::for_filesystem_facets(
                 candidate.service_schema().identity_digest(),
                 method.requirement_identity.clone(),
-                [*facet],
-            )
+                facets.iter().copied(),
+            );
+            assert!(
+                expected_permissions
+                    .insert(
+                        permission.requirement_identity().to_owned(),
+                        permission.permitted().classes().to_vec(),
+                    )
+                    .is_none()
+            );
+            permission
         })
         .collect::<Vec<_>>();
     let binding = candidate
@@ -388,25 +541,20 @@ fn real_filesystem_host_schema_accepts_explicit_portable_facet_rows() {
             .len(),
         specifications.len(),
     );
-    let mut actual_classes = BTreeSet::new();
     for permission in final_root.projection().terminal_authority_permissions() {
         assert_eq!(permission.service(), broad.service());
         assert_eq!(
             permission.service_schema(),
             candidate.service_schema().identity_digest(),
         );
-        let [class] = permission.permitted().classes() else {
-            panic!("each representative real requirement has one explicit facet")
-        };
-        actual_classes.insert(*class);
+        assert_eq!(
+            permission.permitted().classes(),
+            expected_permissions
+                .remove(permission.requirement_identity())
+                .expect("final row retains one exact authored requirement"),
+        );
     }
-    assert_eq!(
-        actual_classes,
-        specifications
-            .into_iter()
-            .map(|(_, facet)| TerminalAuthorityClass::from(facet))
-            .collect(),
-    );
+    assert!(expected_permissions.is_empty());
 }
 
 #[test]

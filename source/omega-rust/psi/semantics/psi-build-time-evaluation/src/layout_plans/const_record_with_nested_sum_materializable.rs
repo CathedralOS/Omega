@@ -44,6 +44,7 @@ use crate::layout_plans::ValidatedConstRecordWithSumMaterialization;
 mod depth_sixteen;
 mod depth_seventeen;
 mod depth_eighteen;
+mod depth_nineteen;
 mod derivation;
 mod report_identity;
 mod sum_reachability;
@@ -62,6 +63,11 @@ pub use depth_eighteen::{
     ValidatedConstDepthEighteenNestedSumOccurrenceMaterialization,
     ValidatedConstRecordWithDepthEighteenNestedSumsMaterialization,
     validate_const_materializable_record_with_depth_eighteen_nested_sums,
+};
+pub use depth_nineteen::{
+    ValidatedConstDepthNineteenNestedSumOccurrenceMaterialization,
+    ValidatedConstRecordWithDepthNineteenNestedSumsMaterialization,
+    validate_const_materializable_record_with_depth_nineteen_nested_sums,
 };
 use derivation::*;
 use report_identity::*;

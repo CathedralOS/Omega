@@ -572,6 +572,13 @@ filesystem-policy authoring vocabulary. It canonicalizes into the same
 terminal classes consumed by selected-closure containment while still
 requiring the consumer to provide exact schema and requirement coordinates;
 the helper does not inspect service paths or readable method names.
+The current real `FilesystemHost` schema has explicit consumer-policy coverage
+for the 36 requirements whose class unions follow from these rules, including
+all six facets for flag-polymorphic opens. Fourteen control/lifecycle cohorts
+remain deliberately unmapped pending `OWNER_QUESTIONS.md` Q4; neither an empty
+disposition nor a filesystem class is inferred from their names. This policy
+partition is separate from target syscall/import mechanism classification and
+from any future descriptor-confinement claim.
 
 The current filename-and-trait keyed dangerous-authority classifier is a
 transitional implementation defect. Receiving target policy now classifies the

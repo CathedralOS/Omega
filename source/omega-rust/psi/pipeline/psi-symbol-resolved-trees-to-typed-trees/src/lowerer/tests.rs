@@ -6014,6 +6014,53 @@ fn seeded_continuation_appends_a_plain_type_generic_machine_exactly_once() {
 }
 
 #[test]
+fn seeded_continuation_appends_a_lifetime_generic_machine_with_exact_binder_custody() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+        "pub machine generated<'loan, T>(value: &'loan T) -> &'loan T { value }",
+    );
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("lifetime-generic generated machine should append from the retained base");
+
+    assert!(retained_typed_base_is_exact_prefix(&expected, &typed));
+    assert_eq!(typed.machines().len(), expected.machines().len() + 1);
+    let generated = typed.machines().last().expect("generated generic machine");
+    assert_eq!(generated.name.as_str(), "generated");
+    assert_eq!(
+        generated
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["loan"]
+    );
+    let [type_parameter] = typed.machine_type_parameters(generated) else {
+        panic!("generated machine retains one exact Type parameter")
+    };
+    let [state] = typed.machine_states(generated) else {
+        panic!("generated machine retains one entry state")
+    };
+    let [value] = typed.state_parameters(state) else {
+        panic!("generated machine retains one value parameter")
+    };
+    for type_reference in [value.type_reference, state.return_type] {
+        let psi_typed_trees::types::TypeReferenceNode::Reference {
+            referee, lifetime, ..
+        } = typed.type_reference_table.type_reference(type_reference)
+        else {
+            panic!("parameter and result remain lifetime-bearing references")
+        };
+        assert_eq!(lifetime.as_ref().map(|name| name.as_str()), Some("loan"));
+        assert!(matches!(
+            typed.type_reference_table.type_reference(*referee),
+            psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+                if *symbol == type_parameter.symbol && name.as_str() == "T"
+        ));
+    }
+}
+
+#[test]
 fn seeded_generic_machine_continuation_rejects_unadmitted_binder_kinds_transactionally() {
     for extension_source in [
         "machine generated<const N: u64>() {}",
@@ -6024,8 +6071,9 @@ fn seeded_generic_machine_continuation_rejects_unadmitted_binder_kinds_transacti
             extension_source,
         );
         let expected = base.typed().clone();
-        let (returned, error) = lower_seeded_extension(extension, base)
-            .expect_err("only plain unbounded Type binders enter this generic-machine rung");
+        let (returned, error) = lower_seeded_extension(extension, base).expect_err(
+            "only lifetime and plain unbounded Type binders enter this generic-machine rung",
+        );
         assert_eq!(error, SeededContinuationError::UnsupportedExtensionShape);
         assert_eq!(returned.into_typed(), expected);
     }

@@ -481,7 +481,6 @@ fn exact_extension_machine_symbol(
     if !machine.symbol.is_valid()
         || source.symbols.get(machine.symbol).kind != psi_symbols::SymbolKind::Machine
         || source.symbols.name(machine.symbol) != machine.name.as_str()
-        || !machine.lifetime_parameters.is_empty()
         || !type_parameters.iter().all(|parameter| {
             matches!(
                 &parameter.kind,

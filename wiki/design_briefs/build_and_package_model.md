@@ -306,13 +306,14 @@ The typed continuation admits the already validated data cohorts—plain and
 lifetime-bearing data, local and retained-base applications, bounded
 constrained arguments, scalar const arguments, and exact structured const
 provenance—plus ordinary monomorphic machines, monomorphic attached methods,
-and the first generic-machine cohort. An attached method is admitted only when
+and the first generic-machine cohorts. An attached method is admitted only when
 its exact `attached_data_symbol` selects the retained or newly generated
-declaration it names. A generic machine in this cohort is an ordinary checked
-body whose finite binder list contains only exact machine-parented, unbounded
-`Type` parameters. Lifetime, const, static-machine/proposition binders,
-property and conformance bounds, `satisfies`, and broader supply/operational
-forms remain fenced. Suffix-only finalization owns satisfied declarations,
+declaration it names. A generic machine in these cohorts is an ordinary checked
+body whose binder list contains an authored-order erased-lifetime telescope
+followed only by exact machine-parented, unbounded `Type` parameters. Const,
+static-machine/proposition binders, property and conformance bounds,
+`satisfies`, and broader supply/operational forms remain fenced. Suffix-only
+finalization owns satisfied declarations,
 progress premises, domain constraints, semantic qualification casts, and
 fixed-byte literal landing. The matching post-typing evaluator then runs on the
 completed candidate; wire-plan publication begins at the extension wire-schema
@@ -343,17 +344,18 @@ portable cohorts missing the selected target cannot hide across source strata
 or generated units. It mutates only the extension, consumes the exact retained
 base selection carrier into one combined carrier, and settles selected origins
 and target-owned `provider_defaults` against the final typed continuation.
-Unselected generated siblings remain inert. Broader generic binders and
-constraints, satisfactions/conformance bounds, broader supply forms, additional
-root kinds, and the remaining fenced data shapes still require explicit append-
-only continuation cohorts. These are implementation tasks, not alternate
-language semantics.
+Unselected generated siblings remain inert. Const/static generic binders and
+broader generic constraints, satisfactions/conformance bounds, broader supply
+forms, additional root kinds, and the remaining fenced data shapes still
+require explicit append-only continuation cohorts. These are implementation
+tasks, not alternate language semantics.
 
 Canaries cover exact configuration and build-evidence retention, one-way
 overload/conformance visibility, generated machine and attached-method
 continuation, unit-local normalization, dependency-bundle no-rerun,
 target-scoped rejection, source/custody counts, retained-prefix preservation,
-and structural absence of the retired reconstruction route.
+exact lifetime-telescope custody, and structural absence of the retired
+reconstruction route.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review
@@ -4169,6 +4171,12 @@ the final checked pass must rejoin every submitted row exactly. The
 bound compiler replay must consume exactly one declaration matching all
 accepted coordinates before review classifies that exact resolved symbol as
 Filesystem authority. Foreign, stale, ambiguous, and unmatched bindings reject.
+The repository policy canary partitions the complete current 50-method schema:
+36 requirements have explicit consumer-authored portable dispositions, while
+the fourteen unresolved control/lifecycle cohorts remain absent rather than
+being guessed from names. Any schema addition or omission fails that partition
+test. This is permission-authoring coverage, not object confinement and not a
+target mechanism classification.
 Package-aware checked interpretation receives an opaque routing token for that
 same compiler-resolved declaration symbol. Readable service or operation names
 cannot select filesystem dispatch, and the token rejects if substituted into a
