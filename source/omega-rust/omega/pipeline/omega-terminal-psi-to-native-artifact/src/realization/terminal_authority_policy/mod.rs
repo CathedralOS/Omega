@@ -3,8 +3,8 @@
 use std::sync::OnceLock;
 
 use omega_effects::{
-    terminal_mechanism_identity_bytes, CheckedPhysicalOperationIdentity, TerminalAuthorityClass,
-    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
+    CheckedPhysicalOperationIdentity, TerminalAuthorityClass, TerminalAuthorityPolicyIdentity,
+    TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
 };
 
 mod classification;
@@ -12,6 +12,7 @@ mod commitment;
 mod inventory;
 mod model;
 mod normalized_foreign;
+mod syscall;
 #[cfg(test)]
 mod tests;
 
@@ -23,6 +24,7 @@ pub use normalized_foreign::{
     normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,
 };
+pub(crate) use syscall::conservative_syscall_terminal_mechanism;
 
 use commitment::complete_policy_commitment;
 

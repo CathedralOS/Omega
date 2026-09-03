@@ -14,6 +14,7 @@ mod literal_arguments;
 mod runtime_home_arguments;
 mod runtime_scalar_home_plan;
 mod scalar_result;
+mod syscall_identity;
 mod zero_argument_import;
 
 use fixtures::*;

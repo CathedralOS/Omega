@@ -92,7 +92,9 @@ impl<'a> Reviewer<'a> {
                 }
                 self.active_requirements.remove(requirement);
             }
-            ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Import { .. } => {
+            ProviderBinding::CompilerIntrinsic { .. }
+            | ProviderBinding::Import { .. }
+            | ProviderBinding::Syscall { .. } => {
                 let mechanism = self
                     .context
                     .exact_mechanism(boundary, &selected_row.binding)?;
@@ -107,11 +109,6 @@ impl<'a> Reviewer<'a> {
             ProviderBinding::StringBackedImportBootstrap { .. } => {
                 return Err(format!(
                     "selected requirement `{requirement}` retains a string-backed import with no terminal identity"
-                ));
-            }
-            ProviderBinding::Syscall { .. } => {
-                return Err(format!(
-                    "selected requirement `{requirement}` uses the unsupported syscall terminal role"
                 ));
             }
             ProviderBinding::VtableSlot { .. } => {

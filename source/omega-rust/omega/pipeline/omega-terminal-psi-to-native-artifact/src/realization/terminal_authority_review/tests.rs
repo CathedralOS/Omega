@@ -1,8 +1,9 @@
 use super::*;
 use omega_abstract_operations::{AbstractFunction, AbstractOperation, AbstractOperationPlan};
 use omega_effects::{
-    CheckedPhysicalTerminalMechanismIdentity, CompilerIntrinsicExecutionIdentity,
-    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission, TerminalAuthorityClass,
+    CheckedPhysicalTerminalMechanismIdentity, CheckedSyscallArgumentContractIdentity,
+    CompilerIntrinsicExecutionIdentity, PortableFilesystemAuthorityFacet,
+    ServiceTerminalAuthorityPermission, SyscallTerminalMechanismIdentity, TerminalAuthorityClass,
     TerminalAuthorityDisposition, TerminalMechanismIdentity,
     provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema},
 };
@@ -829,25 +830,107 @@ fn checked_adapter_cycles_and_unsupported_roles_fail_closed() {
         LEAF_REQUIREMENT,
         ProviderBinding::Syscall { number: 1 },
     );
-    let syscall_selected = SelectedProviderPlanFacts::from_selected_plans(vec![syscall])
-        .expect("unsupported role remains selectable data");
+    let syscall_selected = SelectedProviderPlanFacts::from_selected_plans(vec![syscall.clone()])
+        .expect("exact syscall role remains selectable data");
     let syscall_plan = abstract_plan(
         vec![boundary(1, LEAF_REQUIREMENT)],
         Vec::new(),
         vec![function(1, &[1])],
     );
+    let syscall_boundary = BoundaryMachineId::new(1).unwrap();
+    let mechanism =
+        super::super::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+            omega_target::TargetProfile::LinuxX64,
+            1,
+            &syscall_plan,
+            syscall_boundary,
+        )
+        .expect("verified zero-argument syscall has a conservative checked contract");
+    let physical =
+        super::super::terminal_authority_policy::terminal_authority_policy_with_rows(vec![
+            super::super::terminal_authority_policy::TerminalAuthorityPolicyRow::new(
+                mechanism,
+                TerminalAuthorityDisposition::from_classes([]),
+            ),
+        ])
+        .expect("exact syscall policy row");
+    let permitted = permission_policy(&[&syscall], TerminalAuthorityDisposition::from_classes([]));
+    let admitted = [AdmittedTerminalMechanism {
+        boundary: syscall_boundary,
+        mechanism,
+    }];
+    let receipt = review_terminal_authority_closure(
+        [10; 32],
+        omega_target::TargetProfile::LinuxX64,
+        &syscall_plan,
+        &syscall_selected,
+        &physical,
+        &permitted,
+        &admitted,
+        &[],
+    )
+    .expect("checked syscall identity reaches exact closure review");
+    assert_eq!(receipt.leaves()[0].mechanism(), mechanism);
+
+    let mut substituted = syscall.clone();
+    substituted.rows[0].binding = ProviderBinding::Syscall { number: 2 };
+    let substituted = SelectedProviderPlanFacts::from_selected_plans(vec![substituted])
+        .expect("substituted syscall plan remains ordinary data");
     assert!(
-            review_terminal_authority_closure(
-                [10; 32],
-                omega_target::TargetProfile::LinuxX64,
-                &syscall_plan,
-                &syscall_selected,
-                &super::super::terminal_authority_policy::current_terminal_authority_policy(),
-                &super::super::terminal_authority_permission_policy::current_terminal_authority_permission_policy(),
-                &[],
-                &[],
-            )
-            .expect_err("unsupported syscall role rejects")
-            .contains("unsupported syscall")
-        );
+        review_terminal_authority_closure(
+            [10; 32],
+            omega_target::TargetProfile::LinuxX64,
+            &syscall_plan,
+            &substituted,
+            &physical,
+            &permitted,
+            &admitted,
+            &[],
+        )
+        .expect_err("syscall number substitution rejects")
+        .contains("substituted its selected binding role")
+    );
+
+    let TerminalMechanismIdentity::Syscall(exact_syscall) = mechanism else {
+        unreachable!()
+    };
+    let wrong_contract: TerminalMechanismIdentity = SyscallTerminalMechanismIdentity::new(
+        exact_syscall.target(),
+        exact_syscall.number(),
+        CheckedSyscallArgumentContractIdentity::from_digest([99; 32]),
+    )
+    .into();
+    let wrong_policy =
+        super::super::terminal_authority_policy::terminal_authority_policy_with_rows(vec![
+            super::super::terminal_authority_policy::TerminalAuthorityPolicyRow::new(
+                wrong_contract,
+                TerminalAuthorityDisposition::from_classes([]),
+            ),
+        ])
+        .expect("substituted contract policy remains ordinary data");
+    assert!(
+        review_terminal_authority_closure(
+            [10; 32],
+            omega_target::TargetProfile::LinuxX64,
+            &syscall_plan,
+            &syscall_selected,
+            &wrong_policy,
+            &permitted,
+            &admitted,
+            &[],
+        )
+        .expect_err("checked syscall contract substitution rejects")
+        .contains("does not classify")
+    );
+
+    assert!(
+        super::super::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+            omega_target::TargetProfile::WindowsX64,
+            1,
+            &syscall_plan,
+            syscall_boundary,
+        )
+        .expect_err("unsupported syscall target rejects")
+        .contains("does not support target")
+    );
 }

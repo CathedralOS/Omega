@@ -1,4 +1,4 @@
-//! Source-evaluated import demand to normalized-settlement admission.
+//! Source-selected import and syscall demand to exact mechanism admission.
 
 use std::collections::BTreeSet;
 
@@ -34,7 +34,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
         };
         let Some(requirement) = boundary_identities.get(boundary) else {
             return Err(vec![Diagnostic::error(format!(
-                "source-evaluated import demand cites absent boundary {boundary:?}"
+                "external-binding demand cites absent boundary {boundary:?}"
             ))]);
         };
         demanded.insert(*requirement);
@@ -100,12 +100,13 @@ pub(super) fn validate_source_evaluated_import_coverage(
                 matches!(
                     row.binding,
                     omega_effects::provider_plan::ProviderBinding::Import { .. }
+                        | omega_effects::provider_plan::ProviderBinding::Syscall { .. }
                         | omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { .. }
                 )
             })
         {
             return Err(vec![Diagnostic::error(format!(
-                "demanded import `{requirement}` resolves to {} selected provider rows",
+                "demanded external binding `{requirement}` resolves to {} selected provider rows",
                 selected_rows.len(),
             ))]);
         }
@@ -118,6 +119,104 @@ pub(super) fn validate_source_evaluated_import_coverage(
             return Err(vec![Diagnostic::error(format!(
                 "demanded import `{requirement}` retains a legacy string-backed binding with no normalized terminal-mechanism identity"
             ))]);
+        }
+        let syscall_matches = selected_rows
+            .iter()
+            .filter(|(_, row)| {
+                matches!(
+                    row.binding,
+                    omega_effects::provider_plan::ProviderBinding::Syscall { .. }
+                )
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        match syscall_matches.as_slice() {
+            [] => {}
+            [(provider_plan, row)] => {
+                let omega_effects::provider_plan::ProviderBinding::Syscall { number } = row.binding
+                else {
+                    unreachable!("filtered syscall row")
+                };
+                let target_profile =
+                    omega_target::TargetProfile::from_canonical_target_name(&provider_plan.target)
+                        .map_err(|diagnostic| vec![diagnostic])?;
+                if target_profile.native_target() != target {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded syscall `{requirement}` targets `{}` rather than the receiving native target",
+                        provider_plan.target,
+                    ))]);
+                }
+                let external_rows = external_binding_rows
+                    .iter()
+                    .filter(|external| external.requirement_identity == requirement)
+                    .collect::<Vec<_>>();
+                let [external] = external_rows.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded syscall `{requirement}` resolves to {} retained external binding rows",
+                        external_rows.len(),
+                    ))]);
+                };
+                let omega_calling_conventions::ExternalBindingKind::Syscall {
+                    number: external_number,
+                } = external.binding
+                else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded syscall `{requirement}` does not retain one exact syscall external binding"
+                    ))]);
+                };
+                let external_target_profile =
+                    omega_target::TargetProfile::from_canonical_target_name(&external.target_name)
+                        .map_err(|diagnostic| vec![diagnostic])?;
+                if external_target_profile != target_profile {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded syscall `{requirement}` substituted its retained external target profile"
+                    ))]);
+                }
+                if external_number != number {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded syscall `{requirement}` substituted its normalized syscall number"
+                    ))]);
+                }
+                let matching_boundaries = boundary_identities
+                    .iter()
+                    .filter(|(_, identity)| **identity == requirement)
+                    .map(|(boundary, _)| *boundary)
+                    .collect::<Vec<_>>();
+                let [boundary] = matching_boundaries.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded syscall `{requirement}` resolves to {} Terminal boundaries",
+                        matching_boundaries.len(),
+                    ))]);
+                };
+                let mechanism = crate::realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+                    target_profile,
+                    number,
+                    plan,
+                    *boundary,
+                )
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "demanded syscall `{requirement}` has no exact checked argument contract: {error}"
+                    ))]
+                })?;
+                policy.classify(mechanism).map_err(|unclassified| {
+                    vec![Diagnostic::error(format!(
+                        "receiving terminal-authority policy version {} does not classify syscall mechanism {:?} required by `{requirement}`",
+                        policy.identity().version(),
+                        unclassified.mechanism(),
+                    ))]
+                })?;
+                admitted_mechanisms.push(AdmittedTerminalMechanism {
+                    boundary: *boundary,
+                    mechanism,
+                });
+            }
+            matches => {
+                return Err(vec![Diagnostic::error(format!(
+                    "demanded syscall `{requirement}` resolves to {} selected syscall rows",
+                    matches.len(),
+                ))]);
+            }
         }
         let import_matches = selected_rows
             .iter()
