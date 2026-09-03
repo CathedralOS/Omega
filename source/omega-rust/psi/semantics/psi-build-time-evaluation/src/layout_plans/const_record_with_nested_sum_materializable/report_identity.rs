@@ -70,8 +70,8 @@ pub(super) fn depth_three_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_two_paths_reports_match_for_replay(
-                &left.depth_two_paths,
-                &right.depth_two_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -89,8 +89,8 @@ pub(super) fn depth_twelve_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_eleven_paths_reports_match_for_replay(
-                &left.depth_eleven_paths,
-                &right.depth_eleven_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -108,8 +108,8 @@ pub(super) fn depth_thirteen_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_twelve_paths_reports_match_for_replay(
-                &left.depth_twelve_paths,
-                &right.depth_twelve_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -127,8 +127,8 @@ pub(super) fn depth_fourteen_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_thirteen_paths_reports_match_for_replay(
-                &left.depth_thirteen_paths,
-                &right.depth_thirteen_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -146,8 +146,8 @@ pub(super) fn depth_fifteen_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_fourteen_paths_reports_match_for_replay(
-                &left.depth_fourteen_paths,
-                &right.depth_fourteen_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -165,8 +165,8 @@ pub(super) fn depth_eleven_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_ten_paths_reports_match_for_replay(
-                &left.depth_ten_paths,
-                &right.depth_ten_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -184,8 +184,8 @@ pub(super) fn depth_ten_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_nine_paths_reports_match_for_replay(
-                &left.depth_nine_paths,
-                &right.depth_nine_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -203,8 +203,8 @@ pub(super) fn depth_nine_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_eight_paths_reports_match_for_replay(
-                &left.depth_eight_paths,
-                &right.depth_eight_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -222,8 +222,8 @@ pub(super) fn depth_eight_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_seven_paths_reports_match_for_replay(
-                &left.depth_seven_paths,
-                &right.depth_seven_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -241,8 +241,8 @@ pub(super) fn depth_seven_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_six_paths_reports_match_for_replay(
-                &left.depth_six_paths,
-                &right.depth_six_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -260,8 +260,8 @@ pub(super) fn depth_six_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_five_paths_reports_match_for_replay(
-                &left.depth_five_paths,
-                &right.depth_five_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -279,8 +279,8 @@ pub(super) fn depth_five_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_four_paths_reports_match_for_replay(
-                &left.depth_four_paths,
-                &right.depth_four_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -298,8 +298,8 @@ pub(super) fn depth_four_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_three_paths_reports_match_for_replay(
-                &left.depth_three_paths,
-                &right.depth_three_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -316,7 +316,7 @@ pub(super) fn depth_two_paths_reports_match_for_replay(
                 left.outer_member_identity,
                 &right.outer_field,
                 right.outer_member_identity,
-            ) && nested_paths_reports_match_for_replay(&left.middle_paths, &right.middle_paths)
+            ) && nested_paths_reports_match_for_replay(&left.inner, &right.inner)
         })
 }
 
@@ -384,7 +384,7 @@ pub(super) fn depth_twelve_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_eleven_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -438,7 +438,7 @@ pub(super) fn depth_thirteen_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_twelve_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -492,7 +492,7 @@ pub(super) fn depth_fourteen_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_thirteen_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -545,7 +545,7 @@ pub(super) fn depth_fifteen_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_fourteen_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -599,7 +599,7 @@ pub(super) fn depth_eleven_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_ten_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -653,7 +653,7 @@ pub(super) fn depth_ten_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_nine_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -707,7 +707,7 @@ pub(super) fn depth_nine_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_eight_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -761,7 +761,7 @@ pub(super) fn depth_eight_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_seven_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -815,7 +815,7 @@ pub(super) fn depth_seven_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_six_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -869,7 +869,7 @@ pub(super) fn depth_six_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_five_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -923,7 +923,7 @@ pub(super) fn depth_five_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_four_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -977,7 +977,7 @@ pub(super) fn depth_four_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_three_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -1031,7 +1031,7 @@ pub(super) fn depth_three_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_two_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -1183,7 +1183,7 @@ pub(super) fn depth_two_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.middle_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,

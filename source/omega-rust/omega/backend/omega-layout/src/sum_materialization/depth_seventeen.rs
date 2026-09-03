@@ -161,54 +161,54 @@ pub(super) fn project_conventional_record_with_depth_seventeen_nested_sums_mater
                 )));
             }
             for sixteenth_occurrence in &depth_sixteen_paths.paths {
-                for fifteenth_occurrence in &sixteenth_occurrence.depth_fifteen_paths.paths {
-                    for fourteenth_occurrence in &fifteenth_occurrence.depth_fourteen_paths.paths {
+                for fifteenth_occurrence in &sixteenth_occurrence.inner.paths {
+                    for fourteenth_occurrence in &fifteenth_occurrence.inner.paths {
                         for thirteenth_occurrence in
-                            &fourteenth_occurrence.depth_thirteen_paths.paths
+                            &fourteenth_occurrence.inner.paths
                         {
                             for twelfth_occurrence in
-                                &thirteenth_occurrence.depth_twelve_paths.paths
+                                &thirteenth_occurrence.inner.paths
                             {
                                 for eleventh_occurrence in
-                                    &twelfth_occurrence.depth_eleven_paths.paths
+                                    &twelfth_occurrence.inner.paths
                                 {
                                     for tenth_occurrence in
-                                        &eleventh_occurrence.depth_ten_paths.paths
+                                        &eleventh_occurrence.inner.paths
                                     {
                                         for ninth_occurrence in
-                                            &tenth_occurrence.depth_nine_paths.paths
+                                            &tenth_occurrence.inner.paths
                                         {
                                             for eighth_occurrence in
-                                                &ninth_occurrence.depth_eight_paths.paths
+                                                &ninth_occurrence.inner.paths
                                             {
                                                 for seventh_occurrence in
-                                                    &eighth_occurrence.depth_seven_paths.paths
+                                                    &eighth_occurrence.inner.paths
                                                 {
                                                     for sixth_occurrence in
-                                                        &seventh_occurrence.depth_six_paths.paths
+                                                        &seventh_occurrence.inner.paths
                                                     {
                                                         for fifth_occurrence in
-                                                            &sixth_occurrence.depth_five_paths.paths
+                                                            &sixth_occurrence.inner.paths
                                                         {
                                                             for fourth_occurrence in
                                                                 &fifth_occurrence
-                                                                    .depth_four_paths
+                                                                    .inner
                                                                     .paths
                                                             {
                                                                 for third_occurrence in
                                                                     &fourth_occurrence
-                                                                        .depth_three_paths
+                                                                        .inner
                                                                         .paths
                                                                 {
                                                                     for second_occurrence in
                                                                         &third_occurrence
-                                                                            .depth_two_paths
+                                                                            .inner
                                                                             .paths
                                                                     {
                                                                         total_leaf_paths = total_leaf_paths
                                                         .checked_add(
                                                             second_occurrence
-                                                                .middle_paths
+                                                                .inner
                                                                 .paths
                                                                 .len(),
                                                         )
@@ -240,7 +240,7 @@ pub(super) fn project_conventional_record_with_depth_seventeen_nested_sums_mater
             paths.push(ConventionalDepthSeventeenRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_sixteen_paths,
+                inner: depth_sixteen_paths,
             });
         }
 

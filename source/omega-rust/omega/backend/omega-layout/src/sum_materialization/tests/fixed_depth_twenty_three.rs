@@ -59,8 +59,8 @@ fn plural_depth_twenty_three_paths_compose_depth_twenty_two_custody_and_retain_f
     assert_eq!(paths.paths[0].outer_member_identity, Some(1));
     assert_eq!(paths.paths[1].outer_field, "right");
     assert_eq!(paths.paths[1].outer_member_identity, Some(2));
-    assert_eq!(paths.paths[0].depth_twenty_two_paths.paths.len(), 1);
-    assert_eq!(paths.paths[1].depth_twenty_two_paths.paths.len(), 1);
+    assert_eq!(paths.paths[0].inner.paths.len(), 1);
+    assert_eq!(paths.paths[1].inner.paths.len(), 1);
     assert_eq!(paths.outer_layout.offsets.as_deref(), Some(&[0, 8][..]));
     assert_eq!(paths.outer_layout.size, Some(16));
 
@@ -235,51 +235,51 @@ fn plural_depth_twenty_three_paths_compose_depth_twenty_two_custody_and_retain_f
     wrong_outer_identity.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_outer_identity);
     let mut wrong_inner_identity = paths.clone();
-    wrong_inner_identity.paths[0].depth_twenty_two_paths.paths[0].outer_member_identity = Some(2);
+    wrong_inner_identity.paths[0].inner.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].depth_twenty_two_paths.paths[0]
-        .depth_twenty_one_paths
+    wrong_leaf_geometry.paths[0].inner.paths[0]
+        .inner
         .paths[0]
-        .depth_twenty_paths
+        .inner
         .paths[0]
-        .depth_nineteen_paths
+        .inner
         .paths[0]
-        .depth_eighteen_paths
+        .inner
         .paths[0]
-        .depth_seventeen_paths
+        .inner
         .paths[0]
-        .depth_sixteen_paths
+        .inner
         .paths[0]
-        .depth_fifteen_paths
+        .inner
         .paths[0]
-        .depth_fourteen_paths
+        .inner
         .paths[0]
-        .depth_thirteen_paths
+        .inner
         .paths[0]
-        .depth_twelve_paths
+        .inner
         .paths[0]
-        .depth_eleven_paths
+        .inner
         .paths[0]
-        .depth_ten_paths
+        .inner
         .paths[0]
-        .depth_nine_paths
+        .inner
         .paths[0]
-        .depth_eight_paths
+        .inner
         .paths[0]
-        .depth_seven_paths
+        .inner
         .paths[0]
-        .depth_six_paths
+        .inner
         .paths[0]
-        .depth_five_paths
+        .inner
         .paths[0]
-        .depth_four_paths
+        .inner
         .paths[0]
-        .depth_three_paths
+        .inner
         .paths[0]
-        .depth_two_paths
+        .inner
         .paths[0]
-        .middle_paths
+        .inner
         .paths[0]
         .child_sum_layouts[0]
         .layout
@@ -288,48 +288,48 @@ fn plural_depth_twenty_three_paths_compose_depth_twenty_two_custody_and_retain_f
         .offset += 1;
     rejects(&wrong_leaf_geometry);
     let mut wrong_case_ordinal = paths.clone();
-    wrong_case_ordinal.paths[0].depth_twenty_two_paths.paths[0]
-        .depth_twenty_one_paths
+    wrong_case_ordinal.paths[0].inner.paths[0]
+        .inner
         .paths[0]
-        .depth_twenty_paths
+        .inner
         .paths[0]
-        .depth_nineteen_paths
+        .inner
         .paths[0]
-        .depth_eighteen_paths
+        .inner
         .paths[0]
-        .depth_seventeen_paths
+        .inner
         .paths[0]
-        .depth_sixteen_paths
+        .inner
         .paths[0]
-        .depth_fifteen_paths
+        .inner
         .paths[0]
-        .depth_fourteen_paths
+        .inner
         .paths[0]
-        .depth_thirteen_paths
+        .inner
         .paths[0]
-        .depth_twelve_paths
+        .inner
         .paths[0]
-        .depth_eleven_paths
+        .inner
         .paths[0]
-        .depth_ten_paths
+        .inner
         .paths[0]
-        .depth_nine_paths
+        .inner
         .paths[0]
-        .depth_eight_paths
+        .inner
         .paths[0]
-        .depth_seven_paths
+        .inner
         .paths[0]
-        .depth_six_paths
+        .inner
         .paths[0]
-        .depth_five_paths
+        .inner
         .paths[0]
-        .depth_four_paths
+        .inner
         .paths[0]
-        .depth_three_paths
+        .inner
         .paths[0]
-        .depth_two_paths
+        .inner
         .paths[0]
-        .middle_paths
+        .inner
         .paths[0]
         .child_sum_layouts[0]
         .layout
@@ -338,13 +338,13 @@ fn plural_depth_twenty_three_paths_compose_depth_twenty_two_custody_and_retain_f
     rejects(&wrong_case_ordinal);
     let mut wrong_child_extent = paths.clone();
     wrong_child_extent.paths[0]
-        .depth_twenty_two_paths
+        .inner
         .outer_layout
         .size = Some(16);
     rejects(&wrong_child_extent);
     let mut wrong_child_alignment = paths.clone();
     wrong_child_alignment.paths[0]
-        .depth_twenty_two_paths
+        .inner
         .outer_layout
         .align = 16;
     rejects(&wrong_child_alignment);

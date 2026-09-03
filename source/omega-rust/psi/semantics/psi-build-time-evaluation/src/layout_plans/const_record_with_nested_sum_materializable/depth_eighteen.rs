@@ -20,8 +20,8 @@ pub(super) fn depth_eighteen_paths_reports_match_for_replay(
                 &right.outer_field,
                 right.outer_member_identity,
             ) && depth_seventeen_paths_reports_match_for_replay(
-                &left.depth_seventeen_paths,
-                &right.depth_seventeen_paths,
+                &left.inner,
+                &right.inner,
             )
         })
 }
@@ -58,7 +58,7 @@ fn depth_eighteen_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_seventeen_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.inner.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -237,7 +237,7 @@ impl ValidatedConstRecordWithDepthEighteenNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_seventeen_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -478,56 +478,56 @@ fn derive_depth_eighteen_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for seventeenth_occurrence in &path.depth_seventeen_paths.paths {
-            for sixteenth_occurrence in &seventeenth_occurrence.depth_sixteen_paths.paths {
-                for fifteenth_occurrence in &sixteenth_occurrence.depth_fifteen_paths.paths {
-                    for fourteenth_occurrence in &fifteenth_occurrence.depth_fourteen_paths.paths {
+        for seventeenth_occurrence in &path.inner.paths {
+            for sixteenth_occurrence in &seventeenth_occurrence.inner.paths {
+                for fifteenth_occurrence in &sixteenth_occurrence.inner.paths {
+                    for fourteenth_occurrence in &fifteenth_occurrence.inner.paths {
                         for thirteenth_occurrence in
-                            &fourteenth_occurrence.depth_thirteen_paths.paths
+                            &fourteenth_occurrence.inner.paths
                         {
                             for twelfth_occurrence in
-                                &thirteenth_occurrence.depth_twelve_paths.paths
+                                &thirteenth_occurrence.inner.paths
                             {
                                 for eleventh_occurrence in
-                                    &twelfth_occurrence.depth_eleven_paths.paths
+                                    &twelfth_occurrence.inner.paths
                                 {
                                     for tenth_occurrence in
-                                        &eleventh_occurrence.depth_ten_paths.paths
+                                        &eleventh_occurrence.inner.paths
                                     {
                                         for ninth_occurrence in
-                                            &tenth_occurrence.depth_nine_paths.paths
+                                            &tenth_occurrence.inner.paths
                                         {
                                             for eighth_occurrence in
-                                                &ninth_occurrence.depth_eight_paths.paths
+                                                &ninth_occurrence.inner.paths
                                             {
                                                 for seventh_occurrence in
-                                                    &eighth_occurrence.depth_seven_paths.paths
+                                                    &eighth_occurrence.inner.paths
                                                 {
                                                     for sixth_occurrence in
-                                                        &seventh_occurrence.depth_six_paths.paths
+                                                        &seventh_occurrence.inner.paths
                                                     {
                                                         for fifth_occurrence in
-                                                            &sixth_occurrence.depth_five_paths.paths
+                                                            &sixth_occurrence.inner.paths
                                                         {
                                                             for fourth_occurrence in
                                                                 &fifth_occurrence
-                                                                    .depth_four_paths
+                                                                    .inner
                                                                     .paths
                                                             {
                                                                 for third_occurrence in
                                                                     &fourth_occurrence
-                                                                        .depth_three_paths
+                                                                        .inner
                                                                         .paths
                                                                 {
                                                                     for second_occurrence in
                                                                         &third_occurrence
-                                                                            .depth_two_paths
+                                                                            .inner
                                                                             .paths
                                                                     {
                                                                         total_leaf_occurrences = total_leaf_occurrences
                                                     .checked_add(
                                                         second_occurrence
-                                                            .middle_paths
+                                                            .inner
                                                             .paths
                                                             .len(),
                                                     )
@@ -593,12 +593,12 @@ fn derive_depth_eighteen_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_seventeen_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_seventeen_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_seventeen_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-eighteen path `{}` requires one exact inner extent",
                 inner_field.name
@@ -670,11 +670,11 @@ fn derive_depth_eighteen_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_seventeen_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-seventeen extent"),
-                align: path.depth_seventeen_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
