@@ -12,6 +12,7 @@ path = "src/lib.rs"
 omega-build-declarations = { path = "../../build/omega-build-declarations" }
 omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
 omega-compiler = { path = "../../compiler/omega-compiler" }
+omega-effects = { path = "../../representations/omega-effects" }
 omega-package-evidence = { path = "../review/evidence" }
 omega-package-source = { path = "../sources/acquisition" }
 omega-package-compilation = { path = "../../build/omega-package-compilation" }
@@ -34,5 +35,4 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 omega-build-evaluation = { path = "../../build/omega-build-evaluation", features = ["test-support"] }
-omega-effects = { path = "../../representations/omega-effects" }
 omega-package-source = { path = "../sources/acquisition", features = ["test-fixtures"] }

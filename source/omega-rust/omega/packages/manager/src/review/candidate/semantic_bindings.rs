@@ -2,12 +2,50 @@ use super::{CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet};
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use omega_compiler::CheckedCompilation;
+use omega_effects::provider_plan::ServiceSchema;
 use omega_package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use omega_package_evidence::record::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
     PackageReviewNominalIdentity, PackageReviewNominalOwner,
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+/// One compiler-issued semantic-binding proposal together with the exact
+/// checked service schema from which a consumer may author permission rows.
+///
+/// The schema is review material, not policy: this carrier never assigns an
+/// authority class from a service path or readable method name. A caller must
+/// explicitly choose exact requirement identities and submit the resulting
+/// binding for a complete checked recompilation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SemanticBindingReviewCandidate {
+    binding: AcceptedSemanticBinding,
+    service_schema: ServiceSchema,
+}
+
+impl SemanticBindingReviewCandidate {
+    fn new(binding: AcceptedSemanticBinding, service_schema: ServiceSchema) -> Self {
+        debug_assert_eq!(
+            binding.normalized_schema_digest(),
+            omega_package_compilation::accepted_service_schema_digest(
+                binding.role(),
+                &service_schema,
+            ),
+        );
+        Self {
+            binding,
+            service_schema,
+        }
+    }
+
+    pub const fn binding(&self) -> &AcceptedSemanticBinding {
+        &self.binding
+    }
+
+    pub const fn service_schema(&self) -> &ServiceSchema {
+        &self.service_schema
+    }
+}
 
 /// One consumer-scoped semantic-binding policy input for candidate review.
 ///
@@ -76,15 +114,12 @@ pub(super) fn candidate_semantic_binding_inputs(
 ) -> Result<Vec<ConsumerScopedSemanticBindingReviewInput>, CompileResolvedPackageReviewsError> {
     let mut inputs = Vec::new();
     for review in preliminary.reviews() {
-        inputs.extend(
-            review
-                .semantic_binding_candidates
-                .iter()
-                .cloned()
-                .map(|binding| {
-                    ConsumerScopedSemanticBindingReviewInput::new(review.key().clone(), binding)
-                }),
-        );
+        inputs.extend(review.semantic_binding_candidates.iter().map(|candidate| {
+            ConsumerScopedSemanticBindingReviewInput::new(
+                review.key().clone(),
+                candidate.binding().clone(),
+            )
+        }));
         let candidates = review
             .projection()
             .selected_providers()
@@ -137,7 +172,7 @@ pub(super) fn candidate_service_bindings(
     checked: &CheckedCompilation,
     projection: &CheckedPackageReviewProjection,
     consumer: &PackageKey,
-) -> Result<Vec<AcceptedSemanticBinding>, CompileResolvedPackageReviewsError> {
+) -> Result<Vec<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
     let referenced = projection
         .callables()
         .iter()
@@ -170,19 +205,60 @@ pub(super) fn candidate_service_bindings(
             },
         );
     };
-    checked
+    let binding = checked
         .candidate_service_binding(
             AcceptedSemanticBindingRole::FilesystemHostService,
             *package,
             path,
         )
-        .map(|binding| vec![binding])
         .map_err(
             |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                 consumer: consumer.clone(),
                 role: AcceptedSemanticBindingRole::FilesystemHostService,
             },
-        )
+        )?;
+    let definitions = checked
+        .traits()
+        .iter()
+        .filter(|definition| {
+            checked
+                .typed
+                .symbols
+                .symbol_package_identity(definition.symbol)
+                == Some(*package)
+                && checked.typed.symbols.display_path(definition.symbol, "::") == *path
+        })
+        .collect::<Vec<_>>();
+    let [definition] = definitions.as_slice() else {
+        return Err(
+            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                consumer: consumer.clone(),
+                role: AcceptedSemanticBindingRole::FilesystemHostService,
+            },
+        );
+    };
+    let Some(service_schema) = ServiceSchema::from_typed(&checked.typed, definition) else {
+        return Err(
+            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                consumer: consumer.clone(),
+                role: AcceptedSemanticBindingRole::FilesystemHostService,
+            },
+        );
+    };
+    if omega_package_compilation::accepted_service_schema_digest(binding.role(), &service_schema)
+        != binding.normalized_schema_digest()
+    {
+        return Err(
+            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                consumer: consumer.clone(),
+                role: AcceptedSemanticBindingRole::FilesystemHostService,
+            },
+        );
+    }
+    Ok(vec![SemanticBindingReviewCandidate::new(
+        binding,
+        service_schema,
+    )])
 }
 
 fn callable_service_references(

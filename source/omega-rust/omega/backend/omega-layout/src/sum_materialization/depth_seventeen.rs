@@ -28,7 +28,7 @@ pub fn project_conventional_record_with_depth_seventeen_nested_sums_materializat
     )
 }
 
-fn project_conventional_record_with_depth_seventeen_nested_sums_materialization_layout_with_reachability(
+pub(super) fn project_conventional_record_with_depth_seventeen_nested_sums_materialization_layout_with_reachability(
     program: &CheckedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,

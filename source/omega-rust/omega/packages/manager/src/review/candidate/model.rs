@@ -11,6 +11,8 @@ use omega_package_evidence::record::{CheckedPackageReviewProjection, PackageRevi
 use omega_package_source::ImmutableSourceResolution;
 use std::path::PathBuf;
 
+use super::semantic_bindings::SemanticBindingReviewCandidate;
+
 /// Compiler-issued review material for one exact package source selection.
 ///
 /// There is deliberately no public constructor. The source resolution and
@@ -25,7 +27,7 @@ pub struct CompilerIssuedPackageReview {
     pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<BuildObservationSummary>,
     pub(super) semantic_bindings: Vec<AcceptedSemanticBinding>,
-    pub(super) semantic_binding_candidates: Vec<AcceptedSemanticBinding>,
+    pub(super) semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
     pub(super) projection: CheckedPackageReviewProjection,
     pub(super) canonical_review_bytes: Vec<u8>,
@@ -71,6 +73,14 @@ impl CompilerIssuedPackageReview {
     /// every resulting blocking row.
     pub fn semantic_bindings(&self) -> &[AcceptedSemanticBinding] {
         &self.semantic_bindings
+    }
+
+    /// Compiler-issued, non-authoritative binding surfaces from the
+    /// preliminary pass. Consumers may inspect their exact checked schemas to
+    /// author policy for a final recompilation; the candidates themselves are
+    /// neither accepted bindings nor permission grants.
+    pub fn semantic_binding_candidates(&self) -> &[SemanticBindingReviewCandidate] {
+        &self.semantic_binding_candidates
     }
 
     /// Exact explicit generated-source handoffs from the same checked run as

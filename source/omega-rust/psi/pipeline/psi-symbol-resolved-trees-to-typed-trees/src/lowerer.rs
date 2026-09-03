@@ -477,11 +477,18 @@ fn exact_extension_machine_symbol(
     source: &SymbolResolvedTrees,
     machine: &psi_symbol_resolved_trees::machine::Machine,
 ) -> bool {
+    let type_parameters = source.data_type_parameters(machine.type_parameters);
     if !machine.symbol.is_valid()
         || source.symbols.get(machine.symbol).kind != psi_symbols::SymbolKind::Machine
         || source.symbols.name(machine.symbol) != machine.name.as_str()
         || !machine.lifetime_parameters.is_empty()
-        || !machine.type_parameters.is_empty()
+        || !type_parameters.iter().all(|parameter| {
+            matches!(
+                &parameter.kind,
+                psi_symbol_resolved_trees::data::TypeParameterKind::Type
+            ) && parameter.bounds == psi_symbol_resolved_trees::data::DataProperties::default()
+                && seeded_local_instances::parameter_is_supported(source, machine.symbol, parameter)
+        })
         || !machine.satisfies.is_empty()
         || !machine.conformance_bounds.is_empty()
         || !machine.ranking_subjects.is_empty()

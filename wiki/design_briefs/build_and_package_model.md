@@ -305,13 +305,18 @@ only extension-owned authored-selection occurrences.
 The typed continuation admits the already validated data cohorts—plain and
 lifetime-bearing data, local and retained-base applications, bounded
 constrained arguments, scalar const arguments, and exact structured const
-provenance—plus ordinary monomorphic machines and monomorphic attached methods.
-An attached method is admitted only when its exact `attached_data_symbol`
-selects the retained or newly generated declaration it names. Suffix-only
-finalization owns satisfied declarations, progress premises, domain
-constraints, semantic qualification casts, and fixed-byte literal landing.
-The matching post-typing evaluator then runs on the completed candidate;
-wire-plan publication begins at the extension wire-schema frontier.
+provenance—plus ordinary monomorphic machines, monomorphic attached methods,
+and the first generic-machine cohort. An attached method is admitted only when
+its exact `attached_data_symbol` selects the retained or newly generated
+declaration it names. A generic machine in this cohort is an ordinary checked
+body whose finite binder list contains only exact machine-parented, unbounded
+`Type` parameters. Lifetime, const, static-machine/proposition binders,
+property and conformance bounds, `satisfies`, and broader supply/operational
+forms remain fenced. Suffix-only finalization owns satisfied declarations,
+progress premises, domain constraints, semantic qualification casts, and
+fixed-byte literal landing. The matching post-typing evaluator then runs on the
+completed candidate; wire-plan publication begins at the extension wire-schema
+frontier.
 
 A final structural gate requires every retained root graph, symbol/name/path
 row, authored selection, semantic table, evidence/proof/ranking record, and
@@ -338,11 +343,11 @@ portable cohorts missing the selected target cannot hide across source strata
 or generated units. It mutates only the extension, consumes the exact retained
 base selection carrier into one combined carrier, and settles selected origins
 and target-owned `provider_defaults` against the final typed continuation.
-Unselected generated siblings remain inert. Generic machines,
-satisfactions/conformance bounds, broader supply forms, additional root kinds,
-and the remaining fenced data shapes still require explicit append-only
-continuation cohorts. These are implementation tasks, not alternate language
-semantics.
+Unselected generated siblings remain inert. Broader generic binders and
+constraints, satisfactions/conformance bounds, broader supply forms, additional
+root kinds, and the remaining fenced data shapes still require explicit append-
+only continuation cohorts. These are implementation tasks, not alternate
+language semantics.
 
 Canaries cover exact configuration and build-evidence retention, one-way
 overload/conformance visibility, generated machine and attached-method
@@ -4156,6 +4161,11 @@ canonical boundary declaration path, and normalized complete service schema;
 it carries no provider-plan digest and cannot synthesize a provider. Confined
 candidate review currently nominates package-owned reached declarations named
 `FilesystemHost` for this role, but that readable name grants nothing. The
+preliminary review also retains that candidate's exact checked `ServiceSchema`
+as non-authoritative consumer review material. This lets policy authoring
+select complete requirement identities from the compiler-issued schema rather
+than reconstructing them from spelling; it still assigns no permission and
+the final checked pass must rejoin every submitted row exactly. The
 bound compiler replay must consume exactly one declaration matching all
 accepted coordinates before review classifies that exact resolved symbol as
 Filesystem authority. Foreign, stale, ambiguous, and unmatched bindings reject.

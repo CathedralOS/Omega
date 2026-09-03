@@ -105,11 +105,11 @@ tag placement.
 Subsequent independent fixed-depth reports extend that same composition through
 the complete plural depth-three, depth-four, depth-five, depth-six,
 depth-seven, depth-eight, depth-nine, depth-ten, depth-eleven, depth-twelve,
-depth-thirteen, depth-fourteen, depth-fifteen, depth-sixteen, and
-depth-seventeen cohorts.
+depth-thirteen, depth-fourteen, depth-fifteen, depth-sixteen,
+depth-seventeen, and depth-eighteen cohorts.
 The deepest live form is
-`Outer -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`:
-each outer occurrence owns the unchanged depth-sixteen report and non-clone
+`Outer -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`:
+each outer occurrence owns the unchanged depth-seventeen report and non-clone
 carrier, repeated nominal occurrences remain distinct, and projection plus
 replay share one memoized bounded walk and one global leaf ceiling. Every nested
 image is rebuilt from zero padding before one atomic outer copy. Deeper, recursive,
