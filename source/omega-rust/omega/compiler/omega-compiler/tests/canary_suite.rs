@@ -211,6 +211,8 @@ mod arithmetic_and_data;
 mod generics_and_dependent_facts;
 #[path = "canary_suite/host_text_filesystem_and_abi.rs"]
 mod host_text_filesystem_and_abi;
+#[path = "canary_suite/portable_terminal_reload.rs"]
+mod portable_terminal_reload;
 #[path = "canary_suite/providers_float_and_console.rs"]
 mod providers_float_and_console;
 #[path = "canary_suite/ranges_storage_and_entries.rs"]

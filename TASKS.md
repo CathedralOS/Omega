@@ -47,14 +47,6 @@ These are the next product-level priorities for the maintained Rust
 implementation. They take precedence over adding another evidence carrier that
 has no exercising program.
 
-- **PORTABLE-PSI-RELOAD-E2E.** Prove that Terminal Psi is a real distributable
-  compilation product. One invocation must serialize it, discard all frontend
-  and build-process objects, and a separate invocation must decode, verify, and
-  either interpret it or lower it with a newly supplied authority bundle.
-  Target/provider proposals carried with or beside the Psi product are inputs
-  the receiving lowerer may independently accept or reject; no original
-  `CheckedCompilation` may be reachable.
-
 - **RUST-COMPLETION-CONTRACT.** Replace the vague phrase "100% done" with a
   finite release matrix covering accepted language semantics, PCC and
   independent replay, portable Psi, package/build behavior, native targets,

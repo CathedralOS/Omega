@@ -16,6 +16,9 @@ use crate::{
     validate_artifact_manifest,
 };
 
+const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
+const ARTIFACT_FORMAT_MARKER: u16 = 1;
+
 /// One exact canonical Terminal-Psi semantic/proof artifact.
 #[derive(Debug, PartialEq, Eq)]
 #[must_use = "a canonical Terminal artifact owns the Psi-to-Omega handoff bytes"]
@@ -76,6 +79,89 @@ impl CanonicalTerminalArtifact {
         .map_err(CanonicalTerminalArtifactError::Manifest)
     }
 
+    /// Serialize every canonical Terminal-Psi section into one source-free
+    /// transport envelope. The manifest is reconstructed by the receiver from
+    /// the exact section bytes rather than trusted as redundant input.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let debug_header_bytes = if self.debug_bytes.is_some() { 9 } else { 1 };
+        let capacity = ARTIFACT_MAGIC
+            .len()
+            .saturating_add(2)
+            .saturating_add(16)
+            .saturating_add(debug_header_bytes)
+            .saturating_add(self.semantic_bytes.len())
+            .saturating_add(self.proof_bytes.len())
+            .saturating_add(self.debug_bytes.as_ref().map_or(0, Vec::len));
+        let mut bytes = Vec::with_capacity(capacity);
+        bytes.extend_from_slice(ARTIFACT_MAGIC);
+        bytes.extend_from_slice(&ARTIFACT_FORMAT_MARKER.to_le_bytes());
+        encode_section_len(&mut bytes, self.semantic_bytes.len());
+        encode_section_len(&mut bytes, self.proof_bytes.len());
+        match &self.debug_bytes {
+            None => bytes.push(0),
+            Some(debug) => {
+                bytes.push(1);
+                encode_section_len(&mut bytes, debug.len());
+            }
+        }
+        bytes.extend_from_slice(&self.semantic_bytes);
+        bytes.extend_from_slice(&self.proof_bytes);
+        if let Some(debug) = &self.debug_bytes {
+            bytes.extend_from_slice(debug);
+        }
+        bytes
+    }
+
+    /// Decode and independently replay a complete source-free transport
+    /// envelope. No producer-owned module, proof object, or manifest crosses
+    /// this boundary.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CanonicalTerminalArtifactError> {
+        let mut cursor = ArtifactCursor::new(bytes);
+        if cursor.take(ARTIFACT_MAGIC.len())? != ARTIFACT_MAGIC {
+            return Err(CanonicalTerminalArtifactEnvelopeError::InvalidMagic.into());
+        }
+        let marker = u16::from_le_bytes(cursor.array()?);
+        if marker != ARTIFACT_FORMAT_MARKER {
+            return Err(
+                CanonicalTerminalArtifactEnvelopeError::UnsupportedFormatMarker(marker).into(),
+            );
+        }
+        let semantic_len = cursor.section_len("semantic")?;
+        let proof_len = cursor.section_len("proof")?;
+        let debug_len = match cursor.byte()? {
+            0 => None,
+            1 => Some(cursor.section_len("debug")?),
+            tag => return Err(CanonicalTerminalArtifactEnvelopeError::InvalidDebugTag(tag).into()),
+        };
+        let semantic_bytes = cursor.take(semantic_len)?;
+        let proof_bytes = cursor.take(proof_len)?;
+        let debug_bytes = debug_len.map(|len| cursor.take(len)).transpose()?;
+        if cursor.remaining() != 0 {
+            return Err(
+                CanonicalTerminalArtifactEnvelopeError::TrailingBytes(cursor.remaining()).into(),
+            );
+        }
+
+        let semantic_module =
+            decode_module(semantic_bytes).map_err(CanonicalTerminalArtifactError::Semantic)?;
+        let proof_bundle =
+            decode_proof_bundle(proof_bytes).map_err(CanonicalTerminalArtifactError::Proof)?;
+        let debug_map = debug_bytes
+            .map(|debug| {
+                decode_debug_map(&semantic_module, debug)
+                    .map_err(CanonicalTerminalArtifactError::Debug)
+            })
+            .transpose()?;
+        let artifact = Self::from_parts(&semantic_module, &proof_bundle, debug_map.as_ref())?;
+        if artifact.semantic_bytes() != semantic_bytes
+            || artifact.proof_bytes() != proof_bytes
+            || artifact.debug_bytes() != debug_bytes
+        {
+            return Err(CanonicalTerminalArtifactEnvelopeError::NonCanonicalSections.into());
+        }
+        Ok(artifact)
+    }
+
     pub fn semantic_bytes(&self) -> &[u8] {
         &self.semantic_bytes
     }
@@ -93,12 +179,84 @@ impl CanonicalTerminalArtifact {
     }
 }
 
+fn encode_section_len(bytes: &mut Vec<u8>, len: usize) {
+    bytes.extend_from_slice(
+        &u64::try_from(len)
+            .expect("an in-memory Terminal artifact section fits u64")
+            .to_le_bytes(),
+    );
+}
+
+struct ArtifactCursor<'bytes> {
+    bytes: &'bytes [u8],
+    offset: usize,
+}
+
+impl<'bytes> ArtifactCursor<'bytes> {
+    const fn new(bytes: &'bytes [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    fn take(&mut self, len: usize) -> Result<&'bytes [u8], CanonicalTerminalArtifactEnvelopeError> {
+        let end = self
+            .offset
+            .checked_add(len)
+            .ok_or(CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd)?;
+        let value = self
+            .bytes
+            .get(self.offset..end)
+            .ok_or(CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd)?;
+        self.offset = end;
+        Ok(value)
+    }
+
+    fn array<const N: usize>(&mut self) -> Result<[u8; N], CanonicalTerminalArtifactEnvelopeError> {
+        self.take(N)?
+            .try_into()
+            .map_err(|_| CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd)
+    }
+
+    fn byte(&mut self) -> Result<u8, CanonicalTerminalArtifactEnvelopeError> {
+        Ok(self.array::<1>()?[0])
+    }
+
+    fn section_len(
+        &mut self,
+        section: &'static str,
+    ) -> Result<usize, CanonicalTerminalArtifactEnvelopeError> {
+        usize::try_from(u64::from_le_bytes(self.array()?))
+            .map_err(|_| CanonicalTerminalArtifactEnvelopeError::SectionTooLong(section))
+    }
+
+    fn remaining(&self) -> usize {
+        self.bytes.len() - self.offset
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalTerminalArtifactError {
     Semantic(CodecError),
     Proof(ProofCodecError),
     Debug(DebugMapError),
     Manifest(ArtifactManifestError),
+    Envelope(CanonicalTerminalArtifactEnvelopeError),
+}
+
+impl From<CanonicalTerminalArtifactEnvelopeError> for CanonicalTerminalArtifactError {
+    fn from(error: CanonicalTerminalArtifactEnvelopeError) -> Self {
+        Self::Envelope(error)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CanonicalTerminalArtifactEnvelopeError {
+    InvalidMagic,
+    UnsupportedFormatMarker(u16),
+    InvalidDebugTag(u8),
+    SectionTooLong(&'static str),
+    UnexpectedEnd,
+    TrailingBytes(usize),
+    NonCanonicalSections,
 }
 
 impl std::fmt::Display for CanonicalTerminalArtifactError {
