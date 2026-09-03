@@ -702,6 +702,15 @@ call. This changes only lowering. A dynamic value that is passed onward,
 rebound, stored, joined with another selection, or otherwise escapes that
 closed use retains the two-word representation above.
 
+The first implemented join records exactly two within-artifact predecessor
+calls into one bare dynamic state parameter. Checking preserves one complete
+path per alternative: the original named conformance selection, its source
+place, and every descriptor-carrying call edge through the join. It never
+chooses one incoming selection as representative. This bounded rung does not
+yet materialize or dispatch the joined descriptor in Terminal Psi; three-way
+joins, forwarding after a join, aggregate storage, returns, and component
+crossings remain rejected.
+
 Only a closed conformance block licenses local dynamic dispatch. A bodyless
 whole-trait conformance remains useful for static checking, but has no complete
 row map from which a descriptor table could be built. A bare exact-requirement

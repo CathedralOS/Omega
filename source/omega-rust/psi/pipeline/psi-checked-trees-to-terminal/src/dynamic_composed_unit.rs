@@ -704,7 +704,7 @@ fn validate_forwarding_transfer_path(
                 && transfer.source_binding == plan.receiver_binding
                 && transfer.source
                     == psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection
-                && transfer.selection == plan.selection
+                && transfer.sole_selection() == Some(&plan.selection)
         })
         .collect::<Vec<_>>();
     let [root] = roots.as_slice() else {
@@ -728,7 +728,7 @@ fn validate_forwarding_transfer_path(
                 != (psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 })
-            || transfer.selection != plan.selection
+            || transfer.sole_selection() != Some(&plan.selection)
             || !validate_parameter_forwarding_call(checked, transfer)?
         {
             return Ok(false);

@@ -233,10 +233,18 @@ fn build_checked_dynamic_descriptor_transfers(
                             })
                             .collect::<Vec<_>>();
                         local_selections.sort_by_key(|selection| selection.statement_index);
-                        let (selection, source) = if let Some(selection) = local_selections.last() {
+                        let (source, source_predecessor_count, mut source_paths) = if let Some(
+                            selection,
+                        ) =
+                            local_selections.last()
+                        {
                             (
-                                (*selection).clone(),
                                 psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection,
+                                0,
+                                vec![psi_checked_trees::CheckedDynamicDescriptorTransferPath {
+                                    selection: (*selection).clone(),
+                                    edges: Vec::new(),
+                                }],
                             )
                         } else {
                             let source_parameters = program
@@ -256,14 +264,10 @@ fn build_checked_dynamic_descriptor_transfers(
                                 program,
                                 source_parameter.type_reference,
                             ) != Some(target_trait)
-                                || inbound_call_site_counts.get(&(
-                                    caller_state.symbol.arena_index(),
-                                    caller_state.symbol.generation(),
-                                )) != Some(&1)
                             {
                                 continue;
                             }
-                            let incoming = transfers
+                            let mut incoming = transfers
                                 .iter()
                                 .filter(|transfer| {
                                     transfer.target_machine == caller.symbol
@@ -272,36 +276,67 @@ fn build_checked_dynamic_descriptor_transfers(
                                         && transfer.target_trait == target_trait
                                 })
                                 .collect::<Vec<_>>();
-                            let [incoming] = incoming.as_slice() else {
-                                // Multiple incoming descriptors are a control-flow join and
-                                // remain fenced until the join itself has explicit custody.
+                            incoming.sort_by_key(|incoming| incoming.edge().canonical_order_key());
+                            let Some(&inbound_call_site_count) = inbound_call_site_counts.get(&(
+                                caller_state.symbol.arena_index(),
+                                caller_state.symbol.generation(),
+                            )) else {
                                 continue;
                             };
+                            if inbound_call_site_count != incoming.len()
+                                || !matches!(incoming.len(), 1 | 2)
+                                || incoming
+                                    .iter()
+                                    .any(|incoming| incoming.source_paths.len() != 1)
+                                || incoming.iter().any(|incoming| {
+                                    !incoming.has_complete_source_custody(&transfers)
+                                })
+                            {
+                                continue;
+                            }
                             let Ok(source_parameter_position) =
                                 u32::try_from(source_parameter_position)
                             else {
                                 continue;
                             };
+                            let source_paths = incoming
+                                .into_iter()
+                                .flat_map(|incoming| incoming.source_paths.clone())
+                                .collect();
+                            let Ok(source_predecessor_count) =
+                                u32::try_from(inbound_call_site_count)
+                            else {
+                                continue;
+                            };
                             (
-                                incoming.selection.clone(),
                                 psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                                     parameter_position: source_parameter_position,
                                 },
+                                source_predecessor_count,
+                                source_paths,
                             )
                         };
-                        transfers.push(psi_checked_trees::CheckedDynamicDescriptorTransferPlan {
-                            caller_machine: caller.symbol,
-                            caller_state: caller_state.symbol,
-                            coordinate,
-                            target_machine: target_machine.symbol,
-                            target_state: target_state.symbol,
-                            parameter_position,
-                            parameter: parameter.symbol,
-                            target_trait,
-                            source_binding: source_path.symbol,
-                            source,
-                            selection,
-                        });
+                        let mut transfer =
+                            psi_checked_trees::CheckedDynamicDescriptorTransferPlan {
+                                caller_machine: caller.symbol,
+                                caller_state: caller_state.symbol,
+                                coordinate,
+                                target_machine: target_machine.symbol,
+                                target_state: target_state.symbol,
+                                parameter_position,
+                                parameter: parameter.symbol,
+                                target_trait,
+                                source_binding: source_path.symbol,
+                                source,
+                                source_predecessor_count,
+                                source_paths: Vec::new(),
+                            };
+                        let edge = transfer.edge();
+                        for path in &mut source_paths {
+                            path.edges.push(edge.clone());
+                        }
+                        transfer.source_paths = source_paths;
+                        transfers.push(transfer);
                         changed = true;
                     }
                 }
@@ -325,6 +360,9 @@ fn build_checked_dynamic_descriptor_transfers(
     transfers
 }
 
+/// Independent syntactic roster used to prove that a propagated parameter
+/// sees every predecessor. Counting only successfully published descriptor
+/// transfers would let an unrecognized third edge disappear from a join.
 fn inbound_call_site_counts(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -639,7 +677,7 @@ fn forwarded_transfer_path_is_exact(forwarded: &ForwardedDynamicCall<'_, '_>) ->
                 != (psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 })
-            || transfer.selection != forwarded.transfer.selection
+            || transfer.sole_selection() != forwarded.transfer.sole_selection()
         {
             return false;
         }
@@ -774,7 +812,7 @@ fn build_checked_dynamic_scalar_call(
     };
     let forwarded_selection = forwarded
         .as_ref()
-        .map(|forwarded| forwarded.transfer.selection.clone());
+        .and_then(|forwarded| forwarded.transfer.sole_selection().cloned());
     let forwarding_transfers = forwarded
         .as_ref()
         .map(|forwarded| forwarded.prior_transfers.clone())
@@ -802,7 +840,7 @@ fn build_checked_dynamic_scalar_call(
                 forwarded.flow_call,
                 call,
                 forwarded.transfer.source_binding,
-                forwarded.transfer.selection.binding_name.clone(),
+                forwarded.transfer.sole_selection()?.binding_name.clone(),
                 psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
                     machine: forwarded.machine.symbol,
                     state: forwarded.state.symbol,
