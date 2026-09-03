@@ -21,11 +21,7 @@ pub machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -134,11 +130,7 @@ pub machine DispatchTable::table_leaf()
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -282,11 +274,7 @@ machine FloatProvider::square_root(value: f32) -> f32
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(

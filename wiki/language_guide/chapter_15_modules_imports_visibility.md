@@ -73,14 +73,13 @@ string condition. The package manager never executes or statically interprets
 build-machine control flow to discover package edges, and the workspace lock
 records the one declared dependency set.
 
-Target declarations own target identity plus host and boundary policy. The
-build machine owns roots, dependencies, generated outputs, subsystem/image
-facts, and provider selections. Platform implementation variation ordinarily
-uses target-scoped declarations inside packages; applications bind entries with
-flat unconditional `roots.bind(target::ProgramEntry, entry)` rows. A `target X
-{ }` declaration activates and describes one target; it is not an assertion
-that an application supports X or that the declarations collectively enumerate
-every supported target.
+The compiler invocation owns exact target identity. Authored `target X { }`
+declarations are retired and do not define application support. Target-specific
+host and boundary policy is immutable compiler/package input rather than source
+activation. The build machine owns roots, dependencies, generated outputs,
+subsystem/image facts, and provider selections. Applications bind entries with
+flat unconditional `roots.bind(target::ProgramEntry, entry)` rows; selecting an
+exact invocation target selects the corresponding entry.
 
 One invocation may request one exact target or a nonempty explicit set. The
 compiler reuses target-independent immutable stages and forks at target-

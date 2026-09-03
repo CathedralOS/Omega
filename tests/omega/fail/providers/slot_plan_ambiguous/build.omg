@@ -1,4 +1,3 @@
-target macos_arm64 { }
 
 machine build(builder: &mut Build) {
     builder.application("slot-plan-ambiguous");

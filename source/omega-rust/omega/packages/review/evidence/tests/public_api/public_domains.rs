@@ -12,8 +12,7 @@ fn public_domain_shape_changes_change_comparison_encoding() {
         "main.omg",
         "pub data Packet { value: u32; }\npub domain Packet::Prepared;\n",
     );
-    let build = r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -53,11 +52,7 @@ pub operator + add(
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -145,8 +140,7 @@ pub domain<Carrier, const Index: Unit> Carrier::Tagged<Index>;
 pub domain<Value, const Tag: Unit> Value::Tagged<Tag>;
 "#,
     );
-    let build = r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -192,8 +186,7 @@ pub boundary trait SchedulerAdmission {
 }
 "#,
     );
-    let build = r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     classified.write("build.omg", build);
     routed.write("build.omg", build);
@@ -272,8 +265,7 @@ pub boundary trait BackupAdmission {{
         "main.omg",
         &source("BackupAdmission::grant, PrimaryAdmission::grant"),
     );
-    let build = r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -318,8 +310,7 @@ pub domain Socket::Usable = Socket::Trusted & Socket::Connected;
 pub domain u64::Portable = Carry::Portable;
 "#,
     );
-    let build = r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);

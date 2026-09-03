@@ -2,17 +2,6 @@
 // inspects the windows_x86_64 (GetStdHandle + ReadFile/WriteFile import flavor)
 // and linux_x86_64 (read/write syscall flavor) encoder fragments and compiles
 // both AArch64 closures structurally. Native confirmation needs those hosts.
-target windows_x86_64 {
-}
-
-target linux_x86_64 {
-}
-
-target macos_arm64 {
-}
-
-target linux_arm64 {
-}
 
 machine build(builder: &mut Build) {
     builder.application("cross-console-byte-targets");

@@ -21,11 +21,7 @@ satisfies CheckedMath::offset_zero
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -116,11 +112,7 @@ machine SecondUse::exercise(&mut self) {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -228,11 +220,7 @@ pub machine exercise(value: i32) -> i32 {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -363,11 +351,7 @@ satisfies CheckedMath::convert
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -455,11 +439,7 @@ satisfies CheckedMath::convert
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.package("review-fixture");
     builder.select_provider<CheckedMath::convert, ConvertProvider>();
 }
@@ -535,11 +515,7 @@ satisfies GenericMath::identity
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -607,11 +583,7 @@ pub machine exercise(value: i32) -> i32 {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -706,11 +678,7 @@ pub machine exercise(value: i32) -> i32 {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -763,11 +731,7 @@ pub machine compare<Element>(left: Element, right: Element) -> bool {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -858,11 +822,7 @@ pub machine other<Element>(left: Element, right: Element) -> bool { true }
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -957,11 +917,7 @@ pub machine exercise_u64(value: u64) -> u64 {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -1035,11 +991,7 @@ satisfies GenericMath::identity
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -1089,11 +1041,7 @@ satisfies ConstMath::identity
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -1162,11 +1110,7 @@ pub machine exercise(value: [u8; 4]) -> [u8; 4] {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -1233,11 +1177,7 @@ pub machine exercise(value: i32) -> i32 {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -1320,11 +1260,7 @@ satisfies GenericMath::identity
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let diagnostics = compile_to_checked_with_packages(

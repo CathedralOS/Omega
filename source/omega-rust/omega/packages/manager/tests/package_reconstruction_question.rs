@@ -272,8 +272,7 @@ fn fresh_closure_without_blockers_needs_no_synthetic_root_policy() {
     std::fs::create_dir_all(&root).expect("create claim-free root");
     std::fs::write(
         root.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("claim-free");
 }
@@ -342,8 +341,7 @@ fn accepted_evidence_rechecks_live_source_custody_after_review() {
     std::fs::create_dir_all(&root).expect("create accepted-evidence root");
     std::fs::write(
         root.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("custody-canary");
 }
@@ -402,8 +400,7 @@ fn dependency_open_claims_require_exact_fresh_root_policy() {
     std::fs::create_dir_all(&root).expect("create claim consumer");
     std::fs::write(
         dependency.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("claim-dependency");
 }
@@ -419,8 +416,7 @@ ensures result == 0;
     .expect("write open accepted claim");
     std::fs::write(
         root.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("claim-consumer");
     builder.depend(Source::Path {
@@ -595,8 +591,7 @@ fn dependency_external_executable_supply_requires_exact_fresh_root_policy() {
     std::fs::create_dir_all(&root).expect("create external-supply consumer");
     std::fs::write(
         dependency.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("foreign-surface");
 }
@@ -616,8 +611,7 @@ pub machine invoke_leaf()
     .expect("write external executable supply");
     std::fs::write(
         root.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("foreign-consumer");
     builder.depend(Source::Path {
@@ -746,8 +740,7 @@ fn dependency_contract_entailment_stand_down_propagates_but_cannot_be_admitted()
     std::fs::create_dir_all(&root).expect("create contract consumer");
     std::fs::write(
         dependency.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("contract-surface");
 }
@@ -768,8 +761,7 @@ ensures
     .expect("write unresolved contract entailment");
     std::fs::write(
         root.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("contract-consumer");
     builder.depend(Source::Path {
@@ -912,8 +904,7 @@ fn dependency_contract_assumption_certificate_closes_the_later_discharge() {
     std::fs::create_dir_all(&root).expect("create contract consumer");
     std::fs::write(
         dependency.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("contract-surface");
 }
@@ -936,8 +927,7 @@ ensures
     .expect("write assumption-discharged contract");
     std::fs::write(
         root.join("build.omg"),
-        r#"target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("contract-consumer");
     builder.depend(Source::Path {

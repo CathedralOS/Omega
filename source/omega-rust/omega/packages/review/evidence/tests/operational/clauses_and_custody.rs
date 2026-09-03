@@ -25,8 +25,7 @@ where machine Work()
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -123,8 +122,7 @@ fn operational_review_rejects_missing_invalid_and_stale_source_custody() {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -202,8 +200,7 @@ invokes Host;
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(

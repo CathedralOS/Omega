@@ -13,8 +13,7 @@ requires valid_utf8({expression})
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     compile_to_checked_with_packages(
@@ -227,8 +226,7 @@ pub proposition calls_package(value: &Wrapper) = as_slice(value);
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(

@@ -30,11 +30,7 @@ machine exercise() {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -158,11 +154,7 @@ machine exercise(value: f32) -> f32 { F32::negate(value) }
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let mut checked = compile_to_checked_with_packages(
@@ -213,11 +205,7 @@ pub machine FloatProvider::from_f64(value: f64) -> f32
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -307,11 +295,7 @@ fn review_closes_primitive_float_binary_execution_by_operation_and_format() {
     package.write("main.omg", &source);
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -385,11 +369,7 @@ fn primitive_float_binary_intrinsics_require_the_exact_token_and_shape() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let cases = [
         (

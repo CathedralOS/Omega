@@ -17,9 +17,3 @@ machine Main::main(&mut self) reaches MachineControl {
         write_cr4 self.value
     }
 }
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}

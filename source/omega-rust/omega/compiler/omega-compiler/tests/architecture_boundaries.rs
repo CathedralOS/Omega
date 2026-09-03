@@ -683,12 +683,61 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     );
 }
 
+#[test]
+fn maintained_omega_sources_do_not_declare_target_support() {
+    let root = repo_root();
+    let mut sources = Vec::new();
+    for owned_root in ["build.omg", "samples", "source", "tests"] {
+        collect_omega_sources(&root.join(owned_root), &mut sources);
+    }
+    sources.sort();
+
+    let mut target_declarations = Vec::new();
+    for source_path in sources {
+        let source = fs::read_to_string(&source_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", source_path.display()));
+        for (line_index, line) in source.lines().enumerate() {
+            let code = line.split_once("//").map_or(line, |(code, _)| code);
+            let mut words = code.split_whitespace();
+            if words.next() == Some("target") && words.next().is_some() {
+                target_declarations.push(format!("{}:{}", source_path.display(), line_index + 1));
+            }
+        }
+    }
+
+    assert!(
+        target_declarations.is_empty(),
+        "exact target identity and policy are immutable invocation/package inputs; remove authored target declarations:\n{}",
+        target_declarations.join("\n"),
+    );
+}
+
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
         .expect("compiler crate should live under source/omega-rust/omega/compiler/omega-compiler")
         .to_path_buf()
+}
+
+fn collect_omega_sources(path: &Path, sources: &mut Vec<PathBuf>) {
+    if path.is_file() {
+        if path.extension().and_then(|extension| extension.to_str()) == Some("omg") {
+            sources.push(path.to_path_buf());
+        }
+        return;
+    }
+    let entries = fs::read_dir(path)
+        .unwrap_or_else(|error| panic!("failed to read directory {}: {error}", path.display()));
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|error| panic!("failed to read directory entry: {error}"))
+            .path();
+        if path.is_dir() || path.extension().and_then(|extension| extension.to_str()) == Some("omg")
+        {
+            collect_omega_sources(&path, sources);
+        }
+    }
 }
 
 fn cargo_tomls_under(root: &Path) -> Vec<PathBuf> {

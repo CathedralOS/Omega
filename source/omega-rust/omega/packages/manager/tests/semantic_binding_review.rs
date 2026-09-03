@@ -77,9 +77,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
 
     write_file(
         console.join("build.omg"),
-        r#"target linux_x86_64 { }
-target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("ordinary-console");
 }
@@ -102,9 +100,7 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     );
     write_file(
         application.join("build.omg"),
-        r#"target linux_x86_64 { }
-target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.application("console-consumer");
     builder.depend_as("ordinary_console", Source::Path {

@@ -29,11 +29,7 @@ requires tag<View<'{selected}, u64>>() == tag<View<'{selected}, u64>>()
         &source("renamed_slot", "primary", "secondary", "primary"),
     );
     changed.write("main.omg", &source("slot", "left", "right", "right"));
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     for package in [&original, &renamed, &changed] {
         package.write("build.omg", build);
@@ -114,11 +110,7 @@ requires {left_receiver}.left == {right_receiver}.right
     };
     original.write("main.omg", &source("first", "second"));
     changed.write("main.omg", &source("second", "first"));
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     changed.write("build.omg", build);
@@ -206,8 +198,7 @@ pub proposition balanced(pair: Pair) = pair.left == pair.right;
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -285,8 +276,7 @@ pub proposition selects_computed_member(value: i32) =
         );
         package.write(
             "build.omg",
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
@@ -342,8 +332,7 @@ pub proposition selects_case_member(value: i32) =
     );
     case_package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -382,11 +371,7 @@ fn review_projects_computed_nominal_member_receivers_in_checked_contracts() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let compile = |selected: &str| {
         let package = TempPackage::new();

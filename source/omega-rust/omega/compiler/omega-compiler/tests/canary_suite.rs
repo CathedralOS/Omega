@@ -2955,7 +2955,7 @@ fn fail_canary(path: &str) -> PathBuf {
 fn hosted_main_program_entry_build(target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     format!(
-        "target {target} {{\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
     )
 }
 
@@ -2966,7 +2966,7 @@ fn hosted_main_program_entry_build_with_std(target: &str) -> String {
         .to_string_lossy()
         .replace('\\', "/");
     format!(
-        "target {target} {{\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n    builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n    builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
     )
 }
 

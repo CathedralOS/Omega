@@ -1,8 +1,6 @@
 // MP6: the build-time interpreter consumes the same static machine-symbol
 // specialization as ordinary code. The selected helper computes image
 // metadata; it is not a runtime callable or a compiler-side config grammar.
-target windows_x86_64 {
-}
 
 machine chosen_subsystem(value: u16) -> u16 {
     value

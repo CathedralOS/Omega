@@ -71,8 +71,7 @@ fn write_consumer(root: &Path, standard_library: Option<&Path>) {
     fs::write(
         root.join("build.omg"),
         format!(
-            r#"target windows_x86_64 {{ }}
-
+            r#"
 machine build(builder: &mut Build) {{
     builder.package("standard-library-consumer");
 {dependency}}}
@@ -96,8 +95,7 @@ fn write_filesystem_consumer(root: &Path, standard_library: &Path) {
     fs::write(
         root.join("build.omg"),
         format!(
-            r#"target linux_x86_64 {{ }}
-
+            r#"
 machine build(builder: &mut Build) {{
     builder.package("filesystem-policy-consumer");
     builder.depend(Source::Path {{ location: "{}" }});

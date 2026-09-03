@@ -39,8 +39,6 @@ fn evaluates_exact_via_binding_into_provider_identity() {
         r#"
 use omega::language::core::external_binding;
 
-target windows_x86_64 {
-}
 
 boundary trait Console {
     machine write(value: u8);
@@ -109,8 +107,6 @@ fn evaluates_exact_syscall_binding_into_existing_provider_identity() {
         r#"
 use omega::language::core::external_binding;
 
-target linux_x86_64 {
-}
 
 boundary trait Process {
     machine exit(code: i32);
@@ -184,9 +180,6 @@ fn ordinary_syscall_binding_rejects_wrong_target_and_used_widths() {
             r#"
 use omega::language::core::external_binding;
 
-target {target} {{
-}}
-
 boundary trait Process {{
     machine exit(code: i32);
 }}
@@ -223,8 +216,6 @@ data Binding<const A: u64, const B: u64, const C: u64> {
     case Syscall(number: u64);
 }
 
-target linux_x86_64 {
-}
 
 boundary trait Process {
     machine exit(code: i32);

@@ -19,7 +19,7 @@ where
         );
         package.write(
             "build.omg",
-            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -106,7 +106,7 @@ where N <= 8,
     );
     package.write(
         "build.omg",
-        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -150,7 +150,7 @@ where count in u32::Small,
     );
     package.write(
         "build.omg",
-        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -196,7 +196,7 @@ where count <= len,
         );
         package.write(
             "build.omg",
-            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -414,7 +414,7 @@ where N <= 8,
         );
         package.write(
             "build.omg",
-            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         compile_to_checked_with_packages(
             &package.0.join("main.omg"),

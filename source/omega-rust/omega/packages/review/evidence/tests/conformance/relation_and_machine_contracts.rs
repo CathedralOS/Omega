@@ -33,11 +33,7 @@ where proposition Relation(left: Carrier, right: Carrier);
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -86,11 +82,7 @@ where proposition OtherRelation(value: Carrier);
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -211,11 +203,7 @@ requires value == value;
 { }
 "#,
     );
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -315,11 +303,7 @@ where machine Selected satisfies Handler::call;
 { }
 "#,
     );
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
     let checked = compile_to_checked_with_packages(
@@ -390,11 +374,7 @@ where machine Sample(index: u64) -> u64;
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(

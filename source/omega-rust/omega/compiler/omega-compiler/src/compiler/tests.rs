@@ -40,7 +40,7 @@ impl Drop for MultiTargetFixture {
 }
 
 #[test]
-fn native_product_stop_rejoins_every_hosted_target() {
+fn exact_target_invocation_needs_no_authored_target_declaration() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
@@ -169,9 +169,7 @@ machine LinuxMain::main(&mut self) { }
 data ArmMain { }
 machine ArmMain::main(&mut self) { }
 "#,
-        r#"target linux_x86_64 { }
-target linux_arm64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("target-specific-terminal-input");
     builder.roots.bind(linux_x86_64::ProgramEntry, LinuxMain::main);
     builder.roots.bind(linux_arm64::ProgramEntry, ArmMain::main);
@@ -214,15 +212,10 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
-fn exact_target_batch_is_canonical_matches_standalone_and_continues_after_failure() {
+fn exact_target_batch_is_canonical_and_matches_standalone() {
     let fixture = MultiTargetFixture::new(
         "const ANSWER: u32 = 42;\n",
-        r#"target linux_arm64 {
-    host: omega::language::missing_provider { }
-}
-target linux_x86_64 { }
-target windows_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("multi-target-compiler");
 }
 "#,
@@ -246,14 +239,7 @@ machine build(builder: &mut Build) {
             omega_target::TargetProfile::WindowsX64,
         ],
     );
-    assert!(!outcomes.outcomes()[0].succeeded());
-    assert!(
-        outcomes.outcomes()[0]
-            .diagnostics()
-            .expect("Linux Arm64 child should reject")
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("missing_provider")),
-    );
+    assert!(outcomes.outcomes()[0].succeeded());
     assert!(outcomes.outcomes()[1].succeeded());
     assert!(outcomes.outcomes()[2].succeeded());
 
@@ -277,9 +263,7 @@ machine build(builder: &mut Build) {
 fn shared_source_failure_is_retained_for_every_exact_target() {
     let fixture = MultiTargetFixture::new(
         "machine broken( {\n",
-        r#"target linux_x86_64 { }
-target windows_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("multi-target-source-failure");
 }
 "#,

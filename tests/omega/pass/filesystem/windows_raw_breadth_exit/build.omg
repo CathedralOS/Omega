@@ -1,5 +1,4 @@
 // Windows raw-filesystem breadth proof: select the exact Windows entry.
-target windows_x86_64 { }
 
 machine build(builder: &mut Build) {
     builder.application("windows-raw-breadth-exit");

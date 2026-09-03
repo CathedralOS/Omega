@@ -1,17 +1,5 @@
 // shapes_area build sketch. Needs only stdout + process.exit.
 
-target windows_x86_64 {
-}
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}
-
-target macos_arm64 {
-}
-
 machine build(builder: &mut Build) {
     builder.application("shapes-area");
     builder.depend(Source::Path {

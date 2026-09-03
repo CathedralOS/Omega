@@ -22,7 +22,7 @@ fn write_role_probe(live_root: &Path, role: &str) {
     std::fs::write(
         live_root.join("build.omg"),
         format!(
-            "target windows_x86_64 {{ }}\n\nmachine build(builder: &mut Build) {{\n    builder.{role}(\"root-role-review-probe\");\n}}\n"
+            "\nmachine build(builder: &mut Build) {{\n    builder.{role}(\"root-role-review-probe\");\n}}\n"
         ),
     )
     .expect("write root-role build declaration");

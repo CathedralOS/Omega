@@ -80,7 +80,7 @@ fn adds_to_empty_canonical_build_without_mutating_input() {
 
 #[test]
 fn rejects_dependency_edits_without_an_explicit_project_role() {
-    let source = "target windows_x86_64 { }\n".to_owned();
+    let source = "".to_owned();
     assert!(matches!(
         plan_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor")),
         Err(BuildDependencyEditError::InvalidBuild(

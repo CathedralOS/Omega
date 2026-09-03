@@ -4,5 +4,3 @@ machine Main::main(&mut self)
 terminates;
 {
 }
-
-target linux_x86_64 { }

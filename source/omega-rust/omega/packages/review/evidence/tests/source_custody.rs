@@ -12,11 +12,7 @@ fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -72,11 +68,7 @@ pub machine api() {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -144,11 +136,7 @@ fn carried_transitive_types_project_exact_package_qualified_dependency_rows() {
     );
     root.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     middle.write(
@@ -257,11 +245,7 @@ pub machine make() -> Token { Token { value: 7u64 } }
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -351,11 +335,7 @@ invokes FilesystemHost;
     );
     canonical.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let candidate_checked = compile_to_checked_with_packages(
@@ -455,8 +435,7 @@ invokes console;
     );
     root.write(
         "build.omg",
-        r#"target linux_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.package("review-fixture");
     builder.depend_as("accepted_console", Source::Path { location: "../console" });
     builder.select_provider<Console, ConsoleNativeProvider>();

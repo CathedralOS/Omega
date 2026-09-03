@@ -21,6 +21,3 @@ boundary machine Main::main(
     self.observed = a0 + a1 + a2 + a3 + a4 + pair.first + pair.second + tail;
     transition { _ -> (0) }
 }
-
-target linux_x86_64 {
-}

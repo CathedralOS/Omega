@@ -6,6 +6,3 @@ data Main { output: Triple; }
 boundary machine Main::main(&self, marker: u64) -> Triple {
     transition { _ -> (self.output) }
 }
-
-target linux_x86_64 {
-}

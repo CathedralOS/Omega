@@ -13,6 +13,3 @@ boundary machine Main::main(&mut self, pair: FloatPair) -> i32 {
     self.observed = pair.first + pair.second;
     transition { _ -> (0) }
 }
-
-target linux_x86_64 {
-}

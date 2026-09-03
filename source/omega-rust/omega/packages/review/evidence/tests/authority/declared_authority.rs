@@ -27,11 +27,7 @@ machine private_api() { }
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build)
+        r#"machine build(builder: &mut Build)
 crashes Abort
 {
     builder.package("review-fixture");
@@ -408,11 +404,7 @@ reaches MachineControl + PortIo
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -449,11 +441,7 @@ machine ping_leaf() satisfies Host::ping via Binding::DllImport("omega-test", "h
     package.write(
         "build.omg",
         &format!(
-            r#"target windows_x86_64 {{ }}
-target linux_x86_64 {{ }}
-target linux_arm64 {{ }}
-target macos_arm64 {{ }}
-machine build(builder: &mut Build) {{
+            r#"machine build(builder: &mut Build) {{
     builder.package("review-fixture");
     builder.accept_boundary<{target}::satisfies::Host>();
 }}
@@ -491,11 +479,7 @@ machine build(builder: &mut Build) {{
 
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let unchecked_grant = compile_to_checked_with_packages(
@@ -530,11 +514,7 @@ fn review_projects_exact_accepted_boundary_contracts() {
         );
         package.write(
             "build.omg",
-            r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(

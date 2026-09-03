@@ -1856,11 +1856,14 @@ provider execution for that builtin.
 
 ## D42 — Target variation is flat, selected, and independently checked
 
-Target declarations own target identity plus their `host` and `boundary`
-policy. The authoritative `build(builder: &mut Build)` machine owns application
-and package role, roots, dependencies, generated outputs, subsystem/image
-facts, provider selections, and other build decisions. Moving roots,
-dependencies, or subsystem back into target blocks would reverse this
+The compiler invocation owns exact target identity. Maintained Omega source
+does not declare targets. The legacy parser/lowering surface for authored
+`host` and `boundary` target policy remains only until those values migrate to
+compiler/package-owned immutable inputs, after which the declaration syntax is
+deleted. The authoritative `build(builder: &mut Build)` machine owns
+application and package role, roots, dependencies, generated outputs,
+subsystem/image facts, provider selections, and other build decisions. Moving
+roots, dependencies, or subsystem into target blocks would reverse this
 deliberate ownership split.
 
 Graph-forming control flow on `builder.target` is retired. So are
@@ -2494,11 +2497,16 @@ Omega accepts either one exact target or a caller-supplied nonempty set of exact
 targets. A multi-target request normalizes to canonical profile order with
 duplicates removed. `all`, `*`, an empty set, inference from source or
 dependencies, and iteration over the compiler's complete profile catalog are
-not target-set inputs. Current root-level `target X { }` declarations are
-activation and compiler-discovery scaffolding scheduled for removal, not an
-authored application-support matrix. The toolchain catalog likewise mixes
-deployment profiles with abstract and local modes and therefore cannot define
-deployment intent.
+not target-set inputs. Source-level target policy is not an authored
+application-support matrix. The toolchain catalog likewise mixes deployment
+profiles with abstract and local modes and therefore cannot define deployment
+intent.
+
+The former root-level empty `target X { }` activation and discovery blocks and
+the last maintained nonempty policy blocks have been removed. An architecture
+gate rejects any target declaration in maintained Omega source. Legacy
+host/boundary declaration parsing and lowering remain scheduled for replacement
+by immutable invocation/package policy inputs and subsequent deletion.
 
 Multi-target compilation is staged fan-out, not an opaque loop around the whole
 compiler. Source acquisition, the immutable source snapshot, and parsing are

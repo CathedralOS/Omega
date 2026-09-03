@@ -1,6 +1,4 @@
 // Frontier registration for the target-scoped external leaves below.
-target uefi_x86_64 {
-}
 
 machine build(builder: &mut Build) {
     builder.application("efi-two-table-function-leaves");

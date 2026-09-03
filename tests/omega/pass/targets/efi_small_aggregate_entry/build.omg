@@ -1,5 +1,3 @@
-target uefi_x86_64 {
-}
 
 machine build(builder: &mut Build) {
     builder.application("efi-small-aggregate-entry");

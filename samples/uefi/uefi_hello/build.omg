@@ -1,8 +1,6 @@
-// The uefi_x86_64 target declaration (frontier registration; the compiler's
-// name table pins x86_64 + PE32+): freestanding, so no host boundary
-// packages -- services arrive via the entry's parameters.
-target uefi_x86_64 {
-}
+// The exact uefi_x86_64 invocation profile pins x86_64 + PE32+. This build is
+// freestanding, so no host boundary packages; services arrive via the entry's
+// parameters.
 
 machine build(builder: &mut Build) {
     builder.application("uefi-hello");

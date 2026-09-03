@@ -24,8 +24,6 @@ impl Fixture {
             &main,
             r#"use omega::language::core::external_binding;
 
-target windows_x86_64 {
-}
 
 boundary trait Console {
     machine write(value: u8);

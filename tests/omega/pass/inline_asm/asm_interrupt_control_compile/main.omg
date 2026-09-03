@@ -12,9 +12,3 @@ machine Main::main(&mut self) reaches MachineControl {
         sti
     }
 }
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}

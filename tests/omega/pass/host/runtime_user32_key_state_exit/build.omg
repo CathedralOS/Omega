@@ -1,5 +1,4 @@
 // Windows User32 input-provider proof: select the exact Windows entry.
-target windows_x86_64 { }
 
 machine build(builder: &mut Build) {
     builder.application("runtime-user32-key-state-exit");

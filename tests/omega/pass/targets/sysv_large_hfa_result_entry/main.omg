@@ -7,5 +7,3 @@ data Main { output: FloatTriple; }
 boundary machine Main::main(&self) -> FloatTriple {
     transition { _ -> (self.output) }
 }
-target linux_x86_64 {
-}

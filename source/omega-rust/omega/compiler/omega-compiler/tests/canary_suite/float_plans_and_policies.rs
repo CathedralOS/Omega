@@ -630,7 +630,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write primitive float target manifest");
+        .expect("write primitive float build source");
         compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
@@ -2606,7 +2606,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write directed-add target manifest");
+        .expect("write directed-add build source");
         compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
@@ -2749,7 +2749,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write directed-subtract target manifest");
+        .expect("write directed-subtract build source");
         compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
@@ -2892,7 +2892,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write directed-multiply target manifest");
+        .expect("write directed-multiply build source");
         compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
@@ -3035,7 +3035,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write directed-divide target manifest");
+        .expect("write directed-divide build source");
         compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
@@ -3179,7 +3179,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write directed-square-root target manifest");
+        .expect("write directed-square-root build source");
         compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
@@ -3492,7 +3492,7 @@ fn float_policy_adapters_retain_differential_results() {
                     source_dir.join("build.omg"),
                     hosted_main_program_entry_build(target),
                 )
-                .expect("write float-policy target manifest");
+                .expect("write float-policy build source");
                 compile(CanaryCompileSpec {
                     root_path: source_dir.join("main.omg"),
                     build_dir: Some(scratch.join("out")),

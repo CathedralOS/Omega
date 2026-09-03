@@ -1,20 +1,5 @@
 // Print-a-number sample build sketch. Needs stdout + process.exit.
 
-target cross_platform_cli {
-}
-
-target windows_x86_64 {
-}
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}
-
-target macos_arm64 {
-}
-
 machine build(builder: &mut Build) {
     builder.application("print-number");
     builder.depend(Source::Path {

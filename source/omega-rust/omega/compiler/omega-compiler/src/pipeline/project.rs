@@ -1,6 +1,3 @@
-use crate::pipeline::source::SourceStorage;
-use psi_diagnostics::Diagnostic;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ProjectRoots {
     pub(super) sources: Vec<std::path::PathBuf>,
@@ -41,31 +38,4 @@ fn companion_root_names(root_name: Option<&str>) -> &'static [&'static str] {
         Some("build.omg") => &["main.omg"],
         _ => &["build.omg"],
     }
-}
-
-pub(super) fn validate_selected_target(
-    source_storage: &SourceStorage,
-    selected_target_name: Option<&str>,
-) -> Result<(), Vec<Diagnostic>> {
-    let Some(target_name) = selected_target_name else {
-        return Ok(());
-    };
-
-    let target_found = source_storage.files.iter().any(|(_, file)| {
-        file.root_items.iter().any(|root_item| {
-            let item = source_storage.syntax_trees.root_item(*root_item);
-            matches!(
-                item,
-                psi_syntax_trees::item::Item::Target(target) if target.name.as_str() == target_name
-            )
-        })
-    });
-
-    if target_found {
-        return Ok(());
-    }
-
-    Err(vec![Diagnostic::error(format!(
-        "target `{target_name}` was not found in discovered source frontier"
-    ))])
 }

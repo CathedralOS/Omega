@@ -118,8 +118,6 @@ impl Fixture {
             "macos_arm64",
             r#"use omega::language::core::external_binding;
 
-target macos_arm64 {
-}
 
 boundary trait Process {
     machine ping();
@@ -156,8 +154,6 @@ machine Main::main(&mut self) {
             r#"use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
-target windows_x86_64 {
-}
 
 boundary trait Process {
     machine ping();
@@ -199,8 +195,6 @@ machine Main::main(&mut self) {
             "windows_x86_64",
             r#"use omega::language::core::external_binding;
 
-target windows_x86_64 {
-}
 
 boundary trait Process {
     machine current_id() -> u32;
@@ -256,9 +250,6 @@ machine Main::main(&mut self) {
         let source = format!(
             r#"use omega::language::core::external_binding;
 
-target linux_x86_64 {{
-}}
-
 boundary trait Process {{
     machine ping();
 }}
@@ -304,8 +295,6 @@ machine Main::main(&mut self) {{
             "macos_arm64",
             r#"use omega::language::core::external_binding;
 
-target macos_arm64 {
-}
 
 boundary trait Delay {
     machine wait(seconds: u32);
@@ -345,8 +334,6 @@ machine Main::main(&mut self) {
             "macos_arm64",
             r#"use omega::language::core::external_binding;
 
-target macos_arm64 {
-}
 
 boundary trait Process {
     machine process_id() -> i32;
