@@ -3,6 +3,10 @@ use super::{
 };
 use crate::assignment::shared::*;
 
+mod boundary_settlement;
+mod conditional;
+mod ieee_float;
+
 pub(super) fn assign(
     machine: MachineId,
     attachment: Option<psi_core::StructuralTypeId>,
@@ -69,65 +73,8 @@ pub(super) fn assign(
             result: *result,
             value: *value,
         },
-        TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
-            psi_operation,
-            result,
-            format,
-            left,
-            right,
-            addend,
-            settlement,
-        } => {
-            let assign_operand =
-                |operand: TargetIeeeFloatFmaOperand,
-                 register: MachineRegister|
-                 -> Result<AssignedIeeeFloatFmaOperand, AssignmentError> {
-                    let matches = preceding_operations
-                        .iter()
-                        .filter(|preceding| {
-                            matches!(preceding,
-                            TargetUnitOperation::IeeeFloatConstant {
-                                psi_operation,
-                                result,
-                                value,
-                            } if *psi_operation == operand.defining_operation
-                                && *result == operand.source_value
-                                && *value == operand.value)
-                        })
-                        .count();
-                    if matches != 1 || operand.value.format() != *format {
-                        return Err(AssignmentError::IeeeFloatFmaCustodyMismatch {
-                            machine,
-                            operation: *psi_operation,
-                        });
-                    }
-                    Ok(AssignedIeeeFloatFmaOperand {
-                        defining_operation: operand.defining_operation,
-                        source_value: operand.source_value,
-                        value: operand.value,
-                        register,
-                    })
-                };
-            if target.architecture != Architecture::X86_64
-                || settlement.terminal_operation != *psi_operation
-                || settlement.format != *format
-                || settlement.provider.profile().native_target() != target
-            {
-                return Err(AssignmentError::IeeeFloatFmaCustodyMismatch {
-                    machine,
-                    operation: *psi_operation,
-                });
-            }
-            AssignedUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
-                psi_operation: *psi_operation,
-                result: *result,
-                format: *format,
-                left: assign_operand(*left, MachineRegister::X86Xmm(0))?,
-                right: assign_operand(*right, MachineRegister::X86Xmm(2))?,
-                addend: assign_operand(*addend, MachineRegister::X86Xmm(1))?,
-                destination: MachineRegister::X86Xmm(0),
-                settlement: *settlement,
-            }
+        TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd { .. } => {
+            ieee_float::assign_fused_multiply_add(machine, operation, preceding_operations, target)?
         }
         TargetUnitOperation::EstablishTrivialAffineLocal {
             psi_operation,
@@ -504,131 +451,17 @@ pub(super) fn assign(
             crash_continuations,
             next_frame_home,
         )?,
-        TargetUnitOperation::ConditionalIntegerEqual {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            when_true,
-            when_false,
-        } => AssignedUnitOperation::ConditionalIntegerEqual {
-            psi_operation: *psi_operation,
-            result: *result,
-            scalar_type: *scalar_type,
-            left: scalar_call::assign_known_unit_scalar_source(
-                *left,
-                preceding_operations,
-                assigned_scalar_homes,
-            )
-            .ok_or(AssignmentError::UnitScalarCallSourceMismatch(
-                left.source_value(),
-            ))?,
-            right: scalar_call::assign_known_unit_scalar_source(
-                *right,
-                preceding_operations,
-                assigned_scalar_homes,
-            )
-            .ok_or(AssignmentError::UnitScalarCallSourceMismatch(
-                right.source_value(),
-            ))?,
-            when_true: *when_true,
-            when_false: *when_false,
-        },
-        TargetUnitOperation::ConditionalBoolean {
-            condition,
-            when_true,
-            when_false,
-        } => {
-            let assigned = assigned_scalar_homes
-                .get(&condition.source_value)
-                .copied()
-                .filter(|home| {
-                    condition.scalar_type == psi_core::ScalarType::Boolean
-                        && condition.shape == ValueShape::integer(1, 1)
-                        && home.defining_operation == condition.defining_operation
-                        && home.source_value == condition.source_value
-                        && home.scalar_type == condition.scalar_type
-                        && home.shape == condition.shape
-                })
-                .ok_or(AssignmentError::UnitScalarCallSourceMismatch(
-                    condition.source_value,
-                ))?;
-            AssignedUnitOperation::ConditionalBoolean {
-                condition: assigned,
-                when_true: *when_true,
-                when_false: *when_false,
-            }
-        }
-        TargetUnitOperation::ConditionalBooleanParameter {
-            condition,
-            when_true,
-            when_false,
-        } => {
-            let matching_parameters = body
-                .scalar_parameters
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| *parameter == condition)
-                .collect::<Vec<_>>();
-            let [(parameter_index, parameter)] = matching_parameters.as_slice() else {
-                return Err(AssignmentError::UnitScalarCallSourceMismatch(
-                    condition.value,
-                ));
-            };
-            if condition.scalar_type != psi_core::ScalarType::Boolean
-                || condition.placement.shape != ValueShape::integer(1, 1)
-                || body.call_plan.parameters.get(*parameter_index) != Some(&parameter.placement)
-            {
-                return Err(AssignmentError::UnitScalarCallSourceMismatch(
-                    condition.value,
-                ));
-            }
-            let location = match condition.placement.locations.as_slice() {
-                [
-                    ValueLocation::Register {
-                        register,
-                        value_byte_offset: 0,
-                        byte_size: 1,
-                    },
-                ] => ScalarParameterLocation::Register(*register),
-                [
-                    ValueLocation::Stack {
-                        stack_byte_offset,
-                        value_byte_offset: 0,
-                        byte_size: 1,
-                        ..
-                    },
-                ] => ScalarParameterLocation::IncomingStack {
-                    byte_offset: *stack_byte_offset,
-                },
-                _ => {
-                    return Err(AssignmentError::UnitScalarCallSourceMismatch(
-                        condition.value,
-                    ));
-                }
-            };
-            AssignedUnitOperation::ConditionalBooleanParameter {
-                condition: condition.clone(),
-                location: crate::assignment::placement::assign_direct_location(
-                    condition.value,
-                    location,
-                    target.architecture,
-                )?,
-                when_true: *when_true,
-                when_false: *when_false,
-            }
-        }
-        TargetUnitOperation::ConditionalDispatch { fallthrough_edge } => {
-            AssignedUnitOperation::ConditionalDispatch {
-                fallthrough_edge: *fallthrough_edge,
-            }
-        }
-        TargetUnitOperation::NonreturningTail { psi_edge } => {
-            AssignedUnitOperation::NonreturningTail {
-                psi_edge: *psi_edge,
-            }
-        }
+        TargetUnitOperation::ConditionalIntegerEqual { .. }
+        | TargetUnitOperation::ConditionalBoolean { .. }
+        | TargetUnitOperation::ConditionalBooleanParameter { .. }
+        | TargetUnitOperation::ConditionalDispatch { .. }
+        | TargetUnitOperation::NonreturningTail { .. } => conditional::assign(
+            operation,
+            body,
+            preceding_operations,
+            target,
+            assigned_scalar_homes,
+        )?,
         TargetUnitOperation::InstalledProviderCall {
             psi_operation,
             boundary,
@@ -720,7 +553,7 @@ pub(super) fn assign(
         } => AssignedUnitOperation::BoundarySettlement {
             psi_operation: *psi_operation,
             boundary: *boundary,
-            result: assign_boundary_result(
+            result: boundary_settlement::assign_result(
                 *psi_operation,
                 result,
                 assigned_structural_homes,
@@ -729,7 +562,7 @@ pub(super) fn assign(
             execution: *execution,
             realization: *realization,
             scalar_arguments: scalar_arguments.clone(),
-            runtime_scalar_arguments: assign_boundary_runtime_scalar_arguments(
+            runtime_scalar_arguments: boundary_settlement::assign_runtime_scalar_arguments(
                 target,
                 runtime_scalar_arguments,
                 preceding_operations,
@@ -748,104 +581,4 @@ pub(super) fn assign(
             cleanup_actions: cleanup_actions.clone(),
         },
     })
-}
-
-fn assign_boundary_result(
-    operation: OperationId,
-    result: &omega_target_operations::TargetBoundaryResult,
-    assigned_homes: &mut BTreeMap<PlaceId, AssignedStructuralHome>,
-    next_home: &mut u32,
-) -> Result<AssignedBoundaryResult, AssignmentError> {
-    let omega_target_operations::TargetBoundaryResult::Structural(requirement) = result else {
-        return Ok(AssignedBoundaryResult::Unit);
-    };
-    if requirement.defining_operation != operation
-        || requirement.layout.tag_byte_offset != 0
-        || requirement.layout.tag_shape != ValueShape::integer(4, 4)
-        || requirement.layout.shape.byte_size == 0
-        || requirement.layout.shape.alignment == 0
-    {
-        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
-    }
-    *next_home = scalar_call::align_unit_frame_offset(
-        *next_home,
-        u32::from(requirement.layout.shape.alignment),
-    )?;
-    let home = AssignedStructuralHome {
-        requirement: requirement.clone(),
-        byte_offset: *next_home,
-    };
-    *next_home = next_home
-        .checked_add(u32::from(requirement.layout.shape.byte_size))
-        .ok_or(AssignmentError::ExpressionStackFrameNotEncodable)?;
-    if assigned_homes
-        .insert(requirement.result.place, home.clone())
-        .is_some()
-    {
-        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
-    }
-    if &home.requirement != requirement {
-        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
-    }
-    Ok(AssignedBoundaryResult::Structural(home))
-}
-
-fn assign_boundary_runtime_scalar_arguments(
-    target: NativeTarget,
-    arguments: &[omega_target_operations::TargetUnitScalarCallArgument],
-    preceding_operations: &[TargetUnitOperation],
-    assigned_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
-) -> Result<Vec<AssignedNormalizedForeignScalarArgument>, AssignmentError> {
-    let [argument] = arguments else {
-        return if arguments.is_empty() {
-            Ok(Vec::new())
-        } else {
-            Err(AssignmentError::ExpressionStackFrameNotEncodable)
-        };
-    };
-    let psi_core::ScalarType::Integer(integer_type) = argument.scalar_type() else {
-        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
-    };
-    let shape = super::scalar_call::fixed_integer_shape(argument.source_value(), integer_type)?;
-    let plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![shape],
-            result: None,
-        },
-    )
-    .map_err(|_| AssignmentError::ExpressionStackFrameNotEncodable)?;
-    if argument.parameter_index != 0
-        || plan.parameters.as_slice() != [argument.placement.clone()]
-        || argument.placement.shape != shape
-    {
-        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
-    }
-    let source = match argument.source {
-        TargetUnitScalarArgumentSource::Parameter { .. } => {
-            return Err(AssignmentError::ExpressionStackFrameNotEncodable);
-        }
-        source => super::scalar_call::assign_known_unit_scalar_source(
-            source,
-            preceding_operations,
-            assigned_homes,
-        )
-        .ok_or(AssignmentError::ExpressionStackFrameNotEncodable)?,
-    };
-    let scratch = match target.architecture {
-        omega_target::Architecture::X86_64 => MachineRegister::X86R11,
-        omega_target::Architecture::Aarch64 => MachineRegister::Aarch64X(9),
-    };
-    Ok(vec![AssignedNormalizedForeignScalarArgument {
-        parameter_index: 0,
-        source,
-        placement: omega_calling_conventions::ValuePlacement {
-            shape,
-            locations: vec![ValueLocation::Register {
-                register: scratch,
-                value_byte_offset: 0,
-                byte_size: shape.byte_size,
-            }],
-        },
-    }])
 }

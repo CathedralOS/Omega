@@ -29,11 +29,6 @@ struct SourceFileException {
 /// production/test ceiling. New files and unlisted growth still fail closed.
 const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[
     SourceFileException {
-        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/unit/operation.rs",
-        ceiling: 851,
-        semantic_reason: "the unit-operation assignment dispatcher has not yet been split by family",
-    },
-    SourceFileException {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/unit/structural_scalar.rs",
         ceiling: 623,
         semantic_reason: "structural-scalar assignment and field layout replay remain colocated",
