@@ -27,7 +27,7 @@ pub(super) fn emit_write_only_primitive_store(
     x86_homes: &[X86UnitParameterHome],
     aarch64_homes: &[Aarch64UnitParameterHome],
     established_integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
-    established_boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
+    established_boolean_constants: &BTreeMap<ValueId, (OperationId, bool, usize)>,
     bytes: &mut Vec<u8>,
     operation_ordinal: usize,
     code_offset: usize,
@@ -73,9 +73,12 @@ pub(super) fn emit_write_only_primitive_store(
             source_value,
             value,
         } => {
-            if established_boolean_constants.get(&source_value)
-                != Some(&(defining_operation, value))
-            {
+            let Some((retained_operation, retained_value, definition_ordinal)) =
+                established_boolean_constants.get(&source_value).copied()
+            else {
+                return Err(invalid());
+            };
+            if retained_operation != defining_operation || retained_value != value {
                 return Err(invalid());
             }
             (
@@ -83,6 +86,7 @@ pub(super) fn emit_write_only_primitive_store(
                     defining_operation,
                     source_value,
                     value,
+                    definition_ordinal,
                 },
                 ScalarType::Boolean,
                 1,
