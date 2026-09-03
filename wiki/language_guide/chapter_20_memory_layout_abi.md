@@ -382,8 +382,10 @@ independently replays the exact parameter, primitive width, pointer home,
 literal source, target instruction bytes, and attribution; installation format
 71 transports and revalidates that custody canonically. Boolean stores retain
 an exact one-byte referent and Boolean immediate through target selection and
-independent assignment on both native architectures, then stop at machine
-emission. Opaque provider non-observation authority remains explicitly fenced.
+independent assignment on both native architectures. Machine emission rejoins
+those facts and emits the exact one-byte store; object construction remains the
+downstream Boolean fence. Opaque provider non-observation authority remains
+explicitly fenced.
 
 ### Geometry, demand, and supply
 

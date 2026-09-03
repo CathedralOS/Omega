@@ -1021,13 +1021,44 @@ pub struct UnitStructuralScalarFieldStoreRecord {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnitWriteOnlyPrimitiveStoreSourceRecord {
+    IntegerImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
+    BooleanImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: bool,
+    },
+}
+
+impl UnitWriteOnlyPrimitiveStoreSourceRecord {
+    pub const fn source_value(&self) -> ValueId {
+        match self {
+            Self::IntegerImmediate { source_value, .. }
+            | Self::BooleanImmediate { source_value, .. } => *source_value,
+        }
+    }
+
+    pub const fn scalar_type(&self) -> ScalarType {
+        match self {
+            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(*scalar_type),
+            Self::BooleanImmediate { .. } => ScalarType::Boolean,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnitWriteOnlyPrimitiveStoreRecord {
     pub psi_operation: OperationId,
     pub destination: psi_terminal::StructuralParameterDeclaration,
     pub destination_type: psi_terminal::StructuralTypeDeclaration,
     pub destination_placement: ValuePlacement,
-    pub source: InternalUnitScalarArgumentSourceRecord,
+    pub source: UnitWriteOnlyPrimitiveStoreSourceRecord,
     pub parameter_home_byte_offset: u32,
     pub parameter_home_indirect: bool,
     pub operation_ordinal: usize,

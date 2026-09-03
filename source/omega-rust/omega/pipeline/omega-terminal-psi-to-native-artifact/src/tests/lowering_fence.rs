@@ -201,7 +201,7 @@ fn verified_write_only_primitive_store_reaches_exact_machine_emission() {
 }
 
 #[test]
-fn verified_boolean_write_only_store_reaches_assignment_then_stops_at_emission() {
+fn verified_boolean_write_only_store_reaches_emission_then_stops_at_object() {
     let checked = checked(
         r#"
             data Sink {}
@@ -367,11 +367,81 @@ fn verified_boolean_write_only_store_reaches_assignment_then_stops_at_emission()
                 value: true,
             } if *retained_operation == defining_operation && *retained_value == source_value
         ));
+        let mut corrupted_assigned = assigned.clone();
+        let retained_value = corrupted_assigned
+            .functions
+            .iter_mut()
+            .find_map(|function| match &mut function.operation {
+                omega_assigned_target_operations::AssignedOperation::UnitBody(body) => {
+                    body.operations.iter_mut().find_map(|operation| {
+                        match operation {
+                        omega_assigned_target_operations::AssignedUnitOperation::BooleanConstant {
+                            value,
+                            ..
+                        } => Some(value),
+                        _ => None,
+                    }
+                    })
+                }
+                _ => None,
+            })
+            .expect("assigned plan retains the Boolean definition");
+        *retained_value = false;
         assert!(matches!(
-            omega_machine_emission::emit_machine_code(&assigned),
-            Err(omega_machine_emission::EmissionError::UnsupportedUnitBooleanConstant(
-                operation
-            )) if operation == defining_operation
+            omega_machine_emission::emit_machine_code(&corrupted_assigned),
+            Err(omega_machine_emission::EmissionError::InvalidWriteOnlyPrimitiveStoreCustody(_))
         ));
+
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("Boolean store reaches exact machine emission");
+        let function = emitted
+            .functions
+            .iter()
+            .find(|function| function.unit_write_only_primitive_stores.len() == 1)
+            .expect("one machine owns the Boolean primitive store");
+        let store = &function.unit_write_only_primitive_stores[0];
+        assert!(matches!(
+            store.source,
+            omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
+                defining_operation: retained_operation,
+                source_value: retained_value,
+                value: true,
+            } if retained_operation == defining_operation && retained_value == source_value
+        ));
+        assert!(!store.bytes.is_empty());
+        match native_target.architecture {
+            omega_target::Architecture::X86_64 => {
+                assert!(
+                    store
+                        .bytes
+                        .starts_with(&[0x49, 0xbb, 1, 0, 0, 0, 0, 0, 0, 0,])
+                );
+                assert!(store.bytes.ends_with(&[0x45, 0x88, 0x1a]));
+            }
+            omega_target::Architecture::Aarch64 => {
+                assert_eq!(
+                    store.bytes.first_chunk::<4>(),
+                    Some(&0xd280_0030_u32.to_le_bytes())
+                );
+                assert_eq!(
+                    store.bytes.last_chunk::<4>(),
+                    Some(&0x3900_0230_u32.to_le_bytes())
+                );
+            }
+        }
+        assert_eq!(
+            function
+                .bytes
+                .get(store.code_offset..store.code_offset + store.byte_count),
+            Some(store.bytes.as_slice())
+        );
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&emitted),
+            Err(
+                omega_image_emission::ObjectError::InvalidUnitWriteOnlyPrimitiveStoreEvidence(
+                    function.machine
+                )
+            )
+        );
     }
 }

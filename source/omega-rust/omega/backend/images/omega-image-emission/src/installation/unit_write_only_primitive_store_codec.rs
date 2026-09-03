@@ -1,7 +1,9 @@
 //! Canonical transport for whole-root non-observing primitive-store rows.
 
-use omega_machine_code::UnitWriteOnlyPrimitiveStoreRecord;
-use psi_core::{OperationId, ScalarType, StructuralTypeId};
+use omega_machine_code::{
+    UnitWriteOnlyPrimitiveStoreRecord, UnitWriteOnlyPrimitiveStoreSourceRecord,
+};
+use psi_core::{OperationId, ScalarType, StructuralTypeId, ValueId};
 use psi_terminal::{StructuralTypeDeclaration, StructuralTypeShape};
 
 use super::{
@@ -10,11 +12,12 @@ use super::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
     decode_boolean,
-    internal_unit_scalar_call_codec::{
-        decode_argument_source, decode_offset, encode_argument_source, encode_offset,
-    },
+    internal_unit_scalar_call_codec::{decode_offset, encode_offset},
     push_u32, push_u64,
     structural_scalar_codec::{decode_identity, encode_identity},
+    unit_scalar_codec::{
+        decode_integer_type, decode_integer_value, encode_integer_type, encode_integer_value,
+    },
     unit_structural_scalar_field_store_codec::{decode_destination, encode_destination},
     value_placement_codec::{decode_direct_placement, encode_direct_placement},
 };
@@ -38,7 +41,7 @@ pub(super) fn encode_unit_write_only_primitive_stores(
         };
         encode_boundary_result_scalar_type(bytes, scalar_type);
         encode_direct_placement(bytes, &store.destination_placement)?;
-        encode_argument_source(bytes, store.source)?;
+        encode_source(bytes, store.source)?;
         push_u32(bytes, store.parameter_home_byte_offset);
         bytes.push(u8::from(store.parameter_home_indirect));
         bytes.extend_from_slice(&[0; 3]);
@@ -76,7 +79,7 @@ pub(super) fn decode_unit_write_only_primitive_stores(
             return Err(InstallationError::InvalidStructuralTypeShape);
         }
         let destination_placement = decode_direct_placement(reader)?;
-        let source = decode_argument_source(reader)?;
+        let source = decode_source(reader)?;
         let parameter_home_byte_offset = reader.u32()?;
         let parameter_home_indirect = decode_boolean(reader.u8()?)?;
         if reader.take(3)? != [0; 3] {
@@ -107,4 +110,45 @@ pub(super) fn decode_unit_write_only_primitive_stores(
         });
     }
     Ok(stores)
+}
+
+fn encode_source(
+    bytes: &mut Vec<u8>,
+    source: UnitWriteOnlyPrimitiveStoreSourceRecord,
+) -> Result<(), InstallationError> {
+    let UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
+        defining_operation,
+        source_value,
+        scalar_type,
+        value,
+    } = source
+    else {
+        return Err(InstallationError::UnsupportedInstalledScalarSource);
+    };
+    bytes.extend_from_slice(&[1, 0, 0, 0]);
+    push_u64(bytes, defining_operation.get());
+    push_u64(bytes, source_value.get());
+    encode_integer_type(bytes, scalar_type)?;
+    encode_integer_value(bytes, value);
+    Ok(())
+}
+
+fn decode_source(
+    reader: &mut Reader<'_>,
+) -> Result<UnitWriteOnlyPrimitiveStoreSourceRecord, InstallationError> {
+    let tag = reader.u8()?;
+    if reader.take(3)? != [0; 3] {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    if tag != 1 {
+        return Err(InstallationError::InvalidInstalledScalarSourceTag(tag));
+    }
+    Ok(UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
+        defining_operation: OperationId::new(reader.u64()?)
+            .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
+        source_value: ValueId::new(reader.u64()?)
+            .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
+        scalar_type: decode_integer_type(reader)?,
+        value: decode_integer_value(reader)?,
+    })
 }

@@ -1439,7 +1439,7 @@ pub enum EmissionError {
     UnitFunctionHasNoReturn,
     UnitCallStackAreaNotEncodable,
     InvalidUnitScalarCallCustody(psi_core::OperationId),
-    UnsupportedUnitBooleanConstant(psi_core::OperationId),
+    InvalidUnitBooleanConstantCustody(psi_core::OperationId),
     InvalidInstalledProviderScalarCallCustody(psi_core::OperationId),
     InvalidWriteOnlyPrimitiveStoreCustody(psi_core::OperationId),
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),

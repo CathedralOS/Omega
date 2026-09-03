@@ -183,8 +183,9 @@ storage containing no live `T` is a separate feature.
 > reference interpreter mutates exact-typed stable target-neutral backing across an
 > in-module call with fuel charged before the store. The Boolean form retains
 > its exact one-byte referent and literal through target selection and physical
-> assignment on both native architectures, then fails closed at machine
-> emission. Opaque-provider execution remains gated. `&write` is never
+> assignment, and machine emission emits the exact one-byte store on both native
+> architectures. Object construction remains its explicit downstream fence.
+> Opaque-provider execution remains gated. `&write` is never
 > temporarily lowered as `&mut`.
 
 Code may perform plain typed stores, content-independent field/index/range
@@ -215,8 +216,9 @@ independently replays its exact parameter identity, access, primitive type,
 borrowed-reference placement and home, preceding typed scalar definition,
 target store bytes, and semantic attribution. Installation format 71 transports
 that custody canonically. The Boolean sibling reaches independently replayed
-physical assignment and then stops at its explicit machine-emission fence;
-opaque-provider non-observation guarantees remain fail closed.
+physical assignment and exact machine-store emission, then stops at its
+explicit object-construction fence; opaque-provider non-observation guarantees
+remain fail closed.
 
 A partial write must leave `T` valid at the ordinary invariant-window
 consumption points. The checker may prove that from the written inputs, static
