@@ -249,6 +249,8 @@ pub(super) fn validate_internal_unit_call_custody(
     validated_function_stack: Option<&ObjectUnitStack>,
     validated_call_stack: Option<&ObjectUnitCallStack>,
     validated_scalar_call_stack: Option<&ObjectScalarCallStack>,
+    callee_unit_scalar_abi: Option<&omega_machine_code::UnitScalarFunctionAbiRecord>,
+    callee_unit_parameters: &[omega_machine_code::UnitParameterRecord],
     callee_mixed_abi: Option<&MixedStructuralScalarFunctionAbi>,
     callee_structural_return: Option<&StructuralReturnRecord>,
     custody: &omega_machine_code::InternalUnitCallRecord,
@@ -365,25 +367,32 @@ pub(super) fn validate_internal_unit_call_custody(
         .ok_or_else(invalid)?;
     let callee_mixed_structural_return =
         callee_structural_return.filter(|returned| !returned.scalar_parameters.is_empty());
-    if callee_mixed_abi.is_some() && callee_mixed_structural_return.is_some() {
-        return Err(invalid());
-    }
-    if callee_mixed_abi.is_none()
-        && callee_mixed_structural_return.is_none()
-        && !custody.scalar_arguments.is_empty()
+    if usize::from(callee_unit_scalar_abi.is_some())
+        + usize::from(callee_mixed_abi.is_some())
+        + usize::from(callee_mixed_structural_return.is_some())
+        > 1
     {
-        let CallSiteOwner::Operation(operation) = custody.owner else {
-            return Err(invalid());
-        };
-        return Err(ObjectError::UnsupportedInternalUnitCallScalarArguments {
-            caller: machine,
-            operation,
-        });
+        return Err(invalid());
     }
     let expected_plan = omega_calling_conventions::evaluate_call_plan(
         omega_calling_conventions::CallingPolicy::native_for_target(target),
         &omega_calling_conventions::CallSignature {
-            parameters: if let Some(abi) = callee_mixed_abi {
+            parameters: if let Some(abi) = callee_unit_scalar_abi {
+                abi.parameters
+                    .iter()
+                    .map(|parameter| {
+                        let psi_core::ScalarType::Integer(integer) = parameter.scalar_type else {
+                            return Err(invalid());
+                        };
+                        fixed_integer_shape(integer).ok_or_else(invalid)
+                    })
+                    .chain(
+                        callee_unit_parameters
+                            .iter()
+                            .map(|parameter| Ok(parameter.shape)),
+                    )
+                    .collect::<Result<Vec<_>, _>>()?
+            } else if let Some(abi) = callee_mixed_abi {
                 abi.scalar_parameters
                     .iter()
                     .map(|parameter| fixed_integer_shape(parameter.scalar_type).ok_or_else(invalid))
@@ -436,7 +445,39 @@ pub(super) fn validate_internal_unit_call_custody(
         },
     )
     .map_err(|_| invalid())?;
-    if let Some(abi) = callee_mixed_abi {
+    if let Some(abi) = callee_unit_scalar_abi {
+        if expected_plan != abi.call_plan
+            || custody.result.is_some()
+            || custody.structural_result.is_some()
+            || custody.scalar_arguments.len() != abi.parameters.len()
+            || custody.arguments.len() != callee_unit_parameters.len()
+            || custody
+                .scalar_arguments
+                .iter()
+                .zip(&abi.parameters)
+                .enumerate()
+                .any(|(index, (argument, parameter))| {
+                    usize::try_from(argument.parameter_index) != Ok(index)
+                        || argument.destination != parameter.placement
+                        || argument.source.scalar_type() != parameter.scalar_type
+                })
+            || custody
+                .arguments
+                .iter()
+                .zip(callee_unit_parameters)
+                .zip(&abi.call_plan.parameters[abi.parameters.len()..])
+                .any(|((argument, parameter), placement)| {
+                    argument.root_structural_type != parameter.structural_type
+                        || argument.structural_type != parameter.structural_type
+                        || argument.access != parameter.access
+                        || argument.shape != parameter.shape
+                        || argument.destination != *placement
+                })
+        {
+            return Err(invalid());
+        }
+        validate_mixed_argument_bytes_and_order(target, function, relocation, custody)?;
+    } else if let Some(abi) = callee_mixed_abi {
         if expected_plan != abi.call_plan
             || custody.result != Some(abi.result.scalar_type)
             || custody.scalar_arguments.len() != abi.scalar_parameters.len()

@@ -95,7 +95,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 74;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 75;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -1669,7 +1669,48 @@ fn installed_scalar_source_is_exact(
     source: omega_machine_code::InternalUnitScalarArgumentSourceRecord,
 ) -> bool {
     match source {
-        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => false,
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } => usize::try_from(parameter_index)
+            .ok()
+            .and_then(|index| {
+                function
+                    .unit_scalar_abi
+                    .as_ref()
+                    .and_then(|abi| abi.parameters.get(index))
+            })
+            .is_some_and(|parameter| {
+                let expected_location = match parameter.placement.locations.as_slice() {
+                    [
+                        omega_calling_conventions::ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size,
+                        },
+                    ] if *byte_size == parameter.placement.shape.byte_size => Some(
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(*register),
+                    ),
+                    [
+                        omega_calling_conventions::ValueLocation::Stack {
+                            stack_byte_offset,
+                            value_byte_offset: 0,
+                            byte_size,
+                            ..
+                        },
+                    ] if *byte_size == parameter.placement.shape.byte_size => Some(
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset: *stack_byte_offset,
+                        },
+                    ),
+                    _ => None,
+                };
+                parameter.value == source_value
+                    && parameter.scalar_type == psi_core::ScalarType::Integer(scalar_type)
+                    && expected_location == Some(location)
+            }),
         omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,
             source_value,
@@ -2651,6 +2692,12 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             InstallationError::InvalidInternalUnitCall(installed.machine),
         )?;
         let custody = &installed.custody;
+        let callee_unit_scalar_abi = function_by_machine
+            .get(&custody.target)
+            .and_then(|target| target.unit_scalar_abi.as_ref());
+        let callee_unit_parameters = function_by_machine
+            .get(&custody.target)
+            .map_or(&[][..], |target| target.unit_parameters.as_slice());
         let callee_mixed_abi = function_by_machine
             .get(&custody.target)
             .and_then(|target| target.mixed_structural_scalar_abi.as_ref());
@@ -2686,7 +2733,31 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         let plan = evaluate_call_plan(
             CallingPolicy::native_for_target(record.target),
             &CallSignature {
-                parameters: if let Some(abi) = callee_mixed_abi {
+                parameters: if let Some(abi) = callee_unit_scalar_abi {
+                    abi.parameters
+                        .iter()
+                        .map(|parameter| {
+                            let psi_core::ScalarType::Integer(integer) = parameter.scalar_type
+                            else {
+                                return Err(InstallationError::InvalidInternalUnitCall(
+                                    installed.machine,
+                                ));
+                            };
+                            if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
+                                return Err(InstallationError::InvalidInternalUnitCall(
+                                    installed.machine,
+                                ));
+                            }
+                            let bytes = integer.bits() / 8;
+                            Ok(ValueShape::integer(bytes, bytes))
+                        })
+                        .chain(
+                            callee_unit_parameters
+                                .iter()
+                                .map(|parameter| Ok(parameter.shape)),
+                        )
+                        .collect::<Result<Vec<_>, _>>()?
+                } else if let Some(abi) = callee_mixed_abi {
                     abi.scalar_parameters
                         .iter()
                         .map(|parameter| {
@@ -2850,168 +2921,244 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             }
         };
         let scalar_count = custody.scalar_arguments.len();
-        let mixed_roster_is_exact = match (callee_mixed_abi, callee_mixed_structural_return) {
-            (None, None) => custody.scalar_arguments.is_empty(),
-            (Some(_), Some(_)) => false,
-            (Some(abi), None) => {
-                custody.result == Some(abi.result.scalar_type)
-                    && plan == abi.call_plan
-                    && scalar_count == abi.scalar_parameters.len()
-                    && custody.arguments.len() == abi.structural_parameters.len()
-                    && custody
-                        .scalar_arguments
-                        .iter()
-                        .zip(&abi.scalar_parameters)
-                        .enumerate()
-                        .all(|(index, (argument, parameter))| {
-                            let expected_argument_bytes =
-                                custody.arguments.first().and_then(|structural| {
-                                    crate::unit_scalar_call_custody::expected_argument_bytes(
-                                        record.target,
-                                        argument,
-                                        structural.call_stack_bytes,
-                                    )
-                                });
-                            usize::try_from(argument.parameter_index) == Ok(index)
-                                && argument.destination == parameter.placement
-                                && argument.source.scalar_type()
-                                    == psi_core::ScalarType::Integer(parameter.scalar_type)
-                                && installed_scalar_source_is_exact(
-                                    record,
-                                    function,
-                                    installed.machine,
-                                    custody,
-                                    argument.source,
+        let mixed_roster_is_exact = if let Some(abi) = callee_unit_scalar_abi {
+            callee_mixed_abi.is_none()
+                && callee_mixed_structural_return.is_none()
+                && custody.result.is_none()
+                && custody.structural_result.is_none()
+                && plan == abi.call_plan
+                && scalar_count == abi.parameters.len()
+                && custody.arguments.len() == callee_unit_parameters.len()
+                && custody
+                    .scalar_arguments
+                    .iter()
+                    .zip(&abi.parameters)
+                    .enumerate()
+                    .all(|(index, (argument, parameter))| {
+                        let expected_argument_bytes =
+                            custody.arguments.first().and_then(|structural| {
+                                crate::unit_scalar_call_custody::expected_argument_bytes(
+                                    record.target,
+                                    argument,
+                                    structural.call_stack_bytes,
                                 )
-                                && expected_argument_bytes
-                                    .as_ref()
-                                    .is_some_and(|bytes| bytes.len() == argument.byte_count)
-                                && argument.code_offset >= custody.code_offset
-                                && argument
-                                    .code_offset
-                                    .checked_add(argument.byte_count)
-                                    .is_some_and(|argument_end| argument_end <= end)
+                            });
+                        usize::try_from(argument.parameter_index) == Ok(index)
+                            && argument.destination == parameter.placement
+                            && argument.source.scalar_type() == parameter.scalar_type
+                            && installed_scalar_source_is_exact(
+                                record,
+                                function,
+                                installed.machine,
+                                custody,
+                                argument.source,
+                            )
+                            && expected_argument_bytes
+                                .as_ref()
+                                .is_some_and(|bytes| bytes.len() == argument.byte_count)
+                            && argument.code_offset >= custody.code_offset
+                            && argument
+                                .code_offset
+                                .checked_add(argument.byte_count)
+                                .is_some_and(|argument_end| argument_end <= end)
+                    })
+                && custody
+                    .arguments
+                    .iter()
+                    .zip(callee_unit_parameters)
+                    .zip(&abi.call_plan.parameters[abi.parameters.len()..])
+                    .all(|((argument, parameter), placement)| {
+                        argument.root_structural_type == parameter.structural_type
+                            && argument.structural_type == parameter.structural_type
+                            && argument.access == parameter.access
+                            && argument.shape == parameter.shape
+                            && argument.destination == *placement
+                    })
+                && custody.scalar_arguments.windows(2).all(|pair| {
+                    pair[0]
+                        .code_offset
+                        .checked_add(pair[0].byte_count)
+                        .is_some_and(|prior_end| prior_end == pair[1].code_offset)
+                })
+                && custody.scalar_arguments.last().is_none_or(|last| {
+                    last.code_offset
+                        .checked_add(last.byte_count)
+                        .is_some_and(|scalar_end| {
+                            custody
+                                .arguments
+                                .first()
+                                .map_or(scalar_end <= end, |argument| {
+                                    scalar_end == argument.code_offset
+                                })
                         })
-                    && custody
-                        .arguments
-                        .iter()
-                        .zip(&abi.structural_parameters)
-                        .all(|(argument, parameter)| {
-                            argument.path.is_empty()
-                                && argument.root_structural_type == parameter.structural_type
-                                && argument.structural_type == parameter.structural_type
-                                && argument.access == parameter.access
-                                && argument.shape == parameter.shape
-                                && argument.destination == parameter.placement
-                        })
-                    && custody.scalar_arguments.windows(2).all(|pair| {
-                        pair[0]
-                            .code_offset
-                            .checked_add(pair[0].byte_count)
-                            .is_some_and(|prior_end| prior_end == pair[1].code_offset)
-                    })
-                    && custody.scalar_arguments.last().is_none_or(|last| {
-                        last.code_offset
-                            .checked_add(last.byte_count)
-                            .is_some_and(|scalar_end| {
-                                custody
-                                    .arguments
-                                    .first()
-                                    .map_or(scalar_end <= end, |argument| {
-                                        scalar_end == argument.code_offset
-                                    })
-                            })
-                    })
-                    && custody.arguments.windows(2).all(|pair| {
-                        pair[0].code_offset.checked_add(pair[0].byte_count)
-                            == Some(pair[1].code_offset)
-                    })
-            }
-            (None, Some(returned)) => {
-                custody.result.is_none()
-                    && custody.structural_result.is_some()
-                    && scalar_count == returned.scalar_parameters.len()
-                    && custody.arguments.len() == returned.parameters.len()
-                    && plan.parameters.len()
-                        == returned.scalar_parameters.len() + returned.parameters.len()
-                    && plan.parameters[..returned.scalar_parameters.len()]
-                        == returned
-                            .scalar_parameters
+                })
+                && custody.arguments.windows(2).all(|pair| {
+                    pair[0].code_offset.checked_add(pair[0].byte_count) == Some(pair[1].code_offset)
+                })
+        } else {
+            match (callee_mixed_abi, callee_mixed_structural_return) {
+                (None, None) => custody.scalar_arguments.is_empty(),
+                (Some(_), Some(_)) => false,
+                (Some(abi), None) => {
+                    custody.result == Some(abi.result.scalar_type)
+                        && plan == abi.call_plan
+                        && scalar_count == abi.scalar_parameters.len()
+                        && custody.arguments.len() == abi.structural_parameters.len()
+                        && custody
+                            .scalar_arguments
                             .iter()
-                            .map(|parameter| parameter.placement.clone())
-                            .collect::<Vec<_>>()
-                    && plan.parameters[returned.scalar_parameters.len()..]
-                        == returned.parameter_placements
-                    && plan.result.as_ref() == Some(&returned.result_placement)
-                    && custody
-                        .scalar_arguments
-                        .iter()
-                        .zip(&returned.scalar_parameters)
-                        .enumerate()
-                        .all(|(index, (argument, parameter))| {
-                            let expected_argument_bytes =
-                                custody.arguments.first().and_then(|structural| {
-                                    crate::unit_scalar_call_custody::expected_argument_bytes(
-                                        record.target,
-                                        argument,
-                                        structural.call_stack_bytes,
+                            .zip(&abi.scalar_parameters)
+                            .enumerate()
+                            .all(|(index, (argument, parameter))| {
+                                let expected_argument_bytes =
+                                    custody.arguments.first().and_then(|structural| {
+                                        crate::unit_scalar_call_custody::expected_argument_bytes(
+                                            record.target,
+                                            argument,
+                                            structural.call_stack_bytes,
+                                        )
+                                    });
+                                usize::try_from(argument.parameter_index) == Ok(index)
+                                    && argument.destination == parameter.placement
+                                    && argument.source.scalar_type()
+                                        == psi_core::ScalarType::Integer(parameter.scalar_type)
+                                    && installed_scalar_source_is_exact(
+                                        record,
+                                        function,
+                                        installed.machine,
+                                        custody,
+                                        argument.source,
                                     )
-                                });
-                            usize::try_from(argument.parameter_index) == Ok(index)
-                                && argument.destination == parameter.placement
-                                && argument.source.scalar_type()
-                                    == psi_core::ScalarType::Integer(parameter.scalar_type)
-                                && installed_scalar_source_is_exact(
-                                    record,
-                                    function,
-                                    installed.machine,
-                                    custody,
-                                    argument.source,
-                                )
-                                && expected_argument_bytes
-                                    .as_ref()
-                                    .is_some_and(|bytes| bytes.len() == argument.byte_count)
-                                && argument.code_offset >= custody.code_offset
-                                && argument
-                                    .code_offset
-                                    .checked_add(argument.byte_count)
-                                    .is_some_and(|argument_end| argument_end <= end)
-                        })
-                    && custody
-                        .arguments
-                        .iter()
-                        .zip(&returned.parameters)
-                        .zip(&returned.parameter_placements)
-                        .all(|((argument, parameter), placement)| {
-                            argument.path.is_empty()
-                                && argument.root_structural_type == parameter.structural_type
-                                && argument.structural_type == parameter.structural_type
-                                && argument.access == parameter.access
-                                && argument.shape == placement.shape
-                                && argument.destination == *placement
-                        })
-                    && custody.scalar_arguments.windows(2).all(|pair| {
-                        pair[0]
-                            .code_offset
-                            .checked_add(pair[0].byte_count)
-                            .is_some_and(|prior_end| prior_end == pair[1].code_offset)
-                    })
-                    && custody.scalar_arguments.last().is_none_or(|last| {
-                        last.code_offset
-                            .checked_add(last.byte_count)
-                            .is_some_and(|scalar_end| {
-                                custody
-                                    .arguments
-                                    .first()
-                                    .map_or(scalar_end <= end, |argument| {
-                                        scalar_end == argument.code_offset
-                                    })
+                                    && expected_argument_bytes
+                                        .as_ref()
+                                        .is_some_and(|bytes| bytes.len() == argument.byte_count)
+                                    && argument.code_offset >= custody.code_offset
+                                    && argument
+                                        .code_offset
+                                        .checked_add(argument.byte_count)
+                                        .is_some_and(|argument_end| argument_end <= end)
                             })
-                    })
-                    && custody.arguments.windows(2).all(|pair| {
-                        pair[0].code_offset.checked_add(pair[0].byte_count)
-                            == Some(pair[1].code_offset)
-                    })
+                        && custody
+                            .arguments
+                            .iter()
+                            .zip(&abi.structural_parameters)
+                            .all(|(argument, parameter)| {
+                                argument.path.is_empty()
+                                    && argument.root_structural_type == parameter.structural_type
+                                    && argument.structural_type == parameter.structural_type
+                                    && argument.access == parameter.access
+                                    && argument.shape == parameter.shape
+                                    && argument.destination == parameter.placement
+                            })
+                        && custody.scalar_arguments.windows(2).all(|pair| {
+                            pair[0]
+                                .code_offset
+                                .checked_add(pair[0].byte_count)
+                                .is_some_and(|prior_end| prior_end == pair[1].code_offset)
+                        })
+                        && custody.scalar_arguments.last().is_none_or(|last| {
+                            last.code_offset.checked_add(last.byte_count).is_some_and(
+                                |scalar_end| {
+                                    custody
+                                        .arguments
+                                        .first()
+                                        .map_or(scalar_end <= end, |argument| {
+                                            scalar_end == argument.code_offset
+                                        })
+                                },
+                            )
+                        })
+                        && custody.arguments.windows(2).all(|pair| {
+                            pair[0].code_offset.checked_add(pair[0].byte_count)
+                                == Some(pair[1].code_offset)
+                        })
+                }
+                (None, Some(returned)) => {
+                    custody.result.is_none()
+                        && custody.structural_result.is_some()
+                        && scalar_count == returned.scalar_parameters.len()
+                        && custody.arguments.len() == returned.parameters.len()
+                        && plan.parameters.len()
+                            == returned.scalar_parameters.len() + returned.parameters.len()
+                        && plan.parameters[..returned.scalar_parameters.len()]
+                            == returned
+                                .scalar_parameters
+                                .iter()
+                                .map(|parameter| parameter.placement.clone())
+                                .collect::<Vec<_>>()
+                        && plan.parameters[returned.scalar_parameters.len()..]
+                            == returned.parameter_placements
+                        && plan.result.as_ref() == Some(&returned.result_placement)
+                        && custody
+                            .scalar_arguments
+                            .iter()
+                            .zip(&returned.scalar_parameters)
+                            .enumerate()
+                            .all(|(index, (argument, parameter))| {
+                                let expected_argument_bytes =
+                                    custody.arguments.first().and_then(|structural| {
+                                        crate::unit_scalar_call_custody::expected_argument_bytes(
+                                            record.target,
+                                            argument,
+                                            structural.call_stack_bytes,
+                                        )
+                                    });
+                                usize::try_from(argument.parameter_index) == Ok(index)
+                                    && argument.destination == parameter.placement
+                                    && argument.source.scalar_type()
+                                        == psi_core::ScalarType::Integer(parameter.scalar_type)
+                                    && installed_scalar_source_is_exact(
+                                        record,
+                                        function,
+                                        installed.machine,
+                                        custody,
+                                        argument.source,
+                                    )
+                                    && expected_argument_bytes
+                                        .as_ref()
+                                        .is_some_and(|bytes| bytes.len() == argument.byte_count)
+                                    && argument.code_offset >= custody.code_offset
+                                    && argument
+                                        .code_offset
+                                        .checked_add(argument.byte_count)
+                                        .is_some_and(|argument_end| argument_end <= end)
+                            })
+                        && custody
+                            .arguments
+                            .iter()
+                            .zip(&returned.parameters)
+                            .zip(&returned.parameter_placements)
+                            .all(|((argument, parameter), placement)| {
+                                argument.path.is_empty()
+                                    && argument.root_structural_type == parameter.structural_type
+                                    && argument.structural_type == parameter.structural_type
+                                    && argument.access == parameter.access
+                                    && argument.shape == placement.shape
+                                    && argument.destination == *placement
+                            })
+                        && custody.scalar_arguments.windows(2).all(|pair| {
+                            pair[0]
+                                .code_offset
+                                .checked_add(pair[0].byte_count)
+                                .is_some_and(|prior_end| prior_end == pair[1].code_offset)
+                        })
+                        && custody.scalar_arguments.last().is_none_or(|last| {
+                            last.code_offset.checked_add(last.byte_count).is_some_and(
+                                |scalar_end| {
+                                    custody
+                                        .arguments
+                                        .first()
+                                        .map_or(scalar_end <= end, |argument| {
+                                            scalar_end == argument.code_offset
+                                        })
+                                },
+                            )
+                        })
+                        && custody.arguments.windows(2).all(|pair| {
+                            pair[0].code_offset.checked_add(pair[0].byte_count)
+                                == Some(pair[1].code_offset)
+                        })
+                }
             }
         };
         if previous_call.is_some_and(|previous| previous >= key)
