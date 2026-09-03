@@ -12517,11 +12517,16 @@ checked-result arithmetic decision listed below.
   source-call occurrence accounting, and interpretation execute both branches,
   while guard, successor, selection, interface, or application drift rejects.
   Promotion also retains both source carrier shapes instead of dropping them
-  with the consumed direct candidates. The open seam is target-neutral abstract
-  and native lowering of this checked control graph. Aggregate storage, return,
-  forwarding after the join, and component crossing remain fenced; do not add a
-  representative conformance or a second joined-descriptor vocabulary to bypass
-  that control seam.
+  with the consumed direct candidates. The existing target-neutral lowering now
+  carries the graph without another joined-descriptor form: it retains the
+  conditional, two branch-local descriptor-bearing calls, their distinct
+  selection/application custody, and the shared helper parameter dispatch.
+  Optimization-seed reconstruction independently validates both alternatives;
+  replacing one source/application with the other rejects even after identity
+  recomputation. The open seam is abstract-to-target and native lowering of
+  this control graph. Aggregate storage, return, forwarding after the join, and
+  component crossing remain fenced; do not add a representative conformance or
+  a second joined-descriptor vocabulary to bypass that control seam.
 
   Remaining work:
 
