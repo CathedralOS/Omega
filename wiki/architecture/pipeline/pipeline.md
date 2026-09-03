@@ -176,7 +176,10 @@ Terminal Psi. Intermediate helpers remain explicit direct `CallUnit`
 operations with parameter-sourced descriptor arguments and only the last
 helper performs parameter-slot dispatch. Terminal verification, encoding, and
 interpretation preserve the chain without manufacturing a scalar result;
-target lowering is its next fail-closed boundary.
+target lowering and physical assignment retain a distinct result-neutral
+forwarding carrier, independently rederive both two-word no-result call plans,
+and require an unchanged descriptor-register handoff. Machine emission is its
+next fail-closed boundary.
 Its forwarding rows retain an exact semantic and physical scalar result when
 one exists, while Unit rows explicitly retain neither; they do not invent
 Terminal machine identities for native-only adapters. The bounded mutable form additionally carries `&mut

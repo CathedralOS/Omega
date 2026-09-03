@@ -1099,8 +1099,10 @@ native process observation are not yet in this native lane. Result-less Unit
 chains do reach verified Terminal Psi: each intermediate helper explicitly
 calls the next with the incoming descriptor parameter, only the final helper
 dispatches through the requirement slot, and no helper acquires a scalar result
-or value identity. Target and native lowering of that Unit chain remains
-fail-closed.
+or value identity. Target and assigned forms now retain a distinct
+result-neutral helper call, exact source/target interfaces, both no-result
+two-word call plans, and an unchanged descriptor-register handoff. Machine
+emission remains fail-closed on that carrier.
 
 Code that wants a local dynamic interface over a component owns a local proxy:
 

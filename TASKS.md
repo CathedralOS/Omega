@@ -12412,9 +12412,12 @@ checked-result arithmetic decision listed below.
   with a parameter-sourced descriptor argument, only the final helper performs
   `CallDynamicParameterUnit`, and no scalar value or result carrier exists.
   Terminal verification, canonical encoding, interpreter execution, and
-  coordinate-drift rejection cover that chain. Target/native Unit lowering,
-  scalar callers with continuations, and a native process-execution assertion
-  remain outside this bounded rung.
+  coordinate-drift rejection cover that chain. Target lowering and physical
+  assignment use a distinct result-neutral forwarding carrier: both sides
+  rederive the two-word no-result call plans, exact parameter interfaces, and
+  unchanged incoming/outgoing descriptor registers. Machine emission and
+  artifact replay, scalar callers with continuations, and a native
+  process-execution assertion remain outside this bounded rung.
 
   Remaining work:
 
@@ -12436,8 +12439,9 @@ checked-result arithmetic decision listed below.
   - extend descriptors to within-artifact stored/joined/escaping and
     aggregate-erased forms. The scalar parameter-forwarding row now crosses
     object/image/installation replay; the Unit form now reaches verified
-    Terminal Psi, so next carry its result-neutral custody through target and
-    native artifacts, then widen scalar continuations and add native execution
+    Terminal Psi and physical assignment, so next carry its result-neutral
+    custody through machine and native artifacts, then widen scalar
+    continuations and add native execution
     where a retained caller result makes an observable assertion possible. Do
     not extend local
     descriptor tables across a replaceable component boundary: that is a

@@ -179,6 +179,11 @@ exact call plans and unchanged register handoff, direct-call relocation and
 opcode, scalar stack/link custody, semantic attribution, and exact installed
 text span. Continuation-bearing callers, Unit-result chains, and native result
 observation remain outside this bounded family.
+The corresponding result-less Unit helper shape uses a separate function-level
+carrier rather than entering the scalar result lane. It independently rejoins
+the parameter source, target interface, and both no-result two-word call plans;
+physical assignment then requires the incoming and outgoing descriptor
+registers to be identical. Machine emission remains fail closed.
 Installed-provider scalar lowering currently admits one direct fixed signed
 `i32` parameter forwarded unchanged to one Unit-returning candidate. Wider or
 mixed scalars, computed arguments, runtime structural arguments in the same

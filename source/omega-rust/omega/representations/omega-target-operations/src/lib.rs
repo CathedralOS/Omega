@@ -1008,6 +1008,21 @@ pub enum TargetOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// Forward the current function's complete existential descriptor
+    /// parameter to another Unit helper, then return Unit. Both sides retain
+    /// the exact result-less two-word ABI; no scalar result carrier exists.
+    ForwardDynamicParameterUnitCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        callee: MachineId,
+        argument: AbstractDynamicDescriptorArgument,
+        parameter_abi: TargetDynamicDescriptorParameterAbi,
+        function_call_plan: CallPlan,
+        callee_call_plan: CallPlan,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// Invoke one Unit-result requirement through an existential descriptor
     /// parameter, then return Unit. This is a function-level carrier because
     /// the descriptor pair is the helper's complete incoming ABI.
