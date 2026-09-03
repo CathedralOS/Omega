@@ -845,6 +845,9 @@ fn encode_boundary_runtime_source(
             encode_integer_type(bytes, scalar_type)?;
             encode_integer_value(bytes, value);
         }
+        InternalUnitScalarArgumentSourceRecord::BooleanImmediate { .. } => {
+            return Err(InstallationError::InvalidBoundaryScalarArgument);
+        }
         InternalUnitScalarArgumentSourceRecord::Home(home) => {
             bytes.extend_from_slice(&[2, 0, 0, 0]);
             encode_unit_scalar_home(bytes, home)?;

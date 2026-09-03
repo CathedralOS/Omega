@@ -1548,6 +1548,22 @@ fn builtin_runtime_scalar_boundary_trait_settlement_identity(
                 psi_core::IntegerValue::Unsigned(value) => digest.update(value.to_le_bytes()),
             }
         }
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+            definition_ordinal,
+        } => {
+            digest.update([3]);
+            digest.update(defining_operation.get().to_le_bytes());
+            digest.update(source_value.get().to_le_bytes());
+            digest.update([u8::from(value)]);
+            digest.update(
+                u64::try_from(definition_ordinal)
+                    .expect("validated definition ordinal is u64-representable")
+                    .to_le_bytes(),
+            );
+        }
         omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
             digest.update([2]);
             digest.update(home.defining_operation.get().to_le_bytes());

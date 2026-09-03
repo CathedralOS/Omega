@@ -149,7 +149,11 @@ fn emit_x86_64_unit_scalar_call(
         emit_x86_64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
         argument_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
-            source: unit_scalar_argument_source_record(argument.source),
+            source: unit_scalar_argument_source_record(
+                psi_operation,
+                argument.source,
+                preceding_operations,
+            )?,
             destination: call_plan.parameters[parameter_index].clone(),
             code_offset,
             byte_count: bytes.len() - code_offset,
@@ -229,7 +233,11 @@ fn emit_aarch64_unit_scalar_call(
         emit_aarch64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
         argument_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
-            source: unit_scalar_argument_source_record(argument.source),
+            source: unit_scalar_argument_source_record(
+                psi_operation,
+                argument.source,
+                preceding_operations,
+            )?,
             destination: call_plan.parameters[parameter_index].clone(),
             code_offset,
             byte_count: bytes.len() - code_offset,
@@ -352,6 +360,22 @@ pub(super) fn validate_unit_scalar_argument(
                     && *value == source_value_literal
             }
             (
+                AssignedUnitOperation::BooleanConstant {
+                    psi_operation,
+                    result,
+                    value,
+                },
+                AssignedUnitScalarArgumentSource::BooleanImmediate {
+                    defining_operation,
+                    source_value,
+                    value: source_value_literal,
+                },
+            ) => {
+                *psi_operation == defining_operation
+                    && *result == source_value
+                    && *value == source_value_literal
+            }
+            (
                 AssignedUnitOperation::ScalarCall { result_home, .. }
                 | AssignedUnitOperation::DynamicScalarCall { result_home, .. }
                 | AssignedUnitOperation::StoredDynamicScalarCall { result_home, .. },
@@ -403,15 +427,17 @@ fn assigned_destination_for_placement(
 }
 
 pub(super) fn unit_scalar_argument_source_record(
+    operation: psi_core::OperationId,
     source: AssignedUnitScalarArgumentSource,
-) -> InternalUnitScalarArgumentSourceRecord {
+    preceding_operations: &[AssignedUnitOperation],
+) -> Result<InternalUnitScalarArgumentSourceRecord, EmissionError> {
     match source {
         AssignedUnitScalarArgumentSource::Parameter {
             parameter_index,
             source_value,
             scalar_type,
             location,
-        } => InternalUnitScalarArgumentSourceRecord::Parameter {
+        } => Ok(InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
             source_value,
             scalar_type,
@@ -428,24 +454,54 @@ pub(super) fn unit_scalar_argument_source_record(
                     unreachable!()
                 }
             },
-        },
+        }),
         AssignedUnitScalarArgumentSource::IntegerImmediate {
             defining_operation,
             source_value,
             scalar_type,
             value,
-        } => InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+        } => Ok(InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,
             source_value,
             scalar_type,
             value,
-        },
-        AssignedUnitScalarArgumentSource::BooleanImmediate { .. } => {
-            unreachable!("Boolean immediates do not yet cross the machine-emission fence")
+        }),
+        AssignedUnitScalarArgumentSource::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+        } => {
+            let mut matches = preceding_operations
+                .iter()
+                .enumerate()
+                .filter(|(_, operation)| {
+                    matches!(
+                        operation,
+                        AssignedUnitOperation::BooleanConstant {
+                            psi_operation,
+                            result,
+                            value: candidate,
+                        } if *psi_operation == defining_operation
+                            && *result == source_value
+                            && *candidate == value
+                    )
+                });
+            let Some((definition_ordinal, _)) = matches.next() else {
+                return Err(EmissionError::InvalidUnitScalarCallCustody(operation));
+            };
+            if matches.next().is_some() {
+                return Err(EmissionError::InvalidUnitScalarCallCustody(operation));
+            }
+            Ok(InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                defining_operation,
+                source_value,
+                value,
+                definition_ordinal,
+            })
         }
-        AssignedUnitScalarArgumentSource::Home(home) => {
-            InternalUnitScalarArgumentSourceRecord::Home(unit_scalar_home_record(home))
-        }
+        AssignedUnitScalarArgumentSource::Home(home) => Ok(
+            InternalUnitScalarArgumentSourceRecord::Home(unit_scalar_home_record(home)),
+        ),
     }
 }
 
@@ -556,8 +612,8 @@ pub(super) fn emit_x86_64_unit_scalar_argument(
             destination_register,
             canonical_integer_bits(source_value, scalar_type, value)?,
         ),
-        AssignedUnitScalarArgumentSource::BooleanImmediate { source_value, .. } => {
-            return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+        AssignedUnitScalarArgumentSource::BooleanImmediate { value, .. } => {
+            emit_x86_64_unit_scalar_immediate(bytes, destination_register, u64::from(value));
         }
         AssignedUnitScalarArgumentSource::Home(home) => {
             let source_offset = call_stack_bytes
@@ -608,8 +664,12 @@ pub(super) fn emit_aarch64_unit_scalar_argument(
             destination_register,
             canonical_integer_bits(source_value, scalar_type, value)?,
         ),
-        AssignedUnitScalarArgumentSource::BooleanImmediate { source_value, .. } => {
-            return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+        AssignedUnitScalarArgumentSource::BooleanImmediate { value, .. } => {
+            emit_aarch64_unit_scalar_immediate(
+                &mut instructions,
+                destination_register,
+                u64::from(value),
+            );
         }
         AssignedUnitScalarArgumentSource::Home(home) => {
             let source_offset = call_stack_bytes

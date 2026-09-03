@@ -710,7 +710,7 @@ the target store; the Boolean source additionally retains its definition
 ordinal. Dedicated whole-root records bind these facts to exact code intervals
 and bytes. Object construction independently replays the declaration joins,
 borrowed-reference placement and home, literal source, architecture encoding,
-attribution, interval, and bytes. Installation format 77 transports and
+attribution, interval, and bytes. Installation format 78 transports and
 revalidates the integer, Boolean, and IEEE float store families without
 treating physical pointer-layout equivalence as permission equivalence. IEEE
 float stores retain their exact preceding definition, raw bits, referent shape,
@@ -740,11 +740,13 @@ emits the structural suffix and call, and records the scalar source,
 destination, interval, and relocation custody. Object construction now
 independently rejoins the Unit callee ABI, caller parameter source, exact
 zero-byte same-register transfer, structural copy, stack evidence, and call
-bytes. Installation format 77 transports and replays the same custody on both
-Linux targets. This completes the one-parameter native-fixed-integer-or-Boolean
+bytes. Installation format 78 transports and replays the same custody on both
+Linux targets. The ordinary call source may now be either the caller's exact
+Boolean parameter or an exact preceding Boolean literal definition. This
+completes the one-parameter native-fixed-integer-or-Boolean
 caller-to-write-only-store lane; additional scalar parameters, computed
-sources, IEEE runtime sources, and non-native integer carriers remain fail
-closed.
+nonliteral sources, IEEE runtime sources, and non-native integer carriers
+remain fail closed.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

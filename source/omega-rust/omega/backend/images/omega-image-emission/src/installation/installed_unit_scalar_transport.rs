@@ -319,6 +319,7 @@ pub(super) fn validate_installed_unit_scalar_calls(
                                 && constant.value == value
                                 && constant.operation_ordinal < custody.operation_ordinal
                         }),
+                        omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate { .. } => false,
                         omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
                             function.unit_scalar_homes.iter().any(|candidate| candidate == &home)
                                 && record.internal_unit_scalar_calls.iter().any(|prior| {

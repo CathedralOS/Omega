@@ -1,4 +1,4 @@
-//! Independent replay for fixed-integer calls executed by attached Unit bodies.
+//! Independent scalar-call replay for attached Unit bodies.
 //!
 //! The emitter retains semantic sources, ABI destinations, homes, and byte
 //! intervals. This module regenerates the physical bytes from those semantic
@@ -518,6 +518,45 @@ pub(super) fn validate_source(
                 return Err(invalid());
             }
         }
+        InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+            definition_ordinal,
+        } => {
+            let consistent = function
+                .internal_unit_calls
+                .iter()
+                .flat_map(|call| &call.scalar_arguments)
+                .all(|argument| match argument.source {
+                    InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                        defining_operation: candidate_operation,
+                        source_value: candidate_value,
+                        value: candidate_literal,
+                        definition_ordinal: candidate_ordinal,
+                    } if candidate_operation == defining_operation
+                        || candidate_value == source_value =>
+                    {
+                        candidate_operation == defining_operation
+                            && candidate_value == source_value
+                            && candidate_literal == value
+                            && candidate_ordinal == definition_ordinal
+                    }
+                    _ => true,
+                });
+            if definition_ordinal >= consumer_operation_ordinal
+                || !function.provenance.operations.contains(&defining_operation)
+                || exact_attribution_count(
+                    &function.semantic_code_attribution,
+                    defining_operation,
+                    definition_ordinal,
+                    None,
+                ) != 1
+                || !consistent
+            {
+                return Err(invalid());
+            }
+        }
         InternalUnitScalarArgumentSourceRecord::Home(home) => {
             let matches = exact_preceding_unit_scalar_home_producer_count(
                 function,
@@ -667,6 +706,9 @@ pub(super) fn expected_argument_bytes(
                     register,
                     canonical_bits(scalar_type, value)?,
                 ),
+                InternalUnitScalarArgumentSourceRecord::BooleanImmediate { value, .. } => {
+                    expected_x86_immediate(&mut bytes, register, u64::from(value))
+                }
                 InternalUnitScalarArgumentSourceRecord::Home(home) => expected_x86_stack_load(
                     &mut bytes,
                     register,
@@ -704,6 +746,9 @@ pub(super) fn expected_argument_bytes(
                     register,
                     canonical_bits(scalar_type, value)?,
                 ),
+                InternalUnitScalarArgumentSourceRecord::BooleanImmediate { value, .. } => {
+                    expected_aarch64_immediate(&mut words, register, u64::from(value))
+                }
                 InternalUnitScalarArgumentSourceRecord::Home(home) => {
                     words.push(expected_aarch64_stack_load(
                         register,

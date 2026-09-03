@@ -24,6 +24,7 @@ pub(super) fn lower_structural_unit_call(
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     local_sources_by_place: &BTreeMap<PlaceId, StructuralCallLocalSource>,
     scalar_values: &BTreeMap<ValueId, super::scalar_call::KnownUnitInteger>,
+    boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     operations: &mut Vec<TargetUnitOperation>,
@@ -107,7 +108,7 @@ pub(super) fn lower_structural_unit_call(
             |(parameter_index, (((source_value, parameter), expected_shape), placement))| {
                 let source = match parameter.scalar_type {
                     ScalarType::Boolean => {
-                        let (caller_parameter_index, _) = function
+                        if let Some((caller_parameter_index, _)) = function
                             .parameters
                             .iter()
                             .enumerate()
@@ -115,12 +116,24 @@ pub(super) fn lower_structural_unit_call(
                                 caller_parameter.value == *source_value
                                     && caller_parameter.scalar_type == ScalarType::Boolean
                             })
-                            .ok_or(LoweringError::UnknownValue(*source_value))?;
-                        TargetUnitScalarArgumentSource::Parameter {
-                            parameter_index: u32::try_from(caller_parameter_index)
-                                .map_err(|_| LoweringError::UnitCallTargetKindMismatch(*callee))?,
-                            source_value: *source_value,
-                            scalar_type: ScalarType::Boolean,
+                        {
+                            TargetUnitScalarArgumentSource::Parameter {
+                                parameter_index: u32::try_from(caller_parameter_index).map_err(
+                                    |_| LoweringError::UnitCallTargetKindMismatch(*callee),
+                                )?,
+                                source_value: *source_value,
+                                scalar_type: ScalarType::Boolean,
+                            }
+                        } else if let Some((defining_operation, value)) =
+                            boolean_constants.get(source_value).copied()
+                        {
+                            TargetUnitScalarArgumentSource::BooleanImmediate {
+                                defining_operation,
+                                source_value: *source_value,
+                                value,
+                            }
+                        } else {
+                            return Err(LoweringError::UnknownValue(*source_value));
                         }
                     }
                     ScalarType::Integer(parameter_type) => {
