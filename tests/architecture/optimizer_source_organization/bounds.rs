@@ -29,11 +29,6 @@ struct SourceFileException {
 /// production/test ceiling. New files and unlisted growth still fail closed.
 const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[
     SourceFileException {
-        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/unit/boundary_call.rs",
-        ceiling: 661,
-        semantic_reason: "boundary lowering still joins argument, result, and custody projection",
-    },
-    SourceFileException {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/unit/structural_scalar.rs",
         ceiling: 673,
         semantic_reason: "structural-scalar direct and dynamic call lowering remain colocated",
