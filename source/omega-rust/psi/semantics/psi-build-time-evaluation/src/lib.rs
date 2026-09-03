@@ -43,6 +43,7 @@ pub use layout_plans::{
     ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization,
     ValidatedConstDepthFiveNestedSumOccurrenceMaterialization,
     ValidatedConstDepthFourNestedSumOccurrenceMaterialization,
+    ValidatedConstDepthFourteenNestedSumOccurrenceMaterialization,
     ValidatedConstDepthNineNestedSumOccurrenceMaterialization,
     ValidatedConstDepthSevenNestedSumOccurrenceMaterialization,
     ValidatedConstDepthSixNestedSumOccurrenceMaterialization,

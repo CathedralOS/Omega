@@ -36,6 +36,7 @@ pub use const_record_with_nested_sum_materializable::{
     ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization,
     ValidatedConstDepthFiveNestedSumOccurrenceMaterialization,
     ValidatedConstDepthFourNestedSumOccurrenceMaterialization,
+    ValidatedConstDepthFourteenNestedSumOccurrenceMaterialization,
     ValidatedConstDepthNineNestedSumOccurrenceMaterialization,
     ValidatedConstDepthSevenNestedSumOccurrenceMaterialization,
     ValidatedConstDepthSixNestedSumOccurrenceMaterialization,

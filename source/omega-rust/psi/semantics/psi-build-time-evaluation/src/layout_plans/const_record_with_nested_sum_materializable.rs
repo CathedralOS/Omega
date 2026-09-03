@@ -130,6 +130,322 @@ struct DerivedRecursiveNestedSumsMaterialization<Inner> {
     bytes: Vec<u8>,
 }
 
+/// Retained custody shared by every exact recursive record-path depth.
+///
+/// Concrete public aliases bind both the exact path-report depth and the exact
+/// preceding materialization depth; this carrier does not erase either axis.
+#[derive(Debug)]
+pub struct ValidatedConstRecursiveNestedSumsMaterialization<PathLayout, Inner> {
+    schema_name: String,
+    non_authoritative_schema_report_fingerprint: u64,
+    value: BuildTimeValue,
+    path_layout: PathLayout,
+    non_authoritative_outer_layout_report_fingerprint: u64,
+    occurrences: Vec<ValidatedConstRecursiveNestedSumOccurrenceMaterialization<Inner>>,
+    byte_order: ByteOrder,
+    bytes: Vec<u8>,
+    non_authoritative_materialization_report_fingerprint: u64,
+}
+
+impl<PathLayout, Inner> ValidatedConstRecursiveNestedSumsMaterialization<PathLayout, Inner> {
+    pub fn schema_name(&self) -> &str {
+        &self.schema_name
+    }
+
+    pub const fn value(&self) -> &BuildTimeValue {
+        &self.value
+    }
+
+    pub const fn path_layout(&self) -> &PathLayout {
+        &self.path_layout
+    }
+
+    pub fn occurrences(
+        &self,
+    ) -> &[ValidatedConstRecursiveNestedSumOccurrenceMaterialization<Inner>] {
+        &self.occurrences
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_materialization_report_fingerprint
+    }
+}
+
+fn validate_recursive_nested_sums_with_reachability<InnerPaths, Inner, Derive>(
+    typed: &TypedTrees,
+    schema_name: &str,
+    path_layout: &ConventionalRecordSumPathsLayoutReport<InnerPaths>,
+    value: &BuildTimeValue,
+    byte_order: ByteOrder,
+    reachability: &mut SumReachability<'_>,
+    fingerprint_domain: &[u8],
+    mut derive: Derive,
+    inner_fingerprint: fn(&Inner) -> u64,
+) -> Result<
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalRecordSumPathsLayoutReport<InnerPaths>,
+        Inner,
+    >,
+    MaterializationDiagnostic,
+>
+where
+    InnerPaths: Clone + RecordSumPathsInnerLayout,
+    Derive: FnMut(
+        &TypedTrees,
+        &str,
+        &ConventionalRecordSumPathsLayoutReport<InnerPaths>,
+        &BuildTimeValue,
+        ByteOrder,
+        &mut SumReachability<'_>,
+    ) -> Result<
+        DerivedRecursiveNestedSumsMaterialization<Inner>,
+        MaterializationDiagnostic,
+    >,
+{
+    let derived = derive(
+        typed,
+        schema_name,
+        path_layout,
+        value,
+        byte_order,
+        reachability,
+    )?;
+    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
+    let materialization_fingerprint = record_sum_paths_materialization_report_fingerprint(
+        fingerprint_domain,
+        schema_name,
+        derived.schema_report_fingerprint,
+        outer_fingerprint,
+        path_layout,
+        &derived.occurrences,
+        byte_order,
+        value,
+        &derived.bytes,
+        |occurrence| inner_fingerprint(&occurrence.inner),
+    );
+    Ok(ValidatedConstRecursiveNestedSumsMaterialization {
+        schema_name: schema_name.to_owned(),
+        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
+        value: value.clone(),
+        path_layout: path_layout.clone(),
+        non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
+        occurrences: derived.occurrences,
+        byte_order,
+        bytes: derived.bytes,
+        non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
+    })
+}
+
+fn replay_recursive_nested_sums_with_reachability<InnerPaths, Inner, Derive, ReplayInner>(
+    retained: &ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalRecordSumPathsLayoutReport<InnerPaths>,
+        Inner,
+    >,
+    typed: &TypedTrees,
+    schema_name: &str,
+    path_layout: &ConventionalRecordSumPathsLayoutReport<InnerPaths>,
+    value: &BuildTimeValue,
+    byte_order: ByteOrder,
+    reachability: &mut SumReachability<'_>,
+    depth_label: &str,
+    fingerprint_domain: &[u8],
+    mut derive: Derive,
+    mut replay_inner: ReplayInner,
+    inner_schema_name: for<'a> fn(&'a Inner) -> &'a str,
+    inner_value: for<'a> fn(&'a Inner) -> &'a BuildTimeValue,
+    inner_fingerprint: fn(&Inner) -> u64,
+) -> Result<(), MaterializationDiagnostic>
+where
+    InnerPaths: RecordSumPathsInnerLayout + RecordSumPathsReplay,
+    Derive: FnMut(
+        &TypedTrees,
+        &str,
+        &ConventionalRecordSumPathsLayoutReport<InnerPaths>,
+        &BuildTimeValue,
+        ByteOrder,
+        &mut SumReachability<'_>,
+    ) -> Result<
+        DerivedRecursiveNestedSumsMaterialization<Inner>,
+        MaterializationDiagnostic,
+    >,
+    ReplayInner: FnMut(
+        &Inner,
+        &TypedTrees,
+        &str,
+        &InnerPaths,
+        &BuildTimeValue,
+        ByteOrder,
+        &mut SumReachability<'_>,
+    ) -> Result<(), MaterializationDiagnostic>,
+{
+    if schema_name != retained.schema_name
+        || value != &retained.value
+        || byte_order != retained.byte_order
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable plural {depth_label} invocation drifted from retained custody"
+        )));
+    }
+    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
+    if outer_fingerprint != retained.non_authoritative_outer_layout_report_fingerprint
+        || !record_sum_paths_reports_match_for_replay(path_layout, &retained.path_layout)
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable plural {depth_label} layout drifted from retained custody"
+        )));
+    }
+
+    let replayed = derive(
+        typed,
+        schema_name,
+        path_layout,
+        value,
+        byte_order,
+        reachability,
+    )?;
+    if replayed.occurrences.len() != retained.occurrences.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable plural {depth_label} custody changed cardinality"
+        )));
+    }
+    for (((retained_occurrence, replayed_occurrence), path), retained_path) in retained
+        .occurrences
+        .iter()
+        .zip(&replayed.occurrences)
+        .zip(&path_layout.paths)
+        .zip(&retained.path_layout.paths)
+    {
+        if !field_occurrence_matches(
+            retained_occurrence.outer_field(),
+            retained_occurrence.outer_member_identity(),
+            replayed_occurrence.outer_field(),
+            replayed_occurrence.outer_member_identity(),
+        ) || !field_occurrence_matches(
+            &path.outer_field,
+            path.outer_member_identity,
+            &retained_path.outer_field,
+            retained_path.outer_member_identity,
+        ) {
+            return Err(MaterializationDiagnostic(format!(
+                "ConstMaterializable plural {depth_label} occurrence identity drifted from retained custody"
+            )));
+        }
+        replay_inner(
+            &retained_occurrence.inner,
+            typed,
+            inner_schema_name(&replayed_occurrence.inner),
+            &path.inner,
+            inner_value(&replayed_occurrence.inner),
+            byte_order,
+            reachability,
+        )?;
+        if inner_fingerprint(&retained_occurrence.inner)
+            != inner_fingerprint(&replayed_occurrence.inner)
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "ConstMaterializable plural {depth_label} inner custody drifted after exact replay"
+            )));
+        }
+    }
+    if replayed.schema_report_fingerprint != retained.non_authoritative_schema_report_fingerprint
+        || replayed.bytes != retained.bytes
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable plural {depth_label} bytes drifted after exact replay"
+        )));
+    }
+    let fingerprint = record_sum_paths_materialization_report_fingerprint(
+        fingerprint_domain,
+        schema_name,
+        replayed.schema_report_fingerprint,
+        outer_fingerprint,
+        path_layout,
+        &replayed.occurrences,
+        byte_order,
+        value,
+        &replayed.bytes,
+        |occurrence| inner_fingerprint(&occurrence.inner),
+    );
+    if fingerprint != retained.non_authoritative_materialization_report_fingerprint {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable plural {depth_label} fingerprint drifted after exact replay"
+        )));
+    }
+    Ok(())
+}
+
+fn replay_recursive_nested_sums<PathLayout, Inner, Replay>(
+    retained: &ValidatedConstRecursiveNestedSumsMaterialization<PathLayout, Inner>,
+    typed: &TypedTrees,
+    schema_name: &str,
+    path_layout: &PathLayout,
+    value: &BuildTimeValue,
+    byte_order: ByteOrder,
+    mut replay: Replay,
+) -> Result<(), MaterializationDiagnostic>
+where
+    Replay: FnMut(
+        &ValidatedConstRecursiveNestedSumsMaterialization<PathLayout, Inner>,
+        &TypedTrees,
+        &str,
+        &PathLayout,
+        &BuildTimeValue,
+        ByteOrder,
+        &mut SumReachability<'_>,
+    ) -> Result<(), MaterializationDiagnostic>,
+{
+    let mut reachability = SumReachability::new(typed);
+    replay(
+        retained,
+        typed,
+        schema_name,
+        path_layout,
+        value,
+        byte_order,
+        &mut reachability,
+    )
+}
+
+fn apply_recursive_nested_sums<PathLayout, Inner, Replay>(
+    retained: &ValidatedConstRecursiveNestedSumsMaterialization<PathLayout, Inner>,
+    typed: &TypedTrees,
+    destination: &mut [u8],
+    depth_label: &str,
+    mut replay: Replay,
+) -> Result<(), MaterializationDiagnostic>
+where
+    Replay: FnMut(
+        &ValidatedConstRecursiveNestedSumsMaterialization<PathLayout, Inner>,
+        &TypedTrees,
+        &str,
+        &PathLayout,
+        &BuildTimeValue,
+        ByteOrder,
+    ) -> Result<(), MaterializationDiagnostic>,
+{
+    replay(
+        retained,
+        typed,
+        &retained.schema_name,
+        &retained.path_layout,
+        &retained.value,
+        retained.byte_order,
+    )?;
+    if destination.len() < retained.bytes.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable plural {depth_label} copy needs {} bytes, destination has {}",
+            retained.bytes.len(),
+            destination.len()
+        )));
+    }
+    destination[..retained.bytes.len()].copy_from_slice(&retained.bytes);
+    Ok(())
+}
+
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-thirteen path set.
 ///
@@ -146,44 +462,13 @@ pub type ValidatedConstDepthThirteenNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-twelve carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthThirteenRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthThirteenNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthThirteenRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthThirteenRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthThirteenNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-twelve carrier before accepting the staged image.
     pub fn replay_against(
@@ -194,14 +479,14 @@ impl ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -214,105 +499,22 @@ impl ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-thirteen invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-thirteen layout drifted from retained custody"
-                    .into(),
-            ));
-        }
-
-        let replayed = derive_depth_thirteen_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-thirteen custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-thirteen occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-thirteen inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-thirteen bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_thirteen_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-thirteen fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-thirteen",
+            b"omega.const-materializable-plural-depth-thirteen-record-sum-paths.v1",
+            derive_depth_thirteen_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -321,22 +523,13 @@ impl ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
+        apply_recursive_nested_sums(
+            self,
             typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-thirteen copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+            destination,
+            "depth-thirteen",
+            Self::replay_against,
+        )
     }
 }
 
@@ -368,37 +561,16 @@ fn validate_const_materializable_record_with_depth_thirteen_nested_sums_with_rea
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization, MaterializationDiagnostic>
 {
-    let derived = derive_depth_thirteen_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_thirteen_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(
-        ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization {
-            schema_name: schema_name.to_owned(),
-            non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-            value: value.clone(),
-            path_layout: path_layout.clone(),
-            non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-            occurrences: derived.occurrences,
-            byte_order,
-            bytes: derived.bytes,
-            non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-        },
+        b"omega.const-materializable-plural-depth-thirteen-record-sum-paths.v1",
+        derive_depth_thirteen_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
     )
 }
 
@@ -422,44 +594,13 @@ pub type ValidatedConstDepthFourteenNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-thirteen carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthFourteenRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthFourteenNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthFourteenRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthFourteenRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthFourteenNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-thirteen carrier before accepting the staged image.
     pub fn replay_against(
@@ -470,14 +611,14 @@ impl ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -490,105 +631,22 @@ impl ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fourteen invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fourteen layout drifted from retained custody"
-                    .into(),
-            ));
-        }
-
-        let replayed = derive_depth_fourteen_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fourteen custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-fourteen occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-fourteen inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fourteen bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_fourteen_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fourteen fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-fourteen",
+            b"omega.const-materializable-plural-depth-fourteen-record-sum-paths.v1",
+            derive_depth_fourteen_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -597,22 +655,13 @@ impl ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
+        apply_recursive_nested_sums(
+            self,
             typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-fourteen copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+            destination,
+            "depth-fourteen",
+            Self::replay_against,
+        )
     }
 }
 
@@ -644,37 +693,16 @@ fn validate_const_materializable_record_with_depth_fourteen_nested_sums_with_rea
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization, MaterializationDiagnostic>
 {
-    let derived = derive_depth_fourteen_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_fourteen_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(
-        ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization {
-            schema_name: schema_name.to_owned(),
-            non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-            value: value.clone(),
-            path_layout: path_layout.clone(),
-            non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-            occurrences: derived.occurrences,
-            byte_order,
-            bytes: derived.bytes,
-            non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-        },
+        b"omega.const-materializable-plural-depth-fourteen-record-sum-paths.v1",
+        derive_depth_fourteen_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
     )
 }
 
@@ -698,44 +726,13 @@ pub type ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-fourteen carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthFifteenRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthFifteenRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthFifteenRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-fourteen carrier before accepting the staged image.
     pub fn replay_against(
@@ -746,14 +743,14 @@ impl ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -766,105 +763,22 @@ impl ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fifteen invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fifteen layout drifted from retained custody"
-                    .into(),
-            ));
-        }
-
-        let replayed = derive_depth_fifteen_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fifteen custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-fifteen occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-fifteen inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fifteen bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_fifteen_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-fifteen fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-fifteen",
+            b"omega.const-materializable-plural-depth-fifteen-record-sum-paths.v1",
+            derive_depth_fifteen_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -873,22 +787,13 @@ impl ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
+        apply_recursive_nested_sums(
+            self,
             typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-fifteen copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+            destination,
+            "depth-fifteen",
+            Self::replay_against,
+        )
     }
 }
 
@@ -920,37 +825,16 @@ fn validate_const_materializable_record_with_depth_fifteen_nested_sums_with_reac
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization, MaterializationDiagnostic>
 {
-    let derived = derive_depth_fifteen_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_fifteen_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(
-        ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization {
-            schema_name: schema_name.to_owned(),
-            non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-            value: value.clone(),
-            path_layout: path_layout.clone(),
-            non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-            occurrences: derived.occurrences,
-            byte_order,
-            bytes: derived.bytes,
-            non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-        },
+        b"omega.const-materializable-plural-depth-fifteen-record-sum-paths.v1",
+        derive_depth_fifteen_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
     )
 }
 
@@ -974,44 +858,13 @@ pub type ValidatedConstDepthTwelveNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-eleven carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthTwelveRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthTwelveNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthTwelveRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthElevenNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthTwelveRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthTwelveNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-eleven carrier before accepting the staged image.
     pub fn replay_against(
@@ -1022,14 +875,14 @@ impl ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -1042,105 +895,22 @@ impl ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-twelve invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-twelve layout drifted from retained custody"
-                    .into(),
-            ));
-        }
-
-        let replayed = derive_depth_twelve_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-twelve custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-twelve occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-twelve inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-twelve bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_twelve_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-twelve fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-twelve",
+            b"omega.const-materializable-plural-depth-twelve-record-sum-paths.v1",
+            derive_depth_twelve_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthElevenNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthElevenNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthElevenNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthElevenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -1149,22 +919,13 @@ impl ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
+        apply_recursive_nested_sums(
+            self,
             typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-twelve copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+            destination,
+            "depth-twelve",
+            Self::replay_against,
+        )
     }
 }
 
@@ -1196,37 +957,16 @@ fn validate_const_materializable_record_with_depth_twelve_nested_sums_with_reach
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization, MaterializationDiagnostic>
 {
-    let derived = derive_depth_twelve_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_twelve_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(
-        ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization {
-            schema_name: schema_name.to_owned(),
-            non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-            value: value.clone(),
-            path_layout: path_layout.clone(),
-            non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-            occurrences: derived.occurrences,
-            byte_order,
-            bytes: derived.bytes,
-            non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-        },
+        b"omega.const-materializable-plural-depth-twelve-record-sum-paths.v1",
+        derive_depth_twelve_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthElevenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
     )
 }
 
@@ -1249,44 +989,13 @@ pub type ValidatedConstDepthElevenNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-ten carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthElevenNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthElevenRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthElevenNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthElevenNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthElevenRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthTenNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthElevenNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthElevenRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthElevenNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-ten carrier before accepting the staged image.
     pub fn replay_against(
@@ -1297,14 +1006,14 @@ impl ValidatedConstRecordWithDepthElevenNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -1317,105 +1026,22 @@ impl ValidatedConstRecordWithDepthElevenNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eleven invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eleven layout drifted from retained custody"
-                    .into(),
-            ));
-        }
-
-        let replayed = derive_depth_eleven_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eleven custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-eleven occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-eleven inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eleven bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_eleven_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eleven fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-eleven",
+            b"omega.const-materializable-plural-depth-eleven-record-sum-paths.v1",
+            derive_depth_eleven_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthTenNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthTenNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthTenNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthTenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -1424,22 +1050,13 @@ impl ValidatedConstRecordWithDepthElevenNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
+        apply_recursive_nested_sums(
+            self,
             typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-eleven copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+            destination,
+            "depth-eleven",
+            Self::replay_against,
+        )
     }
 }
 
@@ -1471,37 +1088,16 @@ fn validate_const_materializable_record_with_depth_eleven_nested_sums_with_reach
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthElevenNestedSumsMaterialization, MaterializationDiagnostic>
 {
-    let derived = derive_depth_eleven_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_eleven_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(
-        ValidatedConstRecordWithDepthElevenNestedSumsMaterialization {
-            schema_name: schema_name.to_owned(),
-            non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-            value: value.clone(),
-            path_layout: path_layout.clone(),
-            non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-            occurrences: derived.occurrences,
-            byte_order,
-            bytes: derived.bytes,
-            non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-        },
+        b"omega.const-materializable-plural-depth-eleven-record-sum-paths.v1",
+        derive_depth_eleven_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthTenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
     )
 }
 
@@ -1525,44 +1121,13 @@ pub type ValidatedConstDepthTenNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-nine carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthTenNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthTenRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthTenNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthTenNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthTenRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthNineNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthTenNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthTenRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthTenNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-nine carrier before accepting the staged image.
     pub fn replay_against(
@@ -1573,14 +1138,14 @@ impl ValidatedConstRecordWithDepthTenNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -1593,104 +1158,22 @@ impl ValidatedConstRecordWithDepthTenNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-ten invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-ten layout drifted from retained custody".into(),
-            ));
-        }
-
-        let replayed = derive_depth_ten_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-ten custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-ten occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-ten inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-ten bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_ten_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-ten fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-ten",
+            b"omega.const-materializable-plural-depth-ten-record-sum-paths.v1",
+            derive_depth_ten_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthNineNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthNineNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthNineNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthNineNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -1699,22 +1182,7 @@ impl ValidatedConstRecordWithDepthTenNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
-            typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-ten copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        apply_recursive_nested_sums(self, typed, destination, "depth-ten", Self::replay_against)
     }
 }
 
@@ -1744,36 +1212,17 @@ fn validate_const_materializable_record_with_depth_ten_nested_sums_with_reachabi
     byte_order: ByteOrder,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthTenNestedSumsMaterialization, MaterializationDiagnostic> {
-    let derived = derive_depth_ten_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_ten_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(ValidatedConstRecordWithDepthTenNestedSumsMaterialization {
-        schema_name: schema_name.to_owned(),
-        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-        value: value.clone(),
-        path_layout: path_layout.clone(),
-        non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-        occurrences: derived.occurrences,
-        byte_order,
-        bytes: derived.bytes,
-        non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-    })
+        b"omega.const-materializable-plural-depth-ten-record-sum-paths.v1",
+        derive_depth_ten_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthNineNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+    )
 }
 
 type DerivedDepthTenNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
@@ -1796,44 +1245,13 @@ pub type ValidatedConstDepthNineNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-eight carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthNineNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthNineRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthNineNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthNineNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthNineRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthEightNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthNineNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthNineRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthNineNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-eight carrier before accepting the staged image.
     pub fn replay_against(
@@ -1844,14 +1262,14 @@ impl ValidatedConstRecordWithDepthNineNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -1864,104 +1282,22 @@ impl ValidatedConstRecordWithDepthNineNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-nine invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-nine layout drifted from retained custody".into(),
-            ));
-        }
-
-        let replayed = derive_depth_nine_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-nine custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-nine occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-nine inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-nine bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_nine_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-nine fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-nine",
+            b"omega.const-materializable-plural-depth-nine-record-sum-paths.v1",
+            derive_depth_nine_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthEightNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthEightNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthEightNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthEightNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -1970,22 +1306,7 @@ impl ValidatedConstRecordWithDepthNineNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
-            typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-nine copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        apply_recursive_nested_sums(self, typed, destination, "depth-nine", Self::replay_against)
     }
 }
 
@@ -2015,36 +1336,17 @@ fn validate_const_materializable_record_with_depth_nine_nested_sums_with_reachab
     byte_order: ByteOrder,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthNineNestedSumsMaterialization, MaterializationDiagnostic> {
-    let derived = derive_depth_nine_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_nine_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(ValidatedConstRecordWithDepthNineNestedSumsMaterialization {
-        schema_name: schema_name.to_owned(),
-        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-        value: value.clone(),
-        path_layout: path_layout.clone(),
-        non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-        occurrences: derived.occurrences,
-        byte_order,
-        bytes: derived.bytes,
-        non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-    })
+        b"omega.const-materializable-plural-depth-nine-record-sum-paths.v1",
+        derive_depth_nine_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthEightNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+    )
 }
 
 type DerivedDepthNineNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
@@ -2067,44 +1369,13 @@ pub type ValidatedConstDepthEightNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-seven carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthEightNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthEightRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthEightNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthEightNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthEightRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthSevenNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthEightNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthEightRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthEightNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-seven carrier before accepting the staged image.
     pub fn replay_against(
@@ -2115,14 +1386,14 @@ impl ValidatedConstRecordWithDepthEightNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -2135,105 +1406,22 @@ impl ValidatedConstRecordWithDepthEightNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eight invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eight layout drifted from retained custody"
-                    .into(),
-            ));
-        }
-
-        let replayed = derive_depth_eight_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eight custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-eight occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-eight inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eight bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_eight_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-eight fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-eight",
+            b"omega.const-materializable-plural-depth-eight-record-sum-paths.v1",
+            derive_depth_eight_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthSevenNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthSevenNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthSevenNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthSevenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -2242,22 +1430,13 @@ impl ValidatedConstRecordWithDepthEightNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
+        apply_recursive_nested_sums(
+            self,
             typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-eight copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+            destination,
+            "depth-eight",
+            Self::replay_against,
+        )
     }
 }
 
@@ -2289,37 +1468,16 @@ fn validate_const_materializable_record_with_depth_eight_nested_sums_with_reacha
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthEightNestedSumsMaterialization, MaterializationDiagnostic>
 {
-    let derived = derive_depth_eight_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_eight_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(
-        ValidatedConstRecordWithDepthEightNestedSumsMaterialization {
-            schema_name: schema_name.to_owned(),
-            non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-            value: value.clone(),
-            path_layout: path_layout.clone(),
-            non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-            occurrences: derived.occurrences,
-            byte_order,
-            bytes: derived.bytes,
-            non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-        },
+        b"omega.const-materializable-plural-depth-eight-record-sum-paths.v1",
+        derive_depth_eight_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthSevenNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
     )
 }
 
@@ -2343,44 +1501,13 @@ pub type ValidatedConstDepthSevenNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-six carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthSevenNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthSevenRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthSevenNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthSevenNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthSevenRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthSixNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthSevenNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthSevenRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthSevenNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-six carrier before accepting the staged image.
     pub fn replay_against(
@@ -2391,14 +1518,14 @@ impl ValidatedConstRecordWithDepthSevenNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -2411,105 +1538,22 @@ impl ValidatedConstRecordWithDepthSevenNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-seven invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-seven layout drifted from retained custody"
-                    .into(),
-            ));
-        }
-
-        let replayed = derive_depth_seven_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-seven custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-seven occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-seven inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-seven bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_seven_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-seven fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-seven",
+            b"omega.const-materializable-plural-depth-seven-record-sum-paths.v1",
+            derive_depth_seven_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthSixNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthSixNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthSixNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthSixNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -2518,22 +1562,13 @@ impl ValidatedConstRecordWithDepthSevenNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
+        apply_recursive_nested_sums(
+            self,
             typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-seven copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+            destination,
+            "depth-seven",
+            Self::replay_against,
+        )
     }
 }
 
@@ -2565,37 +1600,16 @@ fn validate_const_materializable_record_with_depth_seven_nested_sums_with_reacha
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthSevenNestedSumsMaterialization, MaterializationDiagnostic>
 {
-    let derived = derive_depth_seven_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_seven_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(
-        ValidatedConstRecordWithDepthSevenNestedSumsMaterialization {
-            schema_name: schema_name.to_owned(),
-            non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-            value: value.clone(),
-            path_layout: path_layout.clone(),
-            non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-            occurrences: derived.occurrences,
-            byte_order,
-            bytes: derived.bytes,
-            non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-        },
+        b"omega.const-materializable-plural-depth-seven-record-sum-paths.v1",
+        derive_depth_seven_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthSixNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
     )
 }
 
@@ -2619,44 +1633,13 @@ pub type ValidatedConstDepthSixNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-five carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthSixNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthSixRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthSixNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthSixNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthSixRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthFiveNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthSixNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthSixRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthSixNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-five carrier before accepting the staged image.
     pub fn replay_against(
@@ -2667,14 +1650,14 @@ impl ValidatedConstRecordWithDepthSixNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -2687,104 +1670,22 @@ impl ValidatedConstRecordWithDepthSixNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-six invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-six layout drifted from retained custody".into(),
-            ));
-        }
-
-        let replayed = derive_depth_six_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-six custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-six occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-six inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-six bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_six_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-six fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-six",
+            b"omega.const-materializable-plural-depth-six-record-sum-paths.v1",
+            derive_depth_six_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthFiveNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthFiveNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthFiveNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthFiveNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -2793,22 +1694,7 @@ impl ValidatedConstRecordWithDepthSixNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
-            typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-six copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        apply_recursive_nested_sums(self, typed, destination, "depth-six", Self::replay_against)
     }
 }
 
@@ -2838,36 +1724,17 @@ fn validate_const_materializable_record_with_depth_six_nested_sums_with_reachabi
     byte_order: ByteOrder,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthSixNestedSumsMaterialization, MaterializationDiagnostic> {
-    let derived = derive_depth_six_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_six_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(ValidatedConstRecordWithDepthSixNestedSumsMaterialization {
-        schema_name: schema_name.to_owned(),
-        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-        value: value.clone(),
-        path_layout: path_layout.clone(),
-        non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-        occurrences: derived.occurrences,
-        byte_order,
-        bytes: derived.bytes,
-        non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-    })
+        b"omega.const-materializable-plural-depth-six-record-sum-paths.v1",
+        derive_depth_six_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthFiveNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+    )
 }
 
 type DerivedDepthSixNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
@@ -2890,44 +1757,13 @@ pub type ValidatedConstDepthFiveNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-four carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthFiveNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthFiveRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthFiveNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthFiveNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthFiveRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthFourNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthFiveNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthFiveRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthFiveNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-four carrier before accepting the staged image.
     pub fn replay_against(
@@ -2938,14 +1774,14 @@ impl ValidatedConstRecordWithDepthFiveNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -2958,104 +1794,22 @@ impl ValidatedConstRecordWithDepthFiveNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-five invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-five layout drifted from retained custody".into(),
-            ));
-        }
-
-        let replayed = derive_depth_five_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-five custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-five occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-five inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-five bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_five_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-five fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-five",
+            b"omega.const-materializable-plural-depth-five-record-sum-paths.v1",
+            derive_depth_five_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthFourNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthFourNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthFourNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthFourNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -3064,22 +1818,7 @@ impl ValidatedConstRecordWithDepthFiveNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
-            typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-five copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        apply_recursive_nested_sums(self, typed, destination, "depth-five", Self::replay_against)
     }
 }
 
@@ -3109,36 +1848,17 @@ fn validate_const_materializable_record_with_depth_five_nested_sums_with_reachab
     byte_order: ByteOrder,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthFiveNestedSumsMaterialization, MaterializationDiagnostic> {
-    let derived = derive_depth_five_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_five_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(ValidatedConstRecordWithDepthFiveNestedSumsMaterialization {
-        schema_name: schema_name.to_owned(),
-        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-        value: value.clone(),
-        path_layout: path_layout.clone(),
-        non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-        occurrences: derived.occurrences,
-        byte_order,
-        bytes: derived.bytes,
-        non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-    })
+        b"omega.const-materializable-plural-depth-five-record-sum-paths.v1",
+        derive_depth_five_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthFourNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+    )
 }
 
 type DerivedDepthFiveNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
@@ -3161,44 +1881,13 @@ pub type ValidatedConstDepthFourNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one unchanged plural depth-three carrier. This type
 /// deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthFourNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthFourRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthFourNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthFourNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthFourRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthThreeNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthFourNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthFourRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthFourNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-three carrier before accepting the staged image.
     pub fn replay_against(
@@ -3209,14 +1898,14 @@ impl ValidatedConstRecordWithDepthFourNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -3229,104 +1918,22 @@ impl ValidatedConstRecordWithDepthFourNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-four invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-four layout drifted from retained custody".into(),
-            ));
-        }
-
-        let replayed = derive_depth_four_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-four custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-four occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-four inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-four bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_four_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-four fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-four",
+            b"omega.const-materializable-plural-depth-four-record-sum-paths.v1",
+            derive_depth_four_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthThreeNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthThreeNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthThreeNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthThreeNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay complete retained custody before one atomic outer-image copy.
@@ -3335,22 +1942,7 @@ impl ValidatedConstRecordWithDepthFourNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
-            typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-four copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        apply_recursive_nested_sums(self, typed, destination, "depth-four", Self::replay_against)
     }
 }
 
@@ -3380,36 +1972,17 @@ fn validate_const_materializable_record_with_depth_four_nested_sums_with_reachab
     byte_order: ByteOrder,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthFourNestedSumsMaterialization, MaterializationDiagnostic> {
-    let derived = derive_depth_four_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_four_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(ValidatedConstRecordWithDepthFourNestedSumsMaterialization {
-        schema_name: schema_name.to_owned(),
-        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-        value: value.clone(),
-        path_layout: path_layout.clone(),
-        non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-        occurrences: derived.occurrences,
-        byte_order,
-        bytes: derived.bytes,
-        non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-    })
+        b"omega.const-materializable-plural-depth-four-record-sum-paths.v1",
+        derive_depth_four_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthThreeNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+    )
 }
 
 type DerivedDepthFourNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
@@ -3432,44 +2005,13 @@ pub type ValidatedConstDepthThreeNestedSumOccurrenceMaterialization =
 /// The outer layout and final image are retained once. Each outer occurrence
 /// owns exactly one existing plural depth-two carrier. This type deliberately
 /// does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthThreeNestedSumsMaterialization {
-    schema_name: String,
-    non_authoritative_schema_report_fingerprint: u64,
-    value: BuildTimeValue,
-    path_layout: ConventionalDepthThreeRecordSumPathsLayoutReport,
-    non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthThreeNestedSumOccurrenceMaterialization>,
-    byte_order: ByteOrder,
-    bytes: Vec<u8>,
-    non_authoritative_materialization_report_fingerprint: u64,
-}
+pub type ValidatedConstRecordWithDepthThreeNestedSumsMaterialization =
+    ValidatedConstRecursiveNestedSumsMaterialization<
+        ConventionalDepthThreeRecordSumPathsLayoutReport,
+        ValidatedConstRecordWithDepthTwoNestedSumsMaterialization,
+    >;
 
 impl ValidatedConstRecordWithDepthThreeNestedSumsMaterialization {
-    pub fn schema_name(&self) -> &str {
-        &self.schema_name
-    }
-
-    pub const fn value(&self) -> &BuildTimeValue {
-        &self.value
-    }
-
-    pub const fn path_layout(&self) -> &ConventionalDepthThreeRecordSumPathsLayoutReport {
-        &self.path_layout
-    }
-
-    pub fn occurrences(&self) -> &[ValidatedConstDepthThreeNestedSumOccurrenceMaterialization] {
-        &self.occurrences
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
-
     /// Re-resolve the complete authored-order path set and independently replay
     /// every retained depth-two carrier before accepting the staged outer image.
     pub fn replay_against(
@@ -3480,14 +2022,14 @@ impl ValidatedConstRecordWithDepthThreeNestedSumsMaterialization {
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut reachability = SumReachability::new(typed);
-        self.replay_against_with_reachability(
+        replay_recursive_nested_sums(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
-            &mut reachability,
+            Self::replay_against_with_reachability,
         )
     }
 
@@ -3500,105 +2042,22 @@ impl ValidatedConstRecordWithDepthThreeNestedSumsMaterialization {
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
     ) -> Result<(), MaterializationDiagnostic> {
-        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-three invocation drifted from retained custody"
-                    .into(),
-            ));
-        }
-        let outer_fingerprint =
-            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-three layout drifted from retained custody"
-                    .into(),
-            ));
-        }
-
-        let replayed = derive_depth_three_nested_sums_bytes_with_reachability(
+        replay_recursive_nested_sums_with_reachability(
+            self,
             typed,
             schema_name,
             path_layout,
             value,
             byte_order,
             reachability,
-        )?;
-        if replayed.occurrences.len() != self.occurrences.len() {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-three custody changed cardinality".into(),
-            ));
-        }
-        for (((retained, replayed), path), retained_path) in self
-            .occurrences
-            .iter()
-            .zip(&replayed.occurrences)
-            .zip(&path_layout.paths)
-            .zip(&self.path_layout.paths)
-        {
-            if !field_occurrence_matches(
-                retained.outer_field(),
-                retained.outer_member_identity(),
-                replayed.outer_field(),
-                replayed.outer_member_identity(),
-            ) || !field_occurrence_matches(
-                &path.outer_field,
-                path.outer_member_identity,
-                &retained_path.outer_field,
-                retained_path.outer_member_identity,
-            ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-three occurrence identity drifted from retained custody"
-                        .into(),
-                ));
-            }
-            retained.inner.replay_against_with_reachability(
-                typed,
-                replayed.inner.schema_name(),
-                &path.inner,
-                replayed.inner.value(),
-                byte_order,
-                reachability,
-            )?;
-            if retained
-                .inner
-                .non_authoritative_materialization_report_fingerprint()
-                != replayed
-                    .inner
-                    .non_authoritative_materialization_report_fingerprint()
-            {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-three inner custody drifted after exact replay"
-                        .into(),
-                ));
-            }
-        }
-        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.bytes != self.bytes
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-three bytes drifted after exact replay".into(),
-            ));
-        }
-        let fingerprint = depth_three_nested_sums_materialization_report_fingerprint(
-            schema_name,
-            replayed.schema_report_fingerprint,
-            outer_fingerprint,
-            path_layout,
-            &replayed.occurrences,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-three fingerprint drifted after exact replay"
-                    .into(),
-            ));
-        }
-        Ok(())
+            "depth-three",
+            b"omega.const-materializable-plural-depth-three-record-sum-paths.v1",
+            derive_depth_three_nested_sums_bytes_with_reachability,
+            ValidatedConstRecordWithDepthTwoNestedSumsMaterialization::replay_against_with_reachability,
+            ValidatedConstRecordWithDepthTwoNestedSumsMaterialization::schema_name,
+            ValidatedConstRecordWithDepthTwoNestedSumsMaterialization::value,
+            ValidatedConstRecordWithDepthTwoNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
+        )
     }
 
     /// Replay the complete retained custody before one atomic outer-image copy.
@@ -3607,22 +2066,13 @@ impl ValidatedConstRecordWithDepthThreeNestedSumsMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
+        apply_recursive_nested_sums(
+            self,
             typed,
-            &self.schema_name,
-            &self.path_layout,
-            &self.value,
-            self.byte_order,
-        )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-three copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+            destination,
+            "depth-three",
+            Self::replay_against,
+        )
     }
 }
 
@@ -3654,37 +2104,16 @@ fn validate_const_materializable_record_with_depth_three_nested_sums_with_reacha
     reachability: &mut SumReachability<'_>,
 ) -> Result<ValidatedConstRecordWithDepthThreeNestedSumsMaterialization, MaterializationDiagnostic>
 {
-    let derived = derive_depth_three_nested_sums_bytes_with_reachability(
+    validate_recursive_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
         value,
         byte_order,
         reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_three_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(
-        ValidatedConstRecordWithDepthThreeNestedSumsMaterialization {
-            schema_name: schema_name.to_owned(),
-            non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-            value: value.clone(),
-            path_layout: path_layout.clone(),
-            non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-            occurrences: derived.occurrences,
-            byte_order,
-            bytes: derived.bytes,
-            non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-        },
+        b"omega.const-materializable-plural-depth-three-record-sum-paths.v1",
+        derive_depth_three_nested_sums_bytes_with_reachability,
+        ValidatedConstRecordWithDepthTwoNestedSumsMaterialization::non_authoritative_materialization_report_fingerprint,
     )
 }
 
