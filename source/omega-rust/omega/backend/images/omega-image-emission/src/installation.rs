@@ -633,6 +633,13 @@ pub fn build_installation_record_with_selected_provider_plans_and_evidence<'exec
 where
     Execution: omega_installation_evidence::ProviderExecutionEvidence + ?Sized + 'execution,
 {
+    if image
+        .functions()
+        .iter()
+        .any(|function| !function.stored_dynamic_calls.is_empty())
+    {
+        return Err(InstallationError::UnsupportedStoredDynamicCalls);
+    }
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -4210,6 +4217,7 @@ fn decode_structural_types(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallationError {
+    UnsupportedStoredDynamicCalls,
     InvalidMagic,
     UnsupportedFormatMarker(u16),
     UnsupportedVocabularyMarker(u16),

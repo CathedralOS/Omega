@@ -507,6 +507,71 @@ fn validate_dynamic_conformance_tables(
                 }
             }
         }
+        for call in &function.stored_dynamic_calls {
+            let establishment = &call.establishment;
+            let table = artifact
+                .dynamic_conformance_tables()
+                .iter()
+                .find(|table| {
+                    super::same_dynamic_table_application(
+                        &table.application,
+                        &establishment.stored.application,
+                    )
+                })
+                .ok_or_else(invalid)?;
+            let origin = omega_object_file::RelocationOrigin::SemanticOperation {
+                function_symbol_handle: function.symbol,
+                operation_identity: establishment.psi_operation.get(),
+            };
+            let expected = match establishment.table_address.encoding {
+                omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                    relocation_offset,
+                } => vec![(
+                    function
+                        .text_offset
+                        .checked_add(relocation_offset)
+                        .ok_or_else(invalid)?,
+                    omega_object_file::RelocationKind::X86_64Relative32,
+                )],
+                omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                } => vec![
+                    (
+                        function
+                            .text_offset
+                            .checked_add(page_relocation_offset)
+                            .ok_or_else(invalid)?,
+                        omega_object_file::RelocationKind::Aarch64Page21,
+                    ),
+                    (
+                        function
+                            .text_offset
+                            .checked_add(page_offset_relocation_offset)
+                            .ok_or_else(invalid)?,
+                        omega_object_file::RelocationKind::Aarch64PageOffset12,
+                    ),
+                ],
+            };
+            for (offset, kind) in expected {
+                if relocations
+                    .records()
+                    .filter(|(_, relocation)| {
+                        relocation.origin == origin
+                            && relocation.section == omega_object_file::SectionKind::Text
+                            && relocation.offset == offset
+                            && relocation.byte_width == 4
+                            && relocation.symbol_handle == table.symbol
+                            && relocation.addend == 0
+                            && relocation.kind == kind
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(invalid());
+                }
+            }
+        }
         for call in &function.forwarded_dynamic_descriptor_calls {
             for argument in &call.dynamic_arguments {
                 let application = match &argument.custody.source {

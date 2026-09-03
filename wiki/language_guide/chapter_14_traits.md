@@ -814,8 +814,10 @@ same home before giving its scalar result a distinct home. Machine emission
 writes the selected instance and private-table address at establishment, then
 reloads both descriptor words for the later x86-64 or AArch64 indirect call. It
 retains the exact shared home, selected table slot, relocation fields, call and
-result intervals, and stack evidence. Object/image/installation replay remains
-open.
+result intervals, and stack evidence. Object and final-image replay regenerate
+the target bytes, bind the symbolic table address to the complete private table,
+and compose exact stack demand. Installation encoding rejects the row rather
+than shedding it; installation replay remains open.
 Those consumers use the same complete normalized maps.
 Replaceable-component crossing is not another descriptor rung: it is forbidden
 below, and uses a boundary requirement or a consumer-owned local proxy instead.

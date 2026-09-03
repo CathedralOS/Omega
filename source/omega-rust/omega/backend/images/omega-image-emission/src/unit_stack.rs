@@ -309,6 +309,7 @@ pub(super) fn validate_complete_unit_stack_evidence(
     calls: &[omega_machine_code::InternalCallRelocation],
     foreign_calls: &[ForeignCallRelocation],
     dynamic_calls: &[omega_machine_code::DynamicCallRecord],
+    stored_dynamic_calls: &[omega_machine_code::StoredDynamicCallRecord],
     boundary_settlements: &[omega_machine_code::BoundarySettlementRecord],
     integer_constants: &[omega_machine_code::UnitIntegerConstantRecord],
     scalar_homes: &[omega_machine_code::UnitScalarHomeRecord],
@@ -342,6 +343,13 @@ pub(super) fn validate_complete_unit_stack_evidence(
         }
     }
     for call in dynamic_calls {
+        if let Some(outbound) = call.unit_stack.outbound
+            && !claim_pair(outbound)
+        {
+            return Err(ObjectError::DuplicateUnitStackAdjustment(machine));
+        }
+    }
+    for call in stored_dynamic_calls {
         if let Some(outbound) = call.unit_stack.outbound
             && !claim_pair(outbound)
         {
@@ -408,6 +416,11 @@ pub(super) fn validate_complete_unit_stack_evidence(
                         .map(|call| call.offset.saturating_sub(1)),
                 )
                 .chain(dynamic_calls.iter().map(|call| call.indirect_call_offset))
+                .chain(
+                    stored_dynamic_calls
+                        .iter()
+                        .map(|call| call.indirect_call_offset),
+                )
                 .collect::<std::collections::BTreeSet<_>>();
             for code in code_ranges(bytes.len(), inline_data) {
                 let mut decoder = iced_x86::Decoder::with_ip(

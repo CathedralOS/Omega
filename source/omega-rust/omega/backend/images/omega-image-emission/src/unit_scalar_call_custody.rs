@@ -39,6 +39,7 @@ pub(super) fn validate_internal_unit_scalar_calls(
         .count();
     if function.internal_unit_scalar_calls.is_empty()
         && function.dynamic_calls.is_empty()
+        && function.stored_dynamic_calls.is_empty()
         && function.forwarded_dynamic_descriptor_calls.is_empty()
         && foreign_result_count == 0
     {
@@ -130,6 +131,13 @@ fn validate_home_roster(
                 )
             })
         }))
+        .chain(function.stored_dynamic_calls.iter().map(|call| {
+            (
+                call.operation_ordinal,
+                CallSiteOwner::Operation(call.psi_operation),
+                &call.result,
+            )
+        }))
         .chain(
             function
                 .forwarded_dynamic_descriptor_calls
@@ -190,6 +198,7 @@ fn validate_home_roster(
     );
     enum Allocation<'a> {
         Dynamic(&'a omega_machine_code::DynamicCallRecord),
+        StoredDynamic(&'a omega_machine_code::StoredDynamicCallRecord),
         Scalar(
             CallSiteOwner,
             &'a omega_machine_code::InternalUnitScalarCallResultRecord,
@@ -199,6 +208,13 @@ fn validate_home_roster(
         .dynamic_calls
         .iter()
         .map(|call| (call.operation_ordinal, 0_u8, Allocation::Dynamic(call)))
+        .chain(function.stored_dynamic_calls.iter().map(|call| {
+            (
+                call.establishment.operation_ordinal,
+                0_u8,
+                Allocation::StoredDynamic(call),
+            )
+        }))
         .chain(
             producers
                 .into_iter()
@@ -214,6 +230,16 @@ fn validate_home_roster(
                 if dynamic.descriptor_home_byte_offset != cursor
                     || dynamic.descriptor_abi.total_byte_size != 16
                     || dynamic.descriptor_abi.byte_alignment != 8
+                {
+                    return Err(invalid());
+                }
+                cursor = cursor.checked_add(16).ok_or_else(invalid)?;
+            }
+            Allocation::StoredDynamic(dynamic) => {
+                cursor = align(cursor, 8).ok_or_else(invalid)?;
+                if dynamic.establishment.descriptor_home_byte_offset != cursor
+                    || dynamic.establishment.descriptor_abi.total_byte_size != 16
+                    || dynamic.establishment.descriptor_abi.byte_alignment != 8
                 {
                     return Err(invalid());
                 }
@@ -515,6 +541,19 @@ pub(super) fn exact_preceding_unit_scalar_home_producer_count(
             })
         })
         .count();
+    let stored_dynamic = function
+        .stored_dynamic_calls
+        .iter()
+        .filter(|producer| {
+            producer.result.home == home
+                && producer.operation_ordinal < consumer_operation_ordinal
+                && producer
+                    .result
+                    .code_offset
+                    .checked_add(producer.result.byte_count)
+                    .is_some_and(|end| end <= consumer_code_offset)
+        })
+        .count();
     let forwarded = function
         .forwarded_dynamic_descriptor_calls
         .iter()
@@ -529,7 +568,7 @@ pub(super) fn exact_preceding_unit_scalar_home_producer_count(
             })
         })
         .count();
-    internal + foreign + dynamic + forwarded
+    internal + foreign + dynamic + stored_dynamic + forwarded
 }
 
 /// Count exact ordinary internal Unit scalar producers that complete before a
