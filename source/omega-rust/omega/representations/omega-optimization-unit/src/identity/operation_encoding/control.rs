@@ -27,6 +27,23 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_successor(bytes, when_true);
             encode_successor(bytes, when_false);
         }
+        O::StructuralCase { source, cases } => {
+            bytes.u8(48);
+            bytes.id(*source);
+            bytes.len(cases.len());
+            for case in cases {
+                bytes.id(case.psi_edge);
+                bytes.id(case.target);
+                bytes.id(case.case);
+                bytes.len(case.payloads.len());
+                for payload in &case.payloads {
+                    bytes.id(payload.parameter);
+                    bytes.id(payload.field);
+                    encode_scalar_type(bytes, payload.scalar_type);
+                }
+                encode_ids(bytes, &case.trivial_affine_discards);
+            }
+        }
         O::Return {
             psi_edge,
             result,

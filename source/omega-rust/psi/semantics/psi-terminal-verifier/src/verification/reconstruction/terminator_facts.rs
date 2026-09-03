@@ -2,7 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use psi_core::{BlockId, EdgeId, MachineId, Proposition, ScalarTerm, ValueId};
+use psi_core::{
+    BlockId, EdgeId, MachineId, Proposition, ScalarTerm, StructuralCaseSubject, ValueId,
+};
 use psi_proof_admission::{Obligation, ObligationClass};
 use psi_terminal::OutcomeSpecificGuard;
 use psi_terminal::{Block, TerminalMachine, Terminator};
@@ -77,6 +79,22 @@ pub(super) fn append_terminator(
                         !ignored_backedges.is_empty(),
                     );
                 }
+                incoming
+                    .entry(successor.target)
+                    .or_default()
+                    .push(arm_axioms);
+            }
+        }
+        Terminator::StructuralCase { source, cases } => {
+            for successor in cases {
+                if ignored_backedges.contains(&successor.edge) {
+                    continue;
+                }
+                let mut arm_axioms = axioms.clone();
+                arm_axioms.push(Proposition::StructuralCaseMembership {
+                    subject: StructuralCaseSubject::new(*source, Vec::new()),
+                    case: successor.case,
+                });
                 incoming
                     .entry(successor.target)
                     .or_default()

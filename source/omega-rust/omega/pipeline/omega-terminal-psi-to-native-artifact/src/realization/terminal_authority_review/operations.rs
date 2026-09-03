@@ -107,6 +107,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::SaturatingIntegerMultiply { .. }
         | AbstractOperation::Jump { .. }
         | AbstractOperation::Conditional { .. }
+        | AbstractOperation::StructuralCase { .. }
         | AbstractOperation::Return { .. }
         | AbstractOperation::ReturnUnit { .. }
         | AbstractOperation::ReturnStructural { .. }

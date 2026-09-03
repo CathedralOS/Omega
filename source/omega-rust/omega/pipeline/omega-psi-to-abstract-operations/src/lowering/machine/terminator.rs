@@ -85,6 +85,46 @@ pub(super) fn lower_terminator(
                 when_false: lower_successor(when_false)?,
             });
         }
+        Terminator::StructuralCase { source, cases } => {
+            let cases = cases
+                .iter()
+                .map(|successor| {
+                    let target_block = blocks.get(&successor.target).copied().ok_or(
+                        LoweringError::VerifiedBlockMissing {
+                            machine: machine.id,
+                            block: successor.target,
+                        },
+                    )?;
+                    if target_block.parameters.len() != successor.payload_fields.len() {
+                        return Err(LoweringError::VerifiedJumpArityMismatch {
+                            edge: successor.edge,
+                        });
+                    }
+                    Ok(omega_abstract_operations::AbstractStructuralCaseSuccessor {
+                        psi_edge: successor.edge,
+                        target: successor.target,
+                        case: successor.case,
+                        payloads: target_block
+                            .parameters
+                            .iter()
+                            .zip(&successor.payload_fields)
+                            .map(|(parameter, field)| {
+                                omega_abstract_operations::AbstractStructuralCasePayloadBinding {
+                                    parameter: parameter.id,
+                                    field: *field,
+                                    scalar_type: parameter.scalar_type,
+                                }
+                            })
+                            .collect(),
+                        trivial_affine_discards: successor.trivial_affine_discards.clone(),
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            operations.push(AbstractOperation::StructuralCase {
+                source: *source,
+                cases,
+            });
+        }
         Terminator::Return {
             edge,
             value,

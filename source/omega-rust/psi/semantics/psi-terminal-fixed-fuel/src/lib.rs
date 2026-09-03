@@ -601,6 +601,9 @@ pub fn derive_fixed_safe_point_segments(
                 pending.push(when_false.target);
                 pending.push(when_true.target);
             }
+            Terminator::StructuralCase { cases, .. } => {
+                pending.extend(cases.iter().map(|case| case.target));
+            }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
@@ -1006,6 +1009,43 @@ fn outcome_bounds_from(
                 .checked_add(terminator_units)
                 .ok_or(FixedFuelError::BoundOverflow)?,
         )?,
+        (Terminator::StructuralCase { cases, .. }, Some(prefix)) => {
+            let mut cases = cases.iter();
+            let first = cases
+                .next()
+                .ok_or(FixedFuelError::BranchingNotYetSupported(current))?;
+            let mut bounds = outcome_bounds_from(
+                machine,
+                first.target,
+                blocks,
+                machines,
+                dynamic_call_targets,
+                schedule,
+                memoized,
+                active,
+                memoized_machines,
+                active_machines,
+            )?;
+            for case in cases {
+                bounds = bounds.merge(outcome_bounds_from(
+                    machine,
+                    case.target,
+                    blocks,
+                    machines,
+                    dynamic_call_targets,
+                    schedule,
+                    memoized,
+                    active,
+                    memoized_machines,
+                    active_machines,
+                )?);
+            }
+            bounds.with_prefix(
+                prefix
+                    .checked_add(terminator_units)
+                    .ok_or(FixedFuelError::BoundOverflow)?,
+            )?
+        }
     };
     active.remove(&current);
     let bounds = OutcomeBounds {
@@ -1114,7 +1154,7 @@ fn derive_segment_bound(
         }
         match block.terminator {
             Terminator::Jump { target, .. } => current = target,
-            Terminator::Conditional { .. } => {
+            Terminator::Conditional { .. } | Terminator::StructuralCase { .. } => {
                 return Err(FixedFuelError::BranchingNotYetSupported(current));
             }
             Terminator::Return { edge, .. } => {

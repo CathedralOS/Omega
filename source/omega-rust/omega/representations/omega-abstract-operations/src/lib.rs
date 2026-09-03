@@ -1157,6 +1157,13 @@ pub enum AbstractOperation {
         when_true: AbstractSuccessor,
         when_false: AbstractSuccessor,
     },
+    /// Inspect one verifier-approved closed structural sum. Each successor
+    /// carries the exact case identity and binds only that case's relevant
+    /// scalar payload fields to its target block parameters.
+    StructuralCase {
+        source: PlaceId,
+        cases: Vec<AbstractStructuralCaseSuccessor>,
+    },
     Return {
         psi_edge: EdgeId,
         result: ValueId,
@@ -1206,6 +1213,22 @@ pub struct AbstractSuccessor {
     pub bindings: Vec<ValueBinding>,
     /// Exact Terminal-Psi cleanup order for this conditional edge.
     pub trivial_affine_discards: Vec<PlaceId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractStructuralCaseSuccessor {
+    pub psi_edge: EdgeId,
+    pub target: BlockId,
+    pub case: StructuralCaseId,
+    pub payloads: Vec<AbstractStructuralCasePayloadBinding>,
+    pub trivial_affine_discards: Vec<PlaceId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AbstractStructuralCasePayloadBinding {
+    pub parameter: ValueId,
+    pub field: psi_core::StructuralFieldId,
+    pub scalar_type: ScalarType,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

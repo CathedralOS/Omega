@@ -45,6 +45,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::EstablishAffineScalarRecord { .. }
         | O::PortWrite { .. }
         | O::BooleanStructuralField { .. }
+        | O::StructuralCase { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => true,

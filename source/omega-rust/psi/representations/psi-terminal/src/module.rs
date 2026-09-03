@@ -31,7 +31,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        78
+        79
     }
 }
 
@@ -2377,6 +2377,13 @@ pub enum Terminator {
         when_true: SuccessorEdge,
         when_false: SuccessorEdge,
     },
+    /// Inspect one closed structural sum and select its exact active case.
+    /// Payload fields become target-block parameters only on the matching
+    /// edge, before that edge consumes the affine source place.
+    StructuralCase {
+        source: PlaceId,
+        cases: Vec<StructuralCaseSuccessorEdge>,
+    },
     /// Bind a scalar result, then perform the exact ordered affine cleanup
     /// actions before returning to the caller.
     Return {
@@ -2454,28 +2461,29 @@ impl Terminator {
             | Self::ReturnUnitNominalAffine { edge, .. }
             | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. } => *edge,
-            Self::Conditional { .. } => {
-                panic!("a conditional terminator has two successor edges")
+            Self::Conditional { .. } | Self::StructuralCase { .. } => {
+                panic!("a branching terminator has multiple successor edges")
             }
         }
     }
 
     pub fn edges(&self) -> impl Iterator<Item = EdgeId> + '_ {
-        let (first, second) = match self {
+        let edges = match self {
             Self::Jump { edge, .. }
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
             | Self::ReturnUnitPartialAffine { edge, .. }
             | Self::ReturnUnitNominalAffine { edge, .. }
             | Self::ReturnStructural { edge, .. }
-            | Self::Crash { edge, .. } => (*edge, None),
+            | Self::Crash { edge, .. } => vec![*edge],
             Self::Conditional {
                 when_true,
                 when_false,
                 ..
-            } => (when_true.edge, Some(when_false.edge)),
+            } => vec![when_true.edge, when_false.edge],
+            Self::StructuralCase { cases, .. } => cases.iter().map(|case| case.edge).collect(),
         };
-        std::iter::once(first).chain(second)
+        edges.into_iter()
     }
 }
 
@@ -2488,5 +2496,17 @@ pub struct SuccessorEdge {
     pub arguments: Vec<ValueId>,
     /// Exact no-code affine discards committed only when this successor is
     /// selected, in reverse parameter declaration order.
+    pub trivial_affine_discards: Vec<PlaceId>,
+}
+
+/// One exhaustive closed-sum successor. `payload_fields` is positional with
+/// the target block's scalar parameters and names only relevant scalar fields
+/// declared by this exact case.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructuralCaseSuccessorEdge {
+    pub edge: EdgeId,
+    pub target: BlockId,
+    pub case: StructuralCaseId,
+    pub payload_fields: Vec<StructuralFieldId>,
     pub trivial_affine_discards: Vec<PlaceId>,
 }

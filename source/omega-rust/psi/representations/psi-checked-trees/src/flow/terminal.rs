@@ -678,6 +678,29 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         when_true: CheckedStructuralControlSuccessorPlan,
         when_false: CheckedStructuralControlSuccessorPlan,
     },
+    /// Inspect one whole structural result established by this state's
+    /// operation prefix and transfer control through the exact closed case
+    /// roster. Payload scalars are introduced only on their selected edge;
+    /// they are not speculative reads from inactive storage.
+    ClosedSum {
+        result: CheckedUnitStructuralResultBindingPlan,
+        cases: Vec<CheckedClosedSumCaseSuccessorPlan>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedClosedSumCaseSuccessorPlan {
+    pub case_identity: String,
+    pub statement_ordinal: u32,
+    pub target_state: SymbolHandle,
+    pub payloads: Vec<CheckedClosedSumPayloadTransferPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedClosedSumPayloadTransferPlan {
+    pub field_identity: String,
+    pub primitive_type: PrimitiveType,
+    pub target_scalar_parameter_index: u32,
 }
 
 /// Source-handle-free checked plans for the bounded structural-result lanes.

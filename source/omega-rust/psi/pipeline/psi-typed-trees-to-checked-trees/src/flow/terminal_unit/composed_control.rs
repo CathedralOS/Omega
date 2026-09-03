@@ -1,6 +1,7 @@
 //! Atomic multi-state Unit control plans.
 use super::*;
 mod assembly;
+mod closed_sum;
 mod custody;
 mod dynamic_join;
 mod dynamic_result;

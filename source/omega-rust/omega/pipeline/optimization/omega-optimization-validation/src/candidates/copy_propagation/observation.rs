@@ -166,6 +166,25 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
             normalize_bindings(when_true.target, &mut when_true.bindings)?;
             normalize_bindings(when_false.target, &mut when_false.bindings)?;
         }
+        O::StructuralCase { cases, .. } => {
+            for successor in cases {
+                if successor.target == patch.block {
+                    let position = usize::try_from(patch.position).expect("u32 fits usize");
+                    let payload = successor
+                        .payloads
+                        .get(position)
+                        .ok_or(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)?;
+                    if payload.parameter != patch.parameter
+                        || payload.scalar_type != patch.scalar_type
+                    {
+                        return Err(
+                            OptimizationUnitValidationError::CandidateIncomingBindingMismatch,
+                        );
+                    }
+                    successor.payloads.remove(position);
+                }
+            }
+        }
         O::Return { value, .. } => replace(value),
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }

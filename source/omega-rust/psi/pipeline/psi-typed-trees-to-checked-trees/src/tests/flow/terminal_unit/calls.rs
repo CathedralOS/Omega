@@ -199,6 +199,73 @@ fn retains_owned_structural_result_for_attached_bodyless_boundary() {
 }
 
 #[test]
+fn retains_closed_sum_inspection_after_structural_boundary_result() {
+    let checked = checked(
+        r#"
+        data ByteRead {
+            case Eof;
+            case Byte(value: i32 [0..=255]);
+        }
+
+        boundary trait Console {
+            machine read_byte() -> ByteRead reaches Console;
+            machine write_byte(value: i32) reaches Console;
+            machine exit_process(return_code: i32) reaches Console;
+        }
+
+        data Main { console: Console; }
+        machine Main::main(&mut self) reaches Console {
+            let result: ByteRead = self.console.read_byte();
+            transition result {
+                ByteRead::Byte { value } -> byte(value)
+                ByteRead::Eof -> eof()
+            }
+
+            state byte(&mut self, value: i32 [0..=255]) {
+                self.console.write_byte(value);
+                self.console.exit_process(70);
+            }
+
+            state eof(&mut self) {
+                self.console.exit_process(70);
+            }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "main"))
+        .expect("closed-sum inspection plan");
+    let [entry, byte, eof] = plan.states.as_slice() else {
+        panic!("closed-sum inspection should retain exactly three states")
+    };
+    assert!(matches!(
+        entry.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            discard_result_on_return: false,
+            ..
+        }]
+    ));
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } = &entry.terminator
+    else {
+        panic!("entry should inspect the structural result")
+    };
+    assert_eq!(cases.len(), 2);
+    assert!(cases.iter().any(|case| {
+        case.case_identity == "Byte"
+            && case.target_state == byte.state
+            && matches!(case.payloads.as_slice(), [payload]
+                if payload.field_identity == "value"
+                    && payload.primitive_type == PrimitiveType::I32)
+    }));
+    assert!(cases.iter().any(|case| {
+        case.case_identity == "Eof" && case.target_state == eof.state && case.payloads.is_empty()
+    }));
+}
+
+#[test]
 fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirements() {
     let checked = checked(
         r#"

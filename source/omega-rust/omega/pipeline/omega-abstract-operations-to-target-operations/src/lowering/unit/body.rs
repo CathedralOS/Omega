@@ -540,6 +540,7 @@ pub(super) fn lower_unit_body(
             | AbstractOperation::SaturatingIntegerRemainder { .. }
             | AbstractOperation::Jump { .. }
             | AbstractOperation::Conditional { .. }
+            | AbstractOperation::StructuralCase { .. }
             | AbstractOperation::Return { .. }
             | AbstractOperation::ReturnStructural { .. } => {
                 return Err(LoweringError::UnsupportedOperationInUnitFunction(

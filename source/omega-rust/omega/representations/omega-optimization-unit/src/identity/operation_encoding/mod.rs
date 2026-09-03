@@ -77,6 +77,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
 
         O::Jump { .. }
         | O::Conditional { .. }
+        | O::StructuralCase { .. }
         | O::Return { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }

@@ -74,7 +74,7 @@ fn suspension_call_plan_round_trips_canonically_and_rejects_prior_format() {
     module.suspension_call_plans = vec![plan];
 
     let bytes = encode_module(&module).expect("suspension plan encodes");
-    assert_eq!(&bytes[8..10], 75_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 76_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -104,7 +104,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 75_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 76_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -112,7 +112,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "b32e4a21ad83423817e0f7fe80bd62adffdfc9a6eed1a3056f2f4a2bc723a1d3"
+        "ce6261bf088600a1e161e1a619f40aad9b432ebac4576b1d6d88e36204521233"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -125,7 +125,7 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
     let mut module = unit_fixture();
     module.proof_recursive_components = vec![proof_recursive_component_fixture()];
     let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 75_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 76_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("recursive semantic identity");
@@ -229,7 +229,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 75_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 76_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -990,7 +990,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 75_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 76_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1003,7 +1003,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 75_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 76_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1038,7 +1038,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 75_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 76_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -2688,10 +2688,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&76_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&77_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(76))
+        Err(CodecError::UnsupportedFormatMarker(77))
     );
 
     let mut stale_format = bytes.clone();
@@ -3459,7 +3459,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 75_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 76_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()

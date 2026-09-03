@@ -46,6 +46,9 @@ pub(super) fn validate_control_flow(
                 (when_true.edge, when_true.target),
                 (when_false.edge, when_false.target),
             ],
+            Terminator::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| (case.edge, case.target)).collect()
+            }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
@@ -229,6 +232,42 @@ pub(super) fn validate_control_flow(
                     )?;
                 }
             }
+            Terminator::StructuralCase { source, cases } => {
+                let source_signature = super::structural_result_contracts::source_signature(
+                    machine, *source,
+                )
+                .ok_or(ModuleError::StructuralCaseSourceUnknown {
+                    machine: machine.id,
+                    block: block.id,
+                    place: *source,
+                })?;
+                let source_definition = machine.blocks.iter().find_map(|candidate| {
+                    candidate.operations.iter().find_map(|operation| {
+                        operation
+                            .result
+                            .structural()
+                            .is_some_and(|result| result.place == *source)
+                            .then_some(candidate.id)
+                    })
+                });
+                if source_definition.is_some_and(|definition| {
+                    definition != block.id && !block_dominators.contains(&definition)
+                }) {
+                    return Err(ModuleError::StructuralCaseSourceUnknown {
+                        machine: machine.id,
+                        block: block.id,
+                        place: *source,
+                    });
+                }
+                validate_structural_case_successors(
+                    module,
+                    machine,
+                    block.id,
+                    source_signature.structural_type,
+                    cases,
+                    blocks,
+                )?;
+            }
             Terminator::Return { value, .. } => {
                 let Some(result) = machine.result.scalar() else {
                     return Err(ModuleError::ScalarReturnFromUnitMachine {
@@ -301,6 +340,74 @@ pub(super) fn validate_control_flow(
                         ContractClauseKind::Crash,
                     )?;
                 }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_structural_case_successors(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    block: BlockId,
+    structural_type: psi_core::StructuralTypeId,
+    successors: &[psi_terminal::StructuralCaseSuccessorEdge],
+    blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
+) -> Result<(), ModuleError> {
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .ok_or(ModuleError::UnknownStructuralType(structural_type))?;
+    let cases = match &declaration.shape {
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
+        _ => {
+            return Err(ModuleError::StructuralCaseRequiresClosedSum {
+                machine: machine.id,
+                block,
+                structural_type,
+            });
+        }
+    };
+    if successors.len() != cases.len()
+        || successors
+            .iter()
+            .zip(cases)
+            .any(|(successor, case)| successor.case != case.id)
+    {
+        return Err(ModuleError::StructuralCaseRosterMismatch {
+            machine: machine.id,
+            block,
+        });
+    }
+    for (successor, case) in successors.iter().zip(cases) {
+        let target = blocks
+            .get(&successor.target)
+            .copied()
+            .ok_or(ModuleError::UnknownTargetBlock(successor.target))?;
+        if successor.payload_fields.len() != target.parameters.len() {
+            return Err(ModuleError::StructuralCasePayloadMismatch {
+                edge: successor.edge,
+                case: successor.case,
+                field: None,
+            });
+        }
+        for (field_id, parameter) in successor.payload_fields.iter().zip(&target.parameters) {
+            let Some(field) = case.fields.iter().find(|field| field.id == *field_id) else {
+                return Err(ModuleError::StructuralCasePayloadMismatch {
+                    edge: successor.edge,
+                    case: successor.case,
+                    field: Some(*field_id),
+                });
+            };
+            if field.relevance.is_erased()
+                || !matches!(field.field_type, StructuralFieldType::Scalar(actual) if actual == parameter.scalar_type)
+            {
+                return Err(ModuleError::StructuralCasePayloadMismatch {
+                    edge: successor.edge,
+                    case: successor.case,
+                    field: Some(*field_id),
+                });
             }
         }
     }
