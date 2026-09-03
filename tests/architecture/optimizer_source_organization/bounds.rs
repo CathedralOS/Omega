@@ -29,11 +29,6 @@ struct SourceFileException {
 /// production/test ceiling. New files and unlisted growth still fail closed.
 const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[
     SourceFileException {
-        path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/calls.rs",
-        ceiling: 909,
-        semantic_reason: "dynamic call custody variants still share one lowering owner",
-    },
-    SourceFileException {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/unit/operation.rs",
         ceiling: 851,
         semantic_reason: "the unit-operation assignment dispatcher has not yet been split by family",
