@@ -10,6 +10,7 @@ pub(super) fn assign(
     if matches!(
         operation,
         TargetOperation::ReturnForwardedDynamicParameterScalarCall { .. }
+            | TargetOperation::ForwardDynamicParameterUnitCall { .. }
     ) {
         return assign_forwarded(function, operation, target);
     }
@@ -177,11 +178,10 @@ fn assign_forwarded(
     operation: &TargetOperation,
     target: NativeTarget,
 ) -> Result<AssignedOperation, AssignmentError> {
-    let TargetOperation::ReturnForwardedDynamicParameterScalarCall {
+    let (
         psi_edge,
         psi_operation,
-        source_value,
-        scalar_type,
+        scalar_result,
         callee,
         argument,
         parameter_abi,
@@ -190,15 +190,66 @@ fn assign_forwarded(
         claim_transfers,
         requirement_obligations,
         crash_continuations,
-    } = operation
-    else {
-        unreachable!("forwarded dynamic-parameter assignment receives its exact target role")
+    ) = match operation {
+        TargetOperation::ReturnForwardedDynamicParameterScalarCall {
+            psi_edge,
+            psi_operation,
+            source_value,
+            scalar_type,
+            callee,
+            argument,
+            parameter_abi,
+            function_call_plan,
+            callee_call_plan,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => (
+            *psi_edge,
+            *psi_operation,
+            Some((*source_value, *scalar_type)),
+            *callee,
+            argument,
+            parameter_abi,
+            function_call_plan,
+            callee_call_plan,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        ),
+        TargetOperation::ForwardDynamicParameterUnitCall {
+            psi_edge,
+            psi_operation,
+            callee,
+            argument,
+            parameter_abi,
+            function_call_plan,
+            callee_call_plan,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => (
+            *psi_edge,
+            *psi_operation,
+            None,
+            *callee,
+            argument,
+            parameter_abi,
+            function_call_plan,
+            callee_call_plan,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        ),
+        _ => {
+            unreachable!("forwarded dynamic-parameter assignment receives its exact target role")
+        }
     };
     let invalid = || AssignmentError::DynamicDescriptorAssignmentMismatch {
         machine: function.machine,
-        operation: *psi_operation,
+        operation: psi_operation,
     };
-    let result_shape = match scalar_type {
+    let result_shape = scalar_result.map(|(_, scalar_type)| match scalar_type {
         psi_core::ScalarType::Boolean => ValueShape::integer(1, 1),
         psi_core::ScalarType::Integer(integer) => ValueShape::integer(
             integer.bits().div_ceil(8),
@@ -210,22 +261,22 @@ fn assign_forwarded(
         psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => {
             ValueShape::float(8)
         }
-    };
+    });
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
     let signature = CallSignature {
         parameters: vec![pointer_shape, pointer_shape],
-        result: Some(result_shape),
+        result: result_shape,
     };
     if function.attachment.is_some()
         || function.fixed_integer_scalar_abi.is_some()
         || function.mixed_structural_scalar_abi.is_some()
         || parameter_abi.parameter.owner != function.machine
         || parameter_abi.parameter.ordinal != 0
-        || argument.target.owner != *callee
+        || argument.target.owner != callee
         || argument.target.ordinal != 0
-        || !argument.has_complete_custody(function.machine, *psi_operation, *callee)
+        || !argument.has_complete_custody(function.machine, psi_operation, callee)
         || !matches!(
             &argument.source,
             omega_target_operations::AbstractDynamicDescriptorSource::Parameter(source)
@@ -260,19 +311,20 @@ fn assign_forwarded(
     if instance != instance_destination || table != table_destination || instance == table {
         return Err(invalid());
     }
-    Ok(
+    let parameter_abi = AssignedDynamicDescriptorParameterAbi {
+        parameter: parameter_abi.parameter.clone(),
+        instance,
+        table,
+    };
+    Ok(if let Some((source_value, scalar_type)) = scalar_result {
         AssignedOperation::ReturnForwardedDynamicParameterScalarCall {
-            psi_edge: *psi_edge,
-            psi_operation: *psi_operation,
-            source_value: *source_value,
-            scalar_type: *scalar_type,
-            callee: *callee,
+            psi_edge,
+            psi_operation,
+            source_value,
+            scalar_type,
+            callee,
             argument: argument.clone(),
-            parameter_abi: AssignedDynamicDescriptorParameterAbi {
-                parameter: parameter_abi.parameter.clone(),
-                instance,
-                table,
-            },
+            parameter_abi,
             instance_destination,
             table_destination,
             function_call_plan: function_call_plan.clone(),
@@ -280,8 +332,23 @@ fn assign_forwarded(
             claim_transfers: claim_transfers.clone(),
             requirement_obligations: requirement_obligations.clone(),
             crash_continuations: crash_continuations.clone(),
-        },
-    )
+        }
+    } else {
+        AssignedOperation::ForwardDynamicParameterUnitCall {
+            psi_edge,
+            psi_operation,
+            callee,
+            argument: argument.clone(),
+            parameter_abi,
+            instance_destination,
+            table_destination,
+            function_call_plan: function_call_plan.clone(),
+            callee_call_plan: callee_call_plan.clone(),
+            claim_transfers: claim_transfers.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
+        }
+    })
 }
 
 fn pointer_register(

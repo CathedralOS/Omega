@@ -20,6 +20,7 @@ pub(super) fn assign_operation(
         }
         operation @ (TargetOperation::ReturnDynamicParameterScalarCall { .. }
         | TargetOperation::ReturnForwardedDynamicParameterScalarCall { .. }
+        | TargetOperation::ForwardDynamicParameterUnitCall { .. }
         | TargetOperation::DynamicParameterUnitCall { .. }) => {
             dynamic_parameter::assign(function, operation, target)
         }

@@ -5,6 +5,7 @@ mod boundary_call;
 mod conditional_exit;
 mod dynamic;
 mod dynamic_parameter;
+mod forwarded_dynamic_parameter;
 mod preflight;
 mod projected_argument;
 mod return_unit;
@@ -37,6 +38,9 @@ pub(super) fn lower_unit_function(
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
+    if let Some(lowered) = forwarded_dynamic_parameter::lower(function, target, functions)? {
+        return Ok(lowered);
+    }
     if let Some(lowered) = dynamic_parameter::lower(function, target)? {
         return Ok(lowered);
     }

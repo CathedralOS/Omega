@@ -483,6 +483,11 @@ fn emit_function(
             forwarded_dynamic_parameter_calls.push(emitted.record);
             emitted.bytes
         }
+        AssignedOperation::ForwardDynamicParameterUnitCall { psi_operation, .. } => {
+            return Err(EmissionError::InvalidDynamicDescriptorCallCustody(
+                *psi_operation,
+            ));
+        }
         AssignedOperation::ReturnDynamicParameterScalarCall { .. }
         | AssignedOperation::DynamicParameterUnitCall { .. } => {
             let emitted = dynamic_parameter::emit(&function.operation, function.machine, target)?;

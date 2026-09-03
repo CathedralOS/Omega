@@ -140,6 +140,32 @@ fn multi_hop_forwarded_parameter_plan() -> omega_abstract_operations::AbstractOp
         .expect("lower verified Terminal artifact")
 }
 
+fn multi_hop_forwarded_unit_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let source = r#"
+        trait Touch { machine touch(&self); }
+        data Item { value: i32; }
+        Primary: Item satisfies Touch { machine touch(&self) {} }
+        data Main { selected: Item; }
+        machine Main::run(&self) {
+            let erased: &dyn Touch = &self.selected as &dyn Item::Primary;
+            forward(erased);
+        }
+        machine forward(erased: &dyn Touch) { finish(erased); }
+        machine finish(erased: &dyn Touch) { erased.touch(); }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("lower multi-hop dynamic Unit source");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("lower verified Terminal artifact")
+}
+
 fn dynamic_unit_plan() -> omega_abstract_operations::AbstractOperationPlan {
     let source = r#"
         trait Touch {
@@ -338,6 +364,96 @@ fn lowers_parameter_sourced_forwarding_to_an_explicit_target_call() {
                 )
         }));
     }
+}
+
+#[test]
+fn lowers_parameter_sourced_unit_forwarding_without_a_result_carrier() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let source = multi_hop_forwarded_unit_plan();
+        let lowered = lower_to_target_operations(&source, target)
+            .expect("target lowering retains the complete Unit forwarding chain");
+        let forwarded = lowered
+            .functions
+            .iter()
+            .filter_map(|function| match &function.operation {
+                TargetOperation::ForwardDynamicParameterUnitCall {
+                    callee,
+                    argument,
+                    parameter_abi,
+                    function_call_plan,
+                    callee_call_plan,
+                    ..
+                } => Some((
+                    function,
+                    callee,
+                    argument,
+                    parameter_abi,
+                    function_call_plan,
+                    callee_call_plan,
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(function, callee, argument, parameter_abi, function_plan, callee_plan)] =
+            forwarded.as_slice()
+        else {
+            panic!("one parameter-sourced Unit helper call expected: {lowered:#?}")
+        };
+        assert_eq!(parameter_abi.parameter.owner, function.machine);
+        assert_eq!(argument.target.owner, **callee);
+        assert!(matches!(
+            &argument.source,
+            omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(source)
+                if source == &parameter_abi.parameter
+        ));
+        assert!(function_plan.result.is_none());
+        assert_eq!(function_plan.parameters.len(), 2);
+        assert_eq!(function_plan, callee_plan);
+        assert_eq!(parameter_abi.instance, function_plan.parameters[0]);
+        assert_eq!(parameter_abi.table, function_plan.parameters[1]);
+        assert!(lowered.functions.iter().any(|candidate| {
+            candidate.machine == **callee
+                && matches!(
+                    candidate.operation,
+                    TargetOperation::DynamicParameterUnitCall { .. }
+                )
+        }));
+    }
+}
+
+#[test]
+fn rejects_parameter_sourced_unit_forwarding_interface_drift() {
+    let mut source = multi_hop_forwarded_unit_plan();
+    let (machine, operation) = source
+        .functions
+        .iter_mut()
+        .find_map(|function| {
+            function.operations.iter_mut().find_map(|candidate| {
+                let AbstractOperation::CallUnitWithDynamicArguments {
+                    psi_operation,
+                    dynamic_arguments,
+                    ..
+                } = candidate
+                else {
+                    return None;
+                };
+                let [argument] = dynamic_arguments.as_mut_slice() else {
+                    return None;
+                };
+                let omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(source) =
+                    &mut argument.source
+                else {
+                    return None;
+                };
+                source.ordinal += 1;
+                Some((function.machine, *psi_operation))
+            })
+        })
+        .expect("parameter-sourced Unit forwarding call");
+    assert_eq!(
+        lower_to_target_operations(&source, NativeTarget::linux_x64()),
+        Err(LoweringError::InvalidDynamicDispatch { machine, operation })
+    );
 }
 
 #[test]
