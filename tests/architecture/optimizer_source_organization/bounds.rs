@@ -29,11 +29,6 @@ struct SourceFileException {
 /// production/test ceiling. New files and unlisted growth still fail closed.
 const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[
     SourceFileException {
-        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/straight_line/operation.rs",
-        ceiling: 638,
-        semantic_reason: "the scalar-operation dispatcher still owns several lowering families",
-    },
-    SourceFileException {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/structural_layout.rs",
         ceiling: 693,
         semantic_reason: "recursive structural layout and residual-path replay remain colocated",

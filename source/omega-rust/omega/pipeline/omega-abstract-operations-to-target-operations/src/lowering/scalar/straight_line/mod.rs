@@ -3,7 +3,11 @@
 mod call;
 mod exit;
 mod integer_arithmetic;
+mod integer_bitwise;
+mod integer_comparison;
 mod integer_conversion;
+mod integer_division;
+mod integer_shift;
 mod operation;
 mod structural_scalar_field;
 
