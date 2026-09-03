@@ -816,8 +816,15 @@ reloads both descriptor words for the later x86-64 or AArch64 indirect call. It
 retains the exact shared home, selected table slot, relocation fields, call and
 result intervals, and stack evidence. Object and final-image replay regenerate
 the target bytes, bind the symbolic table address to the complete private table,
-and compose exact stack demand. Installation encoding rejects the row rather
-than shedding it; installation replay remains open.
+and compose exact stack demand. Installation format 68 retains the exact
+establishment and call operations, descriptor and selection ordinals,
+application commitment, source place, shared home, selected slot, realization,
+and both text intervals. Decoding and image-binding replay reject malformed,
+reordered, table-substituted, source-substituted, or interval-drifted rows. The
+image/installation replay covers all four native targets; a rooted native
+canary separately exercises the stored reload and indirect call through the
+compiler-produced image. Consuming its scalar result in later control flow is
+a separate, still-open widening.
 Those consumers use the same complete normalized maps.
 Replaceable-component crossing is not another descriptor rung: it is forbidden
 below, and uses a boundary requirement or a consumer-owned local proxy instead.
@@ -858,7 +865,7 @@ the erased-data adapter rejoins the structural-only scalar-result ABI, and
 machine/object/image evidence replays the exact store/read/return bytes on
 x86-64 and AArch64. Store path, accumulated byte offset, and return field are
 identified independently; assignment rejects disagreement between path, offset,
-or order. Canonical installation format 67 retains the ordered store vector. The
+or order. Canonical installation format 68 retains the ordered store vector. The
 first Boolean store returns an independent `i32` field through the existing
 fixed-integer result-home lane. A Boolean-returning forwarded call instead
 uses an exact one-byte Boolean home and branches directly on that value after
@@ -1124,7 +1131,7 @@ the parameter origin, unchanged registers, relocation, call-stack facts, and
 return attribution in a separate evidence row. Object and final-image replay
 independently rederive the helper chain, interface and call-plan custody,
 unchanged register handoff, direct-call relocation and opcode shape, and
-semantic attribution. Installation format 67 retains the compact source,
+semantic attribution. Installation format 68 retains the compact source,
 callee, scalar, parameter-ordinal, and exact text-span projection and rejects
 codec or projection drift. A scalar caller may consume the final result in its
 checked conditional/effect continuation; the complete helper chain remains
@@ -1136,7 +1143,7 @@ acquires a scalar result or value identity. Target and assigned forms retain a
 distinct result-neutral helper call, exact source/target interfaces, both
 no-result two-word call plans, and an unchanged descriptor-register handoff.
 Machine emission uses an explicit Unit stack/link carrier; object, final-image, and
-format-67 installation replay preserve the helper chain while requiring source
+format-68 installation replay preserve the helper chain while requiring source
 value and scalar type to remain jointly absent.
 
 Code that wants a local dynamic interface over a component owns a local proxy:

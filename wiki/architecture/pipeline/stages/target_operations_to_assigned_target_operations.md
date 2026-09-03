@@ -57,8 +57,12 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   operation reloads the same two words for indirect dispatch and records the
   exact target bytes, relocation fields, selected slot, and scalar result.
   Object and final-image replay independently validate that evidence and bind
-  the complete private table. Installation serialization is the next explicit
-  fence and currently rejects the split row rather than shedding it.
+  the complete private table. Installation format 68 retains the two source
+  operations, shared descriptor home, application/table selection, source
+  place, realization, and exact establishment/call text intervals as one
+  canonical stored-call row. Installation validation independently reconstructs
+  that projection from the final image and rejects ordering, table, source, or
+  interval substitution.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is

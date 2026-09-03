@@ -9,7 +9,7 @@ use super::{
     InstalledDynamicConformanceTable, InstalledDynamicParameterCall,
     InstalledForwardedDynamicDescriptorAdapter, InstalledForwardedDynamicDescriptorCall,
     InstalledForwardedDynamicDescriptorSlot, InstalledForwardedDynamicDescriptorTable,
-    InstalledForwardedDynamicParameterCall, Reader,
+    InstalledForwardedDynamicParameterCall, InstalledStoredDynamicCall, Reader,
     internal_unit_scalar_call_codec::{decode_offset, encode_offset},
     push_u32, push_u64,
     unit_scalar_codec::{
@@ -22,6 +22,7 @@ pub(super) fn encode_dynamic_conformance_custody(
     bytes: &mut Vec<u8>,
     tables: &[InstalledDynamicConformanceTable],
     calls: &[InstalledDynamicCall],
+    stored_calls: &[InstalledStoredDynamicCall],
     adapters: &[InstalledForwardedDynamicDescriptorAdapter],
     forwarded_tables: &[InstalledForwardedDynamicDescriptorTable],
     forwarded_calls: &[InstalledForwardedDynamicDescriptorCall],
@@ -86,6 +87,35 @@ pub(super) fn encode_dynamic_conformance_custody(
             u64::try_from(call.byte_count)
                 .map_err(|_| InstallationError::InvalidDynamicCall(call.machine))?,
         );
+    }
+    push_u32(
+        bytes,
+        u32::try_from(stored_calls.len())
+            .map_err(|_| InstallationError::TooManyStoredDynamicCalls)?,
+    );
+    for call in stored_calls {
+        push_u64(bytes, call.machine.get());
+        push_u64(bytes, call.establishment_operation.get());
+        push_u64(bytes, call.operation.get());
+        push_u32(bytes, call.descriptor_ordinal);
+        push_u32(bytes, call.selection_ordinal);
+        bytes.extend_from_slice(&call.application_commitment.as_bytes());
+        push_u64(bytes, call.source.get());
+        push_u32(bytes, call.descriptor_home_byte_offset);
+        push_u32(bytes, call.selected_table_byte_offset);
+        push_u64(bytes, call.realization.get());
+        for offset in [
+            call.establishment_text_offset,
+            call.establishment_byte_count,
+            call.text_offset,
+            call.byte_count,
+        ] {
+            push_u64(
+                bytes,
+                u64::try_from(offset)
+                    .map_err(|_| InstallationError::InvalidStoredDynamicCall(call.machine))?,
+            );
+        }
     }
     push_u32(
         bytes,
@@ -253,6 +283,7 @@ pub(super) fn decode_dynamic_conformance_custody(
     (
         Vec<InstalledDynamicConformanceTable>,
         Vec<InstalledDynamicCall>,
+        Vec<InstalledStoredDynamicCall>,
         Vec<InstalledForwardedDynamicDescriptorAdapter>,
         Vec<InstalledForwardedDynamicDescriptorTable>,
         Vec<InstalledForwardedDynamicDescriptorCall>,
@@ -355,6 +386,50 @@ pub(super) fn decode_dynamic_conformance_custody(
             rebound_source,
             selected_table_byte_offset,
             realization,
+            text_offset,
+            byte_count,
+        });
+    }
+    let stored_call_count =
+        usize::try_from(reader.u32()?).map_err(|_| InstallationError::TooManyStoredDynamicCalls)?;
+    if stored_call_count > reader.remaining() / 120 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut stored_calls = Vec::with_capacity(stored_call_count);
+    for _ in 0..stored_call_count {
+        let machine =
+            MachineId::new(reader.u64()?).ok_or(InstallationError::ZeroFunctionIdentity)?;
+        let invalid = || InstallationError::InvalidStoredDynamicCall(machine);
+        let establishment_operation = OperationId::new(reader.u64()?).ok_or_else(invalid)?;
+        let operation = OperationId::new(reader.u64()?).ok_or_else(invalid)?;
+        let descriptor_ordinal = reader.u32()?;
+        let selection_ordinal = reader.u32()?;
+        let application_commitment =
+            ClosedConformanceApplicationCommitment::from_digest(reader.array()?);
+        let source = PlaceId::new(reader.u64()?).ok_or_else(invalid)?;
+        let descriptor_home_byte_offset = reader.u32()?;
+        let selected_table_byte_offset = reader.u32()?;
+        let realization = MachineId::new(reader.u64()?).ok_or_else(invalid)?;
+        let establishment_text_offset = usize::try_from(reader.u64()?).map_err(|_| invalid())?;
+        let establishment_byte_count = usize::try_from(reader.u64()?).map_err(|_| invalid())?;
+        let text_offset = usize::try_from(reader.u64()?).map_err(|_| invalid())?;
+        let byte_count = usize::try_from(reader.u64()?).map_err(|_| invalid())?;
+        if application_commitment.is_zero() || byte_count == 0 {
+            return Err(invalid());
+        }
+        stored_calls.push(InstalledStoredDynamicCall {
+            machine,
+            establishment_operation,
+            operation,
+            descriptor_ordinal,
+            selection_ordinal,
+            application_commitment,
+            source,
+            descriptor_home_byte_offset,
+            selected_table_byte_offset,
+            realization,
+            establishment_text_offset,
+            establishment_byte_count,
             text_offset,
             byte_count,
         });
@@ -610,6 +685,7 @@ pub(super) fn decode_dynamic_conformance_custody(
     Ok((
         tables,
         calls,
+        stored_calls,
         adapters,
         forwarded_tables,
         forwarded_calls,
