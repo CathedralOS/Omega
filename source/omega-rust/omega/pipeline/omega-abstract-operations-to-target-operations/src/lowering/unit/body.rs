@@ -3,7 +3,10 @@
 use super::super::shared::*;
 use super::super::structural_layout::structural_shape;
 use super::boundary_call::lower_boundary_call;
-use super::dynamic::{lower_dynamic_scalar_call, lower_dynamic_unit_call};
+use super::dynamic::{
+    lower_dynamic_scalar_call, lower_dynamic_unit_call, lower_stored_descriptor,
+    lower_stored_dynamic_scalar_call,
+};
 use super::return_unit::lower_unit_return;
 use super::scalar_call::{KnownUnitInteger, lower_scalar_call};
 use super::scalar_definitions::{
@@ -79,13 +82,18 @@ pub(super) fn lower_unit_body(
         }
         match operation {
             AbstractOperation::DynamicDescriptorParameter { .. } => {}
-            AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
-            | AbstractOperation::CallStoredDynamicScalar { psi_operation, .. } => {
-                return Err(LoweringError::UnsupportedStoredDynamicDescriptor {
-                    machine: function.machine,
-                    operation: *psi_operation,
-                });
-            }
+            AbstractOperation::StoreDynamicDescriptor { .. } => lower_stored_descriptor(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                &parameters_by_place,
+                &mut shape_cache,
+                &mut active,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
                 return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
                     machine: function.machine,
@@ -328,6 +336,21 @@ pub(super) fn lower_unit_body(
             }
             AbstractOperation::CallDynamicScalar { .. } => {
                 let _ = lower_dynamic_scalar_call(
+                    operation,
+                    function,
+                    target,
+                    functions,
+                    structural_types,
+                    &parameters_by_place,
+                    &mut shape_cache,
+                    &mut active,
+                    &mut scalar_values,
+                    &mut operations,
+                    &mut provenance,
+                )?;
+            }
+            AbstractOperation::CallStoredDynamicScalar { .. } => {
+                let _ = lower_stored_dynamic_scalar_call(
                     operation,
                     function,
                     target,

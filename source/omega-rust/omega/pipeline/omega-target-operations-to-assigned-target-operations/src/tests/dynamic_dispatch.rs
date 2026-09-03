@@ -67,6 +67,141 @@ fn target_plan(target: NativeTarget) -> omega_target_operations::TargetOperation
         .expect("lower rebound dynamic call to target operations")
 }
 
+fn stored_target_plan(target: NativeTarget) -> omega_target_operations::TargetOperationPlan {
+    let source = r#"
+        trait Measure { machine measure(&self) -> bool; }
+        data Item [copy] { value: bool; }
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> bool { transition { _ -> self.value } }
+        }
+        data Holder<'item> { handler: &'item dyn Measure; }
+        data Main [copy] { item: Item; }
+        machine Main::run<'item>(&self) {
+            let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+            let holder: Holder<'item> = Holder { handler: erased };
+            let result: bool = holder.handler.measure();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("lower stored dynamic source");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("lower verified stored Terminal artifact");
+    lower_to_target_operations(&abstract_plan, target)
+        .expect("lower stored descriptor to target operations")
+}
+
+#[test]
+fn assigns_one_shared_descriptor_home_to_store_and_reload() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = stored_target_plan(target);
+        let assigned =
+            assign_registers(&target_plan).expect("assign stored descriptor and its later reload");
+        let caller = assigned
+            .functions
+            .iter()
+            .find(|function| function.machine == assigned.entry)
+            .expect("entry caller");
+        let AssignedOperation::UnitBody(body) = &caller.operation else {
+            panic!("stored descriptor caller must remain an attached Unit body")
+        };
+        let store = body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                AssignedUnitOperation::StoreDynamicDescriptor {
+                    stored,
+                    descriptor_abi,
+                    descriptor_home_byte_offset,
+                    source_copy,
+                    ..
+                } => Some((
+                    stored,
+                    descriptor_abi,
+                    descriptor_home_byte_offset,
+                    source_copy,
+                )),
+                _ => None,
+            })
+            .expect("assigned descriptor store");
+        let call = body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                AssignedUnitOperation::StoredDynamicScalarCall {
+                    dynamic_dispatch,
+                    descriptor_abi,
+                    descriptor_home_byte_offset,
+                    source_copy,
+                    result_home,
+                    ..
+                } => Some((
+                    dynamic_dispatch,
+                    descriptor_abi,
+                    descriptor_home_byte_offset,
+                    source_copy,
+                    result_home,
+                )),
+                _ => None,
+            })
+            .expect("assigned stored descriptor call");
+        assert_eq!(&call.0.stored, store.0);
+        assert_eq!(call.1, store.1);
+        assert_eq!(call.2, store.2);
+        assert_eq!(call.3, store.3);
+        assert_eq!(store.1.instance_offset(), 0);
+        assert_eq!(store.1.table_offset(), 8);
+        assert_eq!(store.1.total_size(), 16);
+        assert_eq!(*store.2 % store.1.align(), 0);
+        assert_eq!(call.4.byte_offset, *store.2 + store.1.total_size());
+    }
+}
+
+#[test]
+fn rejects_stored_call_whose_preceding_store_custody_drifted() {
+    let mut plan = stored_target_plan(NativeTarget::linux_x64());
+    let caller = plan
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let TargetOperation::UnitBody(body) = &mut caller.operation else {
+        panic!("stored descriptor caller must remain an attached Unit body")
+    };
+    let operation = body
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            omega_target_operations::TargetUnitOperation::StoreDynamicDescriptor {
+                psi_operation,
+                source_argument,
+                ..
+            } => {
+                source_argument
+                    .path
+                    .push(psi_terminal::StructuralPathSegment::Field("other".into()));
+                Some(*psi_operation)
+            }
+            _ => None,
+        })
+        .expect("target descriptor store");
+    assert_eq!(
+        assign_registers(&plan),
+        Err(
+            crate::AssignmentError::StoredDynamicDescriptorCustodyMismatch {
+                machine: plan.entry,
+                operation,
+            }
+        )
+    );
+}
+
 fn forwarded_target_plan(target: NativeTarget) -> omega_target_operations::TargetOperationPlan {
     let source = r#"
         trait Measure {

@@ -1340,6 +1340,12 @@ pub(super) fn emit_unit_body(
                     code_offset,
                 )?);
             }
+            AssignedUnitOperation::StoreDynamicDescriptor { psi_operation, .. }
+            | AssignedUnitOperation::StoredDynamicScalarCall { psi_operation, .. } => {
+                return Err(EmissionError::UnsupportedStoredDynamicDescriptor(
+                    *psi_operation,
+                ));
+            }
             AssignedUnitOperation::ConditionalIntegerEqual {
                 psi_operation,
                 result: _,

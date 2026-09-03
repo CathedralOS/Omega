@@ -5,8 +5,8 @@
 
 pub use omega_abstract_operations::{
     AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
-    AbstractReboundDynamicDispatch, AbstractResult, CompletionClaimSource,
-    RankedU32CountdownCustody,
+    AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
+    AbstractStoredDynamicDispatch, CompletionClaimSource, RankedU32CountdownCustody,
 };
 use omega_calling_conventions::{BoundaryEntryPlan, CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
@@ -826,6 +826,26 @@ pub enum TargetUnitOperation {
         structural_arguments: Vec<TargetStructuralArgument>,
         dynamic_arguments: Vec<TargetDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Materialize one selected descriptor into a durable two-word local. The
+    /// structural argument retains the exact instance projection and the
+    /// destination placement shared with its later indirect call.
+    StoreDynamicDescriptor {
+        psi_operation: OperationId,
+        stored: AbstractStoredDynamicDescriptor,
+        source_argument: TargetStructuralArgument,
+    },
+    /// Reload and invoke a descriptor established by the unique preceding
+    /// store with the same target-neutral custody.
+    StoredDynamicScalarCall {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractStoredDynamicDispatch,
+        call_plan: CallPlan,
+        result_home: TargetUnitScalarHomeRequirement,
+        source_argument: TargetStructuralArgument,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

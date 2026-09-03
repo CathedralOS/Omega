@@ -50,6 +50,63 @@ fn assigned_plan(target: NativeTarget) -> omega_assigned_target_operations::Assi
     )
 }
 
+fn assigned_stored_plan(
+    target: NativeTarget,
+) -> omega_assigned_target_operations::AssignedOperationPlan {
+    assigned_unit_plan_from_source(
+        target,
+        r#"
+        trait Measure { machine measure(&self) -> bool; }
+        data Item [copy] { value: bool; }
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> bool { transition { _ -> self.value } }
+        }
+        data Holder<'item> { handler: &'item dyn Measure; }
+        data Main [copy] { item: Item; }
+        machine Main::run<'item>(&self) {
+            let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+            let holder: Holder<'item> = Holder { handler: erased };
+            let result: bool = holder.handler.measure();
+        }
+    "#,
+    )
+}
+
+#[test]
+fn stored_descriptor_stops_at_the_split_machine_emission_fence() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let assigned = assigned_stored_plan(target);
+        let caller = assigned
+            .functions
+            .iter()
+            .find(|function| function.machine == assigned.entry)
+            .expect("entry caller");
+        let omega_assigned_target_operations::AssignedOperation::UnitBody(body) = &caller.operation
+        else {
+            panic!("stored descriptor caller must remain an attached Unit body")
+        };
+        let operation = body
+            .operations
+            .iter()
+            .find_map(|operation| {
+                match operation {
+                omega_assigned_target_operations::AssignedUnitOperation::StoreDynamicDescriptor {
+                    psi_operation,
+                    ..
+                } => Some(*psi_operation),
+                _ => None,
+            }
+            })
+            .expect("assigned stored descriptor");
+        assert_eq!(
+            crate::emit_machine_code(&assigned),
+            Err(crate::EmissionError::UnsupportedStoredDynamicDescriptor(
+                operation
+            ))
+        );
+    }
+}
+
 fn assigned_direct_plan(
     target: NativeTarget,
 ) -> omega_assigned_target_operations::AssignedOperationPlan {

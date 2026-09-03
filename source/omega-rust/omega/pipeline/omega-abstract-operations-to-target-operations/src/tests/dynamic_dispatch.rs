@@ -82,32 +82,51 @@ fn stored_descriptor_plan() -> omega_abstract_operations::AbstractOperationPlan 
 }
 
 #[test]
-fn explicitly_rejects_stored_descriptor_before_physical_two_word_planning() {
+fn lowers_stored_descriptor_to_one_shared_target_two_word_requirement() {
     let source = stored_descriptor_plan();
-    let caller = source
-        .functions
-        .iter()
-        .find(|function| function.machine == source.entry)
-        .expect("entry caller");
-    let operation = caller
-        .operations
-        .iter()
-        .find_map(|operation| match operation {
-            omega_abstract_operations::AbstractOperation::StoreDynamicDescriptor {
-                psi_operation,
-                ..
-            } => Some(*psi_operation),
-            _ => None,
-        })
-        .expect("stored descriptor operation");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        assert_eq!(
-            lower_to_target_operations(&source, target),
-            Err(LoweringError::UnsupportedStoredDynamicDescriptor {
-                machine: caller.machine,
-                operation,
+        let lowered = lower_to_target_operations(&source, target)
+            .expect("stored descriptor reaches target operations");
+        let caller = lowered
+            .functions
+            .iter()
+            .find(|function| function.machine == lowered.entry)
+            .expect("entry caller");
+        let omega_target_operations::TargetOperation::UnitBody(body) = &caller.operation else {
+            panic!("stored descriptor caller must be an attached Unit body")
+        };
+        let store = body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_target_operations::TargetUnitOperation::StoreDynamicDescriptor {
+                    stored,
+                    source_argument,
+                    ..
+                } => Some((stored, source_argument)),
+                _ => None,
             })
+            .expect("target descriptor store");
+        let call = body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_target_operations::TargetUnitOperation::StoredDynamicScalarCall {
+                    dynamic_dispatch,
+                    source_argument,
+                    call_plan,
+                    ..
+                } => Some((dynamic_dispatch, source_argument, call_plan)),
+                _ => None,
+            })
+            .expect("target stored descriptor call");
+        assert_eq!(&call.0.stored, store.0);
+        assert_eq!(call.1, store.1);
+        assert_eq!(
+            call.2.parameters.as_slice(),
+            std::slice::from_ref(&store.1.destination)
         );
+        assert_eq!(store.1.path, store.0.selection.source.path);
     }
 }
 

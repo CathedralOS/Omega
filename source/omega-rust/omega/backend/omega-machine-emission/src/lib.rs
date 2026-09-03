@@ -1436,6 +1436,9 @@ pub enum EmissionError {
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
     InvalidMixedStructuralScalarFunctionAbi(MachineId),
     InvalidDynamicDescriptorCallCustody(psi_core::OperationId),
+    /// Physical assignment retains one shared stored-descriptor home, but
+    /// machine emission does not yet encode the split establishment/reload.
+    UnsupportedStoredDynamicDescriptor(psi_core::OperationId),
     InvalidDynamicCallCustody(psi_core::OperationId),
     InvalidDynamicParameterCallCustody(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),

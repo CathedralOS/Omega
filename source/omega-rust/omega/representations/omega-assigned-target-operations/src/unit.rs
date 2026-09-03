@@ -1,9 +1,10 @@
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
     AbstractDynamicDescriptorArgument, AbstractReboundDynamicDispatch, AbstractResult,
-    BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
-    CompletionClaimSource, FixedIntegerScalarAbiValue, MachineRegister, ProviderExecutionBinding,
-    RankedU32CountdownCustody, TargetStructuralParameter,
+    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, BoundaryByteSequenceArgument,
+    BoundaryRealization, BoundaryScalarArgument, CompletionClaimSource, FixedIntegerScalarAbiValue,
+    MachineRegister, ProviderExecutionBinding, RankedU32CountdownCustody,
+    TargetStructuralParameter,
 };
 use psi_core::{
     BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
@@ -320,6 +321,25 @@ pub enum AssignedUnitOperation {
         copies: Vec<AssignedAggregateCopy>,
         dynamic_arguments: Vec<AssignedDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    StoreDynamicDescriptor {
+        psi_operation: OperationId,
+        stored: AbstractStoredDynamicDescriptor,
+        descriptor_abi: AssignedDynamicTraitDescriptorAbi,
+        descriptor_home_byte_offset: u32,
+        source_copy: AssignedAggregateCopy,
+    },
+    StoredDynamicScalarCall {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractStoredDynamicDispatch,
+        call_plan: CallPlan,
+        result_home: AssignedUnitScalarHome,
+        descriptor_abi: AssignedDynamicTraitDescriptorAbi,
+        descriptor_home_byte_offset: u32,
+        source_copy: AssignedAggregateCopy,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

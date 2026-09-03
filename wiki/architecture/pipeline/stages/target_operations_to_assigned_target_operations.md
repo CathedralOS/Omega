@@ -47,6 +47,12 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   the incoming descriptor registers to be the exact outgoing helper registers;
   the Unit form retains no result, and neither reauthenticates the parameter as
   a local selection.
+- `assignment/function/unit/dynamic.rs` also owns aggregate-stored descriptors.
+  Establishment allocates one aligned runtime-ABI two-word home; the later
+  indirect call must rejoin the same target-neutral custody, source projection,
+  descriptor ABI, and byte offset from the unique preceding assigned store.
+  Only after that join does assignment allocate the distinct scalar result
+  home. Machine encoding remains the next explicit fence.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is
