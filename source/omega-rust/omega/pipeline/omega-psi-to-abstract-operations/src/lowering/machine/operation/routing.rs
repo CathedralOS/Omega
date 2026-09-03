@@ -28,9 +28,18 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
-        OperationKind::StoreDynamicDescriptor { .. } => Err(
-            LoweringError::UnsupportedStoredDynamicDescriptor(operation.id),
-        ),
+        OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
+            Ok(AbstractOperation::StoreDynamicDescriptor {
+                psi_operation: operation.id,
+                stored: calls::lower_stored_descriptor(
+                    machine,
+                    operation,
+                    *descriptor_ordinal,
+                    dynamic_dispatch,
+                    closed_conformance_applications,
+                )?,
+            })
+        }
         OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }

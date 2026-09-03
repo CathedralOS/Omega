@@ -92,6 +92,11 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   selected realization. It derives the realization's structural argument and
   scalar result ABI while preserving both source copies; physical assignment
   later allocates the canonical two-word descriptor and durable result home.
+- Aggregate-stored descriptors arrive as separate target-neutral store and
+  reload/call operations that retain one identical selected application and
+  aggregate-field identity. This stage currently rejects them explicitly: the
+  target vocabulary must first define the two-word local, establishment write,
+  reload, and indirect-call custody as one replayable physical contract.
 - `lowering/scalar/special_forms.rs` also owns the bounded scalar helper-to-
   helper forwarding form. It independently rejoins the incoming descriptor
   parameter to the callee's identical interface and retains both native

@@ -78,6 +78,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         }
         O::Return { value, .. } => replace(value),
         O::DynamicDescriptorParameter { .. }
+        | O::StoreDynamicDescriptor { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
@@ -87,6 +88,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
+        | O::CallStoredDynamicScalar { .. }
         | O::CallDynamicParameterScalar { .. }
         | O::CallDynamicUnit { .. }
         | O::CallDynamicParameterUnit { .. }

@@ -40,6 +40,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::SaturatingIntegerDivide { .. }
         | O::SaturatingIntegerRemainder { .. } => Some(DeadScalarFamily::ProofCertified),
         O::DynamicDescriptorParameter { .. }
+        | O::StoreDynamicDescriptor { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishPayloadlessCase { .. }
@@ -51,6 +52,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
+        | O::CallStoredDynamicScalar { .. }
         | O::CallDynamicParameterScalar { .. }
         | O::CallDynamicUnit { .. }
         | O::CallDynamicParameterUnit { .. }

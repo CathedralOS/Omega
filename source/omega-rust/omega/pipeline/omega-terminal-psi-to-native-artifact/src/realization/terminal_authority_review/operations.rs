@@ -34,6 +34,9 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::CallDynamicUnit {
             dynamic_dispatch, ..
         } => AuthorityEdge::Internal(dynamic_dispatch.dispatch.realization),
+        AbstractOperation::CallStoredDynamicScalar {
+            dynamic_dispatch, ..
+        } => AuthorityEdge::Internal(dynamic_dispatch.dispatch.realization),
         AbstractOperation::CallDynamicParameterScalar {
             dynamic_dispatch, ..
         }
@@ -59,6 +62,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
             port: *port,
         },
         AbstractOperation::DynamicDescriptorParameter { .. }
+        | AbstractOperation::StoreDynamicDescriptor { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. }
         | AbstractOperation::StructuralScalarFieldStore { .. }
         | AbstractOperation::EstablishPayloadlessCase { .. }

@@ -22,6 +22,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         O::CallStructuralScalar { result, .. }
         | O::CallStructuralScalarWithDynamicArguments { result, .. }
         | O::CallDynamicScalar { result, .. }
+        | O::CallStoredDynamicScalar { result, .. }
         | O::CallDynamicParameterScalar { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {

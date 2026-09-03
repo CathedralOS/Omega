@@ -803,9 +803,13 @@ Terminal retains a distinct descriptor-establishment row naming the aggregate,
 field, and prior selection, then reloads the same descriptor ordinal for the
 later call. Independent validation requires that establishment to dominate the
 call, canonical encoding preserves the custody, and target-neutral interpretation
-executes the selected realization through the stored field. Physical two-word
-native materialization, reload, and artifact replay remain open; native lowering
-rejects the Terminal establishment operation until that carrier is implemented.
+executes the selected realization through the stored field. Terminal-to-Abstract
+lowering retains distinct store and reload operations with the same selection,
+aggregate/field identity, closed application, and selected callable. Optimizer
+identity and independent validation preserve the unique earlier same-block store
+join. Physical two-word native materialization, reload, and artifact replay remain
+open; Abstract-to-Target lowering rejects these operations until that carrier is
+implemented.
 Those consumers use the same complete normalized maps.
 Replaceable-component crossing is not another descriptor rung: it is forbidden
 below, and uses a boundary requirement or a consumer-owned local proxy instead.

@@ -12511,9 +12511,14 @@ checked-result arithmetic decision listed below.
     local declaration and field identities from typed source, Terminal validation
     requires establishment to dominate the call in the same block, canonical
     encoding preserves both rows, and the interpreter executes the selected
-    realization through invocation-independent structural storage. Native
+    realization through invocation-independent structural storage. The exact
+    store and reload now cross the Terminal-to-Abstract boundary as distinct
+    target-neutral operations retaining the same selection, aggregate/field
+    identity, closed application, and selected callable. Optimization-unit
+    construction gives both rows canonical identity and independently rejects a
+    reload whose custody drifts from its unique earlier same-block store. Native
     two-word aggregate layout, materialization, reload, and artifact replay remain
-    to be added; Terminal-to-Omega lowering rejects this operation explicitly
+    to be added; Abstract-to-Target lowering rejects both operations explicitly
     until that physical carrier exists. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls

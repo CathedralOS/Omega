@@ -18,6 +18,13 @@ pub(super) fn lower_operation(
 ) -> Result<(), LoweringError> {
     match operation {
         AbstractOperation::DynamicDescriptorParameter { .. } => {}
+        AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
+        | AbstractOperation::CallStoredDynamicScalar { psi_operation, .. } => {
+            return Err(LoweringError::UnsupportedStoredDynamicDescriptor {
+                machine: function.machine,
+                operation: *psi_operation,
+            });
+        }
         AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
             return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
                 machine: function.machine,

@@ -210,6 +210,18 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         summary.suspension = EffectKnowledge::May;
                     }
                 }
+                O::CallStoredDynamicScalar {
+                    dynamic_dispatch, ..
+                } => {
+                    let callee = dynamic_dispatch.dispatch.realization;
+                    summary.callees.insert(callee);
+                    if !machines.contains(&callee) {
+                        summary.observable = EffectKnowledge::May;
+                        summary.structural_state = EffectKnowledge::May;
+                        summary.crash = EffectKnowledge::May;
+                        summary.suspension = EffectKnowledge::May;
+                    }
+                }
                 O::CallDynamicParameterScalar { .. } | O::CallDynamicParameterUnit { .. } => {
                     // The concrete table row is an incoming runtime value.
                     // Until target realization rejoins every caller-supplied
@@ -362,6 +374,7 @@ fn operation_effect(
         | O::SaturatingIntegerMultiply { .. } => (EffectClass::PureScalar, No, No, No, No),
         O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
+        | O::StoreDynamicDescriptor { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
@@ -374,6 +387,7 @@ fn operation_effect(
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
+        | O::CallStoredDynamicScalar { .. }
         | O::CallDynamicParameterScalar { .. }
         | O::CallDynamicUnit { .. }
         | O::CallDynamicParameterUnit { .. }

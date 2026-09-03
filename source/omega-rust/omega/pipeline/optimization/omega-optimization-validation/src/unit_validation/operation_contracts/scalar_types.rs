@@ -32,6 +32,10 @@ pub(crate) fn operation_scalar_types_match(
                             && !requirement.public_requirement_identity.is_empty()
                     })
         }
+        O::StoreDynamicDescriptor {
+            psi_operation,
+            stored,
+        } => stored.has_complete_custody(function.machine, *psi_operation),
         O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
             scalar(value.value) == Some(value.scalar_type)
         }
@@ -340,6 +344,25 @@ pub(crate) fn operation_scalar_types_match(
                             if signature.scalar_type == result.scalar_type
                     )
             }),
+        O::CallStoredDynamicScalar {
+            psi_operation,
+            result,
+            dynamic_dispatch,
+            ..
+        } => functions
+            .get(&dynamic_dispatch.dispatch.realization)
+            .is_some_and(|callee| {
+                dynamic_dispatch.has_complete_custody(function.machine, *psi_operation)
+                    && scalar_result_class(result.scalar_type)
+                        .is_some_and(|result| stored_result_matches(dynamic_dispatch, result))
+                    && callee.parameters.is_empty()
+                    && callee.structural_parameters.len() == 1
+                    && matches!(
+                        callee.result,
+                        omega_abstract_operations::AbstractFunctionResult::Scalar(signature)
+                            if signature.scalar_type == result.scalar_type
+                    )
+            }),
         O::CallDynamicParameterScalar {
             psi_operation,
             result,
@@ -466,6 +489,23 @@ fn rebound_result_matches(
     expected: psi_terminal::ClosedConformanceCallableResult,
 ) -> bool {
     dynamic_dispatch
+        .application
+        .realization_callables
+        .iter()
+        .find(|callable| {
+            callable.source_callable_identity
+                == dynamic_dispatch.dispatch.realization_callable_identity
+                && callable.machine == dynamic_dispatch.dispatch.realization
+        })
+        .is_some_and(|callable| callable.result == expected)
+}
+
+fn stored_result_matches(
+    dynamic_dispatch: &omega_abstract_operations::AbstractStoredDynamicDispatch,
+    expected: psi_terminal::ClosedConformanceCallableResult,
+) -> bool {
+    dynamic_dispatch
+        .stored
         .application
         .realization_callables
         .iter()

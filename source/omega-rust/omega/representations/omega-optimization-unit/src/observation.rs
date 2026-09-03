@@ -413,6 +413,7 @@ fn operation_observations(
         | O::SaturatingIntegerMultiply { .. } => (Vec::new(), No, No),
         O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
+        | O::StoreDynamicDescriptor { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
@@ -424,6 +425,7 @@ fn operation_observations(
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
+        | O::CallStoredDynamicScalar { .. }
         | O::CallDynamicParameterScalar { .. }
         | O::CallDynamicUnit { .. }
         | O::CallDynamicParameterUnit { .. }

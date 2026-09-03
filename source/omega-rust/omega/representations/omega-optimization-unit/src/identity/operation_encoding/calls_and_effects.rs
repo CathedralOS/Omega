@@ -9,6 +9,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(55);
             encode_dynamic_descriptor_parameter(bytes, parameter);
         }
+        O::StoreDynamicDescriptor {
+            psi_operation,
+            stored,
+        } => {
+            bytes.u8(60);
+            bytes.id(*psi_operation);
+            encode_stored_dynamic_descriptor(bytes, stored);
+        }
         O::CallUnit {
             psi_operation,
             callee,
@@ -106,6 +114,20 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
             encode_rebound_dynamic_dispatch(bytes, dynamic_dispatch);
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
+        }
+        O::CallStoredDynamicScalar {
+            psi_operation,
+            result,
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            bytes.u8(61);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            encode_stored_dynamic_dispatch(bytes, dynamic_dispatch);
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
@@ -249,6 +271,36 @@ fn encode_rebound_dynamic_dispatch(
         bytes.u8(1);
         encode_closed_conformance_application(bytes, &dynamic_dispatch.initial_application);
     }
+    bytes.id(dynamic_dispatch.dispatch.owner);
+    bytes.id(dynamic_dispatch.dispatch.operation);
+    bytes.u32(dynamic_dispatch.dispatch.descriptor_ordinal);
+    bytes.string(&dynamic_dispatch.dispatch.declaring_trait_identity);
+    bytes.string(&dynamic_dispatch.dispatch.public_requirement_identity);
+    bytes.string(&dynamic_dispatch.dispatch.requirement_identity);
+    bytes.string(&dynamic_dispatch.dispatch.realization_identity);
+    bytes.string(&dynamic_dispatch.dispatch.realization_callable_identity);
+    bytes.id(dynamic_dispatch.dispatch.realization);
+}
+
+fn encode_stored_dynamic_descriptor(
+    bytes: &mut CanonicalBytes,
+    stored: &omega_abstract_operations::AbstractStoredDynamicDescriptor,
+) {
+    encode_dynamic_selection(bytes, &stored.selection);
+    bytes.id(stored.descriptor.owner);
+    bytes.u32(stored.descriptor.ordinal);
+    bytes.id(stored.descriptor.establishment_operation);
+    bytes.u32(stored.descriptor.selection_ordinal);
+    bytes.string(&stored.descriptor.aggregate_type_identity);
+    bytes.string(&stored.descriptor.field_identity);
+    encode_closed_conformance_application(bytes, &stored.application);
+}
+
+fn encode_stored_dynamic_dispatch(
+    bytes: &mut CanonicalBytes,
+    dynamic_dispatch: &omega_abstract_operations::AbstractStoredDynamicDispatch,
+) {
+    encode_stored_dynamic_descriptor(bytes, &dynamic_dispatch.stored);
     bytes.id(dynamic_dispatch.dispatch.owner);
     bytes.id(dynamic_dispatch.dispatch.operation);
     bytes.u32(dynamic_dispatch.dispatch.descriptor_ordinal);
