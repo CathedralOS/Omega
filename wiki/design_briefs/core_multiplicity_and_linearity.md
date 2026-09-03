@@ -123,9 +123,10 @@ The first bounded whole-root primitive store accepts a landed integer literal
 or Boolean literal and preserves its complete write-only parameter row and
 preceding exact-typed scalar use through target-neutral abstract operations and
 optimization validation. Target lowering now derives the primitive referent's
-exact width/alignment and selects a borrowed-reference ABI on x86-64 and
-AArch64 before reaching the explicit store fence. Physical store and provider
-non-observation authority remain absent.
+exact width/alignment, selects a borrowed-reference ABI on x86-64 and AArch64,
+and retains the exact declaration, placement, immediate, and semantic
+operation. Physical assignment independently replays those joins. Machine-code
+store emission and provider non-observation authority remain absent.
 
 ## Consumers and cleanup
 

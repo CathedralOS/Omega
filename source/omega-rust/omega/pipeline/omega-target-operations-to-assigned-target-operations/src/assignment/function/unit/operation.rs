@@ -44,6 +44,22 @@ pub(super) fn assign(
             scalar_type: *scalar_type,
             value: *value,
         },
+        TargetUnitOperation::WriteOnlyPrimitiveStore {
+            psi_operation,
+            destination,
+            destination_type,
+            destination_placement,
+            source,
+        } => super::write_only_primitive_store::assign(
+            machine,
+            body,
+            *psi_operation,
+            destination,
+            destination_type,
+            destination_placement,
+            *source,
+            preceding_operations,
+        )?,
         TargetUnitOperation::StructuralScalarFieldStore {
             psi_operation,
             destination,

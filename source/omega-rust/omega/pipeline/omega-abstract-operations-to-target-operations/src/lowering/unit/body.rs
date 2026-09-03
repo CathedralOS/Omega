@@ -18,6 +18,7 @@ use super::structural_scalar::{
     lower_dynamic_argument_scalar_call, lower_dynamic_argument_unit_call,
 };
 use super::structural_scalar::{lower_field_store, lower_structural_scalar_call};
+use super::write_only_primitive_store::lower_write_only_primitive_store;
 
 pub(super) struct LoweredUnitBody {
     pub(super) operations: Vec<TargetUnitOperation>,
@@ -99,12 +100,15 @@ pub(super) fn lower_unit_body(
                 &mut operations,
                 &mut provenance,
             )?,
-            AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
-                return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
-                    machine: function.machine,
-                    operation: *psi_operation,
-                });
-            }
+            AbstractOperation::WriteOnlyPrimitiveStore { .. } => lower_write_only_primitive_store(
+                operation,
+                function,
+                structural_types,
+                &parameters_by_place,
+                &scalar_values,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::StructuralScalarFieldStore { .. } => lower_field_store(
                 operation,
                 function,

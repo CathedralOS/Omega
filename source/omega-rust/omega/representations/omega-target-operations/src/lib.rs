@@ -772,6 +772,15 @@ pub enum TargetUnitOperation {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+    /// One verifier-approved non-observing immediate replacement through an
+    /// exact whole-root mutable or write-only primitive parameter.
+    WriteOnlyPrimitiveStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        destination_type: StructuralTypeDeclaration,
+        destination_placement: ValuePlacement,
+        source: TargetUnitScalarArgumentSource,
+    },
     /// One verifier-approved fixed-width integer write into an exact field of
     /// a staged attached-Unit structural parameter. Semantic location and
     /// physical offset remain together so assignment and emission can replay

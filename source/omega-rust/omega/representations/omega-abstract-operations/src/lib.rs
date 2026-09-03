@@ -701,7 +701,7 @@ pub enum AbstractOperation {
     /// keeps access, multiplicity, nominal type, and signature position from
     /// being reconstructed from physical ABI shape; `value` retains the exact
     /// preceding scalar definition and type. Target lowering must not realize
-    /// this event without a separate physical address/width/store model.
+    /// this event without a separate target address/width/store model.
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,
         destination: StructuralParameterDeclaration,

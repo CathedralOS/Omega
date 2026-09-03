@@ -17,6 +17,7 @@ mod setup;
 mod structural_call;
 mod structural_result;
 mod structural_scalar;
+mod write_only_primitive_store;
 
 use super::shared::*;
 use body::lower_unit_body;

@@ -268,6 +268,13 @@ pub enum AssignedUnitOperation {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+    WriteOnlyPrimitiveStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        destination_type: StructuralTypeDeclaration,
+        destination_placement: ValuePlacement,
+        source: AssignedUnitScalarArgumentSource,
+    },
     StructuralScalarFieldStore {
         psi_operation: OperationId,
         destination: StructuralParameterDeclaration,
