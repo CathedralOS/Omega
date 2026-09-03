@@ -161,13 +161,14 @@ pub struct CheckedDynamicDescriptorTransferPlan {
     /// already-received descriptor parameter.
     pub source: CheckedDynamicDescriptorTransferSource,
     /// Independently counted syntactic calls entering the source parameter's
-    /// state. Zero for an owner-local selection; one or two for the bounded
-    /// parameter-forwarding lane.
+    /// state. Zero for an owner-local selection; one for a transparent
+    /// forwarding step, or two for the first bounded control-flow join.
     pub source_predecessor_count: u32,
     /// Complete alternative paths by which a runtime descriptor can reach
     /// this call. A direct selection has one path. A parameter forwarded after
-    /// a control-flow join has one path per incoming edge; no representative
-    /// selection is allowed to stand in for the joined alternatives.
+    /// a control-flow join has one path per incoming edge, and subsequent
+    /// transparent hops retain that complete set; no representative selection
+    /// is allowed to stand in for the joined alternatives.
     pub source_paths: Vec<CheckedDynamicDescriptorTransferPath>,
 }
 
@@ -305,9 +306,10 @@ impl CheckedDynamicDescriptorTransferPlan {
                 let incoming_valid = usize::try_from(self.source_predecessor_count).ok()
                     == Some(incoming.len())
                     && matches!(incoming.len(), 1 | 2)
-                    && incoming
-                        .iter()
-                        .all(|candidate| candidate.source_paths.len() == 1)
+                    && (incoming.len() == 1
+                        || incoming
+                            .iter()
+                            .all(|candidate| candidate.source_paths.len() == 1))
                     && incoming.iter().all(|candidate| {
                         if !candidate.has_complete_source_custody_inner(transfers, visiting) {
                             return false;

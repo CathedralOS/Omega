@@ -41,6 +41,10 @@ const SOURCE: &str = r#"
         }
     }
     machine forward(erased: &dyn Measure) -> bool {
+        let result: bool = relay(erased);
+        transition { _ -> result }
+    }
+    machine relay(erased: &dyn Measure) -> bool {
         let result: bool = finish(erased);
         transition { _ -> result }
     }

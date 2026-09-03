@@ -596,10 +596,10 @@ the join. Even when both roots select the same conformance, their source places
 remain distinct; when they select different conformances, neither may stand in
 as a representative for the other. An unrecognized third predecessor, a
 missing edge, or a substituted selection or coordinate publishes no joined
-transfer. Exactly one subsequent transparent parameter-to-parameter call may
-carry the joined descriptor onward, provided its transfer retains both complete
-predecessor paths; a second subsequent forwarding hop remains fenced. Terminal
-Psi already has the required
+transfer. An acyclic chain of subsequent transparent parameter-to-parameter
+calls may carry the joined descriptor onward, provided every transfer retains
+both complete predecessor paths. A second join that combines an already-joined
+value with another predecessor remains fenced. Terminal Psi already has the required
 runtime form: each predecessor call supplies its own selection-sourced
 descriptor argument to one shared callee descriptor parameter. That parameter
 is the runtime phi; no representative conformance and no synthetic joined table
@@ -637,12 +637,13 @@ before final-image replay. Canonical installation format 69 carries the same
 general Unit scalar ABI plus each forwarded call's full structural source
 (root, path, and access), then rejoins the Boolean ABI, both source paths, call
 spans/results, and five semantic intervals without introducing a join-specific
-record. The first transparent forwarding hop after the join uses that same
-ordinary descriptor-parameter ABI: one additional helper forwards its incoming
+record. Transparent forwarding after the join uses that same ordinary
+descriptor-parameter ABI: each additional helper forwards its incoming
 parameter, the final helper alone dispatches, and source-to-installation replay
 retains both alternative root paths on x86-64 and AArch64. Aggregate storage
-beyond the bounded single-field local form below, a second post-join forwarding
-hop, component crossing, and wider control graphs remain fenced.
+beyond the bounded single-field local form below, a second join over an
+already-joined value, component crossing, and wider control graphs remain
+fenced.
 
 The first Terminal aggregate-storage rung accepts only the checked immutable
 one-field record initialized from one earlier exact shared-borrow selection.

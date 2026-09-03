@@ -12530,10 +12530,11 @@ checked-result arithmetic decision listed below.
   place, and ordered call-edge chain. Same-conformance/different-referent and
   different-conformance joins therefore retain both roots rather than choosing
   a representative. Missing or substituted paths, selections, and coordinates
-  fail replay; an unadmitted third predecessor remains fenced. One subsequent
-  transparent parameter-to-parameter hop is admitted only when it retains both
-  alternative paths; a second post-join hop remains fenced. Terminal Psi itself
-  needs no synthetic joined-table row:
+  fail replay; an unadmitted third predecessor remains fenced. A subsequent
+  acyclic chain of transparent parameter-to-parameter hops is admitted only
+  while every hop retains both alternative paths; joining that already-joined
+  value with another predecessor remains fenced. Terminal Psi itself needs no
+  synthetic joined-table row:
   its existing per-call descriptor arguments form the runtime phi at one
   callee descriptor parameter. An executable semantic canary now gives two
   branch-local calls distinct source places and distinct closed conformances,
@@ -12580,16 +12581,17 @@ checked-result arithmetic decision listed below.
   and access—rather than collapsing both branch fields to the same root place.
   Installation validation rejoins the Boolean ABI, two distinct source paths,
   call spans, results, and five semantic intervals without a join-specific row.
-  One transparent descriptor-parameter transfer after that join is now live
+  Transparent descriptor-parameter forwarding after that join is now live
   through the same source-to-installation path. The shared transfer retains
-  both complete predecessor paths; Terminal Psi emits one additional ordinary
-  helper whose descriptor argument is sourced from its incoming parameter, and
-  only the final helper performs parameter-slot dispatch. Native/object/image/
-  installation replay on x86-64 and AArch64 uses the existing forwarding rows
-  and rejects path collapse without a join-specific carrier. A second
-  post-join forwarding hop, aggregate storage, component crossing, and wider
-  control graphs remain fenced; do not add a representative conformance or a
-  second joined-descriptor vocabulary to bypass those seams.
+  both complete predecessor paths through every single-predecessor hop;
+  Terminal Psi emits the corresponding ordinary helper chain whose descriptor
+  arguments are sourced from incoming parameters, and only the final helper
+  performs parameter-slot dispatch. Native/object/image/installation replay on
+  x86-64 and AArch64 uses the existing forwarding rows and rejects path collapse
+  without a join-specific carrier. A second join over an already-joined value,
+  aggregate storage, component crossing, and wider control graphs remain
+  fenced; do not add a representative conformance or a second joined-descriptor
+  vocabulary to bypass those seams.
 
   Remaining work:
 
