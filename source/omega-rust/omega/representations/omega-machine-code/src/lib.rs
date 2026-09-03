@@ -22,8 +22,8 @@ use omega_target_operations::{
     TargetStructuralParameter, TerminalPsiProvenance,
 };
 use psi_core::{
-    BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
-    ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
+    BoundaryMachineId, ClaimId, EdgeId, IeeeFloatValue, IntegerType, IntegerValue, MachineId,
+    OperationId, PlaceId, ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, ProviderCandidateConformance, StructuralArgument,
@@ -1035,13 +1035,34 @@ pub enum UnitWriteOnlyPrimitiveStoreSourceRecord {
         value: bool,
         definition_ordinal: usize,
     },
+    IeeeFloatImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: IeeeFloatValue,
+        definition_ordinal: usize,
+    },
 }
 
 impl UnitWriteOnlyPrimitiveStoreSourceRecord {
+    pub const fn defining_operation(&self) -> OperationId {
+        match self {
+            Self::IntegerImmediate {
+                defining_operation, ..
+            }
+            | Self::BooleanImmediate {
+                defining_operation, ..
+            }
+            | Self::IeeeFloatImmediate {
+                defining_operation, ..
+            } => *defining_operation,
+        }
+    }
+
     pub const fn source_value(&self) -> ValueId {
         match self {
             Self::IntegerImmediate { source_value, .. }
-            | Self::BooleanImmediate { source_value, .. } => *source_value,
+            | Self::BooleanImmediate { source_value, .. }
+            | Self::IeeeFloatImmediate { source_value, .. } => *source_value,
         }
     }
 
@@ -1049,6 +1070,7 @@ impl UnitWriteOnlyPrimitiveStoreSourceRecord {
         match self {
             Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(*scalar_type),
             Self::BooleanImmediate { .. } => ScalarType::Boolean,
+            Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
         }
     }
 }

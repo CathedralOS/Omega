@@ -218,7 +218,9 @@ borrowed-reference placement and home, preceding typed scalar definition,
 target store bytes, and semantic attribution. The Boolean sibling reaches the
 same independently replayed physical assignment and exact machine-store
 emission while retaining a distinct Boolean source and definition ordinal.
-Object construction and installation format 72 rejoin and transport both
+IEEE float literals retain their raw-bit source and definition ordinal through
+the same pipeline without requiring floating-register custody. Object
+construction and installation format 73 rejoin and transport all three
 families. Opaque-provider non-observation guarantees remain fail closed.
 
 A partial write must leave `T` valid at the ordinary invariant-window

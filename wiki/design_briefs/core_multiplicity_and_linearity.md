@@ -133,9 +133,9 @@ the record retains the definition ordinal needed for independent replay.
 Fixed-integer physical assignment and machine emission independently replay
 their joins before producing the non-observing store bytes. Dedicated custody
 rows bind every fact to exact code intervals and bytes, which object
-construction replays independently and installation format 72 transports
-canonically for both families. Provider non-observation authority remains
-absent.
+construction replays independently and installation format 73 transports
+canonically for integer, Boolean, and raw-bit IEEE float literals. Provider
+non-observation authority remains absent.
 
 ## Consumers and cleanup
 

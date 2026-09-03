@@ -77,7 +77,7 @@ pub(super) fn decode_unit_write_only_primitive_stores(
         let destination_scalar_type = decode_boundary_result_scalar_type(reader)?;
         if !matches!(
             destination_scalar_type,
-            ScalarType::Integer(_) | ScalarType::Boolean
+            ScalarType::Integer(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_)
         ) {
             return Err(InstallationError::InvalidStructuralTypeShape);
         }
@@ -145,6 +145,24 @@ fn encode_source(
             bytes.push(u8::from(value));
             bytes.extend_from_slice(&[0; 7]);
         }
+        UnitWriteOnlyPrimitiveStoreSourceRecord::IeeeFloatImmediate {
+            defining_operation,
+            source_value,
+            value,
+            definition_ordinal,
+        } => {
+            bytes.extend_from_slice(&[3, 0, 0, 0]);
+            push_u64(bytes, defining_operation.get());
+            push_u64(bytes, source_value.get());
+            encode_offset(bytes, definition_ordinal)?;
+            let (format, bits) = match value {
+                psi_core::IeeeFloatValue::Binary32(bits) => (1, u64::from(bits)),
+                psi_core::IeeeFloatValue::Binary64(bits) => (2, bits),
+            };
+            bytes.push(format);
+            bytes.extend_from_slice(&[0; 7]);
+            push_u64(bytes, bits);
+        }
     }
     Ok(())
 }
@@ -181,6 +199,33 @@ fn decode_source(
                 value,
                 definition_ordinal,
             })
+        }
+        3 => {
+            let defining_operation = OperationId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let source_value = ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let definition_ordinal = decode_offset(reader)?;
+            let format = reader.u8()?;
+            if reader.take(7)? != [0; 7] {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            let bits = reader.u64()?;
+            let value = match format {
+                1 => psi_core::IeeeFloatValue::Binary32(
+                    u32::try_from(bits).map_err(|_| InstallationError::NonzeroReservedField)?,
+                ),
+                2 => psi_core::IeeeFloatValue::Binary64(bits),
+                tag => return Err(InstallationError::InvalidIeeeFloatFormatTag(tag)),
+            };
+            Ok(
+                UnitWriteOnlyPrimitiveStoreSourceRecord::IeeeFloatImmediate {
+                    defining_operation,
+                    source_value,
+                    value,
+                    definition_ordinal,
+                },
+            )
         }
         tag => Err(InstallationError::InvalidInstalledScalarSourceTag(tag)),
     }

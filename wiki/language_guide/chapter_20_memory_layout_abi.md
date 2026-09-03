@@ -381,11 +381,13 @@ assignment, and machine emission on x86-64 and AArch64. Object construction
 independently replays the exact parameter, primitive width, pointer home,
 literal source, target instruction bytes, and attribution. Boolean stores
 retain an exact one-byte referent and Boolean immediate through target selection
-and independent assignment on both native architectures. Machine emission
-rejoins those facts and emits the exact one-byte store. Object replay
-revalidates both primitive families, and installation format 72 transports
-their custody canonically. Opaque provider non-observation authority remains
-explicitly fenced.
+and independent assignment on both native architectures. IEEE float stores
+retain exact raw bits and use the corresponding four- or eight-byte immediate
+store rather than floating-register transfer. Machine emission rejoins each
+definition and emits the exact store. Object replay revalidates all three
+primitive families, and installation format 73 transports their custody
+canonically. Opaque provider non-observation authority remains explicitly
+fenced.
 
 ### Geometry, demand, and supply
 

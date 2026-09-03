@@ -28,6 +28,10 @@ pub(super) fn emit_write_only_primitive_store(
     aarch64_homes: &[Aarch64UnitParameterHome],
     established_integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
     established_boolean_constants: &BTreeMap<ValueId, (OperationId, bool, usize)>,
+    established_ieee_float_constants: &BTreeMap<
+        ValueId,
+        (OperationId, psi_core::IeeeFloatValue, usize),
+    >,
     bytes: &mut Vec<u8>,
     operation_ordinal: usize,
     code_offset: usize,
@@ -93,8 +97,34 @@ pub(super) fn emit_write_only_primitive_store(
                 u64::from(value),
             )
         }
-        AssignedUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate { .. } => {
-            return Err(invalid());
+        AssignedUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate {
+            defining_operation,
+            source_value,
+            value,
+        } => {
+            let Some((retained_operation, retained_value, definition_ordinal)) =
+                established_ieee_float_constants.get(&source_value).copied()
+            else {
+                return Err(invalid());
+            };
+            if retained_operation != defining_operation || retained_value != value {
+                return Err(invalid());
+            }
+            let (byte_size, bits) = match value {
+                psi_core::IeeeFloatValue::Binary32(bits) => (4, u64::from(bits)),
+                psi_core::IeeeFloatValue::Binary64(bits) => (8, bits),
+            };
+            (
+                UnitWriteOnlyPrimitiveStoreSourceRecord::IeeeFloatImmediate {
+                    defining_operation,
+                    source_value,
+                    value,
+                    definition_ordinal,
+                },
+                ScalarType::IeeeFloat(value.format()),
+                byte_size,
+                bits,
+            )
         }
     };
     let parameter_index = usize::try_from(destination.position).map_err(|_| invalid())?;

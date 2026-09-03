@@ -710,13 +710,12 @@ the target store; the Boolean source additionally retains its definition
 ordinal. Dedicated whole-root records bind these facts to exact code intervals
 and bytes. Object construction independently replays the declaration joins,
 borrowed-reference placement and home, literal source, architecture encoding,
-attribution, interval, and bytes. Installation format 72 transports and
-revalidates the integer and Boolean store families without treating physical
-pointer-layout equivalence as permission equivalence. IEEE float stores retain
-their exact preceding definition, raw bits, referent shape, and store-only
-source carrier through target planning and independent physical assignment;
-machine emission, object construction, and installation remain explicit
-fail-closed work.
+attribution, interval, and bytes. Installation format 73 transports and
+revalidates the integer, Boolean, and IEEE float store families without
+treating physical pointer-layout equivalence as permission equivalence. IEEE
+float stores retain their exact preceding definition, raw bits, referent shape,
+store-only source carrier, machine bytes, and attribution through both object
+and installation replay.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

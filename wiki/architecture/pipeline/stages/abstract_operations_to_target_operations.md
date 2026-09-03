@@ -85,11 +85,12 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   Boolean definition. IEEE floats retain a four- or eight-byte referent and the
   exact preceding raw-bit definition. All three use a store-only source carrier,
   select borrowed-reference placement, and cross independent physical
-  assignment without widening scalar calls or foreign boundaries. Integer and
-  Boolean machine emission then rejoin their definitions and emit exact stores;
-  IEEE machine emission remains fail-closed. Object construction and
-  installation replay retain the completed families' exact definition ordinal,
-  bytes, and attribution.
+  assignment without widening scalar calls or foreign boundaries. Machine
+  emission rejoins each definition and emits its raw bits through an exact
+  one-, two-, four-, or eight-byte integer-immediate store, without routing
+  IEEE literals through floating registers. Object construction and
+  installation replay retain every family's exact definition ordinal, bytes,
+  and attribution.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider
