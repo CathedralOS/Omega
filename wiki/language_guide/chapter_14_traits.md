@@ -783,8 +783,14 @@ table to be emitted. The compiler refuses malformed, colliding, or
 interface-changing versions without devirtualizing them; the latest application
 alone supplies the private indirect slot call. This is equally valid for a
 result-less Unit requirement; no scalar carrier is introduced. Non-cast
-assignments, aggregate erased calls, and within-artifact storage, joins, or
-escapes remain open. Those consumers use the same complete normalized maps.
+assignments, joins, and wider escapes remain open. The first within-artifact
+aggregate-storage shape is checked: an immutable borrow-carrying local record
+may initialize one `&dyn Trait` field directly from an earlier exact local
+selection. Checking retains the original selected row map, the source binding,
+and the exact destination local, field identity, and member path as storage
+lineage; it does not misclassify the move as a fresh conformance selection.
+Terminal materialization and reload of that two-word field remain open. Those
+consumers use the same complete normalized maps.
 Replaceable-component crossing is not another descriptor rung: it is forbidden
 below, and uses a boundary requirement or a consumer-owned local proxy instead.
 

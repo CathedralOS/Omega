@@ -618,7 +618,10 @@ fn build_dynamic_conformance_facts(
 ) -> Result<psi_checked_trees::DynamicConformanceFacts, Vec<psi_diagnostics::Diagnostic>> {
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
-    for selection in psi_validation::collect_dynamic_conformance_selections(program)? {
+    let validated_selections = psi_validation::collect_dynamic_conformance_selections(program)?;
+    let validated_storages =
+        psi_validation::collect_dynamic_descriptor_storages(program, &validated_selections);
+    for selection in validated_selections {
         let selected = selected_data_conformance(program, &selection);
         let mut rows = Vec::new();
         for row in selected
@@ -679,7 +682,48 @@ fn build_dynamic_conformance_facts(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    Ok(psi_checked_trees::DynamicConformanceFacts { selections })
+    let binding_facts = psi_checked_trees::DynamicConformanceFacts {
+        selections: selections.clone(),
+        storages: Vec::new(),
+    }
+    .binding_facts();
+    let mut storages = Vec::with_capacity(validated_storages.len());
+    for storage in validated_storages {
+        let Some(selection) = binding_facts.selections.iter().find(|candidate| {
+            candidate.machine == storage.selection.machine
+                && candidate.state == storage.selection.state
+                && candidate.statement_index == storage.selection.statement_index
+                && candidate.binding == storage.selection.binding
+                && candidate.target_trait == storage.selection.target_trait
+                && candidate.conformance == storage.selection.conformance
+        }) else {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(
+                "dynamic descriptor storage lost its exact checked conformance selection",
+            ));
+            continue;
+        };
+        storages.push(psi_checked_trees::DynamicDescriptorStorageFact {
+            occurrence: storage.occurrence,
+            machine: storage.machine,
+            state: storage.state,
+            statement_index: storage.statement_index,
+            destination_binding: storage.destination_binding,
+            destination_name: storage.destination_name,
+            destination_field: storage.destination_field,
+            destination_path: storage.destination_path,
+            source_binding: storage.source_binding,
+            source_name: storage.source_name,
+            source_path: storage.source_path,
+            selection: selection.clone(),
+        });
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    Ok(psi_checked_trees::DynamicConformanceFacts {
+        selections,
+        storages,
+    })
 }
 
 pub(crate) fn normalized_dynamic_row_identities(

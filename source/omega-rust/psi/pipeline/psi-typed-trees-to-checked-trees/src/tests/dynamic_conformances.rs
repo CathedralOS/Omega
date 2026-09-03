@@ -103,6 +103,36 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 "#;
 
+const STORED_DYNAMIC_INTEGER_SOURCE: &str = r#"
+    trait Shape {
+        machine code(&self) -> i32;
+    }
+
+    data Item {
+        value: i32;
+    }
+
+    Primary: Item satisfies Shape {
+        machine code(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Holder<'item> {
+        handler: &'item dyn Shape;
+    }
+
+    data Main {
+        item: Item;
+    }
+
+    machine Main::run<'item>(&self) {
+        let erased: &'item dyn Shape = &self.item as &dyn Item::Primary;
+        let holder: Holder<'item> = Holder { handler: erased };
+        let result: i32 = holder.handler.code();
+    }
+"#;
+
 const MUTATING_REALIZATION_SOURCE: &str = r#"
     trait Shape {
         machine code(&mut self) -> i32;
@@ -685,6 +715,100 @@ fn dynamic_binding_facts_select_latest_preceding_reassignment_for_call_receiver(
             _ => unreachable!(),
         }
     );
+}
+
+#[test]
+fn dynamic_storage_fact_retains_selection_and_exact_record_field_custody() {
+    let checked = check_dynamic_source(STORED_DYNAMIC_INTEGER_SOURCE);
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .expect("Main::run machine");
+    let [state] = checked.typed.machine_states(machine) else {
+        panic!("Main::run should have one state")
+    };
+    let statements = checked
+        .typed
+        .statement_table
+        .statements(state.statement_nodes);
+    let [erased, holder, result] = statements else {
+        panic!("selection, storage, and call-result bindings expected")
+    };
+    let StatementNode::LocalData(erased) = erased else {
+        panic!("dynamic selection binding expected")
+    };
+    let StatementNode::LocalData(holder) = holder else {
+        panic!("aggregate storage binding expected")
+    };
+    let StatementNode::LocalData(result) = result else {
+        panic!("dynamic result binding expected")
+    };
+
+    let [storage] = checked.facts.dynamic_conformances.storages.as_slice() else {
+        panic!("one exact dynamic descriptor storage expected")
+    };
+    assert_eq!(storage.machine, machine.symbol);
+    assert_eq!(storage.state, state.symbol);
+    assert_eq!(storage.statement_index, 1);
+    assert_eq!(storage.destination_binding, holder.symbol);
+    assert_eq!(storage.destination_name.as_str(), "holder");
+    assert_eq!(
+        storage
+            .destination_path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["holder", "handler"]
+    );
+    assert!(storage.destination_field.is_valid());
+    assert_eq!(storage.source_binding, erased.symbol);
+    assert_eq!(storage.source_name.as_str(), "erased");
+    assert_eq!(
+        storage
+            .source_path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["erased"]
+    );
+    assert_eq!(storage.selection.binding, erased.symbol);
+    assert_eq!(storage.selection.statement_index, 0);
+    assert_eq!(storage.selection.source_path.len(), 2);
+    assert_eq!(storage.selection.rows.len(), 1);
+    assert!(storage.selection.conformance.is_some());
+
+    let selected = checked
+        .facts
+        .dynamic_conformances
+        .stored_receiver(
+            machine.symbol,
+            state.symbol,
+            holder.symbol,
+            &storage.destination_path,
+            2,
+        )
+        .expect("stored dynamic receiver before call");
+    assert_eq!(selected, storage);
+    assert!(result.symbol.is_valid());
+
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(dynamic.direct_scalar_calls.is_empty());
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+    let [stored_plan] = dynamic.stored_scalar_calls.as_slice() else {
+        panic!("one stored dynamic scalar call plan expected, got {dynamic:#?}")
+    };
+    assert_eq!(stored_plan.storage, *storage);
+    assert_eq!(stored_plan.call.coordinate.statement_index, 2);
+    assert_eq!(stored_plan.call.receiver_binding, erased.symbol);
+    assert_eq!(stored_plan.call.result_binding, result.symbol);
+    assert_eq!(stored_plan.call.selection, storage.selection);
+    assert_eq!(
+        stored_plan.call.source_field,
+        storage.selection.source_symbol
+    );
+    assert_eq!(stored_plan.call.realization_callables.len(), 1);
 }
 
 #[test]

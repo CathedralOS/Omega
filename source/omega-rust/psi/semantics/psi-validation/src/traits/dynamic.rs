@@ -35,6 +35,26 @@ pub struct DynamicConformanceSelection {
     pub conformance: Option<psi_symbols::SymbolHandle>,
 }
 
+/// One exact move of an already-selected borrowed dynamic descriptor into a
+/// field of a local record. This is storage lineage, not a new conformance
+/// selection: `selection` remains the sole authority for the descriptor rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicDescriptorStorage {
+    /// Exact field-value expression which supplies the descriptor.
+    pub occurrence: ExpressionHandle,
+    pub machine: psi_symbols::SymbolHandle,
+    pub state: psi_symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub destination_binding: psi_symbols::SymbolHandle,
+    pub destination_name: Identifier,
+    pub destination_field: psi_symbols::SymbolHandle,
+    pub destination_path: Vec<Identifier>,
+    pub source_binding: psi_symbols::SymbolHandle,
+    pub source_name: Identifier,
+    pub source_path: Vec<Identifier>,
+    pub selection: DynamicConformanceSelection,
+}
+
 /// Select complete nominal conformances for the currently admitted local
 /// coercion form: a direct place cast bound to a reference-typed local. Bare
 /// `dyn Trait` requires a unique conformance; `dyn Type::Conformance` selects
@@ -266,6 +286,120 @@ pub fn collect_dynamic_conformance_selections(
         Ok(selections)
     } else {
         Err(diagnostics)
+    }
+}
+
+/// Retain the first bounded aggregate-storage shape: an immutable local record
+/// literal field initialized directly from an earlier local `&dyn` selection.
+/// More general assignment, nesting, joins, and owned erasure remain separate
+/// rungs because each needs different lifetime and mutation custody.
+pub fn collect_dynamic_descriptor_storages(
+    program: &TypedTrees,
+    selections: &[DynamicConformanceSelection],
+) -> Vec<DynamicDescriptorStorage> {
+    let mut storages = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let StatementNode::LocalData(local) = statement else {
+                    continue;
+                };
+                if local.is_mutable {
+                    continue;
+                }
+                let ExpressionNode::StructLiteral(literal) =
+                    program.expression_table.expression(local.initial_value)
+                else {
+                    continue;
+                };
+                if literal.case_symbol.is_some() {
+                    continue;
+                }
+                let Some(data) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == literal.type_symbol)
+                else {
+                    continue;
+                };
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    let Some(declared_field) =
+                        program.data_members(data).iter().find_map(|member| {
+                            let psi_typed_trees::data::DataMember::Field(declared) = member else {
+                                return None;
+                            };
+                            (declared.symbol == field.field_symbol).then_some(declared)
+                        })
+                    else {
+                        continue;
+                    };
+                    let Some(target_trait) =
+                        borrowed_dynamic_trait_symbol(program, declared_field.type_reference)
+                    else {
+                        continue;
+                    };
+                    let Some(source) = dynamic_source_place(program, field.value) else {
+                        continue;
+                    };
+                    if source.path.len() != 1 {
+                        continue;
+                    }
+                    let Some(selection) = selections
+                        .iter()
+                        .filter(|selection| {
+                            selection.machine == machine.symbol
+                                && selection.state == state.symbol
+                                && selection.statement_index < statement_index
+                                && selection.target_trait == target_trait
+                                && if source.symbol.is_valid() {
+                                    selection.binding == source.symbol
+                                } else {
+                                    selection.binding_name == source.name
+                                }
+                        })
+                        .max_by_key(|selection| selection.statement_index)
+                    else {
+                        continue;
+                    };
+                    let storage = DynamicDescriptorStorage {
+                        occurrence: field.value,
+                        machine: machine.symbol,
+                        state: state.symbol,
+                        statement_index,
+                        destination_binding: local.symbol,
+                        destination_name: local.name.clone(),
+                        destination_field: declared_field.symbol,
+                        destination_path: vec![local.name.clone(), declared_field.name.clone()],
+                        source_binding: source.symbol,
+                        source_name: source.name,
+                        source_path: source.path,
+                        selection: selection.clone(),
+                    };
+                    if !storages.contains(&storage) {
+                        storages.push(storage);
+                    }
+                }
+            }
+        }
+    }
+    storages
+}
+
+fn borrowed_dynamic_trait_symbol(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<psi_symbols::SymbolHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => dynamic_trait_symbol(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            borrowed_dynamic_trait_symbol(program, *base_type)
+        }
+        _ => None,
     }
 }
 
