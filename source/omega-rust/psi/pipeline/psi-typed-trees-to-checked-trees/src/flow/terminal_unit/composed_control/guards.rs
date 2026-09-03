@@ -15,7 +15,7 @@ pub(super) fn exact_guard(
             [parameter],
             [],
             psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 },
-        ) if parameter.source_position == 0 && parameter.primitive_type == PrimitiveType::Bool => {
+        ) if parameter.source_position <= 1 && parameter.primitive_type == PrimitiveType::Bool => {
             Some(expression.clone())
         }
         ([], [], boolean) if closed_boolean(boolean) => Some(expression.clone()),

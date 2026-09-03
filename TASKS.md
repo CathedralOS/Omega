@@ -12501,10 +12501,14 @@ checked-result arithmetic decision listed below.
   callee descriptor parameter. An executable semantic canary now gives two
   branch-local calls distinct source places and distinct closed conformances,
   verifies and canonically round-trips the module, and interprets both branches
-  to the realization selected by that predecessor's private table. The open
-  seam is source composition: checked-to-Terminal lowering currently
-  materializes only a linear forwarding-helper chain and does not yet own the
-  predecessor conditional/control body needed to emit both calls. Native
+  to the realization selected by that predecessor's private table. Source
+  checking now also groups the first executable three-state form into one
+  atomic joined-call plan rather than publishing two competing whole-machine
+  candidates. That plan owns the exact Boolean entry guard, both checked
+  successor edges, both complete branch-local scalar-call plans, and exactly
+  two independently replayable selection-sourced transfers into the same
+  callee parameter; the ordinary composed-control topology proves the control
+  split. The open seam is checked-to-Terminal emission of that plan. Native
   lowering, aggregate storage, return, forwarding after the join, and component
   crossing remain fenced; do not add a representative conformance or a second
   joined-descriptor vocabulary to bypass that control seam.

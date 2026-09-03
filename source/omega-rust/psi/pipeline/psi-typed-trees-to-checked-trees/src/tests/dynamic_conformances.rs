@@ -1628,3 +1628,68 @@ fn descriptor_transfer_fences_forwarding_after_the_first_join() {
     assert!(dynamic.direct_scalar_calls.is_empty());
     assert!(dynamic.rebound_scalar_calls.is_empty());
 }
+
+#[test]
+fn two_branch_dynamic_calls_retain_both_terminal_join_predecessors() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { first: Item; second: Item; }
+
+        machine Main::run(&self, choose_first: bool) {
+            transition choose_first {
+                true -> take_first()
+                _ -> take_second()
+            }
+
+            state take_first(&self) {
+                let selected: &dyn Shape = &self.first as &dyn Item::Primary;
+                let result: i32 = finish(selected);
+            }
+
+            state take_second(&self) {
+                let selected: &dyn Shape = &self.second as &dyn Item::Secondary;
+                let result: i32 = finish(selected);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(dynamic.direct_scalar_calls.is_empty(), "{dynamic:#?}");
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+    assert!(dynamic.stored_scalar_calls.is_empty());
+    let [joined] = dynamic.joined_scalar_calls.as_slice() else {
+        panic!("one atomic joined call expected: {dynamic:#?}")
+    };
+    let first = &joined.when_true.call;
+    let second = &joined.when_false.call;
+    assert_eq!(joined.scalar_parameters.len(), 1);
+    assert_ne!(joined.entry_state, first.caller_state);
+    assert_ne!(joined.entry_state, second.caller_state);
+    assert_eq!(first.caller_machine, second.caller_machine);
+    assert_ne!(first.caller_state, second.caller_state);
+    assert_eq!(first.origin, second.origin);
+    assert_ne!(
+        first.selection.source_symbol,
+        second.selection.source_symbol
+    );
+    assert_ne!(first.selection.conformance, second.selection.conformance);
+}
