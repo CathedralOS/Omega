@@ -393,8 +393,8 @@ pub struct DynamicParameterCallRecord {
 pub struct ForwardedDynamicParameterCallRecord {
     pub psi_edge: EdgeId,
     pub psi_operation: OperationId,
-    pub source_value: ValueId,
-    pub scalar_type: psi_core::ScalarType,
+    pub source_value: Option<ValueId>,
+    pub scalar_type: Option<psi_core::ScalarType>,
     pub callee: MachineId,
     pub argument: AbstractDynamicDescriptorArgument,
     pub parameter: psi_terminal::TerminalDynamicDescriptorParameter,
@@ -406,10 +406,16 @@ pub struct ForwardedDynamicParameterCallRecord {
     pub table_destination: omega_target_operations::MachineRegister,
     pub direct_call_offset: usize,
     pub direct_call_byte_count: usize,
-    pub call_stack: ScalarCallStackEvidence,
+    pub call_stack: ForwardedDynamicParameterCallStackEvidence,
     pub operation_ordinal: usize,
     pub code_offset: usize,
     pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ForwardedDynamicParameterCallStackEvidence {
+    Unit(UnitCallStackEvidence),
+    Scalar(ScalarCallStackEvidence),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

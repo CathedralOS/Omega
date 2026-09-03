@@ -156,7 +156,7 @@ descriptor arguments, and parameter-slot dispatch. The selected native
 lowerer chooses the `{data, table}` entry placement, generates role-identified
 erased-data adapters, and emits distinct forwarded tables. Object and image
 replay bind caller-to-table, table-to-adapter, and adapter-to-realization
-relocations. Canonical installation format 66 retains the application/row/
+relocations. Canonical installation format 67 retains the application/row/
 realization identities and exact code/data spans needed to rejoin those facts.
 Both a direct local selection and a once-rebound descriptor may supply the
 one-hop argument under their distinct semantic source identities; forwarding
@@ -178,8 +178,11 @@ helper performs parameter-slot dispatch. Terminal verification, encoding, and
 interpretation preserve the chain without manufacturing a scalar result;
 target lowering and physical assignment retain a distinct result-neutral
 forwarding carrier, independently rederive both two-word no-result call plans,
-and require an unchanged descriptor-register handoff. Machine emission is its
-next fail-closed boundary.
+and require an unchanged descriptor-register handoff. Machine emission records
+the direct call and return with Unit stack/link custody; the common forwarding
+row makes source value and scalar type jointly optional rather than fabricating
+them. Object, final-image, and format-67 installation replay retain the exact
+Unit helper chain and reject result-class drift.
 Its forwarding rows retain an exact semantic and physical scalar result when
 one exists, while Unit rows explicitly retain neither; they do not invent
 Terminal machine identities for native-only adapters. The bounded mutable form additionally carries `&mut

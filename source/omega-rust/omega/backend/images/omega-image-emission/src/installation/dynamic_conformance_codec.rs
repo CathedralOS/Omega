@@ -219,8 +219,16 @@ pub(super) fn encode_dynamic_conformance_custody(
         push_u64(bytes, call.machine.get());
         push_u64(bytes, call.operation.get());
         push_u64(bytes, call.callee.get());
-        push_u64(bytes, call.source_value.get());
-        encode_scalar_type(bytes, call.scalar_type)?;
+        push_u64(bytes, call.source_value.map_or(0, ValueId::get));
+        match (call.source_value, call.scalar_type) {
+            (None, None) => bytes.extend_from_slice(&[3, 0, 0, 0]),
+            (Some(_), Some(scalar_type)) => encode_scalar_type(bytes, scalar_type)?,
+            _ => {
+                return Err(InstallationError::InvalidForwardedDynamicParameterCall(
+                    call.machine,
+                ));
+            }
+        }
         push_u32(bytes, call.source_parameter_ordinal);
         push_u32(bytes, call.target_parameter_ordinal);
         push_u64(
@@ -543,10 +551,39 @@ pub(super) fn decode_dynamic_conformance_custody(
         let callee = MachineId::new(reader.u64()?).ok_or(
             InstallationError::InvalidForwardedDynamicParameterCall(machine),
         )?;
-        let source_value = ValueId::new(reader.u64()?).ok_or(
-            InstallationError::InvalidForwardedDynamicParameterCall(machine),
-        )?;
-        let scalar_type = decode_scalar_type(reader)?;
+        let source_value = ValueId::new(reader.u64()?);
+        let scalar_tag = reader.u8()?;
+        let scalar_reserved = reader.u8()?;
+        let scalar_bits = reader.u16()?;
+        let scalar_type = match scalar_tag {
+            0 if scalar_reserved == 0 && scalar_bits == 0 => Some(psi_core::ScalarType::Boolean),
+            1 | 2 if scalar_reserved == 0 && matches!(scalar_bits, 8 | 16 | 32 | 64) => {
+                Some(psi_core::ScalarType::Integer(
+                    psi_core::IntegerType::new(
+                        if scalar_tag == 1 {
+                            psi_core::IntegerSign::Signed
+                        } else {
+                            psi_core::IntegerSign::Unsigned
+                        },
+                        scalar_bits,
+                    )
+                    .map_err(|_| InstallationError::UnsupportedInstalledFixedIntegerType)?,
+                ))
+            }
+            3 if scalar_reserved == 0 && scalar_bits == 0 => None,
+            0..=3 if scalar_reserved != 0 => {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            0..=3 => {
+                return Err(InstallationError::UnsupportedInstalledFixedIntegerType);
+            }
+            tag => return Err(InstallationError::InvalidInstalledIntegerSignTag(tag)),
+        };
+        if source_value.is_some() != scalar_type.is_some() {
+            return Err(InstallationError::InvalidForwardedDynamicParameterCall(
+                machine,
+            ));
+        }
         let source_parameter_ordinal = reader.u32()?;
         let target_parameter_ordinal = reader.u32()?;
         let text_offset = usize::try_from(reader.u64()?)

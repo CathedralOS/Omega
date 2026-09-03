@@ -39,15 +39,19 @@ fn validate_call(
 ) -> Result<(), ObjectError> {
     let invalid = || invalid(function.machine, call.psi_operation);
     let callee = functions.get(&call.callee).copied().ok_or_else(invalid)?;
-    let (callee_parameter, callee_plan) = match (
+    let (callee_parameter, callee_plan, callee_scalar_type) = match (
         callee.forwarded_dynamic_parameter_calls.as_slice(),
         callee.dynamic_parameter_calls.as_slice(),
     ) {
-        ([next], []) => (&next.parameter, &next.function_call_plan),
-        ([], [dispatch]) => (&dispatch.parameter, &dispatch.function_call_plan),
+        ([next], []) => (&next.parameter, &next.function_call_plan, next.scalar_type),
+        ([], [dispatch]) => (
+            &dispatch.parameter,
+            &dispatch.function_call_plan,
+            dispatch.scalar_type,
+        ),
         _ => return Err(invalid()),
     };
-    let result_shape = scalar_shape(call.scalar_type);
+    let result_shape = call.scalar_type.map(scalar_shape);
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let signature = CallSignature {
@@ -55,7 +59,7 @@ fn validate_call(
             ValueShape::integer(pointer_size, pointer_alignment),
             ValueShape::integer(pointer_size, pointer_alignment),
         ],
-        result: Some(result_shape),
+        result: result_shape,
     };
     let [operation_attribution, return_attribution] = function.semantic_code_attribution.as_slice()
     else {
@@ -96,9 +100,26 @@ fn validate_call(
                     == Some(0x9400_0000)
         }
     };
+    let stack_matches = match &call.call_stack {
+        omega_machine_code::ForwardedDynamicParameterCallStackEvidence::Scalar(stack) => {
+            call.source_value.is_some()
+                && call.scalar_type.is_some()
+                && function.unit_stack.is_none()
+                && function.scalar_stack.is_some()
+                && relocation.unit_stack.is_none()
+                && relocation.scalar_stack.as_ref() == Some(stack)
+        }
+        omega_machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(stack) => {
+            call.source_value.is_none()
+                && call.scalar_type.is_none()
+                && function.unit_stack.is_some()
+                && function.scalar_stack.is_none()
+                && relocation.unit_stack.as_ref() == Some(stack)
+                && relocation.scalar_stack.is_none()
+        }
+    };
     if function.attachment.is_some()
-        || function.unit_stack.is_some()
-        || function.scalar_stack.is_none()
+        || !stack_matches
         || !function.dynamic_parameter_calls.is_empty()
         || !function.forwarded_dynamic_descriptor_calls.is_empty()
         || call.code_offset != 0
@@ -108,6 +129,7 @@ fn validate_call(
         || call.parameter.ordinal != 0
         || callee_parameter != &call.argument.target
         || callee_plan != &call.callee_call_plan
+        || callee_scalar_type != call.scalar_type
         || !call
             .argument
             .has_complete_custody(function.machine, call.psi_operation, call.callee)
@@ -132,8 +154,6 @@ fn validate_call(
         || call.instance == call.table
         || relocation.owner != CallSiteOwner::Operation(call.psi_operation)
         || relocation.target != call.callee
-        || relocation.unit_stack.is_some()
-        || relocation.scalar_stack.as_ref() != Some(&call.call_stack)
         || !relocation_matches
         || operation_attribution.site != SemanticCodeSite::Operation(call.psi_operation)
         || operation_attribution.operation_ordinal != call.operation_ordinal
