@@ -1377,6 +1377,11 @@ fn build_object_artifact_with_x86_feature_profile(
                 .max(dynamic_peak)
                 .max(stored_dynamic_peak);
         }
+        if !function.unit_write_only_primitive_stores.is_empty() {
+            return Err(ObjectError::UnsupportedUnitWriteOnlyPrimitiveStore(
+                function.machine,
+            ));
+        }
         validate_unit_structural_scalar_field_stores(plan.target, function)?;
         validate_scalar_structural_scalar_field_stores(plan.target, function)?;
         match (&function.unit_stack, &function.unit_affine_cleanup) {
@@ -4065,6 +4070,7 @@ pub enum ObjectError {
     InvalidInternalUnitScalarCallEvidence(MachineId),
     InvalidUnitScalarFunctionAbi(MachineId),
     InvalidInstalledProviderUnitScalarCallEvidence(MachineId),
+    UnsupportedUnitWriteOnlyPrimitiveStore(MachineId),
     InvalidUnitStructuralScalarFieldStoreEvidence(MachineId),
     InvalidScalarStructuralScalarFieldStoreEvidence(MachineId),
     InvalidUnitAffineCleanupEvidence(MachineId),

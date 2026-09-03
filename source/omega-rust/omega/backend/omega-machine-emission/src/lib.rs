@@ -381,6 +381,7 @@ fn emit_function(
     let mut unit_integer_constants = Vec::new();
     let mut unit_affine_scalar_records = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
+    let mut unit_write_only_primitive_stores = Vec::new();
     let mut scalar_structural_scalar_field_stores = Vec::new();
     let mut x86_scalar_fma = Vec::new();
     let mut x86_scalar_fma_occurrences = Vec::new();
@@ -457,6 +458,7 @@ fn emit_function(
             unit_integer_constants = emitted.integer_constants;
             unit_affine_scalar_records = emitted.affine_scalar_records;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
+            unit_write_only_primitive_stores = emitted.write_only_primitive_stores;
             semantic_code_attribution = emitted.semantic_code_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
@@ -521,6 +523,7 @@ fn emit_function(
             unit_integer_constants = emitted.integer_constants;
             unit_affine_scalar_records = emitted.affine_scalar_records;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
+            unit_write_only_primitive_stores = emitted.write_only_primitive_stores;
             semantic_code_attribution = emitted.semantic_code_attribution;
             unit_stack = Some(emitted.stack);
             unit_parameter_homes = emitted.parameter_homes;
@@ -733,6 +736,7 @@ fn emit_function(
             unit_integer_constants = emitted.integer_constants;
             unit_affine_scalar_records = emitted.affine_scalar_records;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
+            unit_write_only_primitive_stores = emitted.write_only_primitive_stores;
             x86_scalar_fma = emitted.x86_scalar_fma;
             x86_scalar_fma_occurrences = emitted.x86_scalar_fma_occurrences;
             x86_floating_control = emitted.x86_floating_control;
@@ -1200,6 +1204,7 @@ fn emit_function(
         unit_integer_constants,
         unit_affine_scalar_records,
         unit_structural_scalar_field_stores,
+        unit_write_only_primitive_stores,
         scalar_structural_scalar_field_stores,
         unit_affine_cleanup,
         scalar_affine_cleanup: None,
@@ -1435,7 +1440,7 @@ pub enum EmissionError {
     UnitCallStackAreaNotEncodable,
     InvalidUnitScalarCallCustody(psi_core::OperationId),
     InvalidInstalledProviderScalarCallCustody(psi_core::OperationId),
-    UnsupportedWriteOnlyPrimitiveStore(psi_core::OperationId),
+    InvalidWriteOnlyPrimitiveStoreCustody(psi_core::OperationId),
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
     EmptyStructuralScalarFieldStores(psi_core::MachineId),
     InvalidStructuralScalarCallCustody(psi_core::OperationId),

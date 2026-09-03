@@ -1,9 +1,9 @@
-//! Verified write-only storage reaches the explicit machine-emission fence.
+//! Verified write-only storage reaches exact cross-target machine emission.
 
 use crate::tests::fixtures::checked_source::checked;
 
 #[test]
-fn verified_write_only_primitive_store_reaches_assignment_then_stops_at_emission() {
+fn verified_write_only_primitive_store_reaches_exact_machine_emission() {
     let checked = checked(
         r#"
             data Sink {}
@@ -29,12 +29,12 @@ fn verified_write_only_primitive_store_reaches_assignment_then_stops_at_emission
         &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("verified write-only store reaches target-neutral Omega");
-    let target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+    let x64_target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
         &abstract_plan,
         omega_target::NativeTarget::linux_x64(),
     )
     .expect("verified whole-root store reaches target custody");
-    let mut corrupted = target.clone();
+    let mut corrupted = x64_target.clone();
     let operation = corrupted
         .functions
         .iter_mut()
@@ -63,15 +63,57 @@ fn verified_write_only_primitive_store_reaches_assignment_then_stops_at_emission
         Err(omega_target_operations_to_assigned_target_operations::AssignmentError::WriteOnlyPrimitiveStoreCustodyMismatch { .. })
     ));
 
-    let assigned = omega_target_operations_to_assigned_target_operations::assign_registers(&target)
-        .expect("exact target store reaches independently replayed physical assignment");
-    let error = omega_machine_emission::emit_machine_code(&assigned)
-        .expect_err("machine emission has no physical store bytes yet");
-    assert!(
-        matches!(
-            error,
-            omega_machine_emission::EmissionError::UnsupportedWriteOnlyPrimitiveStore(_)
-        ),
-        "unexpected lowering fence: {error:?}"
-    );
+    for target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstract_plan,
+            target,
+        )
+        .expect("verified whole-root store reaches target custody");
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target)
+                .expect("exact target store reaches independently replayed physical assignment");
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("exact whole-root store reaches physical machine emission");
+        let function = emitted
+            .functions
+            .iter()
+            .find(|function| function.unit_write_only_primitive_stores.len() == 1)
+            .expect("one machine owns the write-only primitive store");
+        let [store] = function.unit_write_only_primitive_stores.as_slice() else {
+            unreachable!()
+        };
+        assert_eq!(store.destination.structural_type, store.destination_type.id);
+        assert!(matches!(
+            store.destination.access,
+            psi_terminal::StructuralAccess::WriteOnlyBorrow
+        ));
+        assert!(matches!(
+            store.destination_type.shape,
+            psi_terminal::StructuralTypeShape::PrimitiveScalar(psi_core::ScalarType::Integer(_))
+        ));
+        let home = function
+            .unit_parameter_homes
+            .iter()
+            .find(|home| home.place == store.destination.place)
+            .expect("store destination retains its exact parameter home");
+        assert_eq!(store.destination_placement, home.source);
+        assert_eq!(store.parameter_home_byte_offset, home.byte_offset);
+        assert_eq!(store.parameter_home_indirect, home.indirect);
+        assert!(!store.bytes.is_empty());
+        assert_eq!(
+            &function.bytes[store.code_offset..store.code_offset + store.byte_count],
+            store.bytes
+        );
+        assert!(matches!(
+            omega_image_emission::build_object_artifact(&emitted),
+            Err(
+                omega_image_emission::ObjectError::UnsupportedUnitWriteOnlyPrimitiveStore(
+                    machine
+                )
+            ) if machine == function.machine
+        ));
+    }
 }

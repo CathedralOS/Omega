@@ -5,7 +5,7 @@ use omega_assigned_target_operations::{
     AssignedUnitScalarArgumentSource, AssignedUnitScalarHome,
 };
 use omega_calling_conventions::{
-    IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape,
+    IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
 use omega_machine_code::{
     Aarch64ForeignCallFloatingControlRecord, Aarch64ReturnLinkEvidence,
@@ -28,6 +28,7 @@ mod dynamic_argument;
 mod installed_provider;
 mod scalar_call;
 pub(crate) mod structural_scalar;
+mod write_only_primitive_store;
 
 use dynamic::{emit_dynamic_call, emit_stored_descriptor, emit_stored_dynamic_call};
 use dynamic_argument::emit_forwarded_dynamic_descriptor_call;
@@ -36,6 +37,7 @@ use scalar_call::emit_unit_scalar_call;
 use structural_scalar::{
     emit_structural_result_call, emit_structural_scalar_call, emit_structural_scalar_field_store,
 };
+use write_only_primitive_store::emit_write_only_primitive_store;
 
 use super::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
@@ -74,6 +76,8 @@ pub(super) struct UnitEmission {
     pub(super) affine_scalar_records:
         Vec<omega_machine_code::UnitAffineScalarRecordEstablishmentRecord>,
     pub(super) structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
+    pub(super) write_only_primitive_stores:
+        Vec<omega_machine_code::UnitWriteOnlyPrimitiveStoreRecord>,
     pub(super) x86_scalar_fma: Vec<omega_machine_code::X86ScalarFmaFragment>,
     pub(super) x86_scalar_fma_occurrences: Vec<X86ScalarFmaOccurrenceRecord>,
     pub(super) x86_floating_control: Option<X86FloatingControlRecord>,
@@ -754,6 +758,7 @@ pub(super) fn emit_unit_body(
     let mut unit_integer_constants = Vec::new();
     let mut unit_affine_scalar_records = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
+    let mut unit_write_only_primitive_stores = Vec::new();
     let mut x86_scalar_fma = Vec::new();
     let mut x86_scalar_fma_occurrences = Vec::new();
     let mut x86_floating_control = None;
@@ -1031,9 +1036,18 @@ pub(super) fn emit_unit_body(
                 });
             }
             AssignedUnitOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
-                return Err(EmissionError::UnsupportedWriteOnlyPrimitiveStore(
-                    *psi_operation,
-                ));
+                operation_site = Some(*psi_operation);
+                unit_write_only_primitive_stores.push(emit_write_only_primitive_store(
+                    operation,
+                    body,
+                    target,
+                    &x86_homes,
+                    &aarch64_homes,
+                    &established_integer_constants,
+                    &mut bytes,
+                    operation_ordinal,
+                    code_offset,
+                )?);
             }
             AssignedUnitOperation::StructuralScalarFieldStore { psi_operation, .. } => {
                 operation_site = Some(*psi_operation);
@@ -2654,6 +2668,7 @@ pub(super) fn emit_unit_body(
         integer_constants: unit_integer_constants,
         affine_scalar_records: unit_affine_scalar_records,
         structural_scalar_field_stores: unit_structural_scalar_field_stores,
+        write_only_primitive_stores: unit_write_only_primitive_stores,
         x86_scalar_fma,
         x86_scalar_fma_occurrences,
         x86_floating_control,
@@ -3862,8 +3877,10 @@ fn aarch64_outgoing_placement_extent(placement: &ValuePlacement) -> Result<u32, 
                             .checked_add(8)
                             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?,
                     };
+                    let Some(copy_stack_byte_offset) = copy_stack_byte_offset else {
+                        return Ok(extent.max(pointer_end));
+                    };
                     let copy_end = copy_stack_byte_offset
-                        .ok_or(EmissionError::UnsupportedAggregatePlacement)?
                         .checked_add(u32::from(byte_size).next_multiple_of(8))
                         .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
                     pointer_end.max(copy_end)
@@ -4039,6 +4056,47 @@ fn emit_aarch64_aggregate_copy_from_home(
         }
         if copy.shape != home.shape {
             return Err(EmissionError::UnsupportedAggregatePlacement);
+        }
+        if copy.shape.class == ValueClass::BorrowedReference {
+            let [
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset: None,
+                    byte_size,
+                    alignment,
+                },
+            ] = copy.destination.locations.as_slice()
+            else {
+                return Err(EmissionError::UnsupportedAggregatePlacement);
+            };
+            if *byte_size != copy.shape.byte_size || *alignment != copy.shape.alignment {
+                return Err(EmissionError::UnsupportedAggregatePlacement);
+            }
+            let source_offset = call_stack_bytes
+                .checked_add(home.byte_offset)
+                .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+            match *pointer {
+                IndirectPointerLocation::Register(register) => {
+                    instructions.push(aarch64_unit_stack_access(
+                        0xf940_0000,
+                        aarch64_unit_register(register)?,
+                        source_offset,
+                        8,
+                    )?);
+                }
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset, ..
+                } => {
+                    instructions.push(aarch64_unit_stack_access(0xf940_0000, 9, source_offset, 8)?);
+                    instructions.push(aarch64_unit_stack_access(
+                        0xf900_0000,
+                        9,
+                        stack_byte_offset,
+                        8,
+                    )?);
+                }
+            }
+            return Ok(());
         }
         let [
             ValueLocation::Indirect {

@@ -163,6 +163,9 @@ pub struct MachineCodeFunction {
     /// Exact semantic and physical custody for fixed-width immediate writes
     /// into staged attached-Unit structural parameter homes.
     pub unit_structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
+    /// Exact semantic and physical custody for non-observing immediate writes
+    /// through whole-root primitive borrowed parameters.
+    pub unit_write_only_primitive_stores: Vec<UnitWriteOnlyPrimitiveStoreRecord>,
     /// Exact one-store prefix for the bounded mutable-self scalar-return
     /// carrier. Unlike Unit stores, this writes through the incoming borrowed
     /// reference directly; no staged aggregate home or value copy exists.
@@ -1009,6 +1012,21 @@ pub struct UnitStructuralScalarFieldStoreRecord {
     pub field: psi_core::StructuralFieldId,
     pub destination_placement: ValuePlacement,
     pub field_byte_offset: u32,
+    pub source: InternalUnitScalarArgumentSourceRecord,
+    pub parameter_home_byte_offset: u32,
+    pub parameter_home_indirect: bool,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnitWriteOnlyPrimitiveStoreRecord {
+    pub psi_operation: OperationId,
+    pub destination: psi_terminal::StructuralParameterDeclaration,
+    pub destination_type: psi_terminal::StructuralTypeDeclaration,
+    pub destination_placement: ValuePlacement,
     pub source: InternalUnitScalarArgumentSourceRecord,
     pub parameter_home_byte_offset: u32,
     pub parameter_home_indirect: bool,
