@@ -2,6 +2,7 @@
 use super::*;
 mod admission;
 mod catalogs;
+mod closed_sum;
 mod custody;
 pub(super) mod dynamic_result;
 mod emission;
@@ -13,6 +14,12 @@ pub(crate) fn lower_composed_unit_control_machine(
     checked: &CheckedTrees,
     plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    if matches!(
+        plan.states.first().map(|state| &state.terminator),
+        Some(CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. })
+    ) {
+        return closed_sum::lower(checked, plan);
+    }
     if plan.states.len() >= 4
         && matches!(
             plan.states[0].terminator,

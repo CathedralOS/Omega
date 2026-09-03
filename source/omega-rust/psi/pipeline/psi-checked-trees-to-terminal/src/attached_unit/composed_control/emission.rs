@@ -240,6 +240,7 @@ pub(crate) fn emit_boundary_leaf(
         structural_types,
         parameters,
         claim_bindings,
+        &[],
         next_value,
         &mut operations,
     )?;
@@ -272,6 +273,7 @@ pub(super) fn emit_boundary_call_operation(
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+    scalar_values: &[ValueDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
@@ -327,6 +329,10 @@ pub(super) fn emit_boundary_call_operation(
         structural_types,
         &expected_claim_arguments,
     )?;
+    let scalar_value_types = scalar_values
+        .iter()
+        .map(|value| value.scalar_type)
+        .collect::<Vec<_>>();
     let arguments = scalar_arguments
         .iter()
         .zip(&target.scalar_parameters)
@@ -335,10 +341,10 @@ pub(super) fn emit_boundary_call_operation(
             if argument.scalar_type() != *target_type {
                 return unsupported("composed Unit boundary scalar type drifted");
             }
-            validate_direct_parameter_types(&argument, &[])?;
+            validate_direct_parameter_types(&argument, &scalar_value_types)?;
             Ok(emit_direct_expression(
                 &argument,
-                &[],
+                scalar_values,
                 next_value,
                 operations,
             ))

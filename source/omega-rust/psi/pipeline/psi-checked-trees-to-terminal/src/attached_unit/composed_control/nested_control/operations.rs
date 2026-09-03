@@ -64,6 +64,7 @@ pub(super) fn emit(
                     &catalogs.structural_types,
                     &[],
                     &[],
+                    &[],
                     next_value,
                     operations,
                 )?;
