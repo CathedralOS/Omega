@@ -1513,6 +1513,7 @@ pub enum EmissionError {
     AssignedFrameSizeMismatch,
     ConditionalBranchDistanceNotEncodable,
     ConditionalBranchEncodingInvalid,
+    UnitBooleanParameterControlUnsupported,
     InternalCallRelocationOffsetNotEncodable,
     BooleanNotEncodingInvalid,
     UnsupportedCallArgumentRegister(MachineRegister),

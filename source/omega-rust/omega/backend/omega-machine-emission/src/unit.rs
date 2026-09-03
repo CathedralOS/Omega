@@ -1459,6 +1459,9 @@ pub(super) fn emit_unit_body(
                     0,
                 ));
             }
+            AssignedUnitOperation::ConditionalBooleanParameter { .. } => {
+                return Err(EmissionError::UnitBooleanParameterControlUnsupported);
+            }
             AssignedUnitOperation::ConditionalDispatch { fallthrough_edge } => {
                 edge_site = Some(*fallthrough_edge);
             }

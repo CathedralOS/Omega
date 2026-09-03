@@ -2,6 +2,7 @@
 //! the operation family whose physical representation and custody it preserves.
 
 mod boolean_cleanup;
+mod dynamic_descriptor_join;
 mod dynamic_dispatch;
 mod expression_homes;
 mod installed_provider_scalar;

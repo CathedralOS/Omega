@@ -383,6 +383,15 @@ pub enum AssignedUnitOperation {
         when_true: omega_target_operations::TargetUnitConditionalSuccessor,
         when_false: omega_target_operations::TargetUnitConditionalSuccessor,
     },
+    /// One Boolean caller parameter after its exact target ABI placement has
+    /// been reduced to the physical register or incoming-stack coordinate
+    /// consumed by the branch encoder.
+    ConditionalBooleanParameter {
+        condition: UnitScalarAbiValue,
+        location: crate::AssignedScalarLocation,
+        when_true: omega_target_operations::TargetUnitConditionalSuccessor,
+        when_false: omega_target_operations::TargetUnitConditionalSuccessor,
+    },
     ConditionalDispatch {
         fallthrough_edge: EdgeId,
     },
