@@ -26,7 +26,7 @@ pub(super) use omega_target_operations::{
     TargetScalarStructuralFieldStore, TargetStructuralArgument, TargetStructuralParameter,
     TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement, TargetX86ScalarFmaSettlement,
-    TerminalPsiProvenance,
+    TerminalPsiProvenance, UnitScalarAbiValue,
 };
 pub(super) use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue,

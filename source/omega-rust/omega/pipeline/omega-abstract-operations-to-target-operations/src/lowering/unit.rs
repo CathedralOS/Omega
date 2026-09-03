@@ -4,6 +4,7 @@ mod body;
 mod boundary_call;
 mod conditional_exit;
 mod dynamic;
+mod dynamic_join;
 mod dynamic_parameter;
 mod forwarded_dynamic_parameter;
 mod preflight;
@@ -45,13 +46,25 @@ pub(super) fn lower_unit_function(
         return Ok(lowered);
     }
     let bounded_conditional_exit = conditional_exit::has_bounded_shape(function);
-    if !bounded_conditional_exit {
+    let dynamic_descriptor_join = dynamic_join::has_bounded_shape(function);
+    if !bounded_conditional_exit && !dynamic_descriptor_join {
         validate_unit_function_shape(function)?;
     }
-    validate_unit_scalar_definitions(function)?;
+    if !dynamic_descriptor_join {
+        validate_unit_scalar_definitions(function)?;
+    }
 
     let prepared = prepare_unit_function(function, target, structural_types)?;
-    let lowered = if bounded_conditional_exit {
+    let lowered = if dynamic_descriptor_join {
+        dynamic_join::lower(
+            function,
+            target,
+            functions,
+            structural_types,
+            &prepared.scalar_parameters,
+            &prepared.parameters,
+        )?
+    } else if bounded_conditional_exit {
         conditional_exit::lower(
             function,
             target,

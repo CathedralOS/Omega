@@ -6,7 +6,7 @@ use super::super::structural_layout::structural_shape;
 
 pub(super) struct PreparedUnitFunction {
     pub(super) call_plan: CallPlan,
-    pub(super) scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
+    pub(super) scalar_parameters: Vec<UnitScalarAbiValue>,
     pub(super) parameters: Vec<TargetStructuralParameter>,
 }
 
@@ -18,15 +18,14 @@ pub(super) fn prepare_unit_function(
     let scalar_parameter_shapes = function
         .parameters
         .iter()
-        .map(|parameter| {
-            let ScalarType::Integer(scalar_type) = parameter.scalar_type else {
-                return Err(LoweringError::UnitFunctionHasScalarParameters(
-                    function.machine,
-                ));
-            };
-            fixed_native_integer_shape(scalar_type).ok_or(
+        .map(|parameter| match parameter.scalar_type {
+            ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
+            ScalarType::Integer(scalar_type) => fixed_native_integer_shape(scalar_type).ok_or(
                 LoweringError::UnitFunctionHasScalarParameters(function.machine),
-            )
+            ),
+            ScalarType::IeeeFloat(_) => Err(LoweringError::UnitFunctionHasScalarParameters(
+                function.machine,
+            )),
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut shape_cache = BTreeMap::new();
@@ -73,17 +72,14 @@ pub(super) fn prepare_unit_function(
         .zip(&scalar_parameter_shapes)
         .zip(&call_plan.parameters)
         .map(|((parameter, expected_shape), placement)| {
-            let ScalarType::Integer(scalar_type) = parameter.scalar_type else {
-                unreachable!("Unit scalar parameter shape was checked above")
-            };
             if placement.shape != *expected_shape {
                 return Err(LoweringError::UnsupportedScalarParameterPlacement(
                     parameter.value,
                 ));
             }
-            Ok(FixedIntegerScalarAbiValue {
+            Ok(UnitScalarAbiValue {
                 value: parameter.value,
-                scalar_type,
+                scalar_type: parameter.scalar_type,
                 placement: placement.clone(),
             })
         })

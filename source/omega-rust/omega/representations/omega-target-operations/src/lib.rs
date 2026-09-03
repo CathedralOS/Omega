@@ -90,6 +90,18 @@ pub struct FixedIntegerScalarAbiValue {
     pub placement: ValuePlacement,
 }
 
+/// One target-native scalar parameter of an attached Unit function.
+///
+/// Unlike the fixed-integer scalar-function ABI, Unit control may consume a
+/// canonical Boolean directly. Keeping the semantic scalar type here avoids
+/// laundering that Boolean through an integer-only carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnitScalarAbiValue {
+    pub value: ValueId,
+    pub scalar_type: ScalarType,
+    pub placement: ValuePlacement,
+}
+
 /// One semantic scalar result joined to its canonical target call placement.
 /// Mixed structural/scalar functions currently admit fixed integers and
 /// Boolean results; the exact scalar family remains explicit in this row.
@@ -490,11 +502,10 @@ pub struct TargetUnitBody {
     /// projected-layout and partial-cleanup partitions at artifact boundaries.
     pub structural_types: Vec<StructuralTypeDeclaration>,
     pub call_plan: CallPlan,
-    /// Ordered fixed-integer scalar parameters and their exact incoming ABI
-    /// placements. This first Unit-returning scalar lane is deliberately
-    /// bounded, but the rows remain distinct from zero-payload structural
-    /// custody rather than being inferred from the call plan.
-    pub scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
+    /// Ordered scalar parameters and their exact incoming ABI placements.
+    /// The bounded lane currently admits fixed integers and canonical
+    /// Booleans; both remain distinct from zero-payload structural custody.
+    pub scalar_parameters: Vec<UnitScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,
     pub operations: Vec<TargetUnitOperation>,
 }
@@ -892,6 +903,15 @@ pub enum TargetUnitOperation {
     /// One bounded truth decision over an exact durable Boolean result home.
     ConditionalBoolean {
         condition: TargetUnitScalarHomeRequirement,
+        when_true: TargetUnitConditionalSuccessor,
+        when_false: TargetUnitConditionalSuccessor,
+    },
+    /// Branch on one canonical Boolean supplied directly by the caller.
+    /// Keeping the complete incoming placement here lets assignment prove
+    /// that control consumes the declared Unit ABI parameter rather than a
+    /// coincidentally equal transient home.
+    ConditionalBooleanParameter {
+        condition: UnitScalarAbiValue,
         when_true: TargetUnitConditionalSuccessor,
         when_false: TargetUnitConditionalSuccessor,
     },
