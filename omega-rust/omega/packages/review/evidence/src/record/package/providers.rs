@@ -1,3 +1,4 @@
+use super::super::contracts::PackageReviewOperatorCoordinate;
 use super::super::identity::PackageReviewNominalIdentity;
 use super::super::signatures::PackageReviewTypeIdentity;
 use psi_core::PackageKeyIdentity;
@@ -321,7 +322,7 @@ pub enum PackageReviewBoundaryApplicationArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageBoundaryApplicationDemandReview {
     pub(crate) requirement_identity: String,
-    pub(crate) operator_declaration: PackageReviewNominalIdentity,
+    pub(crate) operator_coordinate: PackageReviewOperatorCoordinate,
     pub(crate) producer_callable: PackageReviewNominalIdentity,
     pub(crate) arguments: Vec<PackageReviewSymbolicBoundaryApplicationArgument>,
 }
@@ -340,7 +341,11 @@ impl CheckedPackageBoundaryApplicationDemandReview {
     }
 
     pub const fn operator_declaration(&self) -> &PackageReviewNominalIdentity {
-        &self.operator_declaration
+        self.operator_coordinate.identity()
+    }
+
+    pub const fn operator_coordinate(&self) -> &PackageReviewOperatorCoordinate {
+        &self.operator_coordinate
     }
 
     pub const fn producer_callable(&self) -> &PackageReviewNominalIdentity {

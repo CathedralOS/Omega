@@ -387,8 +387,8 @@ established prefix in reverse; trap and nuclear-abort edges clean nothing. No
 runtime liveness bitmap or data-dependent cleanup loop is introduced.
 
 The bounded recursively nested carrier now admits inner lengths three, four,
-five, six, seven, eight, nine, ten, eleven, twelve, thirteen, fourteen, and
-fifteen under one exact rule. A claim-free, unqualified affine
+five, six, seven, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen,
+and sixteen under one exact rule. A claim-free, unqualified affine
 `[[T; N]; 2]`, where `N` is one of those lengths and `T` is a checked record
 without nominal cleanup, may
 move exactly one literal leaf from each outer element through two ordinary Unit
@@ -398,8 +398,8 @@ length-ten successor carries eighteen no-code residuals and the length-eleven
 successor carries twenty, the length-twelve successor carries twenty-two, and
 the length-thirteen successor carries twenty-four, the length-fourteen
 successor carries twenty-six, and the length-fifteen successor carries
-twenty-eight, while retaining the same five call/return fuel units. Inner
-length sixteen, another outer length,
+twenty-eight, and the length-sixteen successor carries thirty, while retaining
+the same five call/return fuel units. Inner length seventeen, another outer length,
 same-outer or nonliteral moves, and runtime liveness machinery remain fenced.
 
 The first construction-prefix implementation is deliberately narrower than

@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 omega-build-declarations = { path = "../../build/omega-build-declarations" }
 omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
+omega-boundary-applications = { path = "../../representations/omega-boundary-applications" }
 omega-compiler = { path = "../../compiler/omega-compiler" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-package-evidence = { path = "../review/evidence" }
@@ -22,6 +23,7 @@ omega-target = { path = "../../representations/omega-target" }
 omega-terminal-psi-to-native-artifact = { path = "../../pipeline/omega-terminal-psi-to-native-artifact" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
 psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
