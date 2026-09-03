@@ -662,8 +662,7 @@ pub enum TargetBoundaryResult {
     Structural(TargetStructuralHomeRequirement),
 }
 
-/// Exact source of one fixed-width integer argument to an attached-Unit
-/// scalar call.
+/// Exact source of one scalar argument in an attached-Unit body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetUnitScalarArgumentSource {
     /// One incoming Unit-function scalar parameter. The surrounding
@@ -682,6 +681,13 @@ pub enum TargetUnitScalarArgumentSource {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+    /// A preceding terminal Boolean-constant operation retained without
+    /// pretending the value is an integer carrier.
+    BooleanImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: bool,
+    },
     /// A preceding scalar call result, read from the exact durable home that
     /// downstream assignment is required to create.
     Home(TargetUnitScalarHomeRequirement),
@@ -692,6 +698,7 @@ impl TargetUnitScalarArgumentSource {
         match self {
             Self::Parameter { source_value, .. } => source_value,
             Self::IntegerImmediate { source_value, .. } => source_value,
+            Self::BooleanImmediate { source_value, .. } => source_value,
             Self::Home(home) => home.source_value,
         }
     }
@@ -700,12 +707,13 @@ impl TargetUnitScalarArgumentSource {
         match self {
             Self::Parameter { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::BooleanImmediate { .. } => ScalarType::Boolean,
             Self::Home(home) => home.scalar_type,
         }
     }
 }
 
-/// One positional fixed-width integer argument and its exact selected ABI
+/// One positional scalar argument and its exact selected ABI
 /// destination. `placement` is retained from the complete call plan so a
 /// later assignment cannot silently reinterpret an incoming-stack coordinate
 /// or value shape.
@@ -771,6 +779,11 @@ pub enum TargetUnitOperation {
         result: ValueId,
         scalar_type: IntegerType,
         value: IntegerValue,
+    },
+    BooleanConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        value: bool,
     },
     /// One verifier-approved non-observing immediate replacement through an
     /// exact whole-root mutable or write-only primitive parameter.

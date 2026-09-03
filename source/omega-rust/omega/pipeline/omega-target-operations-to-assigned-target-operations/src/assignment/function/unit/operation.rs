@@ -44,6 +44,15 @@ pub(super) fn assign(
             scalar_type: *scalar_type,
             value: *value,
         },
+        TargetUnitOperation::BooleanConstant {
+            psi_operation,
+            result,
+            value,
+        } => AssignedUnitOperation::BooleanConstant {
+            psi_operation: *psi_operation,
+            result: *result,
+            value: *value,
+        },
         TargetUnitOperation::WriteOnlyPrimitiveStore {
             psi_operation,
             destination,

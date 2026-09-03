@@ -604,6 +604,9 @@ fn emit_foreign_integer_argument(
                         bytes.extend_from_slice(&bits.to_le_bytes());
                     }
                 }
+                AssignedUnitScalarArgumentSource::BooleanImmediate { .. } => {
+                    return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                }
                 AssignedUnitScalarArgumentSource::Home(home) => {
                     let source_offset = call_stack_bytes
                         .checked_add(home.byte_offset)
@@ -642,6 +645,9 @@ fn emit_foreign_integer_argument(
                             bytes.extend_from_slice(&instruction.to_le_bytes());
                         }
                     }
+                }
+                AssignedUnitScalarArgumentSource::BooleanImmediate { .. } => {
+                    return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                 }
                 AssignedUnitScalarArgumentSource::Home(home) => {
                     let source_offset = call_stack_bytes
@@ -731,6 +737,9 @@ fn foreign_scalar_source_record(
             scalar_type,
             value,
         },
+        AssignedUnitScalarArgumentSource::BooleanImmediate { .. } => {
+            unreachable!("Boolean immediates are not normalized foreign-call sources")
+        }
         AssignedUnitScalarArgumentSource::Home(home) => {
             InternalUnitScalarArgumentSourceRecord::Home(unit_scalar_home_record(home))
         }
@@ -1034,6 +1043,11 @@ pub(super) fn emit_unit_body(
                     value: *value,
                     operation_ordinal,
                 });
+            }
+            AssignedUnitOperation::BooleanConstant { psi_operation, .. } => {
+                return Err(EmissionError::UnsupportedUnitBooleanConstant(
+                    *psi_operation,
+                ));
             }
             AssignedUnitOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
                 operation_site = Some(*psi_operation);

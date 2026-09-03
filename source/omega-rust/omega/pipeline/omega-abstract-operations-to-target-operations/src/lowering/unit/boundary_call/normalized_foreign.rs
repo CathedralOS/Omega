@@ -126,6 +126,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                             value,
                             ..
                         } => psi_core::ScalarTerm::integer(scalar_type, value).is_err(),
+                        TargetUnitScalarArgumentSource::BooleanImmediate { .. } => true,
                         TargetUnitScalarArgumentSource::Home(home) => home.shape != *shape,
                     }
                 {

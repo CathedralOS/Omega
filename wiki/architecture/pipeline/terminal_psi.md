@@ -703,14 +703,18 @@ and opaque-provider realization remain gated. The current native fixed-integer
 sublane derives the exact primitive referent width/alignment and selects a
 borrowed-reference ABI on x86-64 and AArch64 while retaining the complete
 declaration, placement, immediate, and operation identity. Physical assignment
-independently replays that custody. Machine emission independently revalidates
-the destination, type, placement, immediate, and exact parameter home, emits
+independently replays that custody. The Boolean sibling now retains its exact
+preceding Boolean definition, one-byte primitive referent, borrowed-reference
+placement, and literal through target lowering and independent physical
+assignment on both native architectures; it stops at a dedicated machine
+emission fence rather than masquerading as an integer immediate. Fixed-integer
+machine emission independently revalidates the destination, type, placement,
+immediate, and exact parameter home, emits
 the target store, and binds every fact to its exact code interval and bytes in
 a dedicated whole-root record. Object construction independently replays the
 declaration joins, borrowed-reference placement and home, literal source,
-architecture encoding, attribution, interval, and bytes. Boolean native
-lowering remains an explicit fence. Installation format 71 transports and
-revalidates the fixed-integer store custody without treating physical
+architecture encoding, attribution, interval, and bytes. Installation format
+71 transports and revalidates the fixed-integer store custody without treating physical
 pointer-layout equivalence as permission equivalence.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected

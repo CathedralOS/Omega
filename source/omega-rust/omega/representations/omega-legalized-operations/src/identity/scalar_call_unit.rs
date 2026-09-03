@@ -105,6 +105,16 @@ fn encode_argument_source(
             encode_integer_type(bytes, scalar_type);
             encode_integer(bytes, value);
         }
+        omega_target_operations::TargetUnitScalarArgumentSource::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&defining_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            bytes.push(u8::from(value));
+        }
         omega_target_operations::TargetUnitScalarArgumentSource::Home(home) => {
             bytes.push(1);
             encode_home(bytes, home);

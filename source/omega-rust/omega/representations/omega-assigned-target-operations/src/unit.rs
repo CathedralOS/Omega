@@ -196,6 +196,11 @@ pub enum AssignedUnitScalarArgumentSource {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+    BooleanImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: bool,
+    },
     Home(AssignedUnitScalarHome),
 }
 
@@ -204,6 +209,7 @@ impl AssignedUnitScalarArgumentSource {
         match self {
             Self::Parameter { source_value, .. } => source_value,
             Self::IntegerImmediate { source_value, .. } => source_value,
+            Self::BooleanImmediate { source_value, .. } => source_value,
             Self::Home(home) => home.source_value,
         }
     }
@@ -212,6 +218,7 @@ impl AssignedUnitScalarArgumentSource {
         match self {
             Self::Parameter { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::BooleanImmediate { .. } => ScalarType::Boolean,
             Self::Home(home) => home.scalar_type,
         }
     }
@@ -267,6 +274,11 @@ pub enum AssignedUnitOperation {
         result: ValueId,
         scalar_type: IntegerType,
         value: IntegerValue,
+    },
+    BooleanConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        value: bool,
     },
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,

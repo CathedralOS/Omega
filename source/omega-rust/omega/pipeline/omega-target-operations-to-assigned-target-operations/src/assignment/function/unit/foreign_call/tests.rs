@@ -65,6 +65,9 @@ fn assigned_argument(
             scalar_type,
             value,
         },
+        omega_target_operations::TargetUnitScalarArgumentSource::BooleanImmediate { .. } => {
+            panic!("literal helper receives an integer immediate")
+        }
         omega_target_operations::TargetUnitScalarArgumentSource::Home(_) => {
             panic!("literal helper receives an immediate")
         }
