@@ -1846,6 +1846,7 @@ fn build_write_only_primitive_store(
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
     let direct_literal = matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
+        || matches!(value, CheckedScalarExpression::IeeeFloatLiteral { .. })
         || matches!(
             value,
             CheckedScalarExpression::Boolean(expression)

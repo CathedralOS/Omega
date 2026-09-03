@@ -202,7 +202,9 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         // expressions remain outside its admitted vocabulary.
                         if !matches!(
                             program.expression_table.expression(assignment.value),
-                            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
+                            ExpressionNode::Integer(_)
+                                | ExpressionNode::Float(_)
+                                | ExpressionNode::Boolean(_)
                         ) {
                             continue;
                         }
@@ -235,6 +237,10 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         };
                         let direct_literal =
                             matches!(expression, CheckedScalarExpression::IntegerLiteral { .. })
+                                || matches!(
+                                    expression,
+                                    CheckedScalarExpression::IeeeFloatLiteral { .. }
+                                )
                                 || matches!(
                                     &expression,
                                     CheckedScalarExpression::Boolean(boolean)

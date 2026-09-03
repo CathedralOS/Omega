@@ -2316,6 +2316,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     };
                     let direct_literal =
                         matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
+                            || matches!(value, CheckedScalarExpression::IeeeFloatLiteral { .. })
                             || matches!(
                                 value,
                                 CheckedScalarExpression::Boolean(expression)

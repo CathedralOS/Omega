@@ -1,6 +1,8 @@
 use omega_abstract_operations::AbstractOperation;
 use omega_psi_to_abstract_operations::lower_artifact_sections;
-use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+use psi_core::{
+    IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, ScalarType,
+};
 use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -146,6 +148,75 @@ fn verified_boolean_store_retains_exact_write_only_parameter_and_preceding_value
                     AbstractOperation::BooleanConstant {
                         result,
                         value: true,
+                        ..
+                    } if *result == value.value
+                )
+            })
+    );
+}
+
+#[test]
+fn verified_ieee_float_store_retains_exact_write_only_parameter_and_preceding_value() {
+    let source = r#"
+        data Sink {}
+        machine Sink::fill(destination: &write f32) {
+            destination = 1.25f32;
+        }
+
+        data Root {}
+        machine Root::enter(destination: &mut f32) {
+            Sink::fill(&write destination);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("write-only IEEE float source lowers to verified Terminal Psi");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("verified IEEE float store reaches target-neutral Omega");
+
+    let store_function = plan
+        .functions
+        .iter()
+        .find(|function| {
+            function.operations.iter().any(|operation| {
+                matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
+            })
+        })
+        .expect("one function retains the IEEE float store");
+    let store_index = store_function
+        .operations
+        .iter()
+        .position(|operation| {
+            matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
+        })
+        .expect("store operation index");
+    let AbstractOperation::WriteOnlyPrimitiveStore {
+        destination, value, ..
+    } = &store_function.operations[store_index]
+    else {
+        unreachable!("store index selects the store")
+    };
+    assert_eq!(destination, &store_function.structural_parameters[0]);
+    assert_eq!(destination.access, StructuralAccess::WriteOnlyBorrow);
+    assert_eq!(
+        value.scalar_type,
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)
+    );
+    assert!(
+        store_function.operations[..store_index]
+            .iter()
+            .any(|operation| {
+                matches!(
+                    operation,
+                    AbstractOperation::IeeeFloatConstant {
+                        result,
+                        value: IeeeFloatValue::Binary32(0x3fa0_0000),
                         ..
                     } if *result == value.value
                 )
