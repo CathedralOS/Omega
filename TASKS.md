@@ -45,15 +45,8 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
 
 These are the next product-level priorities for the maintained Rust
 implementation. They take precedence over adding another evidence carrier that
-has no exercising program.
-
-- **RUST-COMPLETION-CONTRACT.** Replace the vague phrase "100% done" with a
-  finite release matrix covering accepted language semantics, PCC and
-  independent replay, portable Psi, package/build behavior, native targets,
-  diagnostics, and representative executable programs. Every row needs a
-  named automated gate. The contract governs the Rust implementation before
-  self-hosting resumes; it must measure capabilities, not crate or carrier
-  counts.
+has no exercising program. The finite definition of Rust-product completion is
+the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_contract.md).
 
 - **IMMUTABLE-TARGET-ACTIVATION-AND-MATRIX.** Replace temporary authored
   `target ... {}` discovery blocks with immutable invocation input. A one-shot
