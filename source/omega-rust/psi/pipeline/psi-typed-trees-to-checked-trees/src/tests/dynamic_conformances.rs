@@ -1186,6 +1186,62 @@ fn descriptor_transfer_retains_one_parameter_forwarding_hop() {
 }
 
 #[test]
+fn descriptor_transfer_retains_one_unit_parameter_forwarding_hop() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Touch { machine touch(&self); }
+        data Item { value: i32; }
+        Primary: Item satisfies Touch { machine touch(&self) {} }
+        data Main { item: Item; }
+
+        machine Main::run(&self) {
+            let erased: &dyn Touch = &self.item as &dyn Item::Primary;
+            forward(erased);
+        }
+
+        machine forward(erased: &dyn Touch) {
+            finish(erased);
+        }
+
+        machine finish(erased: &dyn Touch) {
+            erased.touch();
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [selection_transfer, parameter_transfer] = dynamic.transfers.as_slice() else {
+        panic!("two ordered Unit descriptor transfers expected, got {dynamic:#?}")
+    };
+    let [plan] = dynamic.direct_unit_calls.as_slice() else {
+        panic!("one multi-hop dynamic Unit call expected, got {dynamic:#?}")
+    };
+    assert_eq!(plan.forwarding_transfers, [parameter_transfer.clone()]);
+    assert!(matches!(
+        selection_transfer.source,
+        psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+    ));
+    assert!(matches!(
+        parameter_transfer.source,
+        psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+            parameter_position: 0
+        }
+    ));
+    let psi_checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
+        machine,
+        state,
+        parameter,
+        ..
+    } = plan.origin
+    else {
+        panic!("multi-hop Unit call must retain its final dynamic helper")
+    };
+    assert_eq!(parameter_transfer.target_machine, machine);
+    assert_eq!(parameter_transfer.target_state, state);
+    assert_eq!(parameter_transfer.parameter, parameter);
+    assert!(dynamic.rebound_unit_calls.is_empty());
+}
+
+#[test]
 fn descriptor_transfer_does_not_collapse_a_control_flow_join() {
     let checked = check_dynamic_source(
         r#"

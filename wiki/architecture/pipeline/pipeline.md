@@ -171,6 +171,12 @@ custody, and semantic attribution for this additional machine-code row.
 Installation replay retains its compact semantic identity and exact text span;
 native execution remains the next bounded frontier after a continuation can
 make the forwarded scalar result observable.
+The identical checked fixed-point path admits a result-less Unit chain through
+Terminal Psi. Intermediate helpers remain explicit direct `CallUnit`
+operations with parameter-sourced descriptor arguments and only the last
+helper performs parameter-slot dispatch. Terminal verification, encoding, and
+interpretation preserve the chain without manufacturing a scalar result;
+target lowering is its next fail-closed boundary.
 Its forwarding rows retain an exact semantic and physical scalar result when
 one exists, while Unit rows explicitly retain neither; they do not invent
 Terminal machine identities for native-only adapters. The bounded mutable form additionally carries `&mut

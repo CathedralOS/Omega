@@ -12407,8 +12407,14 @@ checked-result arithmetic decision listed below.
   that row. Final-image validation repeats that replay, and canonical
   installation format 66 retains the compact helper/callee/parameter/scalar
   identity plus exact text span and rejects projection or codec drift.
-  Multi-hop Unit results, scalar callers with continuations, and a native
-  process-execution assertion remain outside this bounded rung.
+  The same fixed-point checked path now admits result-less Unit helpers through
+  verified Terminal Psi. Every intermediate helper is an explicit `CallUnit`
+  with a parameter-sourced descriptor argument, only the final helper performs
+  `CallDynamicParameterUnit`, and no scalar value or result carrier exists.
+  Terminal verification, canonical encoding, interpreter execution, and
+  coordinate-drift rejection cover that chain. Target/native Unit lowering,
+  scalar callers with continuations, and a native process-execution assertion
+  remain outside this bounded rung.
 
   Remaining work:
 
@@ -12429,9 +12435,11 @@ checked-result arithmetic decision listed below.
     a fourth write still has no native carrier;
   - extend descriptors to within-artifact stored/joined/escaping and
     aggregate-erased forms. The scalar parameter-forwarding row now crosses
-    object/image/installation replay; next widen the same custody to Unit
-    results and continuations, then add native execution where a retained
-    caller result makes an observable assertion possible. Do not extend local
+    object/image/installation replay; the Unit form now reaches verified
+    Terminal Psi, so next carry its result-neutral custody through target and
+    native artifacts, then widen scalar continuations and add native execution
+    where a retained caller result makes an observable assertion possible. Do
+    not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a

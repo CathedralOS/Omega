@@ -1095,7 +1095,12 @@ unchanged register handoff, direct-call relocation and opcode shape, and
 semantic attribution. Installation format 66 retains the compact source,
 callee, scalar, parameter-ordinal, and exact text-span projection and rejects
 codec or projection drift. Unit results, continuation-bearing callers, and
-native process observation are not yet in this bounded lane.
+native process observation are not yet in this native lane. Result-less Unit
+chains do reach verified Terminal Psi: each intermediate helper explicitly
+calls the next with the incoming descriptor parameter, only the final helper
+dispatches through the requirement slot, and no helper acquires a scalar result
+or value identity. Target and native lowering of that Unit chain remains
+fail-closed.
 
 Code that wants a local dynamic interface over a component owns a local proxy:
 

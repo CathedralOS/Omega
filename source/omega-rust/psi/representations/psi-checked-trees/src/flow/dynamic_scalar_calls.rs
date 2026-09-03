@@ -29,7 +29,7 @@ pub struct CheckedDynamicDispatchPlans {
 }
 
 /// Checked custody for one terminal Unit-returning call through a local named
-/// dynamic value or one transparent descriptor parameter. This first rung
+/// dynamic value or an exact transparent descriptor-parameter chain. This rung
 /// admits no dynamic-call arguments, result discard, realization state
 /// contracts, service reach, or realization body operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +38,10 @@ pub struct CheckedDynamicUnitCallPlan {
     /// Unit dispatch. Forwarding retains both the outer ordinary-call
     /// coordinate and the helper's parameter-slot call coordinate.
     pub origin: CheckedDynamicUnitCallOrigin,
+    /// Exact parameter-sourced transfers before the final dispatching helper,
+    /// ordered from the root caller toward that helper. Empty for local and
+    /// one-hop forwarded calls.
+    pub forwarding_transfers: Vec<CheckedDynamicDescriptorTransferPlan>,
     pub caller_machine: SymbolHandle,
     pub caller_state: SymbolHandle,
     pub caller_attachment_type_identity: String,
