@@ -95,7 +95,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 76;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 77;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -1708,7 +1708,7 @@ fn installed_scalar_source_is_exact(
                     _ => None,
                 };
                 parameter.value == source_value
-                    && parameter.scalar_type == psi_core::ScalarType::Integer(scalar_type)
+                    && parameter.scalar_type == scalar_type
                     && expected_location == Some(location)
             }),
         omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
@@ -2737,19 +2737,10 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     abi.parameters
                         .iter()
                         .map(|parameter| {
-                            let psi_core::ScalarType::Integer(integer) = parameter.scalar_type
-                            else {
-                                return Err(InstallationError::InvalidInternalUnitCall(
+                            crate::unit_call_custody::unit_scalar_shape(parameter.scalar_type)
+                                .ok_or(InstallationError::InvalidInternalUnitCall(
                                     installed.machine,
-                                ));
-                            };
-                            if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
-                                return Err(InstallationError::InvalidInternalUnitCall(
-                                    installed.machine,
-                                ));
-                            }
-                            let bytes = integer.bits() / 8;
-                            Ok(ValueShape::integer(bytes, bytes))
+                                ))
                         })
                         .chain(
                             callee_unit_parameters

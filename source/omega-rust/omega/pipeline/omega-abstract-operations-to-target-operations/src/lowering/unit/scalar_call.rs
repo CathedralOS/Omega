@@ -38,7 +38,7 @@ impl KnownUnitInteger {
             } => TargetUnitScalarArgumentSource::Parameter {
                 parameter_index,
                 source_value,
-                scalar_type,
+                scalar_type: ScalarType::Integer(scalar_type),
             },
             Self::Immediate {
                 defining_operation,

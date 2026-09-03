@@ -77,6 +77,9 @@ pub(super) fn emit_installed_provider_scalar_call(
     else {
         return Err(invalid());
     };
+    let psi_core::ScalarType::Integer(integer_type) = scalar_type else {
+        return Err(invalid());
+    };
     let shape = ValueShape::integer(4, 4);
     let expected_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
@@ -130,11 +133,11 @@ pub(super) fn emit_installed_provider_scalar_call(
         || parameter_index != 0
         || argument.parameter_index != 0
         || parameter.value != source_value
-        || parameter.scalar_type != psi_core::ScalarType::Integer(scalar_type)
+        || parameter.scalar_type != scalar_type
         || parameter.placement.shape != shape
-        || scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
-        || scalar_type.sign() != psi_core::IntegerSign::Signed
-        || scalar_type.bits() != 32
+        || integer_type.carrier() != psi_core::IntegerCarrier::Fixed
+        || integer_type.sign() != psi_core::IntegerSign::Signed
+        || integer_type.bits() != 32
         || call_plan != &expected_plan
         || call_plan.result.is_some()
         || !body.parameters.is_empty()

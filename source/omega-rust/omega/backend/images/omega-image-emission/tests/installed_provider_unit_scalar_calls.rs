@@ -99,7 +99,7 @@ fn emitted_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
                                 source: TargetUnitScalarArgumentSource::Parameter {
                                     parameter_index: 0,
                                     source_value,
-                                    scalar_type,
+                                    scalar_type: ScalarType::Integer(scalar_type),
                                 },
                                 placement: call_plan.parameters[0].clone(),
                             }],

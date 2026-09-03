@@ -41,8 +41,8 @@ use super::{
         decode_domains, decode_multiplicity, encode_domains, multiplicity_tag,
     },
     unit_scalar_codec::{
-        decode_integer_type, decode_integer_value, decode_unit_scalar_home, encode_integer_type,
-        encode_integer_value, encode_unit_scalar_home,
+        decode_integer_type, decode_integer_value, decode_scalar_type, decode_unit_scalar_home,
+        encode_integer_type, encode_integer_value, encode_scalar_type, encode_unit_scalar_home,
     },
     value_placement_codec::{
         decode_placement, decode_register, decode_shape, encode_placement, encode_shape,
@@ -819,7 +819,7 @@ fn encode_boundary_runtime_source(
             bytes.extend_from_slice(&[0, 0, 0, 0]);
             push_u32(bytes, parameter_index);
             push_u64(bytes, source_value.get());
-            encode_integer_type(bytes, scalar_type)?;
+            encode_scalar_type(bytes, scalar_type)?;
             match location {
                 UnitScalarParameterLocationRecord::Register(register) => {
                     bytes.push(0);
@@ -865,7 +865,7 @@ fn decode_boundary_runtime_source(
             let parameter_index = reader.u32()?;
             let source_value = ValueId::new(reader.u64()?)
                 .ok_or(InstallationError::InvalidBoundaryScalarArgument)?;
-            let scalar_type = decode_integer_type(reader)?;
+            let scalar_type = decode_scalar_type(reader)?;
             let location_tag = reader.u8()?;
             let register_tag_byte = reader.u8()?;
             if reader.take(2)? != [0; 2] {

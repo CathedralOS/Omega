@@ -24,6 +24,11 @@ pub(super) fn validate_installed_unit_dynamic_descriptor_joins(
             .iter()
             .filter(|attribution| attribution.machine == function.machine)
             .collect::<Vec<_>>();
+        let ordinary_unit_call_count = record
+            .internal_unit_calls
+            .iter()
+            .filter(|call| call.machine == function.machine)
+            .count();
         let boolean_parameter = function.unit_scalar_abi.as_ref().is_some_and(|abi| {
             matches!(
                 abi.parameters.as_slice(),
@@ -31,10 +36,14 @@ pub(super) fn validate_installed_unit_dynamic_descriptor_joins(
             )
         });
         let joined_shape_hint = calls.len() == 2 && attributions.len() == 5;
+        // Boolean is an ordinary scalar type, not a dynamic-family tag. Let
+        // the disjoint installed store/call validators own their exact rows.
         let primitive_store_shape = function.unit_write_only_primitive_stores.len() == 1
             && calls.is_empty()
             && attributions.len() == 2;
-        if primitive_store_shape {
+        let ordinary_unit_call_shape =
+            ordinary_unit_call_count == 1 && calls.is_empty() && attributions.len() == 2;
+        if primitive_store_shape || ordinary_unit_call_shape {
             continue;
         }
         if !boolean_parameter && !joined_shape_hint {

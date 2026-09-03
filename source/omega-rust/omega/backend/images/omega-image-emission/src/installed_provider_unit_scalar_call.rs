@@ -63,6 +63,9 @@ pub(super) fn validate_installed_provider_unit_scalar_calls(
         else {
             return Err(invalid());
         };
+        let ScalarType::Integer(integer_type) = scalar_type else {
+            return Err(invalid());
+        };
         let expected_register = match target.architecture {
             Architecture::X86_64 => MachineRegister::X86Rdi,
             Architecture::Aarch64 => MachineRegister::Aarch64X(0),
@@ -114,7 +117,10 @@ pub(super) fn validate_installed_provider_unit_scalar_calls(
             || parameter_index != 0
             || argument.parameter_index != 0
             || source_value != caller_parameter.value
-            || ScalarType::Integer(scalar_type) != caller_parameter.scalar_type
+            || scalar_type != caller_parameter.scalar_type
+            || integer_type.carrier() != psi_core::IntegerCarrier::Fixed
+            || integer_type.sign() != psi_core::IntegerSign::Signed
+            || integer_type.bits() != 32
             || location != expected_location
             || argument.destination != caller_parameter.placement
             || argument.byte_count != 0

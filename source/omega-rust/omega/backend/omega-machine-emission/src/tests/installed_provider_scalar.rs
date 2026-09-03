@@ -95,7 +95,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
                                 source: TargetUnitScalarArgumentSource::Parameter {
                                     parameter_index: 0,
                                     source_value,
-                                    scalar_type,
+                                    scalar_type: ScalarType::Integer(scalar_type),
                                 },
                                 placement: call_plan.parameters[0].clone(),
                             }],
@@ -179,7 +179,9 @@ fn installed_provider_i32_emits_exact_call_and_parameter_custody() {
                 scalar_type,
                 location: UnitScalarParameterLocationRecord::Register(register),
             } if source_value == ValueId::new(970).unwrap()
-                && scalar_type == IntegerType::new(IntegerSign::Signed, 32).unwrap()
+                && scalar_type == ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Signed, 32).unwrap()
+                )
                 && register == expected_register
         ));
         let call_bytes = &caller.bytes[call.code_offset..call.code_offset + call.byte_count];

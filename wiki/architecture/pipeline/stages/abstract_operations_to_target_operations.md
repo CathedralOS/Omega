@@ -98,16 +98,16 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   assignment, machine emission, object construction, and installation
   independently replay the function ABI, incoming `RDI`/`X0` register,
   destination home, native store bytes, and source record on both Linux
-  targets. Additional parameters, computed sources, IEEE runtime sources,
-  Boolean caller forwarding, and non-native integer carriers remain fail
-  closed. Terminal and Abstract IR
+  targets. Additional parameters, computed sources, IEEE runtime sources, and
+  non-native integer carriers remain fail closed. Terminal and Abstract IR
   verify, canonically bind, and retain scalar arguments on ordinary `CallUnit`,
   including optimizer identity and dataflow. This stage now derives the exact
   target call plan, retaining scalar arguments as its prefix and structural
   arguments as its suffix. Physical assignment independently replays that plan
-  and preserves the caller parameter's incoming location. Machine emission
-  admits exact same-register forwarding and retains scalar call custody beside
-  the structural copies. Object and installation validation independently
+  and preserves the caller parameter's exact type and incoming location.
+  Machine emission admits exact same-register forwarding for native fixed
+  integers and Boolean and retains scalar call custody beside the structural
+  copies. Object and installation validation independently
   rejoin the Unit callee ABI, source location, zero-byte transfer, aggregate
   copy, stack evidence, and call bytes on Linux x86-64 and AArch64.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
