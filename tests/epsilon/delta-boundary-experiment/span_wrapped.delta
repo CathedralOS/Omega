@@ -1,0 +1,19 @@
+(data SourceSpan (SourceSpan Int Int))
+(data SpanExpression
+  (SpanLiteral SourceSpan Int)
+  (SpanBinary SourceSpan SpanExpression SpanExpression))
+(def source_span_start ((span SourceSpan)) Int
+  (match span ((SourceSpan start end) start)))
+(def source_span_end ((span SourceSpan)) Int
+  (match span ((SourceSpan start end) end)))
+(def span_expression_span ((value SpanExpression)) SourceSpan
+  (match value
+    ((SpanLiteral span literal) span)
+    ((SpanBinary span left right) span)))
+(def main () Int
+  (let value SpanExpression
+    (SpanBinary (SourceSpan 2 9)
+      (SpanLiteral (SourceSpan 2 3) 1)
+      (SpanLiteral (SourceSpan 8 9) 2))
+    (+ (source_span_start (span_expression_span value))
+       (source_span_end (span_expression_span value)))))

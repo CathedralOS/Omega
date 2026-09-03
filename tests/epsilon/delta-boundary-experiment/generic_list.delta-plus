@@ -1,0 +1,5 @@
+; Hypothetical syntax, intentionally not current Delta.
+(data List<T> (Empty) (More T List<T>))
+(def list_count<T> ((values List<T>)) Int
+  (match values (Empty 0) ((More item rest) (+ 1 (list_count<T> rest)))))
+(def main () Int 0)

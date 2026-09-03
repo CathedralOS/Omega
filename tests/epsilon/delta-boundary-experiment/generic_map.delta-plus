@@ -1,0 +1,5 @@
+; Hypothetical syntax, intentionally not current Delta.
+(data Map<K,V> (EmptyMap) (MapNode K V Map<K,V>))
+(data Lookup<V> (Absent) (Present V))
+(def map_lookup<K,V> ((map Map<K,V>) (key K)) Lookup<V> ...)
+(def main () Int 0)

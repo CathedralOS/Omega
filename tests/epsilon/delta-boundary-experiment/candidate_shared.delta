@@ -1,0 +1,59 @@
+(data CensusCandidate (NoCensus) (CensusAt Int Int))
+(data FormationCandidate (NoFormation) (FormationAt Int Int Int) (FormationConflict Int))
+(data FinalCandidate (NoFinal) (FinalAt Int Int))
+(def offset_order ((leftOffset Int) (rightOffset Int)) Int
+  (if (lt leftOffset rightOffset) 0 (if (lt rightOffset leftOffset) 1 2)))
+(def census_min_present ((leftReason Int) (leftOffset Int)
+  (right CensusCandidate)) CensusCandidate
+  (match right
+    (NoCensus (CensusAt leftReason leftOffset))
+    ((CensusAt rightReason rightOffset)
+      (if (eq (offset_order leftOffset rightOffset) 1)
+        right (CensusAt leftReason leftOffset)))))
+(def census_min ((left CensusCandidate) (right CensusCandidate)) CensusCandidate
+  (match left
+    (NoCensus right)
+    ((CensusAt reason offset) (census_min_present reason offset right))))
+(def formation_min_present ((leftKind Int) (leftReason Int) (leftOffset Int)
+  (right FormationCandidate)) FormationCandidate
+  (match right
+    (NoFormation (FormationAt leftKind leftReason leftOffset))
+    ((FormationAt rightKind rightReason rightOffset)
+      (let order Int (offset_order leftOffset rightOffset)
+        (if (eq order 1) right
+          (if (eq order 0) (FormationAt leftKind leftReason leftOffset)
+            (if (eq leftKind rightKind) (FormationAt leftKind leftReason leftOffset)
+              (FormationConflict leftOffset))))))
+    ((FormationConflict offset) right)))
+(def formation_min ((left FormationCandidate)
+  (right FormationCandidate)) FormationCandidate
+  (match left
+    (NoFormation right)
+    ((FormationAt kind reason offset)
+      (formation_min_present kind reason offset right))
+    ((FormationConflict offset) left)))
+(def final_merge ((left FinalCandidate) (right FinalCandidate)) FinalCandidate
+  (match left
+    (NoFinal right)
+    ((FinalAt leftOffset leftReasons)
+      (match right
+        (NoFinal left)
+        ((FinalAt rightOffset rightReasons)
+          (let order Int (offset_order leftOffset rightOffset)
+            (if (eq order 0) left
+              (if (eq order 1) right
+                (FinalAt leftOffset (+ leftReasons rightReasons))))))))))
+(def census_value ((value CensusCandidate)) Int
+  (match value (NoCensus 0) ((CensusAt reason offset) reason)))
+(def formation_value ((value FormationCandidate)) Int
+  (match value
+    (NoFormation 0)
+    ((FormationAt kind reason offset) reason)
+    ((FormationConflict offset) 20)))
+(def final_value ((value FinalCandidate)) Int
+  (match value (NoFinal 0) ((FinalAt offset reasons) reasons)))
+(def main () Int
+  (+ (census_value (census_min (CensusAt 10 5) (CensusAt 11 5)))
+    (+ (formation_value
+         (formation_min (FormationAt 1 12 5) (FormationAt 2 13 5)))
+       (final_value (final_merge (FinalAt 5 1) (FinalAt 5 2))))))
