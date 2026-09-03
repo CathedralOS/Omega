@@ -534,6 +534,17 @@ identity. Complete selected-provider-closure traversal and the service/schema
 permission join remain separate, later work; this rung does not grant provider
 execution or same-stack custody.
 
+Version 5 also defines the exact direct-syscall classification role. Its key
+contains the complete target profile, syscall number, and a nonempty identity
+for the compiler-checked argument contract. That identity is separate from the
+ABI calling-plan commitment and must commit either the conservative
+unconstrained case or the exact retained constraints that justify a narrower
+classification. Policy rows are explicit: a missing row or any target, number,
+or contract substitution rejects, as does a profile outside the current Linux
+x86-64/AArch64 syscall domain. The selected-provider closure still rejects
+syscalls until checked lowering can supply this identity; requirement names do
+not infer it, and the role makes no descriptor-confinement claim.
+
 For the bounded Windows x86-64 source lane, an evaluated PE import may return
 an exact fixed-width `u32` into its Win64 result register. When a later
 evaluated import consumes that value, compilation preserves it as a distinct

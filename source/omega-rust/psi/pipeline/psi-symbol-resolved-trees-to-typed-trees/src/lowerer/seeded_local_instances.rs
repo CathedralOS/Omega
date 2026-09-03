@@ -17,6 +17,14 @@ pub(super) fn parameter_is_supported(
     const_arguments::parameter_is_supported(source, owner, parameter)
 }
 
+pub(super) fn scalar_const_parameter_is_supported(
+    source: &SymbolResolvedTrees,
+    owner: SymbolHandle,
+    parameter: &psi_symbol_resolved_trees::data::TypeParameter,
+) -> bool {
+    const_arguments::scalar_parameter_is_supported(source, owner, parameter)
+}
+
 pub(super) fn const_declaration_is_supported(
     source: &SymbolResolvedTrees,
     declaration: &psi_symbol_resolved_trees::constant::ConstDeclaration,

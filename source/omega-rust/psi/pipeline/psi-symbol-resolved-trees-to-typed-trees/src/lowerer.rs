@@ -481,13 +481,27 @@ fn exact_extension_machine_symbol(
     if !machine.symbol.is_valid()
         || source.symbols.get(machine.symbol).kind != psi_symbols::SymbolKind::Machine
         || source.symbols.name(machine.symbol) != machine.name.as_str()
-        || !type_parameters.iter().all(|parameter| {
-            matches!(
-                &parameter.kind,
-                psi_symbol_resolved_trees::data::TypeParameterKind::Type
-            ) && parameter.bounds == psi_symbol_resolved_trees::data::DataProperties::default()
-                && seeded_local_instances::parameter_is_supported(source, machine.symbol, parameter)
-        })
+        || !type_parameters
+            .iter()
+            .all(|parameter| match &parameter.kind {
+                psi_symbol_resolved_trees::data::TypeParameterKind::Type => {
+                    parameter.bounds == psi_symbol_resolved_trees::data::DataProperties::default()
+                        && seeded_local_instances::parameter_is_supported(
+                            source,
+                            machine.symbol,
+                            parameter,
+                        )
+                }
+                psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
+                    seeded_local_instances::scalar_const_parameter_is_supported(
+                        source,
+                        machine.symbol,
+                        parameter,
+                    )
+                }
+                psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                | psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+            })
         || !machine.satisfies.is_empty()
         || !machine.conformance_bounds.is_empty()
         || !machine.ranking_subjects.is_empty()

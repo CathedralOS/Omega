@@ -310,10 +310,11 @@ and the first generic-machine cohorts. An attached method is admitted only when
 its exact `attached_data_symbol` selects the retained or newly generated
 declaration it names. A generic machine in these cohorts is an ordinary checked
 body whose binder list contains an authored-order erased-lifetime telescope
-followed only by exact machine-parented, unbounded `Type` parameters. Const,
-static-machine/proposition binders, property and conformance bounds,
-`satisfies`, and broader supply/operational forms remain fenced. Suffix-only
-finalization owns satisfied declarations,
+followed only by exact machine-parented ordinary `Type` or scalar-const
+parameters. Type-property bounds, structured const and static-
+machine/proposition binders, conformance bounds, `satisfies`, and broader
+supply/operational forms remain fenced. Suffix-only finalization owns satisfied
+declarations,
 progress premises, domain constraints, semantic qualification casts, and
 fixed-byte literal landing. The matching post-typing evaluator then runs on the
 completed candidate; wire-plan publication begins at the extension wire-schema
@@ -344,18 +345,18 @@ portable cohorts missing the selected target cannot hide across source strata
 or generated units. It mutates only the extension, consumes the exact retained
 base selection carrier into one combined carrier, and settles selected origins
 and target-owned `provider_defaults` against the final typed continuation.
-Unselected generated siblings remain inert. Const/static generic binders and
-broader generic constraints, satisfactions/conformance bounds, broader supply
-forms, additional root kinds, and the remaining fenced data shapes still
-require explicit append-only continuation cohorts. These are implementation
-tasks, not alternate language semantics.
+Unselected generated siblings remain inert. Structured const/static generic
+binders and broader generic constraints, satisfactions/conformance bounds,
+broader supply forms, additional root kinds, and the remaining fenced data
+shapes still require explicit append-only continuation cohorts. These are
+implementation tasks, not alternate language semantics.
 
 Canaries cover exact configuration and build-evidence retention, one-way
 overload/conformance visibility, generated machine and attached-method
 continuation, unit-local normalization, dependency-bundle no-rerun,
 target-scoped rejection, source/custody counts, retained-prefix preservation,
-exact lifetime-telescope custody, and structural absence of the retired
-reconstruction route.
+exact lifetime-telescope and scalar-const carrier/value custody, and structural
+absence of the retired reconstruction route.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review

@@ -35,7 +35,7 @@ impl TerminalAuthorityPolicyRow {
 }
 
 /// Current receiving-realization policy over the closed compiler inventory and
-/// explicit normalized-foreign or checked-physical rows.
+/// explicit normalized-foreign, syscall, or checked-physical rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityPolicy {
     identity: TerminalAuthorityPolicyIdentity,
@@ -78,6 +78,12 @@ impl TerminalAuthorityPolicy {
                 .find(|row| row.mechanism == mechanism)
                 .map(|row| row.disposition.clone())
                 .ok_or(UnclassifiedTerminalMechanism { mechanism }),
+            TerminalMechanismIdentity::Syscall(_) => self
+                .explicit_rows
+                .iter()
+                .find(|row| row.mechanism == mechanism)
+                .map(|row| row.disposition.clone())
+                .ok_or(UnclassifiedTerminalMechanism { mechanism }),
             TerminalMechanismIdentity::CheckedPhysical(_) => self
                 .explicit_rows
                 .iter()
@@ -104,6 +110,8 @@ impl UnclassifiedTerminalMechanism {
 pub enum TerminalAuthorityPolicyBuildError {
     CompilerIntrinsicRowIsReserved(CompilerIntrinsicExecutionIdentity),
     EmptyImplementationContract(TerminalMechanismIdentity),
+    UnsupportedSyscallTarget(TerminalMechanismIdentity),
+    EmptyCheckedSyscallArgumentContract(TerminalMechanismIdentity),
     CheckedPortWriteRequiresExactPortIo(TerminalMechanismIdentity),
     DuplicateMechanism(TerminalMechanismIdentity),
 }
