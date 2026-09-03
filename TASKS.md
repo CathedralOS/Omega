@@ -12479,9 +12479,18 @@ checked-result arithmetic decision listed below.
   different-conformance joins therefore retain both roots rather than choosing
   a representative. Missing or substituted paths, selections, and coordinates
   fail replay; an unadmitted third predecessor and forwarding after the first
-  join remain fenced. This rung deliberately stops before Terminal/native
-  joined-table materialization, aggregate storage, return, or component
-  crossing.
+  join remain fenced. Terminal Psi itself needs no synthetic joined-table row:
+  its existing per-call descriptor arguments form the runtime phi at one
+  callee descriptor parameter. An executable semantic canary now gives two
+  branch-local calls distinct source places and distinct closed conformances,
+  verifies and canonically round-trips the module, and interprets both branches
+  to the realization selected by that predecessor's private table. The open
+  seam is source composition: checked-to-Terminal lowering currently
+  materializes only a linear forwarding-helper chain and does not yet own the
+  predecessor conditional/control body needed to emit both calls. Native
+  lowering, aggregate storage, return, forwarding after the join, and component
+  crossing remain fenced; do not add a representative conformance or a second
+  joined-descriptor vocabulary to bypass that control seam.
 
   Remaining work:
 

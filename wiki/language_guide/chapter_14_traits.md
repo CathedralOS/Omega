@@ -707,9 +707,14 @@ calls into one bare dynamic state parameter. Checking preserves one complete
 path per alternative: the original named conformance selection, its source
 place, and every descriptor-carrying call edge through the join. It never
 chooses one incoming selection as representative. This bounded rung does not
-yet materialize or dispatch the joined descriptor in Terminal Psi; three-way
-joins, forwarding after a join, aggregate storage beyond the bounded
-single-field local form below, returns, and component crossings remain rejected.
+yet compose that source control graph into Terminal Psi. The Terminal semantic
+model itself requires no special joined descriptor: two calls may supply their
+distinct selection-sourced descriptor arguments to one callee descriptor
+parameter, and verification, canonical encoding, and interpretation preserve
+the selected referent and private table on both branches. Three-way joins,
+forwarding after a join, native source lowering, aggregate storage beyond the
+bounded single-field local form below, returns, and component crossings remain
+rejected.
 
 Only a closed conformance block licenses local dynamic dispatch. A bodyless
 whole-trait conformance remains useful for static checking, but has no complete

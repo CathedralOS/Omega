@@ -597,9 +597,17 @@ remain distinct; when they select different conformances, neither may stand in
 as a representative for the other. An unrecognized third predecessor, a
 missing edge, a substituted selection or coordinate, or an attempt to forward
 the already-joined value again publishes no joined transfer. This is checked
-custody only. Terminal table materialization and physical selection for a
-joined descriptor remain fenced, as do aggregate storage beyond the bounded
-single-field local form below, returns, and component crossings.
+custody only at the source boundary. Terminal Psi already has the required
+runtime form: each predecessor call supplies its own selection-sourced
+descriptor argument to one shared callee descriptor parameter. That parameter
+is the runtime phi; no representative conformance and no synthetic joined table
+exists. Verification, canonical encoding, and interpretation exercise two
+branch-local arguments with distinct source places and distinct closed
+conformances. Checked-to-Terminal source composition remains fenced until it
+retains and emits the predecessor conditional/control body rather than the
+current linear helper chain. Physical selection, aggregate storage beyond the
+bounded single-field local form below, returns, forwarding after the join, and
+component crossings remain fenced.
 
 The first Terminal aggregate-storage rung accepts only the checked immutable
 one-field record initialized from one earlier exact shared-borrow selection.

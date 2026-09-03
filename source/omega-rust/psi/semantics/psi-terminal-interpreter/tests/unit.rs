@@ -451,6 +451,49 @@ fn dynamic_descriptor_parameter_crosses_a_real_interpreter_call() {
     );
 }
 
+#[test]
+fn dynamic_descriptor_parameter_joins_two_exact_predecessors() {
+    let module = joined_parameter_dynamic_scalar_call_module();
+    let proof_bundle = ProofBundle::default();
+    verify_module(&module, &proof_bundle, &AdmissionProfile::default())
+        .expect("two exact descriptor predecessors verify");
+    let semantic = encode_module(&module).expect("joined dynamic descriptor semantics encode");
+    assert_eq!(
+        decode_module(&semantic).expect("joined dynamic descriptor semantics decode"),
+        module,
+        "canonical Terminal encoding retains both predecessor arguments",
+    );
+    let proof = encode_proof_bundle(&proof_bundle).expect("empty proof encodes");
+
+    for (choose_first, expected) in [(true, 99), (false, 41)] {
+        let structural = TerminalStructuralValue {
+            opaque_identity: 95,
+            structural_type: structural_type_id(95),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        };
+        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[TerminalScalarValue::Boolean(choose_first)],
+            &[structural],
+        )
+        .expect("verified joined dynamic descriptor call starts");
+        let mut meter = TerminalFuelMeter::unbounded();
+        assert_eq!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                    value: IntegerValue::Signed(expected),
+                },
+            )),
+            "the selected predecessor must carry both its referent and private table",
+        );
+    }
+}
+
 fn assert_write_only_store_atomic(
     module: TerminalModule,
     opaque_identity: u64,
@@ -3495,6 +3538,177 @@ fn parameter_dynamic_scalar_call_module() -> TerminalModule {
         }],
         contract: empty_contract(contract_id(97)),
     });
+    module
+}
+
+/// One runtime descriptor parameter with two syntactic call predecessors.
+/// Each predecessor supplies a distinct source place and closed conformance;
+/// the callee consumes only the shared existential interface.
+fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
+    let mut module = parameter_dynamic_scalar_call_module();
+    let caller = machine_id(1);
+    let first_realization = machine_id(96);
+    let second_realization = machine_id(98);
+    let helper = machine_id(97);
+    let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+
+    let first_application = module.closed_conformance_applications[0].clone();
+    let mut second_application = first_application.clone();
+    second_application.declaration_identity = "test::ItemSatisfiesAlternateMeasure".into();
+    second_application.realization_callables[0].source_callable_identity =
+        "test::Item::alternate_measure#callable".into();
+    second_application.realization_callables[0].machine = second_realization;
+    second_application.rows[0].realization_identity = "test::Item::alternate_measure".into();
+    second_application.rows[0].realization_callable_identity =
+        Some("test::Item::alternate_measure#callable".into());
+    second_application.report_fingerprint =
+        closed_conformance_application_report_fingerprint(&second_application);
+    second_application.commitment = closed_conformance_application_commitment(&second_application);
+    module.closed_conformance_applications.push(second_application.clone());
+    module.closed_conformance_applications.sort_by(|left, right| {
+        (
+            left.owner,
+            &left.declaration_identity,
+            left.report_fingerprint,
+        )
+            .cmp(&(
+                right.owner,
+                &right.declaration_identity,
+                right.report_fingerprint,
+            ))
+    });
+
+    module.dynamic_dispatch.rebound_descriptors.clear();
+    module.dynamic_dispatch.selections[0]
+        .conformance_application_report_fingerprint = first_application.report_fingerprint;
+    module.dynamic_dispatch.selections[0].conformance_application_commitment =
+        first_application.commitment;
+    module.dynamic_dispatch.selections[1]
+        .conformance_application_report_fingerprint = second_application.report_fingerprint;
+    module.dynamic_dispatch.selections[1].conformance_application_commitment =
+        second_application.commitment;
+    module.dynamic_dispatch.arguments = vec![
+        TerminalDynamicDescriptorArgument {
+            owner: caller,
+            operation: operation_id(3),
+            parameter_ordinal: 0,
+            source: TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
+        },
+        TerminalDynamicDescriptorArgument {
+            owner: caller,
+            operation: operation_id(7),
+            parameter_ordinal: 0,
+            source: TerminalDynamicDescriptorSource::Selection { ordinal: 1 },
+        },
+    ];
+
+    let caller_machine = &mut module.machines[0];
+    caller_machine.parameters = vec![ValueDeclaration {
+        id: value_id(10),
+        scalar_type: ScalarType::Boolean,
+    }];
+    caller_machine.blocks = vec![
+        Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition: value_id(10),
+                when_true: SuccessorEdge {
+                    edge: edge_id(1),
+                    target: block_id(2),
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+                when_false: SuccessorEdge {
+                    edge: edge_id(2),
+                    target: block_id(3),
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+        },
+        Block {
+            id: block_id(2),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(3),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: value_id(2),
+                    scalar_type: integer,
+                }),
+                kind: OperationKind::CallStructuralScalar {
+                    callee: helper,
+                    arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::Return {
+                edge: edge_id(3),
+                value: value_id(2),
+                cleanup_actions: Vec::new(),
+            },
+        },
+        Block {
+            id: block_id(3),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(7),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: value_id(8),
+                    scalar_type: integer,
+                }),
+                kind: OperationKind::CallStructuralScalar {
+                    callee: helper,
+                    arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::Return {
+                edge: edge_id(4),
+                value: value_id(8),
+                cleanup_actions: Vec::new(),
+            },
+        },
+    ];
+
+    let mut second_machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == first_realization)
+        .expect("first realization machine")
+        .clone();
+    second_machine.id = second_realization;
+    second_machine.structural_parameters[0].place = place_id(98);
+    second_machine.structural_places[0].id = place_id(98);
+    second_machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(9),
+        scalar_type: integer,
+    });
+    second_machine.entry = block_id(98);
+    second_machine.blocks[0].id = block_id(98);
+    second_machine.blocks[0].operations[0].id = operation_id(6);
+    second_machine.blocks[0].operations[0].result =
+        OperationResult::Scalar(ValueDeclaration {
+            id: value_id(11),
+            scalar_type: integer,
+        });
+    second_machine.blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Signed(41),
+    };
+    second_machine.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(98),
+        value: value_id(11),
+        cleanup_actions: Vec::new(),
+    };
+    second_machine.contract = empty_contract(contract_id(98));
+    module.machines.push(second_machine);
     module
 }
 
