@@ -2228,17 +2228,17 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through twenty-third bounded represented-record levels are now live under
+  Third through twenty-fourth bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant. One bounded
-  recursive classifier and validator owns every admitted depth instead of twenty-one
+  recursive classifier and validator owns every admitted depth instead of twenty-two
   hand-unrolled implementations while preserving the same diagnostic order.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A twenty-fourth
+  storage, content, domain, provider, or establishment authority. A twenty-fifth
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -4223,7 +4223,7 @@ Remaining:
   reject. Proof-bundle v19 retains tag 12; the registered calculus is v16 and
   the Rust kernel v8, with the affine and cast checkers included in both
   trust-graph source sets. The first bounded producer family now uses the rule
-  for one to thirteen prior signed fixed affine definitions whose exact retained
+  for one to fourteen prior signed fixed affine definitions whose exact retained
   root bound maps directly to a canonical safe-divisor arm. Production
   enumerates shortest words first and advances only prefixes accepted by the
   affine witness checker; within each depth, semantic-axiom indices stay
@@ -4231,9 +4231,9 @@ Remaining:
   mapped conclusion, and accepted-premise custody. Missing root custody,
   incomplete, reversed, redirected, or stale words, wrong targets, and
   noncanonical mapped arms reject.
-  The thirteen-definition successor changes only that fixed producer-enumeration
+  The fourteen-definition successor changes only that fixed producer-enumeration
   ceiling. Proof vocabulary, codec, calculus, kernel identities, and logical
-  and fixed-fuel accounting remain unchanged: the thirteen source arithmetic
+  and fixed-fuel accounting remain unchanged: the fourteen source arithmetic
   operations retain their ordinary charges, while certificate replay adds no
   executable units. Root custody may now also use one exact prior landed
   literal or value-alias transport. A typed `root == literal`
@@ -4247,7 +4247,7 @@ Remaining:
   value endpoint. A missing bound, equality, or order leg, unsafe or mistyped
   literal, identity, non-value, disconnected, redirected, cross-carrier, or
   same-citation join rejects. Three-or-more-alias or three-or-more-leg root
-  reconstruction, words of fourteen or more definitions, joins, cast/shift
+  reconstruction, words of fifteen or more definitions, joins, cast/shift
   compositions, and correlated results
   remain on trusted reduction; neither complete exact row changes trust and
   `fully-derived false` remains. An exact mapped affine bound may also close to
@@ -4259,14 +4259,14 @@ Remaining:
   mistyped, redirected, or weaker bridge rejects, and no variable-endpoint or
   cited-fact search is added. Affine completion now lives in dedicated,
   producer-local `affine_custody` modules. Production alone owns the fixed
-  thirteen-definition witness frontier, exact mapped bound, and optional closed
+  fourteen-definition witness frontier, exact mapped bound, and optional closed
   relaxation; verification and the kernel independently replay the exact
   supplied `IntegerAffineBound` witness without a search frontier. Fixed affine-
   witness candidate enumeration now lives in producer-local
   `affine_custody/frontier` modules. Production enumerates shortest definition
   words first, preserves source-ordered semantic-axiom indices, advances only
   prefixes independently accepted by the affine witness checker, and stops at
-  the explicit thirteen-definition ceiling. Candidate pruning grants no proof
+  the explicit fourteen-definition ceiling. Candidate pruning grants no proof
   authority: mapped-bound construction, optional closed
   relaxation, and final proof checking remain in producer affine custody and
   the proof kernel. Witness order, rejection behavior, proof shapes, and the
@@ -4276,7 +4276,7 @@ Remaining:
   precedence, and asks the proof kernel to replay the exact accumulated
   definition word before that prefix advances. Verification performs no
   candidate search. Fixed-depth frontier expansion, proof shape, rejection, and
-  the thirteen-definition boundary remain unchanged.
+  the fourteen-definition boundary remain unchanged.
   Ordered affine-witness candidates now live in paired, side-local
   `affine_custody/candidates` modules. Producer and reconstruction independently
   require an exact `LessOrEqual` goal, enumerate left-before-right Value targets
@@ -10725,7 +10725,8 @@ Remaining N6/N8 work:
   concluding the caller application. Source, codec, verifier, optimizer
   identity, and tamper canaries preserve the same four-unit runtime. The next
   bounded rung now permits one, two, three, four, five, six, seven, eight,
-  nine, ten, eleven, twelve, thirteen, or fourteen distinct bound whole-result terms to be
+  nine, ten, eleven, twelve, thirteen, fourteen, or fifteen distinct bound
+  whole-result terms to be
   used once each: the matching payloadless arm may pass them as dense ordered
   named `requires` inputs of one direct tail state whose sole ordinary argument
   is the saved result and whose body returns that argument unchanged. Terminal
@@ -10735,11 +10736,11 @@ Remaining N6/N8 work:
   terms, and caller/target result places. Codec format 42 / vocabulary 45 and
   the verifier reject omitted, duplicated, reordered, redirected, interface-
   drifted, or non-identity uses while fixed fuel and interpretation retain the
-  existing four-unit runtime. The length-thirteen source, canonical codec,
+  existing four-unit runtime. The length-fifteen source, canonical codec,
   independent verifier, proof admission, fixed-fuel, and interpreter path retain
-  fourteen dense distinct rows, while an otherwise fully rejoined fifteenth
+  fifteen dense distinct rows, while an otherwise fully rejoined sixteenth
   row fails the bounded cardinality gate. Payload projections, multiple or
-  partial-result substitutions, fifteen-or-more evidence arguments, repeated
+  partial-result substitutions, sixteen-or-more evidence arguments, repeated
   term use, later invalidation, erased proof-output linkage, wider structural
   calls, and tagged-sum execution remain fail-closed.
 

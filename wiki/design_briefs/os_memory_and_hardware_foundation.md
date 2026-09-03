@@ -744,11 +744,11 @@ missing here. Exactly one further represented acyclic, non-generic, case-free
 record with a nonzero canonical fixed representation may occur on that spine;
 both enclosing field identities remain in every direct erased-leaf path, and
 the root plan decision still diagnoses represented siblings. Third through
-twenty-third represented record levels are now admitted under the same
+twenty-fourth represented record levels are now admitted under the same
 restrictions, with every enclosing identity retained and bounded
 complete-descendant replay so unsupported deeper custody cannot disappear. One
 bounded recursive traversal owns those levels instead of a depth-specific
-implementation. A twenty-fourth represented record level, zero-layout wrappers,
+implementation. A twenty-fifth represented record level, zero-layout wrappers,
 arrays, generic, case-dependent, and planless agreement remain later work.
 
 Retirement is reconstructed from the successful disposition row. Borrowed
