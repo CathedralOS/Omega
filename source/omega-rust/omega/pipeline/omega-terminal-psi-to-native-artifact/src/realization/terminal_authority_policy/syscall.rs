@@ -5,19 +5,20 @@ use omega_effects::{
     TerminalMechanismIdentity,
 };
 use psi_core::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
-use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
+use psi_terminal::{StructuralAccess, StructuralMultiplicity};
 use sha2::{Digest, Sha256};
 
 const CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN: &[u8] =
-    b"omega.checked-syscall-argument-contract.conservative-unconstrained.v1\0";
+    b"omega.checked-syscall-argument-contract.conservative-unqualified.v1\0";
 
 /// Derive the first checked syscall argument contract from one verified
 /// target-neutral boundary signature.
 ///
 /// This rung is deliberately conservative: it commits the complete admitted
-/// parameter carrier/access/qualification contract but treats every runtime
-/// value within that contract as reachable. Constants, ranges, descriptor
-/// provenance, and other narrowing proofs require later distinct identities.
+/// parameter carrier/access contract but treats every runtime value within
+/// that contract as reachable. Structural-domain commitments, constants,
+/// ranges, descriptor provenance, and other narrowing proofs require later
+/// distinct identities.
 pub(crate) fn conservative_syscall_terminal_mechanism(
     target: omega_target::TargetProfile,
     number: i64,
@@ -48,6 +49,12 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
     };
     if declaration.identity.is_empty() {
         return Err("direct syscall boundary has an empty checked identity".to_owned());
+    }
+    if !declaration.requires.is_empty() {
+        return Err(
+            "direct syscall argument-contract checking does not yet support boundary structural-domain requirements"
+                .to_owned(),
+        );
     }
 
     let calls = plan
@@ -92,6 +99,18 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
     }
     push_count(&mut digest, declaration.structural_parameters.len())?;
     for (ordinal, parameter) in declaration.structural_parameters.iter().enumerate() {
+        if !parameter.qualifications.is_empty() {
+            return Err(
+                "direct syscall argument-contract checking does not yet support root structural qualifications"
+                    .to_owned(),
+            );
+        }
+        if !parameter.projected_qualifications.is_empty() {
+            return Err(
+                "direct syscall argument-contract checking does not yet support projected structural qualifications"
+                    .to_owned(),
+            );
+        }
         if usize::try_from(parameter.position).ok() != Some(ordinal) {
             return Err(
                 "direct syscall structural parameter positions are not canonical".to_owned(),
@@ -117,32 +136,6 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
         digest.update([multiplicity_tag(parameter.multiplicity)]);
         digest.update([access_tag(parameter.access)]);
         push_bytes(&mut digest, carrier.identity.as_bytes())?;
-        push_count(&mut digest, parameter.qualifications.len())?;
-        for qualification in &parameter.qualifications {
-            digest.update(qualification.get().to_be_bytes());
-        }
-        push_count(&mut digest, parameter.projected_qualifications.len())?;
-        for qualification in &parameter.projected_qualifications {
-            push_count(&mut digest, qualification.path.len())?;
-            for segment in &qualification.path {
-                match segment {
-                    StructuralPathSegment::Field(identity) => {
-                        digest.update([0]);
-                        push_bytes(&mut digest, identity.as_bytes())?;
-                    }
-                    StructuralPathSegment::FixedIndex(index) => {
-                        digest.update([1]);
-                        digest.update(index.to_be_bytes());
-                    }
-                }
-            }
-            digest.update(qualification.domain.get().to_be_bytes());
-        }
-    }
-    push_count(&mut digest, declaration.requires.len())?;
-    for requirement in &declaration.requires {
-        digest.update(requirement.argument_index.to_be_bytes());
-        digest.update(requirement.domain.get().to_be_bytes());
     }
     let checked_argument_contract =
         CheckedSyscallArgumentContractIdentity::from_digest(digest.finalize().into());

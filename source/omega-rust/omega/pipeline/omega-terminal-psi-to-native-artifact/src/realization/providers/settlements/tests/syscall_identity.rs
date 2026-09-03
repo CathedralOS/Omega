@@ -71,6 +71,44 @@ fn abstract_plan() -> omega_abstract_operations::AbstractOperationPlan {
     }
 }
 
+fn add_unqualified_structural_parameter(
+    plan: &mut omega_abstract_operations::AbstractOperationPlan,
+) {
+    let structural_type = psi_core::StructuralTypeId::new(851).unwrap();
+    let place = psi_core::PlaceId::new(851).unwrap();
+    plan.structural_types
+        .push(psi_terminal::StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "omega::test::Payload".into(),
+            shape: psi_terminal::StructuralTypeShape::PrimitiveScalar(
+                psi_core::ScalarType::Boolean,
+            ),
+        });
+    plan.boundary_machines[0].structural_parameters =
+        vec![psi_terminal::StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+            access: psi_terminal::StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }];
+    let omega_abstract_operations::AbstractOperation::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &mut plan.functions[0].operations[0]
+    else {
+        panic!("fixture retains its boundary call")
+    };
+    structural_arguments.push(psi_terminal::StructuralArgument {
+        place,
+        path: Vec::new(),
+        access: psi_terminal::StructuralAccess::SharedBorrow,
+    });
+}
+
 fn external(
     profile: omega_target::TargetProfile,
     number: i64,
@@ -127,6 +165,69 @@ fn conservative_contract_commits_scalar_carriers_and_rejects_occurrence_drift() 
         )
         .expect("matched boolean signature has an exact conservative contract");
     assert_ne!(empty, boolean);
+}
+
+#[test]
+fn conservative_contract_rejects_root_structural_qualifications_without_stable_domains() {
+    let profile = omega_target::TargetProfile::LinuxX64;
+    let mut plan = abstract_plan();
+    add_unqualified_structural_parameter(&mut plan);
+    plan.boundary_machines[0].structural_parameters[0]
+        .qualifications
+        .push(psi_core::StructuralDomainId::new(851).unwrap());
+    let boundary = plan.boundary_machines[0].id;
+
+    assert!(
+        crate::realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+            profile, 1, &plan, boundary,
+        )
+        .expect_err("module-local root qualification IDs cannot enter stable policy identity")
+        .contains("does not yet support root structural qualifications")
+    );
+}
+
+#[test]
+fn conservative_contract_rejects_projected_qualifications_without_stable_domains() {
+    let profile = omega_target::TargetProfile::LinuxX64;
+    let mut plan = abstract_plan();
+    add_unqualified_structural_parameter(&mut plan);
+    plan.boundary_machines[0].structural_parameters[0]
+        .projected_qualifications
+        .push(psi_terminal::StructuralPathQualification {
+            path: vec![psi_terminal::StructuralPathSegment::Field("value".into())],
+            domain: psi_core::StructuralDomainId::new(851).unwrap(),
+        });
+    let boundary = plan.boundary_machines[0].id;
+
+    assert!(
+        crate::realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+            profile, 1, &plan, boundary,
+        )
+        .expect_err("module-local projected qualification IDs cannot enter stable policy identity")
+        .contains("does not yet support projected structural qualifications")
+    );
+}
+
+#[test]
+fn conservative_contract_rejects_boundary_requirements_without_stable_domains() {
+    let profile = omega_target::TargetProfile::LinuxX64;
+    let mut plan = abstract_plan();
+    add_unqualified_structural_parameter(&mut plan);
+    plan.boundary_machines[0]
+        .requires
+        .push(psi_terminal::StructuralDomainRequirement {
+            argument_index: 0,
+            domain: psi_core::StructuralDomainId::new(851).unwrap(),
+        });
+    let boundary = plan.boundary_machines[0].id;
+
+    assert!(
+        crate::realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+            profile, 1, &plan, boundary,
+        )
+        .expect_err("module-local boundary requirement IDs cannot enter stable policy identity")
+        .contains("does not yet support boundary structural-domain requirements")
+    );
 }
 
 #[test]
