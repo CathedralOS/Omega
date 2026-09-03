@@ -734,6 +734,40 @@ const UNIT_AFFINE_TWENTY_FIVE_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const UNIT_AFFINE_TWENTY_SIX_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 26];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+        values[6] = Empty {};
+        values[7] = Empty {};
+        values[8] = Empty {};
+        values[9] = Empty {};
+        values[10] = Empty {};
+        values[11] = Empty {};
+        values[12] = Empty {};
+        values[13] = Empty {};
+        values[14] = Empty {};
+        values[15] = Empty {};
+        values[16] = Empty {};
+        values[17] = Empty {};
+        values[18] = Empty {};
+        values[19] = Empty {};
+        values[20] = Empty {};
+        values[21] = Empty {};
+        values[22] = Empty {};
+        values[23] = Empty {};
+        values[24] = Empty {};
+    }
+"#;
+
 #[test]
 fn source_unit_retains_ordered_empty_affine_local_cleanup() {
     let tokens = Lexer::new(UNIT_AFFINE_LOCAL_SOURCE)
@@ -1099,6 +1133,11 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             24_usize,
             25_u64,
         ),
+        (
+            UNIT_AFFINE_TWENTY_SIX_CONSTRUCTION_PREFIX_SOURCE,
+            25_usize,
+            26_u64,
+        ),
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -1242,7 +1281,7 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
         *length = root_length + 1;
         assert!(psi_terminal_verifier::validate_module_representation(&wider_root_length).is_err());
 
-        if root_length == 25 {
+        if root_length == 26 {
             let mut fenced_successor = lowered.semantic_module.clone();
             let machine = &mut fenced_successor.machines[0];
             let mut successor_place = *machine
@@ -1267,8 +1306,8 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             else {
                 unreachable!()
             };
-            *declaration_ordinal = 24;
-            construction.index = 24;
+            *declaration_ordinal = 25;
+            construction.index = 25;
 
             let block = &mut machine.blocks[0];
             let mut successor_operation = block
@@ -1313,7 +1352,7 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             else {
                 unreachable!()
             };
-            *length = 26;
+            *length = 27;
             assert!(
                 psi_terminal_verifier::validate_module_representation(&fenced_successor).is_err()
             );

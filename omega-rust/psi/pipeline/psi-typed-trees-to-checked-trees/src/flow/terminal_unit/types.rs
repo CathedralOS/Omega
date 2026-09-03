@@ -1203,7 +1203,7 @@ impl<'program> ShapeCollector<'program> {
         }
         let TypeReferenceNode::FixedArray {
             element_type,
-            length: psi_typed_trees::types::FixedArrayLength::Literal(length @ (2..=25)),
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length @ (2..=26)),
         } = self.program.type_reference_table.type_reference(resolved)
         else {
             return self.add_type(type_reference, binders, &[]);
