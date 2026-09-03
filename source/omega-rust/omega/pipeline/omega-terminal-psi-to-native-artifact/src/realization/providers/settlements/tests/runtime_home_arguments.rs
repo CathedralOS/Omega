@@ -185,27 +185,27 @@ fn assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(
         &function.bytes[argument.code_offset..argument.code_offset + argument.byte_count];
     match (target.architecture, argument_count) {
         (omega_target::Architecture::X86_64, 1) => {
-            assert_eq!(argument_bytes, &[0x48, 0x8b, 0x7c, 0x24, 0x08]);
+            assert_eq!(argument_bytes, &[0x40, 0x8b, 0x7c, 0x24, 0x08]);
         }
         (omega_target::Architecture::Aarch64, 1) => {
-            assert_eq!(argument_bytes, &0xf940_03e0_u32.to_le_bytes());
+            assert_eq!(argument_bytes, &0xb940_03e0_u32.to_le_bytes());
         }
         (omega_target::Architecture::X86_64, 8) => {
-            assert_eq!(argument_bytes, &[0x48, 0x8b, 0x7c, 0x24, 0x18]);
+            assert_eq!(argument_bytes, &[0x40, 0x8b, 0x7c, 0x24, 0x18]);
             let last_bytes = &function.bytes
                 [last_argument.code_offset..last_argument.code_offset + last_argument.byte_count];
             assert_eq!(
                 last_bytes,
-                &[0x4c, 0x8b, 0x5c, 0x24, 0x18, 0x4c, 0x89, 0x5c, 0x24, 0x08],
+                &[0x44, 0x8b, 0x5c, 0x24, 0x18, 0x4c, 0x89, 0x5c, 0x24, 0x08],
             );
         }
         (omega_target::Architecture::Aarch64, 10) => {
-            assert_eq!(argument_bytes, &0xf940_0be0_u32.to_le_bytes());
+            assert_eq!(argument_bytes, &0xb940_13e0_u32.to_le_bytes());
             let last_bytes = &function.bytes
                 [last_argument.code_offset..last_argument.code_offset + last_argument.byte_count];
             assert_eq!(
                 last_bytes,
-                [0xf940_0be9_u32, 0xf900_07e9_u32]
+                [0xb940_13e9_u32, 0xf900_07e9_u32]
                     .into_iter()
                     .flat_map(u32::to_le_bytes)
                     .collect::<Vec<_>>(),
