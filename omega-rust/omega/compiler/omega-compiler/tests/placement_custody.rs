@@ -921,6 +921,32 @@ fn depth_twenty_three_source_with(
     )
 }
 
+fn depth_twenty_four_source_with(
+    header_custody_fields: &str,
+    chapter_house_custody_fields: &str,
+    packet_custody_fields: &str,
+) -> String {
+    depth_twenty_three_source_with(
+        header_custody_fields,
+        "    cloister: CloisterCustody;",
+        "    frame: AbbeySeatCustody;",
+    )
+    .replacen(
+        "pub data Packet {\n    frame: AbbeySeat;\n    sibling: Plain;\n}",
+        "pub data ChapterHouse {\n    abbey_seat: AbbeySeat;\n    marker: u32;\n}\npub data Packet {\n    frame: ChapterHouse;\n    sibling: Plain;\n}",
+        1,
+    )
+    .replacen("offset: 92", "offset: 96", 1)
+    .replacen("size_fixed: 96", "size_fixed: 100", 1)
+    .replacen(
+        "data PacketCustody {\n    frame: AbbeySeatCustody;\n}",
+        &format!(
+            "data ChapterHouseCustody {{\n{chapter_house_custody_fields}\n}}\ndata PacketCustody {{\n{packet_custody_fields}\n}}"
+        ),
+        1,
+    )
+}
+
 #[test]
 fn source_placement_custody_accepts_the_exact_erased_field_projection() {
     let main = write_program("exact", &source("    authority: Evidence;"));
@@ -1292,7 +1318,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_two_wrapper() {
             "Native::plan",
             "Packet.envelope",
             "represented at offset 0 with width 4",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -1514,7 +1540,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_three_wrapper() {
             "Native::plan",
             "Packet.frame",
             "represented at offset 0 with width 8",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -1631,7 +1657,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_four_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -1782,7 +1808,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_five_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -1942,7 +1968,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_six_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -2120,7 +2146,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_seven_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -2351,7 +2377,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_eight_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -2594,7 +2620,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_nine_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -2849,7 +2875,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_ten_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -2996,7 +3022,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_eleven_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -3135,7 +3161,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twelve_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -3274,7 +3300,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_thirteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -3413,7 +3439,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_fourteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -3552,7 +3578,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_fifteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -3691,7 +3717,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_sixteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -3831,7 +3857,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_seventeen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -3970,7 +3996,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_eighteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -4109,7 +4135,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_nineteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -4248,7 +4274,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twenty_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -4388,7 +4414,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twenty_one_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -4531,7 +4557,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twenty_two_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -4674,7 +4700,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twenty_three_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -4706,33 +4732,176 @@ fn source_placement_custody_rejects_a_depth_twenty_three_back_edge() {
 }
 
 #[test]
-fn source_placement_custody_keeps_a_twenty_fourth_record_level_fenced() {
-    let source = depth_twenty_three_source_with(
+fn source_placement_custody_accepts_twenty_four_nested_projection_record_paths() {
+    let source = depth_twenty_four_source_with(
         "    authority: Evidence;",
-        "    cloister: CloisterCustody;",
-        "    frame: AbbeySeatCustody;",
+        "    abbey_seat: AbbeySeatCustody;",
+        "    frame: ChapterHouseCustody;",
+    );
+    let main = write_program("depth-twenty-four-exact", &source);
+    compile_to_checked(&main, None)
+        .expect("exact depth-twenty-four placement custody should compile");
+}
+
+#[test]
+fn source_placement_custody_rejects_depth_twenty_four_projection_drift() {
+    const LEAF_PATH: &str = "Packet.frame.abbey_seat.cloister.priory.monastery.abbey.cathedral.basilica.chapel.tabernacle.sanctum.shrine.reliquary.casket.coffer.lockbox.strongbox.vault.chest.item.boxed.frame.envelope.header.authority";
+    for (name, header, chapter_house, packet, expected) in [
+        (
+            "depth-twenty-four-missing-leaf",
+            "",
+            "    abbey_seat: AbbeySeatCustody;",
+            "    frame: ChapterHouseCustody;",
+            vec![LEAF_PATH, "omits canonical field path"],
+        ),
+        (
+            "depth-twenty-four-missing-inner-projection",
+            "    authority: Evidence;",
+            "",
+            "    frame: ChapterHouseCustody;",
+            vec![LEAF_PATH, "omits canonical field path"],
+        ),
+        (
+            "depth-twenty-four-represented-leaf",
+            "    authority: Evidence;\n    bits: u32;",
+            "    abbey_seat: AbbeySeatCustody;",
+            "    frame: ChapterHouseCustody;",
+            vec![
+                "Packet.frame.abbey_seat.cloister.priory.monastery.abbey.cathedral.basilica.chapel.tabernacle.sanctum.shrine.reliquary.casket.coffer.lockbox.strongbox.vault.chest.item.boxed.frame.envelope.header.bits",
+                "must be absent",
+            ],
+        ),
+        (
+            "depth-twenty-four-wrong-type",
+            "    authority: OtherEvidence;",
+            "    abbey_seat: AbbeySeatCustody;",
+            "    frame: ChapterHouseCustody;",
+            vec!["exact type", "OtherEvidence"],
+        ),
+        (
+            "depth-twenty-four-wrong-multiplicity",
+            "    authority: CopyEvidence;",
+            "    abbey_seat: AbbeySeatCustody;",
+            "    frame: ChapterHouseCustody;",
+            vec!["multiplicity Affine", "multiplicity Unrestricted"],
+        ),
+    ] {
+        let main = write_program(
+            name,
+            &depth_twenty_four_source_with(header, chapter_house, packet),
+        );
+        let diagnostics = compile_to_checked(&main, None)
+            .expect_err("depth-twenty-four custody drift must fail closed");
+        assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
+    }
+}
+
+#[test]
+fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_twenty_four() {
+    const LEAF_PATH: &str = "Packet.frame.abbey_seat.cloister.priory.monastery.abbey.cathedral.basilica.chapel.tabernacle.sanctum.shrine.reliquary.casket.coffer.lockbox.strongbox.vault.chest.item.boxed.frame.envelope.header.authority";
+    let source = depth_twenty_four_source_with(
+        "    authority: Evidence;",
+        "    sibling: AbbeySeatCustody;",
+        "    frame: ChapterHouseCustody;",
+    );
+    let main = write_program("depth-twenty-four-cross-sibling", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a cross-sibling depth-twenty-four projection must fail closed");
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(messages.len(), 2, "unexpected diagnostics: {messages:#?}");
+    assert!(
+        messages[0].contains(LEAF_PATH) && messages[0].contains("omits canonical field path"),
+        "the missing depth-first leaf must be diagnosed first: {messages:#?}"
+    );
+    assert!(
+        messages[1].contains("Packet.frame.sibling")
+            && messages[1].contains("extra canonical field path"),
+        "the extra sibling must be diagnosed after the missing subtree: {messages:#?}"
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_zero_layout_depth_twenty_four_wrapper() {
+    let source = depth_twenty_four_source_with(
+        "    authority: Evidence;",
+        "    abbey_seat: AbbeySeatCustody;",
+        "    frame: ChapterHouseCustody;",
     )
     .replacen(
-        "pub data Packet {\n    frame: AbbeySeat;\n    sibling: Plain;\n}",
-        "pub data ChapterHouse {\n    abbey_seat: AbbeySeat;\n    marker: u32;\n}\npub data Packet {\n    frame: ChapterHouse;\n    sibling: Plain;\n}",
-        1,
-    )
-    .replacen("offset: 92", "offset: 96", 1)
-    .replacen("size_fixed: 96", "size_fixed: 100", 1)
-    .replacen(
-        "data PacketCustody {\n    frame: AbbeySeatCustody;\n}",
-        "data ChapterHouseCustody {\n    abbey_seat: AbbeySeatCustody;\n}\ndata PacketCustody {\n    frame: ChapterHouseCustody;\n}",
+        "    bits: u32;\n    authority [erased]: Evidence;",
+        "    phantom [erased]: OtherEvidence;\n    authority [erased]: Evidence;",
         1,
     );
-    let main = write_program("depth-twenty-four-fenced", &source);
+    let main = write_program("depth-twenty-four-zero-wrapper", &source);
     let diagnostics = compile_to_checked(&main, None)
-        .expect_err("twenty-fourth-level custody must remain fenced");
+        .expect_err("a zero-layout twenty-fourth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact twenty-three-record",
+            "outside the exact twenty-four-record",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_depth_twenty_four_back_edge() {
+    let source = depth_twenty_four_source_with(
+        "    authority: Evidence;",
+        "    abbey_seat: AbbeySeatCustody;",
+        "    frame: ChapterHouseCustody;",
+    )
+    .replacen(
+        "pub data Envelope {\n    header: Header;",
+        "pub data Envelope {\n    header: ChapterHouse;",
+        1,
+    );
+    let main = write_program("depth-twenty-four-back-edge", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a twenty-fourth-level back-edge must remain outside the custody cohort");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Placed<Native,Packet>",
+            "Packet",
+            "field `frame`",
+            "neither a supported primitive",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_keeps_a_twenty_fifth_record_level_fenced() {
+    let source = depth_twenty_four_source_with(
+        "    authority: Evidence;",
+        "    abbey_seat: AbbeySeatCustody;",
+        "    frame: ChapterHouseCustody;",
+    )
+    .replacen(
+        "pub data Packet {\n    frame: ChapterHouse;\n    sibling: Plain;\n}",
+        "pub data Scriptorium {\n    chapter_house: ChapterHouse;\n    marker: u32;\n}\npub data Packet {\n    frame: Scriptorium;\n    sibling: Plain;\n}",
+        1,
+    )
+    .replacen("offset: 96", "offset: 100", 1)
+    .replacen("size_fixed: 100", "size_fixed: 104", 1)
+    .replacen(
+        "data PacketCustody {\n    frame: ChapterHouseCustody;\n}",
+        "data ScriptoriumCustody {\n    chapter_house: ChapterHouseCustody;\n}\ndata PacketCustody {\n    frame: ScriptoriumCustody;\n}",
+        1,
+    );
+    let main = write_program("depth-twenty-five-fenced", &source);
+    let diagnostics =
+        compile_to_checked(&main, None).expect_err("twenty-fifth-level custody must remain fenced");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.frame",
+            "outside the exact twenty-four-record",
         ],
     );
 }
@@ -4749,7 +4918,7 @@ fn source_placement_custody_keeps_array_and_case_spines_fenced_at_depth_three() 
         (
             "depth-three-array-fenced",
             baseline.replacen("    header: Header;", "    header: [Header; 1];", 1),
-            ["Native::plan", "outside the exact twenty-three-record"],
+            ["Native::plan", "outside the exact twenty-four-record"],
         ),
         (
             "depth-three-case-fenced",
@@ -4768,7 +4937,7 @@ fn source_placement_custody_keeps_array_and_case_spines_fenced_at_depth_three() 
             baseline
                 .replacen("pub data Header {", "pub data Header<T> {", 1)
                 .replacen("    header: Header;", "    header: Header<u32>;", 1),
-            ["Native::plan", "outside the exact twenty-three-record"],
+            ["Native::plan", "outside the exact twenty-four-record"],
         ),
     ];
     for (name, source, expected) in cases {
