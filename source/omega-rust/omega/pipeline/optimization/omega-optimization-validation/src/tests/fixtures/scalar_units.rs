@@ -450,6 +450,7 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
                     AbstractOperation::CallUnit {
                         psi_operation: id(338, OperationId::new),
                         callee,
+                        arguments: Vec::new(),
                         structural_arguments: vec![psi_terminal::StructuralArgument {
                             place: caller_place,
                             path: Vec::new(),

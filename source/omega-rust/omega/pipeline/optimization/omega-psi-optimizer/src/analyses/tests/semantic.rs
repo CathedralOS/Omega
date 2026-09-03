@@ -15,6 +15,7 @@ fn function_effects_propagate_services_and_crashes_through_calls() {
     let mut call = node(O::CallUnit {
         psi_operation: call_support,
         callee: callee.machine,
+        arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),

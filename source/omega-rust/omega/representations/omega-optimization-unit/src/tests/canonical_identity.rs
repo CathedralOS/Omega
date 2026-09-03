@@ -112,6 +112,33 @@ fn call_identity_binds_requirement_and_crash_rosters_independently() {
 }
 
 #[test]
+fn unit_call_identity_binds_scalar_arguments() {
+    let mut baseline =
+        reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    baseline.functions[0].blocks[0].nodes[0].operation = AbstractOperation::CallUnit {
+        psi_operation: id(1, OperationId::new),
+        callee: id(2, MachineId::new),
+        arguments: vec![id(3, ValueId::new)],
+        structural_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    baseline.identity = recompute_psi_optimization_unit_identity(&baseline);
+
+    let mut changed = baseline.clone();
+    let AbstractOperation::CallUnit { arguments, .. } =
+        &mut changed.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    arguments[0] = id(4, ValueId::new);
+    changed.identity = recompute_psi_optimization_unit_identity(&changed);
+    assert_ne!(baseline.identity, changed.identity);
+}
+
+#[test]
 fn canonical_operation_identity_bytes_are_stable() {
     let scalar = reconstruct_psi_optimization_unit_seed(
         &plan(),
@@ -126,16 +153,16 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            47, 43, 224, 76, 84, 155, 0, 161, 146, 72, 233, 176, 158, 214, 100, 28, 230, 120, 46,
-            100, 138, 42, 195, 210, 211, 233, 133, 60, 21, 98, 184, 114,
+            48, 7, 24, 243, 148, 115, 9, 218, 202, 253, 248, 63, 227, 198, 2, 153, 68, 67, 7, 25,
+            28, 233, 62, 130, 207, 156, 111, 176, 189, 83, 130, 223,
         ],
         "integer-constant and scalar-return operation tags and fields are stable",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            135, 73, 71, 100, 235, 34, 180, 28, 216, 110, 208, 46, 38, 82, 114, 66, 121, 180, 169,
-            53, 73, 219, 99, 221, 34, 165, 169, 19, 164, 228, 39, 154,
+            108, 102, 228, 146, 102, 84, 135, 100, 90, 72, 132, 146, 170, 164, 233, 220, 255, 24,
+            70, 56, 78, 101, 94, 196, 59, 64, 8, 187, 111, 232, 98, 91,
         ],
         "write-only structural storage and unit-return operation tags and fields are stable",
     );

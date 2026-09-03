@@ -494,6 +494,7 @@ fn internal_call_edges_are_part_of_the_reviewed_closure() {
         AbstractOperation::CallUnit {
             psi_operation: psi_core::OperationId::new(1).unwrap(),
             callee: MachineId::new(2).unwrap(),
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),

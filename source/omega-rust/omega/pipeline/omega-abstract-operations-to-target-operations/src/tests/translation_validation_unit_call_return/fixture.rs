@@ -58,6 +58,7 @@ pub(super) fn base_plan() -> AbstractOperationPlan {
                     AbstractOperation::CallUnit {
                         psi_operation: call_operation(),
                         callee: callee(),
+                        arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: vec![requirement()],

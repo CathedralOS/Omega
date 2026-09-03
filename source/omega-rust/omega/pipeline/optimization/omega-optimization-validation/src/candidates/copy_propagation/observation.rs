@@ -103,7 +103,9 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
             replace(&mut value.value)
         }
-        O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => {
+        O::Call { arguments, .. }
+        | O::CallUnit { arguments, .. }
+        | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
                 replace(argument);
             }
@@ -192,7 +194,6 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
-        | O::CallUnit { .. }
         | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }

@@ -25,12 +25,14 @@ pub(in crate::validation) fn is_candidate(function: &AbstractFunction) -> bool {
             function.operations.as_slice(),
             [
                 AbstractOperation::CallUnit {
+                    arguments,
                     structural_arguments,
                     claim_transfers,
                     ..
                 },
                 AbstractOperation::ReturnUnit { cleanup_actions, .. },
-            ] if structural_arguments.is_empty()
+            ] if arguments.is_empty()
+                && structural_arguments.is_empty()
                 && claim_transfers.is_empty()
                 && cleanup_actions.is_empty()
         )
@@ -69,6 +71,7 @@ pub(crate) fn validate(
         AbstractOperation::CallUnit {
             psi_operation,
             callee,
+            arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -82,6 +85,9 @@ pub(crate) fn validate(
     else {
         return Err(StraightLineUnitCallReturnTranslationError::SourceOperationRoster);
     };
+    if !arguments.is_empty() {
+        return Err(StraightLineUnitCallReturnTranslationError::SourceParameters);
+    }
     if !structural_arguments.is_empty() {
         return Err(StraightLineUnitCallReturnTranslationError::SourceStructuralArguments);
     }

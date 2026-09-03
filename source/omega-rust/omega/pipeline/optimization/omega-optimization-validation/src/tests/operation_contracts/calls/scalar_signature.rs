@@ -1,10 +1,13 @@
 //! Scalar internal and boundary call signature corruption rejection.
 
 use crate::tests::{
-    refresh_identity, refresh_node_derivatives, scalar_boundary_call_unit, scalar_call_unit,
+    id, refresh_identity, refresh_node_derivatives, scalar_boundary_call_unit, scalar_call_unit,
+    structural_call_unit,
 };
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use omega_abstract_operations::AbstractOperation;
+use omega_optimization_unit::{ValueDefinition, ValueDefinitionSite};
+use psi_core::{IntegerSign, IntegerType, ScalarType, ValueId};
 
 #[test]
 fn rejects_self_consistent_call_signature_corruption() {
@@ -56,5 +59,44 @@ fn rejects_self_consistent_call_signature_corruption() {
     assert!(matches!(
         validate_psi_optimization_unit(&duplicate_boundary),
         Err(OptimizationUnitValidationError::DuplicateBoundaryMachine(_))
+    ));
+}
+
+#[test]
+fn unit_call_scalar_arguments_match_the_callee_signature() {
+    let mut unit = structural_call_unit();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let caller_value = id(341, ValueId::new);
+    let callee_value = id(342, ValueId::new);
+    unit.functions[0].parameters.push(ValueDefinition {
+        value: caller_value,
+        scalar_type,
+        site: ValueDefinitionSite::FunctionParameter(0),
+    });
+    unit.functions[1].parameters.push(ValueDefinition {
+        value: callee_value,
+        scalar_type,
+        site: ValueDefinitionSite::FunctionParameter(0),
+    });
+    let AbstractOperation::CallUnit { arguments, .. } =
+        &mut unit.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("fixture begins with a Unit call")
+    };
+    arguments.push(caller_value);
+    refresh_node_derivatives(&mut unit, 0, 0, 0);
+    validate_psi_optimization_unit(&unit)
+        .expect("Unit call scalar argument matches its callee parameter");
+
+    let AbstractOperation::CallUnit { arguments, .. } =
+        &mut unit.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    arguments.clear();
+    refresh_node_derivatives(&mut unit, 0, 0, 0);
+    assert!(matches!(
+        validate_psi_optimization_unit(&unit),
+        Err(OptimizationUnitValidationError::ScalarOperationContractMismatch { node: 0, .. })
     ));
 }

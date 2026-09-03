@@ -281,12 +281,17 @@ pub(crate) fn operation_scalar_types_match(
                     .zip(&callee.parameters)
                     .all(|(argument, parameter)| scalar(*argument) == Some(parameter.scalar_type))
         }),
-        O::CallUnit { callee, .. } => functions.get(callee).is_some_and(|callee| {
-            callee.parameters.is_empty()
-                && matches!(
-                    callee.result,
-                    omega_abstract_operations::AbstractFunctionResult::Unit
-                )
+        O::CallUnit {
+            callee, arguments, ..
+        } => functions.get(callee).is_some_and(|callee| {
+            matches!(
+                callee.result,
+                omega_abstract_operations::AbstractFunctionResult::Unit
+            ) && arguments.len() == callee.parameters.len()
+                && arguments
+                    .iter()
+                    .zip(&callee.parameters)
+                    .all(|(argument, parameter)| scalar(*argument) == Some(parameter.scalar_type))
         }),
         O::CallUnitWithDynamicArguments {
             psi_operation,

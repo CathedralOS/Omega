@@ -20,6 +20,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         O::CallUnit {
             psi_operation,
             callee,
+            arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -28,6 +29,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(3);
             bytes.id(*psi_operation);
             bytes.id(*callee);
+            encode_ids(bytes, arguments);
             bytes.slice(structural_arguments, encode_structural_argument);
             bytes.slice(claim_transfers, |bytes, transfer| {
                 bytes.id(transfer.claim);

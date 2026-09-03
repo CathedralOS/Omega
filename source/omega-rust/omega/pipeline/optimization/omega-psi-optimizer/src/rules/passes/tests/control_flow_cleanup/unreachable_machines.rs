@@ -82,6 +82,7 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
     unit.functions[0].blocks[0].nodes[0].operation = O::CallUnit {
         psi_operation: OperationId::new(9_001).unwrap(),
         callee: MachineId::new(99).unwrap(),
+        arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
@@ -119,6 +120,7 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
     unit.functions[5].blocks[0].nodes[0].operation = O::CallUnit {
         psi_operation: OperationId::new(9_007).unwrap(),
         callee: MachineId::new(104).unwrap(),
+        arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
@@ -127,6 +129,7 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
     unit.functions[6].blocks[0].nodes[0].operation = O::CallUnit {
         psi_operation: OperationId::new(9_008).unwrap(),
         callee: MachineId::new(103).unwrap(),
+        arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),

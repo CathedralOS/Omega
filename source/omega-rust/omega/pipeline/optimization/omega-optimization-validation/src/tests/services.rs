@@ -235,6 +235,7 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
         AbstractOperation::CallUnit {
             psi_operation: id(710, OperationId::new),
             callee,
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -505,6 +506,7 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
         AbstractOperation::CallUnit {
             psi_operation: id(723, OperationId::new),
             callee,
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),

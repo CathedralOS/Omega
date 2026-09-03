@@ -29,11 +29,6 @@ pub(super) fn lower(
             requirement_obligations,
             crash_continuations,
         } => {
-            if !arguments.is_empty() {
-                return Err(LoweringError::UnsupportedUnitCallScalarArguments(
-                    operation.id,
-                ));
-            }
             let dynamic_arguments = lower_dynamic_arguments(
                 machine,
                 operation,
@@ -45,12 +40,18 @@ pub(super) fn lower(
                 AbstractOperation::CallUnit {
                     psi_operation: operation.id,
                     callee,
+                    arguments,
                     structural_arguments,
                     claim_transfers,
                     requirement_obligations,
                     crash_continuations,
                 }
             } else {
+                if !arguments.is_empty() {
+                    return Err(LoweringError::UnsupportedUnitCallScalarAndDynamicArguments(
+                        operation.id,
+                    ));
+                }
                 AbstractOperation::CallUnitWithDynamicArguments {
                     psi_operation: operation.id,
                     callee,

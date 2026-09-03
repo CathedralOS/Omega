@@ -749,9 +749,12 @@ pub enum AbstractOperation {
         field: psi_core::StructuralFieldId,
         value: IntegerValue,
     },
+    /// Invoke one Unit-result machine with exact caller-local scalar and
+    /// structural arguments. Physical ABI placement remains downstream.
     CallUnit {
         psi_operation: OperationId,
         callee: MachineId,
+        arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,

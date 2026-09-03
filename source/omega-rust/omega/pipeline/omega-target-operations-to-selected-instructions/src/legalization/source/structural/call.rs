@@ -36,6 +36,7 @@ pub(crate) fn derive_structural_call(
             AbstractOperation::CallUnit {
                 psi_operation,
                 callee,
+                arguments,
                 structural_arguments,
                 claim_transfers,
                 requirement_obligations,
@@ -43,6 +44,7 @@ pub(crate) fn derive_structural_call(
             },
         ) if target_operation == psi_operation
             && target_callee == callee
+            && arguments.is_empty()
             && target_transfers == claim_transfers
             && target_requirements == requirement_obligations
             && target_crash_continuations == crash_continuations =>
