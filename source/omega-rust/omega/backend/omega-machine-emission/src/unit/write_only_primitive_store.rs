@@ -48,6 +48,7 @@ pub(super) fn emit_write_only_primitive_store(
     };
     let invalid = || EmissionError::InvalidWriteOnlyPrimitiveStoreCustody(*psi_operation);
     let (source_record, destination_scalar_type, byte_size, bits) = match *source {
+        AssignedUnitWriteOnlyPrimitiveStoreSource::Parameter { .. } => return Err(invalid()),
         AssignedUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
             defining_operation,
             source_value,

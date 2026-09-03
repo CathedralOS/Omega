@@ -718,6 +718,11 @@ impl TargetUnitScalarArgumentSource {
 /// widen any call ABI or foreign-boundary vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetUnitWriteOnlyPrimitiveStoreSource {
+    Parameter {
+        parameter_index: u32,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+    },
     IntegerImmediate {
         defining_operation: OperationId,
         source_value: ValueId,
@@ -739,7 +744,8 @@ pub enum TargetUnitWriteOnlyPrimitiveStoreSource {
 impl TargetUnitWriteOnlyPrimitiveStoreSource {
     pub const fn source_value(self) -> ValueId {
         match self {
-            Self::IntegerImmediate { source_value, .. }
+            Self::Parameter { source_value, .. }
+            | Self::IntegerImmediate { source_value, .. }
             | Self::BooleanImmediate { source_value, .. }
             | Self::IeeeFloatImmediate { source_value, .. } => source_value,
         }
@@ -747,7 +753,9 @@ impl TargetUnitWriteOnlyPrimitiveStoreSource {
 
     pub const fn scalar_type(self) -> ScalarType {
         match self {
-            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::Parameter { scalar_type, .. } | Self::IntegerImmediate { scalar_type, .. } => {
+                ScalarType::Integer(scalar_type)
+            }
             Self::BooleanImmediate { .. } => ScalarType::Boolean,
             Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
         }

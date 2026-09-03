@@ -475,6 +475,139 @@ fn verified_write_only_ieee_float_store_reaches_canonical_installation() {
 }
 
 #[test]
+fn verified_parameter_sourced_write_only_store_reaches_assignment() {
+    let checked = checked(
+        r#"
+            data Sink {}
+            machine Sink::fill(destination: &write i32, replacement: i32) {
+                destination = replacement;
+            }
+        "#,
+    );
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Sink::fill")
+        .expect("parameter-sourced store reaches verified Terminal production");
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode parameter-sourced store semantics");
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("encode parameter-sourced store proof bundle");
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
+        &semantic,
+        &proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("verified parameter-sourced store reaches target-neutral Omega");
+
+    for native_target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstract_plan,
+            native_target,
+        )
+        .expect("verified parameter-sourced store reaches target custody");
+        let body = target
+            .functions
+            .iter()
+            .find_map(|function| match &function.operation {
+                omega_target_operations::TargetOperation::UnitBody(body) => Some(body),
+                _ => None,
+            })
+            .expect("one target Unit body");
+        let [scalar_parameter] = body.scalar_parameters.as_slice() else {
+            panic!("one target scalar parameter")
+        };
+        let source = body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_target_operations::TargetUnitOperation::WriteOnlyPrimitiveStore {
+                    source,
+                    ..
+                } => Some(source),
+                _ => None,
+            })
+            .expect("target store retains its runtime source");
+        assert!(matches!(
+            source,
+            omega_target_operations::TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
+                parameter_index: 0,
+                source_value,
+                scalar_type,
+            } if *source_value == scalar_parameter.value
+                && psi_core::ScalarType::Integer(*scalar_type) == scalar_parameter.scalar_type
+        ));
+
+        let mut corrupted = target.clone();
+        let corrupted_source = corrupted
+            .functions
+            .iter_mut()
+            .find_map(|function| match &mut function.operation {
+                omega_target_operations::TargetOperation::UnitBody(body) => body
+                    .operations
+                    .iter_mut()
+                    .find_map(|operation| match operation {
+                        omega_target_operations::TargetUnitOperation::WriteOnlyPrimitiveStore {
+                            source,
+                            ..
+                        } => Some(source),
+                        _ => None,
+                    }),
+                _ => None,
+            })
+            .expect("corrupted target retains its runtime source");
+        let omega_target_operations::TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
+            parameter_index,
+            ..
+        } = corrupted_source
+        else {
+            unreachable!()
+        };
+        *parameter_index = 1;
+        assert!(matches!(
+            omega_target_operations_to_assigned_target_operations::assign_registers(&corrupted),
+            Err(omega_target_operations_to_assigned_target_operations::AssignmentError::WriteOnlyPrimitiveStoreCustodyMismatch { .. })
+        ));
+
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target)
+                .expect("parameter-sourced store reaches physical assignment");
+        let assigned_source = assigned
+            .functions
+            .iter()
+            .find_map(|function| match &function.operation {
+                omega_assigned_target_operations::AssignedOperation::UnitBody(body) => body
+                    .operations
+                    .iter()
+                    .find_map(|operation| match operation {
+                        omega_assigned_target_operations::AssignedUnitOperation::WriteOnlyPrimitiveStore {
+                            source,
+                            ..
+                        } => Some(source),
+                        _ => None,
+                    }),
+                _ => None,
+            })
+            .expect("assigned store retains its runtime source");
+        assert!(matches!(
+            assigned_source,
+            omega_assigned_target_operations::AssignedUnitWriteOnlyPrimitiveStoreSource::Parameter {
+                parameter_index: 0,
+                source_value,
+                scalar_type,
+                location: omega_assigned_target_operations::AssignedScalarLocation::Register(register),
+            } if *source_value == scalar_parameter.value
+                && psi_core::ScalarType::Integer(*scalar_type) == scalar_parameter.scalar_type
+                && register.architecture() == native_target.architecture
+        ));
+        assert!(matches!(
+            omega_machine_emission::emit_machine_code(&assigned),
+            Err(omega_machine_emission::EmissionError::InvalidWriteOnlyPrimitiveStoreCustody(_))
+        ));
+    }
+}
+
+#[test]
 fn verified_boolean_write_only_store_reaches_canonical_installation() {
     let checked = checked(
         r#"

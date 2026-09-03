@@ -17,6 +17,7 @@ pub(super) fn assign(
     destination_placement: &ValuePlacement,
     source: TargetUnitWriteOnlyPrimitiveStoreSource,
     preceding_operations: &[TargetUnitOperation],
+    target: NativeTarget,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     let invalid = || AssignmentError::WriteOnlyPrimitiveStoreCustodyMismatch {
         machine,
@@ -25,7 +26,8 @@ pub(super) fn assign(
     let parameter_index = usize::try_from(destination.position).map_err(|_| invalid())?;
     let parameter = body.parameters.get(parameter_index).ok_or_else(invalid)?;
     let (expected_scalar_type, expected_shape) = match source {
-        TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate { scalar_type, .. } => {
+        TargetUnitWriteOnlyPrimitiveStoreSource::Parameter { scalar_type, .. }
+        | TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate { scalar_type, .. } => {
             let referent_shape =
                 super::scalar_call::fixed_integer_shape(source.source_value(), scalar_type)
                     .map_err(|_| invalid())?;
@@ -132,10 +134,67 @@ pub(super) fn assign(
             _ => false,
         })
         .count();
-    if definition_matches != 1 {
+    if !matches!(
+        source,
+        TargetUnitWriteOnlyPrimitiveStoreSource::Parameter { .. }
+    ) && definition_matches != 1
+    {
         return Err(invalid());
     }
     let assigned_source = match source {
+        TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+        } => {
+            let parameter_index_usize = usize::try_from(parameter_index).map_err(|_| invalid())?;
+            let parameter = body
+                .scalar_parameters
+                .get(parameter_index_usize)
+                .filter(|parameter| {
+                    parameter.value == source_value
+                        && parameter.scalar_type == ScalarType::Integer(scalar_type)
+                })
+                .ok_or_else(invalid)?;
+            if body.call_plan.parameters.get(parameter_index_usize) != Some(&parameter.placement) {
+                return Err(invalid());
+            }
+            let location = match parameter.placement.locations.as_slice() {
+                [
+                    ValueLocation::Register {
+                        register,
+                        value_byte_offset: 0,
+                        byte_size,
+                    },
+                ] if *byte_size == parameter.placement.shape.byte_size => {
+                    crate::assignment::placement::require_register_architecture(
+                        source_value,
+                        *register,
+                        target.architecture,
+                    )?;
+                    AssignedScalarLocation::Register(*register)
+                }
+                [
+                    ValueLocation::Stack {
+                        stack_byte_offset,
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    },
+                ] if *byte_size == parameter.placement.shape.byte_size => {
+                    AssignedScalarLocation::IncomingStack {
+                        byte_offset: *stack_byte_offset,
+                    }
+                }
+                _ => return Err(invalid()),
+            };
+            AssignedUnitWriteOnlyPrimitiveStoreSource::Parameter {
+                parameter_index,
+                source_value,
+                scalar_type,
+                location,
+            }
+        }
         TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
             defining_operation,
             source_value,
