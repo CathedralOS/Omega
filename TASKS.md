@@ -12542,7 +12542,10 @@ checked-result arithmetic decision listed below.
   to the realization selected by that predecessor's private table. Source
   checking now also groups the first executable three-state form into one
   atomic joined-call plan rather than publishing two competing whole-machine
-  candidates. That plan owns the exact Boolean entry guard, both checked
+  candidates. The 213-line join owner now contains that atomic admission and
+  promotion policy separately from the 2,152-line scalar call/transfer owner;
+  APIs, checked rows, diagnostic absence, and downstream behavior are
+  unchanged. That plan owns the exact Boolean entry guard, both checked
   successor edges, both complete branch-local scalar-call plans, and exactly
   two independently replayable selection-sourced transfers into the same
   callee parameter; the ordinary composed-control topology proves the control
