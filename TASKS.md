@@ -12370,9 +12370,13 @@ checked-result arithmetic decision listed below.
   parameter-source/target-interface join, both independently derived two-word
   call plans, and exact incoming/outgoing registers; the bounded lane accepts
   only an unchanged ABI handoff and rejects source or target drift. Machine
-  emission remains deliberately fail closed until it records the direct helper
-  call and its parameter-origin custody. Multi-hop Unit results and scalar
-  callers with continuations remain outside this bounded rung.
+  emission now encodes one ordinary direct helper call followed by the scalar
+  return. No descriptor words move because assignment proved the ABI registers
+  identical; a distinct machine-code row retains parameter origin, both
+  interfaces, both call plans, the direct-call relocation, scalar-stack/link
+  custody, and operation/return attribution. Object construction remains fail
+  closed until it independently replays that new row. Multi-hop Unit results
+  and scalar callers with continuations remain outside this bounded rung.
 
   Remaining work:
 
@@ -12392,9 +12396,9 @@ checked-result arithmetic decision listed below.
     rule; computed values, indexed/case projections, repeated destinations, and
     a fourth write still has no native carrier;
   - extend descriptors to within-artifact stored/joined/escaping and
-    aggregate-erased forms, beginning by carrying the new scalar assigned-
-    target carrier through machine/object/image/installation replay and native
-    execution, then widening the same custody to Unit results and
+    aggregate-erased forms, beginning by carrying the new scalar machine-code
+    row through object/image/installation replay and native execution, then
+    widening the same custody to Unit results and
     continuations. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls

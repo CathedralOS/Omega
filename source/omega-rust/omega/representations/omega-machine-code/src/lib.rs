@@ -140,6 +140,10 @@ pub struct MachineCodeFunction {
     /// parameter. Unlike `dynamic_calls`, these rows do not materialize
     /// or relocate a table: the caller supplies both descriptor words.
     pub dynamic_parameter_calls: Vec<DynamicParameterCallRecord>,
+    /// Complete direct-call custody for a scalar helper that forwards its
+    /// incoming existential descriptor parameter unchanged to another helper.
+    /// No local table or instance address is materialized by this call.
+    pub forwarded_dynamic_parameter_calls: Vec<ForwardedDynamicParameterCallRecord>,
     /// Complete caller-side materialization and direct-call custody for
     /// existential descriptors passed to another Terminal machine.
     pub forwarded_dynamic_descriptor_calls: Vec<ForwardedDynamicDescriptorCallRecord>,
@@ -379,6 +383,29 @@ pub struct DynamicParameterCallRecord {
     pub mechanism: DynamicParameterCallMechanismRecord,
     pub indirect_call_offset: usize,
     pub indirect_call_byte_count: usize,
+    pub call_stack: ScalarCallStackEvidence,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForwardedDynamicParameterCallRecord {
+    pub psi_edge: EdgeId,
+    pub psi_operation: OperationId,
+    pub source_value: ValueId,
+    pub scalar_type: psi_core::ScalarType,
+    pub callee: MachineId,
+    pub argument: AbstractDynamicDescriptorArgument,
+    pub parameter: psi_terminal::TerminalDynamicDescriptorParameter,
+    pub function_call_plan: CallPlan,
+    pub callee_call_plan: CallPlan,
+    pub instance: omega_target_operations::MachineRegister,
+    pub table: omega_target_operations::MachineRegister,
+    pub instance_destination: omega_target_operations::MachineRegister,
+    pub table_destination: omega_target_operations::MachineRegister,
+    pub direct_call_offset: usize,
+    pub direct_call_byte_count: usize,
     pub call_stack: ScalarCallStackEvidence,
     pub operation_ordinal: usize,
     pub code_offset: usize,

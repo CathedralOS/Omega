@@ -1087,9 +1087,11 @@ chain because the incoming descriptor would require an explicit join rule.
 Canonical Terminal artifacts preserve this distinction. Native target lowering
 and physical assignment now preserve longer scalar chains in a distinct direct-
 helper carrier, including the unchanged incoming and outgoing two-word ABI.
-Machine emission is still fail closed until that carrier has corresponding
-call-site and artifact replay evidence. Unit results and continuation-bearing
-callers are likewise not yet in this bounded lane.
+Machine emission encodes the next helper as an ordinary direct call and retains
+the parameter origin, unchanged registers, relocation, call-stack facts, and
+return attribution in a separate evidence row. Object and later artifact replay
+remain fail closed until they independently consume that row. Unit results and
+continuation-bearing callers are likewise not yet in this bounded lane.
 
 Code that wants a local dynamic interface over a component owns a local proxy:
 
