@@ -103,7 +103,7 @@ machine build(builder: &mut Build) {{
     let output_descriptor: i32 = builder.output.create(generated, 438);
     let output_count: i64 = builder.output.write(
         output_descriptor,
-        "data Generated {{ base: Main; }}\npub machine identity<T>(value: &T) {{}}\n"
+        "data Generated {{ base: Main; }}\npub machine identity<'value, T>(value: &'value T) -> &'value T {{ value }}\n"
     );
     let output_close: i32 = builder.output.close(output_descriptor);
     builder.output.include_source(generated);
@@ -163,6 +163,14 @@ machine build(builder: &mut Build) {{
         panic!("generated identity machine retains one Type parameter")
     };
     assert_eq!(identity_parameter.name.as_str(), "T");
+    assert_eq!(
+        identity
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["value"]
+    );
     let build = checked
         .typed
         .machines()
@@ -230,8 +238,7 @@ machine build(builder: &mut Build) {{
         .staged_output_tree()
         .expect("complete replay retains the staged output tree");
     assert_eq!(staged.entry_count(), 1);
-    let expected_generated =
-        b"data Generated { base: Main; }\npub machine identity<T>(value: &T) {}\n";
+    let expected_generated = b"data Generated { base: Main; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\n";
     assert_eq!(staged.file_bytes(), expected_generated.len() as u64);
 
     assert_eq!(
@@ -298,7 +305,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "use leaf::leaf;\nmachine generated<T>(value: &T, leaf: Leaf) {{ }}\n"
+        "use leaf::leaf;\nmachine generated<'value, T>(value: &'value T, leaf: Leaf) {{ }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -355,7 +362,9 @@ machine build(builder: &mut Build) {{
         package_inputs,
         sponsor,
     )
-    .expect_err("generated generic machine cannot select a transitive-only package declaration");
+    .expect_err(
+        "generated lifetime-generic machine cannot select a transitive-only package declaration",
+    );
     set_canonical_source_tree_permissions(&project.root, false);
 
     assert!(

@@ -465,12 +465,13 @@ and rebases only extension-owned authored-selection occurrences. Seeded typing
 currently admits the validated generated-data cohorts, ordinary monomorphic
 machines, monomorphic attached methods whose `attached_data_symbol` rejoins an
 exact retained or newly generated data declaration, and checked-body generic
-machines with exact machine-parented, unbounded ordinary `Type` binders.
-Lifetime, const, machine/proposition binders, property and conformance bounds,
-`satisfies`, and broader supply/operational forms remain outside this first
-generic cohort. Satisfied-declaration settlement, progress normalization,
-domain constraints, qualification casts, fixed-byte literal landing, and wire-
-plan publication are frontier-aware. After post-typing evaluation, a structural
+machines with an authored-order erased-lifetime telescope plus exact machine-
+parented, unbounded ordinary `Type` binders. Const, machine/proposition binders,
+property and conformance bounds, `satisfies`, and broader supply/operational
+forms remain outside these first generic cohorts. Satisfied-declaration
+settlement, domain constraints, qualification casts, fixed-byte literal
+landing, and wire-plan publication are frontier-aware. After post-typing
+evaluation, a structural
 validator requires every base root graph, symbol/name/path row, authored
 selection, semantic table, and compiler-owned sidecar to remain an exact
 prefix. After ordinary final checking, package-aware compilation repeats the
@@ -496,9 +497,9 @@ package authority evidence. Additional canaries pin one-way overload and
 conformance visibility, unit-local normalization, generated-machine and
 attached-method continuation, dependency-bundle no-rerun, target-scoped
 rejection, retained-prefix preservation, generated transitive-dependency
-rejection at the final authority replay, exact generic-machine binder custody,
-transactional rejection of unadmitted binder kinds, and structural absence of
-the retired rebuild path.
+rejection at the final authority replay, exact generic-machine binder and
+lifetime-telescope custody, transactional rejection of unadmitted binder kinds,
+and structural absence of the retired rebuild path.
 
 Package orchestration processes dependencies in deterministic dependency order
 and retains durable source bundles, commitments, and review evidence between

@@ -9450,15 +9450,19 @@ compiler concept is introduced.
   checked service schema as non-authoritative review material. A consumer can
   therefore choose complete requirement identities and submit explicit facet
   rows for the final checked pass without reconstructing identity from names.
-  End-to-end review against the repository's real `FilesystemHost` schema
-  attaches representative `read`, `write`, `read_metadata`, `read_dir`,
-  `rename`, and `set_permissions` requirements to all six facets and proves
-  that their exact permission rows rejoin the same service nominal as the
-  transitional broad `Filesystem` row. Candidate discovery still supplies no
-  permissions. Next extend explicit consumer policy across the remaining real
-  requirements and add terminal mechanism identities/classification for their
-  current syscall and import roles so those exact rows can participate in a
-  real-provider selected-closure receipt before retiring the broad row.
+  End-to-end review against the repository's real 50-requirement
+  `FilesystemHost` schema now attaches explicit policy to the 36 requirements
+  whose operation classes are settled, including conservative six-facet unions
+  for flag-polymorphic opens. The test partitions the complete real schema,
+  fails on an added or omitted method, and proves every emitted exact row
+  rejoins the same service nominal as the transitional broad `Filesystem` row.
+  Candidate discovery still supplies no permissions. The remaining fourteen
+  control, lifecycle, link-read, durability, locking, descriptor-alias, and
+  error-query requirements await the narrow authority-class decision in
+  `OWNER_QUESTIONS.md`; this is not a mechanism-identity blocker. In parallel,
+  add terminal mechanism identities/classification for current syscall and
+  import roles so settled exact rows can participate in a real-provider
+  selected-closure receipt before retiring the broad row.
 
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,
@@ -12819,23 +12823,39 @@ checked-result arithmetic decision listed below.
   eighteen records, recursive or array-mediated paths, direct-sum coexistence,
   and target-dependent placement remain rejected; every shallower API retains
   its exact boundary.
-  The `omega-layout` materialization owner's 8,811-line regression corpus now
-  lives in a 4,308-line private test root over a focused 3,131-line
+  The complete plural depth-nineteen fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-eighteen report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-eighteen carriers, preserves repeated
+  nominal occurrences, rebuilds every nested zero-padded image in authored
+  order, replays every layout and occurrence identity hash-free, and performs
+  one final atomic copy. Projection and replay share one memoized bounded walk
+  and global leaf ceiling across the complete cohort. Paths deeper than
+  nineteen records, recursive or array-mediated paths, direct-sum coexistence,
+  and target-dependent placement remain rejected; every shallower API retains
+  its exact boundary.
+  The `omega-layout` materialization owner's 9,289-line regression corpus now
+  lives in a 4,309-line private test root over a focused 3,131-line
   depth-eight-through-fifteen child, a 447-line depth-sixteen child, a 458-line
-  depth-seventeen child, and a 467-line depth-eighteen child. The 5,442-line
-  production owner retains 55 production functions, 25 public projection entry
-  points, exact module paths, diagnostics, and the complete 33-test crate
-  behavior. The matching 15,180-line Psi materialization owner is now a
-  5,012-line public carrier/replay facade over private byte-derivation (6,121
+  depth-seventeen child, a 467-line depth-eighteen child, and a 477-line
+  depth-nineteen child. The 5,733-line production owner retains 57 production
+  functions, 26 public projection entry points, exact module paths,
+  diagnostics, and the complete 34-test crate behavior. The matching
+  15,990-line Psi materialization owner is now a 5,018-line public
+  carrier/replay facade over private byte-derivation (6,121
   lines), report-identity (1,309 lines), bounded sum-reachability (374 lines), a
   focused 776-line depth-sixteen successor, a focused 791-line depth-seventeen
-  successor, and a focused 797-line depth-eighteen successor. Its append-only
-  public inventory now has 39 carrier types and 21 validation entry
-  points while preserving the sibling `SumReachability` import path and exact
-  diagnostics. This remains module ownership only; the fixed-depth reports and
-  their exact shallower/deeper rejection boundaries remain distinct.
+  successor, a focused 797-line depth-eighteen successor, and a focused
+  804-line depth-nineteen successor. Its append-only public inventory now has
+  41 carrier types and 22 validation entry points while preserving the sibling
+  `SumReachability` import path and exact diagnostics. This remains module
+  ownership only; the fixed-depth reports and their exact shallower/deeper
+  rejection boundaries remain distinct.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  eighteen records, plural paths deeper than eighteen records, mixed
+  nineteen records, plural paths deeper than nineteen records, mixed
   common-field/case shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
@@ -12943,11 +12963,12 @@ checked-result arithmetic decision listed below.
     existing lifetime, local/base generic-instance, constrained argument,
     scalar const, and structured const cases), ordinary monomorphic machines,
     monomorphic attached methods that rejoin an exact existing or newly
-    generated data symbol, and the first generic-machine cohort. That cohort is
-    limited to checked bodies with exact machine-parented, unbounded ordinary
-    `Type` binders; lifetime, const, machine/proposition binders, property
-    bounds, `satisfies`, conformance bounds, and broader supply/operational
-    forms remain fenced. Finalization is suffix-scoped for satisfied
+    generated data symbol, and the first generic-machine cohorts. Those cohorts
+    are limited to checked bodies with an authored-order erased-lifetime
+    telescope and exact machine-parented, unbounded ordinary `Type` binders;
+    const, machine/proposition binders, property bounds, `satisfies`,
+    conformance bounds, and broader supply/operational forms remain fenced.
+    Finalization is suffix-scoped for satisfied
     declarations, progress premises, domain constraints, qualification casts,
     and exact fixed-byte literals;
   - the generated unit's matching post-typing evaluator runs against the
@@ -12979,13 +13000,14 @@ checked-result arithmetic decision listed below.
     continuation, dependency-bundle no-rerun, unit-local normalization,
     no-source-reread, exact target selection and cross-unit cohort rejection,
     final generated-selection authority replay and transitive-dependency
-    rejection, generic-machine prefix preservation and transactional binder-
-    kind rejection, and structural absence of the retired rebuild path.
+    rejection, generic-machine prefix preservation, exact lifetime-telescope
+    custody, transactional binder-kind rejection, and structural absence of
+    the retired rebuild path.
 
   Remaining engineering work, not language design:
   - broaden the retained typed continuation beyond its current validated data
-    and machine cohorts, including lifetime/const/static generic binders,
-    generic property and conformance bounds, satisfactions, broader
+    and machine cohorts, including const/static generic binders, generic
+    property and conformance bounds, satisfactions, broader
     supply/operational forms, additional root kinds, and the currently fenced
     data shapes;
   - keep every new cohort append-only and transactional, extending prefix and
