@@ -373,6 +373,13 @@ pub(crate) fn build_checked_unit_effect_plans(
                 plan.latest.source_type_identity.as_str(),
             ]
         }))
+        .chain(dynamic_dispatch.joined_unit_calls.iter().flat_map(|plan| {
+            [
+                plan.caller_attachment_type_identity.as_str(),
+                plan.when_true.call.source_type_identity.as_str(),
+                plan.when_false.call.source_type_identity.as_str(),
+            ]
+        }))
         .collect::<BTreeSet<_>>();
     for operation in candidates.iter().flat_map(|plan| &plan.operations) {
         match operation {

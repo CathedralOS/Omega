@@ -1531,6 +1531,18 @@ pub(super) fn emit_unit_body(
                             psi_edge: false_return,
                             cleanup_actions: false_cleanup,
                         },
+                    ] | [
+                        AssignedUnitOperation::ConditionalBooleanParameter { .. },
+                        AssignedUnitOperation::StructuralUnitCallWithDynamicArguments { .. },
+                        AssignedUnitOperation::Return {
+                            psi_edge: true_return,
+                            cleanup_actions: true_cleanup,
+                        },
+                        AssignedUnitOperation::StructuralUnitCallWithDynamicArguments { .. },
+                        AssignedUnitOperation::Return {
+                            psi_edge: false_return,
+                            cleanup_actions: false_cleanup,
+                        },
                     ] if *true_return == when_true.nominal_return_edge
                         && *false_return == when_false.nominal_return_edge
                         && true_cleanup.is_empty()

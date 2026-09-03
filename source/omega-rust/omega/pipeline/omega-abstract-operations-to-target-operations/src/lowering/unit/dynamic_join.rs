@@ -1,10 +1,12 @@
 //! Bounded Boolean split whose two predecessors supply distinct dynamic
-//! descriptor arguments to one shared scalar helper.
+//! descriptor arguments to one shared scalar or result-less helper.
 
 use super::super::shared::*;
 use super::body::LoweredUnitBody;
 use super::scalar_call::KnownUnitInteger;
-use super::structural_scalar::lower_dynamic_argument_scalar_call;
+use super::structural_scalar::{
+    lower_dynamic_argument_scalar_call, lower_dynamic_argument_unit_call,
+};
 
 pub(super) fn has_bounded_shape(function: &AbstractFunction) -> bool {
     matches!(
@@ -32,6 +34,12 @@ pub(super) fn has_bounded_shape(function: &AbstractFunction) -> bool {
                 AbstractOperation::CallStructuralScalarWithDynamicArguments { .. },
                 AbstractOperation::ReturnUnit { .. },
                 AbstractOperation::CallStructuralScalarWithDynamicArguments { .. },
+                AbstractOperation::ReturnUnit { .. },
+            ] | [
+                AbstractOperation::Conditional { .. },
+                AbstractOperation::CallUnitWithDynamicArguments { .. },
+                AbstractOperation::ReturnUnit { .. },
+                AbstractOperation::CallUnitWithDynamicArguments { .. },
                 AbstractOperation::ReturnUnit { .. },
             ]
         )
@@ -118,7 +126,7 @@ pub(super) fn lower(
         .edges
         .extend([when_true.psi_edge, when_false.psi_edge]);
 
-    lower_dynamic_argument_scalar_call(
+    lower_branch_call(
         &function.operations[1],
         function,
         target,
@@ -137,7 +145,7 @@ pub(super) fn lower(
     });
     provenance.edges.push(true_return_edge);
 
-    lower_dynamic_argument_scalar_call(
+    lower_branch_call(
         &function.operations[3],
         function,
         target,
@@ -160,6 +168,59 @@ pub(super) fn lower(
         operations,
         provenance,
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_branch_call(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    match operation {
+        AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
+            lower_dynamic_argument_scalar_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                parameters_by_place,
+                shape_cache,
+                active,
+                scalar_values,
+                operations,
+                provenance,
+            )?;
+        }
+        AbstractOperation::CallUnitWithDynamicArguments { .. } => {
+            lower_dynamic_argument_unit_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                parameters_by_place,
+                shape_cache,
+                active,
+                operations,
+                provenance,
+            )?;
+        }
+        _ => {
+            return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                function.machine,
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn return_parts(operation: &AbstractOperation) -> (Option<EdgeId>, &[TerminalAffineCleanupAction]) {

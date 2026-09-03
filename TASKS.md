@@ -12542,11 +12542,10 @@ checked-result arithmetic decision listed below.
   to the realization selected by that predecessor's private table. Source
   checking now also groups the first executable three-state form into one
   atomic joined-call plan rather than publishing two competing whole-machine
-  candidates. The 213-line join owner now contains that atomic admission and
-  promotion policy separately from the 2,152-line scalar call/transfer owner;
-  APIs, checked rows, diagnostic absence, and downstream behavior are
-  unchanged. That plan owns the exact Boolean entry guard, both checked
-  successor edges, both complete branch-local scalar-call plans, and exactly
+  candidates. A focused join owner contains that atomic admission and
+  promotion policy separately from scalar call/transfer discovery. That plan
+  owns the exact Boolean entry guard, both checked successor edges, both
+  complete branch-local scalar-call plans, and exactly
   two independently replayable selection-sourced transfers into the same
   callee parameter; the ordinary composed-control topology proves the control
   split. Checked-to-Terminal lowering now independently replays that atomic
@@ -12591,7 +12590,16 @@ checked-result arithmetic decision listed below.
   arguments are sourced from incoming parameters, and only the final helper
   performs parameter-slot dispatch. Native/object/image/installation replay on
   x86-64 and AArch64 uses the existing forwarding rows and rejects path collapse
-  without a join-specific carrier. A second join over an already-joined value,
+  without a join-specific carrier. The same checked join owner now promotes
+  result-less Unit branches into a distinct atomic plan instead of leaving two
+  competing direct candidates. Checked-to-Terminal lowering emits Unit-typed
+  branch calls and Unit realization/helper machines throughout—no fabricated
+  scalar result—and reuses the identical complete descriptor paths and shared
+  parameter interface. Canonical interpretation executes both Boolean arms;
+  target lowering, physical assignment, x86-64/AArch64 encoding, object/image
+  replay, and installation replay accept both the scalar-result and genuinely
+  result-less join shapes while still rejecting source collapse. A second join
+  over an already-joined value,
   aggregate storage, component crossing, and wider control graphs remain
   fenced; do not add a representative conformance or a second joined-descriptor
   vocabulary to bypass those seams.

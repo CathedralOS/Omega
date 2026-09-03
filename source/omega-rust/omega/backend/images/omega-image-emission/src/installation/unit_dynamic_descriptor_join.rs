@@ -82,18 +82,20 @@ pub(super) fn validate_installed_unit_dynamic_descriptor_joins(
             || first.operation == second.operation
             || first.source == second.source
             || first.callee != second.callee
-            || first
-                .semantic_result
-                .as_ref()
-                .map(|result| result.scalar_type)
-                != Some(ScalarType::Boolean)
-            || second
-                .semantic_result
-                .as_ref()
-                .map(|result| result.scalar_type)
-                != Some(ScalarType::Boolean)
-            || first.result.is_none()
-            || second.result.is_none()
+            || !matches!(
+                (
+                    first.semantic_result.map(|result| result.scalar_type),
+                    second.semantic_result.map(|result| result.scalar_type),
+                    first.result.is_some(),
+                    second.result.is_some(),
+                ),
+                (
+                    Some(ScalarType::Boolean),
+                    Some(ScalarType::Boolean),
+                    true,
+                    true
+                ) | (None, None, false, false)
+            )
             || condition.attribution.operation_ordinal != 0
             || first_call.attribution.operation_ordinal != 1
             || true_return.attribution.operation_ordinal != 2

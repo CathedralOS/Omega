@@ -132,6 +132,7 @@ fn build_checked_dynamic_scalar_call_transaction(
         &binding_facts,
         &mut plans,
     )?;
+    join::promote_two_predecessor_dynamic_unit_joins(program, facts, shapes, &mut plans)?;
 
     Some(plans)
 }

@@ -54,8 +54,33 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn emitted_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize source");
+const UNIT_SOURCE: &str = r#"
+    trait Touch { machine touch(&self); }
+    data Item { value: i32; }
+    Primary: Item satisfies Touch { machine touch(&self) {} }
+    Secondary: Item satisfies Touch { machine touch(&self) {} }
+    data Main { first: Item; second: Item; }
+    machine Main::run(&self, choose_first: bool) {
+        transition choose_first {
+            true -> take_first()
+            _ -> take_second()
+        }
+        state take_first(&self) {
+            let selected: &dyn Touch = &self.first as &dyn Item::Primary;
+            forward(selected);
+        }
+        state take_second(&self) {
+            let selected: &dyn Touch = &self.second as &dyn Item::Secondary;
+            forward(selected);
+        }
+    }
+    machine forward(erased: &dyn Touch) { relay(erased); }
+    machine relay(erased: &dyn Touch) { finish(erased); }
+    machine finish(erased: &dyn Touch) { erased.touch(); }
+"#;
+
+fn emitted_plan_from(source: &str, target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
@@ -70,6 +95,10 @@ fn emitted_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
         lower_to_target_operations(&abstract_plan, target).expect("lower target operations");
     let assigned = assign_registers(&target_plan).expect("assign target operations");
     emit_machine_code(&assigned).expect("emit joined machine code")
+}
+
+fn emitted_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    emitted_plan_from(SOURCE, target)
 }
 
 #[test]
@@ -146,5 +175,48 @@ fn object_and_image_replay_joined_descriptor_control() {
         assert_eq!(decoded, installation);
         validate_installation_record(&decoded, &image)
             .expect("replay joined descriptor installation");
+    }
+}
+
+#[test]
+fn object_and_image_replay_result_less_joined_descriptor_control() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let emitted = emitted_plan_from(UNIT_SOURCE, target);
+        let caller = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("result-less joined caller");
+        assert_eq!(caller.forwarded_dynamic_descriptor_calls.len(), 2);
+
+        let mut collapsed_source = emitted.clone();
+        let caller = collapsed_source
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == collapsed_source.entry)
+            .expect("result-less joined caller");
+        let first_source = caller.forwarded_dynamic_descriptor_calls[0].dynamic_arguments[0]
+            .custody
+            .source
+            .clone();
+        caller.forwarded_dynamic_descriptor_calls[1].dynamic_arguments[0]
+            .custody
+            .source = first_source;
+        assert!(build_object_artifact(&collapsed_source).is_err());
+
+        let object =
+            build_object_artifact(&emitted).expect("validate result-less joined object custody");
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("link result-less joined descriptor image");
+        validate_executable_image(&object, &image)
+            .expect("replay result-less joined descriptor image");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("retain result-less joined descriptor control in installation");
+        let bytes = encode_installation_record(&installation).expect("encode installation");
+        let decoded = decode_installation_record(&bytes).expect("decode installation");
+        assert_eq!(decoded, installation);
+        validate_installation_record(&decoded, &image)
+            .expect("replay result-less joined descriptor installation");
     }
 }

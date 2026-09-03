@@ -407,36 +407,64 @@ fn validate_join_plan(
         .filter(|candidate| *candidate == plan)
         .count()
         != 1
-        || plan.when_true.successor.target_state != plan.when_true.call.caller_state
-        || plan.when_false.successor.target_state != plan.when_false.call.caller_state
-        || plan.when_true.call.caller_machine != plan.caller_machine
-        || plan.when_false.call.caller_machine != plan.caller_machine
-        || plan.when_true.successor.statement_ordinal != 0
-        || plan.when_false.successor.statement_ordinal != 1
-        || !plan.when_true.successor.transfers.is_empty()
-        || !plan.when_false.successor.transfers.is_empty()
-        || !plan.when_true.successor.scalar_arguments.is_empty()
-        || !plan.when_false.successor.scalar_arguments.is_empty()
-        || !plan
-            .when_true
-            .successor
+    {
+        return unsupported("joined dynamic control plan drifted from checked custody");
+    }
+    validate_join_control_plan(
+        checked,
+        plan.caller_machine,
+        plan.entry_state,
+        &plan.scalar_parameters,
+        &plan.guard,
+        &plan.when_true.successor,
+        plan.when_true.call.caller_machine,
+        plan.when_true.call.caller_state,
+        &plan.when_false.successor,
+        plan.when_false.call.caller_machine,
+        plan.when_false.call.caller_state,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn validate_join_control_plan(
+    checked: &CheckedTrees,
+    caller_machine: psi_symbols::SymbolHandle,
+    entry_state: psi_symbols::SymbolHandle,
+    scalar_parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
+    guard: &CheckedScalarExpression,
+    when_true: &psi_checked_trees::CheckedStructuralControlSuccessorPlan,
+    when_true_machine: psi_symbols::SymbolHandle,
+    when_true_state: psi_symbols::SymbolHandle,
+    when_false: &psi_checked_trees::CheckedStructuralControlSuccessorPlan,
+    when_false_machine: psi_symbols::SymbolHandle,
+    when_false_state: psi_symbols::SymbolHandle,
+) -> Result<(), LoweringError> {
+    if when_true.target_state != when_true_state
+        || when_false.target_state != when_false_state
+        || when_true_machine != caller_machine
+        || when_false_machine != caller_machine
+        || when_true.statement_ordinal != 0
+        || when_false.statement_ordinal != 1
+        || !when_true.transfers.is_empty()
+        || !when_false.transfers.is_empty()
+        || !when_true.scalar_arguments.is_empty()
+        || !when_false.scalar_arguments.is_empty()
+        || !when_true
             .trivial_affine_discard_parameter_positions
             .is_empty()
-        || !plan
-            .when_false
-            .successor
+        || !when_false
             .trivial_affine_discard_parameter_positions
             .is_empty()
     {
         return unsupported("joined dynamic control plan drifted from checked custody");
     }
-    let [parameter] = plan.scalar_parameters.as_slice() else {
+    let [parameter] = scalar_parameters else {
         return unsupported("joined dynamic control requires one Boolean parameter");
     };
     if parameter.source_position != 1
         || parameter.primitive_type != PrimitiveType::Bool
         || !matches!(
-            &plan.guard,
+            guard,
             CheckedScalarExpression::Boolean(boolean)
                 if matches!(boolean.as_ref(), CheckedBooleanExpression::Parameter { position: 0 })
         )
@@ -450,7 +478,7 @@ fn validate_join_plan(
         .states
         .iter()
         .filter_map(|(_, state)| {
-            (state.machine_symbol == plan.caller_machine && state.state_symbol == plan.entry_state)
+            (state.machine_symbol == caller_machine && state.state_symbol == entry_state)
                 .then_some(state)
         })
         .collect::<Vec<_>>();
@@ -460,8 +488,8 @@ fn validate_join_plan(
     let calls = checked.facts.flow.control.calls.span_or_empty(entry.calls);
     if calls.len() != 2
         || [
-            (0_usize, plan.when_true.successor.target_state),
-            (1_usize, plan.when_false.successor.target_state),
+            (0_usize, when_true.target_state),
+            (1_usize, when_false.target_state),
         ]
         .into_iter()
         .any(|(statement_index, target)| {

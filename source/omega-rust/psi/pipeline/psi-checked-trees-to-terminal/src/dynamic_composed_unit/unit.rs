@@ -10,11 +10,11 @@ use psi_checked_trees::{
 };
 
 #[derive(Clone, Copy)]
-struct ForwardedUnitHelperIds {
-    machine: psi_core::MachineId,
-    block: psi_core::BlockId,
-    operation: psi_core::OperationId,
-    edge: psi_core::EdgeId,
+pub(super) struct ForwardedUnitHelperIds {
+    pub(super) machine: psi_core::MachineId,
+    pub(super) block: psi_core::BlockId,
+    pub(super) operation: psi_core::OperationId,
+    pub(super) edge: psi_core::EdgeId,
 }
 
 pub(super) fn lower_direct_dynamic_unit_machine(
@@ -276,7 +276,7 @@ fn lower_dynamic_unit_machine(
     })
 }
 
-fn validate_exact_unit_plan(
+pub(super) fn validate_exact_unit_plan(
     checked: &CheckedTrees,
     plan: &CheckedDynamicUnitCallPlan,
     lane: DynamicLoweringLane<'_>,
@@ -482,7 +482,7 @@ fn validate_exact_unit_plan(
     validate_empty_service_summary(checked, caller_reach)
 }
 
-fn collect_unit_realizations(
+pub(super) fn collect_unit_realizations(
     checked: &CheckedTrees,
     plan: &CheckedDynamicUnitCallPlan,
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
@@ -537,7 +537,7 @@ fn retain_unit_realizations(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn materialize_unit_realizations(
+pub(super) fn materialize_unit_realizations(
     checked: &CheckedTrees,
     plan: &CheckedDynamicUnitCallPlan,
     lowered: &[LoweredDynamicRealization],
@@ -870,6 +870,10 @@ fn validate_unit_forwarding_transfer_path(
     let [root] = roots.as_slice() else {
         return Ok(false);
     };
+    let [root_path] = root.source_paths.as_slice() else {
+        return Ok(false);
+    };
+    let mut expected_path = root_path.clone();
     let mut machine = root.target_machine;
     let mut state = root.target_state;
     let mut source_parameter = root.parameter;
@@ -888,9 +892,12 @@ fn validate_unit_forwarding_transfer_path(
                 != (psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 })
-            || transfer.sole_selection() != Some(&plan.selection)
             || !validate_parameter_forwarding_call(checked, transfer)?
         {
+            return Ok(false);
+        }
+        expected_path.edges.push(transfer.edge());
+        if !transfer.source_paths.contains(&expected_path) {
             return Ok(false);
         }
         machine = transfer.target_machine;
@@ -900,7 +907,7 @@ fn validate_unit_forwarding_transfer_path(
     Ok(machine == final_machine && state == final_state && source_parameter == final_parameter)
 }
 
-fn extend_unit_parameter_forwarding_catalog(
+pub(super) fn extend_unit_parameter_forwarding_catalog(
     catalog: &mut TerminalDynamicDispatchCatalog,
     helpers: &[ForwardedUnitHelperIds],
 ) -> Result<(), LoweringError> {
@@ -932,7 +939,7 @@ fn extend_unit_parameter_forwarding_catalog(
     Ok(())
 }
 
-fn forwarded_unit_helper_ids(
+pub(super) fn forwarded_unit_helper_ids(
     plan: &CheckedDynamicUnitCallPlan,
     realizations: &[LoweredDynamicRealization],
     next_block: &mut u64,
@@ -1058,7 +1065,7 @@ fn materialize_forwarded_unit_helper(
     })
 }
 
-fn materialize_forwarded_unit_helper_chain(
+pub(super) fn materialize_forwarded_unit_helper_chain(
     checked: &CheckedTrees,
     plan: &CheckedDynamicUnitCallPlan,
     application: &ClosedConformanceApplication,
@@ -1100,7 +1107,7 @@ fn materialize_forwarded_unit_helper_chain(
         .collect()
 }
 
-fn lower_exact_unit_application(
+pub(super) fn lower_exact_unit_application(
     checked: &CheckedTrees,
     plan: &CheckedDynamicUnitCallPlan,
     owner: psi_core::MachineId,
