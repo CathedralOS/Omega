@@ -1,0 +1,29 @@
+trait Measure {
+    machine measure(&self) -> i32;
+}
+
+data Item [copy] {
+    value: i32;
+}
+
+Primary: Item satisfies Measure {
+    machine measure(&self) -> i32 {
+        transition {
+            _ -> self.value
+        }
+    }
+}
+
+data Holder<'item> {
+    handler: &'item dyn Measure;
+}
+
+data Main [copy] {
+    item: Item;
+}
+
+machine Main::main<'item>(&mut self) {
+    let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+    let holder: Holder<'item> = Holder { handler: erased };
+    let result: i32 = holder.handler.measure();
+}

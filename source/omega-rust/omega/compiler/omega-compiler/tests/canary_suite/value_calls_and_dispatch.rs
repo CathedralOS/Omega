@@ -1628,6 +1628,54 @@ fn runtime_local_named_dyn_rebound_direct_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_named_dyn_stored_return_canary_runs() {
+    let canary = pass_canary("traits/runtime_local_named_dyn_stored_return");
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let report = compile_rooted_backend_canary_without_output_for_target(&canary, target)
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "{target} should lower the stored descriptor call:\n{}",
+                    diagnostics
+                        .iter()
+                        .map(|diagnostic| diagnostic.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            });
+        assert_eq!(
+            report
+                .retained_native_artifact()
+                .expect("stored descriptor keeps native custody")
+                .object()
+                .functions()
+                .iter()
+                .flat_map(|function| &function.stored_dynamic_calls)
+                .count(),
+            1,
+            "{target} must retain the stored descriptor call"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-runtime-local-named-dyn-stored-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+        let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+            .expect("a stored named dynamic value should emit a native image");
+        assert_native_exit_code(
+            &compilation,
+            0,
+            "stored named dynamic descriptor canary",
+            "the later field reload and indirect call must return normally",
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
 fn runtime_dyn_two_impl_dispatch_exit_canary_runs() {
     // TWO data types satisfy Shape, so the `&mut dyn Shape` receiver cannot
     // devirtualize; the call is monomorphized over the trait's closed world and

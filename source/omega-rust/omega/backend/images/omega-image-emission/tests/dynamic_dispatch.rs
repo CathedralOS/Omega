@@ -466,10 +466,46 @@ fn stored_dynamic_descriptor_replays_through_object_and_final_image() {
                 .and_then(|function| function.stored_dynamic_calls.first()),
             Some(object_call)
         );
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("retain stored descriptor installation custody");
+        let [installed_call] = installation.stored_dynamic_calls() else {
+            panic!("one installed stored descriptor call expected")
+        };
         assert_eq!(
-            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision")),
-            Err(omega_image_emission::InstallationError::UnsupportedStoredDynamicCalls)
+            installed_call.establishment_operation,
+            machine_call.establishment.psi_operation
         );
+        assert_eq!(installed_call.operation, machine_call.psi_operation);
+        assert_eq!(
+            installed_call.descriptor_ordinal,
+            machine_call.establishment.stored.descriptor.ordinal
+        );
+        assert_eq!(
+            installed_call.descriptor_home_byte_offset,
+            machine_call.establishment.descriptor_home_byte_offset
+        );
+        validate_installation_record(&installation, &image)
+            .expect("replay stored descriptor installation custody");
+        let encoded = encode_installation_record(&installation)
+            .expect("encode stored descriptor installation custody");
+        assert_eq!(
+            decode_installation_record(&encoded),
+            Ok(installation.clone())
+        );
+        let mut operation_pair = Vec::new();
+        operation_pair
+            .extend_from_slice(&installed_call.establishment_operation.get().to_le_bytes());
+        operation_pair.extend_from_slice(&installed_call.operation.get().to_le_bytes());
+        let pair_offset = encoded
+            .windows(operation_pair.len())
+            .position(|window| window == operation_pair)
+            .expect("canonical stored operation pair");
+        let mut drifted = encoded;
+        drifted[pair_offset + 8] ^= 0x80;
+        let drifted = decode_installation_record(&drifted)
+            .expect("alternate nonzero operation remains structurally decodable");
+        assert!(validate_installation_record(&drifted, &image).is_err());
     }
 }
 

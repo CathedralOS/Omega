@@ -90,7 +90,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 67;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 68;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -226,6 +226,7 @@ pub struct InstallationRecord {
     internal_unit_scalar_calls: Vec<InstalledInternalUnitScalarCall>,
     dynamic_conformance_tables: Vec<InstalledDynamicConformanceTable>,
     dynamic_calls: Vec<InstalledDynamicCall>,
+    stored_dynamic_calls: Vec<InstalledStoredDynamicCall>,
     forwarded_dynamic_descriptor_adapters: Vec<InstalledForwardedDynamicDescriptorAdapter>,
     forwarded_dynamic_descriptor_tables: Vec<InstalledForwardedDynamicDescriptorTable>,
     forwarded_dynamic_descriptor_calls: Vec<InstalledForwardedDynamicDescriptorCall>,
@@ -297,6 +298,10 @@ impl InstallationRecord {
 
     pub fn dynamic_calls(&self) -> &[InstalledDynamicCall] {
         &self.dynamic_calls
+    }
+
+    pub fn stored_dynamic_calls(&self) -> &[InstalledStoredDynamicCall] {
+        &self.stored_dynamic_calls
     }
 
     pub fn forwarded_dynamic_descriptor_adapters(
@@ -390,6 +395,24 @@ pub struct InstalledDynamicCall {
     pub rebound_source: PlaceId,
     pub selected_table_byte_offset: u32,
     pub realization: MachineId,
+    pub text_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledStoredDynamicCall {
+    pub machine: MachineId,
+    pub establishment_operation: OperationId,
+    pub operation: OperationId,
+    pub descriptor_ordinal: u32,
+    pub selection_ordinal: u32,
+    pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
+    pub source: PlaceId,
+    pub descriptor_home_byte_offset: u32,
+    pub selected_table_byte_offset: u32,
+    pub realization: MachineId,
+    pub establishment_text_offset: usize,
+    pub establishment_byte_count: usize,
     pub text_offset: usize,
     pub byte_count: usize,
 }
@@ -633,13 +656,6 @@ pub fn build_installation_record_with_selected_provider_plans_and_evidence<'exec
 where
     Execution: omega_installation_evidence::ProviderExecutionEvidence + ?Sized + 'execution,
 {
-    if image
-        .functions()
-        .iter()
-        .any(|function| !function.stored_dynamic_calls.is_empty())
-    {
-        return Err(InstallationError::UnsupportedStoredDynamicCalls);
-    }
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -810,6 +826,7 @@ where
             .collect(),
         dynamic_conformance_tables: installed_dynamic_conformance_tables(image),
         dynamic_calls: installed_dynamic_calls(image)?,
+        stored_dynamic_calls: installed_stored_dynamic_calls(image)?,
         forwarded_dynamic_descriptor_adapters: installed_forwarded_dynamic_descriptor_adapters(
             image,
         ),
@@ -1048,6 +1065,7 @@ pub fn encode_installation_record(
         &mut bytes,
         &record.dynamic_conformance_tables,
         &record.dynamic_calls,
+        &record.stored_dynamic_calls,
         &record.forwarded_dynamic_descriptor_adapters,
         &record.forwarded_dynamic_descriptor_tables,
         &record.forwarded_dynamic_descriptor_calls,
@@ -1085,6 +1103,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
     let (
         dynamic_conformance_tables,
         dynamic_calls,
+        stored_dynamic_calls,
         forwarded_dynamic_descriptor_adapters,
         forwarded_dynamic_descriptor_tables,
         forwarded_dynamic_descriptor_calls,
@@ -1112,6 +1131,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         internal_unit_scalar_calls,
         dynamic_conformance_tables,
         dynamic_calls,
+        stored_dynamic_calls,
         forwarded_dynamic_descriptor_adapters,
         forwarded_dynamic_descriptor_tables,
         forwarded_dynamic_descriptor_calls,
@@ -1149,6 +1169,7 @@ pub fn validate_installation_record(
         || Some(record.compiler_text_validation) != image.output().compiler_text_validation
         || record.dynamic_conformance_tables != installed_dynamic_conformance_tables(image)
         || record.dynamic_calls != installed_dynamic_calls(image)?
+        || record.stored_dynamic_calls != installed_stored_dynamic_calls(image)?
         || record.forwarded_dynamic_descriptor_adapters
             != installed_forwarded_dynamic_descriptor_adapters(image)
         || record.forwarded_dynamic_descriptor_tables
@@ -1368,6 +1389,39 @@ fn installed_dynamic_calls(
             })
         })
         .collect()
+}
+
+fn installed_stored_dynamic_calls(
+    image: &ExecutableImage,
+) -> Result<Vec<InstalledStoredDynamicCall>, InstallationError> {
+    image
+        .functions()
+        .iter()
+        .flat_map(|function| {
+            function.stored_dynamic_calls.iter().map(|call| {
+                let establishment = &call.establishment;
+                Some(InstalledStoredDynamicCall {
+                    machine: function.machine,
+                    establishment_operation: establishment.psi_operation,
+                    operation: call.psi_operation,
+                    descriptor_ordinal: establishment.stored.descriptor.ordinal,
+                    selection_ordinal: establishment.stored.selection.ordinal,
+                    application_commitment: establishment.stored.application.commitment,
+                    source: establishment.instance.source.place,
+                    descriptor_home_byte_offset: establishment.descriptor_home_byte_offset,
+                    selected_table_byte_offset: call.selected_table_byte_offset,
+                    realization: call.dynamic_dispatch.dispatch.realization,
+                    establishment_text_offset: establishment
+                        .code_offset
+                        .checked_add(function.text_offset)?,
+                    establishment_byte_count: establishment.byte_count,
+                    text_offset: call.code_offset.checked_add(function.text_offset)?,
+                    byte_count: call.byte_count,
+                })
+            })
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or(InstallationError::FunctionOffsetNotRepresentable)
 }
 
 fn installed_forwarded_dynamic_descriptor_adapters(
@@ -1779,6 +1833,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && record.internal_unit_scalar_calls.is_empty()
                 && record.dynamic_conformance_tables.is_empty()
                 && record.dynamic_calls.is_empty()
+                && record.stored_dynamic_calls.is_empty()
                 && record.port_effects.is_empty()
                 && record.boundary_settlements.is_empty()
                 && record.semantic_code_attribution.len() == 9
@@ -3632,6 +3687,7 @@ fn validate_installed_dynamic_conformance(
     if sections.data_byte_count == 0 {
         if !record.dynamic_conformance_tables.is_empty()
             || !record.dynamic_calls.is_empty()
+            || !record.stored_dynamic_calls.is_empty()
             || !record.forwarded_dynamic_descriptor_adapters.is_empty()
             || !record.forwarded_dynamic_descriptor_tables.is_empty()
             || !record.forwarded_dynamic_descriptor_calls.is_empty()
@@ -3816,6 +3872,57 @@ fn validate_installed_dynamic_conformance(
             return Err(InstallationError::InvalidDynamicCall(call.machine));
         }
         previous_call = Some(order);
+    }
+    let mut previous_stored_call = None;
+    for call in &record.stored_dynamic_calls {
+        let invalid = || InstallationError::InvalidStoredDynamicCall(call.machine);
+        let function = functions.get(&call.machine).ok_or_else(invalid)?;
+        let establishment_end = call
+            .establishment_text_offset
+            .checked_add(call.establishment_byte_count)
+            .ok_or_else(invalid)?;
+        let call_end = call
+            .text_offset
+            .checked_add(call.byte_count)
+            .ok_or_else(invalid)?;
+        let function_end = function
+            .text_offset
+            .checked_add(function.byte_count)
+            .ok_or_else(invalid)?;
+        let table = record
+            .dynamic_conformance_tables
+            .iter()
+            .find(|table| table.application_commitment == call.application_commitment)
+            .ok_or_else(invalid)?;
+        referenced_commitments.insert(call.application_commitment);
+        let selected_index =
+            usize::try_from(call.selected_table_byte_offset / 8).map_err(|_| invalid())?;
+        let selected = table.slots.get(selected_index).ok_or_else(invalid)?;
+        let order = (
+            call.establishment_text_offset,
+            call.text_offset,
+            call.machine,
+            call.operation,
+        );
+        if call.establishment_byte_count == 0
+            || call.byte_count == 0
+            || call.selected_table_byte_offset % 8 != 0
+            || call.descriptor_home_byte_offset % 8 != 0
+            || call.establishment_text_offset < function.text_offset
+            || establishment_end > call.text_offset
+            || call_end > function_end
+            || selected.target != Some(call.realization)
+            || !function
+                .unit_parameter_homes
+                .iter()
+                .any(|home| home.place == call.source)
+            || previous_stored_call.is_some_and(|previous| previous >= order)
+            || !call_sites.insert((call.machine, call.establishment_operation))
+            || !call_sites.insert((call.machine, call.operation))
+        {
+            return Err(invalid());
+        }
+        previous_stored_call = Some(order);
     }
     if referenced_commitments != commitments {
         return Err(InstallationError::InvalidDynamicConformanceTable);
@@ -4217,7 +4324,6 @@ fn decode_structural_types(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallationError {
-    UnsupportedStoredDynamicCalls,
     InvalidMagic,
     UnsupportedFormatMarker(u16),
     UnsupportedVocabularyMarker(u16),
@@ -4253,6 +4359,7 @@ pub enum InstallationError {
     TooManyDynamicConformanceTables,
     TooManyDynamicConformanceSlots,
     TooManyDynamicScalarCalls,
+    TooManyStoredDynamicCalls,
     TooManyForwardedDynamicDescriptorAdapters,
     TooManyForwardedDynamicDescriptorTables,
     TooManyForwardedDynamicDescriptorSlots,
@@ -4351,6 +4458,7 @@ pub enum InstallationError {
     InvalidImageSectionLayout,
     InvalidDynamicConformanceTable,
     InvalidDynamicCall(MachineId),
+    InvalidStoredDynamicCall(MachineId),
     InvalidForwardedDynamicDescriptorAdapter,
     InvalidForwardedDynamicDescriptorTable,
     InvalidForwardedDynamicDescriptorCall(MachineId),
