@@ -2179,6 +2179,11 @@ mechanism, and passes it unchanged to closure review. Missing, duplicated,
 unsupported, unclassified, or substituted coordinates reject; no service or
 method name participates in derivation.
 
+Receiving-policy version 6 adds the append-only compiler-owned
+`embed(value)` proof term to the exhaustive builtin partition with an empty
+authority class. The revised whole-table commitment records that closed row;
+it does not turn the proof-only term into an executable mechanism.
+
 ## D46 — Same-process package review does not observe its executable pathname
 
 Package orchestration drives compiler review inside the same loaded `omega`

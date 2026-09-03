@@ -30,10 +30,10 @@ pub trait Content<A> {
 // overridden, stored, or executed. The retired `entry(&place)` spelling is
 // rejected rather than treated as an alias for `old(&place)`.
 
-// Uniform specification-number injection. Every fixed-width integer and
-// address embeds into proof Int with its complete carrier range; a consumer
-// that needs a nonnegative algebra must perform an explicit exact `as Nat`
-// conversion and discharge nonnegativity from that derived range. The content-
-// fragment validator admits this surface only for u8/u16/u32/u64/addr subject
-// fields; arbitrary calls and non-scalar arguments remain outside the fragment.
-boundary machine embed<T>(value: T) -> Int;
+// `embed(value)` is a compiler-owned proof term rather than a declared
+// machine. Every fixed-width integer and address embeds into proof Int with its
+// complete carrier range; a consumer that needs a nonnegative algebra must
+// perform an explicit exact `as Nat` conversion and discharge nonnegativity
+// from that derived range. The content-fragment validator admits this surface
+// only for fixed-width integer and address subject fields; arbitrary calls and
+// non-scalar arguments remain outside the fragment.

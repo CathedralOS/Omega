@@ -556,6 +556,12 @@ canonicalized into whole-policy identity; target, number, or contract
 substitution and absent rows fail closed; the current table also rejects every
 profile outside the evaluated Linux x86-64/AArch64 syscall domain.
 
+Receiving-policy version 6 appends the compiler-owned `embed(value)` proof
+term to the closed builtin inventory with an exact empty authority class. This
+row keeps the whole-table commitment exhaustive without making the proof term
+executable or granting it provider, call-plan, Terminal, native, or
+installation authority.
+
 The first checked-contract rung is now live. Provider settlement derives a
 domain-separated conservative identity from the verified Terminal boundary:
 the complete scalar carriers plus each structural parameter's canonical

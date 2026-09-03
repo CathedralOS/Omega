@@ -932,8 +932,15 @@ Remaining:
   route land. Keep
   `PlacedField::read/take/write` as external realizations: they already carry
   exact `satisfies` edges. Complete the `no_wrap` proposition migration under
-  **TARGET-SEMANTIC-APPLICATIONS**; remove the fake bodyless `embed` declaration in favor of the
-  canonical compiler-owned fact-position term former; and do not turn N5's
+  **TARGET-SEMANTIC-APPLICATIONS**. The fake bodyless `embed` declaration is
+  retired: receiverless `embed(value)` now resolves only to its append-only
+  compiler builtin in proof facts, transparent propositions, and exact Content
+  projection proof bodies. Fixed-width integer and address carriers contribute
+  their exact proof-`Int` ranges; nonnegative explicit `as Nat` remains checked,
+  while authored or qualified lookalikes, runtime use, unsupported carriers,
+  and malformed applications reject. The term creates no machine, provider,
+  call, Terminal, native, or installation authority; receiving-policy v6
+  records only its exhaustive empty-class builtin row. Do not turn N5's
   temporary claim-free `Real` symbols into a language category. N6/N8 must
   replace those symbols with constructed checked operations, while current
   bodyless Real laws remain disclosed axioms until checked proof bodies replace

@@ -29,6 +29,7 @@ mod operators;
 mod placed_views;
 mod places;
 mod plan_laid;
+mod proof_embeddings;
 mod proof_facts;
 mod proof_only_faces;
 mod properties;
@@ -349,6 +350,7 @@ fn validate_program_internal(
     declaration_visibility::collect_declaration_visibility_diagnostics(program, &mut diagnostics);
     cleanup::collect_reserved_cleanup_selection_diagnostics(program, &mut diagnostics);
     validate_proposition_definitions(program, &mut diagnostics);
+    proof_embeddings::validate_proof_embeddings(program, &mut diagnostics);
     proposition_entailment::validate_proposition_entailment(program, &mut diagnostics);
 
     literals::validate_literal_widths(program, &mut diagnostics);

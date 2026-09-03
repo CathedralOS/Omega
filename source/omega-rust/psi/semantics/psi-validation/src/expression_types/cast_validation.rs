@@ -44,7 +44,10 @@ pub(crate) fn validate_cast_types(
         && cast.semantic_domain.count() == 0
         && matches!(program.expression_table.expression(cast.value),
             ExpressionNode::Call(call)
-                if call.target.as_str().rsplit("::").next() == Some("embed"))
+                if crate::proof_embeddings::is_exact_embed_call(program, call)
+                    && matches!(program.expression_table.expression_handles(call.arguments), [argument]
+                        if crate::proof_embeddings::integer_embedding(program, *argument)
+                            .is_some_and(|embedding| !embedding.minimum.is_negative())))
     {
         return;
     }

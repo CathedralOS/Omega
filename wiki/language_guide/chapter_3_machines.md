@@ -324,6 +324,8 @@ Compiler-owned fact-position terms are not a sixth machine supply form.
 `embed(value)`, `old(&place)`, and similar canonical term formers are accepted
 only in their specified proof positions and do not acquire fake bodyless
 boundary declarations merely to enter name resolution.
+They resolve through exact compiler builtin identities and never enter
+provider, call-plan, Terminal, native, or installation selection.
 A claim-free bodyless free machine is likewise not an abstract requirement or
 proof symbol. It rejects unless it is one of the temporary core declarations
 named for migration to a real category.

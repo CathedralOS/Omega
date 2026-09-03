@@ -124,7 +124,6 @@ fn checked_facts_lift_a_singleton_into_the_interval_set_algebra() {
         trait Content<A> {
             machine project(subject: &Self) -> A;
         }
-        boundary machine embed<T>(value: T) -> Int;
         data Region [linear] { base: u64; length: u64; }
         domain Region::Owned;
 
@@ -182,7 +181,6 @@ fn checked_facts_retain_runtime_scalar_embedding() {
         trait Content<A> {
             machine project(subject: &Self) -> A;
         }
-        boundary machine embed<T>(value: T) -> Int;
         data Region [linear] { length: u64; }
         domain Region::Owned;
 
@@ -218,7 +216,6 @@ fn signed_runtime_embedding_cannot_enter_a_nat_content_algebra() {
         data ByteUnit {}
         data CountedQuantity<Unit> { magnitude: Nat; }
         trait Content<A> { machine project(subject: &Self) -> A; }
-        boundary machine embed<T>(value: T) -> Int;
         data Region [linear] { delta: i64; }
         domain Region::Owned;
 
@@ -238,6 +235,134 @@ fn signed_runtime_embedding_cannot_enter_a_nat_content_algebra() {
             .message
             .contains("outside the closed projection fragment")
     }));
+}
+
+#[test]
+fn compiler_owned_embedding_proves_exact_unsigned_and_signed_carrier_ranges() {
+    let source = r#"
+        machine unsigned_range(value: u8)
+        ensures embed(value) >= 0 && embed(value) <= 255
+        {
+        }
+
+        machine signed_range(value: i8)
+        ensures embed(value) >= -128 && embed(value) <= 127
+        {
+        }
+
+        data Main {}
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    let embed = checked
+        .typed
+        .symbols
+        .builtin_function_symbol(psi_symbols::BuiltinFunction::ContentEmbed)
+        .expect("compiler-owned embed symbol");
+    assert!(
+        checked
+            .typed
+            .expression_table
+            .iter_expressions()
+            .any(|(_, expression)| {
+                matches!(expression, psi_typed_trees::expression::ExpressionNode::Call(call)
+            if call.target_symbol == embed && call.target.as_str() == "embed")
+            })
+    );
+    assert!(checked.typed.machines().iter().all(|machine| {
+        machine.symbol != embed
+            && checked
+                .typed
+                .machine_states(machine)
+                .iter()
+                .all(|state| state.symbol != embed)
+    }));
+    assert!(checked.facts.nominal_machine_uses.uses.is_empty());
+    assert!(checked.facts.operators.boundary_applications.is_empty());
+    assert!(
+        checked
+            .facts
+            .operators
+            .symbolic_boundary_applications
+            .is_empty()
+    );
+    assert!(checked.facts.intrinsic_calls.is_empty());
+}
+
+#[test]
+fn compiler_owned_embedding_rejects_runtime_and_non_integer_uses() {
+    for source in [
+        r#"
+            data Main {}
+            machine Main::main(&mut self) {
+                let value: u64 = embed(1u64);
+            }
+        "#,
+        r#"
+            machine invalid(value: bool)
+            ensures embed(value) == embed(value)
+            {
+            }
+            data Main {}
+            machine Main::main(&mut self) {}
+        "#,
+        r#"
+            machine invalid(value: u64)
+            ensures embed(value, value) == 0
+            {
+            }
+            data Main {}
+            machine Main::main(&mut self) {}
+        "#,
+        r#"
+            machine invalid(value: u64)
+            ensures embed<u64>(value) == embed(value)
+            {
+            }
+            data Main {}
+            machine Main::main(&mut self) {}
+        "#,
+    ] {
+        let diagnostics = rejected(source);
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("compiler-owned `embed")
+                    || diagnostic.message.contains("compiler-owned `embed(value)`")
+                    || diagnostic
+                        .message
+                        .contains("supplies static machine arguments")
+            }),
+            "unexpected diagnostics: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn authored_qualified_embed_lookalike_cannot_supply_the_proof_term() {
+    let diagnostics = rejected(
+        r#"
+        data Fake {}
+        boundary machine Fake::embed(value: u64) -> Int;
+
+        machine invalid(value: u64)
+        ensures Fake.embed(value) == Fake.embed(value)
+        {
+        }
+
+        data Main {}
+        machine Main::main(&mut self) {}
+        "#,
+    );
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("authored, package-qualified, or same-spelled call")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]

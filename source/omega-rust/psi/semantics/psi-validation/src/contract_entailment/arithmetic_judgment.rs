@@ -991,6 +991,33 @@ impl<'program> Engine<'program> {
                 _ => None,
             },
             ExpressionNode::Call(call) => {
+                if crate::proof_embeddings::is_exact_embed_call(self.program, &call) {
+                    let [argument] = self
+                        .program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                    else {
+                        return None;
+                    };
+                    if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty() {
+                        return None;
+                    }
+                    let embedding =
+                        crate::proof_embeddings::integer_embedding(self.program, *argument)?;
+                    let value = self.normalize(*argument)?;
+                    if let Some((atom, 1, constant)) = value.as_single_atom()
+                        && constant.is_zero()
+                    {
+                        self.mod_intervals.insert(
+                            atom,
+                            Interval {
+                                low: Some(embedding.minimum),
+                                high: Some(embedding.maximum),
+                            },
+                        );
+                    }
+                    return Some(value);
+                }
                 if self.strict_symbol_bindings.is_some() {
                     return None;
                 }

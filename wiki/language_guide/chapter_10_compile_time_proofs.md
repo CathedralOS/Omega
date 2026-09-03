@@ -1043,6 +1043,12 @@ declared as a bodyless boundary machine. A package-declarable proof-term-symbol
 surface, if ever justified independently, must be designed explicitly rather
 than inferred from the temporary Real scaffold.
 
+The exact builtin accepts one fixed-width integer or address argument in proof
+facts, transparent proposition formulas, and exact Content projection proof
+bodies. It contributes the carrier's exact proof-`Int` range and rejects
+same-spelled authored or qualified symbols, executable uses, and malformed or
+unsupported arguments.
+
 Runtime data often needs a mathematical view before it can be reasoned about.
 
 For slices, useful proof views include:

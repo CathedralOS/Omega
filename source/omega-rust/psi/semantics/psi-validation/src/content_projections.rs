@@ -315,6 +315,25 @@ fn projection_result_expression(
     }
 }
 
+pub(crate) fn content_projection_body_expression(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Option<ExpressionHandle> {
+    program
+        .machine_trait_conformances(machine)
+        .iter()
+        .any(|conformance| {
+            conformance.requirement.as_ref().map(|name| name.as_str()) == Some("project")
+                && program
+                    .traits()
+                    .iter()
+                    .find(|candidate| candidate.symbol == conformance.symbol)
+                    .is_some_and(|candidate| is_content_projection_trait(program, candidate))
+        })
+        .then(|| projection_result_expression(program, machine))
+        .flatten()
+}
+
 fn normalize_projection_expression(
     program: &TypedTrees,
     subject: ProjectionSubject,
@@ -523,9 +542,7 @@ fn is_content_projection_trait(program: &TypedTrees, candidate: &TraitDefinition
 }
 
 fn is_content_scalar_embedding(program: &TypedTrees, call: &TableCallExpression) -> bool {
-    !call.receiver.is_valid()
-        && call.target.as_str().rsplit("::").next() == Some("embed")
-        && compiler_owned_symbol(program, call.target_symbol)
+    crate::proof_embeddings::is_exact_embed_call(program, call)
 }
 
 fn runtime_scalar_can_embed(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {

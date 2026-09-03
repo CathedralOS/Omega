@@ -70,6 +70,7 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::FloatClassifyF64
             | BuiltinFunction::ContentOld
             | BuiltinFunction::ContentSeparate
+            | BuiltinFunction::ContentEmbed
             | BuiltinFunction::FloatAddTowardZeroF32
             | BuiltinFunction::FloatAddTowardZeroF64
             | BuiltinFunction::FloatAddTowardPositiveF32
@@ -163,8 +164,8 @@ fn policy_identity_binds_version_and_complete_table() {
     assert_eq!(
         identity.commitment(),
         [
-            13, 8, 153, 71, 191, 233, 252, 142, 91, 35, 4, 163, 25, 111, 88, 246, 198, 141, 134,
-            159, 86, 64, 108, 244, 17, 100, 134, 118, 11, 181, 254, 126,
+            149, 61, 29, 44, 53, 29, 2, 19, 69, 240, 179, 190, 133, 203, 164, 253, 95, 141, 24,
+            147, 156, 221, 98, 63, 189, 77, 120, 57, 153, 245, 182, 255,
         ]
     );
 }

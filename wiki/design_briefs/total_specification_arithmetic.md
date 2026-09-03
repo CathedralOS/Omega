@@ -58,6 +58,12 @@ address payload into proof `Int`. It performs no runtime conversion, allocates
 no bytes, does not mutate or requalify the source binding, and cannot influence
 runtime data or control.
 
+The source spelling resolves only to the append-only compiler builtin in proof
+facts, transparent propositions, and exact Content projection proof bodies.
+Authored or package-qualified lookalikes, runtime use, malformed applications,
+and unsupported carriers reject rather than acquiring provider or execution
+authority.
+
 Embedding retains the source carrier identity and contributes its exact range:
 
 - an embedded unsigned integer or address is nonnegative and no greater than

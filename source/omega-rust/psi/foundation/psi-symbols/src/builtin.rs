@@ -273,10 +273,14 @@ pub enum BuiltinFunction {
     FloatFusedMultiplyAddTowardPositiveF64,
     FloatFusedMultiplyAddTowardNegativeF32,
     FloatFusedMultiplyAddTowardNegativeF64,
+    /// Proof-only total embedding of one fixed-width integer or address into
+    /// mathematical `Int`. Appended so every existing builtin ordinal remains
+    /// stable; packages cannot implement, select, or execute this term former.
+    ContentEmbed,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 71;
+    pub const COUNT: usize = 72;
 
     pub const ALL: [Self; Self::COUNT] = [
         Self::Max,
@@ -350,6 +354,7 @@ impl BuiltinFunction {
         Self::FloatFusedMultiplyAddTowardPositiveF64,
         Self::FloatFusedMultiplyAddTowardNegativeF32,
         Self::FloatFusedMultiplyAddTowardNegativeF64,
+        Self::ContentEmbed,
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -437,6 +442,7 @@ impl BuiltinFunction {
             }
             Self::ContentOld => "old",
             Self::ContentSeparate => "separate",
+            Self::ContentEmbed => "embed",
         }
     }
 
@@ -513,6 +519,7 @@ impl BuiltinFunction {
             Self::FloatFusedMultiplyAddTowardPositiveF64 => 68,
             Self::FloatFusedMultiplyAddTowardNegativeF32 => 69,
             Self::FloatFusedMultiplyAddTowardNegativeF64 => 70,
+            Self::ContentEmbed => 71,
         }
     }
 
@@ -588,6 +595,7 @@ impl BuiltinFunction {
             | Self::FloatFusedMultiplyAddTowardNegativeF64
             | Self::ContentOld
             | Self::ContentSeparate
+            | Self::ContentEmbed
             | Self::AsmLoadFence
             | Self::AsmStoreFence
             | Self::AsmFullFence
@@ -941,6 +949,10 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF64.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::ContentEmbed.name()),
+        ),
     ]
 }
 
@@ -1025,6 +1037,14 @@ mod builtin_ordinal_tests {
             ),
             "the retired ContentEntry builtin must not survive under its source spelling"
         );
+    }
+
+    #[test]
+    fn content_embed_appends_without_renumbering_existing_builtins() {
+        let table = builtin_function_symbols();
+        assert_eq!(BuiltinFunction::ContentEmbed.ordinal(), 71);
+        assert_eq!(BuiltinFunction::ContentEmbed.name(), "embed");
+        assert_eq!(table[71].1.as_str(), "embed");
     }
 
     #[test]
