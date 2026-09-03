@@ -1207,6 +1207,9 @@ fn type_reference_is_any_generic_parameter(
     else {
         return false;
     };
+    if symbol.is_valid() && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter {
+        return true;
+    }
     program.machines().iter().any(|machine| {
         program
             .machine_type_parameters(machine)
@@ -1665,16 +1668,20 @@ fn type_reference_is_still_generic(
     binding: TypeReferenceHandle,
     all_parameters: &[(SymbolHandle, String)],
 ) -> bool {
-    matches!(
-        program.type_reference_table.type_reference(binding),
-        TypeReferenceNode::Named { symbol, name }
-            if all_parameters.iter().any(|(parameter_symbol, parameter_name)| {
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(binding)
+    else {
+        return false;
+    };
+    (symbol.is_valid() && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter)
+        || all_parameters
+            .iter()
+            .any(|(parameter_symbol, parameter_name)| {
                 parameter_symbol == symbol
                     || (!parameter_symbol.is_valid()
                         && !symbol.is_valid()
                         && parameter_name == name.as_str())
             })
-    )
 }
 
 fn same_type_identity(
