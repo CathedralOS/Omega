@@ -652,6 +652,78 @@ pub struct ConventionalDepthTwentyRecordSumPathsLayoutReport {
     pub paths: Vec<ConventionalDepthTwentyRecordSumOccurrenceLayoutReport>,
 }
 
+/// One exact direct outer-field occurrence and the complete authored-order
+/// depth-twenty record paths reachable through that occurrence.
+///
+/// The nested report retains every existing depth-twenty boundary whole. No
+/// child layout or selected value is flattened into the new enclosing record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthTwentyOneRecordSumOccurrenceLayoutReport {
+    pub outer_field: String,
+    pub outer_member_identity: Option<u64>,
+    pub depth_twenty_paths: ConventionalDepthTwentyRecordSumPathsLayoutReport,
+}
+
+/// Compact complete authored-order set of qualifying plural depth-twenty-one
+/// record chains.
+///
+/// The outer layout is retained once. Each occurrence owns the unchanged
+/// plural depth-twenty report for its exact nineteenth record, preserving every
+/// path boundary without forming a flattened cross-product of nested rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthTwentyOneRecordSumPathsLayoutReport {
+    pub outer_layout: LayoutPlanReport,
+    pub paths: Vec<ConventionalDepthTwentyOneRecordSumOccurrenceLayoutReport>,
+}
+
+/// One exact direct outer-field occurrence and the complete authored-order
+/// depth-twenty-one record paths reachable through that occurrence.
+///
+/// The nested report retains every existing depth-twenty-one boundary whole.
+/// No child layout or selected value is flattened into the new enclosing record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthTwentyTwoRecordSumOccurrenceLayoutReport {
+    pub outer_field: String,
+    pub outer_member_identity: Option<u64>,
+    pub depth_twenty_one_paths: ConventionalDepthTwentyOneRecordSumPathsLayoutReport,
+}
+
+/// Compact complete authored-order set of qualifying plural depth-twenty-two
+/// record chains.
+///
+/// The outer layout is retained once. Each occurrence owns the unchanged
+/// plural depth-twenty-one report for its exact twentieth record, preserving
+/// every path boundary without forming a flattened cross-product of nested rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthTwentyTwoRecordSumPathsLayoutReport {
+    pub outer_layout: LayoutPlanReport,
+    pub paths: Vec<ConventionalDepthTwentyTwoRecordSumOccurrenceLayoutReport>,
+}
+
+/// One exact direct outer-field occurrence and the complete authored-order
+/// depth-twenty-two record paths reachable through that occurrence.
+///
+/// The nested report retains every existing depth-twenty-two boundary whole.
+/// No child layout or selected value is flattened into the new enclosing record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthTwentyThreeRecordSumOccurrenceLayoutReport {
+    pub outer_field: String,
+    pub outer_member_identity: Option<u64>,
+    pub depth_twenty_two_paths: ConventionalDepthTwentyTwoRecordSumPathsLayoutReport,
+}
+
+/// Compact complete authored-order set of qualifying plural depth-twenty-three
+/// record chains.
+///
+/// The outer layout is retained once. Each occurrence owns the unchanged
+/// plural depth-twenty-two report for its exact twenty-first record, preserving
+/// every path boundary without forming a flattened cross-product of nested rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthTwentyThreeRecordSumPathsLayoutReport {
+    pub outer_layout: LayoutPlanReport,
+    pub paths: Vec<ConventionalDepthTwentyThreeRecordSumOccurrenceLayoutReport>,
+}
+
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Declaration identities are exact canonical strings rather than
 /// authored ordinals or arena handles. The authoritative layout policy owns

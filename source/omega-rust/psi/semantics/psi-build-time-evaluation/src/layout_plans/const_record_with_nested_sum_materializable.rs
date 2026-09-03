@@ -46,6 +46,9 @@ mod depth_seventeen;
 mod depth_eighteen;
 mod depth_nineteen;
 mod depth_twenty;
+mod depth_twenty_one;
+mod depth_twenty_two;
+mod depth_twenty_three;
 mod derivation;
 mod report_identity;
 mod sum_reachability;
@@ -74,6 +77,21 @@ pub use depth_twenty::{
     ValidatedConstDepthTwentyNestedSumOccurrenceMaterialization,
     ValidatedConstRecordWithDepthTwentyNestedSumsMaterialization,
     validate_const_materializable_record_with_depth_twenty_nested_sums,
+};
+pub use depth_twenty_one::{
+    ValidatedConstDepthTwentyOneNestedSumOccurrenceMaterialization,
+    ValidatedConstRecordWithDepthTwentyOneNestedSumsMaterialization,
+    validate_const_materializable_record_with_depth_twenty_one_nested_sums,
+};
+pub use depth_twenty_two::{
+    ValidatedConstDepthTwentyTwoNestedSumOccurrenceMaterialization,
+    ValidatedConstRecordWithDepthTwentyTwoNestedSumsMaterialization,
+    validate_const_materializable_record_with_depth_twenty_two_nested_sums,
+};
+pub use depth_twenty_three::{
+    ValidatedConstDepthTwentyThreeNestedSumOccurrenceMaterialization,
+    ValidatedConstRecordWithDepthTwentyThreeNestedSumsMaterialization,
+    validate_const_materializable_record_with_depth_twenty_three_nested_sums,
 };
 use derivation::*;
 use report_identity::*;
