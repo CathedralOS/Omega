@@ -10,13 +10,30 @@ pub(super) fn validate_unit_function_shape(
             function.machine,
         ));
     }
+    let canonical_entry_parameters = function.block_entries.first().is_some_and(|entry| {
+        entry.parameters == function.parameters
+            || (entry.parameters.is_empty() && has_parameter_sourced_store_shape(function))
+    });
     if function.block_entries.len() != 1
         || function.block_entries[0].block != function.entry
-        || function.block_entries[0].parameters != function.parameters
+        || !canonical_entry_parameters
     {
         return Err(LoweringError::UnitFunctionNotStraightLine(function.machine));
     }
     Ok(())
+}
+
+fn has_parameter_sourced_store_shape(function: &AbstractFunction) -> bool {
+    let [parameter] = function.parameters.as_slice() else {
+        return false;
+    };
+    matches!(
+        function.operations.as_slice(),
+        [
+            AbstractOperation::WriteOnlyPrimitiveStore { value, .. },
+            AbstractOperation::ReturnUnit { .. },
+        ] if value.value == parameter.value && value.scalar_type == parameter.scalar_type
+    )
 }
 
 fn has_bounded_scalar_parameter_shape(function: &AbstractFunction) -> bool {

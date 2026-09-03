@@ -68,6 +68,7 @@ pub(super) fn assign(
             destination_placement,
             *source,
             preceding_operations,
+            target,
         )?,
         TargetUnitOperation::StructuralScalarFieldStore {
             psi_operation,

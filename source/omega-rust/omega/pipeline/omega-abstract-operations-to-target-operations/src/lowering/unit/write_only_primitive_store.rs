@@ -54,25 +54,36 @@ pub(super) fn lower_write_only_primitive_store(
     let (expected_shape, source) = match value.scalar_type {
         ScalarType::Integer(integer_type) => {
             let referent_shape = fixed_native_integer_shape(integer_type).ok_or_else(invalid)?;
-            let Some(KnownUnitInteger::Immediate {
-                defining_operation,
-                scalar_type,
-                value: immediate,
-            }) = scalar_values.get(&value.value).copied()
-            else {
+            let Some(known_value) = scalar_values.get(&value.value).copied() else {
                 return Err(invalid());
             };
-            if scalar_type != integer_type {
+            if known_value.scalar_type() != integer_type {
                 return Err(invalid());
             }
-            (
-                ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment),
-                TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
+            let source = match known_value {
+                KnownUnitInteger::Parameter {
+                    parameter_index,
+                    scalar_type,
+                } => TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
+                    parameter_index,
+                    source_value: value.value,
+                    scalar_type,
+                },
+                KnownUnitInteger::Immediate {
+                    defining_operation,
+                    scalar_type,
+                    value: immediate,
+                } => TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
                     defining_operation,
                     source_value: value.value,
                     scalar_type,
                     value: immediate,
                 },
+                KnownUnitInteger::Home(_) => return Err(invalid()),
+            };
+            (
+                ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment),
+                source,
             )
         }
         ScalarType::Boolean => {

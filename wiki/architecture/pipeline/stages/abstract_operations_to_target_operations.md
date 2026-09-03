@@ -91,6 +91,12 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   IEEE literals through floating registers. Object construction and
   installation replay retain every family's exact definition ordinal, bytes,
   and attribution.
+  A separate runtime-source sublane carries one exact signed `i32` parameter
+  into the same whole-root store. Target planning binds the dense scalar
+  parameter to its source value and primitive referent; physical assignment
+  independently rejoins the function call plan and incoming register on both
+  Linux targets. Machine emission remains fail closed until parameter-to-memory
+  transfer has its own replayable source record.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider
