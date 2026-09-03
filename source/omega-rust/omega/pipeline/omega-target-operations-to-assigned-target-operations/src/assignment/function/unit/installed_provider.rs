@@ -74,7 +74,7 @@ pub(super) fn assign(
         || parameter_index != 0
         || argument.parameter_index != 0
         || parameter.value != source_value
-        || parameter.scalar_type != scalar_type
+        || parameter.scalar_type != psi_core::ScalarType::Integer(scalar_type)
         || parameter.placement != *body_parameter_placement
         || argument.placement != *call_parameter_placement
         || argument.placement.shape != shape

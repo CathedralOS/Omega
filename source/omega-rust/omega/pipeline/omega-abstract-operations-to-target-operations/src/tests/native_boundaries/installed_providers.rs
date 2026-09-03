@@ -367,7 +367,10 @@ fn admitted_i32_provider_retains_exact_incoming_and_outgoing_abi() {
         assert!(matches!(
             caller.scalar_parameters.as_slice(),
             [parameter] if parameter.value == caller_value
-                && parameter.scalar_type == IntegerType::new(IntegerSign::Signed, 32).unwrap()
+                && parameter.scalar_type
+                    == ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Signed, 32).unwrap()
+                    )
                 && parameter.placement == caller.call_plan.parameters[0]
         ));
         assert!(matches!(

@@ -2,9 +2,9 @@ use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
     AbstractDynamicDescriptorArgument, AbstractReboundDynamicDispatch, AbstractResult,
     AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, BoundaryByteSequenceArgument,
-    BoundaryRealization, BoundaryScalarArgument, CompletionClaimSource, FixedIntegerScalarAbiValue,
-    MachineRegister, ProviderExecutionBinding, RankedU32CountdownCustody,
-    TargetStructuralParameter,
+    BoundaryRealization, BoundaryScalarArgument, CompletionClaimSource, MachineRegister,
+    ProviderExecutionBinding, RankedU32CountdownCustody, TargetStructuralParameter,
+    UnitScalarAbiValue,
 };
 use psi_core::{
     BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
@@ -36,7 +36,7 @@ pub struct AssignedRankedU32Countdown {
 pub struct AssignedUnitBody {
     pub structural_types: Vec<StructuralTypeDeclaration>,
     pub call_plan: CallPlan,
-    pub scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
+    pub scalar_parameters: Vec<UnitScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,
     pub operations: Vec<AssignedUnitOperation>,
 }

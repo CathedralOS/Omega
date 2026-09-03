@@ -559,6 +559,11 @@ pub(super) fn assign(
                 when_false: *when_false,
             }
         }
+        TargetUnitOperation::ConditionalBooleanParameter { .. } => {
+            return Err(AssignmentError::UnitBooleanParameterControlUnsupported(
+                machine,
+            ));
+        }
         TargetUnitOperation::ConditionalDispatch { fallthrough_edge } => {
             AssignedUnitOperation::ConditionalDispatch {
                 fallthrough_edge: *fallthrough_edge,

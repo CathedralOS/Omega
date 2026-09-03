@@ -618,9 +618,14 @@ Target-neutral lowering then preserves the conditional and both descriptor-
 bearing calls, including their distinct selection/application sources and one
 shared helper parameter dispatch. Optimization reconstruction independently
 validates that graph and rejects replacing either predecessor with the other.
-Physical selection, aggregate storage beyond the bounded single-field local
-form below, returns, forwarding after the join, and component crossings remain
-fenced.
+Target lowering preserves that same graph without a joined-table form. Its
+attached-Unit ABI keeps the entry guard as an exact Boolean parameter, and one
+parameter-conditional operation binds both successor ordinals and nominal
+return edges to the two descriptor-bearing leaves. Each leaf still owns its
+distinct selection/application custody and the same helper target. Physical
+assignment and native encoding remain fenced at that explicit operation;
+aggregate storage beyond the bounded single-field local form below, forwarding
+after the join, and component crossings also remain fenced.
 
 The first Terminal aggregate-storage rung accepts only the checked immutable
 one-field record initialized from one earlier exact shared-borrow selection.

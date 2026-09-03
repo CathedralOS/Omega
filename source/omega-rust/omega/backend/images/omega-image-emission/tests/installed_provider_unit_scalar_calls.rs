@@ -7,12 +7,13 @@ use omega_machine_code::{
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{
-    FixedIntegerScalarAbiValue, MachineRegister, TargetFunction, TargetOperation,
-    TargetOperationPlan, TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TerminalPsiProvenance,
+    MachineRegister, TargetFunction, TargetOperation, TargetOperationPlan, TargetUnitBody,
+    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    TerminalPsiProvenance, UnitScalarAbiValue,
 };
 use psi_core::{
-    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ValueId,
+    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
+    ValueId,
 };
 use psi_terminal::{
     ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
@@ -44,9 +45,9 @@ fn emitted_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
         TargetOperation::UnitBody(TargetUnitBody {
             structural_types: Vec::new(),
             call_plan: call_plan.clone(),
-            scalar_parameters: vec![FixedIntegerScalarAbiValue {
+            scalar_parameters: vec![UnitScalarAbiValue {
                 value,
-                scalar_type,
+                scalar_type: ScalarType::Integer(scalar_type),
                 placement: call_plan.parameters[0].clone(),
             }],
             parameters: Vec::new(),
@@ -257,7 +258,8 @@ fn object_rejects_provider_parameter_abi_and_call_custody_mutations() {
             .as_mut()
             .unwrap()
             .parameters[0]
-            .scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+            .scalar_type =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         assert_eq!(
             build_object_artifact(&candidate_abi),
             Err(expected_custody_error())

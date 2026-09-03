@@ -130,7 +130,7 @@ pub(super) fn emit_installed_provider_scalar_call(
         || parameter_index != 0
         || argument.parameter_index != 0
         || parameter.value != source_value
-        || parameter.scalar_type != scalar_type
+        || parameter.scalar_type != psi_core::ScalarType::Integer(scalar_type)
         || parameter.placement.shape != shape
         || scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
         || scalar_type.sign() != psi_core::IntegerSign::Signed

@@ -6,12 +6,13 @@ use omega_assigned_target_operations::{
 use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use omega_target::NativeTarget;
 use omega_target_operations::{
-    FixedIntegerScalarAbiValue, TargetFunction, TargetOperation, TargetOperationPlan,
-    TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TerminalPsiProvenance,
+    TargetFunction, TargetOperation, TargetOperationPlan, TargetUnitBody, TargetUnitOperation,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TerminalPsiProvenance,
+    UnitScalarAbiValue,
 };
 use psi_core::{
-    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ValueId,
+    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
+    ValueId,
 };
 use psi_terminal::{
     ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
@@ -39,9 +40,9 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
         TargetOperation::UnitBody(TargetUnitBody {
             structural_types: Vec::new(),
             call_plan: call_plan.clone(),
-            scalar_parameters: vec![FixedIntegerScalarAbiValue {
+            scalar_parameters: vec![UnitScalarAbiValue {
                 value,
-                scalar_type,
+                scalar_type: ScalarType::Integer(scalar_type),
                 placement: call_plan.parameters[0].clone(),
             }],
             parameters: Vec::new(),

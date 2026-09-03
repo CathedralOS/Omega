@@ -938,7 +938,7 @@ pub struct UnitScalarHomeRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnitScalarFunctionAbiRecord {
     pub call_plan: CallPlan,
-    pub parameters: Vec<omega_target_operations::FixedIntegerScalarAbiValue>,
+    pub parameters: Vec<omega_target_operations::UnitScalarAbiValue>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

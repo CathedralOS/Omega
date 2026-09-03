@@ -9,13 +9,14 @@ use omega_machine_code::{
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{
-    CallSiteOwner, FixedIntegerScalarAbiValue, MachineRegister, TargetFunction, TargetOperation,
-    TargetOperationPlan, TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TerminalPsiProvenance,
+    CallSiteOwner, MachineRegister, TargetFunction, TargetOperation, TargetOperationPlan,
+    TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, TerminalPsiProvenance, UnitScalarAbiValue,
 };
 use omega_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
-    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ValueId,
+    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
+    ValueId,
 };
 use psi_terminal::{
     ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
@@ -43,9 +44,9 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
         TargetOperation::UnitBody(TargetUnitBody {
             structural_types: Vec::new(),
             call_plan: call_plan.clone(),
-            scalar_parameters: vec![FixedIntegerScalarAbiValue {
+            scalar_parameters: vec![UnitScalarAbiValue {
                 value,
-                scalar_type,
+                scalar_type: ScalarType::Integer(scalar_type),
                 placement: call_plan.parameters[0].clone(),
             }],
             parameters: Vec::new(),

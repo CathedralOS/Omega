@@ -2,6 +2,7 @@
 use super::*;
 
 mod dynamic_dispatch;
+mod dynamic_descriptor_join;
 mod fixed_integer_scalar_abi;
 mod native_boundaries;
 mod native_callback_arguments;

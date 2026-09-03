@@ -13,7 +13,7 @@ use omega_machine_code::{
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{CallSiteOwner, MachineRegister};
-use psi_core::{IntegerCarrier, IntegerSign, MachineId};
+use psi_core::{IntegerCarrier, IntegerSign, MachineId, ScalarType};
 
 use super::{ObjectError, ObjectUnitCallStack};
 
@@ -111,7 +111,7 @@ pub(super) fn validate_installed_provider_unit_scalar_calls(
             || parameter_index != 0
             || argument.parameter_index != 0
             || source_value != caller_parameter.value
-            || scalar_type != caller_parameter.scalar_type
+            || ScalarType::Integer(scalar_type) != caller_parameter.scalar_type
             || location != expected_location
             || argument.destination != caller_parameter.placement
             || argument.byte_count != 0
@@ -216,9 +216,13 @@ fn validate_unit_scalar_abi(
                 value_byte_offset: 0,
                 byte_size: 4,
             }]
-        || parameter.scalar_type.carrier() != IntegerCarrier::Fixed
-        || parameter.scalar_type.sign() != IntegerSign::Signed
-        || parameter.scalar_type.bits() != 32
+        || !matches!(
+            parameter.scalar_type,
+            ScalarType::Integer(scalar_type)
+                if scalar_type.carrier() == IntegerCarrier::Fixed
+                    && scalar_type.sign() == IntegerSign::Signed
+                    && scalar_type.bits() == 32
+        )
         || function.fixed_integer_scalar_abi.is_some()
         || function.scalar_stack.is_some()
         || function.unit_stack.is_none()
