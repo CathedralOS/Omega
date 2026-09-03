@@ -211,7 +211,6 @@ pub fn discover_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     root_path: &Path,
-    selected_target_name: Option<&str>,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
     let root_dir = root_path
         .parent()
@@ -223,27 +222,9 @@ pub fn discover_imports(
     for parsed_source in parsed_sources {
         let source_root = standalone_source_root(&root_dir, &parsed_source.path);
         for root_item in &parsed_source.root_items {
-            let item = syntax_trees.root_item(*root_item);
-            match item {
-                Item::Use(use_item) => {
-                    let members = syntax_trees.items.identifier_path_members(use_item.path);
-                    imports.push(normalize_path(&resolve_source_path(&source_root, members))?);
-                }
-                Item::Target(target) => {
-                    let target_is_selected = selected_target_name
-                        .is_none_or(|target_name| target.name.as_str() == target_name);
-
-                    if !target_is_selected {
-                        continue;
-                    }
-                    append_standalone_target_imports(
-                        target,
-                        syntax_trees,
-                        &root_dir,
-                        &mut imports,
-                    )?;
-                }
-                _ => {}
+            if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
+                let members = syntax_trees.items.identifier_path_members(use_item.path);
+                imports.push(normalize_path(&resolve_source_path(&source_root, members))?);
             }
         }
     }
@@ -271,61 +252,6 @@ pub(super) fn discover_unconditional_imports(
         }
     }
     Ok(imports)
-}
-
-pub(super) fn discover_target_scoped_imports(
-    source_storage: &SourceStorage,
-    root_path: &Path,
-    selected_target_name: Option<&str>,
-) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-    let root_dir = root_path
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
-    let mut imports = Vec::new();
-    for (_, source) in source_storage.files.iter() {
-        for root_item in &source.root_items {
-            let Item::Target(target) = source_storage.syntax_trees.root_item(*root_item) else {
-                continue;
-            };
-            if selected_target_name.is_some_and(|selected| target.name.as_str() != selected) {
-                continue;
-            }
-            append_standalone_target_imports(
-                target,
-                &source_storage.syntax_trees,
-                &root_dir,
-                &mut imports,
-            )?;
-        }
-    }
-    Ok(imports)
-}
-
-fn append_standalone_target_imports(
-    target: &psi_syntax_trees::item::TargetDefinition,
-    syntax_trees: &SyntaxTrees,
-    root_dir: &Path,
-    imports: &mut Vec<PathBuf>,
-) -> Result<(), Vec<Diagnostic>> {
-    if let Some(host) = &target.host {
-        let provider = syntax_trees.items.identifier_path_members(host.provider);
-        if is_bundled_omega_path(provider) {
-            imports.push(normalize_path(&resolve_source_path(root_dir, provider))?);
-        }
-    }
-    for boundary_policy in syntax_trees
-        .items
-        .boundary_policies(target.boundary_policies)
-    {
-        let policy = syntax_trees
-            .items
-            .identifier_path_members(boundary_policy.path);
-        if is_bundled_omega_path(policy) {
-            imports.push(normalize_path(&resolve_source_path(root_dir, policy))?);
-        }
-    }
-    Ok(())
 }
 
 /// Preserve standalone compilation of the bundled std sources while their
@@ -503,7 +429,6 @@ pub(super) fn reconciled_package_import(
 pub fn discover_imports_with_packages(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
-    selected_target_name: Option<&str>,
     packages: &PackageCompilationInputs,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
     let parsed_sources = parsed.sources.span_or_empty(parsed.batch);
@@ -522,36 +447,15 @@ pub fn discover_imports_with_packages(
             });
 
         for root_item in &parsed_source.root_items {
-            let item = syntax_trees.root_item(*root_item);
-            match item {
-                Item::Use(use_item) => {
-                    let members = syntax_trees.items.identifier_path_members(use_item.path);
-                    match reconciled_package_import(
-                        &parsed_source.path,
-                        members,
-                        requester,
-                        packages,
-                    )? {
-                        ReconciledPackageImport::Toolchain(imported) => imports.push(imported),
-                        ReconciledPackageImport::Package(request) => {
-                            imports.push(request.resolve_for_exact_target(packages)?)
-                        }
+            if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
+                let members = syntax_trees.items.identifier_path_members(use_item.path);
+                match reconciled_package_import(&parsed_source.path, members, requester, packages)?
+                {
+                    ReconciledPackageImport::Toolchain(imported) => imports.push(imported),
+                    ReconciledPackageImport::Package(request) => {
+                        imports.push(request.resolve_for_exact_target(packages)?)
                     }
                 }
-                Item::Target(target) => {
-                    let target_is_selected = selected_target_name
-                        .is_none_or(|target_name| target.name.as_str() == target_name);
-                    if !target_is_selected {
-                        continue;
-                    }
-                    append_package_target_imports(
-                        target,
-                        syntax_trees,
-                        &parsed_source.path,
-                        &mut imports,
-                    )?;
-                }
-                _ => {}
             }
         }
     }
@@ -588,76 +492,6 @@ pub(super) fn discover_unconditional_imports_with_packages(
         }
     }
     Ok((imports, retained_requests))
-}
-
-pub(super) fn discover_target_scoped_imports_with_packages(
-    source_storage: &SourceStorage,
-    selected_target_name: Option<&str>,
-) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-    let mut imports = Vec::new();
-    for (_, source) in source_storage.files.iter() {
-        for root_item in &source.root_items {
-            let Item::Target(target) = source_storage.syntax_trees.root_item(*root_item) else {
-                continue;
-            };
-            if selected_target_name.is_some_and(|selected| target.name.as_str() != selected) {
-                continue;
-            }
-            append_package_target_imports(
-                target,
-                &source_storage.syntax_trees,
-                &source.path,
-                &mut imports,
-            )?;
-        }
-    }
-    Ok(imports)
-}
-
-fn append_package_target_imports(
-    target: &psi_syntax_trees::item::TargetDefinition,
-    syntax_trees: &SyntaxTrees,
-    source: &Path,
-    imports: &mut Vec<PathBuf>,
-) -> Result<(), Vec<Diagnostic>> {
-    if let Some(host) = &target.host {
-        let provider = syntax_trees.items.identifier_path_members(host.provider);
-        if is_bundled_core_path(provider) {
-            imports.push(resolve_reconciled_import(
-                bundled_omega_root(),
-                &provider[2..],
-                "toolchain",
-            )?);
-        } else if is_bundled_omega_path(provider) {
-            return Err(vec![Diagnostic::error(format!(
-                "package-aware target host `{}` in {} cannot use a bundled library; declare an ordinary package dependency and name its requester-local alias",
-                identifier_path_text(provider),
-                source.display(),
-            ))]);
-        }
-    }
-    for boundary_policy in syntax_trees
-        .items
-        .boundary_policies(target.boundary_policies)
-    {
-        let policy = syntax_trees
-            .items
-            .identifier_path_members(boundary_policy.path);
-        if is_bundled_core_path(policy) {
-            imports.push(resolve_reconciled_import(
-                bundled_omega_root(),
-                &policy[2..],
-                "toolchain",
-            )?);
-        } else if is_bundled_omega_path(policy) {
-            return Err(vec![Diagnostic::error(format!(
-                "package-aware boundary policy `{}` in {} cannot use a bundled library; declare an ordinary package dependency and name its requester-local alias",
-                identifier_path_text(policy),
-                source.display(),
-            ))]);
-        }
-    }
-    Ok(())
 }
 
 pub fn extend_source_storage(

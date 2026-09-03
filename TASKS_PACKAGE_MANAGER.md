@@ -296,8 +296,8 @@ explicitly.
     package evidence and accepted-lock state after the remaining P2 authority
     and final-realization lanes close;
   - consume the application-root `PackageKey`, authored role, and exact
-    requested-target identity from
-    **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in `TASKS.md`; and
+    requested-target identity under the settled exact-target invocation
+    contract in D42/D54; and
   - publish only after exact source/build/generated/native comparison and
     `PackageInstance` construction succeed.
 

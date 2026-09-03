@@ -5,12 +5,11 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind, CapabilityDefinition,
-    CapabilityField, CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember,
-    DataVariant, DomainDefinition, Item, ItemHandle, ItemTable, Machine, MeasureDefinition,
-    OperatorDefinition, ProofFact, ProofMembershipFact, State, StateHandle, StateParameterHandle,
-    StateParameterNode, StateSignature, StateSignatureHandle, TargetDefinition, TargetHost,
-    TargetHostSetting, TargetHostSettingValue, TraitDefinition, TypeParameter, UseItem,
+    CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
+    CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember, DataVariant,
+    DomainDefinition, Item, ItemHandle, ItemTable, Machine, MeasureDefinition, OperatorDefinition,
+    ProofFact, ProofMembershipFact, State, StateHandle, StateParameterHandle, StateParameterNode,
+    StateSignature, StateSignatureHandle, TraitDefinition, TypeParameter, UseItem,
     WireDataDefinition, WireDataField, WireDataMember, WireDataReserved, WireDataVersion,
 };
 use crate::statement::{
@@ -111,7 +110,6 @@ impl SyntaxTrees {
             | Item::Operator(_)
             | Item::Package(_)
             | Item::Proposition(_)
-            | Item::Target(_)
             | Item::WireData(_)
             | Item::Use(_) => {}
         }
@@ -347,7 +345,6 @@ impl SyntaxTrees {
             Item::Trait(trait_definition) => {
                 Item::Trait(self.copy_trait_definition(other, trait_definition))
             }
-            Item::Target(target) => Item::Target(self.copy_target_definition(other, target)),
             Item::WireData(wire_data) => {
                 Item::WireData(self.copy_wire_data_definition(other, wire_data))
             }
@@ -550,21 +547,6 @@ impl SyntaxTrees {
             parents: self.copy_type_reference_handle_span(other, trait_definition.parents),
             requires: self.copy_item_identifier_span(other, trait_definition.requires),
             machines: self.copy_state_signature_handle_span(other, trait_definition.machines),
-        }
-    }
-
-    fn copy_target_definition(
-        &mut self,
-        other: &SyntaxTrees,
-        target: &TargetDefinition,
-    ) -> TargetDefinition {
-        TargetDefinition {
-            name: target.name.clone(),
-            host: target.host.as_ref().map(|host| TargetHost {
-                provider: self.copy_item_identifier_span(other, host.provider),
-                settings: self.copy_target_host_setting_span(other, host.settings),
-            }),
-            boundary_policies: self.copy_boundary_policy_span(other, target.boundary_policies),
         }
     }
 
@@ -780,53 +762,6 @@ impl SyntaxTrees {
             copied.push_contiguous(self.copy_proof_fact_from(other, source));
         }
         copied
-    }
-
-    fn copy_target_host_setting_span(
-        &mut self,
-        other: &SyntaxTrees,
-        span: HandleSpan<TargetHostSetting>,
-    ) -> HandleSpan<TargetHostSetting> {
-        let settings = other
-            .items
-            .target_host_settings(span)
-            .iter()
-            .map(|setting| TargetHostSetting {
-                name: setting.name.clone(),
-                value: match &setting.value {
-                    TargetHostSettingValue::Call {
-                        name,
-                        argument_tokens,
-                    } => TargetHostSettingValue::Call {
-                        name: name.clone(),
-                        argument_tokens: *argument_tokens,
-                    },
-                    TargetHostSettingValue::Named(name) => {
-                        TargetHostSettingValue::Named(name.clone())
-                    }
-                },
-            });
-        self.copy_span(settings, |this, setting| {
-            this.items.append_target_host_setting(setting)
-        })
-    }
-
-    fn copy_boundary_policy_span(
-        &mut self,
-        other: &SyntaxTrees,
-        span: HandleSpan<BoundaryPolicy>,
-    ) -> HandleSpan<BoundaryPolicy> {
-        self.copy_mapped_span(
-            other.items.boundary_policies(span),
-            |this, policy| BoundaryPolicy {
-                mode: match policy.mode {
-                    BoundaryMode::Checked => BoundaryMode::Checked,
-                    BoundaryMode::Unchecked => BoundaryMode::Unchecked,
-                },
-                path: this.copy_item_identifier_span(other, policy.path),
-            },
-            |this, policy| this.items.append_boundary_policy(policy),
-        )
     }
 
     fn copy_state_handle_span(

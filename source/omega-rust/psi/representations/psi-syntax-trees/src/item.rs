@@ -24,7 +24,6 @@ pub enum Item {
     Use(UseItem),
     Machine(Machine),
     Trait(TraitDefinition),
-    Target(TargetDefinition),
     WireData(WireDataDefinition),
 }
 
@@ -307,62 +306,6 @@ pub enum CapabilityContractKind {
 pub enum CrashCause {
     Trap,
     Abort,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetDefinition {
-    pub name: Identifier,
-    pub host: Option<TargetHost>,
-    pub boundary_policies: HandleSpan<BoundaryPolicy>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetHost {
-    pub provider: HandleSpan<Identifier>,
-    pub settings: HandleSpan<TargetHostSetting>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TargetHostSetting {
-    pub name: Identifier,
-    pub value: TargetHostSettingValue,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TargetHostSettingValue {
-    Call {
-        name: Identifier,
-        argument_tokens: usize,
-    },
-    Named(Identifier),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundaryPolicy {
-    pub mode: BoundaryMode,
-    pub path: HandleSpan<Identifier>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum BoundaryMode {
-    #[default]
-    Checked,
-    Unchecked,
-}
-
-impl Default for TargetHostSettingValue {
-    fn default() -> Self {
-        Self::Named(Identifier::default())
-    }
-}
-
-impl Default for BoundaryPolicy {
-    fn default() -> Self {
-        Self {
-            mode: BoundaryMode::default(),
-            path: HandleSpan::empty(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -902,8 +845,6 @@ struct DeclarationStorage {
     measures: Arena<MeasureDefinition>,
     proof_facts: Arena<ProofFact>,
     proof_fact_source_spans: Vec<Option<psi_source::SourceSpan>>,
-    target_host_settings: Arena<TargetHostSetting>,
-    boundary_policies: Arena<BoundaryPolicy>,
 }
 
 impl ItemTable {
@@ -1048,21 +989,6 @@ impl ItemTable {
         self.declaration_storage.proof_fact_source_spans[index] = Some(source_span);
     }
 
-    pub fn target_host_settings(
-        &self,
-        span: HandleSpan<TargetHostSetting>,
-    ) -> &[TargetHostSetting] {
-        self.declaration_storage
-            .target_host_settings
-            .span_or_empty(span)
-    }
-
-    pub fn boundary_policies(&self, span: HandleSpan<BoundaryPolicy>) -> &[BoundaryPolicy] {
-        self.declaration_storage
-            .boundary_policies
-            .span_or_empty(span)
-    }
-
     pub fn state_parameters(
         &self,
         span: HandleSpan<StateParameterHandle>,
@@ -1150,10 +1076,6 @@ impl ItemTable {
         self.declaration_storage.satisfies_clauses.append(clause)
     }
 
-    pub fn append_boundary_policy(&mut self, policy: BoundaryPolicy) -> Handle<BoundaryPolicy> {
-        self.declaration_storage.boundary_policies.append(policy)
-    }
-
     pub fn append_type_parameter(
         &mut self,
         type_parameter: TypeParameter,
@@ -1206,15 +1128,6 @@ impl ItemTable {
             .proof_fact_source_spans
             .resize(index + 1, None);
         handle
-    }
-
-    pub fn append_target_host_setting(
-        &mut self,
-        setting: TargetHostSetting,
-    ) -> Handle<TargetHostSetting> {
-        self.declaration_storage
-            .target_host_settings
-            .append(setting)
     }
 
     pub fn state_count(&self) -> usize {
@@ -1326,8 +1239,6 @@ impl DeclarationStorage {
             measures: Arena::new(),
             proof_facts: Arena::new(),
             proof_fact_source_spans: Vec::new(),
-            target_host_settings: Arena::new(),
-            boundary_policies: Arena::new(),
         }
     }
 }

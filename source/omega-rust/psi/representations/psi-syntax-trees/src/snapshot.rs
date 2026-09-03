@@ -195,11 +195,6 @@ pub enum ItemSnapshot {
         requires: Vec<IdentifierSnapshot>,
         machines: Vec<StateSignatureSnapshot>,
     },
-    Target {
-        name: IdentifierSnapshot,
-        host: Option<TargetHostSnapshot>,
-        boundary_policies: Vec<BoundaryPolicySnapshot>,
-    },
     WireData {
         name: IdentifierSnapshot,
         is_public: bool,
@@ -430,18 +425,6 @@ pub enum ProofFactSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct TargetHostSnapshot {
-    pub provider: Vec<IdentifierSnapshot>,
-    pub settings: Vec<TargetHostSettingSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct TargetHostSettingSnapshot {
-    pub name: IdentifierSnapshot,
-    pub value: TargetHostSettingValueSnapshot,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum WireDataMemberSnapshot {
     Field {
@@ -457,24 +440,6 @@ pub enum WireDataMemberSnapshot {
         name: IdentifierSnapshot,
         members: Vec<WireDataMemberSnapshot>,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum TargetHostSettingValueSnapshot {
-    Call {
-        name: IdentifierSnapshot,
-        argument_tokens: usize,
-    },
-    Named {
-        name: IdentifierSnapshot,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct BoundaryPolicySnapshot {
-    pub mode: &'static str,
-    pub path: Vec<IdentifierSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1173,50 +1138,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                         syntax_trees,
                         syntax_trees.items.state_signature(*handle),
                     )
-                })
-                .collect(),
-        },
-        Item::Target(value) => ItemSnapshot::Target {
-            name: snapshot_identifier(&value.name),
-            host: value.host.as_ref().map(|host| TargetHostSnapshot {
-                provider: snapshot_identifier_slice(
-                    syntax_trees.items.identifier_path_members(host.provider),
-                ),
-                settings: syntax_trees
-                    .items
-                    .target_host_settings(host.settings)
-                    .iter()
-                    .map(|setting| TargetHostSettingSnapshot {
-                        name: snapshot_identifier(&setting.name),
-                        value: match &setting.value {
-                            crate::item::TargetHostSettingValue::Call {
-                                name,
-                                argument_tokens,
-                            } => TargetHostSettingValueSnapshot::Call {
-                                name: snapshot_identifier(name),
-                                argument_tokens: *argument_tokens,
-                            },
-                            crate::item::TargetHostSettingValue::Named(name) => {
-                                TargetHostSettingValueSnapshot::Named {
-                                    name: snapshot_identifier(name),
-                                }
-                            }
-                        },
-                    })
-                    .collect(),
-            }),
-            boundary_policies: syntax_trees
-                .items
-                .boundary_policies(value.boundary_policies)
-                .iter()
-                .map(|policy| BoundaryPolicySnapshot {
-                    mode: match policy.mode {
-                        crate::item::BoundaryMode::Checked => "checked",
-                        crate::item::BoundaryMode::Unchecked => "unchecked",
-                    },
-                    path: snapshot_identifier_slice(
-                        syntax_trees.items.identifier_path_members(policy.path),
-                    ),
                 })
                 .collect(),
         },

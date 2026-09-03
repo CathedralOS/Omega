@@ -15,7 +15,6 @@ mod proof_fact;
 mod proposition;
 mod state;
 mod statement;
-mod target;
 mod trait_definition;
 mod transition;
 mod type_reference;

@@ -48,20 +48,6 @@ implementation. They take precedence over adding another evidence carrier that
 has no exercising program. The finite definition of Rust-product completion is
 the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_contract.md).
 
-- **IMMUTABLE-TARGET-ACTIVATION-AND-MATRIX.** Exact one-target and canonical
-  multi-target requests now own target identity, share the immutable
-  source/parse checkpoint, and reuse identical verified Terminal input before
-  target-sensitive lowering. Maintained Omega source and generated test inputs
-  contain no authored `target ... {}` declarations, and an architecture gate
-  forbids their return. Finish retiring the legacy parser/lowering surface by
-  moving host and boundary policy to compiler/package-owned immutable inputs,
-  then delete the declaration syntax. `target` declarations are not a support
-  set, and no `all` token may infer one from the toolchain catalog.
-  Acceptance: explicit two-target builds produce two separately committed
-  artifacts without rerunning target-neutral stages or publishing an aggregate
-  artifact that blurs their subjects, and no source-level target declaration
-  remains.
-
 ## Omega-written product compiler
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two

@@ -1,32 +1,5 @@
-use crate::parse_error::ParseError;
 use crate::parser::input::Input;
 use psi_tokens::PunctuationKind;
-
-pub(super) fn skip_delimited_block_after_open<'tokens, 'source>(
-    mut input: Input<'tokens, 'source>,
-    open: PunctuationKind,
-    close: PunctuationKind,
-) -> Result<(usize, Input<'tokens, 'source>), ParseError> {
-    let mut depth = 1usize;
-    let mut token_count = 0usize;
-
-    while depth > 0 {
-        let (token, rest) = input.expect_token()?;
-        input = rest;
-
-        match token.punctuation() {
-            Some(punctuation) if punctuation == open => depth += 1,
-            Some(punctuation) if punctuation == close => depth -= 1,
-            _ => {}
-        }
-
-        if depth > 0 {
-            token_count += 1;
-        }
-    }
-
-    Ok((token_count, input))
-}
 
 pub(super) fn find_top_level_punctuation(
     input: Input<'_, '_>,

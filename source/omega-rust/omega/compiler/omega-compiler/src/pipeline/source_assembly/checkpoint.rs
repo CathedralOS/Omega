@@ -5,8 +5,7 @@ use super::{
 };
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::frontend::{
-    ReconciledPackageImportRequest, discover_target_scoped_imports,
-    discover_target_scoped_imports_with_packages, discover_unconditional_imports,
+    ReconciledPackageImportRequest, discover_unconditional_imports,
     discover_unconditional_imports_with_packages, extend_source_storage, lex_sources, load_sources,
     parse_sources,
 };
@@ -164,22 +163,11 @@ impl ImmutableSourceParseCheckpoint {
             for request in &self.package_imports {
                 imports.enqueue(vec![request.resolve_for_exact_target(package_inputs)?])?;
             }
-            imports.enqueue(discover_target_scoped_imports_with_packages(
-                &source_storage,
-                target_name,
-            )?)?;
-        } else {
-            imports.enqueue(discover_target_scoped_imports(
-                &source_storage,
-                &self.root_path,
-                target_name,
-            )?)?;
         }
         load_pending_imports(
             &mut source_storage,
             &mut imports,
             &self.root_path,
-            target_name,
             package_inputs,
             timings,
         )?;
