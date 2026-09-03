@@ -137,11 +137,12 @@ construction replays independently and installation format 78 transports
 canonically for integer, Boolean, and raw-bit IEEE float literals. The runtime
 source sibling admits one exact non-address native fixed-integer parameter,
 including every signed and unsigned 8-, 16-, 32-, and 64-bit carrier, or one
-Boolean parameter. Its ordinary Unit caller may forward either form or one
-exact preceding Boolean literal into the store; both Linux ABIs, machine bytes,
-object replay, and installed custody rejoin the source type and either its
-location or definition independently. Additional scalar parameters, computed
-nonliteral runtime sources, and IEEE runtime sources remain fenced.
+Boolean parameter selected from an ordered register-resident scalar roster.
+Its ordinary Unit caller may forward that roster or one exact preceding Boolean
+literal into the store; both Linux ABIs, machine bytes, object replay, and
+installed custody rejoin the source ordinal, type, and either its location or
+definition independently. Stack-carried scalar sources, computed nonliteral
+runtime sources, and IEEE runtime sources remain fenced.
 Provider non-observation authority remains absent.
 
 ## Consumers and cleanup

@@ -20,7 +20,7 @@ use super::structural_scalar::{
     emit_aarch64_unit_store_immediate, emit_aarch64_unit_store_register,
     emit_x86_64_unit_store_immediate, emit_x86_64_unit_store_register,
 };
-use super::{Aarch64UnitParameterHome, X86UnitParameterHome};
+use super::{Aarch64UnitParameterHome, X86UnitParameterHome, unit_scalar_shape};
 use crate::{EmissionError, integer_bits, require_native_integer_width};
 
 #[allow(clippy::too_many_arguments)]
@@ -71,13 +71,22 @@ pub(super) fn emit_write_only_primitive_store(
                 }
                 ScalarType::IeeeFloat(_) => return Err(invalid()),
             };
+            let mut parameter_shapes = body
+                .scalar_parameters
+                .iter()
+                .map(|parameter| {
+                    let shape = unit_scalar_shape(parameter.value, parameter.scalar_type)?;
+                    if parameter.placement.shape != shape {
+                        return Err(invalid());
+                    }
+                    Ok(shape)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            parameter_shapes.push(destination_placement.shape);
             let expected_plan = evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
-                    parameters: vec![
-                        scalar_shape,
-                        ValueShape::borrowed_reference(byte_size, byte_size.min(8)),
-                    ],
+                    parameters: parameter_shapes,
                     result: None,
                 },
             )
@@ -92,17 +101,17 @@ pub(super) fn emit_write_only_primitive_store(
             else {
                 return Err(invalid());
             };
-            if parameter_index != 0
-                || body.scalar_parameters.len() != 1
-                || body.parameters.len() != 1
+            if body.parameters.len() != 1
                 || scalar_parameter.value != source_value
                 || scalar_parameter.scalar_type != scalar_type
                 || scalar_parameter.placement.shape != scalar_shape
                 || *placed_byte_size != byte_size
                 || location != AssignedScalarLocation::Register(*expected_register)
                 || body.call_plan != expected_plan
-                || body.call_plan.parameters.first() != Some(&scalar_parameter.placement)
-                || body.call_plan.parameters.get(1) != Some(destination_placement)
+                || body.call_plan.parameters.get(scalar_parameter_index)
+                    != Some(&scalar_parameter.placement)
+                || body.call_plan.parameters.get(body.scalar_parameters.len())
+                    != Some(destination_placement)
             {
                 return Err(invalid());
             }

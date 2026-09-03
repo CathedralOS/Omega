@@ -914,11 +914,11 @@ fn retains_one_direct_write_only_ieee_float_literal_store() {
 }
 
 #[test]
-fn retains_one_direct_write_only_fixed_integer_parameter_store() {
+fn retains_a_later_direct_write_only_fixed_integer_parameter_store() {
     let checked = checked(
         r#"
         data Sink {}
-        machine Sink::fill(destination: &write i32, replacement: i32) {
+        machine Sink::fill(destination: &write i32, ignored: i32, replacement: i32) {
             destination = replacement;
         }
         "#,
@@ -929,8 +929,10 @@ fn retains_one_direct_write_only_fixed_integer_parameter_store() {
         .expect("runtime-parameter write-only callee plan");
     assert!(matches!(
         fill.scalar_parameters.as_slice(),
-        [parameter] if parameter.source_position == 1
-            && parameter.primitive_type == PrimitiveType::I32
+        [ignored, replacement] if ignored.source_position == 1
+            && ignored.primitive_type == PrimitiveType::I32
+            && replacement.source_position == 2
+            && replacement.primitive_type == PrimitiveType::I32
     ));
     assert!(matches!(
         fill.operations.as_slice(),
@@ -939,7 +941,7 @@ fn retains_one_direct_write_only_fixed_integer_parameter_store() {
                 statement_index: 0,
                 destination_parameter_index: 0,
                 value: CheckedScalarExpression::Parameter {
-                    position: 0,
+                    position: 1,
                     primitive_type: PrimitiveType::I32,
                 },
             },
@@ -954,15 +956,6 @@ fn retains_one_direct_write_only_fixed_integer_parameter_store() {
 #[test]
 fn primitive_store_planning_fails_closed_outside_the_direct_source_whole_write_root() {
     let cases = [
-        (
-            "additional runtime parameter",
-            r#"
-            data Sink {}
-            machine Sink::fill(destination: &write i32, replacement: i32, extra: i32) {
-                destination = replacement;
-            }
-            "#,
-        ),
         (
             "computed runtime replacement",
             r#"

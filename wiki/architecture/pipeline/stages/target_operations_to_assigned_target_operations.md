@@ -29,8 +29,8 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   the structural parameter-home prefix.
 - `assignment/function/unit/operation.rs` applies the same exact plan/source
   replay to ordinary Unit-result calls. Its bounded forwarding lane binds an
-  incoming native fixed-integer or Boolean caller parameter, or one exact
-  preceding Boolean literal, to the scalar prefix of the callee ABI while
+  ordered register-resident native fixed-integer or Boolean caller parameters,
+  or one exact preceding Boolean literal, to the scalar prefix of the callee ABI while
   keeping structural copies in the remaining suffix. Machine emission admits
   the exact same-register case or emits the literal directly and records its
   complete call custody. Object construction and installation independently
