@@ -470,9 +470,16 @@ parented ordinary `Type` or const binders whose carrier is scalar or an exact
 validated structured-data shape. Structured const occurrences replay the
 exact binder symbol/name and matching template carrier. Ordinary `Type`
 binders retain their complete authored multiplicity and four-axis carry-
-property bounds. Machine/proposition binders, conformance bounds,
-`satisfies`, and broader supply/operational forms remain outside these
-first generic cohorts. Satisfied-declaration
+property bounds. The first static-machine cohorts retain an exact machine-
+parented binder and body calls targeting it. The structural form owns one flat
+parameter/result signature over the same supported type surface. The first
+nominal form instead retains one exact authored-base, ordinary nongeneric trait
+and requirement pair whose requirement supplies that same flat signature.
+Requirement path and symbol custody remain exact through seeded typing.
+Extension-owned or boundary traits, nested and operational contracts,
+declaration-identity and proposition binders, generated-machine `satisfies`,
+conformance bounds, and broader supply forms remain outside these first generic
+cohorts. Satisfied-declaration
 settlement, domain constraints, qualification casts, fixed-byte literal
 landing, and wire-plan publication are frontier-aware. After post-typing
 evaluation, a structural
@@ -502,9 +509,10 @@ conformance visibility, unit-local normalization, generated-machine and
 attached-method continuation, dependency-bundle no-rerun, target-scoped
 rejection, retained-prefix preservation, generated transitive-dependency
 rejection at the final authority replay, exact generic-machine lifetime-
-telescope, Type-property bounds, and scalar/structured-const carrier/value
-custody, transactional rejection of unadmitted binder kinds, and structural
-absence of the retired rebuild path.
+telescope, Type-property bounds, structural static-machine signature/call
+custody, base-owned nominal static-machine requirement/call custody, and
+scalar/structured-const carrier/value custody, transactional rejection of
+unadmitted binder kinds, and structural absence of the retired rebuild path.
 
 Package orchestration processes dependencies in deterministic dependency order
 and retains durable source bundles, commitments, and review evidence between
@@ -2154,6 +2162,22 @@ accepts fresh evidence, and invokes the manager-owned retained route. Missing
 policy for blockers and policy supplied for a blocker-free review both reject.
 The accepted package permission projection and the separately supplied
 receiving permission policy remain distinct through native realization.
+
+Receiving-policy version 5's first direct-syscall settlement is conservative
+and signature-derived. The checked argument-contract identity commits the
+verified boundary's scalar carriers, canonical structural parameter positions,
+multiplicity, access, and exact carrier identities. Every retained call
+occurrence must match the declared arity and structural access. A root or
+projected structural qualification or boundary requirement rejects until the
+abstract plan retains its stable semantic-domain declaration; module-local
+domain IDs never enter the digest. All runtime values admitted by the accepted
+unqualified contract remain reachable: this rung claims no constant, range,
+handle-provenance, or raw-descriptor narrowing. Native provider settlement
+requires exactly one selected syscall row and one retained external row with
+the same supported Linux profile and `u32` number, classifies that exact
+mechanism, and passes it unchanged to closure review. Missing, duplicated,
+unsupported, unclassified, or substituted coordinates reject; no service or
+method name participates in derivation.
 
 ## D46 — Same-process package review does not observe its executable pathname
 

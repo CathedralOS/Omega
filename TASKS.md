@@ -9466,12 +9466,22 @@ compiler concept is introduced.
   policy rows commit that complete coordinate, and absent rows or target,
   number, and contract substitutions fail closed without consulting service or
   method names. The current policy also rejects profiles outside the evaluated
-  Linux x86-64/AArch64 syscall domain. Next derive that constraint identity
-  from checked lowering and retain the admitted mechanism through provider
-  settlement so settled exact rows can participate in a real-provider
-  selected-closure receipt. The
-  current reviewer continues to reject syscalls until that join exists; this
-  rung neither resolves Q4 nor claims raw-descriptor confinement.
+  Linux x86-64/AArch64 syscall domain. The first conservative checked-contract
+  rung is now live: native provider settlement derives a domain-separated
+  identity from the verified boundary's scalar carriers, structural
+  carrier, canonical position, multiplicity, and access, after proving every
+  retained call occurrence has matching arity and structural access. Root or
+  projected structural qualifications and boundary requirements reject until
+  the abstract plan retains their stable semantic-domain declarations; no
+  module-local domain ID enters the digest. The accepted contract treats every
+  admitted runtime value as reachable and claims no constraint narrowing.
+  Settlement rejoins one selected syscall to one retained external
+  target/number row, classifies that exact mechanism, and passes it unchanged
+  to closure review; missing, duplicate, unsupported, unclassified, or
+  substituted evidence rejects. Next retain stable domain commitments and add
+  distinct identities backed by exact retained constant, range, and handle-
+  provenance proofs, then exercise a real-provider selected closure. This rung
+  neither resolves Q4 nor claims raw-descriptor confinement.
 
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,
@@ -12901,27 +12911,72 @@ checked-result arithmetic decision listed below.
   records, recursive or array-mediated paths, direct-sum coexistence, and
   target-dependent placement remain rejected; every shallower API retains its
   exact boundary.
-  The `omega-layout` materialization owner's 9,777-line regression corpus now
-  lives in a 4,310-line private test root over a focused 3,131-line
+  The complete plural depth-twenty-one fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-twenty report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-twenty carriers, preserves repeated nominal
+  occurrences, rebuilds every nested zero-padded image in authored order,
+  replays every layout and occurrence identity hash-free, and performs one
+  final atomic copy. Projection and replay share one memoized bounded walk and
+  global leaf ceiling across the complete cohort. Paths deeper than twenty-one
+  records, recursive or array-mediated paths, direct-sum coexistence, and
+  target-dependent placement remain rejected; every shallower API retains its
+  exact boundary.
+  The complete plural depth-twenty-two fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Twentieth -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-twenty-one report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-twenty-one carriers, preserves repeated
+  nominal occurrences, rebuilds every nested zero-padded image in authored
+  order, replays every layout and occurrence identity hash-free, and performs
+  one final atomic copy. Projection and replay share one memoized bounded walk
+  and global leaf ceiling across the complete cohort. Paths deeper than
+  twenty-two records, recursive or array-mediated paths, direct-sum
+  coexistence, and target-dependent placement remain rejected; every shallower
+  API retains its exact boundary.
+  The complete plural depth-twenty-three fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> TwentyFirst -> Twentieth -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-twenty-two report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-twenty-two carriers, preserves repeated
+  nominal occurrences, rebuilds every nested zero-padded image in authored
+  order, replays every layout and occurrence identity hash-free, and performs
+  one final atomic copy. Projection and replay share one memoized bounded walk
+  and global leaf ceiling across the complete cohort. Paths deeper than
+  twenty-three records, recursive or array-mediated paths, direct-sum
+  coexistence, and target-dependent placement remain rejected; every shallower
+  API retains its exact boundary.
+  The `omega-layout` materialization owner's 11,304-line regression corpus now
+  lives in a 4,313-line private test root over a focused 3,131-line
   depth-eight-through-fifteen child, a 447-line depth-sixteen child, a 458-line
-  depth-seventeen child, a 467-line depth-eighteen child, and a 477-line
-  depth-nineteen child, and a 487-line depth-twenty child. The 6,031-line
-  production owner retains 59 production functions, 27 public projection entry
-  points, exact module paths, diagnostics, and the complete 35-test crate
-  behavior. The matching 16,803-line Psi materialization owner is now a
-  5,024-line public
+  depth-seventeen child, a 467-line depth-eighteen child, a 477-line
+  depth-nineteen child, a 487-line depth-twenty child, a 498-line
+  depth-twenty-one child, a 508-line depth-twenty-two child, and a 518-line
+  depth-twenty-three child. The 6,977-line production owner retains 65
+  production functions, 30 public projection entry points, exact module paths,
+  diagnostics, and the complete 38-test crate behavior. The matching
+  19,308-line Psi materialization owner is now a 5,042-line public
   carrier/replay facade over private byte-derivation (6,121
   lines), report-identity (1,309 lines), bounded sum-reachability (374 lines), a
   focused 776-line depth-sixteen successor, a focused 791-line depth-seventeen
-  successor, a focused 797-line depth-eighteen successor, and a focused
-  804-line depth-nineteen successor, and a focused 807-line depth-twenty
-  successor. Its append-only public inventory now has 43 carrier types and 23
+  successor, a focused 797-line depth-eighteen successor, a focused 804-line
+  depth-nineteen successor, a focused 807-line depth-twenty
+  successor, a focused 823-line depth-twenty-one successor, a focused 827-line
+  depth-twenty-two successor, and a focused 837-line depth-twenty-three
+  successor. Its append-only public inventory now has 49 carrier types and 26
   validation entry points while preserving the sibling `SumReachability`
   import path and exact diagnostics. This remains module ownership only; the
   fixed-depth reports and their exact shallower/deeper rejection boundaries
   remain distinct.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  twenty records, plural paths deeper than twenty records, mixed
+  twenty-three records, plural paths deeper than twenty-three records, mixed
   common-field/case shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
@@ -13035,11 +13090,18 @@ checked-result arithmetic decision listed below.
     carrier is scalar or an exact validated structured-data shape. Structured
     const occurrences replay the exact binder symbol/name and matching template
     carrier. Ordinary `Type` binders also retain their complete authored
-    multiplicity and four-axis carry-property bounds; machine/proposition
-    binders, `satisfies`, conformance bounds, and broader supply/operational
-    forms remain fenced. Finalization is suffix-scoped for satisfied
-    declarations, progress premises, domain constraints, qualification casts,
-    and exact fixed-byte literals;
+    multiplicity and four-axis carry-property bounds. The first static-machine
+    cohorts retain one exact machine-parented binder and body calls targeting
+    it. The structural form owns a flat parameter/result signature over the
+    same supported type surface. The first nominal form retains the exact
+    authored-base ordinary nongeneric trait/requirement pair that supplies that
+    flat signature, with exact authored path and resolved-symbol custody.
+    Extension-owned or boundary traits, nested contract telescopes,
+    operational/contract clauses, declaration-identity machine binders,
+    proposition binders, generated-machine `satisfies`, conformance bounds, and
+    broader supply forms remain fenced. Finalization is suffix-scoped for
+    satisfied declarations, progress premises, domain constraints,
+    qualification casts, and exact fixed-byte literals;
   - the generated unit's matching post-typing evaluator runs against the
     completed candidate, while wire-plan publication begins only at the
     extension frontier. A structural prefix validator then proves that every
@@ -13070,14 +13132,16 @@ checked-result arithmetic decision listed below.
     no-source-reread, exact target selection and cross-unit cohort rejection,
     final generated-selection authority replay and transitive-dependency
     rejection, generic-machine prefix preservation, exact lifetime-telescope,
-    Type-property bounds, and scalar/structured-const carrier/value custody,
-    transactional binder-kind rejection, and structural absence of the retired
-    rebuild path.
+    Type-property bounds, structural static-machine signature/call custody,
+    base-owned nominal static-machine requirement/call custody, and scalar/
+    structured-const carrier/value custody, transactional binder-kind rejection,
+    and structural absence of the retired rebuild path.
 
   Remaining engineering work, not language design:
   - broaden the retained typed continuation beyond its current validated data
-    and machine cohorts, including static machine/proposition generic binders,
-    conformance bounds, satisfactions, broader
+    and machine cohorts, including extension-owned, boundary, declaration-
+    identity, plural, and nested or operational static-machine binders,
+    proposition generic binders, conformance bounds, satisfactions, broader
     supply/operational forms, additional root kinds, and the currently fenced
     data shapes;
   - keep every new cohort append-only and transactional, extending prefix and

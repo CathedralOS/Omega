@@ -541,9 +541,20 @@ ABI calling-plan commitment and must commit either the conservative
 unconstrained case or the exact retained constraints that justify a narrower
 classification. Policy rows are explicit: a missing row or any target, number,
 or contract substitution rejects, as does a profile outside the current Linux
-x86-64/AArch64 syscall domain. The selected-provider closure still rejects
-syscalls until checked lowering can supply this identity; requirement names do
-not infer it, and the role makes no descriptor-confinement claim.
+x86-64/AArch64 syscall domain. The first conservative checked lowering now
+derives this identity from the verified boundary's complete scalar carriers,
+structural carrier, canonical position, multiplicity, and access, while
+requiring every retained call occurrence to have matching arity and structural
+access. Root or projected structural qualifications and boundary requirements
+reject until the abstract plan retains their stable semantic-domain
+declarations; module-local domain IDs never enter the digest. The accepted
+unqualified signature treats every admitted runtime value as reachable and
+claims no constant, range, handle, or descriptor narrowing. Provider settlement
+requires one exact selected syscall and retained external target/number row,
+then passes the classified mechanism unchanged to selected-provider closure
+review. Missing, duplicate, unsupported, unclassified, or substituted
+coordinates reject. Requirement names do not infer the identity, and the role
+makes no descriptor-confinement claim.
 
 For the bounded Windows x86-64 source lane, an evaluated PE import may return
 an exact fixed-width `u32` into its Win64 result register. When a later

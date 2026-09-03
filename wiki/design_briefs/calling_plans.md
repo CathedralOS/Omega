@@ -598,8 +598,21 @@ as a representative for the other. An unrecognized third predecessor, a
 missing edge, a substituted selection or coordinate, or an attempt to forward
 the already-joined value again publishes no joined transfer. This is checked
 custody only. Terminal table materialization and physical selection for a
-joined descriptor remain fenced, as do aggregate storage, returns, and
-component crossings.
+joined descriptor remain fenced, as do aggregate storage beyond the bounded
+single-field local form below, returns, and component crossings.
+
+The first Terminal aggregate-storage rung accepts only the checked immutable
+one-field record initialized from one earlier exact shared-borrow selection.
+Terminal custody preserves one dense aggregate-local ordinal, the normalized
+aggregate and field identities, the selected closed interface/application, and
+the portable descriptor word roles `{ instance: 0, table: 1 }`. A scalar
+indirect operation consuming that descriptor is the exact field reload; it is
+not rewritten as a direct call. Verification rejoins the stored row to its sole
+selection, application, requirement row, callable, and operation, and rejects
+word-role, interface, or coordinate substitution. Terminal format 73 /
+vocabulary 76 encodes this target-neutral row. It does not claim physical field
+offsets or native replay; mutable, multi-field, nested, joined, returned, and
+component-crossing storage remain outside this rung.
 
 A bare dynamic parameter retains every eligible complete closed conformance as
 an exact candidate map. Call-site specialization selects from those maps by the

@@ -315,14 +315,20 @@ whose carrier is scalar or an exact validated structured-data shape. A
 structured const occurrence must replay the exact binder symbol/name into a
 template slot with the same checked carrier. An ordinary `Type` binder also
 retains its complete authored multiplicity and four-axis carry-property bound
-through the append-only continuation. Static-machine/proposition binders,
-conformance bounds, `satisfies`, and broader
-supply/operational forms remain fenced. Suffix-only finalization owns satisfied
-declarations,
-progress premises, domain constraints, semantic qualification casts, and
-fixed-byte literal landing. The matching post-typing evaluator then runs on the
-completed candidate; wire-plan publication begins at the extension wire-schema
-frontier.
+through the append-only continuation. The first static-machine cohorts retain
+one exact machine-parented binder and body calls targeting it. The structural
+form owns a flat parameter/result signature over that same supported type
+surface. The first nominal form instead retains one exact ordinary nongeneric
+trait and requirement pair already owned by the authored base; that requirement
+supplies the same flat signature, while its authored path and both resolved
+symbols remain exact. Extension-owned or boundary traits, nested contract
+telescopes, operational or proof contracts, declaration-identity machine
+binders, proposition binders, generated-machine `satisfies`, conformance bounds,
+and broader supply forms remain fenced. Suffix-only finalization owns satisfied
+declarations, progress premises, domain constraints, semantic qualification
+casts, and fixed-byte literal landing. The matching post-typing evaluator then
+runs on the completed candidate; wire-plan publication begins at the extension
+wire-schema frontier.
 
 A final structural gate requires every retained root graph, symbol/name/path
 row, authored selection, semantic table, evidence/proof/ranking record, and
@@ -349,19 +355,22 @@ portable cohorts missing the selected target cannot hide across source strata
 or generated units. It mutates only the extension, consumes the exact retained
 base selection carrier into one combined carrier, and settles selected origins
 and target-owned `provider_defaults` against the final typed continuation.
-Unselected generated siblings remain inert. Static machine/proposition generic
-binders and broader generic constraints, satisfactions/conformance bounds,
-broader supply forms, additional root kinds, and the remaining fenced data
-shapes still require explicit append-only continuation cohorts. These are
-implementation tasks, not alternate language semantics.
+Unselected generated siblings remain inert. Extension-owned, boundary,
+declaration-identity, plural, nested, or operational static-machine binders,
+proposition generic binders, broader generic constraints, generated-machine
+satisfactions/conformance bounds, broader supply forms, additional root kinds,
+and the remaining fenced data shapes still require explicit append-only
+continuation cohorts. These are implementation tasks, not alternate language
+semantics.
 
 Canaries cover exact configuration and build-evidence retention, one-way
 overload/conformance visibility, generated machine and attached-method
 continuation, unit-local normalization, dependency-bundle no-rerun,
 target-scoped rejection, source/custody counts, retained-prefix preservation,
-exact lifetime-telescope, Type-property bounds, and scalar/structured-const
-carrier/value custody, and structural absence of the retired reconstruction
-route.
+exact lifetime-telescope, Type-property bounds, structural static-machine
+signature/call custody, base-owned nominal static-machine requirement/call
+custody, scalar/structured-const carrier/value custody, and structural absence
+of the retired reconstruction route.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review
