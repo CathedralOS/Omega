@@ -104,8 +104,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   arguments as its suffix. Physical assignment independently replays that plan
   and preserves the caller parameter's incoming location. Machine emission
   admits exact same-register forwarding and retains scalar call custody beside
-  the structural copies; object construction is the next explicit replay
-  boundary.
+  the structural copies. Object and installation validation independently
+  rejoin the Unit callee ABI, source location, zero-byte transfer, aggregate
+  copy, stack evidence, and call bytes on Linux x86-64 and AArch64.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider

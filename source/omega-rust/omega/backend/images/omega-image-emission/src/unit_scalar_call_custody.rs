@@ -450,7 +450,49 @@ pub(super) fn validate_source(
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitScalarCallEvidence(function.machine);
     match source {
-        InternalUnitScalarArgumentSourceRecord::Parameter { .. } => return Err(invalid()),
+        InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } => {
+            let index = usize::try_from(parameter_index).map_err(|_| invalid())?;
+            let parameter = function
+                .unit_scalar_abi
+                .as_ref()
+                .and_then(|abi| abi.parameters.get(index))
+                .ok_or_else(invalid)?;
+            let expected_location = match parameter.placement.locations.as_slice() {
+                [
+                    omega_calling_conventions::ValueLocation::Register {
+                        register,
+                        value_byte_offset: 0,
+                        byte_size,
+                    },
+                ] if *byte_size == parameter.placement.shape.byte_size => {
+                    omega_machine_code::UnitScalarParameterLocationRecord::Register(*register)
+                }
+                [
+                    omega_calling_conventions::ValueLocation::Stack {
+                        stack_byte_offset,
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    },
+                ] if *byte_size == parameter.placement.shape.byte_size => {
+                    omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                        byte_offset: *stack_byte_offset,
+                    }
+                }
+                _ => return Err(invalid()),
+            };
+            if parameter.value != source_value
+                || parameter.scalar_type != psi_core::ScalarType::Integer(scalar_type)
+                || location != expected_location
+            {
+                return Err(invalid());
+            }
+        }
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,
             source_value,
@@ -606,7 +648,16 @@ pub(super) fn expected_argument_bytes(
             let register = register.unwrap_or(11);
             let mut bytes = Vec::new();
             match argument.source {
-                InternalUnitScalarArgumentSourceRecord::Parameter { .. } => return None,
+                InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } => {
+                    match (location, register, stack) {
+                        (
+                            omega_machine_code::UnitScalarParameterLocationRecord::Register(source),
+                            destination,
+                            None,
+                        ) if x86_terminal_register(source)? == destination => {}
+                        _ => return None,
+                    }
+                }
                 InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                     scalar_type,
                     value,
@@ -634,7 +685,16 @@ pub(super) fn expected_argument_bytes(
             let register = register.unwrap_or(9);
             let mut words = Vec::new();
             match argument.source {
-                InternalUnitScalarArgumentSourceRecord::Parameter { .. } => return None,
+                InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } => {
+                    match (location, register, stack) {
+                        (
+                            omega_machine_code::UnitScalarParameterLocationRecord::Register(source),
+                            destination,
+                            None,
+                        ) if aarch64_terminal_register(source)? == destination => {}
+                        _ => return None,
+                    }
+                }
                 InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                     scalar_type,
                     value,

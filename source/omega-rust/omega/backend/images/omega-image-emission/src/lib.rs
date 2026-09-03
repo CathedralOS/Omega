@@ -1342,6 +1342,12 @@ fn build_object_artifact_with_x86_feature_profile(
                 scalar_call_stack,
                 machine_functions
                     .get(&custody.target)
+                    .and_then(|callee| callee.unit_scalar_abi.as_ref()),
+                machine_functions
+                    .get(&custody.target)
+                    .map_or(&[][..], |callee| callee.unit_parameters.as_slice()),
+                machine_functions
+                    .get(&custody.target)
                     .and_then(|callee| callee.mixed_structural_scalar_abi.as_ref()),
                 target_structural_return,
                 custody,
@@ -4068,10 +4074,6 @@ pub enum ObjectError {
         owner: CallSiteOwner,
     },
     InvalidInternalUnitCallEvidence(MachineId),
-    UnsupportedInternalUnitCallScalarArguments {
-        caller: MachineId,
-        operation: psi_core::OperationId,
-    },
     InvalidInternalUnitScalarCallEvidence(MachineId),
     InvalidUnitScalarFunctionAbi(MachineId),
     InvalidInstalledProviderUnitScalarCallEvidence(MachineId),

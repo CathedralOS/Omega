@@ -32,7 +32,9 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   incoming fixed-integer caller parameter to the scalar prefix of the callee
   ABI while keeping structural copies in the remaining suffix. Machine
   emission admits the exact same-register case and records its complete call
-  custody; object construction is the next explicit replay fence.
+  custody. Object construction and installation independently replay the
+  caller source, Unit callee ABI, zero-byte scalar transfer, structural copy,
+  stack evidence, and target call bytes.
 - `assignment/function/unit/structural_scalar.rs` independently reconstructs
   the bounded projected integer-field store and structural scalar call,
   including carrier layout, source definition, field offset, projected copy,

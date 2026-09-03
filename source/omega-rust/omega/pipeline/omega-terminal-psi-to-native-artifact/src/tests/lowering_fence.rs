@@ -989,34 +989,72 @@ fn parameter_sourced_write_only_store_caller_reaches_verified_terminal_execution
         };
         assert_eq!(emitted_call.target, *call_callee);
         assert!(matches!(
-            emitted_call.scalar_arguments.as_slice(),
-            [omega_machine_code::InternalUnitScalarCallArgumentRecord {
-                parameter_index: 0,
-                source: omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                emitted_call.scalar_arguments.as_slice(),
+                [omega_machine_code::InternalUnitScalarCallArgumentRecord {
                     parameter_index: 0,
-                    source_value,
-                    scalar_type,
+                    source: omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                        parameter_index: 0,
+                        source_value,
+                        scalar_type,
+                        ..
+                    },
+                    destination,
                     ..
-                },
-                destination,
-                ..
             }] if *source_value == scalar_parameter.id
                 && *scalar_type == integer
                 && destination == &call_plan.parameters[0]
         ));
-        let object_result = omega_image_emission::build_object_artifact(&emitted);
-        assert!(
-            matches!(
-            &object_result,
+        let mut corrupted_emitted = emitted.clone();
+        let source = &mut corrupted_emitted
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == emitted.entry)
+            .unwrap()
+            .internal_unit_calls[0]
+            .scalar_arguments[0]
+            .source;
+        let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+            location, ..
+        } = source
+        else {
+            unreachable!()
+        };
+        *location = match native_target.architecture {
+            omega_target::Architecture::X86_64 => {
+                omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                    omega_target_operations::MachineRegister::X86Rax,
+                )
+            }
+            omega_target::Architecture::Aarch64 => {
+                omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                    omega_target_operations::MachineRegister::Aarch64X(1),
+                )
+            }
+        };
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&corrupted_emitted),
             Err(
-                omega_image_emission::ObjectError::UnsupportedInternalUnitCallScalarArguments {
-                    caller,
-                    operation,
-                }
-            ) if *caller == abstract_plan.entry && *operation == call.id
-            ),
-            "unexpected object boundary: {object_result:?}"
+                omega_image_emission::ObjectError::InvalidInternalUnitCallEvidence(
+                    abstract_plan.entry
+                )
+            )
         );
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object construction replays the scalar-bearing Unit call");
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("scalar-bearing Unit call reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains scalar-bearing Unit call custody");
+        let installation_bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode scalar-bearing Unit call custody");
+        let decoded = omega_image_emission::decode_installation_record(&installation_bytes)
+            .expect("decode scalar-bearing Unit call custody");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("installation independently replays scalar-bearing Unit call custody");
     }
 
     let mut missing_argument = lowered.semantic_module.clone();

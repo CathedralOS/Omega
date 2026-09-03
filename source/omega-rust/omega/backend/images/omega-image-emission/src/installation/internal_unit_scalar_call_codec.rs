@@ -20,6 +20,7 @@ use super::{
         encode_integer_value, encode_unit_scalar_home,
     },
     value_placement_codec::{decode_direct_placement, encode_direct_placement},
+    value_placement_codec::{decode_register, register_tag},
 };
 
 pub(super) fn encode_internal_unit_scalar_calls(
@@ -128,8 +129,30 @@ pub(super) fn encode_argument_source(
     source: InternalUnitScalarArgumentSourceRecord,
 ) -> Result<(), InstallationError> {
     match source {
-        InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
-            return Err(InstallationError::UnsupportedInstalledScalarSource);
+        InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } => {
+            bytes.extend_from_slice(&[3, 0, 0, 0]);
+            push_u32(bytes, parameter_index);
+            push_u64(bytes, source_value.get());
+            encode_integer_type(bytes, scalar_type)?;
+            match location {
+                omega_machine_code::UnitScalarParameterLocationRecord::Register(register) => {
+                    bytes.push(0);
+                    bytes.push(register_tag(register)?);
+                    bytes.extend_from_slice(&[0; 2]);
+                    push_u32(bytes, 0);
+                }
+                omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                    byte_offset,
+                } => {
+                    bytes.extend_from_slice(&[1, 0, 0, 0]);
+                    push_u32(bytes, byte_offset);
+                }
+            }
         }
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,
@@ -170,6 +193,41 @@ pub(super) fn decode_argument_source(
         2 => Ok(InternalUnitScalarArgumentSourceRecord::Home(
             decode_unit_scalar_home(reader)?,
         )),
+        3 => {
+            let parameter_index = reader.u32()?;
+            let source_value = ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let scalar_type = decode_integer_type(reader)?;
+            let location_tag = reader.u8()?;
+            let register_tag_byte = reader.u8()?;
+            if reader.take(2)? != [0; 2] {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            let byte_offset = reader.u32()?;
+            let location = match location_tag {
+                0 if byte_offset == 0 => {
+                    omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                        decode_register(register_tag_byte)?,
+                    )
+                }
+                1 if register_tag_byte == 0 => {
+                    omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                        byte_offset,
+                    }
+                }
+                _ => {
+                    return Err(InstallationError::InvalidInstalledScalarSourceTag(
+                        location_tag,
+                    ));
+                }
+            };
+            Ok(InternalUnitScalarArgumentSourceRecord::Parameter {
+                parameter_index,
+                source_value,
+                scalar_type,
+                location,
+            })
+        }
         tag => Err(InstallationError::InvalidInstalledScalarSourceTag(tag)),
     }
 }
@@ -196,7 +254,7 @@ mod tests {
     use psi_core::{IntegerSign, IntegerType};
 
     #[test]
-    fn ordinary_installation_codec_rejects_parameter_sources() {
+    fn ordinary_installation_codec_round_trips_parameter_sources() {
         let mut bytes = Vec::new();
         let source = InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index: 0,
@@ -204,10 +262,7 @@ mod tests {
             scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
             location: UnitScalarParameterLocationRecord::Register(MachineRegister::X86Rdi),
         };
-        assert_eq!(
-            encode_argument_source(&mut bytes, source),
-            Err(InstallationError::UnsupportedInstalledScalarSource)
-        );
-        assert!(bytes.is_empty());
+        encode_argument_source(&mut bytes, source).expect("encode parameter source");
+        assert_eq!(decode_argument_source(&mut Reader::new(&bytes)), Ok(source));
     }
 }
