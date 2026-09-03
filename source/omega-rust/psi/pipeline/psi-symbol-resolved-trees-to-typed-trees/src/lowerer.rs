@@ -96,11 +96,17 @@ pub fn lower_seeded_extension(
     let data_frontier = resolved_base.data_definitions.len();
     let const_frontier = resolved_base.const_declarations.len();
     let machine_frontier = resolved_base.machines.len();
+    let trait_frontier = resolved_base.traits.len();
     let typed_machine_frontier = retained.typed.machines().len();
     let type_reference_frontier = retained.typed.type_reference_table.type_reference_count();
     let expression_frontier = retained.typed.expression_table.expression_count();
     if !resolved_root_shape_is_supported(&source, &resolved_base)
-        || !seeded_extension_shape_is_supported(&source, data_frontier, machine_frontier)
+        || !seeded_extension_shape_is_supported(
+            &source,
+            data_frontier,
+            machine_frontier,
+            trait_frontier,
+        )
     {
         return Err((retained, SeededContinuationError::UnsupportedExtensionShape));
     }
@@ -187,6 +193,18 @@ pub fn lower_seeded_extension(
             }
         };
         lowerer.typed_trees.push_machine(lowered);
+    }
+    for trait_definition in source.traits.iter().skip(trait_frontier) {
+        let lowered = match lowerer.with_type_reference_exposure(
+            declaration_exposure(trait_definition.is_public),
+            |lowerer| lower_trait_definition(lowerer, trait_definition),
+        ) {
+            Ok(lowered) => lowered,
+            Err(error) => {
+                return Err((retained, SeededContinuationError::Lowering(error)));
+            }
+        };
+        lowerer.typed_trees.push_trait_definition(lowered);
     }
     if let Err(error) = crate::machine::settle_satisfied_declarations_from(
         &mut lowerer.typed_trees,
@@ -399,7 +417,12 @@ fn resolved_root_shape_is_supported(
         && source.measures == base.measures
         && source.operators == base.operators
         && source.propositions == base.propositions
-        && source.traits == base.traits
+        && source
+            .traits
+            .iter()
+            .take(base.traits.len())
+            .eq(base.traits.iter())
+        && source.traits.len() >= base.traits.len()
         && source.conformances == base.conformances
         && source.wire_schemas == base.wire_schemas
 }
@@ -408,6 +431,7 @@ fn seeded_extension_shape_is_supported(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
     machine_frontier: usize,
+    trait_frontier: usize,
 ) -> bool {
     let Some(local_instances) = seeded_local_instances::validated_symbols(source, data_frontier)
     else {
@@ -465,6 +489,18 @@ fn seeded_extension_shape_is_supported(
             .all(|machine| {
                 exact_extension_machine_symbol(source, data_frontier, &local_instances, machine)
             })
+        && source
+            .traits
+            .iter()
+            .skip(trait_frontier)
+            .all(|trait_definition| {
+                exact_extension_trait_definition(
+                    source,
+                    data_frontier,
+                    &local_instances,
+                    trait_definition,
+                )
+            })
 }
 
 #[cfg(test)]
@@ -472,7 +508,110 @@ fn plain_data_extension_shape_is_supported(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
 ) -> bool {
-    seeded_extension_shape_is_supported(source, data_frontier, source.machines.len())
+    seeded_extension_shape_is_supported(
+        source,
+        data_frontier,
+        source.machines.len(),
+        source.traits.len(),
+    )
+}
+
+fn exact_extension_trait_definition(
+    source: &SymbolResolvedTrees,
+    data_frontier: usize,
+    local_instances: &[psi_symbols::SymbolHandle],
+    trait_definition: &psi_symbol_resolved_trees::trait_definition::TraitDefinition,
+) -> bool {
+    let requirements = source.trait_machine_signatures(trait_definition.machines);
+    exact_flat_trait_definition(source, trait_definition)
+        && !requirements.is_empty()
+        && requirements.iter().all(|requirement| {
+            exact_flat_trait_requirement(
+                source,
+                data_frontier,
+                local_instances,
+                trait_definition,
+                requirement,
+            )
+        })
+}
+
+fn exact_flat_trait_definition(
+    source: &SymbolResolvedTrees,
+    trait_definition: &psi_symbol_resolved_trees::trait_definition::TraitDefinition,
+) -> bool {
+    trait_definition.symbol.is_valid()
+        && source.symbols.get(trait_definition.symbol).kind == psi_symbols::SymbolKind::Trait
+        && source.symbols.get(trait_definition.symbol).parent == source.symbols.root()
+        && source.symbols.name(trait_definition.symbol) == trait_definition.name.as_str()
+        && !trait_definition.is_boundary
+        && trait_definition.lifetime_parameters.is_empty()
+        && source
+            .data_type_parameters(trait_definition.type_parameters)
+            .is_empty()
+        && trait_definition.conformance_bounds.is_empty()
+        && source
+            .trait_requirements(trait_definition.requires)
+            .is_empty()
+}
+
+fn exact_flat_trait_requirement(
+    source: &SymbolResolvedTrees,
+    data_frontier: usize,
+    local_instances: &[psi_symbols::SymbolHandle],
+    trait_definition: &psi_symbol_resolved_trees::trait_definition::TraitDefinition,
+    requirement: &psi_symbol_resolved_trees::signature::StateSignature,
+) -> bool {
+    requirement.symbol.is_valid()
+        && source.symbols.get(requirement.symbol).kind == psi_symbols::SymbolKind::State
+        && source.symbols.get(requirement.symbol).parent == trait_definition.symbol
+        && source.symbols.name(requirement.symbol) == requirement.name.as_str()
+        && requirement.spelling.is_none()
+        && requirement.lifetime_parameters.is_empty()
+        && source
+            .data_type_parameters(requirement.type_parameters)
+            .is_empty()
+        && !requirement.is_default
+        && requirement.native_callback_parameters.is_empty()
+        && source
+            .state_parameters(requirement.parameters)
+            .iter()
+            .all(|value| {
+                value.symbol.is_valid()
+                    && source.symbols.get(value.symbol).kind == psi_symbols::SymbolKind::Parameter
+                    && source.symbols.get(value.symbol).parent == requirement.symbol
+                    && source.symbols.name(value.symbol) == value.name.as_str()
+                    && !value.is_self
+                    && plain_type_is_supported(
+                        source,
+                        data_frontier,
+                        local_instances,
+                        psi_symbols::SymbolHandle::invalid(),
+                        &[],
+                        &[],
+                        &value.type_reference,
+                    )
+            })
+        && requirement.return_type.as_ref().is_none_or(|return_type| {
+            plain_type_is_supported(
+                source,
+                data_frontier,
+                local_instances,
+                psi_symbols::SymbolHandle::invalid(),
+                &[],
+                &[],
+                return_type,
+            )
+        })
+        && requirement.invokes.is_empty()
+        && requirement.service_reach_row == psi_language_semantics::ServiceReachRowTable::EMPTY_ROW
+        && !requirement.service_reach_is_installation_bound
+        && requirement.suspends_keyword_source_spans.is_empty()
+        && requirement.blocks_keyword_source_spans.is_empty()
+        && !requirement.suspends
+        && !requirement.blocks
+        && requirement.contracts.is_empty()
+        && !requirement.terminates_guarantee
 }
 
 fn exact_extension_machine_symbol(
@@ -716,19 +855,7 @@ fn exact_extension_nominal_machine_parameter(
             })
             .count()
             == 1
-        && trait_definition.symbol.is_valid()
-        && source.symbols.get(trait_definition.symbol).kind == psi_symbols::SymbolKind::Trait
-        && source.symbols.get(trait_definition.symbol).parent == source.symbols.root()
-        && source.symbols.name(trait_definition.symbol) == trait_definition.name.as_str()
-        && !trait_definition.is_boundary
-        && trait_definition.lifetime_parameters.is_empty()
-        && source
-            .data_type_parameters(trait_definition.type_parameters)
-            .is_empty()
-        && trait_definition.conformance_bounds.is_empty()
-        && source
-            .trait_requirements(trait_definition.requires)
-            .is_empty()
+        && exact_flat_trait_definition(source, trait_definition)
         && !trait_path.is_empty()
         && trait_path
             .iter()
@@ -737,56 +864,13 @@ fn exact_extension_nominal_machine_parameter(
             .join("::")
             == trait_definition.name.as_str()
         && requirement_name.as_str() == requirement.name.as_str()
-        && requirement.symbol.is_valid()
-        && source.symbols.get(requirement.symbol).kind == psi_symbols::SymbolKind::State
-        && source.symbols.get(requirement.symbol).parent == trait_definition.symbol
-        && source.symbols.name(requirement.symbol) == requirement.name.as_str()
-        && requirement.spelling.is_none()
-        && requirement.lifetime_parameters.is_empty()
-        && source
-            .data_type_parameters(requirement.type_parameters)
-            .is_empty()
-        && !requirement.is_default
-        && requirement.native_callback_parameters.is_empty()
-        && source
-            .state_parameters(requirement.parameters)
-            .iter()
-            .all(|value| {
-                value.symbol.is_valid()
-                    && source.symbols.get(value.symbol).kind == psi_symbols::SymbolKind::Parameter
-                    && source.symbols.get(value.symbol).parent == requirement.symbol
-                    && source.symbols.name(value.symbol) == value.name.as_str()
-                    && !value.is_self
-                    && plain_type_is_supported(
-                        source,
-                        data_frontier,
-                        local_instances,
-                        machine.symbol,
-                        &machine.lifetime_parameters,
-                        owner_type_parameters,
-                        &value.type_reference,
-                    )
-            })
-        && requirement.return_type.as_ref().is_none_or(|return_type| {
-            plain_type_is_supported(
-                source,
-                data_frontier,
-                local_instances,
-                machine.symbol,
-                &machine.lifetime_parameters,
-                owner_type_parameters,
-                return_type,
-            )
-        })
-        && requirement.invokes.is_empty()
-        && requirement.service_reach_row == psi_language_semantics::ServiceReachRowTable::EMPTY_ROW
-        && !requirement.service_reach_is_installation_bound
-        && requirement.suspends_keyword_source_spans.is_empty()
-        && requirement.blocks_keyword_source_spans.is_empty()
-        && !requirement.suspends
-        && !requirement.blocks
-        && requirement.contracts.is_empty()
-        && !requirement.terminates_guarantee
+        && exact_flat_trait_requirement(
+            source,
+            data_frontier,
+            local_instances,
+            trait_definition,
+            requirement,
+        )
 }
 
 fn exact_top_level_data_symbol(

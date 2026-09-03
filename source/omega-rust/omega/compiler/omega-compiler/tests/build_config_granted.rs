@@ -83,10 +83,7 @@ fn package_inputs(root: &Path) -> PackageCompilationInputs {
 fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
     let profile = omega_target::TargetProfile::WindowsX64;
     let project = Project::new("generated-source");
-    project.write(
-        "main.omg",
-        "pub trait GeneratedOperation { machine apply(value: u64) -> u64; }\ndata Main { value: u8; }\n",
-    );
+    project.write("main.omg", "data Main { value: u8; }\n");
     project.write("input.txt", "input\n");
     project.write(
         "build.omg",
@@ -106,7 +103,7 @@ machine build(builder: &mut Build) {{
     let output_descriptor: i32 = builder.output.create(generated, 438);
     let output_count: i64 = builder.output.write(
         output_descriptor,
-        "data Generated {{ base: Main; }}\npub data MachineConfig {{ count: u8; enabled: bool; }}\npub data ConfigIndexed<const C: MachineConfig> {{ marker: u8; }}\npub machine identity<'value, T>(value: &'value T) -> &'value T {{ value }}\npub machine bounded<T [copy]>(value: &T) {{}}\npub machine apply<machine Selected>(value: u64) -> u64 where machine Selected(value: u64) -> u64; {{ Selected(value) }}\npub machine apply_nominal<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; {{ Selected(value) }}\npub machine width<const N: u64>(value: [u8; N]) {{}}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {{}}\n"
+        "data Generated {{ base: Main; }}\npub data MachineConfig {{ count: u8; enabled: bool; }}\npub data ConfigIndexed<const C: MachineConfig> {{ marker: u8; }}\npub trait GeneratedOperation {{ machine apply(value: u64) -> u64; }}\npub machine identity<'value, T>(value: &'value T) -> &'value T {{ value }}\npub machine bounded<T [copy]>(value: &T) {{}}\npub machine apply<machine Selected>(value: u64) -> u64 where machine Selected(value: u64) -> u64; {{ Selected(value) }}\npub machine apply_nominal<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; {{ Selected(value) }}\npub machine width<const N: u64>(value: [u8; N]) {{}}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {{}}\n"
     );
     let output_close: i32 = builder.output.close(output_descriptor);
     builder.output.include_source(generated);
@@ -213,12 +210,12 @@ machine build(builder: &mut Build) {{
         .traits()
         .iter()
         .find(|definition| definition.name.as_str() == "GeneratedOperation")
-        .expect("authored base retains the nominal contract trait");
+        .expect("generated extension retains the nominal contract trait");
     let generated_requirement = checked
         .typed
         .trait_machine_signatures(generated_operation)
         .first()
-        .expect("authored base retains the nominal contract requirement");
+        .expect("generated extension retains the nominal contract requirement");
     let apply_nominal = checked
         .typed
         .machines()
@@ -402,7 +399,7 @@ machine build(builder: &mut Build) {{
         .staged_output_tree()
         .expect("complete replay retains the staged output tree");
     assert_eq!(staged.entry_count(), 1);
-    let expected_generated = b"data Generated { base: Main; }\npub data MachineConfig { count: u8; enabled: bool; }\npub data ConfigIndexed<const C: MachineConfig> { marker: u8; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\npub machine bounded<T [copy]>(value: &T) {}\npub machine apply<machine Selected>(value: u64) -> u64 where machine Selected(value: u64) -> u64; { Selected(value) }\npub machine apply_nominal<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }\npub machine width<const N: u64>(value: [u8; N]) {}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {}\n";
+    let expected_generated = b"data Generated { base: Main; }\npub data MachineConfig { count: u8; enabled: bool; }\npub data ConfigIndexed<const C: MachineConfig> { marker: u8; }\npub trait GeneratedOperation { machine apply(value: u64) -> u64; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\npub machine bounded<T [copy]>(value: &T) {}\npub machine apply<machine Selected>(value: u64) -> u64 where machine Selected(value: u64) -> u64; { Selected(value) }\npub machine apply_nominal<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }\npub machine width<const N: u64>(value: [u8; N]) {}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {}\n";
     assert_eq!(staged.file_bytes(), expected_generated.len() as u64);
 
     assert_eq!(

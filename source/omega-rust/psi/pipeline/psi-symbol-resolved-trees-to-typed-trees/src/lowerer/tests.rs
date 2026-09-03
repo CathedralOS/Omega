@@ -6241,6 +6241,105 @@ fn seeded_continuation_retains_a_base_owned_nominal_static_machine_binder() {
 }
 
 #[test]
+fn seeded_continuation_retains_an_extension_owned_nominal_static_machine_binder() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+        r#"
+            pub trait GeneratedOperation {
+                machine apply(value: u64) -> u64;
+            }
+            pub machine generated<machine Selected>(value: u64) -> u64
+            where machine Selected satisfies GeneratedOperation::apply;
+            {
+                Selected(value)
+            }
+        "#,
+    );
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("an exact extension-owned nominal binder should append transactionally");
+
+    assert!(retained_typed_base_is_exact_prefix(&expected, &typed));
+    assert_eq!(typed.traits().len(), expected.traits().len() + 1);
+    assert_eq!(typed.machines().len(), expected.machines().len() + 1);
+    let operation = typed.traits().last().expect("generated trait");
+    assert_eq!(operation.name.as_str(), "GeneratedOperation");
+    assert_eq!(
+        typed.symbols.get(operation.symbol).parent,
+        typed.symbols.root()
+    );
+    let [requirement] = typed.trait_machine_signatures(operation) else {
+        panic!("generated trait retains one exact requirement")
+    };
+    assert_eq!(requirement.name.as_str(), "apply");
+
+    let generated = typed.machines().last().expect("generated generic machine");
+    let [type_parameter] = typed.machine_type_parameters(generated) else {
+        panic!("generated machine retains one exact static-machine parameter")
+    };
+    let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &type_parameter.kind
+    else {
+        panic!("Selected remains a static-machine binder")
+    };
+    let psi_typed_trees::data::MachineParameterContractView::Nominal {
+        trait_definition,
+        requirement: selected_requirement,
+    } = typed
+        .machine_parameter_contract_view(contract)
+        .expect("the nominal pair rejoins its extension-owned declarations")
+    else {
+        panic!("nominal contract view")
+    };
+    assert_eq!(trait_definition.symbol, operation.symbol);
+    assert_eq!(selected_requirement.symbol, requirement.symbol);
+}
+
+#[test]
+fn seeded_extension_trait_continuation_rejects_broader_shapes_transactionally() {
+    for (name, extension_source) in [
+        (
+            "boundary_trait",
+            "boundary trait GeneratedOperation { machine apply(value: u64) -> u64; }",
+        ),
+        (
+            "lifetime_trait",
+            "trait GeneratedOperation<'scope> { machine apply(value: u64) -> u64; }",
+        ),
+        (
+            "generic_trait",
+            "trait GeneratedOperation<T> { machine apply(value: T) -> T; }",
+        ),
+        (
+            "proof_contract",
+            "trait GeneratedOperation { machine apply(value: bool) requires value; }",
+        ),
+        (
+            "default_body",
+            "trait GeneratedOperation { machine apply(value: u64) -> u64 { value } }",
+        ),
+        (
+            "self_return",
+            "trait GeneratedOperation { machine make() -> Self; }",
+        ),
+        ("empty_trait", "trait GeneratedOperation {}"),
+    ] {
+        let (base, extension) = seeded_plain_data_inputs(
+            "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+            extension_source,
+        );
+        let expected = base.typed().clone();
+        let (returned, error) = lower_seeded_extension(extension, base)
+            .expect_err("broader generated traits remain outside this exact cohort");
+        assert_eq!(
+            error,
+            SeededContinuationError::UnsupportedExtensionShape,
+            "{name}"
+        );
+        assert_eq!(returned.into_typed(), expected, "{name}");
+    }
+}
+
+#[test]
 fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
     let (base, extension) = seeded_plain_data_inputs(
         "trait GeneratedOperation { machine apply(value: u64) -> u64; }",
@@ -6248,11 +6347,13 @@ fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
     );
     let data_frontier = base.resolved.data_definitions.len();
     let machine_frontier = base.resolved.machines.len();
+    let trait_frontier = base.resolved.traits.len();
     let resolved = extension.trees().clone();
     assert!(seeded_extension_shape_is_supported(
         &resolved,
         data_frontier,
         machine_frontier,
+        trait_frontier,
     ));
     let generated = &resolved.machines[machine_frontier];
     let [parameter] = resolved.data_type_parameters(generated.type_parameters) else {
@@ -6278,7 +6379,12 @@ fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
     assert_ne!(*requirement, parameter.symbol);
     *requirement = psi_symbols::SymbolHandle::invalid();
     assert!(
-        !seeded_extension_shape_is_supported(&requirement_drift, data_frontier, machine_frontier,),
+        !seeded_extension_shape_is_supported(
+            &requirement_drift,
+            data_frontier,
+            machine_frontier,
+            trait_frontier,
+        ),
         "a nominal requirement symbol cannot be detached from its base trait",
     );
 
@@ -6301,7 +6407,12 @@ fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
     *authored_path.last_mut().expect("Trait::requirement path") =
         psi_symbol_resolved_trees::name::DiagnosticName::generated("other");
     assert!(
-        !seeded_extension_shape_is_supported(&path_drift, data_frontier, machine_frontier,),
+        !seeded_extension_shape_is_supported(
+            &path_drift,
+            data_frontier,
+            machine_frontier,
+            trait_frontier,
+        ),
         "authored nominal path drift cannot reuse the retained symbol pair",
     );
 
@@ -6325,6 +6436,7 @@ fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
             &declaration_identity,
             data_frontier,
             machine_frontier,
+            trait_frontier,
         ),
         "a callable nominal binder cannot be substituted with declaration identity",
     );
@@ -6333,11 +6445,6 @@ fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
 #[test]
 fn seeded_nominal_machine_continuation_preserves_broader_contract_fences() {
     for (name, base_source, extension_source) in [
-        (
-            "extension_owned_trait",
-            "data Authored {}",
-            "trait GeneratedOperation { machine apply(value: u64) -> u64; } machine generated<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }",
-        ),
         (
             "boundary_requirement",
             "boundary trait GeneratedOperation { machine apply(value: u64) -> u64; }",
@@ -6542,11 +6649,13 @@ fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exa
     );
     let data_frontier = base.resolved.data_definitions.len();
     let machine_frontier = base.resolved.machines.len();
+    let trait_frontier = base.resolved.traits.len();
     let resolved = extension.trees().clone();
     assert!(seeded_extension_shape_is_supported(
         &resolved,
         data_frontier,
         machine_frontier,
+        trait_frontier,
     ));
 
     let generated = &resolved.machines[machine_frontier];
@@ -6572,7 +6681,12 @@ fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exa
     };
     *name = psi_symbol_resolved_trees::name::DiagnosticName::generated("WrongConfig");
     assert!(
-        !seeded_extension_shape_is_supported(&carrier_name_drift, data_frontier, machine_frontier,),
+        !seeded_extension_shape_is_supported(
+            &carrier_name_drift,
+            data_frontier,
+            machine_frontier,
+            trait_frontier,
+        ),
         "a structured const carrier name cannot drift from its exact symbol",
     );
 
@@ -6607,6 +6721,7 @@ fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exa
             &occurrence_name_drift,
             data_frontier,
             machine_frontier,
+            trait_frontier,
         ),
         "a structured const value occurrence cannot drift from its exact binder",
     );

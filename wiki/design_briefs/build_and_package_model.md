@@ -318,13 +318,16 @@ retains its complete authored multiplicity and four-axis carry-property bound
 through the append-only continuation. The first static-machine cohorts retain
 one exact machine-parented binder and body calls targeting it. The structural
 form owns a flat parameter/result signature over that same supported type
-surface. The first nominal form instead retains one exact ordinary nongeneric
-trait and requirement pair already owned by the authored base; that requirement
-supplies the same flat signature, while its authored path and both resolved
-symbols remain exact. Extension-owned or boundary traits, nested contract
-telescopes, operational or proof contracts, declaration-identity machine
-binders, proposition binders, generated-machine `satisfies`, conformance bounds,
-and broader supply forms remain fenced. Suffix-only finalization owns satisfied
+surface. The nominal form retains one exact ordinary nongeneric trait and
+requirement pair from either the authored base or the current generated
+extension. An extension-owned trait must be non-boundary, nongeneric, nonempty,
+and composed only of flat bodyless requirements over the same supported type
+surface. The trait, requirement, authored path, and nominal machine binder keep
+their exact symbols through append-only lowering. Boundary traits, nested
+contract telescopes, operational or proof contracts, default bodies,
+declaration-identity machine binders, proposition binders, generated-machine
+`satisfies`, conformance bounds, and broader supply forms remain fenced.
+Suffix-only finalization owns satisfied
 declarations, progress premises, domain constraints, semantic qualification
 casts, and fixed-byte literal landing. The matching post-typing evaluator then
 runs on the completed candidate; wire-plan publication begins at the extension
