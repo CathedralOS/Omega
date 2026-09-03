@@ -1512,7 +1512,8 @@ pub enum CheckedUnitEffectOperationPlan {
     /// structural parameter. The checked scalar expression is retained so
     /// later lowering can emit its ordinary scalar producer before the store;
     /// the first admitted producer rung restricts this to a landed integer,
-    /// IEEE float, or Boolean literal.
+    /// IEEE float, Boolean literal, or one exact fixed-integer scalar
+    /// parameter.
     WriteOnlyPrimitiveStore {
         statement_index: u32,
         destination_parameter_index: u32,

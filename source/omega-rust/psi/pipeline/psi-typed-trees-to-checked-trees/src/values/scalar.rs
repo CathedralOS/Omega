@@ -198,13 +198,15 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         // custody. Retain the exact scalar spelling separately
                         // so structural effect planning never has to revisit a
                         // typed expression handle. This first consumer needs
-                        // only direct primitive literals; wider assignment
-                        // expressions remain outside its admitted vocabulary.
+                        // only direct primitive literals or an exact scalar
+                        // parameter; wider assignment expressions remain
+                        // outside its admitted vocabulary.
                         if !matches!(
                             program.expression_table.expression(assignment.value),
                             ExpressionNode::Integer(_)
                                 | ExpressionNode::Float(_)
                                 | ExpressionNode::Boolean(_)
+                                | ExpressionNode::Name(_)
                         ) {
                             continue;
                         }
@@ -227,15 +229,15 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             program,
                             operators,
                             assignment.value,
-                            &[],
-                            &[],
+                            &scalar_parameters,
+                            &parameter_types,
                             &[],
                             target_type,
                             exact_integer_casts,
                         ) else {
                             continue;
                         };
-                        let direct_literal =
+                        let direct_source =
                             matches!(expression, CheckedScalarExpression::IntegerLiteral { .. })
                                 || matches!(
                                     expression,
@@ -248,8 +250,9 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                             boolean.as_ref(),
                                             CheckedBooleanExpression::Constant(_)
                                         )
-                                );
-                        if !direct_literal {
+                                )
+                                || matches!(expression, CheckedScalarExpression::Parameter { .. });
+                        if !direct_source {
                             continue;
                         }
                         expressions.push(CheckedLocatedScalarExpression {

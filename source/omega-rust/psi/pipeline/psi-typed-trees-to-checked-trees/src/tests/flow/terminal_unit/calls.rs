@@ -914,14 +914,61 @@ fn retains_one_direct_write_only_ieee_float_literal_store() {
 }
 
 #[test]
-fn primitive_store_planning_fails_closed_outside_the_literal_whole_write_root() {
+fn retains_one_direct_write_only_fixed_integer_parameter_store() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write i32, replacement: i32) {
+            destination = replacement;
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let fill = plans
+        .for_machine(machine_named(&checked, "Sink::fill"))
+        .expect("runtime-parameter write-only callee plan");
+    assert!(matches!(
+        fill.scalar_parameters.as_slice(),
+        [parameter] if parameter.source_position == 1
+            && parameter.primitive_type == PrimitiveType::I32
+    ));
+    assert!(matches!(
+        fill.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                statement_index: 0,
+                destination_parameter_index: 0,
+                value: CheckedScalarExpression::Parameter {
+                    position: 0,
+                    primitive_type: PrimitiveType::I32,
+                },
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                statement_index: 1,
+                ..
+            },
+        ]
+    ));
+}
+
+#[test]
+fn primitive_store_planning_fails_closed_outside_the_direct_source_whole_write_root() {
     let cases = [
         (
-            "runtime replacement",
+            "additional runtime parameter",
+            r#"
+            data Sink {}
+            machine Sink::fill(destination: &write i32, replacement: i32, extra: i32) {
+                destination = replacement;
+            }
+            "#,
+        ),
+        (
+            "computed runtime replacement",
             r#"
             data Sink {}
             machine Sink::fill(destination: &write i32, replacement: i32) {
-                destination = replacement;
+                destination = replacement ^ 1i32;
             }
             "#,
         ),
