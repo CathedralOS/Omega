@@ -510,7 +510,11 @@ mod tests {
             callee: MachineId::new(2).expect("callee"),
             application_commitment:
                 psi_terminal::ClosedConformanceApplicationCommitment::from_digest([1; 32]),
-            source: PlaceId::new(3).expect("source"),
+            source: psi_terminal::StructuralArgument {
+                place: PlaceId::new(3).expect("source"),
+                path: Vec::new(),
+                access: psi_terminal::StructuralAccess::SharedBorrow,
+            },
             semantic_result: Some(omega_abstract_operations::AbstractResult { value, scalar_type }),
             result: Some(ForeignCallScalarResultRecord {
                 home,
@@ -526,6 +530,7 @@ mod tests {
             attachment: None,
             fixed_integer_scalar_abi: None,
             mixed_structural_scalar_abi: None,
+            unit_scalar_abi: None,
             structural_call_scalar_return: None,
             text_offset: 100,
             byte_count: 50,

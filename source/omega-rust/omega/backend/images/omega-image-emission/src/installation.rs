@@ -52,6 +52,8 @@ mod structural_return_codec;
 mod structural_scalar_codec;
 mod structural_signature_codec;
 mod trivial_affine_local_codec;
+mod unit_dynamic_descriptor_join;
+mod unit_scalar_abi_codec;
 mod unit_scalar_codec;
 mod unit_structural_scalar_field_store_codec;
 mod value_placement_codec;
@@ -88,9 +90,10 @@ use structural_return_codec::{decode_structural_returns, encode_structural_retur
 use structural_scalar_codec::{
     decode_identity, decode_multiplicity, encode_identity, multiplicity_tag,
 };
+use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 68;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 69;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -449,7 +452,7 @@ pub struct InstalledForwardedDynamicDescriptorCall {
     pub operation: OperationId,
     pub callee: MachineId,
     pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
-    pub source: PlaceId,
+    pub source: psi_terminal::StructuralArgument,
     pub semantic_result: Option<omega_abstract_operations::AbstractResult>,
     pub result: Option<omega_machine_code::InternalUnitScalarCallResultRecord>,
     pub text_offset: usize,
@@ -486,6 +489,7 @@ pub struct InstalledFunction {
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
     pub mixed_structural_scalar_abi:
         Option<omega_target_operations::MixedStructuralScalarFunctionAbi>,
+    pub unit_scalar_abi: Option<omega_machine_code::UnitScalarFunctionAbiRecord>,
     pub structural_call_scalar_return:
         Option<omega_machine_code::StructuralCallScalarReturnEvidence>,
     pub text_offset: usize,
@@ -743,6 +747,7 @@ where
                 machine: function.machine,
                 fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
                 mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
+                unit_scalar_abi: function.unit_scalar_abi.clone(),
                 structural_call_scalar_return: function.structural_call_scalar_return,
                 text_offset: function.text_offset,
                 byte_count: function.byte_count,
@@ -1237,6 +1242,7 @@ pub fn validate_installation_record(
                     || installed.attachment != emitted.attachment
                     || installed.fixed_integer_scalar_abi != emitted.fixed_integer_scalar_abi
                     || installed.mixed_structural_scalar_abi != emitted.mixed_structural_scalar_abi
+                    || installed.unit_scalar_abi != emitted.unit_scalar_abi
                     || installed.structural_call_scalar_return
                         != emitted.structural_call_scalar_return
                     || installed.text_offset != emitted.text_offset
@@ -1511,7 +1517,7 @@ fn installed_forwarded_dynamic_descriptor_calls(
                 operation: call.psi_operation,
                 callee: call.callee,
                 application_commitment: application.commitment,
-                source: selection.source.place,
+                source: selection.source.clone(),
                 semantic_result: call.semantic_result,
                 result: call.result.clone(),
                 text_offset: function
@@ -1714,6 +1720,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         return Err(InstallationError::UnsupportedTarget(record.target));
     }
     validate_installed_dynamic_conformance(record)?;
+    validate_installed_unit_dynamic_descriptor_joins(record)?;
     match record.target.object_format {
         ObjectFormat::Coff if record.subsystem.is_none() => {
             return Err(InstallationError::MissingCoffSubsystem);
@@ -4462,6 +4469,7 @@ pub enum InstallationError {
     InvalidForwardedDynamicDescriptorAdapter,
     InvalidForwardedDynamicDescriptorTable,
     InvalidForwardedDynamicDescriptorCall(MachineId),
+    InvalidUnitDynamicDescriptorJoin(MachineId),
     InvalidDynamicParameterCall(MachineId),
     InvalidForwardedDynamicParameterCall(MachineId),
     InvalidUnitStructuralScalarFieldStore(MachineId),
@@ -4552,6 +4560,7 @@ mod resource_tests {
             attachment: None,
             fixed_integer_scalar_abi: None,
             mixed_structural_scalar_abi: None,
+            unit_scalar_abi: None,
             structural_call_scalar_return: None,
             text_offset: 24,
             byte_count: 16,

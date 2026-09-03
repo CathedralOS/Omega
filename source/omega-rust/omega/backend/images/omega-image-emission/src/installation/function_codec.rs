@@ -31,6 +31,7 @@ use super::{
     scalar_structural_scalar_field_store_codec::{
         decode_scalar_structural_scalar_field_stores, encode_scalar_structural_scalar_field_stores,
     },
+    unit_scalar_abi_codec::{decode_unit_scalar_abi, encode_unit_scalar_abi},
     unit_scalar_codec::{
         decode_unit_affine_scalar_records, decode_unit_integer_constants, decode_unit_scalar_homes,
         encode_unit_affine_scalar_records, encode_unit_integer_constants, encode_unit_scalar_homes,
@@ -83,6 +84,7 @@ pub(super) fn encode_functions(
         }
         encode_fixed_integer_scalar_abi(bytes, function.fixed_integer_scalar_abi.as_ref())?;
         encode_mixed_structural_scalar_abi(bytes, function.mixed_structural_scalar_abi.as_ref())?;
+        encode_unit_scalar_abi(bytes, function.unit_scalar_abi.as_ref())?;
         encode_parameter_records(bytes, &function.unit_parameters)?;
         encode_parameter_homes(bytes, &function.unit_parameter_homes)?;
         encode_unit_scalar_homes(bytes, &function.unit_scalar_homes)?;
@@ -196,6 +198,7 @@ pub(super) fn decode_functions(
         };
         let fixed_integer_scalar_abi = decode_fixed_integer_scalar_abi(reader)?;
         let mixed_structural_scalar_abi = decode_mixed_structural_scalar_abi(reader)?;
+        let unit_scalar_abi = decode_unit_scalar_abi(reader)?;
         let unit_parameters = decode_unit_parameter_records(reader)?;
         let unit_parameter_homes = decode_unit_parameter_homes(reader)?;
         let unit_scalar_homes = decode_unit_scalar_homes(reader)?;
@@ -210,6 +213,7 @@ pub(super) fn decode_functions(
             attachment,
             fixed_integer_scalar_abi,
             mixed_structural_scalar_abi,
+            unit_scalar_abi,
             structural_call_scalar_return,
             text_offset,
             byte_count,
