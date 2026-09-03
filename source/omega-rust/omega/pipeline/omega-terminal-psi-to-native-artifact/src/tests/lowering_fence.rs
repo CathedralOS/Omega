@@ -107,10 +107,65 @@ fn verified_write_only_primitive_store_reaches_exact_machine_emission() {
             &function.bytes[store.code_offset..store.code_offset + store.byte_count],
             store.bytes
         );
+        let rejects = |candidate: &omega_machine_code::MachineCodePlan| {
+            assert_eq!(
+                omega_image_emission::build_object_artifact(candidate),
+                Err(
+                    omega_image_emission::ObjectError::InvalidUnitWriteOnlyPrimitiveStoreEvidence(
+                        function.machine
+                    )
+                )
+            );
+        };
+        let mut changed_type = emitted.clone();
+        changed_type
+            .functions
+            .iter_mut()
+            .find(|candidate| candidate.machine == function.machine)
+            .unwrap()
+            .unit_write_only_primitive_stores[0]
+            .destination_type
+            .identity
+            .push_str("::forged");
+        rejects(&changed_type);
+        let mut changed_bytes = emitted.clone();
+        changed_bytes
+            .functions
+            .iter_mut()
+            .find(|candidate| candidate.machine == function.machine)
+            .unwrap()
+            .unit_write_only_primitive_stores[0]
+            .bytes[0] ^= 1;
+        rejects(&changed_bytes);
+        let mut changed_home = emitted.clone();
+        changed_home
+            .functions
+            .iter_mut()
+            .find(|candidate| candidate.machine == function.machine)
+            .unwrap()
+            .unit_write_only_primitive_stores[0]
+            .parameter_home_byte_offset += 8;
+        rejects(&changed_home);
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object construction independently replays the store");
+        let object_function = object
+            .functions()
+            .iter()
+            .find(|candidate| candidate.machine == function.machine)
+            .expect("object retains the store-owning function");
+        assert_eq!(
+            object_function.unit_write_only_primitive_stores,
+            function.unit_write_only_primitive_stores
+        );
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("replayed store reaches an executable image");
         assert!(matches!(
-            omega_image_emission::build_object_artifact(&emitted),
+            omega_image_emission::build_installation_record(
+                &image,
+                psi_core::ProfileDecisionId::new(1).unwrap()
+            ),
             Err(
-                omega_image_emission::ObjectError::UnsupportedUnitWriteOnlyPrimitiveStore(
+                omega_image_emission::InstallationError::UnsupportedUnitWriteOnlyPrimitiveStore(
                     machine
                 )
             ) if machine == function.machine

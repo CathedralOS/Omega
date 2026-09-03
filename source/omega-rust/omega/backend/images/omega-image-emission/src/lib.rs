@@ -52,6 +52,7 @@ mod unit_dynamic_descriptor_join;
 mod unit_scalar_call_custody;
 mod unit_stack;
 mod unit_structural_scalar_field_store;
+mod unit_write_only_primitive_store;
 mod x86_fma;
 
 pub use dynamic_elf::{
@@ -108,6 +109,7 @@ use unit_stack::{
     validate_unit_call_stack, validate_unit_function_stack,
 };
 use unit_structural_scalar_field_store::validate_unit_structural_scalar_field_stores;
+use unit_write_only_primitive_store::validate_unit_write_only_primitive_stores;
 
 use omega_machine_code::{
     BoundarySettlementRecord, CompilerPrivateMachineCodeFunction, MachineCodePlan,
@@ -299,6 +301,8 @@ pub struct ObjectFunction {
         Vec<omega_machine_code::UnitAffineScalarRecordEstablishmentRecord>,
     pub unit_structural_scalar_field_stores:
         Vec<omega_machine_code::UnitStructuralScalarFieldStoreRecord>,
+    pub unit_write_only_primitive_stores:
+        Vec<omega_machine_code::UnitWriteOnlyPrimitiveStoreRecord>,
     pub scalar_structural_scalar_field_stores:
         Vec<omega_machine_code::ScalarStructuralScalarFieldStoreRecord>,
     pub unit_parameters: Vec<omega_machine_code::UnitParameterRecord>,
@@ -1377,11 +1381,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 .max(dynamic_peak)
                 .max(stored_dynamic_peak);
         }
-        if !function.unit_write_only_primitive_stores.is_empty() {
-            return Err(ObjectError::UnsupportedUnitWriteOnlyPrimitiveStore(
-                function.machine,
-            ));
-        }
+        validate_unit_write_only_primitive_stores(plan.target, function)?;
         validate_unit_structural_scalar_field_stores(plan.target, function)?;
         validate_scalar_structural_scalar_field_stores(plan.target, function)?;
         match (&function.unit_stack, &function.unit_affine_cleanup) {
@@ -2209,6 +2209,7 @@ fn build_object_artifact_with_x86_feature_profile(
             unit_structural_scalar_field_stores: function
                 .unit_structural_scalar_field_stores
                 .clone(),
+            unit_write_only_primitive_stores: function.unit_write_only_primitive_stores.clone(),
             scalar_structural_scalar_field_stores: function
                 .scalar_structural_scalar_field_stores
                 .clone(),
@@ -4070,7 +4071,7 @@ pub enum ObjectError {
     InvalidInternalUnitScalarCallEvidence(MachineId),
     InvalidUnitScalarFunctionAbi(MachineId),
     InvalidInstalledProviderUnitScalarCallEvidence(MachineId),
-    UnsupportedUnitWriteOnlyPrimitiveStore(MachineId),
+    InvalidUnitWriteOnlyPrimitiveStoreEvidence(MachineId),
     InvalidUnitStructuralScalarFieldStoreEvidence(MachineId),
     InvalidScalarStructuralScalarFieldStoreEvidence(MachineId),
     InvalidUnitAffineCleanupEvidence(MachineId),

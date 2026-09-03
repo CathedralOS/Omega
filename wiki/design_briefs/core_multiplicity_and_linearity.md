@@ -122,15 +122,15 @@ projected, reordered, or intervening-call forms remain fail closed.
 The first bounded whole-root primitive store accepts a landed integer literal
 or Boolean literal and preserves its complete write-only parameter row and
 preceding exact-typed scalar use through target-neutral abstract operations and
-optimization validation. Target lowering now derives the primitive referent's
-exact width/alignment, selects a borrowed-reference ABI on x86-64 and AArch64,
-and retains the exact declaration, placement, immediate, and semantic
-operation. Physical assignment independently replays those joins. Machine-code
-emission then revalidates the exact destination, type, placement, immediate,
-and parameter home before producing the non-observing store bytes on x86-64
-and AArch64. Its dedicated custody row binds those facts to the exact code
-interval and bytes. Object construction remains fail closed until it can replay
-that row independently; provider non-observation authority also remains absent.
+optimization validation. The current native fixed-integer sublane derives the
+primitive referent's exact width/alignment, selects a borrowed-reference ABI on
+x86-64 and AArch64, and retains the exact declaration, placement, immediate,
+and semantic operation. Physical assignment and machine emission independently
+replay those joins before producing the non-observing store bytes. A dedicated
+custody row binds every fact to the exact code interval and bytes, which object
+construction replays independently. Boolean native lowering and installation
+transport remain fail closed; provider non-observation authority also remains
+absent.
 
 ## Consumers and cleanup
 
