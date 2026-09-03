@@ -1,12 +1,22 @@
 use omega_compiler::compile_to_checked_with_packages;
-use omega_package_evidence::record::PackageReviewNominalOwner;
+use omega_effects::{
+    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission, TerminalAuthorityClass,
+};
+use omega_package_compilation::AcceptedSemanticBindingRole;
+use omega_package_evidence::record::{
+    PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
+};
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
 use omega_package_manager::resolution::package_compilation_inputs;
-use omega_package_manager::review::compile_resolved_package_candidate_reviews;
+use omega_package_manager::review::{
+    ConsumerScopedSemanticBindingReviewInput, compile_resolved_package_candidate_reviews,
+    compile_resolved_package_reviews, compile_resolved_package_reviews_with_semantic_bindings,
+};
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use psi_source::SourceOrigin;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -82,6 +92,34 @@ pub data StandardCarrier {
 "#,
     )
     .expect("write consumer source");
+}
+
+fn write_filesystem_consumer(root: &Path, standard_library: &Path) {
+    fs::write(
+        root.join("build.omg"),
+        format!(
+            r#"target linux_x86_64 {{ }}
+
+machine build(builder: &mut Build) {{
+    builder.package("filesystem-policy-consumer");
+    builder.depend(Source::Path {{ location: "{}" }});
+}}
+"#,
+            omega_path(standard_library),
+        ),
+    )
+    .expect("write filesystem consumer package declaration");
+    fs::write(
+        root.join("main.omg"),
+        r#"use omega_language_std::filesystem_host;
+
+pub machine inspect_host()
+reaches FilesystemHost
+{
+}
+"#,
+    )
+    .expect("write filesystem consumer source");
 }
 
 #[test]
@@ -226,6 +264,148 @@ fn real_standard_library_has_a_complete_ordinary_review_entry() {
             .iter()
             .any(|shape| shape.identity().path() == "UnknownMemberBehavior"),
         "ordinary review entry reaches the public wire surface",
+    );
+}
+
+#[test]
+fn real_filesystem_host_schema_accepts_explicit_portable_facet_rows() {
+    let tree = TempTree::new();
+    let consumer = tree.package("filesystem-consumer");
+    let standard_library = repository_standard_library();
+    write_filesystem_consumer(&consumer, &standard_library);
+
+    let storage = SourceResolverStorage::for_hardened_base(tree.0.join("filesystem-resolved"))
+        .expect("create filesystem consumer resolver storage");
+    let closure = resolve_external_local_package_closure_with_storage(
+        &consumer,
+        ExternalSourceContext::derive(b"real-filesystem-facet-policy"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve consumer with the real standard library");
+    let target = closure.for_exact_target(omega_target::TargetProfile::LinuxX64);
+    let preliminary =
+        compile_resolved_package_reviews(&target, &tree.0.join("filesystem-preliminary-build"))
+            .expect("compile preliminary filesystem review");
+    let root = closure.graph().root();
+    let root_review = preliminary.review(root).expect("preliminary root review");
+    let candidates = root_review
+        .semantic_binding_candidates()
+        .iter()
+        .filter(|candidate| {
+            candidate.binding().role() == AcceptedSemanticBindingRole::FilesystemHostService
+        })
+        .collect::<Vec<_>>();
+    let [candidate] = candidates.as_slice() else {
+        panic!(
+            "real FilesystemHost reach must expose one exact review candidate, found {}",
+            candidates.len()
+        );
+    };
+    assert_eq!(
+        candidate.binding().normalized_schema_digest(),
+        candidate.service_schema().identity_digest(),
+    );
+
+    // This table is explicit test-consumer policy. Readable method names only
+    // locate human-reviewed rows in the real checked schema; the emitted rows
+    // are keyed by the schema digest and complete normalized requirement
+    // identity, and production candidate discovery never runs this mapping.
+    let specifications = [
+        ("read", PortableFilesystemAuthorityFacet::ContentRead),
+        ("write", PortableFilesystemAuthorityFacet::ContentWrite),
+        (
+            "read_metadata",
+            PortableFilesystemAuthorityFacet::MetadataQuery,
+        ),
+        (
+            "read_dir",
+            PortableFilesystemAuthorityFacet::DirectoryEnumeration,
+        ),
+        (
+            "rename",
+            PortableFilesystemAuthorityFacet::NamespaceMutation,
+        ),
+        (
+            "set_permissions",
+            PortableFilesystemAuthorityFacet::MetadataMutation,
+        ),
+    ];
+    let permissions = specifications
+        .iter()
+        .map(|(name, facet)| {
+            let methods = candidate
+                .service_schema()
+                .methods
+                .iter()
+                .filter(|method| method.name == *name)
+                .collect::<Vec<_>>();
+            let [method] = methods.as_slice() else {
+                panic!(
+                    "real FilesystemHost schema resolved `{name}` {} times",
+                    methods.len()
+                );
+            };
+            ServiceTerminalAuthorityPermission::for_filesystem_facets(
+                candidate.service_schema().identity_digest(),
+                method.requirement_identity.clone(),
+                [*facet],
+            )
+        })
+        .collect::<Vec<_>>();
+    let binding = candidate
+        .binding()
+        .clone()
+        .with_terminal_authority_permissions(permissions)
+        .expect("attach explicit facets to exact real FilesystemHost requirements");
+    let final_reviews = compile_resolved_package_reviews_with_semantic_bindings(
+        &target,
+        &tree.0.join("filesystem-policy-build"),
+        &[ConsumerScopedSemanticBindingReviewInput::new(
+            root.clone(),
+            binding,
+        )],
+    )
+    .expect("recompile real FilesystemHost policy through the checked review route");
+    let final_root = final_reviews.review(root).expect("final root review");
+    let filesystem_authorities = final_root
+        .projection()
+        .dangerous_authorities()
+        .iter()
+        .filter(|authority| authority.class() == PackageReviewDangerousAuthorityClass::Filesystem)
+        .collect::<Vec<_>>();
+    let [broad] = filesystem_authorities.as_slice() else {
+        panic!(
+            "final review must retain one transitional broad filesystem row, found {}",
+            filesystem_authorities.len()
+        );
+    };
+    assert_eq!(
+        final_root
+            .projection()
+            .terminal_authority_permissions()
+            .len(),
+        specifications.len(),
+    );
+    let mut actual_classes = BTreeSet::new();
+    for permission in final_root.projection().terminal_authority_permissions() {
+        assert_eq!(permission.service(), broad.service());
+        assert_eq!(
+            permission.service_schema(),
+            candidate.service_schema().identity_digest(),
+        );
+        let [class] = permission.permitted().classes() else {
+            panic!("each representative real requirement has one explicit facet")
+        };
+        actual_classes.insert(*class);
+    }
+    assert_eq!(
+        actual_classes,
+        specifications
+            .into_iter()
+            .map(|(_, facet)| TerminalAuthorityClass::from(facet))
+            .collect(),
     );
 }
 

@@ -2,7 +2,7 @@ use super::{
     SeededContinuationError, exact_field_symbol, exact_top_level_data_symbol,
     lower_seeded_extension, lower_symbol_resolved_trees,
     lower_symbol_resolved_trees_to_seeded_base, plain_data_extension_shape_is_supported,
-    resolved_root_shape_is_supported,
+    resolved_root_shape_is_supported, retained_typed_base_is_exact_prefix,
 };
 use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use psi_source_files_to_tokens::Lexer;
@@ -5971,6 +5971,64 @@ fn seeded_continuation_appends_a_generated_machine_without_relowering_the_base()
     );
     assert_eq!(typed.machines().last().unwrap().name.as_str(), "generated");
     assert_eq!(typed.data_definitions(), expected.data_definitions());
+}
+
+#[test]
+fn seeded_continuation_appends_a_plain_type_generic_machine_exactly_once() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+        "pub machine generated<T>(value: &T) {}",
+    );
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("plain Type-generic generated machine should append from the retained base");
+
+    assert!(retained_typed_base_is_exact_prefix(&expected, &typed));
+    assert_eq!(typed.machines().len(), expected.machines().len() + 1);
+    let generated = typed.machines().last().expect("generated generic machine");
+    assert_eq!(generated.name.as_str(), "generated");
+    let [type_parameter] = typed.machine_type_parameters(generated) else {
+        panic!("generated machine retains one exact Type parameter")
+    };
+    assert!(matches!(
+        type_parameter.kind,
+        psi_typed_trees::data::TypeParameterKind::Type
+    ));
+    let [state] = typed.machine_states(generated) else {
+        panic!("generated machine retains one entry state")
+    };
+    let [value] = typed.state_parameters(state) else {
+        panic!("generated machine retains one value parameter")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed
+        .type_reference_table
+        .type_reference(value.type_reference)
+    else {
+        panic!("value remains a reference to the generic binder")
+    };
+    assert!(matches!(
+        typed.type_reference_table.type_reference(*referee),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if *symbol == type_parameter.symbol && name.as_str() == "T"
+    ));
+}
+
+#[test]
+fn seeded_generic_machine_continuation_rejects_unadmitted_binder_kinds_transactionally() {
+    for extension_source in [
+        "machine generated<const N: u64>() {}",
+        "machine generated<T [copy]>() {}",
+    ] {
+        let (base, extension) = seeded_plain_data_inputs(
+            "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+            extension_source,
+        );
+        let expected = base.typed().clone();
+        let (returned, error) = lower_seeded_extension(extension, base)
+            .expect_err("only plain unbounded Type binders enter this generic-machine rung");
+        assert_eq!(error, SeededContinuationError::UnsupportedExtensionShape);
+        assert_eq!(returned.into_typed(), expected);
+    }
 }
 
 #[test]

@@ -51,6 +51,13 @@ entrance. It uses one preliminary compiler review only to discover supported
 package-owned semantic surfaces, then recompiles with exact consumer-scoped
 bindings. Only that final review may proceed to conflicts and admission; the
 discovery pass is neither policy nor evidence that an audit occurred.
+For a requirement-only service candidate, the preliminary review exposes the
+exact checked `ServiceSchema` beside the proposed binding. This is
+non-authoritative review material: a consumer may use complete requirement
+identities from that schema to author terminal-permission rows, but neither the
+candidate nor the manager assigns classes from service paths or method names.
+The resulting binding must still survive the complete final recompilation and
+ordinary root-policy admission.
 
 Production-bearing operations use
 `compile_resolved_package_candidate_for_production`. Its non-clonable result

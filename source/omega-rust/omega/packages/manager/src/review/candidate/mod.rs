@@ -26,4 +26,6 @@ pub use model::{
     ReviewedPackageProductionCandidate,
 };
 pub use rows::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
-pub use semantic_bindings::ConsumerScopedSemanticBindingReviewInput;
+pub use semantic_bindings::{
+    ConsumerScopedSemanticBindingReviewInput, SemanticBindingReviewCandidate,
+};
