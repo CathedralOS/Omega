@@ -1,9 +1,13 @@
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
-use omega_image_emission::{ObjectError, build_object_artifact, validate_executable_image};
+use omega_image_emission::{
+    ObjectError, build_installation_record, build_object_artifact, decode_installation_record,
+    encode_installation_record, validate_executable_image, validate_installation_record,
+};
 use omega_machine_emission::emit_machine_code;
 use omega_psi_to_abstract_operations::lower_artifact_sections;
 use omega_target::NativeTarget;
 use omega_target_operations_to_assigned_target_operations::assign_registers;
+use psi_core::ProfileDecisionId;
 use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -112,5 +116,27 @@ fn object_and_image_replay_joined_descriptor_control() {
         let image = omega_image_emission::emit_executable_image(&object, 3)
             .expect("link joined descriptor image");
         validate_executable_image(&object, &image).expect("replay joined descriptor image");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("retain joined descriptor control in installation");
+        let installed_caller = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("installed joined caller");
+        assert_eq!(
+            installed_caller.unit_scalar_abi,
+            emitted
+                .functions
+                .iter()
+                .find(|function| function.machine == emitted.entry)
+                .expect("emitted joined caller")
+                .unit_scalar_abi
+        );
+        let bytes = encode_installation_record(&installation).expect("encode installation");
+        let decoded = decode_installation_record(&bytes).expect("decode installation");
+        assert_eq!(decoded, installation);
+        validate_installation_record(&decoded, &image)
+            .expect("replay joined descriptor installation");
     }
 }

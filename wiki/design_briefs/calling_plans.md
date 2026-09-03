@@ -631,9 +631,13 @@ Unit epilogue: the true-arm return jumps over the false leaf into the common
 frame-release/return sequence. Object construction independently decodes the
 conditional and convergence targets, rejoins the five semantic intervals and
 the two exact descriptor sources, and rejects branch-byte or source collapse
-before final-image replay. Aggregate storage beyond the bounded single-field
-local form below, forwarding after the join, installation/component crossing,
-and wider control graphs remain fenced.
+before final-image replay. Canonical installation format 69 carries the same
+general Unit scalar ABI plus each forwarded call's full structural source
+(root, path, and access), then rejoins the Boolean ABI, both source paths, call
+spans/results, and five semantic intervals without introducing a join-specific
+record. Aggregate storage beyond the bounded single-field local form below,
+forwarding after the join, component crossing, and wider control graphs remain
+fenced.
 
 The first Terminal aggregate-storage rung accepts only the checked immutable
 one-field record initialized from one earlier exact shared-borrow selection.

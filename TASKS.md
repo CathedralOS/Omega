@@ -12289,7 +12289,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 68 retains compact strong-identity
+  relocation. Canonical installation format 69 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Each installed forwarding row also retains the semantic scalar
@@ -12353,7 +12353,7 @@ checked-result arithmetic decision listed below.
   while their target artifacts cross-link. Exact machine tests place the
   nested projected Boolean through the `Envelope/Flags` path at byte offset 8
   and reject path or accumulated-offset drift before emission. Canonical
-  installation format 68 retains ordered scalar-store vectors and their
+  installation format 69 retains ordered scalar-store vectors and their
   already-encoded path evidence.
   The fixed-integer source gate now matches that already-general physical
   carrier: a nested `u16` source fixture and direct `u64` native canary retain
@@ -12371,7 +12371,7 @@ checked-result arithmetic decision listed below.
   native canary selects `true` from the rebound instance, cross-links on both
   Linux architectures, and exits 70 on the hosted target. Object and
   installation replay rejoin the Boolean semantic result, call placement,
-  home roster, normalization/store interval, and canonical format-68 scalar
+  home roster, normalization/store interval, and canonical format-69 scalar
   tag. Integer-result forwarding remains unchanged.
 
   The first Unit-returning requirement rung now has checked custody without
@@ -12427,7 +12427,7 @@ checked-result arithmetic decision listed below.
   operation order even when no scalar home follows them. Machine parameter
   records now retain authored access, so shared/mutable borrows are not
   misclassified as owned affine values requiring cleanup; canonical
-  installation format 68 retains the parameter access tag introduced in the
+  installation format 69 retains the parameter access tag introduced in the
   prior format's reserved parameter byte. Dynamic-source borrowing no longer
   suppresses cleanup of an independently owned root. Source-driven calls cross
   machine/object/image/installation replay on all four native targets.
@@ -12438,7 +12438,7 @@ checked-result arithmetic decision listed below.
   machine evidence makes both semantic and physical results explicitly
   absent. Adapter construction reads Unit realization ABI from the Unit
   body's native call plan instead of requiring scalar-only mixed-result ABI
-  metadata. Object, image, and format-68 installation replay validate both
+  metadata. Object, image, and format-69 installation replay validate both
   call roles on x86-64 and AArch64; the installed codec carries an explicit
   result-presence tag and rejects mismatched semantic/physical result pairs.
 
@@ -12485,7 +12485,7 @@ checked-result arithmetic decision listed below.
   rederives the helper chain, call-plan/register handoff, direct-call opcode and
   relocation, stack/link custody, and semantic attribution before accepting
   that row. Final-image validation repeats that replay, and canonical
-  installation format 68 retains the compact helper/callee/parameter/result
+  installation format 69 retains the compact helper/callee/parameter/result
   identity plus exact text span and rejects projection or codec drift.
   The same fixed-point checked path now admits result-less Unit helpers through
   verified Terminal Psi. Every intermediate helper is an explicit `CallUnit`
@@ -12500,7 +12500,7 @@ checked-result arithmetic decision listed below.
   variant and no source value or scalar type. Object and final-image replay
   independently validate that result class, helper chain, call plans, unchanged
   registers, relocation/opcode, stack/link custody, attribution, and cleanup
-  edge. Installation format 68 uses one canonical optional-result encoding and
+  edge. Installation format 69 uses one canonical optional-result encoding and
   rejects mixed value/type presence. Scalar caller continuations now use the
   same complete forwarding chain instead of stopping at one helper: checked-
   to-Terminal lowering retains every parameter interface and source call before
@@ -12567,9 +12567,14 @@ checked-result arithmetic decision listed below.
   branch over the false leaf; object construction independently decodes both
   branch targets, rejoins all five semantic intervals and both descriptor
   sources, and rejects byte, edge, or source collapse before final-image
-  replay. Aggregate storage, forwarding after the join, installation/component
-  crossing, and wider control graphs remain fenced; do not add a representative
-  conformance or a second joined-descriptor vocabulary to bypass those seams.
+  replay. Canonical installation format 69 retains the already-general Unit
+  scalar ABI and each forwarded call's complete structural source—root, path,
+  and access—rather than collapsing both branch fields to the same root place.
+  Installation validation rejoins the Boolean ABI, two distinct source paths,
+  call spans, results, and five semantic intervals without a join-specific row.
+  Aggregate storage, forwarding after the join, component crossing, and wider
+  control graphs remain fenced; do not add a representative conformance or a
+  second joined-descriptor vocabulary to bypass those seams.
 
   Remaining work:
 
@@ -12629,7 +12634,7 @@ checked-result arithmetic decision listed below.
     independently regenerate those bytes, materialize the complete private
     table, bind the establishment's symbolic address to it, compose stack
     demand, and reject byte, slot, or relocation drift on all native targets.
-    Canonical installation format 68 now retains the split establishment/call
+    Canonical installation format 69 now retains the split establishment/call
     custody as one compact stored-call row: both source operations, descriptor
     and selection ordinals, application commitment, source place, shared home,
     selected slot and realization, and both exact text intervals. Decoding and

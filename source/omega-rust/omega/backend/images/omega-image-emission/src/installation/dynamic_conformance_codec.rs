@@ -12,6 +12,7 @@ use super::{
     InstalledForwardedDynamicParameterCall, InstalledStoredDynamicCall, Reader,
     internal_unit_scalar_call_codec::{decode_offset, encode_offset},
     push_u32, push_u64,
+    structural_argument_codec::{decode_structural_argument, encode_structural_argument},
     unit_scalar_codec::{
         decode_scalar_type, decode_unit_scalar_home, encode_scalar_type, encode_unit_scalar_home,
     },
@@ -187,7 +188,7 @@ pub(super) fn encode_dynamic_conformance_custody(
         push_u64(bytes, call.operation.get());
         push_u64(bytes, call.callee.get());
         bytes.extend_from_slice(&call.application_commitment.as_bytes());
-        push_u64(bytes, call.source.get());
+        encode_structural_argument(bytes, &call.source)?;
         match (call.semantic_result, call.result.as_ref()) {
             (None, None) => bytes.extend_from_slice(&[0; 8]),
             (Some(semantic_result), Some(result)) => {
@@ -512,7 +513,7 @@ pub(super) fn decode_dynamic_conformance_custody(
     }
     let forwarded_call_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyForwardedDynamicDescriptorCalls)?;
-    if forwarded_call_count > reader.remaining() / 88 {
+    if forwarded_call_count > reader.remaining() / 96 {
         return Err(InstallationError::UnexpectedEnd);
     }
     let mut forwarded_calls = Vec::with_capacity(forwarded_call_count);
@@ -527,9 +528,7 @@ pub(super) fn decode_dynamic_conformance_custody(
         )?;
         let application_commitment =
             ClosedConformanceApplicationCommitment::from_digest(reader.array()?);
-        let source = PlaceId::new(reader.u64()?).ok_or(
-            InstallationError::InvalidForwardedDynamicDescriptorCall(machine),
-        )?;
+        let source = decode_structural_argument(reader)?;
         let result_tag = reader.u8()?;
         for _ in 0..7 {
             if reader.u8()? != 0 {
