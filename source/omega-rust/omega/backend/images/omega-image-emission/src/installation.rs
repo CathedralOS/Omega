@@ -660,6 +660,15 @@ pub fn build_installation_record_with_selected_provider_plans_and_evidence<'exec
 where
     Execution: omega_installation_evidence::ProviderExecutionEvidence + ?Sized + 'execution,
 {
+    if let Some(function) = image
+        .functions()
+        .iter()
+        .find(|function| !function.unit_write_only_primitive_stores.is_empty())
+    {
+        return Err(InstallationError::UnsupportedUnitWriteOnlyPrimitiveStore(
+            function.machine,
+        ));
+    }
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -4484,6 +4493,7 @@ pub enum InstallationError {
     InvalidUnitDynamicDescriptorJoin(MachineId),
     InvalidDynamicParameterCall(MachineId),
     InvalidForwardedDynamicParameterCall(MachineId),
+    UnsupportedUnitWriteOnlyPrimitiveStore(MachineId),
     InvalidUnitStructuralScalarFieldStore(MachineId),
     InvalidUnitAffineCleanup(MachineId),
     InvalidScalarControlAffineCleanupCount(usize),

@@ -375,11 +375,13 @@ removing loads, readable reborrows, read-modify-write, and every other
 content-dependent operation. It is not a placement accessor, does not govern
 device observation, and never denotes vacant or uninitialized storage.
 
-The current bounded whole-root primitive-store carrier intentionally ends
-before this ABI realization. Abstract and optimization forms retain the exact
-write-only parameter and typed incoming value, but target lowering reports a
-dedicated unsupported-store fence until address, width, store operation, and
-provider non-observation authority can be derived independently.
+The current bounded fixed-integer whole-root primitive-store carrier realizes
+the ordinary borrowed-reference ABI through target selection, physical
+assignment, and machine emission on x86-64 and AArch64. Object construction independently
+replays the exact parameter, primitive width, pointer home, literal source,
+target instruction bytes, and attribution. Boolean native lowering,
+installation transport, and opaque provider non-observation authority remain
+explicitly fenced.
 
 ### Geometry, demand, and supply
 

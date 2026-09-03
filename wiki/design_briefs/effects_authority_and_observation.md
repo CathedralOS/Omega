@@ -95,10 +95,12 @@ their call closure. An opaque provider's claimed non-observation is admitted
 unless installation supplies physical isolation evidence.
 
 The first bounded whole-root primitive store is retained as a structural-state
-event through target-neutral abstract operations and optimization validation.
-That classification prevents scalar dead-code reasoning from erasing the
-write; it does not claim a readable observation of the prior referent or supply
-the physical authority required to lower a store instruction.
+event through target-neutral operations, optimization validation, physical
+assignment, and native store emission. Object construction independently
+replays the exact non-observing store custody and bytes. That classification
+prevents scalar dead-code reasoning from erasing the write; it does not claim a
+readable observation of the prior referent, authorize an opaque provider, or
+bypass the remaining installation-transport fence.
 
 Frame size is compiler-derived and reported. Task activation capacity is
 declared or proved through task-pool authority. Version retention is a

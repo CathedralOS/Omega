@@ -205,13 +205,14 @@ content-dependent cleanup; write-only access cannot silently consume linear or
 otherwise conserved custody. Whole-value replacement is validity-safe when the
 incoming value is already a `T`, subject to that displacement rule.
 
-The current bounded compiler path carries one unrestricted whole-root primitive
-replacement from verified Terminal form through target-neutral abstract
-operations and optimization validation. Its exact parameter identity, access,
-structural type, and preceding typed scalar definition remain replayable, while
-physical target lowering fails closed because this language authority alone
-does not establish an address, width, store instruction, or opaque-provider
-non-observation guarantee.
+The current bounded native compiler path carries one unrestricted whole-root
+fixed-integer replacement from verified Terminal form through target-neutral abstract
+operations, optimization validation, target selection, physical assignment,
+and machine emission on x86-64 and AArch64. Object construction independently
+replays its exact parameter identity, access, primitive type, borrowed-reference
+placement and home, preceding typed scalar definition, target store bytes, and
+semantic attribution. Boolean native lowering, installation transport, and
+opaque-provider non-observation guarantees remain fail closed.
 
 A partial write must leave `T` valid at the ordinary invariant-window
 consumption points. The checker may prove that from the written inputs, static
