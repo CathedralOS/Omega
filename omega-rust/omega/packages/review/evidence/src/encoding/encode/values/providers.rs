@@ -14,6 +14,7 @@ use omega_effects::provider_plan::{
 };
 
 use super::super::declarations::encode_type_identity;
+use super::declarations::encode_operator_coordinate;
 use super::identity::encode_nominal;
 
 pub(crate) fn encode_provider(
@@ -92,7 +93,7 @@ pub(crate) fn encode_boundary_application_demand_key(
     encoder: &mut Encoder,
     demand: &CheckedPackageBoundaryApplicationDemandReview,
 ) -> Result<(), PackageReviewEncodingError> {
-    encode_nominal(encoder, &demand.operator_declaration)?;
+    encode_operator_coordinate(encoder, &demand.operator_coordinate)?;
     encoder.string(&demand.requirement_identity)?;
     encode_nominal(encoder, &demand.producer_callable)?;
     encoder.sequence(&demand.arguments, |encoder, argument| {

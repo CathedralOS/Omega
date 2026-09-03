@@ -1162,7 +1162,7 @@ pub(super) fn partial_affine_residuals(
             {
                 let CheckedUnitStructuralTypeShape::FixedArray {
                     element_type_identity: leaf_type_identity,
-                    length: inner_length @ (3..=15),
+                    length: inner_length @ (3..=16),
                 } = &types.get(element_type_identity)?.shape
                 else {
                     return None;
@@ -1372,7 +1372,7 @@ fn exact_nested_affine_array_moves(
 ) -> bool {
     let Some(CheckedUnitStructuralTypeShape::FixedArray {
         element_type_identity: leaf_type_identity,
-        length: inner_length @ (3..=15),
+        length: inner_length @ (3..=16),
     }) = types.get(inner_type_identity).map(|shape| &shape.shape)
     else {
         return false;
@@ -1389,7 +1389,7 @@ fn exact_nested_affine_array_moves(
         .filter_map(|(path, moved_type)| match path.as_slice() {
             [
                 CheckedUnitStructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                CheckedUnitStructuralPathSegment::FixedIndex(inner @ (0..=14)),
+                CheckedUnitStructuralPathSegment::FixedIndex(inner @ (0..=15)),
             ] if *inner < *inner_length && moved_type == leaf_type_identity => Some(*outer),
             _ => None,
         })
@@ -1447,7 +1447,7 @@ fn is_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
             [CheckedUnitStructuralPathSegment::FixedIndex(0..=3)]
                 | [
                     CheckedUnitStructuralPathSegment::FixedIndex(0 | 1),
-                    CheckedUnitStructuralPathSegment::FixedIndex(0..=14),
+                    CheckedUnitStructuralPathSegment::FixedIndex(0..=15),
                 ]
         )
 }
