@@ -40,6 +40,7 @@ fn lower_composed_services(
     for operation in states.iter().flat_map(|state| &state.operations) {
         let service_reach = match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
             _ => return unsupported("composed Unit control contains a non-call operation"),
         };
@@ -80,6 +81,7 @@ pub(crate) struct LoweredComposedBoundary {
     pub(crate) checked_structural_parameters:
         Vec<psi_checked_trees::CheckedUnitStructuralParameterPlan>,
     pub(crate) scalar_parameters: Vec<ScalarType>,
+    pub(crate) result: BoundaryMachineResult,
 }
 
 pub(super) fn lower_composed_catalogs(
@@ -150,6 +152,9 @@ fn lower_catalogs(
                 .iter()
                 .map(|parameter| parameter.type_identity.clone()),
         );
+        if let Some(identity) = boundary.result.structural_identity() {
+            type_roots.push(identity.to_owned());
+        }
     }
     type_roots.extend(
         admitted_internal_targets
@@ -219,6 +224,32 @@ fn lower_catalogs(
             &[],
             &mut next_place,
         )?;
+        let result = match &boundary.result {
+            CheckedBoundaryMachineResultPlan::Unit => BoundaryMachineResult::Unit,
+            CheckedBoundaryMachineResultPlan::Scalar(scalar) => {
+                BoundaryMachineResult::Scalar(terminal_scalar_type(*scalar)?)
+            }
+            CheckedBoundaryMachineResultPlan::Structural {
+                type_identity,
+                multiplicity,
+                qualifications,
+            } => {
+                if !qualifications.is_empty() {
+                    return unsupported(
+                        "composed Unit structural boundary result carries qualifications",
+                    );
+                }
+                BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+                    structural_type: lookup_type_id(&type_ids, type_identity)?,
+                    multiplicity: match multiplicity {
+                        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                        Multiplicity::Affine => StructuralMultiplicity::Affine,
+                        Multiplicity::Linear => StructuralMultiplicity::Linear,
+                    },
+                    qualifications: Vec::new(),
+                })
+            }
+        };
         boundary_machines.push(BoundaryMachineDeclaration {
             id,
             identity: identity.clone(),
@@ -229,7 +260,7 @@ fn lower_catalogs(
                 .transpose()?,
             scalar_parameters: scalar_parameters.clone(),
             structural_parameters: structural_parameters.clone(),
-            result: BoundaryMachineResult::Unit,
+            result: result.clone(),
             requires: Vec::new(),
             program_local_root_introductions: lower_program_local_root_introductions(
                 checked,
@@ -254,6 +285,7 @@ fn lower_catalogs(
             id,
             checked_structural_parameters: boundary.structural_parameters.clone(),
             scalar_parameters,
+            result,
         });
     }
     Ok(ComposedCatalogs {

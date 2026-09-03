@@ -467,7 +467,7 @@ pub(super) fn validate_contract(
     Ok(())
 }
 
-fn retain_call_boundary<'a>(
+pub(super) fn retain_call_boundary<'a>(
     checked: &'a CheckedTrees,
     machine: psi_symbols::SymbolHandle,
     state: &'a psi_checked_trees::CheckedComposedUnitControlStatePlan,
