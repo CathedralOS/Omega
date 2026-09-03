@@ -28,7 +28,7 @@ expression   := INTEGER
               | (second expression)
 OP           := + | - | * | / | % | eq | lt
 CHARACTER    := printable ASCII between single quotes
-              | '\n' | '\r' | '\t' | '\s' | '\'' | '\\'
+              | '\n' | '\s'
 ```
 
 Function declarations are mutually visible and unique. Exactly one nullary

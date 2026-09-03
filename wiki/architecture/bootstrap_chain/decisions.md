@@ -3926,3 +3926,43 @@ arithmetic, exact capacity outcomes, application profiles, a derivation checker,
 and the full Epsilon compiler customer remain open. Further Gamma growth must be
 justified by a concrete Delta auditability need; the next work belongs in the
 selected Delta compiler and its Epsilon customer.
+
+## D92 — Matched direct Delta does not displace minimized Gamma
+
+D92 tests whether Gamma is an unearned intermediate rung rather than assuming
+that recursive staged success settles the question. Two conservative evaluator
+reductions remove duplicate character-token validation, four unused character
+escapes, and one duplicate row-name comparison loop. The selected Gamma
+evaluator falls from 1,472 to 1,410 Beta lines and from an 8,119-byte to a
+7,690-byte tape. All selected reconstruction, static-validation, 100,000-step
+tail, pair, composition, and staged Delta gates continue to pass.
+
+A separate direct Beta Delta evaluator implements the same current structural
+profile without Gamma transformation. It directly censuses nominal data,
+constructs arbitrary-field recursive values as right-nested pairs, selects and
+binds exhaustive declaration-order matches, validates known nominal field
+types, constructor arity and pattern shape, and preserves tail position through
+matches. Exact Nat, List, Bytes-rope, malformed-source, 3,001-function, and
+100,000-node construction/traversal witnesses pass.
+
+The matched measurements are:
+
+```text
+                              Lines  Instructions  Labels  Control  Tape bytes
+selected Gamma evaluator      1,410         1,151     181      582       7,690
+matched direct Delta evaluator 2,019         1,655     262      836      11,004
+selected Delta transformer      852 Gamma source lines
+```
+
+Direct Delta removes one 852-line higher-level transformer but adds 609
+low-level lines, 504 Beta instructions, 81 labels, and 254 control transfers to
+the trusted evaluator. It also moves constructor and match meaning out of the
+more readable Gamma stage. Neither route yet implements Delta's complete type
+relation, checked arithmetic, normative `Bytes`, or application profiles, so
+those shared obligations do not favor the direct prototype.
+
+Gamma therefore remains selected. Its evaluator is still on the cusp of
+comfortable auditability and should receive further conservative simplification,
+but direct Delta is not a trust reduction at matched evidence. The next semantic
+work remains in the Gamma-authored Delta compiler and its concrete Epsilon
+customer; no additional Gamma primitive is justified by this experiment.

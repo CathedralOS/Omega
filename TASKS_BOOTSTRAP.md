@@ -42,8 +42,8 @@ functional language required by Epsilon.
   compiler tape byte-for-byte; the independent six-case differential and
   strict grammar regression pass.
 - [ ] Gamma's typed scalar/effect contract is fixed at
-  `source/gamma/LANGUAGE.md`. Its provisional 1,472-line Beta evaluator assembles
-  to an 8,119-byte tape and runs integer/character literals, typed lexical lets, conditionals,
+  `source/gamma/LANGUAGE.md`. Its provisional 1,410-line Beta evaluator assembles
+  to a 7,690-byte tape and runs integer/character literals, typed lexical lets, conditionals,
   scalar operators, forward calls, recursion, sealed input, indexed reads, and
   byte output plus nested immutable pairs. It executes the unchanged 85-line
   Gamma-authored augmenter and its exact result-42 receipt. Proper tail
@@ -64,6 +64,12 @@ functional language required by Epsilon.
   and profiles remain. The
   downgraded concatenative compiler proves broader expressiveness but is not the
   selected edge.
+- [x] A matched direct Beta Delta evaluator experiment covers the selected
+  recursive Nat, two-field List, three-field Bytes-rope, malformed-source,
+  3,001-function, and 100,000-node proper-tail witnesses. It requires 2,019 Beta
+  lines and an 11,004-byte tape: 609 additional low-level lines and 254 additional
+  control transfers versus selected Gamma. D92 therefore retains Gamma and keeps
+  constructor/match semantics in the more readable staged compiler.
 - [x] A noncanonical 565-line current-Gamma compiler now emits Alpha directly
   for scalar Functional Delta: `Int` functions, parameters, lexical `let`,
   conditionals, arithmetic/comparison, nested calls, and direct recursion. Its
@@ -122,7 +128,7 @@ functional language required by Epsilon.
   Acceptance: an independent reviewer can trace every compiler operation to one
   Beta rule and bind `beta_compiler.beta` byte-identically to the executed tape.
 
-- **GAMMA-EVALUATOR.** Complete the 1,472-line direct Beta evaluator for the typed
+- **GAMMA-EVALUATOR.** Complete the 1,410-line direct Beta evaluator for the typed
   scalar/effect contract in `source/gamma/LANGUAGE.md`.
 
   Retain declaration census and direct source evaluation; do not add an AST,

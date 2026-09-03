@@ -1,4 +1,6 @@
-; Direct Beta evaluator for the typed scalar/effect Gamma bootstrap profile.
+; Direct Beta evaluator experiment for the current staged Delta profile.
+; It adds recursive nominal constructors and exhaustive declaration-order match
+; to scalar Gamma; complete Delta typing and normative Bytes remain absent.
 ; Request: u32 little-endian source length, source bytes, sealed input bytes.
 ; Returning main's Int writes its low byte and completes with status zero.
 ;
@@ -13,7 +15,9 @@
 ; r97 value-stack end, r98 tail-request flag, r99 tail function,
 ; r9a tail argument base, r9b tail argument count,
 ; ra0 immutable-pair heap cursor, ra1 immutable-pair heap limit,
-; rb0 output count, rb1 output limit.
+; rb0 output count, rb1 output limit,
+; rc0 data count, rc1 constructor count; rc2..rc5 census scratch,
+; rd0 match-context depth; rd1..rd4 active-pattern scratch.
 ; Low registers are caller-clobbered scratch.
 
 main:
@@ -29,6 +33,7 @@ main:
         imm ra1 0xe000000
         mov rb0 r90
         imm rb1 0x4000000
+        mov rd0 r90
         mov r0 r92
 read_loop:
         jeq r0 r93 @read_full
@@ -61,6 +66,7 @@ read_done:
         sub r84 r83
         call @validate_source
         call @census
+        call @validate_data_types
         mov r89 r90
         mov r8c r90
         mov r8a r96
@@ -271,6 +277,11 @@ is_def:
         imm r1 0x3
         call @token_equals
         ret
+is_data:
+        imm r0 0x61746164
+        imm r1 0x4
+        call @token_equals
+        ret
 is_int:
         imm r0 0x746e49
         imm r1 0x3
@@ -289,6 +300,11 @@ is_if:
 is_let:
         imm r0 0x74656c
         imm r1 0x3
+        call @token_equals
+        ret
+is_match:
+        imm r0 0x686374616d
+        imm r1 0x5
         call @token_equals
         ret
 is_add:
@@ -371,6 +387,13 @@ expect_int:
         call @need_token
         call @is_int
         jz r0 @invalid
+        ret
+expect_type:
+        call @need_token
+        call @is_open
+        jnz r0 @invalid
+        call @is_close
+        jnz r0 @invalid
         ret
 
 ; Parse current decimal token. Return value r0 and success flag r1.
@@ -480,6 +503,22 @@ function_row:
         add r0 r94
         ret
 
+; Constructor row is five words: name start/length, owner, tag, arity.
+constructor_row:
+        imm r1 0x28
+        mul r0 r1
+        imm r1 0xe000000
+        add r0 r1
+        ret
+
+; Type row is two words: name start/length.
+type_row:
+        imm r1 0x10
+        mul r0 r1
+        imm r1 0xe200000
+        add r0 r1
+        ret
+
 ; r3 is a row beginning with name start/length. Match the current token.
 row_matches_token:
         mov r4 r3
@@ -528,6 +567,81 @@ find_function_present:
         ret
 find_function_absent:
         mov r0 r90
+        ret
+
+find_constructor:
+        mov r2 r90
+find_constructor_loop:
+        jeq r2 rc1 @find_constructor_absent
+        mov r0 r2
+        call @constructor_row
+        mov r3 r0
+        call @row_matches_token
+        jnz r0 @find_constructor_present
+        add r2 r91
+        jmp @find_constructor_loop
+find_constructor_present:
+        mov r0 r3
+        ret
+find_constructor_absent:
+        mov r0 r90
+        ret
+
+; Return the number of constructors belonging to owner r0.
+constructor_count_for_owner:
+        mov r2 r90
+        mov r3 r90
+constructor_count_for_owner_loop:
+        jeq r2 rc1 @constructor_count_for_owner_done
+        mov r4 r0
+        mov r0 r2
+        call @constructor_row
+        mov r5 r0
+        imm r6 0x10
+        add r5 r6
+        load r5 r5
+        jeq r4 r5 @constructor_count_for_owner_match
+        mov r0 r4
+        jmp @constructor_count_for_owner_next
+constructor_count_for_owner_match:
+        add r3 r91
+        mov r0 r4
+constructor_count_for_owner_next:
+        add r2 r91
+        jmp @constructor_count_for_owner_loop
+constructor_count_for_owner_done:
+        mov r0 r3
+        ret
+
+find_type:
+        mov r2 r90
+find_type_loop:
+        jeq r2 rc0 @find_type_absent
+        mov r0 r2
+        call @type_row
+        mov r3 r0
+        call @row_matches_token
+        jnz r0 @find_type_present
+        add r2 r91
+        jmp @find_type_loop
+find_type_present:
+        mov r0 r3
+        ret
+find_type_absent:
+        mov r0 r90
+        ret
+
+; Current token must name Int or a declared nominal type.
+require_current_type:
+        call @is_int
+        jnz r0 @require_current_type_done
+        call @find_type
+        jz r0 @invalid
+require_current_type_done:
+        ret
+require_type:
+        call @expect_type
+        call @require_current_type
         ret
 
 ; Reverse lexical lookup. Return environment row or zero.
@@ -601,12 +715,16 @@ census:
         mov r85 r81
         mov r88 r90
         mov r8b r90
+        mov rc0 r90
+        mov rc1 r90
 census_loop:
         call @next_token
         jz r0 @census_done
         call @is_open
         jz r0 @invalid
         call @need_token
+        call @is_data
+        jnz r0 @census_data
         call @is_def
         jz r0 @invalid
         call @need_token
@@ -638,12 +756,12 @@ census_parameter_loop:
         call @is_open
         jz r0 @invalid
         call @need_token
-        call @expect_int
+        call @expect_type
         call @expect_close
         add r8f r91
         jmp @census_parameter_loop
 census_parameters_done:
-        call @expect_int
+        call @expect_type
         mov r0 r8c
         imm r1 0x18
         add r0 r1
@@ -658,6 +776,64 @@ census_parameters_done:
         imm r0 0x1000
         jlt r88 r0 @census_loop
         jmp @incomplete
+census_data:
+        call @expect_type
+        call @find_type
+        jnz r0 @invalid
+        mov r0 rc0
+        call @type_row
+        store r0 r86
+        imm r1 0x8
+        add r0 r1
+        store r0 r87
+        mov rc2 rc0
+        mov rc3 r90
+census_constructor_loop:
+        call @need_token
+        call @is_close
+        jnz r0 @census_data_done
+        call @is_open
+        jz r0 @invalid
+        call @need_token
+        call @find_constructor
+        jnz r0 @invalid
+        mov r0 rc1
+        call @constructor_row
+        mov rc4 r0
+        store rc4 r86
+        imm r1 0x8
+        add r0 r1
+        store r0 r87
+        add r0 r1
+        store r0 rc2
+        add r0 r1
+        store r0 rc3
+        mov rc5 r90
+census_constructor_field_loop:
+        call @need_token
+        call @is_close
+        jnz r0 @census_constructor_done
+        call @is_open
+        jnz r0 @invalid
+        add rc5 r91
+        jmp @census_constructor_field_loop
+census_constructor_done:
+        mov r0 rc4
+        imm r1 0x20
+        add r0 r1
+        store r0 rc5
+        add rc1 r91
+        imm r0 0x1000
+        jlt rc1 r0 @census_constructor_next
+        jmp @incomplete
+census_constructor_next:
+        add rc3 r91
+        jmp @census_constructor_loop
+census_data_done:
+        add rc0 r91
+        imm r0 0x1000
+        jlt rc0 r0 @census_loop
+        jmp @incomplete
 census_done:
         jz r8b @invalid
         mov r0 r8b
@@ -667,8 +843,39 @@ census_done:
         jnz r0 @invalid
         ret
 
-; Validate every body before evaluation or output. All Gamma values are Int,
-; so this pass checks structure, lexical names, call targets, and exact arity.
+; Validate constructor field types after all nominal declarations are known.
+validate_data_types:
+        mov r85 r81
+validate_data_types_loop:
+        call @next_token
+        jz r0 @validate_data_types_done
+        call @is_open
+        jz r0 @invalid
+        call @need_token
+        call @is_data
+        jz r0 @validate_data_types_done
+        call @require_type
+validate_data_constructor_loop:
+        call @need_token
+        call @is_close
+        jnz r0 @validate_data_types_loop
+        call @is_open
+        jz r0 @invalid
+        call @need_token
+        call @find_constructor
+        jz r0 @invalid
+validate_data_field_loop:
+        call @need_token
+        call @is_close
+        jnz r0 @validate_data_constructor_loop
+        call @require_current_type
+        jmp @validate_data_field_loop
+validate_data_types_done:
+        ret
+
+; Validate every body before evaluation or output. This staged-profile pass
+; checks structure, lexical names, call/constructor targets and arity, known
+; field types, and exhaustive declaration-order match patterns.
 validate_program:
         mov r9d r90
 validate_program_loop:
@@ -693,7 +900,7 @@ validate_parameter_loop:
         call @need_token
         mov r0 r90
         call @add_environment
-        call @expect_int
+        call @require_type
         call @expect_close
         add r8f r91
         jmp @validate_parameter_loop
@@ -705,7 +912,7 @@ validate_parameters_done:
         jeq r8f r0 @validate_return_type
         jmp @invalid
 validate_return_type:
-        call @expect_int
+        call @require_type
         call @validate_expression
         call @expect_close
         add r9d r91
@@ -720,7 +927,13 @@ validate_expression:
         call @parse_integer
         jnz r1 @validate_expression_done
         call @find_environment
+        jnz r0 @validate_expression_done
+        call @find_constructor
         jz r0 @invalid
+        imm r1 0x20
+        add r0 r1
+        load r0 r0
+        jnz r0 @invalid
 validate_expression_done:
         ret
 
@@ -730,6 +943,8 @@ validate_list_expression:
         jnz r0 @validate_if_expression
         call @is_let
         jnz r0 @validate_let_expression
+        call @is_match
+        jnz r0 @validate_match_expression
         call @is_add
         jnz r0 @validate_binary_expression
         call @is_sub
@@ -783,7 +998,7 @@ validate_let_expression:
         call @push_value
         mov r0 r87
         call @push_value
-        call @expect_int
+        call @require_type
         call @validate_expression
         call @pop_value
         mov r87 r0
@@ -796,9 +1011,111 @@ validate_let_expression:
         call @pop_value
         mov r89 r0
         ret
+validate_match_expression:
+        call @validate_expression
+        add rd0 r91
+        imm r1 0x100
+        jlt rd0 r1 @validate_match_context_ready
+        jmp @incomplete
+validate_match_context_ready:
+        call @active_match_context
+        mov r7 r0
+        store r7 r90
+        imm r1 0x8
+        add r7 r1
+        store r7 r90
+        add r7 r1
+        store r7 r89
+validate_match_arm_loop:
+        call @need_token
+        call @is_close
+        jnz r0 @validate_match_done
+        call @is_open
+        jz r0 @invalid
+        call @need_token
+        call @is_open
+        mov rd4 r0
+        jz r0 @validate_match_constructor
+        call @need_token
+validate_match_constructor:
+        call @find_constructor
+        jz r0 @invalid
+        mov rd1 r0
+        imm r1 0x10
+        add r0 r1
+        load r4 r0
+        imm r1 0x8
+        add r0 r1
+        load r5 r0
+        call @active_match_context
+        mov r7 r0
+        imm r1 0x8
+        add r7 r1
+        load r6 r7
+        jz r6 @validate_match_first_owner
+        load r0 r0
+        jeq r0 r4 @validate_match_tag
+        jmp @invalid
+validate_match_first_owner:
+        jz r5 @validate_match_store_owner
+        jmp @invalid
+validate_match_store_owner:
+        store r0 r4
+validate_match_tag:
+        jeq r5 r6 @validate_match_pattern
+        jmp @invalid
+validate_match_pattern:
+        mov r0 rd1
+        imm r1 0x20
+        add r0 r1
+        load rd2 r0
+        jz rd4 @validate_match_nullary
+validate_match_binder_loop:
+        jz rd2 @validate_match_binders_done
+        call @need_token
+        mov r0 r90
+        call @add_environment
+        sub rd2 r91
+        jmp @validate_match_binder_loop
+validate_match_binders_done:
+        call @expect_close
+        jmp @validate_match_body
+validate_match_nullary:
+        jnz rd2 @invalid
+validate_match_body:
+        call @validate_expression
+        call @expect_close
+        call @active_match_context
+        mov r7 r0
+        imm r1 0x8
+        add r7 r1
+        load r6 r7
+        add r6 r91
+        store r7 r6
+        add r7 r1
+        load r89 r7
+        jmp @validate_match_arm_loop
+validate_match_done:
+        call @active_match_context
+        load r0 r0
+        call @constructor_count_for_owner
+        mov r3 r0
+        call @active_match_context
+        imm r1 0x8
+        add r0 r1
+        load r2 r0
+        jeq r2 r90 @invalid
+        jeq r2 r3 @validate_match_complete
+        jmp @invalid
+validate_match_complete:
+        sub rd0 r91
+        ret
 validate_call_expression:
         call @find_function
+        jnz r0 @validate_call_found
+        call @find_constructor
         jz r0 @invalid
+validate_call_found:
         add r8e r91
         imm r1 0x100
         jlt r8e r1 @validate_call_context_ready
@@ -849,6 +1166,15 @@ call_context:
         add r0 r1
         ret
 
+active_match_context:
+        mov r0 rd0
+        sub r0 r91
+        imm r1 0x18
+        mul r0 r1
+        imm r1 0xe100000
+        add r0 r1
+        ret
+
 ; Enter r0 function with argument base r1 and count r2. Return value r0.
 enter_function:
         mov r3 r8d
@@ -893,7 +1219,7 @@ enter_parameter_loop:
         add r0 r1
         load r0 r0
         call @add_environment
-        call @expect_int
+        call @expect_type
         call @expect_close
         add r8f r91
         jmp @enter_parameter_loop
@@ -966,6 +1292,8 @@ eval_tail_expression:
         jnz r0 @eval_tail_if
         call @is_let
         jnz r0 @eval_tail_let
+        call @is_match
+        jnz r0 @eval_tail_match
         call @is_add
         jnz r0 @eval_tail_fallback_reset
         call @is_sub
@@ -992,6 +1320,8 @@ eval_tail_expression:
         jnz r0 @eval_tail_fallback_reset
         call @is_second
         jnz r0 @eval_tail_fallback_reset
+        call @find_constructor
+        jnz r0 @eval_tail_fallback_reset
         jmp @eval_tail_call
 eval_tail_fallback_reset:
         mov r85 r9c
@@ -1010,7 +1340,7 @@ eval_tail_let:
         call @push_value
         mov r0 r87
         call @push_value
-        call @expect_int
+        call @expect_type
         call @eval_expression
         mov r8 r0
         call @pop_value
@@ -1019,6 +1349,73 @@ eval_tail_let:
         mov r86 r0
         mov r0 r8
         call @add_environment
+        jmp @eval_tail_expression
+
+eval_tail_match:
+        call @eval_expression
+        call @validate_pair
+        mov r6 r0
+        imm r1 0x8
+        add r0 r1
+        load rd1 r0
+        add r0 r1
+        load rd3 r0
+eval_tail_match_arm_loop:
+        call @need_token
+        call @is_close
+        jnz r0 @authored_trap
+        call @is_open
+        jz r0 @invalid
+        mov r9c r85
+        call @need_token
+        call @is_open
+        mov rd4 r0
+        jz r0 @eval_tail_match_constructor
+        call @need_token
+eval_tail_match_constructor:
+        call @find_constructor
+        jz r0 @authored_trap
+        mov rd2 r0
+        imm r1 0x18
+        add r0 r1
+        load r0 r0
+        jeq r0 rd1 @eval_tail_match_selected
+        mov r85 r9c
+        call @skip_expression
+        call @skip_expression
+        call @expect_close
+        jmp @eval_tail_match_arm_loop
+eval_tail_match_selected:
+        mov r0 rd2
+        imm r1 0x20
+        add r0 r1
+        load rd2 r0
+        jz rd4 @eval_tail_match_nullary
+eval_tail_match_binder_loop:
+        jz rd2 @eval_tail_match_binders_done
+        call @need_token
+        imm r0 0x1
+        jeq rd2 r0 @eval_tail_match_last_binder
+        mov r0 rd3
+        call @validate_pair
+        imm r1 0x8
+        add r0 r1
+        load r4 r0
+        add r0 r1
+        load rd3 r0
+        mov r0 r4
+        jmp @eval_tail_match_bind
+eval_tail_match_last_binder:
+        mov r0 rd3
+eval_tail_match_bind:
+        call @add_environment
+        sub rd2 r91
+        jmp @eval_tail_match_binder_loop
+eval_tail_match_binders_done:
+        call @expect_close
+        jmp @eval_tail_expression
+eval_tail_match_nullary:
+        jnz rd2 @invalid
         jmp @eval_tail_expression
 
 eval_tail_call:
@@ -1080,7 +1477,22 @@ eval_expression:
         call @parse_integer
         jnz r1 @eval_return
         call @find_environment
+        jnz r0 @eval_environment
+        call @find_constructor
         jz r0 @authored_trap
+        mov r3 r0
+        imm r1 0x20
+        add r0 r1
+        load r0 r0
+        jnz r0 @authored_trap
+        mov r0 r3
+        imm r1 0x18
+        add r0 r1
+        load r4 r0
+        mov r5 r90
+        call @make_pair
+        ret
+eval_environment:
         imm r1 0x10
         add r0 r1
         load r0 r0
@@ -1093,6 +1505,8 @@ eval_list:
         jnz r0 @eval_if
         call @is_let
         jnz r0 @eval_let
+        call @is_match
+        jnz r0 @eval_match
         call @is_add
         jnz r0 @eval_add
         call @is_sub
@@ -1138,6 +1552,117 @@ eval_if_false:
         call @pop_value
         ret
 
+eval_match:
+        call @eval_expression
+        call @validate_pair
+        mov r6 r0
+        add rd0 r91
+        imm r1 0x100
+        jlt rd0 r1 @eval_match_context_ready
+        jmp @incomplete
+eval_match_context_ready:
+        call @active_match_context
+        mov r7 r0
+        mov r0 r6
+        imm r1 0x8
+        add r0 r1
+        load r4 r0
+        store r7 r4
+        add r0 r1
+        load r5 r0
+        add r7 r1
+        store r7 r5
+        add r7 r1
+        store r7 r89
+eval_match_arm_loop:
+        call @need_token
+        call @is_close
+        jnz r0 @authored_trap
+        call @is_open
+        jz r0 @invalid
+        mov r9c r85
+        call @need_token
+        call @is_open
+        mov rd4 r0
+        jnz r0 @eval_match_payload_pattern
+        call @find_constructor
+        jz r0 @authored_trap
+        mov rd1 r0
+        imm r1 0x20
+        add r0 r1
+        load r0 r0
+        jnz r0 @invalid
+        jmp @eval_match_compare
+eval_match_payload_pattern:
+        call @need_token
+        call @find_constructor
+        jz r0 @authored_trap
+        mov rd1 r0
+eval_match_compare:
+        mov r0 rd1
+        imm r1 0x18
+        add r0 r1
+        load r4 r0
+        call @active_match_context
+        load r5 r0
+        jeq r4 r5 @eval_match_selected
+        mov r85 r9c
+        call @skip_expression
+        call @skip_expression
+        call @expect_close
+        jmp @eval_match_arm_loop
+eval_match_selected:
+        mov r0 rd1
+        imm r1 0x20
+        add r0 r1
+        load rd2 r0
+        call @active_match_context
+        imm r1 0x8
+        add r0 r1
+        load rd3 r0
+        jz rd4 @eval_match_body
+eval_match_binder_loop:
+        jz rd2 @eval_match_binders_done
+        call @need_token
+        imm r0 0x1
+        jeq rd2 r0 @eval_match_last_binder
+        mov r0 rd3
+        call @validate_pair
+        imm r1 0x8
+        add r0 r1
+        load r4 r0
+        add r0 r1
+        load rd3 r0
+        mov r0 r4
+        jmp @eval_match_bind
+eval_match_last_binder:
+        mov r0 rd3
+eval_match_bind:
+        call @add_environment
+        sub rd2 r91
+        jmp @eval_match_binder_loop
+eval_match_binders_done:
+        call @expect_close
+eval_match_body:
+        call @eval_expression
+        call @push_value
+        call @expect_close
+eval_match_skip_rest:
+        call @need_token
+        call @is_close
+        jnz r0 @eval_match_done
+        mov r85 r86
+        call @skip_expression
+        jmp @eval_match_skip_rest
+eval_match_done:
+        call @active_match_context
+        imm r1 0x10
+        add r0 r1
+        load r89 r0
+        sub rd0 r91
+        call @pop_value
+        ret
+
 eval_let:
         mov r0 r89
         call @push_value
@@ -1146,7 +1671,7 @@ eval_let:
         call @push_value
         mov r0 r87
         call @push_value
-        call @expect_int
+        call @expect_type
         call @eval_expression
         mov r6 r0
         call @pop_value
@@ -1278,6 +1803,11 @@ eval_pair:
         mov r5 r0
         call @pop_value
         mov r4 r0
+        call @make_pair
+        ret
+
+; Allocate one immutable pair from r4/r5 and return its private reference.
+make_pair:
         mov r6 ra0
         imm r1 0x18
         add r6 r1
@@ -1339,7 +1869,11 @@ eval_second:
 ; Current token is the callee name.
 eval_call:
         call @find_function
-        jz r0 @authored_trap
+        jnz r0 @eval_call_context
+        call @find_constructor
+        jnz r0 @eval_constructor
+        jmp @authored_trap
+eval_call_context:
         add r8e r91
         imm r1 0x100
         jlt r8e r1 @eval_call_context_ready
@@ -1387,6 +1921,81 @@ eval_call_done:
 eval_call_enter:
         mov r0 r6
         call @enter_function
+        mov r6 r0
+        call @call_context
+        imm r1 0x8
+        add r0 r1
+        load r8a r0
+        sub r8e r91
+        mov r0 r6
+        ret
+
+; Evaluate constructor arguments and form (pair tag right-nested-product).
+eval_constructor:
+        add r8e r91
+        imm r1 0x100
+        jlt r8e r1 @eval_constructor_context_ready
+        jmp @incomplete
+eval_constructor_context_ready:
+        mov r6 r0
+        call @call_context
+        mov r7 r0
+        store r7 r6
+        imm r1 0x8
+        add r7 r1
+        store r7 r8a
+        add r7 r1
+        store r7 r90
+eval_constructor_arguments:
+        call @need_token
+        call @is_close
+        jnz r0 @eval_constructor_done
+        mov r85 r86
+        call @eval_expression
+        call @push_value
+        call @call_context
+        imm r1 0x10
+        add r0 r1
+        load r2 r0
+        add r2 r91
+        store r0 r2
+        jmp @eval_constructor_arguments
+eval_constructor_done:
+        call @call_context
+        mov r7 r0
+        load r99 r7
+        imm r1 0x8
+        add r7 r1
+        load r9a r7
+        add r7 r1
+        load r9b r7
+        mov r0 r99
+        imm r1 0x20
+        add r0 r1
+        load r0 r0
+        jeq r9b r0 @eval_constructor_arity_ready
+        jmp @authored_trap
+eval_constructor_arity_ready:
+        jz r9b @eval_constructor_nullary
+        call @pop_value
+        mov r5 r0
+        sub r9b r91
+eval_constructor_product_loop:
+        jz r9b @eval_constructor_product_ready
+        call @pop_value
+        mov r4 r0
+        call @make_pair
+        mov r5 r0
+        sub r9b r91
+        jmp @eval_constructor_product_loop
+eval_constructor_nullary:
+        mov r5 r90
+eval_constructor_product_ready:
+        mov r0 r99
+        imm r1 0x18
+        add r0 r1
+        load r4 r0
+        call @make_pair
         mov r6 r0
         call @call_context
         imm r1 0x8
