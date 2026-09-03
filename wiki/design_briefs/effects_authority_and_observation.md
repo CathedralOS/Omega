@@ -554,12 +554,25 @@ unconstrained argument case or the exact retained constants, ranges, handle
 provenance, and other constraints used to narrow authority. Explicit rows are
 canonicalized into whole-policy identity; target, number, or contract
 substitution and absent rows fail closed; the current table also rejects every
-profile outside the evaluated Linux x86-64/AArch64 syscall domain. Provider
-settlement and closure review still reject direct syscalls until a checked
-lowering stage supplies that exact contract identity. No service or method
-spelling can synthesize it, and this carrier does not resolve filesystem
-descriptor confinement or the unsettled authority classes in
-`OWNER_QUESTIONS.md` Q4.
+profile outside the evaluated Linux x86-64/AArch64 syscall domain.
+
+The first checked-contract rung is now live. Provider settlement derives a
+domain-separated conservative identity from the verified Terminal boundary:
+the complete scalar carriers plus each structural parameter's canonical
+position, multiplicity, access, and exact carrier identity. Every retained call
+occurrence must match that arity and structural access. Root or projected
+structural qualifications and boundary requirements reject until the abstract
+plan retains their stable semantic-domain declarations; module-local domain IDs
+never enter the digest. The accepted identity treats every runtime value
+admitted by those unqualified carriers as reachable; it claims no constant,
+range, handle-provenance, or descriptor narrowing. Settlement rejoins one
+selected syscall row to one retained external row with the exact target and
+number, classifies the derived mechanism, and passes that same mechanism to
+closure review. The reviewer consumes it only when the selected profile and
+`u32` number match exactly. Missing, duplicate, unsupported, unclassified, or
+substituted coordinates fail closed. No service or method spelling can
+synthesize the identity, and this rung does not resolve filesystem descriptor
+confinement or the unsettled authority classes in `OWNER_QUESTIONS.md` Q4.
 
 A row publishes the union over every authority reachable through its argument
 values. Narrowing requires retained compiler-checked constants, ranges, handle

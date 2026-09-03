@@ -708,8 +708,8 @@ path per alternative: the original named conformance selection, its source
 place, and every descriptor-carrying call edge through the join. It never
 chooses one incoming selection as representative. This bounded rung does not
 yet materialize or dispatch the joined descriptor in Terminal Psi; three-way
-joins, forwarding after a join, aggregate storage, returns, and component
-crossings remain rejected.
+joins, forwarding after a join, aggregate storage beyond the bounded
+single-field local form below, returns, and component crossings remain rejected.
 
 Only a closed conformance block licenses local dynamic dispatch. A bodyless
 whole-trait conformance remains useful for static checking, but has no complete

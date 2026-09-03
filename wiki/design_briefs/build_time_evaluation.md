@@ -673,10 +673,52 @@ ceiling cover the complete cohort. Paths deeper than twenty records,
 recursion, arrays containing sums, enclosing direct sums, and target-dependent
 placement remain rejected; every shallower API keeps its exact boundary.
 
+The complete plural depth-twenty-one fixed-depth rung admits a nonempty
+authored-order set of
+`Outer -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
+chains. Its compact report retains the outer whole-record plan once and one
+exact row per outer occurrence; each row owns the unchanged plural depth-twenty
+report for that occurrence. A distinct non-clone carrier composes those
+depth-twenty carriers, keeps repeated nominal occurrences distinct, rebuilds
+every nested zero-padded image in authored order, replays all layouts and
+occurrence identities hash-free, and performs one final atomic copy. One shared
+memoized bounded reachability walk and global leaf-occurrence ceiling cover the
+complete cohort. Paths deeper than twenty-one records, recursion, arrays
+containing sums, enclosing direct sums, and target-dependent placement remain
+rejected; every shallower API keeps its exact boundary.
+
+The complete plural depth-twenty-two fixed-depth rung admits a nonempty
+authored-order set of
+`Outer -> Twentieth -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
+chains. Its compact report retains the outer whole-record plan once and one
+exact row per outer occurrence; each row owns the unchanged plural
+depth-twenty-one report for that occurrence. A distinct non-clone carrier
+composes those depth-twenty-one carriers, keeps repeated nominal occurrences
+distinct, rebuilds every nested zero-padded image in authored order, replays
+all layouts and occurrence identities hash-free, and performs one final atomic
+copy. One shared memoized bounded reachability walk and global leaf-occurrence
+ceiling cover the complete cohort. Paths deeper than twenty-two records,
+recursion, arrays containing sums, enclosing direct sums, and target-dependent
+placement remain rejected; every shallower API keeps its exact boundary.
+
+The complete plural depth-twenty-three fixed-depth rung admits a nonempty
+authored-order set of
+`Outer -> TwentyFirst -> Twentieth -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
+chains. Its compact report retains the outer whole-record plan once and one
+exact row per outer occurrence; each row owns the unchanged plural
+depth-twenty-two report for that occurrence. A distinct non-clone carrier
+composes those depth-twenty-two carriers, keeps repeated nominal occurrences
+distinct, rebuilds every nested zero-padded image in authored order, replays
+all layouts and occurrence identities hash-free, and performs one final atomic
+copy. One shared memoized bounded reachability walk and global leaf-occurrence
+ceiling cover the complete cohort. Paths deeper than twenty-three records,
+recursion, arrays containing sums, enclosing direct sums, and target-dependent
+placement remain rejected; every shallower API keeps its exact boundary.
+
 Zero-length or nested sum arrays, coexistence with direct sum fields,
-plural paths deeper than twenty records, paths deeper than twenty records,
-mixed common-field/case shapes, and sums whose all-case geometry requires a
-target capsule remain later rungs. The same NaN, reference, slice, Text,
+plural paths deeper than twenty-three records, paths deeper than twenty-three
+records, mixed common-field/case shapes, and sums whose all-case geometry
+requires a target capsule remain later rungs. The same NaN, reference, slice, Text,
 dynamic, atomic, and non-copy fences remain in force.
 None of these slices narrows the legacy typed-owned materialization API or
 establishes evaluator admission, quotient canonicalization, producer-origin
