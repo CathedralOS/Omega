@@ -522,7 +522,7 @@ fn object_replay_rejects_stored_descriptor_byte_or_slot_substitution() {
     call.selected_table_byte_offset ^= 8;
     assert!(build_object_artifact(&wrong_slot).is_err());
 
-    let mut wrong_descriptor = plan;
+    let mut wrong_descriptor = plan.clone();
     let caller = wrong_descriptor
         .functions
         .iter_mut()
@@ -534,6 +534,19 @@ fn object_replay_rejects_stored_descriptor_byte_or_slot_substitution() {
         .expect("stored dynamic call");
     caller.bytes[call.establishment.instance.code_offset] ^= 1;
     assert!(build_object_artifact(&wrong_descriptor).is_err());
+
+    let mut wrong_table_address = plan;
+    let caller = wrong_table_address
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == wrong_table_address.entry)
+        .expect("entry caller");
+    let call = caller
+        .stored_dynamic_calls
+        .first()
+        .expect("stored dynamic call");
+    caller.bytes[call.establishment.table_address.code_offset] ^= 1;
+    assert!(build_object_artifact(&wrong_table_address).is_err());
 }
 
 #[test]
