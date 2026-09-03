@@ -16,6 +16,3 @@ boundary machine Main::main(&mut self, value: FiveWords) -> i32 {
         + value.fourth + value.fifth;
     transition { _ -> (0) }
 }
-
-target linux_arm64 {
-}

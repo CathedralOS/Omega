@@ -24,7 +24,7 @@ pub trait Bounds {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -126,7 +126,7 @@ requires
     );
     package.write(
         "build.omg",
-        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -173,7 +173,7 @@ pub domain Reading::Zero requires is_zero(self);
     );
     package.write(
         "build.omg",
-        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),

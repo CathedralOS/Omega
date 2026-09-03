@@ -88,9 +88,7 @@ fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
     project.write(
         "build.omg",
         &format!(
-            r#"target {target} {{}}
-
-machine build(builder: &mut Build) {{
+            r#"machine build(builder: &mut Build) {{
     builder.application("build-facet-generated-source");
     builder.subsystem = Subsystem::Gui;
     let input: BuildPath = builder.source.resolve("input.txt");
@@ -109,7 +107,6 @@ machine build(builder: &mut Build) {{
     builder.output.include_source(generated);
 }}
 "#,
-            target = profile.target_name(),
         ),
     );
 
@@ -458,9 +455,7 @@ fn generated_source_replays_direct_dependency_authority_after_the_checkpoint() {
     std::fs::write(
         application.join("build.omg"),
         format!(
-            r#"target {target} {{}}
-
-machine build(builder: &mut Build) {{
+            r#"machine build(builder: &mut Build) {{
     builder.application("generated-authority-replay");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
@@ -472,7 +467,6 @@ machine build(builder: &mut Build) {{
     builder.output.include_source(generated);
 }}
 "#,
-            target = profile.target_name(),
         ),
     )
     .expect("write generated-authority build source");
@@ -547,9 +541,7 @@ fn generated_target_machines_join_selected_origin_and_provider_default_custody()
     project.write("main.omg", "data Main { }\n");
     project.write(
         "build.omg",
-        r#"target linux_x86_64 { }
-target windows_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.application("generated-target-machines");
     let generated: BuildPath = builder.output.resolve("generated.omg");
@@ -629,9 +621,7 @@ fn generated_local_instance_collection_preserves_build_symbol_and_source_custody
     project.write(
         "build.omg",
         &format!(
-            r#"target {target} {{}}
-
-machine build(builder: &mut Build) {{
+            r#"machine build(builder: &mut Build) {{
     builder.application("build-facet-generated-local-instance");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
@@ -643,7 +633,6 @@ machine build(builder: &mut Build) {{
     builder.output.include_source(generated);
 }}
 "#,
-            target = profile.target_name(),
         ),
     );
 
@@ -1300,9 +1289,7 @@ fn generated_base_owned_type_application_graph_preserves_build_symbol_and_source
     project.write(
         "build.omg",
         &format!(
-            r#"target {target} {{}}
-
-machine build(builder: &mut Build) {{
+            r#"machine build(builder: &mut Build) {{
     builder.application("build-facet-generated-base-instance");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
@@ -1314,7 +1301,6 @@ machine build(builder: &mut Build) {{
     builder.output.include_source(generated);
 }}
 "#,
-            target = profile.target_name(),
         ),
     );
 
@@ -1440,15 +1426,12 @@ fn authored_build_path_shape_has_no_compiler_root_authority() {
     project.write(
         "build.omg",
         &format!(
-            r#"target {target} {{}}
-
-machine build(builder: &mut Build) {{
+            r#"machine build(builder: &mut Build) {{
     builder.application("forged-build-path");
     let forged: BuildPath = BuildPath {{}};
     let descriptor: i32 = builder.source.open(forged, 0);
 }}
 "#,
-            target = profile.target_name(),
         ),
     );
 
@@ -1475,8 +1458,6 @@ fn runtime_boundary_service_is_not_build_authority() {
         &format!(
             r#"use omega::language::std::console;
 
-target {target} {{}}
-
 machine build(builder: &mut Build)
 reaches Console
 {{
@@ -1485,7 +1466,6 @@ reaches Console
     console.write_line("ordinary runtime boundary");
 }}
 "#,
-            target = profile.target_name(),
         ),
     );
 

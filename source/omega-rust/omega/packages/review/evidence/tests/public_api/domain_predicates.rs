@@ -12,8 +12,7 @@ pub domain Packet::Ready
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -83,8 +82,7 @@ requires
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 

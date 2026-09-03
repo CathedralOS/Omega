@@ -33,8 +33,7 @@ machine ordinal_leaf()
     via ordinal_binding();
 "#;
 
-const BUILD: &str = r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
 
 fn checked_fixture() -> CheckedCompilation {
@@ -209,8 +208,7 @@ pub machine exit_leaf(code: i32)
     );
     package.write(
         "build.omg",
-        r#"target linux_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(

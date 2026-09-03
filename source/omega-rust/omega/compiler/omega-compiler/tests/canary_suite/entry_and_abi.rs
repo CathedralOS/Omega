@@ -1,5 +1,13 @@
 use super::*;
 
+fn write_cross_target_application_build(source_dir: &Path) {
+    fs::write(
+        source_dir.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.application(\"cross-target-canary\"); }\n",
+    )
+    .expect("write target-independent application build source");
+}
+
 fn assert_native_exit_code(
     report: &CompileReport,
     expected: i32,
@@ -642,12 +650,7 @@ fn aggregate_literal_entry_result_uses_native_fragments() {
         let out_dir = scratch.join("out");
         fs::create_dir_all(&src_dir).expect("scratch source directory");
         fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-        fs::write(
-            src_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
-        )
-        .expect("write target manifest");
-
+        write_cross_target_application_build(&src_dir);
         compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(out_dir.clone()),
@@ -713,12 +716,7 @@ fn indexed_scalar_entry_result_uses_native_registers() {
         let out_dir = scratch.join("out");
         fs::create_dir_all(&src_dir).expect("scratch source directory");
         fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-        fs::write(
-            src_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
-        )
-        .expect("write target manifest");
-
+        write_cross_target_application_build(&src_dir);
         compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(out_dir.clone()),
@@ -1918,12 +1916,7 @@ fn float_literal_entry_result_uses_native_vector_registers() {
         let out_dir = scratch.join("out");
         fs::create_dir_all(&src_dir).expect("scratch source directory");
         fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-        fs::write(
-            src_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
-        )
-        .expect("write target manifest");
-
+        write_cross_target_application_build(&src_dir);
         compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(out_dir.clone()),
@@ -1977,12 +1970,7 @@ fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
         let out_dir = scratch.join("out");
         fs::create_dir_all(&src_dir).expect("scratch source directory");
         fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-        fs::write(
-            src_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
-        )
-        .expect("write target manifest");
-
+        write_cross_target_application_build(&src_dir);
         compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(out_dir.clone()),
@@ -2053,9 +2041,7 @@ fn constant_u64_entry_result_uses_the_declared_native_width() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write target manifest");
-
+    write_cross_target_application_build(&src_dir);
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
@@ -2393,7 +2379,7 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write wire-policy cross-target manifest");
+        .expect("write wire-policy cross-build source");
         compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(cross_build_dir),

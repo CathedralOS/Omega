@@ -23,8 +23,7 @@ pub boundary trait Service<Value>: Parent<Value> {
 }
 "#,
     );
-    let build = r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -178,8 +177,7 @@ pub trait Parent<'source> {
 pub trait Child<'child>: Parent<'child> { }
 "#,
     );
-    let build = r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -282,7 +280,7 @@ fn public_trait_lifetime_declarations_validate_before_review() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let diagnostics = compile_to_checked_with_packages(
             &package.0.join("main.omg"),

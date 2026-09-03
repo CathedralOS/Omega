@@ -1,17 +1,5 @@
 // value_call_in_expr build file.
 
-target windows_x86_64 {
-}
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}
-
-target macos_arm64 {
-}
-
 machine build(builder: &mut Build) {
     builder.application("value-call-in-expr");
     builder.depend(Source::Path {

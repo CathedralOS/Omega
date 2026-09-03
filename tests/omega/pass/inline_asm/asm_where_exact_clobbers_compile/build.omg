@@ -1,4 +1,3 @@
-target uefi_x86_64 {}
 machine build(builder: &mut Build) {
     builder.application("asm-where-exact-clobbers-compile");
     builder.subsystem = Subsystem::EfiApplication;

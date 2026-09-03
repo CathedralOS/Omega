@@ -24,8 +24,7 @@ requires has_outcome(Outcome::{case} {{ {case_fields} }})
         );
         package.write(
             "build.omg",
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
@@ -124,8 +123,7 @@ requires hidden(Hidden { value: 1u64 })
     );
     private.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let diagnostics = compile_to_checked_with_packages(
@@ -157,8 +155,7 @@ requires
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -261,11 +258,7 @@ fn review_projects_exact_zero_value_targets_in_public_contracts() {
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let source = |binder: &str, family: &str| {

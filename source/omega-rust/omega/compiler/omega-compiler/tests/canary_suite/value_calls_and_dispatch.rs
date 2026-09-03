@@ -672,7 +672,7 @@ fn runtime_exit_code_exit_canary_runs() {
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write runtime exit-code cross-target manifest");
+        .expect("write runtime exit-code cross-build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(output_dir.clone()),

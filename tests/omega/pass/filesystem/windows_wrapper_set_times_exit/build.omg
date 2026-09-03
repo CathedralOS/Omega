@@ -1,17 +1,6 @@
 // Structural pin for every target implementation of Filesystem::set_times.
 // The runtime assertion is Windows-only, but moving the formerly-portable
 // POSIX body into target files must keep all three POSIX selections healthy.
-target windows_x86_64 {
-}
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}
-
-target macos_arm64 {
-}
 
 machine build(builder: &mut Build) {
     builder.application("windows-wrapper-set-times-exit");

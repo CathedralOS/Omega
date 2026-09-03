@@ -1,9 +1,4 @@
 // Cross-target compile rails for both native backend families.
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}
 
 machine build(builder: &mut Build) {
     builder.application("runtime-total-order-satisfiers-exit");

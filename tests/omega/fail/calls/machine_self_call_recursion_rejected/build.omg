@@ -1,5 +1,4 @@
 // State-graph rejection requires one exact target-owned entry selection.
-target linux_x86_64 { }
 
 machine build(builder: &mut Build) {
     builder.application("machine-self-call-recursion-rejected");

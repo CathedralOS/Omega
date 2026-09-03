@@ -1,15 +1,4 @@
 // Structural pin for every target implementation of the lock wrapper family.
-target windows_x86_64 {
-}
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}
-
-target macos_arm64 {
-}
 
 machine build(builder: &mut Build) {
     builder.application("windows-wrapper-lock-exit");

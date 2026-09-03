@@ -3,9 +3,6 @@
 // transition arm. Keep the misuse on the hard root so state-graph lowering
 // cannot prune the source machine before diagnosing its target ownership.
 
-target macos_arm64 {
-}
-
 machine scan(value: u64) {
 }
 

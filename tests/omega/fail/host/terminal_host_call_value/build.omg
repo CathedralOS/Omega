@@ -1,8 +1,4 @@
 // Backend rejection requires exact hosted entry selection on every target.
-target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
 
 machine build(builder: &mut Build) {
     builder.application("terminal-host-call-value");

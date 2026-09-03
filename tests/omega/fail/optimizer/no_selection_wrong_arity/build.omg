@@ -1,9 +1,5 @@
 // The diagnostic golden is target-shaped so every hosted target reaches the
 // same source rejection rather than failing target discovery first.
-target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
 
 machine build(builder: &mut Build) {
     builder.application("no-selection-wrong-arity");

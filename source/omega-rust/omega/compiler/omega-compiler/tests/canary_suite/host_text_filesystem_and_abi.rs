@@ -1,5 +1,13 @@
 use super::*;
 
+fn write_cross_target_application_build(source_dir: &Path) {
+    fs::write(
+        source_dir.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.application(\"cross-target-canary\"); }\n",
+    )
+    .expect("write target-independent application build source");
+}
+
 #[test]
 fn runtime_stdin_command_branch_exit_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_command_branch_exit");
@@ -1358,8 +1366,7 @@ fn cross_windows_general_imports_compile() {
         let src_dir = scratch.join("src");
         fs::create_dir_all(&src_dir).expect("scratch source directory");
         fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-        fs::write(src_dir.join("build.omg"), "target windows_x86_64 {\n}\n")
-            .expect("write windows target manifest");
+        write_cross_target_application_build(&src_dir);
         compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(scratch.join("out")),
@@ -1383,8 +1390,7 @@ fn cross_aarch64_stack_import_compiles_with_planned_layout() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    write_cross_target_application_build(&src_dir);
 
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -1427,7 +1433,7 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
             src_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write fixed-array target manifest");
+        .expect("write fixed-array build source");
         let compile_result = compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -1473,8 +1479,7 @@ fn cross_win64_distinguishes_separate_pointer_length_from_descriptor_record() {
     fs::create_dir_all(&src_dir).expect("pointer/length scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg"))
         .expect("copy pointer/length canary");
-    fs::write(src_dir.join("build.omg"), "target windows_x86_64 {\n}\n")
-        .expect("write windows_x64 target manifest");
+    write_cross_target_application_build(&src_dir);
 
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -1536,8 +1541,7 @@ fn cross_aarch64_hfa_import_compiles_with_fragmented_plan() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    write_cross_target_application_build(&src_dir);
 
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -1571,8 +1575,7 @@ fn cross_aarch64_erased_hfa_import_keeps_two_vector_fragments() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    write_cross_target_application_build(&src_dir);
 
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),

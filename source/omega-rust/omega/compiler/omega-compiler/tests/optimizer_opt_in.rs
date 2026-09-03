@@ -255,8 +255,7 @@ fn return_only_selected_lowering_build_rejoins_native_artifact_production() {
     let root = project(
         "fail-closed",
         Some(
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+            r#"machine build(builder: &mut Build) {
     builder.application("optimizer-fail-closed");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
@@ -299,8 +298,7 @@ fn partial_rollback_retains_the_verified_psi_only_native_artifact() {
     let root = project(
         "partial-rollback-fail-closed",
         Some(
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+            r#"machine build(builder: &mut Build) {
     builder.application("optimizer-partial-rollback-fail-closed");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
@@ -347,8 +345,7 @@ fn return_only_exact_subtract_rejoins_native_artifact_production() {
     let root = project(
         "subtract-fail-closed",
         Some(
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+            r#"machine build(builder: &mut Build) {
     builder.application("optimizer-subtract-fail-closed");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactSubtractImmediate);
@@ -401,8 +398,7 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
     let selected = project(
         "x86-rel8-selected",
         Some(
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+            r#"machine build(builder: &mut Build) {
     builder.application("optimizer-x86-rel8-selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::X86RelaxConditionalBranchesToRel8V1);
@@ -453,8 +449,7 @@ fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
     let selected = project(
         "aarch64-cbnz-selected",
         Some(
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+            r#"machine build(builder: &mut Build) {
     builder.application("optimizer-aarch64-cbnz-selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1);
@@ -637,8 +632,7 @@ fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() 
     let selected = project(
         "shared-entry-copy-selected",
         Some(
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+            r#"machine build(builder: &mut Build) {
     builder.application("optimizer-shared-entry-copy-selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);
@@ -689,8 +683,7 @@ fn active_resident_multi_use_rematerialization_selection_round_trips_but_remains
     let selected = project(
         "active-resident-rematerialization-selected",
         Some(
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+            r#"machine build(builder: &mut Build) {
     builder.application("optimizer-active-resident-rematerialization-selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1);

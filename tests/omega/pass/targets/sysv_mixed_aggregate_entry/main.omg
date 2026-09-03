@@ -19,6 +19,3 @@ boundary machine Main::main(
     self.observed_float = pair.floating + tail;
     transition { _ -> (0) }
 }
-
-target linux_x86_64 {
-}

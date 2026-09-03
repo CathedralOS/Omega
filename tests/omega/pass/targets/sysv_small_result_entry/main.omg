@@ -4,5 +4,3 @@ data Main { output: Pair; }
 boundary machine Main::main(&self) -> Pair {
     transition { _ -> (self.output) }
 }
-target linux_x86_64 {
-}

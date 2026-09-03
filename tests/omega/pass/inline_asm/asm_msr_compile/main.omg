@@ -13,9 +13,3 @@ machine Main::main(&mut self) reaches MachineControl {
         wrmsr 3221225600, self.value
     }
 }
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}

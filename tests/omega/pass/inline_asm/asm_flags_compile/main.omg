@@ -14,9 +14,3 @@ machine Main::main(&mut self) reaches MachineControl {
         popfq self.saved_flags
     }
 }
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}

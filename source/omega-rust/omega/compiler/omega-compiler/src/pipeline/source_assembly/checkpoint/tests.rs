@@ -38,9 +38,7 @@ impl Fixture {
         .expect("write checkpoint root source");
         fs::write(
             application.join("build.omg"),
-            r#"target linux_x86_64 { }
-target windows_x86_64 { }
-machine build(builder: &mut Build) {
+            r#"machine build(builder: &mut Build) {
     builder.package("checkpoint-root");
 }
 "#,
@@ -187,55 +185,6 @@ fn failing_target_child_does_not_change_a_successful_sibling() {
         before.generated_source_custody,
         after.generated_source_custody,
     );
-}
-
-#[test]
-fn unselected_target_import_cannot_poison_a_sibling_checkpoint() {
-    let root = std::env::temp_dir().join(format!(
-        "omega-target-import-checkpoint-{}-{}",
-        std::process::id(),
-        NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
-    ));
-    fs::create_dir(&root).expect("create target-import checkpoint root");
-    let main = root.join("main.omg");
-    fs::write(&main, "machine value() -> u64 { 1 }\n").expect("write target-import source");
-    fs::write(
-        root.join("build.omg"),
-        r#"target linux_x86_64 { }
-target windows_x86_64 {
-    host: omega::language::missing_provider { }
-}
-machine build(builder: &mut Build) {
-    builder.package("target-import-checkpoint");
-}
-"#,
-    )
-    .expect("write target-import build source");
-
-    let mut timings = CompileTimings::default();
-    let checkpoint = ImmutableSourceParseCheckpoint::prepare(&main, None, &mut timings)
-        .expect("unselected target import must not enter the shared checkpoint");
-    let (_, before) = checkpoint
-        .for_exact_target("linux_x86_64", None)
-        .expect("linux child should match standalone checkpoint")
-        .assemble(&mut timings)
-        .expect("linux child should ignore the windows-only import");
-    let windows_result = checkpoint
-        .for_exact_target("windows_x86_64", None)
-        .expect("windows child should match standalone checkpoint")
-        .assemble(&mut timings);
-    assert!(
-        windows_result.is_err(),
-        "selected missing target import must reject its own child",
-    );
-    let (_, after) = checkpoint
-        .for_exact_target("linux_x86_64", None)
-        .expect("linux child should still match standalone checkpoint")
-        .assemble(&mut timings)
-        .expect("failed windows sibling must not mutate linux assembly");
-    assert_eq!(before.syntax_trees, after.syntax_trees);
-    assert_eq!(before.sources, after.sources);
-    fs::remove_dir_all(root).expect("remove target-import checkpoint root");
 }
 
 #[test]

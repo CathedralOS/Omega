@@ -10,7 +10,7 @@ use crate::pipeline::frontend::{
     discover_unconditional_imports_with_packages, extend_source_storage, lex_sources, load_sources,
     parse_sources,
 };
-use crate::pipeline::project::{project_roots, validate_selected_target};
+use crate::pipeline::project::project_roots;
 use crate::pipeline::source::{ImportQueue, SourceStorage};
 use crate::pipeline::stage::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use crate::pipeline::timing::CompileTimings;
@@ -189,7 +189,6 @@ impl ImmutableSourceParseCheckpoint {
             target_name.is_some(),
             timings,
         )?;
-        validate_selected_target(&source_storage, target_name)?;
         let source_file_count = source_storage.file_count();
         let syntax = assemble_syntax(
             source_storage,

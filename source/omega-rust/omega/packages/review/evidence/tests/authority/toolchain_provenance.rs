@@ -20,11 +20,7 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
     );
     canonical.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let canonical_checked = compile_to_checked_with_packages(
@@ -124,11 +120,7 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
     );
     lookalike.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let lookalike_checked = compile_to_checked_with_packages(
@@ -158,11 +150,7 @@ fn representation_tcb_retains_private_opaque_data_as_unbound() {
     package.write("main.omg", "boundary data InternalToken;\n");
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -192,11 +180,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     control.write("main.omg", "data InternalToken { }\n");
     control.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let control_checked = compile_to_checked_with_packages(
@@ -241,11 +225,7 @@ pub PublicTokenRepresentation:
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -334,11 +314,7 @@ pub CopyTokenRepresentation:
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.package("review-fixture");
     builder.select_representation<CopyToken, CopyTokenRepresentation>();
 }
@@ -526,8 +502,7 @@ boundary trait TransferEntry: Calling<TwoParameterPolicy> {
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.package("review-fixture");
     builder.select_representation<TransferToken, TransferTokenRepresentation>();
 }
@@ -677,10 +652,6 @@ fn dependency_owned_opaque_copy_receipt_belongs_to_the_selecting_package() {
     root.write(
         "build.omg",
         r#"use carrier::types;
-target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
 machine build(builder: &mut Build) {
     builder.package("review-fixture");
     builder.select_representation<CopyToken, CopyTokenRepresentation>();

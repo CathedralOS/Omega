@@ -22,11 +22,7 @@ requires observes(&mut input) == true
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let mut checked = compile_to_checked_with_packages(
@@ -94,11 +90,7 @@ fn changing_checked_operator_realization_changes_only_the_callable_value() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let compile = |selected: &str| {
         let package = TempPackage::new();
@@ -201,11 +193,7 @@ ensures result == input
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let mut checked = compile_to_checked_with_packages(
@@ -275,11 +263,7 @@ ensures result == input
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let mut checked = compile_to_checked_with_packages(
@@ -377,11 +361,7 @@ fn unsupported_checked_operator_realization_neighbors_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let private = TempPackage::new();
     private.write(
@@ -727,11 +707,7 @@ fn checked_operator_crash_routes_must_refine_the_declared_ceiling() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let compile = |provider_route: &str| {
         let package = TempPackage::new();

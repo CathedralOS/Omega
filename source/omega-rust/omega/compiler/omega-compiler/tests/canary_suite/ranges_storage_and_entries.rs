@@ -1481,7 +1481,7 @@ fn runtime_entry_unary_result_exit_canary_runs() {
         src_dir.join("build.omg"),
         hosted_main_program_entry_build("linux_arm64"),
     )
-    .expect("write target manifest");
+    .expect("write build source");
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
@@ -1521,7 +1521,7 @@ fn runtime_entry_cast_result_exit_canary_runs() {
         src_dir.join("build.omg"),
         hosted_main_program_entry_build("linux_arm64"),
     )
-    .expect("write target manifest");
+    .expect("write build source");
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),

@@ -1,5 +1,3 @@
-target windows_x86_64 {
-}
 
 use omega::language::core::layout;
 use calling;

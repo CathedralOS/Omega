@@ -11,11 +11,7 @@ fn obligation_ledger_binds_and_recovers_application_root_role() {
     application.write("main.omg", "pub data Token { value: u64; }\n");
     application.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.application("review-application"); }
+        r#"machine build(builder: &mut Build) { builder.application("review-application"); }
 "#,
     );
     let identity = package_identity();
@@ -72,11 +68,7 @@ fn ordinary_package_obligation_ledger_requires_exact_local_reconstruction() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let original = TempPackage::new();
     original.write(
@@ -258,11 +250,7 @@ fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_pat
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let root = TempPackage::new();
     root.write("main.omg", "pub data Token { value: u64; }\n");
@@ -435,11 +423,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     };
     let source = "pub data Token { value: i64; }\n";
     let changed_source = "// source-only change\npub data Token { value: i64; }\n";
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
 
     let first = TempPackage::new();

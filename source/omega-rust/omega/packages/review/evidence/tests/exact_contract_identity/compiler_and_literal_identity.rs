@@ -10,7 +10,7 @@ fn review_projects_width_landed_float_literals_by_exact_bits() {
         );
         package.write(
             "build.omg",
-            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -67,7 +67,7 @@ fn float_contract_review_rejects_missing_checked_width_landing() {
     );
     package.write(
         "build.omg",
-        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -112,7 +112,7 @@ ensures result == 1.25
     );
     package.write(
         "build.omg",
-        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -163,7 +163,7 @@ pub trait Measures {
     );
     package.write(
         "build.omg",
-        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -185,7 +185,7 @@ fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
         );
         package.write(
             "build.omg",
-            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -243,7 +243,7 @@ fn review_projects_exact_compiler_builtin_function_identity() {
         );
         package.write(
             "build.omg",
-            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -320,7 +320,7 @@ fn builtin_function_review_rejects_checked_target_symbol_tamper() {
     );
     package.write(
         "build.omg",
-        "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -364,7 +364,7 @@ fn review_projects_exact_raw_byte_literals_in_public_contracts() {
         );
         package.write(
             "build.omg",
-            "target windows_x86_64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -435,8 +435,7 @@ requires matrix({literal})
         );
         package.write(
             "build.omg",
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
@@ -492,8 +491,7 @@ requires values([source[0]])
     );
     nested.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(

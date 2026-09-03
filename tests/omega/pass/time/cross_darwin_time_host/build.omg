@@ -1,11 +1,6 @@
 // Cross-compile pin for the darwin std::time seam (TASKS_TIME.md rung 10):
 // the suite compiles this for macos_arm64 from any host. Structural only --
 // native confirmation needs a Mac.
-target macos_arm64 {
-}
-
-target windows_x86_64 {
-}
 
 machine build(builder: &mut Build) {
     builder.application("cross-darwin-time-host");

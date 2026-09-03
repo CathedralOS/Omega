@@ -68,7 +68,7 @@ through the same profile diagnostic; no compiler source may depend on them.
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
 | `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving comment/literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
 | `parse/` | Owns token-to-structural parsing; `harness.omg` is gate-only black-box serialization and is absent from the product closure. | Absorb the parser only into its canonical successor; delete the harness when an equal or stronger semantic-free gate preserves all 45 cases. |
-| `gates/parser/`, `test-parser.sh` | Builds one fresh explicit-target harness artifact, prints exact identities, and exercises the live lexical/parser boundary. Its four empty target declarations are temporary compiler-discovery scaffolding. | Delete the declarations when immutable CLI target activation supplies the selected profile; delete the gate only when an equal or stronger product-source gate subsumes every retained failure class. |
+| `gates/parser/`, `test-parser.sh` | Builds one fresh explicit-target harness artifact, prints exact identities, and exercises the live lexical/parser boundary. Its selected profile is immutable compiler invocation input; the harness declares no target-support set. | Delete the gate only when an equal or stronger product-source gate subsumes every retained failure class. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be

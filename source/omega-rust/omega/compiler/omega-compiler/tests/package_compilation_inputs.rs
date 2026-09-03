@@ -122,8 +122,7 @@ fn compiler_consumes_retained_dependency_generated_source_without_a_physical_fil
     let dependency = tree.package("dependency-generated-producer");
     TempTree::write(
         root.join("build.omg"),
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("root-generated-consumer");
     builder.depend_as("dependency", Source::Path { location: "../dependency-generated-producer" });
 }
@@ -254,9 +253,7 @@ fn multi_target_generated_source_failure_is_child_local() {
     let dependency = tree.package("multi-target-generated-producer");
     TempTree::write(
         root.join("build.omg"),
-        r#"target linux_x86_64 { }
-target windows_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("multi-target-generated-consumer");
     builder.depend_as("dependency", Source::Path { location: "../multi-target-generated-producer" });
 }
@@ -316,7 +313,7 @@ machine build(builder: &mut Build) {
         })
         .with_package_inputs(child_inputs(profile))
     })
-    .expect("target set remains the only target declaration");
+    .expect("target set remains the only target identity input");
     let outcomes = compile_targets(request).expect("multi-target request should admit");
     assert_eq!(outcomes.outcomes().len(), 2);
     assert!(outcomes.outcomes()[0].succeeded());
@@ -605,7 +602,6 @@ data Cursor {
     total: u64 in Wrapping;
 }
 
-target linux_x86_64 { }
 
 operator > ForeignNumber::greater(left: ForeignNumber, right: ForeignNumber) -> bool;
 operator == ForeignNumber::equal(left: ForeignNumber, right: ForeignNumber) -> bool;
@@ -1628,7 +1624,7 @@ machine misuse(resource: &mut Resource) {
     );
     TempTree::write(
         root.join("build.omg"),
-        "target windows_x86_64 { }\ntarget linux_x86_64 { }\ntarget linux_arm64 { }\ntarget macos_arm64 { }\nmachine build(builder: &mut Build) { builder.package(\"root\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"root\"); }\n",
     );
 
     let inputs = PackageCompilationInputs::new_package(
@@ -3671,11 +3667,7 @@ fn package_selection_admission_precedes_build_machine_side_effects() {
     );
     TempTree::write(
         root.join("build.omg"),
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.package("root");
     let marker: BuildPath = builder.output.resolve("build-ran.marker");
@@ -3949,8 +3941,7 @@ machine Main::main(&mut self) { }
     );
     TempTree::write(
         root.join("build.omg"),
-        r#"target linux_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("independent-target-default");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
@@ -4176,11 +4167,7 @@ machine Main::main(&mut self) {
     );
     TempTree::write(
         root.join("build.omg"),
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("native-package-entrypoint");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -4376,8 +4363,7 @@ fn reviewed_checked_package_continues_after_generated_source_staging_is_removed(
     let root = tree.package("reviewed-generated-root");
     TempTree::write(
         root.join("build.omg"),
-        r#"target linux_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("reviewed-generated-root");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     let generated: BuildPath = builder.output.resolve("marker.generated.omg");
@@ -4503,8 +4489,7 @@ machine Main::main(&mut self) {
     );
     TempTree::write(
         root.join("build.omg"),
-        r#"target linux_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("accepted-console-application");
     builder.depend_as("accepted_console", Source::Path { location: "../accepted-console-package" });
     builder.select_provider<Console, ConsoleNativeProvider>();
@@ -5210,8 +5195,7 @@ machine Boot::launch(
     );
     TempTree::write(
         root.join("build.omg"),
-        r#"target uefi_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("uefi-application");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
@@ -5402,8 +5386,7 @@ machine Main::main(&mut self) {
     );
     TempTree::write(
         exit_root.join("build.omg"),
-        r#"target linux_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("physical-exit");
     builder.select_provider<Console, ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

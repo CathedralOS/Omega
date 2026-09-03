@@ -17,11 +17,7 @@ ensures result == tag<{selected_type}>();
     };
     package.write("main.omg", &source("u64"));
     changed.write("main.omg", &source("i64"));
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
     changed.write("build.omg", build);
@@ -90,11 +86,7 @@ ensures result == constant<{selected_value}>();
     };
     package.write("main.omg", &source("0x07"));
     changed.write("main.omg", &source("0x08"));
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
     changed.write("build.omg", build);
@@ -153,11 +145,7 @@ fn review_projects_named_const_static_arguments_by_value_with_exact_source_custo
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let compile = |value: u64| {
         let package = TempPackage::new();
@@ -293,11 +281,7 @@ fn review_projects_named_boolean_consts_with_exact_carrier_and_canonical_identit
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let compile = |value: bool| {
         let package = TempPackage::new();
@@ -435,11 +419,7 @@ fn review_projects_named_structured_consts_with_exact_carrier_replay() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let compile = |left_x: u8| {
         let package = TempPackage::new();
@@ -594,11 +574,7 @@ ensures result == constant<LIMIT>();
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let diagnostics = compile_to_checked_with_packages(
@@ -669,11 +645,7 @@ requires constant<{selected_const}>() == constant<{selected_const}>()
         "main.omg",
         &source("First", "Second", "Left", "Right", "First", "Right"),
     );
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     for package in [&original, &renamed, &changed_type, &changed_const] {
         package.write("build.omg", build);
@@ -759,11 +731,7 @@ ensures result == tag<Wrapper<{nested_type}>>();
     };
     package.write("main.omg", &source("u64"));
     changed.write("main.omg", &source("i64"));
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
     changed.write("build.omg", build);
@@ -848,11 +816,7 @@ ensures result == tag<Card, {selected}<Card>>();
     };
     original.write("main.omg", &source("FieldOrder"));
     changed.write("main.omg", &source("AlternateOrder"));
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     changed.write("build.omg", build);
@@ -952,11 +916,7 @@ ensures result == tag<Card, FieldOrder<Card, {rank}>>();
     };
     original.write("main.omg", &source(7));
     changed.write("main.omg", &source(8));
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     changed.write("build.omg", build);
@@ -1047,11 +1007,7 @@ ensures result == tag<Card, FieldOrder<Card, RANK, MARKER>>();
     };
     original.write("main.omg", &source(7, 1));
     changed.write("main.omg", &source(8, 2));
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     changed.write("build.omg", build);
@@ -1210,11 +1166,7 @@ ensures result == tag<Card, FieldOrder<Card, {selected}>>();
     original.write("main.omg", &source("Left", "Right", "Left"));
     renamed.write("main.omg", &source("First", "Second", "First"));
     changed.write("main.omg", &source("Left", "Right", "Right"));
-    let build = r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     for package in [&original, &renamed, &changed] {
         package.write("build.omg", build);
@@ -1297,11 +1249,7 @@ ensures result == tag<Card, FieldOrder<Card, 7>>();
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let mut checked = compile_to_checked_with_packages(
@@ -1354,11 +1302,7 @@ ensures result == tag<Card, Slot<Card>>();
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -1395,11 +1339,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
     );
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let compile = || {

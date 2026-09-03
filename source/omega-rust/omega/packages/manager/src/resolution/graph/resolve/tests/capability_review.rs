@@ -13,8 +13,7 @@ fn git_update_escalating_to_process_authority_blocks_and_requests_source_audit()
     std::fs::create_dir_all(&repository).expect("create process-authority repository");
     std::fs::write(
         repository.join("build.omg"),
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.package("process-exit");
     builder.select_provider<Console, ConsoleNativeProvider>();
 }

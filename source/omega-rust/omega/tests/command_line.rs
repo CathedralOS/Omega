@@ -175,8 +175,7 @@ fn package_native_cli_stops_at_missing_explicit_root_policy() {
     std::fs::create_dir(&project).expect("create package application");
     std::fs::write(
         project.join("build.omg"),
-        r#"target linux_x86_64 { }
-
+        r#"
 machine build(builder: &mut Build) {
     builder.application("cli-policy-probe");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

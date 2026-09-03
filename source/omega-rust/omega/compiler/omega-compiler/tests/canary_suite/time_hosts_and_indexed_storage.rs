@@ -128,7 +128,7 @@ fn integer_result_imports_compile_on_windows_and_darwin() {
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write integer-result import target manifest");
+        .expect("write integer-result import build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -171,7 +171,7 @@ fn storage_result_imports_compile_on_windows_and_darwin() {
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write storage-result import target manifest");
+        .expect("write storage-result import build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -249,7 +249,7 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write dereferenced-result import target manifest");
+        .expect("write dereferenced-result import build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -301,7 +301,7 @@ fn authored_scalar_imports_compile_on_windows_and_darwin() {
             source_dir.join("build.omg"),
             hosted_main_program_entry_build(target),
         )
-        .expect("write authored scalar import target manifest");
+        .expect("write authored scalar import build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),

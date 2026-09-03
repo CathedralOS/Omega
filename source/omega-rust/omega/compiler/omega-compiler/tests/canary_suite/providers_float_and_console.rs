@@ -2494,7 +2494,7 @@ fn runtime_console_line_replay_cross_target_canary_compiles() {
                 src_dir.join("build.omg"),
                 hosted_main_program_entry_build(target),
             )
-            .expect("write runtime line replay target manifest");
+            .expect("write runtime line replay build source");
             compile(CanaryCompileSpec {
                 root_path: src_dir.join("main.omg"),
                 build_dir: Some(scratch.join("out")),

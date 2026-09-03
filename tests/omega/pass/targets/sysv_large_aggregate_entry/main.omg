@@ -12,6 +12,3 @@ boundary machine Main::main(&mut self, triple: Triple) -> i32 {
     self.observed = triple.first + triple.second + triple.third;
     transition { _ -> (0) }
 }
-
-target linux_x86_64 {
-}

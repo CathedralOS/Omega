@@ -1,5 +1,4 @@
 // Windows canonicalize runtime canary: select the exact supported entry.
-target windows_x86_64 { }
 
 machine build(builder: &mut Build) {
     builder.application("windows-canonicalize-exit");

@@ -12,6 +12,3 @@ boundary machine Main::main(&mut self, tag: u64, pair: Pair) -> i32 {
     self.observed = tag + pair.second;
     transition { _ -> (0) }
 }
-
-target linux_arm64 {
-}

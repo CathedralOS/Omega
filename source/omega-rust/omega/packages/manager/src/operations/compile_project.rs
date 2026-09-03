@@ -252,8 +252,7 @@ mod tests {
             std::fs::create_dir(&path).expect("create temporary package project");
             std::fs::write(
                 path.join("build.omg"),
-                r#"target linux_x86_64 { }
-
+                r#"
 machine build(builder: &mut Build) {
     builder.application("accepted-claim-app");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

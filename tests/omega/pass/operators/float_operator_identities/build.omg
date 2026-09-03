@@ -1,16 +1,5 @@
 // The provider-plan canary checks every currently supported native float
 // target, not only the compiler host.
-target windows_x86_64 {
-}
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}
-
-target macos_arm64 {
-}
 
 machine build(builder: &mut Build) {
     builder.application("float-operator-identities");

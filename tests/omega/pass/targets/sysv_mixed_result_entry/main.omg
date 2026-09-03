@@ -6,5 +6,3 @@ data Main { output: MixedPair; }
 boundary machine Main::main(&self) -> MixedPair {
     transition { _ -> (self.output) }
 }
-target linux_x86_64 {
-}

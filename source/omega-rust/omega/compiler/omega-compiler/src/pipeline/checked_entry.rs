@@ -1509,9 +1509,7 @@ mod continuation_tests {
                 .expect("write prepared checked-source main");
             fs::write(
                 root.join("build.omg"),
-                r#"target linux_x86_64 { }
-target windows_x86_64 { }
-machine build(builder: &mut Build) {
+                r#"machine build(builder: &mut Build) {
     builder.application("prepared-checked-source");
     transition builder.target {
         TargetProfile::WindowsX86_64 -> windows(builder)

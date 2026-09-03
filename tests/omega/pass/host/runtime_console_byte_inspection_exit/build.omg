@@ -1,6 +1,4 @@
 // Deployable native canary for the bounded closed-sum inspection lane.
-target linux_x86_64 { }
-target linux_arm64 { }
 
 machine build(builder: &mut Build) {
     builder.application("runtime-console-byte-inspection-exit");

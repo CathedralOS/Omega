@@ -12,8 +12,7 @@ fn review_projects_trait_defaults_and_unnamed_contracts() {
     );
     default_package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -37,8 +36,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     );
     abstract_package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let abstract_checked = compile_to_checked_with_packages(
@@ -73,8 +71,7 @@ pub boundary trait SchedulerRuntime {
     );
     precondition_package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -141,8 +138,7 @@ fn public_trait_requires_and_ensures_change_comparison_identity() {
         );
         package.write(
             "build.omg",
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
@@ -206,8 +202,7 @@ pub trait Worker {{
         );
         package.write(
             "build.omg",
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(

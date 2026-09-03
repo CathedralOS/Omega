@@ -87,9 +87,6 @@ fn copy_project_tree(
 fn write_exact_macos_build(project: &Path) {
     let path = project.join("build.omg");
     let mut source = std::fs::read_to_string(&path).unwrap_or_default();
-    if !source.contains("target macos_arm64") {
-        source.push_str("\n\ntarget macos_arm64 {\n}\n");
-    }
     const BUILD: &str = "machine build(builder: &mut Build) {";
     const BINDING: &str = "builder.roots.bind(macos_arm64::ProgramEntry, Main::main);";
     if !source.contains(BINDING) {

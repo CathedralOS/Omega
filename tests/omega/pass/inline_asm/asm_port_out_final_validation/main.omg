@@ -11,6 +11,3 @@ machine Main::main(&mut self) reaches PortIo {
         out 0x3F8, 0x41
     }
 }
-
-target linux_x86_64 {
-}

@@ -160,8 +160,6 @@ machine Main::main(&mut self) { }
 "#;
 
 const CALLBACK_MATERIALIZATION_POLICY: &str = r#"
-target windows_x86_64 {
-}
 
 use omega::language::core::layout;
 use calling;

@@ -1,8 +1,4 @@
 // Deployable directed fused-multiply-add probe: every hosted target selects its exact entry.
-target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
 
 machine build(builder: &mut Build) {
     builder.application("named-provider-directed-fused-multiply-add-exit");

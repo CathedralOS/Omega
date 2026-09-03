@@ -46,12 +46,12 @@ impl Drop for TempProject {
 }
 
 fn exact_target_build(body: &str) -> String {
-    exact_profile_build("windows_x86_64", body)
+    application_build(body)
 }
 
-fn exact_profile_build(target: &str, body: &str) -> String {
+fn application_build(body: &str) -> String {
     format!(
-        "target {target} {{ }}\nmachine build(builder: &mut Build) {{\n    builder.application(\"target-activation\");\n{body}\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"target-activation\");\n{body}\n}}\n"
     )
 }
 
@@ -208,8 +208,7 @@ fn exclusive_target_borrow_is_rejected() {
 #[test]
 fn authored_legacy_build_is_rejected_instead_of_receiving_a_hidden_target() {
     let project = TempProject::new(
-        r#"target windows_x86_64 { }
-data Build {
+        r#"data Build {
     subsystem: Subsystem;
     freestanding: bool;
 }
@@ -402,8 +401,7 @@ machine Main::main(&mut self) {
     );
 }
 "#,
-        &exact_profile_build(
-            "linux_x86_64",
+        &application_build(
             r#"    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;"#,
         ),
@@ -618,8 +616,7 @@ machine Main::main(&mut self) {
     self.after_fma();
 }
 "#,
-        &exact_profile_build(
-            "linux_x86_64",
+        &application_build(
             r#"    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;"#,
         ),
@@ -689,9 +686,7 @@ fn aarch64_fma_demand_is_not_an_x86_feature_association() {
 #[test]
 fn x86_fma_build_admission_binds_the_exact_selected_profile() {
     let project = TempProject::new(
-        r#"target linux_x86_64 { }
-target windows_x86_64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("profile-bound-fma");
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
 }
@@ -714,8 +709,7 @@ machine build(builder: &mut Build) {
 #[test]
 fn non_x86_profile_rejects_x86_deployment_feature_selection() {
     let project = TempProject::new(
-        r#"target linux_arm64 { }
-machine build(builder: &mut Build) {
+        r#"machine build(builder: &mut Build) {
     builder.application("invalid-arm-fma");
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
 }

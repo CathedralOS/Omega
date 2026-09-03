@@ -11,26 +11,6 @@
 // - Windows: WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), bytes, len), then
 //   ExitProcess(code).
 
-target cross_platform_cli {
-}
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}
-
-target macos_arm64 {
-}
-
-target windows_x86_64 {
-}
-
-// A permissive development build should still be auditable.
-target local_unchecked {
-    boundary unchecked invariant_proofs
-}
-
 machine build(builder: &mut Build) {
     builder.application("cli-mvp");
     builder.depend(Source::Path {

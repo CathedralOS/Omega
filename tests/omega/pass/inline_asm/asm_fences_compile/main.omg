@@ -11,9 +11,3 @@ machine Main::main(&mut self) {
         mfence
     }
 }
-
-target linux_x86_64 {
-}
-
-target linux_arm64 {
-}

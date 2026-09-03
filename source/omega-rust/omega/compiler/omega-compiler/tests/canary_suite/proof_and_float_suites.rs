@@ -1491,13 +1491,13 @@ fn build_runtime_float_semantics_twins_agree() {
         .expect("copy semantic-edge twin canary");
     fs::write(
         source_dir.join("build.omg"),
-        "target linux_arm64 {\n}\n\
+        "\
          machine build(builder: &mut Build) {\n\
              builder.application(\"float-semantic-edge-twins\");\n\
              builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n\
          }\n",
     )
-    .expect("write semantic-edge target manifest");
+    .expect("write semantic-edge build source");
     compile(CanaryCompileSpec {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(scratch.join("out")),
@@ -1565,13 +1565,13 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
         .expect("copy Linux AArch64 semantic-edge twin canary");
     fs::write(
         source_dir.join("build.omg"),
-        "target linux_arm64 {\n}\n\
+        "\
          machine build(builder: &mut Build) {\n\
              builder.application(\"linux-arm64-float-semantic-edge-twin\");\n\
              builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n\
          }\n",
     )
-    .expect("write Linux AArch64 semantic-edge target manifest");
+    .expect("write Linux AArch64 semantic-edge build source");
     let main_path = source_dir.join("main.omg");
 
     let checked = compile_to_checked(&main_path, Some("linux_arm64"))

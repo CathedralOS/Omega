@@ -7,8 +7,7 @@ fn review_projects_exact_outcome_specific_guarantees() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            r#"target windows_x86_64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         compile_to_checked_with_packages(
@@ -185,11 +184,7 @@ fn claim_free_boundary_supply_does_not_collapse_into_an_accepted_claim() {
     package.write("main.omg", "boundary machine host_ping();\n");
     package.write(
         "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(

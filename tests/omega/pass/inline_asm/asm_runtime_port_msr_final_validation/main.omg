@@ -22,6 +22,3 @@ reaches MachineControl + PortIo
         wrmsr self.index, self.value
     }
 }
-
-target linux_x86_64 {
-}
