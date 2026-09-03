@@ -34,11 +34,7 @@ const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[];
 /// An exception is stale when its file disappears, ceases to be an entrance,
 /// or returns to 100 lines or fewer. Ceilings may never exceed the hard
 /// 200-line entrance limit.
-const ENTRANCE_EXCEPTIONS: &[EntranceException] = &[EntranceException {
-    path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_policy/mod.rs",
-    ceiling: 129,
-    semantic_reason: "the entrance still exposes the complete closed authority-policy vocabulary",
-}];
+const ENTRANCE_EXCEPTIONS: &[EntranceException] = &[];
 
 fn is_entrance(path: &str) -> bool {
     path.rsplit('/')
