@@ -2130,10 +2130,14 @@ filesystem reach canonically retains one empty Output tree in both sponsored
 review and ordinary production, keeping their complete observation identities
 equal without treating sponsor context as semantic input. This closes and
 covers the in-memory library join without embedding policy authority in target-
-neutral Terminal Psi. The production CLI still has no accepted-evidence
-orchestration: project preparation supplies raw compiler inputs only. It must
-recover and replay root policy, then invoke the already-covered manager-owned
-route, before root-policy-to-native transport is complete.
+neutral Terminal Psi. Production CLI project compilation now consumes that
+join. Policy-blind preparation retains raw compiler inputs and resolver custody;
+the native operation separately compiles the final review, reconstructs current
+conflicts, recovers an explicitly selected root-policy file against them,
+accepts fresh evidence, and invokes the manager-owned retained route. Missing
+policy for blockers and policy supplied for a blocker-free review both reject.
+The accepted package permission projection and the separately supplied
+receiving permission policy remain distinct through native realization.
 
 ## D46 — Same-process package review does not observe its executable pathname
 

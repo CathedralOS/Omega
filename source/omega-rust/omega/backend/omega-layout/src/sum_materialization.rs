@@ -49,6 +49,10 @@ use psi_typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
 use crate::{DataShape, ENUM_TAG_BYTES, LayoutPlan, TypeLayoutDescriptor};
 
+mod depth_sixteen;
+
+pub use depth_sixteen::project_conventional_record_with_depth_sixteen_nested_sums_materialization_layout;
+
 /// Project the bounded nested-sum materialization set from the exact target
 /// runtime layout: one closed `[copy]` record with one or more direct,
 /// runtime-relevant conventional pure-sum fields.

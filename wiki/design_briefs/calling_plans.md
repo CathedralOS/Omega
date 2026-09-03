@@ -1302,17 +1302,21 @@ statically emitted thunk, so capacity bounds runtime registration state rather
 than code size.
 
 The earlier custom object-store/installation-manifest implementation and its
-callback registration modules were removed. The replacement runtime bridge is
-deliberately narrower: it joins exact compiler-private entry attribution to the
-complete installed-code occurrence and exact entry of an admitted external
-root, and retains that attribution beside the provider's reclaimable
-registration through unregister and root quiescence. Its runnable-component
-split borrow permits the root to pin code while teardown mutates only the
-independent root ledger. Admission and teardown rejection preserve their full
-inputs for retry. This carrier still does not establish the package-visible
-linear `Registration` or its component-era lease.
+callback registration modules were removed. The replacement runtime bridge
+joins exact compiler-private entry attribution to the complete installed-code
+occurrence and exact entry of an admitted external root, and retains that
+attribution beside the provider's reclaimable registration through unregister
+and root quiescence. Its retained-era split borrows the installed occurrence,
+independent root ledger, and component lifecycle together. That bridge derives
+the era and entry contract, acquires and validates the exact non-clone
+component-era lease, and lowers the successful provider registration to the
+package-visible linear `Registration`. Admission and teardown rejection
+preserve their full inputs for retry. Typestate permits lease release only
+after provider unregister and exact-root quiescence; the intermediate state
+keeps returned capacity and root-slot authority inaccessible, and a failed or
+cross-component release retains the completed callback and lease intact.
 
-The current direct-parameter path stops at canonical installation custody.
+The direct-parameter path reaches canonical installation custody.
 Installation format 51 retains the exact compiler-private thunk identity,
 source-Psi identity, artifact-local machine, fixed-integer ABI, and final text
 interval and rejoins that row to the executable image after encode/decode. A
@@ -1320,12 +1324,14 @@ first deployment prerequisite now accepts a caller-supplied, already-admitted
 entry identity and binds it to that unique row's exact final-text start, bytes,
 and opaque installed occurrence. It does not derive an entry identity, expose
 an executable address, publish code, admit an external root, or establish
-registrar success by itself. The runtime bridge now performs the exact admitted
+registrar success by itself. The runtime bridge performs the exact admitted
 root/provider-result join and preserves retry custody through provider failure,
-unregister, and quiescence. The remaining deployment rung binds that live
+unregister, and quiescence. The retained-era bridge then binds that live
 registration to the exact component-era lease and lowers the source-visible
-linear `Registration`. Capacity still means simultaneous live registrations,
-not emitted thunk count or a consumable lifetime budget.
+linear `Registration` runtime carrier. Installed-entry attribution and the
+lower-level callback carrier grant neither the lease nor lowering authority by
+themselves. Capacity still means simultaneous live registrations, not emitted
+thunk count or a consumable lifetime budget.
 
 Callback materialization records only binder slot and destination. Whether the
 destination is a direct argument, call-scoped temporary, or part of retained

@@ -169,6 +169,79 @@ fn optimizer_rollback_cli_rejects_check_before_reading_source() {
 }
 
 #[test]
+fn package_native_cli_stops_at_missing_explicit_root_policy() {
+    let project = temp_path("package-root-policy");
+    let build_dir = temp_path("package-root-policy-build");
+    std::fs::create_dir(&project).expect("create package application");
+    std::fs::write(
+        project.join("build.omg"),
+        r#"target linux_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.application("cli-policy-probe");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#,
+    )
+    .expect("write application build declaration");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"pub proposition accepted(value: u64);
+
+boundary machine trusted_value() -> u64
+ensures accepted(result);
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    )
+    .expect("write application source");
+    let build_dir_argument = build_dir.to_string_lossy().into_owned();
+    let output = omega_in(
+        &project,
+        &[
+            "--output-only",
+            "--target",
+            "linux_x86_64",
+            "--build-dir",
+            &build_dir_argument,
+            "main.omg",
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("blocking rows but no explicit --package-root-policy"),
+        "stderr was: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = std::fs::remove_dir_all(project);
+    let _ = std::fs::remove_dir_all(build_dir);
+}
+
+#[test]
+fn package_root_policy_is_not_a_check_or_standalone_input() {
+    let check = omega(&[
+        "--check",
+        "--package-root-policy",
+        "candidate.policy",
+        "missing.omg",
+    ]);
+    assert_eq!(check.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&check.stderr)
+            .contains("requires native production from a build.omg project")
+    );
+
+    let missing = omega(&["--package-root-policy"]);
+    assert_eq!(missing.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&missing.stderr).contains("--package-root-policy requires a file")
+    );
+}
+
+#[test]
 fn source_audit_requires_an_explicit_supported_adapter() {
     let missing = omega(&["audit", "source", "https://example.invalid/package"]);
     assert_eq!(missing.status.code(), Some(2));

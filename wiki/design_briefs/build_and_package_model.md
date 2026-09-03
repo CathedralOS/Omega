@@ -4098,6 +4098,17 @@ rather than policy authority. Filesystem-free obligation/report construction
 lives in `omega-trust-model`; `omega-trust-ledger` is limited to coordinator-
 facing `omega.lock` custody.
 
+Package root policy uses a separate explicit command input. For native
+`build.omg` projects, `--package-root-policy <file>` identifies one canonical
+direct child of the caller-selected directory capability. The package-manager
+operation first recompiles the exact target closure and reconstructs current
+blocking conflicts, then recovers the file against those conflicts and reruns
+ordinary evidence acceptance. The option is required when blockers exist and
+rejected when they do not; it is also rejected for checking and standalone
+source compilation. This file is not `omega.lock`, project preparation never
+searches for it, and accepted package permissions remain distinct from the
+receiving realization policy.
+
 `omega::language::core` is bundled with the compiler by decision rather than by
 omission. It is the language: the checker cannot typecheck without it, its
 version is the language version, and two versions of it can never coexist in one

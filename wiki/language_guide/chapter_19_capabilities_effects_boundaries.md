@@ -2132,9 +2132,15 @@ consume its exact installed-entry attribution with an admitted external root,
 provider success receipt, and one exact capacity occurrence. The bridge retains
 the attribution and root/code pin until provider unregister and root quiescence
 both succeed; every failed join or teardown preserves the complete retry
-custody. The source `Registration` lowering and exact component-era lease join
-remain engineering work. Runtime capacity still bounds live registrations,
-not emitted thunk count, and is distinct from a consumable lifetime budget.
+custody. A retained-era split now derives the exact era and entry contract,
+acquires and validates the non-clone component-era lease against the complete
+installed occurrence, and lowers the live callback into the source
+`Registration` runtime carrier. Typestate makes provider unregister and root
+quiescence precede lease release, keeps returned capacity inaccessible until
+that release succeeds, and preserves every input across either retry boundary.
+Installed-entry attribution alone grants no lease or lowering authority.
+Runtime capacity still bounds live registrations, not emitted thunk count, and
+is distinct from a consumable lifetime budget.
 
 Platform packages normally expose a safer handler API above a re-entrant native
 callback. Bodyless package surfaces declare direct synchronous entry through

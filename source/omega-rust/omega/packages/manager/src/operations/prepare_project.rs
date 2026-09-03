@@ -2,7 +2,7 @@
 
 use crate::resolution::graph::{
     PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
-    resolve_external_local_project_closure_with_storage,
+    ResolvedPackageSourceClosure, resolve_external_local_project_closure_with_storage,
 };
 use crate::resolution::package_compilation_inputs;
 use omega_package_compilation::{PackageCompilationInputError, PackageCompilationInputs};
@@ -18,12 +18,17 @@ const LOCAL_PROJECT_CONTEXT: &[u8] = b"omega-local-project-v1";
 pub struct PreparedLocalProject {
     entry_path: PathBuf,
     package_inputs: PackageCompilationInputs,
+    source_closure: ResolvedPackageSourceClosure,
 }
 
 impl PreparedLocalProject {
     #[must_use]
     pub fn into_parts(self) -> (PathBuf, PackageCompilationInputs) {
         (self.entry_path, self.package_inputs)
+    }
+
+    pub(super) fn into_review_parts(self) -> (PathBuf, ResolvedPackageSourceClosure) {
+        (self.entry_path, self.source_closure)
     }
 }
 
@@ -134,6 +139,7 @@ pub fn prepare_local_project(
     Ok(Some(PreparedLocalProject {
         entry_path: prepared_entry,
         package_inputs,
+        source_closure: closure,
     }))
 }
 

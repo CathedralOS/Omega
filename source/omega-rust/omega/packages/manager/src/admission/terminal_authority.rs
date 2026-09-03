@@ -127,6 +127,64 @@ pub fn realize_accepted_reviewed_package_candidate_with_source_evaluated_imports
     )
 }
 
+/// Consume a reviewed package candidate into a complete retained-native
+/// compiler report suitable for the ordinary publication boundary.
+///
+/// The optimization overlay is settled against the build-selected set before
+/// checked custody is consumed. The resulting report replaces the Terminal
+/// manifest with an exact native manifest for the same production subject.
+#[allow(clippy::too_many_arguments)]
+pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_imports_and_policy(
+    candidate: crate::review::ReviewedPackageProductionCandidate,
+    evidence: &AcceptedOrdinaryClosureEvidence,
+    profile: &psi_proof_admission::AdmissionProfile,
+    optimization_rollback: &omega_compiler::OptimizationRollback,
+    terminal_authority_policy: TerminalAuthorityPolicy,
+    receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
+    imports: &[omega_compiler::SourceEvaluatedImportSettlement<'_>],
+) -> Result<omega_compiler::CompileReport, Vec<Diagnostic>> {
+    let build_selected = candidate.checked_root().optimization_selections().clone();
+    let rollback_receipt = optimization_rollback.reconcile(&build_selected);
+    let effective_optimizations = rollback_receipt
+        .as_ref()
+        .map_or(build_selected, |receipt| receipt.effective().clone());
+    let (_reviews, root_path, checked_root) = candidate.into_production_parts();
+    let report = omega_compiler::retained_terminal_report_from_checked_package(
+        root_path,
+        checked_root,
+        profile.clone(),
+    )?;
+    validate_accepted_terminal_production_subject(&report, evidence)?;
+    let root_path = report.root_path().to_path_buf();
+    let source_file_count = report.source_file_count;
+    let production_subject = report
+        .production_manifest()
+        .map(|manifest| manifest.subject().clone());
+    let accepted_permission_policy = accepted_terminal_authority_permission_policy(evidence)
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
+        diagnostics("accepted Terminal realization requires one retained Terminal artifact")
+    })?;
+    let artifact =
+        omega_compiler::realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+            retained,
+            profile,
+            &effective_optimizations,
+            terminal_authority_policy,
+            accepted_permission_policy,
+            receiving_terminal_authority_permission_policy,
+            imports,
+        )?;
+    omega_compiler::CompileReport::from_retained_native_artifact(
+        root_path,
+        source_file_count,
+        artifact,
+        rollback_receipt,
+        production_subject,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])
+}
+
 fn validate_accepted_terminal_production_subject(
     report: &omega_compiler::CompileReport,
     evidence: &AcceptedOrdinaryClosureEvidence,

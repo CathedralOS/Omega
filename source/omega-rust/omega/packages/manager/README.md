@@ -18,6 +18,14 @@ manager/
 ```
 
 `operations` is the only owner of complete user or compiler workflows.
+Its package-aware native operation consumes a `PreparedLocalProject`, selects
+one exact target child, compiles the final production review, reconstructs its
+current initial conflict set, and recovers a caller-selected root-policy record
+only against that set. Accepted evidence then enters the manager-owned retained
+native route with a distinct receiving permission policy. Preparation retains
+the source closure needed for this handoff but neither discovers policy nor
+infers permissions. A root-policy file is required exactly when the fresh
+review has blocking rows.
 `declarations` reads the statically checked package declarations in
 `build.omg`; Omega has no second package manifest. `resolution` binds those
 declarations to immutable sources and reconciles one exact closure. `review`

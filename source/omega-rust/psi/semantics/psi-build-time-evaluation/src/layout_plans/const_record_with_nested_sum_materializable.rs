@@ -41,10 +41,16 @@ use super::{
 };
 use crate::layout_plans::ValidatedConstRecordWithSumMaterialization;
 
+mod depth_sixteen;
 mod derivation;
 mod report_identity;
 mod sum_reachability;
 
+pub use depth_sixteen::{
+    ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization,
+    ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization,
+    validate_const_materializable_record_with_depth_sixteen_nested_sums,
+};
 use derivation::*;
 use report_identity::*;
 pub(super) use sum_reachability::SumReachability;
