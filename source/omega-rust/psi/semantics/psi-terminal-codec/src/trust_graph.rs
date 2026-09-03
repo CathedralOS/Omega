@@ -450,7 +450,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::DenotationSchema)
                 .count(),
-            34
+            35
         );
         assert_eq!(
             graph
@@ -476,7 +476,19 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 53);
+        assert_eq!(OperationSemanticRow::ALL.len(), 54);
+        let descriptor_store = OperationSemanticRow::ALL
+            .iter()
+            .find(|row| row.tag() == OperationSemanticTag::StoreDynamicDescriptor)
+            .expect("stored dynamic descriptor row");
+        assert_eq!(
+            descriptor_store.identity(),
+            "schema:operation:store-dynamic-descriptor",
+        );
+        assert!(graph.nodes().iter().any(|node| {
+            node.identity() == descriptor_store.identity()
+                && node.kind() == TrustDependencyKind::DenotationSchema
+        }));
         let store = OperationSemanticRow::ALL
             .iter()
             .find(|row| row.tag() == OperationSemanticTag::WriteOnlyPrimitiveStore)
@@ -494,7 +506,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            43
+            44
         );
         assert_eq!(
             OperationSemanticRow::ALL

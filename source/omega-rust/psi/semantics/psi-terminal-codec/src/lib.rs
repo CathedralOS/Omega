@@ -106,7 +106,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 72;
+const FORMAT_MARKER: u16 = 73;
 const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
 const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -1550,6 +1550,21 @@ fn validate_operation_foundation(
             ) || !matches!(value, IntegerValue::Signed(value) if i64::try_from(*value).is_ok())
             {
                 return malformed("affine scalar record is not one exact signed-i64 field");
+            }
+        }
+        OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
+            if operation.result != OperationResult::Unit
+                || !module
+                    .dynamic_dispatch
+                    .stored_descriptors
+                    .iter()
+                    .any(|descriptor| {
+                        descriptor.owner == machine.id
+                            && descriptor.ordinal == *descriptor_ordinal
+                            && descriptor.establishment_operation == operation.id
+                    })
+            {
+                return malformed("dynamic descriptor storage has no exact catalog row");
             }
         }
         OperationKind::Call { .. } => {

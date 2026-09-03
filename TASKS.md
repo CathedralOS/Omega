@@ -9075,8 +9075,8 @@ Owners:
   laundering remain rejected. Terminal lowering independently replays the
   checked fact into one canonical declaration-only boundary content row with
   the exact callable, source/result places, lifetime ordinal, result nominal
-  and semantic domain, and both complete projections. The row is format-72,
-  vocabulary-75 semantic identity and cannot be called, selected as a provider,
+  and semantic domain, and both complete projections. The row is format-73,
+  vocabulary-76 semantic identity and cannot be called, selected as a provider,
   or mistaken for a Unit/scalar boundary result. Native-slot lowering, private
   snapshots, completion/reclamation, and provider backing remain later rungs.
 - Implement the narrow Windows `user32` canary without exposing a raw code
@@ -12504,8 +12504,17 @@ checked-result arithmetic decision listed below.
     original selected row map, exact destination local/field/path, statement
     coordinate, and complete scalar call plan in a separate stored-dispatch
     catalog. It is not represented as either a fresh selection or direct
-    devirtualization. Terminal two-word aggregate materialization, field reload,
-    verification, and native replay remain to be added. Do not extend local
+    devirtualization. That lineage now reaches verified Terminal Psi. A distinct
+    target-neutral descriptor-establishment operation names the exact aggregate
+    type, destination field, and prior selection; the later dynamic call reloads
+    the same dense descriptor ordinal. Checked-to-Terminal lowering replays the
+    local declaration and field identities from typed source, Terminal validation
+    requires establishment to dominate the call in the same block, canonical
+    encoding preserves both rows, and the interpreter executes the selected
+    realization through invocation-independent structural storage. Native
+    two-word aggregate layout, materialization, reload, and artifact replay remain
+    to be added; Terminal-to-Omega lowering rejects this operation explicitly
+    until that physical carrier exists. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a

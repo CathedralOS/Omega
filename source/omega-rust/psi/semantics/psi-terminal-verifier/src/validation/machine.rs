@@ -209,6 +209,7 @@ pub(super) fn validate_machine(
                     | OperationKind::PortWrite { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
+                    | OperationKind::StoreDynamicDescriptor { .. }
             ) {
                 if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
                     return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
@@ -279,6 +280,7 @@ pub(super) fn validate_machine(
                 | OperationKind::CallStructuralWithScalarArguments { .. }
                 | OperationKind::EstablishPayloadlessCase { .. }
                 | OperationKind::EstablishAffineScalarRecord { .. }
+                | OperationKind::StoreDynamicDescriptor { .. }
                 | OperationKind::PortWrite { .. }
                 | OperationKind::EstablishByteSequenceLiteral { .. }
                 | OperationKind::EstablishTrivialAffineLocal { .. } => {

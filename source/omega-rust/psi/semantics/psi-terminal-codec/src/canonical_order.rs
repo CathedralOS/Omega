@@ -112,6 +112,17 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     if !strictly_increasing(
         module
             .dynamic_dispatch
+            .stored_descriptors
+            .iter()
+            .map(|descriptor| (descriptor.owner, descriptor.ordinal)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "stored dynamic descriptors by owner and ordinal",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .dynamic_dispatch
             .indirect_dispatches
             .iter()
             .map(|dispatch| (dispatch.owner, dispatch.operation)),
@@ -129,6 +140,17 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     ) {
         return Err(CodecError::NonCanonicalOrder(
             "parameter dynamic dispatches by owner and operation",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .dynamic_dispatch
+            .stored_dispatches
+            .iter()
+            .map(|dispatch| (dispatch.owner, dispatch.operation)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "stored dynamic dispatches by owner and operation",
         ));
     }
     if !strictly_increasing(

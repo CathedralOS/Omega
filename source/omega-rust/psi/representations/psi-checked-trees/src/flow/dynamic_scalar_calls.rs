@@ -37,6 +37,8 @@ pub struct CheckedDynamicDispatchPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStoredDynamicScalarCallPlan {
     pub storage: crate::DynamicDescriptorStorageFact,
+    pub destination_type_identity: String,
+    pub destination_field_identity: String,
     pub call: CheckedDynamicScalarCallPlan,
 }
 

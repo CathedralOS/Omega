@@ -1250,9 +1250,25 @@ fn build_checked_dynamic_scalar_call(
         if rebound_from.is_some() || storage.selection != plan.selection {
             return None;
         }
+        let StatementNode::LocalData(destination) = statements.get(storage.statement_index)? else {
+            return None;
+        };
+        if destination.symbol != storage.destination_binding {
+            return None;
+        }
+        let destination_type_identity = program
+            .normalized_type_identity_with_binders(
+                destination.type_reference,
+                &machine_binders(program, machine),
+            )
+            .into_string();
+        let destination_field_identity =
+            terminal_field_identity(program, storage.destination_field)?;
         return Some(CheckedDynamicScalarCall::Stored(
             psi_checked_trees::CheckedStoredDynamicScalarCallPlan {
                 storage: storage.clone(),
+                destination_type_identity,
+                destination_field_identity,
                 call: plan,
             },
         ));

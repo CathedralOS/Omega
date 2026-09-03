@@ -1337,6 +1337,7 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
             &structural_arguments,
             &[TerminalStructuralBooleanFieldValue {
                 argument_index: 0,
+                path: Vec::new(),
                 field: ready.id,
                 value: ready_value,
             }],

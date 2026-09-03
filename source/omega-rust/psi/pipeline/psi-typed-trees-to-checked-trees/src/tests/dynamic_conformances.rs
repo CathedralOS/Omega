@@ -800,6 +800,8 @@ fn dynamic_storage_fact_retains_selection_and_exact_record_field_custody() {
         panic!("one stored dynamic scalar call plan expected, got {dynamic:#?}")
     };
     assert_eq!(stored_plan.storage, *storage);
+    assert!(stored_plan.destination_type_identity.contains("Holder"));
+    assert_eq!(stored_plan.destination_field_identity, "handler");
     assert_eq!(stored_plan.call.coordinate.statement_index, 2);
     assert_eq!(stored_plan.call.receiver_binding, erased.symbol);
     assert_eq!(stored_plan.call.result_binding, result.symbol);

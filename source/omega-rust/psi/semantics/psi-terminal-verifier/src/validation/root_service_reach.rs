@@ -54,15 +54,25 @@ pub(super) fn validate_root_service_reach_exact(
                     pending.push(*callee)
                 }
                 OperationKind::CallDynamicScalar { .. } => {
-                    let dispatch = module
+                    let realization = module
                         .dynamic_dispatch
                         .indirect_dispatches
                         .iter()
                         .find(|dispatch| {
                             dispatch.owner == machine.id && dispatch.operation == operation.id
                         })
+                        .map(|dispatch| dispatch.realization)
+                        .or_else(|| {
+                            module.dynamic_dispatch.stored_dispatches.iter().find_map(
+                                |dispatch| {
+                                    (dispatch.owner == machine.id
+                                        && dispatch.operation == operation.id)
+                                        .then_some(dispatch.realization)
+                                },
+                            )
+                        })
                         .expect("validated dynamic call has one dispatch row");
-                    pending.push(dispatch.realization);
+                    pending.push(realization);
                 }
                 OperationKind::BoundaryCall { boundary, .. } => {
                     let declaration = boundaries.get(boundary).copied().ok_or(

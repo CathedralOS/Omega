@@ -281,6 +281,9 @@ fn validate_exact_unit_plan(
     let (selection_statement_index, call_statement_index, initial) = match lane {
         DynamicLoweringLane::Direct => (0, 1, None),
         DynamicLoweringLane::Rebound(initial) => (1, 2, Some(initial)),
+        DynamicLoweringLane::Stored(_) => {
+            return unsupported("stored descriptor cannot enter Unit dynamic lowering");
+        }
     };
     if plan.selection.statement_index != selection_statement_index
         || plan.coordinate.statement_index != call_statement_index
@@ -654,8 +657,10 @@ fn lower_unit_call_custody(
                 arguments: Vec::new(),
                 selections: vec![latest_selection],
                 rebound_descriptors: Vec::new(),
+                stored_descriptors: Vec::new(),
                 direct_dispatches: Vec::new(),
                 indirect_dispatches: Vec::new(),
+                stored_dispatches: Vec::new(),
                 parameter_dispatches: Vec::new(),
             };
             let call_kind = if let Some(helper) = forwarded_helper {
@@ -752,8 +757,10 @@ fn lower_unit_call_custody(
                     initial_selection_ordinal: 0,
                     rebound_selection_ordinal: 1,
                 }],
+                stored_descriptors: Vec::new(),
                 direct_dispatches: Vec::new(),
                 indirect_dispatches: Vec::new(),
+                stored_dispatches: Vec::new(),
                 parameter_dispatches: Vec::new(),
             };
             let call_kind = if let Some(helper) = forwarded_helper {
@@ -811,6 +818,9 @@ fn lower_unit_call_custody(
                 }
             };
             (catalog, call_kind)
+        }
+        DynamicLoweringLane::Stored(_) => {
+            return unsupported("stored descriptor cannot enter Unit dynamic lowering");
         }
     })
 }

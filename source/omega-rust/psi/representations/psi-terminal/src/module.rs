@@ -29,7 +29,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        75
+        76
     }
 }
 
@@ -1845,6 +1845,13 @@ pub enum OperationKind {
     EstablishAffineScalarRecord {
         field: StructuralFieldId,
         value: IntegerValue,
+    },
+    /// Establish one already-selected two-word dynamic descriptor in the
+    /// exact aggregate field named by the module dynamic-dispatch catalog.
+    /// The specialized catalog owns aggregate shape and conformance custody;
+    /// later representation planning chooses physical local storage.
+    StoreDynamicDescriptor {
+        descriptor_ordinal: u32,
     },
     /// Invoke one in-module machine with positional scalar arguments. Each
     /// callee `requires` clause has the obligation identity at the same index;

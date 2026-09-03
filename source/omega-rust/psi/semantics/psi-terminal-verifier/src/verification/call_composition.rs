@@ -189,7 +189,7 @@ pub(super) fn compose_call_operation(
                 ..
             },
         ) => {
-            let dispatch = module
+            let indirect = module
                 .dynamic_dispatch
                 .indirect_dispatches
                 .iter()
@@ -197,27 +197,50 @@ pub(super) fn compose_call_operation(
                     dispatch.owner == machine.id
                         && dispatch.operation == operation.id
                         && dispatch.descriptor_ordinal == *descriptor_ordinal
-                })
-                .expect("validated dynamic call has one indirect dispatch row");
-            let descriptor = module
-                .dynamic_dispatch
-                .rebound_descriptors
-                .iter()
-                .find(|descriptor| {
-                    descriptor.owner == machine.id && descriptor.ordinal == *descriptor_ordinal
-                })
-                .expect("validated dynamic call has one descriptor row");
+                });
+            let stored = module.dynamic_dispatch.stored_dispatches.iter().find(|dispatch| {
+                dispatch.owner == machine.id
+                    && dispatch.operation == operation.id
+                    && dispatch.descriptor_ordinal == *descriptor_ordinal
+            });
+            let (realization, selection_ordinal) = match (indirect, stored) {
+                (Some(dispatch), None) => {
+                    let descriptor = module
+                        .dynamic_dispatch
+                        .rebound_descriptors
+                        .iter()
+                        .find(|descriptor| {
+                            descriptor.owner == machine.id
+                                && descriptor.ordinal == *descriptor_ordinal
+                        })
+                        .expect("validated dynamic call has one rebound descriptor row");
+                    (dispatch.realization, descriptor.rebound_selection_ordinal)
+                }
+                (None, Some(dispatch)) => {
+                    let descriptor = module
+                        .dynamic_dispatch
+                        .stored_descriptors
+                        .iter()
+                        .find(|descriptor| {
+                            descriptor.owner == machine.id
+                                && descriptor.ordinal == *descriptor_ordinal
+                        })
+                        .expect("validated dynamic call has one stored descriptor row");
+                    (dispatch.realization, descriptor.selection_ordinal)
+                }
+                _ => unreachable!("validated dynamic call has one dispatch lane"),
+            };
             let selection = module
                 .dynamic_dispatch
                 .selections
                 .iter()
                 .find(|selection| {
                     selection.owner == machine.id
-                        && selection.ordinal == descriptor.rebound_selection_ordinal
+                        && selection.ordinal == selection_ordinal
                 })
-                .expect("validated dynamic descriptor has one latest selection");
+                .expect("validated dynamic descriptor has one selected source");
             let callee = machines
-                .get(&dispatch.realization)
+                .get(&realization)
                 .copied()
                 .expect("validated dynamic realization exists");
             compose_structural_scalar_call(

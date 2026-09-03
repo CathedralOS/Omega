@@ -526,6 +526,8 @@ pub(super) fn validate_dynamic_dispatches(
             ));
         }
     }
+    let (stored_dispatch_coordinates, consumed_stored_descriptors) =
+        validate_stored_dynamic_dispatches(module, machines, selections, &mut consumed_selections)?;
     consumed_descriptors.extend(validate_dynamic_descriptor_arguments(
         module,
         machines,
@@ -554,14 +556,39 @@ pub(super) fn validate_dynamic_dispatches(
             });
         }
     }
+    for descriptor in &module.dynamic_dispatch.stored_descriptors {
+        if !consumed_stored_descriptors.contains(&(descriptor.owner, descriptor.ordinal)) {
+            return Err(ModuleError::OrphanStoredDynamicDescriptor {
+                owner: descriptor.owner,
+                ordinal: descriptor.ordinal,
+            });
+        }
+    }
     for machine in module.machines.iter() {
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             if matches!(
                 operation.kind,
                 OperationKind::CallDynamicScalar { .. } | OperationKind::CallDynamicUnit { .. }
             ) && !indirect_coordinates.contains(&(machine.id, operation.id))
+                && !stored_dispatch_coordinates.contains(&(machine.id, operation.id))
             {
                 return Err(invalid_indirect_dispatch(machine.id, operation.id));
+            }
+            if matches!(operation.kind, OperationKind::StoreDynamicDescriptor { .. })
+                && !module.dynamic_dispatch.stored_descriptors.iter().any(|descriptor| {
+                    descriptor.owner == machine.id
+                        && descriptor.establishment_operation == operation.id
+                })
+            {
+                return Err(ModuleError::InvalidStoredDynamicDescriptor {
+                    owner: machine.id,
+                    ordinal: match operation.kind {
+                        OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
+                            descriptor_ordinal
+                        }
+                        _ => unreachable!(),
+                    },
+                });
             }
         }
     }
@@ -574,6 +601,283 @@ pub(super) fn validate_dynamic_dispatches(
         }
     }
     Ok(())
+}
+
+fn validate_stored_dynamic_dispatches(
+    module: &TerminalModule,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    selections: &[psi_terminal::TerminalDynamicConformanceSelection],
+    consumed_selections: &mut BTreeSet<(MachineId, u32)>,
+) -> Result<
+    (
+        BTreeSet<(MachineId, OperationId)>,
+        BTreeSet<(MachineId, u32)>,
+    ),
+    ModuleError,
+> {
+    let descriptors = &module.dynamic_dispatch.stored_descriptors;
+    let mut descriptor_coordinates = BTreeSet::new();
+    let mut establishment_coordinates = BTreeSet::new();
+    let mut expected_ordinals = BTreeMap::<MachineId, u32>::new();
+    if !descriptors
+        .windows(2)
+        .all(|pair| (pair[0].owner, pair[0].ordinal) < (pair[1].owner, pair[1].ordinal))
+    {
+        return Err(ModuleError::NonCanonicalStoredDynamicDescriptorOrder);
+    }
+    for descriptor in descriptors {
+        if !descriptor_coordinates.insert((descriptor.owner, descriptor.ordinal))
+            || !establishment_coordinates
+                .insert((descriptor.owner, descriptor.establishment_operation))
+            || module.dynamic_dispatch.rebound_descriptors.iter().any(|rebound| {
+                rebound.owner == descriptor.owner && rebound.ordinal == descriptor.ordinal
+            })
+        {
+            return Err(ModuleError::DuplicateStoredDynamicDescriptor {
+                owner: descriptor.owner,
+                ordinal: descriptor.ordinal,
+            });
+        }
+        let expected = expected_ordinals.entry(descriptor.owner).or_default();
+        if descriptor.ordinal != *expected {
+            return Err(ModuleError::NonDenseStoredDynamicDescriptor {
+                owner: descriptor.owner,
+                expected: *expected,
+                actual: descriptor.ordinal,
+            });
+        }
+        *expected = expected.checked_add(1).ok_or(
+            ModuleError::InvalidStoredDynamicDescriptor {
+                owner: descriptor.owner,
+                ordinal: descriptor.ordinal,
+            },
+        )?;
+        let selection_count = selections
+            .iter()
+            .filter(|selection| {
+                selection.owner == descriptor.owner
+                    && selection.ordinal == descriptor.selection_ordinal
+            })
+            .count();
+        let Some(caller) = machines.get(&descriptor.owner).copied() else {
+            return Err(ModuleError::InvalidStoredDynamicDescriptor {
+                owner: descriptor.owner,
+                ordinal: descriptor.ordinal,
+            });
+        };
+        let establishments = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| operation.id == descriptor.establishment_operation)
+            .collect::<Vec<_>>();
+        let [establishment] = establishments.as_slice() else {
+            return Err(ModuleError::InvalidStoredDynamicDescriptor {
+                owner: descriptor.owner,
+                ordinal: descriptor.ordinal,
+            });
+        };
+        if selection_count != 1
+            || descriptor.aggregate_type_identity.is_empty()
+            || descriptor.field_identity.is_empty()
+            || !matches!(
+                (&establishment.kind, &establishment.result),
+                (
+                    OperationKind::StoreDynamicDescriptor { descriptor_ordinal },
+                    OperationResult::Unit,
+                ) if *descriptor_ordinal == descriptor.ordinal
+            )
+        {
+            return Err(ModuleError::InvalidStoredDynamicDescriptor {
+                owner: descriptor.owner,
+                ordinal: descriptor.ordinal,
+            });
+        }
+    }
+
+    let dispatches = &module.dynamic_dispatch.stored_dispatches;
+    let mut dispatch_coordinates = BTreeSet::new();
+    if !dispatches
+        .windows(2)
+        .all(|pair| (pair[0].owner, pair[0].operation) < (pair[1].owner, pair[1].operation))
+    {
+        return Err(ModuleError::NonCanonicalStoredDynamicDispatchOrder);
+    }
+    let mut consumed_descriptors = BTreeSet::new();
+    for dispatch in dispatches {
+        if !dispatch_coordinates.insert((dispatch.owner, dispatch.operation)) {
+            return Err(ModuleError::DuplicateStoredDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            });
+        }
+        let matching_descriptors = descriptors
+            .iter()
+            .filter(|descriptor| {
+                descriptor.owner == dispatch.owner
+                    && descriptor.ordinal == dispatch.descriptor_ordinal
+            })
+            .collect::<Vec<_>>();
+        let [descriptor] = matching_descriptors.as_slice() else {
+            return Err(ModuleError::InvalidStoredDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            });
+        };
+        let selection = selections
+            .iter()
+            .find(|selection| {
+                selection.owner == descriptor.owner
+                    && selection.ordinal == descriptor.selection_ordinal
+            })
+            .ok_or(ModuleError::InvalidStoredDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            })?;
+        let applications = module
+            .closed_conformance_applications
+            .iter()
+            .filter(|application| {
+                application.owner == selection.owner
+                    && application.report_fingerprint
+                        == selection.conformance_application_report_fingerprint
+                    && application.commitment == selection.conformance_application_commitment
+            })
+            .collect::<Vec<_>>();
+        let [application] = applications.as_slice() else {
+            return Err(ModuleError::InvalidStoredDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            });
+        };
+        let rows = application
+            .rows
+            .iter()
+            .filter(|row| {
+                row.declaring_trait_identity == dispatch.declaring_trait_identity
+                    && row.public_requirement_identity == dispatch.public_requirement_identity
+                    && row.requirement_identity == dispatch.requirement_identity
+                    && row.realization_identity == dispatch.realization_identity
+                    && row.realization_callable_identity.as_deref()
+                        == Some(dispatch.realization_callable_identity.as_str())
+            })
+            .count();
+        let callables = application
+            .realization_callables
+            .iter()
+            .filter(|callable| {
+                callable.source_callable_identity == dispatch.realization_callable_identity
+                    && callable.machine == dispatch.realization
+            })
+            .count();
+        let Some(caller) = machines.get(&dispatch.owner).copied() else {
+            return Err(ModuleError::InvalidStoredDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            });
+        };
+        let Some(realization) = machines.get(&dispatch.realization).copied() else {
+            return Err(ModuleError::InvalidStoredDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            });
+        };
+        let operation = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| operation.id == dispatch.operation)
+            .collect::<Vec<_>>();
+        let [operation] = operation.as_slice() else {
+            return Err(ModuleError::InvalidStoredDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            });
+        };
+        let ordered_in_one_block = caller.blocks.iter().any(|block| {
+            let establishment = block
+                .operations
+                .iter()
+                .position(|operation| operation.id == descriptor.establishment_operation);
+            let call = block
+                .operations
+                .iter()
+                .position(|operation| operation.id == dispatch.operation);
+            establishment.zip(call).is_some_and(|(store, call)| store < call)
+        });
+        let exact_call = matches!(
+            (&operation.kind, &operation.result, &realization.result),
+            (
+                OperationKind::CallDynamicScalar {
+                    descriptor_ordinal,
+                    requirement_obligations,
+                    crash_continuations,
+                },
+                OperationResult::Scalar(operation_result),
+                TerminalMachineResult::Scalar(callable_result),
+            ) if *descriptor_ordinal == dispatch.descriptor_ordinal
+                && operation_result.scalar_type == callable_result.scalar_type
+                && requirement_obligations.is_empty()
+                && crash_continuations.is_empty()
+        );
+        let source_type = dynamic_source_type_identity(module, machines, selection);
+        let realization_source_type = realization
+            .structural_parameters
+            .as_slice()
+            .first()
+            .and_then(|parameter| {
+                (realization.structural_parameters.len() == 1).then_some(parameter.structural_type)
+            })
+            .and_then(|structural_type| {
+                module
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == structural_type)
+            })
+            .map(|declaration| declaration.identity.as_str());
+        validate_structural_arguments(
+            module,
+            caller,
+            std::slice::from_ref(&selection.source),
+            &realization.structural_parameters,
+            dispatch.operation,
+            true,
+            super::structural_operations::StructuralArgumentSourcePolicy::ParametersOnly,
+        )?;
+        if !ordered_in_one_block
+            || !exact_call
+            || rows != 1
+            || callables != 1
+            || source_type.as_deref() != application.subject_identity.as_deref()
+            || source_type.as_deref() != realization_source_type
+            || !realization.parameters.is_empty()
+            || !realization.contract.requires.is_empty()
+            || !realization.contract.ensures.is_empty()
+            || !realization.contract.outcome_specific_ensures.is_empty()
+            || !realization.contract.crash_routes.is_empty()
+            || !realization.entry_claims.is_empty()
+            || !realization.content_entry_claims.is_empty()
+            || !realization.content_identity_reshuffles.is_empty()
+            || !realization.content_partition_compositions.is_empty()
+            || realization
+                .published_service_ceiling
+                .iter()
+                .any(|service| !caller.published_service_ceiling.contains(service))
+            || dispatch.declaring_trait_identity.is_empty()
+            || dispatch.public_requirement_identity.is_empty()
+            || dispatch.requirement_identity.is_empty()
+            || dispatch.realization_identity.is_empty()
+            || dispatch.realization_callable_identity.is_empty()
+            || !consumed_descriptors.insert((dispatch.owner, dispatch.descriptor_ordinal))
+        {
+            return Err(ModuleError::InvalidStoredDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            });
+        }
+        consumed_selections.insert((selection.owner, selection.ordinal));
+    }
+    Ok((dispatch_coordinates, consumed_descriptors))
 }
 
 fn validate_dynamic_descriptor_parameters(

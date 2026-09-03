@@ -1242,6 +1242,9 @@ pub fn lower_machine(
         SelectedMachineRoute::ReboundDynamicComposedUnit {
             realization_machine,
         } => vec![selection.machine, realization_machine],
+        SelectedMachineRoute::StoredDynamicComposedUnit {
+            realization_machine,
+        } => vec![selection.machine, realization_machine],
         SelectedMachineRoute::UnitEffect => {
             let mut closure = checked_unit_call_closure_including(checked, selection.machine, &[])?;
             let mut structural_realizations = Vec::new();
@@ -1365,6 +1368,7 @@ pub fn lower_machine(
     if matches!(
         route,
         SelectedMachineRoute::DirectDynamicComposedUnit { .. }
+            | SelectedMachineRoute::StoredDynamicComposedUnit { .. }
     ) {
         if lowered
             .semantic_module

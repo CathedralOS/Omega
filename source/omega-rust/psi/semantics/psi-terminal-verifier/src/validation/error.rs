@@ -100,12 +100,39 @@ pub enum ModuleError {
         owner: MachineId,
         ordinal: u32,
     },
+    NonCanonicalStoredDynamicDescriptorOrder,
+    DuplicateStoredDynamicDescriptor {
+        owner: MachineId,
+        ordinal: u32,
+    },
+    NonDenseStoredDynamicDescriptor {
+        owner: MachineId,
+        expected: u32,
+        actual: u32,
+    },
+    InvalidStoredDynamicDescriptor {
+        owner: MachineId,
+        ordinal: u32,
+    },
+    OrphanStoredDynamicDescriptor {
+        owner: MachineId,
+        ordinal: u32,
+    },
     NonCanonicalIndirectDynamicDispatchOrder,
     DuplicateIndirectDynamicDispatch {
         owner: MachineId,
         operation: OperationId,
     },
     InvalidIndirectDynamicDispatch {
+        owner: MachineId,
+        operation: OperationId,
+    },
+    NonCanonicalStoredDynamicDispatchOrder,
+    DuplicateStoredDynamicDispatch {
+        owner: MachineId,
+        operation: OperationId,
+    },
+    InvalidStoredDynamicDispatch {
         owner: MachineId,
         operation: OperationId,
     },
