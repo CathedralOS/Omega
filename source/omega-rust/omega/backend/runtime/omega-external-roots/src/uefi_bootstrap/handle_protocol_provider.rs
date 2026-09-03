@@ -2,25 +2,23 @@
 //!
 //! This rung joins the System Table's private BootServices pointer to one
 //! exact, CRC-validated `EFI_BOOT_SERVICES` occurrence and its target-owned
-//! `HandleProtocol` row. A provider-success admission can then establish
-//! Loaded Image base/size correspondence for the exact physical image-handle
-//! occurrence. The exact physical handle, Loaded Image GUID, service address,
-//! and one zeroed interface-output slot can now be sealed as concrete call
-//! operands. No raw pointer is publicly exposed or invoked here, and no
-//! `Extent`, semantic root, shell, adapter, installation, or native execution
-//! is created.
+//! `HandleProtocol` row. The exact physical handle, Loaded Image GUID, service
+//! address, and one zeroed interface-output slot are sealed as concrete call
+//! operands. A target-runtime-only execution edge invokes that exact function
+//! and retains its status and output before the target-owned Loaded Image
+//! layout may derive image geometry. No raw pointer is publicly exposed, and
+//! no `Extent`, semantic root, shell, adapter, or installation is created.
 
 use std::num::NonZeroU64;
 
 use omega_calling_conventions::MachineRegister;
 use omega_program_entry_plan::{
-    UefiHandleProtocolInvocationPlan, UefiHandleProtocolStatus,
-    plan_uefi_handle_protocol_invocation,
+    UefiHandleProtocolInvocationPlan, plan_uefi_handle_protocol_invocation,
 };
 use omega_target::{
     TargetProfile, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
     UefiBootServicesNativeFieldLayout, ValidatedUefiBootServicesHeaderIntegrity,
-    plan_uefi_boot_services_native_layout,
+    ValidatedUefiLoadedImageGeometry, plan_uefi_boot_services_native_layout,
 };
 pub use omega_target::{UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiProtocolGuid};
 
@@ -37,6 +35,9 @@ const HANDLE_PROTOCOL_FIELD_ORDINAL: u8 = 21;
 const HANDLE_PROTOCOL_FIELD_OFFSET: u32 = 152;
 const HANDLE_PROTOCOL_FIELD_SIZE: u32 = 8;
 const HANDLE_PROTOCOL_FIELD_ALIGNMENT: u32 = 8;
+
+mod execution;
+pub use execution::*;
 
 /// Exact Boot Services occurrence and private `HandleProtocol` slot retained
 /// beneath the physical-arrival lease. The carrier is non-clone and exposes
@@ -380,7 +381,7 @@ pub struct BoundUefiHandleProtocolInvocation<'system_table, 'boot_services, 'out
     _handle: NonZeroU64,
     _service: NonZeroU64,
     protocol: &'static UefiProtocolGuid,
-    interface_output: &'output mut u64,
+    interface_output: &'output mut UefiHandleProtocolInterfaceOutputSlot,
 }
 
 impl std::fmt::Debug for BoundUefiHandleProtocolInvocation<'_, '_, '_> {
@@ -430,7 +431,7 @@ impl BoundUefiHandleProtocolInvocation<'_, '_, '_> {
 #[must_use = "UEFI HandleProtocol operand rejection retains provider and output-slot custody"]
 pub struct UefiHandleProtocolInvocationBindingError<'system_table, 'boot_services, 'output> {
     invocation: PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
-    interface_output: &'output mut u64,
+    interface_output: &'output mut UefiHandleProtocolInterfaceOutputSlot,
     diagnostic: ExternalRootDiagnostic,
 }
 
@@ -445,7 +446,7 @@ impl<'system_table, 'boot_services, 'output>
         self,
     ) -> (
         PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
-        &'output mut u64,
+        &'output mut UefiHandleProtocolInterfaceOutputSlot,
         ExternalRootDiagnostic,
     ) {
         (self.invocation, self.interface_output, self.diagnostic)
@@ -466,7 +467,7 @@ impl std::error::Error for UefiHandleProtocolInvocationBindingError<'_, '_, '_> 
 /// consuming either input.
 pub fn bind_uefi_loaded_image_handle_protocol_invocation<'system_table, 'boot_services, 'output>(
     invocation: PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
-    interface_output: &'output mut u64,
+    interface_output: &'output mut UefiHandleProtocolInterfaceOutputSlot,
 ) -> Result<
     BoundUefiHandleProtocolInvocation<'system_table, 'boot_services, 'output>,
     Box<UefiHandleProtocolInvocationBindingError<'system_table, 'boot_services, 'output>>,
@@ -502,7 +503,7 @@ pub fn bind_uefi_loaded_image_handle_protocol_invocation<'system_table, 'boot_se
             "UEFI HandleProtocol operand binding requires the exact physical image-handle value",
         );
     };
-    if *interface_output != 0 {
+    if !interface_output.is_empty() {
         return reject(
             invocation,
             interface_output,
@@ -528,36 +529,12 @@ pub fn bind_uefi_loaded_image_handle_protocol_invocation<'system_table, 'boot_se
     })
 }
 
-/// Closed provider outcome admitted for the exact Loaded Image query.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UefiHandleProtocolLoadedImageOutcome {
-    Success {
-        interface_address: u64,
-        image_base: u64,
-        image_size: u64,
-    },
-    Unsupported,
-    InvalidParameter,
-}
-
-impl UefiHandleProtocolLoadedImageOutcome {
-    pub const fn status(self) -> UefiHandleProtocolStatus {
-        match self {
-            Self::Success { .. } => UefiHandleProtocolStatus::Success,
-            Self::Unsupported => UefiHandleProtocolStatus::Unsupported,
-            Self::InvalidParameter => UefiHandleProtocolStatus::InvalidParameter,
-        }
-    }
-}
-
-/// Non-root correspondence established by one admitted successful provider
-/// outcome for the exact physical image handle and Loaded Image GUID.
+/// Non-root correspondence established only from one executed successful
+/// provider call for the exact physical image handle and Loaded Image GUID.
 #[must_use = "Loaded Image correspondence retains HandleProtocol provider and physical custody"]
 pub struct LifecycleScopedUefiLoadedImageCorrespondence<'system_table, 'boot_services, 'output> {
-    invocation: BoundUefiHandleProtocolInvocation<'system_table, 'boot_services, 'output>,
-    _interface_address: NonZeroU64,
-    image_base: NonZeroU64,
-    image_size: NonZeroU64,
+    execution: ExecutedUefiHandleProtocolInvocation<'system_table, 'boot_services, 'output>,
+    geometry: ValidatedUefiLoadedImageGeometry,
 }
 
 impl std::fmt::Debug for LifecycleScopedUefiLoadedImageCorrespondence<'_, '_, '_> {
@@ -574,136 +551,23 @@ impl std::fmt::Debug for LifecycleScopedUefiLoadedImageCorrespondence<'_, '_, '_
 
 impl LifecycleScopedUefiLoadedImageCorrespondence<'_, '_, '_> {
     pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
-        self.invocation.physical_invocation()
+        self.execution.physical_invocation()
     }
     pub const fn image_handle_occurrence(&self) -> UefiImageHandleOccurrenceId {
-        self.invocation.image_handle_occurrence()
+        self.execution.image_handle_occurrence()
     }
     pub const fn protocol(&self) -> UefiProtocolGuid {
         UEFI_LOADED_IMAGE_PROTOCOL_GUID
     }
     pub const fn image_base(&self) -> u64 {
-        self.image_base.get()
+        self.geometry.image_base()
     }
     pub const fn image_size(&self) -> u64 {
-        self.image_size.get()
+        self.geometry.image_size()
     }
     pub const fn image_end_exclusive(&self) -> u64 {
-        self.image_base.get() + self.image_size.get()
+        self.geometry.image_end_exclusive()
     }
-}
-
-#[derive(Debug)]
-#[must_use = "UEFI HandleProtocol call rejection retains provider custody"]
-pub struct UefiHandleProtocolLoadedImageCallError<'system_table, 'boot_services, 'output> {
-    invocation: BoundUefiHandleProtocolInvocation<'system_table, 'boot_services, 'output>,
-    outcome: UefiHandleProtocolLoadedImageOutcome,
-    diagnostic: ExternalRootDiagnostic,
-}
-impl<'system_table, 'boot_services, 'output>
-    UefiHandleProtocolLoadedImageCallError<'system_table, 'boot_services, 'output>
-{
-    pub const fn outcome(&self) -> UefiHandleProtocolLoadedImageOutcome {
-        self.outcome
-    }
-    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
-        &self.diagnostic
-    }
-    pub fn into_parts(
-        self,
-    ) -> (
-        BoundUefiHandleProtocolInvocation<'system_table, 'boot_services, 'output>,
-        UefiHandleProtocolLoadedImageOutcome,
-        ExternalRootDiagnostic,
-    ) {
-        (self.invocation, self.outcome, self.diagnostic)
-    }
-}
-impl std::fmt::Display for UefiHandleProtocolLoadedImageCallError<'_, '_, '_> {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
-impl std::error::Error for UefiHandleProtocolLoadedImageCallError<'_, '_, '_> {}
-
-/// Consume one prepared provider occurrence and admit its exact Loaded Image
-/// result. Success validates non-null, nonempty, non-wrapping geometry; all
-/// other outcomes return the complete bound invocation for retry or release.
-pub fn admit_uefi_loaded_image_handle_protocol_outcome<'system_table, 'boot_services, 'output>(
-    invocation: BoundUefiHandleProtocolInvocation<'system_table, 'boot_services, 'output>,
-    outcome: UefiHandleProtocolLoadedImageOutcome,
-) -> Result<
-    LifecycleScopedUefiLoadedImageCorrespondence<'system_table, 'boot_services, 'output>,
-    Box<UefiHandleProtocolLoadedImageCallError<'system_table, 'boot_services, 'output>>,
-> {
-    let UefiHandleProtocolLoadedImageOutcome::Success {
-        interface_address,
-        image_base,
-        image_size,
-    } = outcome
-    else {
-        return reject_call(
-            invocation,
-            outcome,
-            "UEFI HandleProtocol did not return Loaded Image correspondence",
-        );
-    };
-    let Some(interface_address) = NonZeroU64::new(interface_address) else {
-        return reject_call(
-            invocation,
-            outcome,
-            "UEFI HandleProtocol success returned a null Loaded Image interface",
-        );
-    };
-    if *invocation.interface_output != interface_address.get() {
-        return reject_call(
-            invocation,
-            outcome,
-            "UEFI HandleProtocol success does not match the retained interface-output slot",
-        );
-    }
-    let Some(image_base) = NonZeroU64::new(image_base) else {
-        return reject_call(
-            invocation,
-            outcome,
-            "UEFI Loaded Image success returned a null image base",
-        );
-    };
-    let Some(image_size) = NonZeroU64::new(image_size) else {
-        return reject_call(
-            invocation,
-            outcome,
-            "UEFI Loaded Image success returned an empty image",
-        );
-    };
-    if image_base.get().checked_add(image_size.get()).is_none() {
-        return reject_call(
-            invocation,
-            outcome,
-            "UEFI Loaded Image geometry wraps the u64 address carrier",
-        );
-    }
-    Ok(LifecycleScopedUefiLoadedImageCorrespondence {
-        invocation,
-        _interface_address: interface_address,
-        image_base,
-        image_size,
-    })
-}
-
-fn reject_call<'system_table, 'boot_services, 'output>(
-    invocation: BoundUefiHandleProtocolInvocation<'system_table, 'boot_services, 'output>,
-    outcome: UefiHandleProtocolLoadedImageOutcome,
-    message: impl Into<String>,
-) -> Result<
-    LifecycleScopedUefiLoadedImageCorrespondence<'system_table, 'boot_services, 'output>,
-    Box<UefiHandleProtocolLoadedImageCallError<'system_table, 'boot_services, 'output>>,
-> {
-    Err(Box::new(UefiHandleProtocolLoadedImageCallError {
-        invocation,
-        outcome,
-        diagnostic: ExternalRootDiagnostic(message.into()),
-    }))
 }
 
 #[derive(Debug)]
@@ -783,7 +647,17 @@ impl<'system_table> UefiApplicationFirmwareLedger<'system_table> {
         ReleasedUefiSystemTableScope,
         Box<UefiHandleProtocolProviderReleaseError<'system_table, 'boot_services>>,
     > {
-        self.release_bound_uefi_handle_protocol_invocation(correspondence.invocation)
+        self.release_executed_uefi_handle_protocol_invocation(correspondence.execution)
+    }
+
+    pub fn release_executed_uefi_handle_protocol_invocation<'boot_services, 'output>(
+        &mut self,
+        execution: ExecutedUefiHandleProtocolInvocation<'system_table, 'boot_services, 'output>,
+    ) -> Result<
+        ReleasedUefiSystemTableScope,
+        Box<UefiHandleProtocolProviderReleaseError<'system_table, 'boot_services>>,
+    > {
+        self.release_bound_uefi_handle_protocol_invocation(execution.invocation)
     }
 
     pub fn release_bound_uefi_handle_protocol_invocation<'boot_services, 'output>(
@@ -820,14 +694,61 @@ mod tests {
     use omega_program_entry_plan::{
         ProgramEntryPhysicalContractPlan, UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
         UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, UEFI_X64_STATUS_TYPE_IDENTITY,
-        UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, exact_uefi_x64_physical_boundary_entry_plan,
+        UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, UefiHandleProtocolStatus,
+        exact_uefi_x64_physical_boundary_entry_plan,
         exact_uefi_x64_physical_contract_package_source_digest,
     };
     use omega_target::{
         ProgramEntryPhysicalContractPackage, UEFI_BOOT_SERVICES_SIGNATURE,
-        UEFI_SYSTEM_TABLE_SIGNATURE, plan_uefi_system_table_native_layout,
-        validate_uefi_boot_services_occurrence, validate_uefi_system_table_occurrence,
+        UEFI_LOADED_IMAGE_PROTOCOL_REVISION, UEFI_SYSTEM_TABLE_SIGNATURE,
+        plan_uefi_system_table_native_layout, validate_uefi_boot_services_occurrence,
+        validate_uefi_system_table_occurrence,
     };
+    use std::ffi::c_void;
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+
+    static FIRMWARE_TEST_LOCK: Mutex<()> = Mutex::new(());
+    static FAKE_STATUS: AtomicU64 = AtomicU64::new(0);
+    static FAKE_INTERFACE: AtomicUsize = AtomicUsize::new(0);
+    static OBSERVED_HANDLE: AtomicUsize = AtomicUsize::new(0);
+    static OBSERVED_PROTOCOL_DATA1: AtomicU64 = AtomicU64::new(0);
+    static OBSERVED_OUTPUT_SLOT: AtomicUsize = AtomicUsize::new(0);
+
+    unsafe extern "efiapi" fn fake_handle_protocol(
+        handle: *mut c_void,
+        protocol: *const UefiProtocolGuid,
+        interface: *mut *mut c_void,
+    ) -> u64 {
+        OBSERVED_HANDLE.store(handle as usize, Ordering::SeqCst);
+        OBSERVED_OUTPUT_SLOT.store(interface as usize, Ordering::SeqCst);
+        // SAFETY: execution tests invoke the fake only with the exact static
+        // GUID pointer retained by the bound carrier.
+        let data1 = unsafe { (*protocol).data1 };
+        OBSERVED_PROTOCOL_DATA1.store(u64::from(data1), Ordering::SeqCst);
+        let output = FAKE_INTERFACE.load(Ordering::SeqCst) as *mut c_void;
+        // SAFETY: the bound carrier passes its live opaque output slot.
+        unsafe { *interface = output };
+        FAKE_STATUS.load(Ordering::SeqCst)
+    }
+
+    #[repr(align(8))]
+    struct LoadedImageBytes([u8; 96]);
+
+    #[repr(align(8))]
+    struct MisalignedLoadedImageBytes([u8; 97]);
+
+    fn loaded_image_bytes(image_base: u64, image_size: u64) -> Box<LoadedImageBytes> {
+        let mut bytes = Box::new(LoadedImageBytes([0; 96]));
+        bytes.0[0..4].copy_from_slice(&UEFI_LOADED_IMAGE_PROTOCOL_REVISION.to_le_bytes());
+        bytes.0[64..72].copy_from_slice(&image_base.to_le_bytes());
+        bytes.0[72..80].copy_from_slice(&image_size.to_le_bytes());
+        bytes
+    }
+
+    fn fake_handle_protocol_address() -> u64 {
+        fake_handle_protocol as *const () as usize as u64
+    }
 
     fn id<T>(value: u64, constructor: impl FnOnce(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
         constructor(value).unwrap()
@@ -936,41 +857,60 @@ mod tests {
         .unwrap()
     }
 
-    #[test]
-    fn exact_handle_protocol_success_establishes_non_root_loaded_image_correspondence() {
-        let boot_address = 0x401000;
-        let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
-        let boot = table(UEFI_BOOT_SERVICES_SIGNATURE, 376, 152, 0x402000);
-        let mut ledger = ledger(10);
-        let projection = projection(&mut ledger, &system, 20);
+    fn bound_invocation<'system_table, 'boot_services, 'output>(
+        ledger: &mut UefiApplicationFirmwareLedger<'system_table>,
+        system: &'system_table [u8],
+        boot: &'boot_services [u8],
+        base: u64,
+        boot_address: u64,
+        interface_output: &'output mut UefiHandleProtocolInterfaceOutputSlot,
+    ) -> BoundUefiHandleProtocolInvocation<'system_table, 'boot_services, 'output> {
+        let projection = projection(ledger, system, base);
         let integrity = validate_uefi_boot_services_occurrence(
             plan_uefi_boot_services_native_layout(TargetProfile::UefiX64).unwrap(),
-            &boot,
+            boot,
         )
         .unwrap();
         let provider = join_lifecycle_scoped_uefi_handle_protocol_provider(
-            &ledger,
+            ledger,
             projection,
             integrity,
             id(
-                23,
+                base + 3,
                 UefiBootServicesTableOccurrenceId::from_normalized_identity,
             ),
             NonZeroU64::new(boot_address).unwrap(),
         )
         .unwrap();
-        assert_eq!(provider.field_byte_offset(), 152);
-        assert_eq!(provider.protocol(), UEFI_LOADED_IMAGE_PROTOCOL_GUID);
         let invocation = prepare_uefi_loaded_image_handle_protocol_invocation(provider).unwrap();
-        assert_eq!(
-            invocation.service_identity(),
-            omega_program_entry_plan::UEFI_HANDLE_PROTOCOL_SERVICE_IDENTITY
+        bind_uefi_loaded_image_handle_protocol_invocation(invocation, interface_output).unwrap()
+    }
+
+    #[test]
+    fn exact_handle_protocol_success_establishes_non_root_loaded_image_correspondence() {
+        let _firmware = FIRMWARE_TEST_LOCK.lock().unwrap();
+        let boot_address = 0x401000;
+        let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
+        let boot = table(
+            UEFI_BOOT_SERVICES_SIGNATURE,
+            376,
+            152,
+            fake_handle_protocol_address(),
         );
-        assert!(invocation.plan().matches_exact_uefi_x64_plan());
-        let mut interface_output = 0;
-        let invocation =
-            bind_uefi_loaded_image_handle_protocol_invocation(invocation, &mut interface_output)
-                .unwrap();
+        let loaded_image = loaded_image_bytes(0x100000, 0x20000);
+        FAKE_STATUS.store(0, Ordering::SeqCst);
+        FAKE_INTERFACE.store(loaded_image.0.as_ptr() as usize, Ordering::SeqCst);
+        let mut ledger = ledger(10);
+        let mut interface_output = UefiHandleProtocolInterfaceOutputSlot::empty();
+        let output_slot_address = (&raw mut interface_output.0) as usize;
+        let invocation = bound_invocation(
+            &mut ledger,
+            &system,
+            &boot,
+            20,
+            boot_address,
+            &mut interface_output,
+        );
         assert_eq!(
             invocation.argument_destinations(),
             [
@@ -980,21 +920,30 @@ mod tests {
             ]
         );
         assert_eq!(invocation._handle.get(), 0x1000_0014);
-        assert_eq!(invocation._service.get(), 0x402000);
+        assert_eq!(invocation._service.get(), fake_handle_protocol_address());
         assert!(std::ptr::eq(
             invocation.protocol,
             &UEFI_LOADED_IMAGE_PROTOCOL_GUID
         ));
-        *invocation.interface_output = 0x403000;
-        let loaded = admit_uefi_loaded_image_handle_protocol_outcome(
-            invocation,
-            UefiHandleProtocolLoadedImageOutcome::Success {
-                interface_address: 0x403000,
-                image_base: 0x100000,
-                image_size: 0x20000,
-            },
-        )
-        .unwrap();
+        // SAFETY: the fake service and retained handle satisfy the executor's
+        // test contract, and `loaded_image` remains live through admission.
+        let execution = unsafe { execute_uefi_loaded_image_handle_protocol(invocation) }.unwrap();
+        assert_eq!(
+            execution.status(),
+            UefiHandleProtocolExecutionStatus::Success
+        );
+        assert_eq!(execution.status_code(), 0);
+        assert!(!execution.interface_output_is_null());
+        assert_eq!(OBSERVED_HANDLE.load(Ordering::SeqCst), 0x1000_0014);
+        assert_eq!(
+            OBSERVED_PROTOCOL_DATA1.load(Ordering::SeqCst),
+            u64::from(UEFI_LOADED_IMAGE_PROTOCOL_GUID.data1)
+        );
+        assert_eq!(
+            OBSERVED_OUTPUT_SLOT.load(Ordering::SeqCst),
+            output_slot_address
+        );
+        let loaded = admit_uefi_loaded_image_handle_protocol_execution(execution).unwrap();
         assert_eq!(
             (
                 loaded.image_base(),
@@ -1034,7 +983,7 @@ mod tests {
         )
         .unwrap();
         let invocation = prepare_uefi_loaded_image_handle_protocol_invocation(provider).unwrap();
-        let mut output = 0;
+        let mut output = UefiHandleProtocolInterfaceOutputSlot::empty();
         let error =
             bind_uefi_loaded_image_handle_protocol_invocation(invocation, &mut output).unwrap_err();
         assert!(error.diagnostic().0.contains("physical image-handle value"));
@@ -1064,30 +1013,17 @@ mod tests {
         )
         .unwrap();
         let invocation = prepare_uefi_loaded_image_handle_protocol_invocation(provider).unwrap();
-        let mut stale_output = 7;
+        let mut stale_output = UefiHandleProtocolInterfaceOutputSlot(7_usize as *mut c_void);
         let error =
             bind_uefi_loaded_image_handle_protocol_invocation(invocation, &mut stale_output)
                 .unwrap_err();
         assert!(error.diagnostic().0.contains("must be zero"));
         let (invocation, output, _) = error.into_parts();
-        *output = 0;
+        output.0 = std::ptr::null_mut();
         let invocation =
             bind_uefi_loaded_image_handle_protocol_invocation(invocation, output).unwrap();
-        *invocation.interface_output = 0x413000;
-        let outcome = UefiHandleProtocolLoadedImageOutcome::Success {
-            interface_address: 0x414000,
-            image_base: 0x100000,
-            image_size: 0x20000,
-        };
-        let error =
-            admit_uefi_loaded_image_handle_protocol_outcome(invocation, outcome).unwrap_err();
-        assert!(error.diagnostic().0.contains("interface-output slot"));
-        let (invocation, _, _) = error.into_parts();
-        *invocation.interface_output = 0x414000;
-        let correspondence =
-            admit_uefi_loaded_image_handle_protocol_outcome(invocation, outcome).unwrap();
         ledger
-            .release_lifecycle_scoped_loaded_image_correspondence(correspondence)
+            .release_bound_uefi_handle_protocol_invocation(invocation)
             .unwrap();
     }
 
@@ -1155,59 +1091,201 @@ mod tests {
     }
 
     #[test]
-    fn failed_or_malformed_outcomes_return_provider_for_retry() {
-        let boot_address = 0x601000;
-        let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
-        let boot = table(UEFI_BOOT_SERVICES_SIGNATURE, 376, 152, 0x602000);
-        let mut ledger = ledger(100);
-        let projection = projection(&mut ledger, &system, 110);
-        let integrity = validate_uefi_boot_services_occurrence(
-            plan_uefi_boot_services_native_layout(TargetProfile::UefiX64).unwrap(),
-            &boot,
-        )
-        .unwrap();
-        let provider = join_lifecycle_scoped_uefi_handle_protocol_provider(
-            &ledger,
-            projection,
-            integrity,
-            id(
-                113,
-                UefiBootServicesTableOccurrenceId::from_normalized_identity,
+    fn closed_and_unknown_statuses_return_complete_execution_custody() {
+        let _firmware = FIRMWARE_TEST_LOCK.lock().unwrap();
+        let statuses = [
+            (
+                UefiHandleProtocolStatus::InvalidParameter,
+                UefiHandleProtocolExecutionStatus::InvalidParameter,
             ),
-            NonZeroU64::new(boot_address).unwrap(),
-        )
-        .unwrap();
-        let invocation = prepare_uefi_loaded_image_handle_protocol_invocation(provider).unwrap();
-        let mut interface_output = 0;
-        let invocation =
-            bind_uefi_loaded_image_handle_protocol_invocation(invocation, &mut interface_output)
+            (
+                UefiHandleProtocolStatus::Unsupported,
+                UefiHandleProtocolExecutionStatus::Unsupported,
+            ),
+        ];
+        for (index, (planned, expected)) in statuses.into_iter().enumerate() {
+            let boot_address = 0x601000 + (index as u64 * 0x1000);
+            let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
+            let boot = table(
+                UEFI_BOOT_SERVICES_SIGNATURE,
+                376,
+                152,
+                fake_handle_protocol_address(),
+            );
+            let mut ledger = ledger(300 + index as u64 * 20);
+            let mut output = UefiHandleProtocolInterfaceOutputSlot::empty();
+            let retained_error_output = loaded_image_bytes(0x100000, 0x20000);
+            let invocation = bound_invocation(
+                &mut ledger,
+                &system,
+                &boot,
+                310 + index as u64 * 20,
+                boot_address,
+                &mut output,
+            );
+            let code = invocation.invocation.plan.status_code(planned);
+            FAKE_STATUS.store(code, Ordering::SeqCst);
+            FAKE_INTERFACE.store(retained_error_output.0.as_ptr() as usize, Ordering::SeqCst);
+            // SAFETY: the exact test fake is the retained service and performs
+            // no output dereference beyond the bound slot.
+            let execution =
+                unsafe { execute_uefi_loaded_image_handle_protocol(invocation) }.unwrap();
+            let error = admit_uefi_loaded_image_handle_protocol_execution(execution).unwrap_err();
+            assert_eq!(error.status(), expected);
+            assert_eq!(error.status_code(), code);
+            let (execution, _) = error.into_parts();
+            assert!(!execution.interface_output_is_null());
+            ledger
+                .release_executed_uefi_handle_protocol_invocation(execution)
                 .unwrap();
-        let error = admit_uefi_loaded_image_handle_protocol_outcome(
-            invocation,
-            UefiHandleProtocolLoadedImageOutcome::Unsupported,
-        )
-        .unwrap_err();
-        assert_eq!(
-            error.outcome(),
-            UefiHandleProtocolLoadedImageOutcome::Unsupported
+        }
+
+        let boot_address = 0x604000;
+        let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
+        let boot = table(
+            UEFI_BOOT_SERVICES_SIGNATURE,
+            376,
+            152,
+            fake_handle_protocol_address(),
         );
-        assert_eq!(
-            error.outcome().status(),
-            UefiHandleProtocolStatus::Unsupported
+        let mut unknown_status_ledger = ledger(350);
+        let mut output = UefiHandleProtocolInterfaceOutputSlot::empty();
+        let invocation = bound_invocation(
+            &mut unknown_status_ledger,
+            &system,
+            &boot,
+            360,
+            boot_address,
+            &mut output,
         );
-        let (invocation, _, _) = error.into_parts();
-        *invocation.interface_output = 1;
-        let outcome = UefiHandleProtocolLoadedImageOutcome::Success {
-            interface_address: 1,
-            image_base: u64::MAX - 1,
-            image_size: 2,
-        };
-        let error =
-            admit_uefi_loaded_image_handle_protocol_outcome(invocation, outcome).unwrap_err();
-        assert!(error.diagnostic().0.contains("wraps"));
-        let (invocation, _, _) = error.into_parts();
+        FAKE_STATUS.store(0x1234, Ordering::SeqCst);
+        FAKE_INTERFACE.store(0, Ordering::SeqCst);
+        // SAFETY: the exact test fake is the retained service.
+        let execution = unsafe { execute_uefi_loaded_image_handle_protocol(invocation) }.unwrap();
+        let error = admit_uefi_loaded_image_handle_protocol_execution(execution).unwrap_err();
+        assert_eq!(error.status(), UefiHandleProtocolExecutionStatus::Unknown);
+        assert_eq!(error.status_code(), 0x1234);
+        let (execution, _) = error.into_parts();
+        unknown_status_ledger
+            .release_executed_uefi_handle_protocol_invocation(execution)
+            .unwrap();
+
+        let boot_address = 0x706000;
+        let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
+        let boot = table(
+            UEFI_BOOT_SERVICES_SIGNATURE,
+            376,
+            152,
+            fake_handle_protocol_address(),
+        );
+        let misaligned = MisalignedLoadedImageBytes([0; 97]);
+        let mut alignment_ledger = ledger(500);
+        let mut output = UefiHandleProtocolInterfaceOutputSlot::empty();
+        let invocation = bound_invocation(
+            &mut alignment_ledger,
+            &system,
+            &boot,
+            510,
+            boot_address,
+            &mut output,
+        );
+        FAKE_STATUS.store(0, Ordering::SeqCst);
+        FAKE_INTERFACE.store(
+            // SAFETY: the 97-byte allocation leaves a readable 96-byte suffix.
+            unsafe { misaligned.0.as_ptr().add(1) } as usize,
+            Ordering::SeqCst,
+        );
+        // SAFETY: the deliberately misaligned interface remains readable for
+        // the required 96-byte prefix and is rejected before target decoding.
+        let execution = unsafe { execute_uefi_loaded_image_handle_protocol(invocation) }.unwrap();
+        let error = admit_uefi_loaded_image_handle_protocol_execution(execution).unwrap_err();
+        assert!(error.diagnostic().0.contains("not aligned"));
+        let (execution, _) = error.into_parts();
+        alignment_ledger
+            .release_executed_uefi_handle_protocol_invocation(execution)
+            .unwrap();
+    }
+
+    #[test]
+    fn null_stale_and_malformed_outputs_cannot_establish_correspondence() {
+        let _firmware = FIRMWARE_TEST_LOCK.lock().unwrap();
+        for (index, loaded_image) in [
+            None,
+            Some(loaded_image_bytes(0, 0x20000)),
+            Some(loaded_image_bytes(u64::MAX - 1, 2)),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let boot_address = 0x701000 + index as u64 * 0x1000;
+            let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
+            let boot = table(
+                UEFI_BOOT_SERVICES_SIGNATURE,
+                376,
+                152,
+                fake_handle_protocol_address(),
+            );
+            let mut ledger = ledger(400 + index as u64 * 20);
+            let mut output = UefiHandleProtocolInterfaceOutputSlot::empty();
+            let invocation = bound_invocation(
+                &mut ledger,
+                &system,
+                &boot,
+                410 + index as u64 * 20,
+                boot_address,
+                &mut output,
+            );
+            FAKE_STATUS.store(0, Ordering::SeqCst);
+            FAKE_INTERFACE.store(
+                loaded_image
+                    .as_ref()
+                    .map_or(0, |bytes| bytes.0.as_ptr() as usize),
+                Ordering::SeqCst,
+            );
+            // SAFETY: non-null test buffers retain the exact readable prefix
+            // for the duration of receipt admission.
+            let execution =
+                unsafe { execute_uefi_loaded_image_handle_protocol(invocation) }.unwrap();
+            if index == 1 {
+                execution.invocation.interface_output.0 = std::ptr::null_mut();
+            }
+            let error = admit_uefi_loaded_image_handle_protocol_execution(execution).unwrap_err();
+            let diagnostic = &error.diagnostic().0;
+            match index {
+                0 => assert!(diagnostic.contains("null Loaded Image interface")),
+                1 => assert!(diagnostic.contains("output slot drifted")),
+                2 => assert!(diagnostic.contains("wraps")),
+                _ => unreachable!(),
+            }
+            let (execution, _) = error.into_parts();
+            ledger
+                .release_executed_uefi_handle_protocol_invocation(execution)
+                .unwrap();
+        }
+
+        let boot_address = 0x705000;
+        let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
+        let boot = table(
+            UEFI_BOOT_SERVICES_SIGNATURE,
+            376,
+            152,
+            fake_handle_protocol_address(),
+        );
+        let mut bad_revision = loaded_image_bytes(0x100000, 0x20000);
+        bad_revision.0[0..4].copy_from_slice(&0_u32.to_le_bytes());
+        let mut ledger = ledger(470);
+        let mut output = UefiHandleProtocolInterfaceOutputSlot::empty();
+        let invocation =
+            bound_invocation(&mut ledger, &system, &boot, 480, boot_address, &mut output);
+        FAKE_STATUS.store(0, Ordering::SeqCst);
+        FAKE_INTERFACE.store(bad_revision.0.as_ptr() as usize, Ordering::SeqCst);
+        // SAFETY: `bad_revision` retains a readable exact-size layout buffer.
+        let execution = unsafe { execute_uefi_loaded_image_handle_protocol(invocation) }.unwrap();
+        let error = admit_uefi_loaded_image_handle_protocol_execution(execution).unwrap_err();
+        assert!(error.diagnostic().0.contains("revision"));
+        let (execution, _) = error.into_parts();
         ledger
-            .release_bound_uefi_handle_protocol_invocation(invocation)
+            .release_executed_uefi_handle_protocol_invocation(execution)
             .unwrap();
     }
 
@@ -1228,6 +1306,11 @@ mod tests {
             "psi_extents::Extent",
             "NativeExecution",
             "PhysicalShell",
+            "UefiHandleProtocolLoadedImageOutcome",
+            "admit_uefi_loaded_image_handle_protocol_outcome",
+            "pubfninterface_address",
+            "pubfnservice_address",
+            "pubfnhandle_address",
         ] {
             assert!(
                 !compact.contains(forbidden),
@@ -1238,5 +1321,15 @@ mod tests {
         assert!(!compact.contains("implCloneforLifecycleScopedUefiLoadedImageCorrespondence"));
         assert!(!compact.contains("implCloneforPlannedUefiHandleProtocolInvocation"));
         assert!(!compact.contains("implCloneforBoundUefiHandleProtocolInvocation"));
+        let execution_source = include_str!("handle_protocol_provider/execution.rs");
+        let execution_compact: String = execution_source
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        assert!(!execution_compact.contains("implCloneforUefiHandleProtocolInterfaceOutputSlot"));
+        assert!(!execution_compact.contains("implCloneforExecutedUefiHandleProtocolInvocation"));
+        assert!(execution_compact.contains(
+            "admit_uefi_loaded_image_handle_protocol_execution<'system_table,'boot_services,'output>(execution:ExecutedUefiHandleProtocolInvocation"
+        ));
     }
 }

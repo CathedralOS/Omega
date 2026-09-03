@@ -111,10 +111,16 @@ provider and Microsoft-x64 call plan, and borrows one initially zero interface
 output slot. The Loaded Image GUID has an exact 16-byte native layout. The
 service address, handle, GUID address, and output address remain private, while
 the public carrier reports only identities and RCX/RDX/R8 destinations.
-Address-free provenance, a stale output slot, or a success result inconsistent
-with that slot rejects transactionally. This is still pre-invocation custody:
-no firmware call, output provenance, image `Extent`, or semantic installation
-is inferred from the operand values.
+Address-free provenance or a stale output slot rejects transactionally. A
+single target-runtime executor consumes the carrier, calls exactly its retained
+service through the UEFI ABI, and seals the exact returned status and output in
+a non-clone receipt. Callers cannot author those results. Only the closed
+Success code with an unchanged non-null output can be decoded through the exact
+target-owned 96-byte Loaded Image layout: revision `0x1000`, ImageBase at byte
+64, and ImageSize at byte 72. Closed error statuses, unknown status, output
+drift, and invalid revision or geometry retain the complete executed provider
+custody for release. This bounded call still infers no image `Extent`, semantic
+root, full bootstrap adapter, or semantic installation.
 
 The selected profile exposes its minimum entry-stack bound as a target-semantic
 observation, conceptually
