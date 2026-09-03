@@ -250,12 +250,8 @@ fn append_dependency_generated_sources_to_storage(
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
             parse_sources(lexed, &mut source_storage.syntax_trees)
         })?;
-        let discovered = discover_imports_with_packages(
-            &parsed,
-            &source_storage.syntax_trees,
-            target_name,
-            package_inputs,
-        )?;
+        let discovered =
+            discover_imports_with_packages(&parsed, &source_storage.syntax_trees, package_inputs)?;
         imports.enqueue(discovered)?;
         extend_source_storage(source_storage, parsed)?;
         retained.push((source_id, source));
@@ -307,7 +303,6 @@ fn load_pending_imports(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
     root_path: &Path,
-    target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -329,15 +324,9 @@ fn load_pending_imports(
             Some(package_inputs) => discover_imports_with_packages(
                 &parsed,
                 &source_storage.syntax_trees,
-                target_name,
                 package_inputs,
             )?,
-            None => discover_imports(
-                &parsed,
-                &source_storage.syntax_trees,
-                root_path,
-                target_name,
-            )?,
+            None => discover_imports(&parsed, &source_storage.syntax_trees, root_path)?,
         };
 
         imports.enqueue(discovered_imports)?;

@@ -6,6 +6,19 @@ use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn source_target_declarations_are_retired() {
+    let tokens = Lexer::new("target linux_x86_64 { }")
+        .tokenize()
+        .expect("tokenize retired target declaration");
+    let error = parse_syntax_trees(&tokens).expect_err("target declarations must not parse");
+    assert!(
+        error.message.contains("`target` declarations are retired"),
+        "unexpected diagnostic: {}",
+        error.message,
+    );
+}
+
+#[test]
 fn decisive_compare_exchange_desugar_derives_scalar_result_custody() {
     let tokens = Lexer::new(
         "machine update(cell: u64) { let prior: u64 = cell.compare_exchange(0, 1, NoOrdering, NoOrdering); }",

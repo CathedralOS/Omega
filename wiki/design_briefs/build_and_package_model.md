@@ -650,12 +650,13 @@ identity, fail-closed behavior, and eventual manifest projection.
 Hosted versus freestanding, default providers, calling policies, fault supply,
 and resource supply belong to the selected target profile. They are not
 repeated as independently mutable booleans or enums in each build. Target
-declarations own target identity plus `host` and `boundary` policy. Image and
-graph facts remain in the build machine: application/package role, roots,
-dependencies, generated outputs, subsystem/image choice, and provider
-selections do not move into target blocks. Target choice belongs to the
-invocation; target-qualified root and provider bindings remain ordinary
-authored build data, and assignment to `builder.target` remains invalid.
+identity is an exact invocation input; immutable compiler/package inputs supply
+the selected profile's `host` and `boundary` policy. Authored target
+declarations are rejected. Image and graph facts remain in the build machine:
+application/package role, roots, dependencies, generated outputs,
+subsystem/image choice, and provider selections do not move into target policy.
+Target-qualified root and provider bindings remain ordinary authored build
+data, and assignment to `builder.target` remains invalid.
 
 ### Requested target and target admissibility
 

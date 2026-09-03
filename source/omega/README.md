@@ -47,10 +47,9 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
 | `omega_compiler.epsilon` | Incomplete Epsilon-written compiler closure `D`; currently owns the settled outer `OCREQ` envelope, strict source-view UTF-8 framing, the complete source-neutral lexical scanner, invocation-local source-shaped parser slices, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented inner request or application boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Epsilon implementation. |
 
-The four empty target declarations in `build.omg` are temporary compatibility
-scaffolding, not product architecture. Delete them as soon as immutable target
-activation/reach closure lands, and normalize `windows_x64` to
-`windows_x86_64` in that same migration.
+Target identity is an exact immutable compiler-invocation input. `build.omg`
+does not declare a support list or repeat target host/boundary policy; exact
+multi-target requests fan out into independently checked child compilations.
 
 `omega_compiler.epsilon` (`D`) now exists but is intentionally incomplete, and
 both descriptive compiler tapes remain absent. D18 fixes their logical sealed

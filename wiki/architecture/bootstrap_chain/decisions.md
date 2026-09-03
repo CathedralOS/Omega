@@ -1857,10 +1857,9 @@ provider execution for that builtin.
 ## D42 — Target variation is flat, selected, and independently checked
 
 The compiler invocation owns exact target identity. Maintained Omega source
-does not declare targets. The legacy parser/lowering surface for authored
-`host` and `boundary` target policy remains only until those values migrate to
-compiler/package-owned immutable inputs, after which the declaration syntax is
-deleted. The authoritative `build(builder: &mut Build)` machine owns
+does not declare targets, and the retired `target X { ... }` syntax is rejected.
+Target-specific `host` and `boundary` policy comes from immutable
+compiler/package inputs. The authoritative `build(builder: &mut Build)` machine owns
 application and package role, roots, dependencies, generated outputs,
 subsystem/image facts, provider selections, and other build decisions. Moving
 roots, dependencies, or subsystem into target blocks would reverse this
@@ -1876,8 +1875,8 @@ exists. The `ProjectedDependencies::by_profile` carrier and its fixture-only
 producers are removed with the retired syntax rather than retained as
 live-looking scaffolding.
 
-Platform implementation variation belongs to target-scoped declarations and
-target-owned packages. Each exact-target child filters to that target's
+Platform implementation variation belongs to target-scoped machine/boundary
+implementations and target-owned packages. Each exact-target child filters to that target's
 declaration closure before resolution and typing, evaluates the corresponding
 flat build facts, and publishes at most that child's Terminal Psi/PCC subject.
 Merely declaring support for Linux, Windows, macOS, or another profile does not
@@ -2503,10 +2502,10 @@ profiles with abstract and local modes and therefore cannot define deployment
 intent.
 
 The former root-level empty `target X { }` activation and discovery blocks and
-the last maintained nonempty policy blocks have been removed. An architecture
-gate rejects any target declaration in maintained Omega source. Legacy
-host/boundary declaration parsing and lowering remain scheduled for replacement
-by immutable invocation/package policy inputs and subsequent deletion.
+the last maintained nonempty policy blocks have been removed. The declaration
+grammar and lowering are deleted, and a directed parser diagnostic plus an
+architecture gate reject their return. Host/boundary policy is supplied by
+immutable invocation/package inputs.
 
 Multi-target compilation is staged fan-out, not an opaque loop around the whole
 compiler. Source acquisition, the immutable source snapshot, and parsing are

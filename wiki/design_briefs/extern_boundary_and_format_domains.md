@@ -1357,7 +1357,7 @@ contribute their complete derived contract.
    affinity, and undeclared or cyclic synchronous invocation.
 8. Implement the narrow Windows `user32` acceptance slice in `TASKS.md`.
 9. Add foreign-retention and provider-view canaries.
-10. Delete host-string special cases and legacy target blocks.
+10. Delete host-string special cases.
 
 ## Still open
 

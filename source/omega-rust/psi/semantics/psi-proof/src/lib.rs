@@ -179,7 +179,6 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
             Item::Trait(trait_definition) => {
                 collect_trait_definition(&mut report, syntax_trees, trait_definition)
             }
-            Item::Target(_) => {}
         }
     }
 
