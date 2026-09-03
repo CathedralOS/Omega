@@ -145,3 +145,40 @@ the explicit 36-requirement consumer-policy cohort, exact schema/requirement
 custody, or engineering work on syscall/import mechanism identities and target
 classification. Raw descriptors continue to establish operation classes only,
 never object confinement.
+
+## Q5 — Partial bodyless content-custody result identity
+
+Content-bearing boundary operations need a real way to return one kept
+projection while a selected provider accepts custody of the canonical residual.
+This is required for bounded buffer and extent operations that keep a returned
+subrange in checked custody without pretending that the provider accepted the
+whole incoming claim. The content algebra already expresses an authored
+`whole = separate(kept, residual)` theorem, but the executable boundary model
+does not define the corresponding claim transition.
+
+Today bodyless boundary declarations and effects return only Unit or primitive
+scalars. Structural results exist only for checked internal calls, while a
+`CompletionReceipt` names and consumes one whole structural claim. No canonical
+carrier says which returned projection is `kept`, which content term is the
+provider-held residual, or whether the continuing claim preserves or replaces
+the incoming claim identity. Relaxing whole-path receipt equality would silently
+turn whole-claim custody into authority over an unspecified partition.
+
+Choose the semantic identity of a successful partial boundary transition:
+
+- consume the incoming whole claim and establish a fresh kept-result claim plus
+  a provider-custody receipt for the exact residual;
+- refine the existing claim occurrence to the kept projection while the receipt
+  transfers only the residual, defining how the original lineage and path change;
+  or
+- keep bodyless structural results unsupported and require an ordinary checked
+  partitioning operation to establish separate kept and residual claims before
+  a whole-claim provider exit consumes the residual.
+
+The decision must also define the bodyless structural-result signature/effect
+carrier, exact theorem and provider binding, and rejection/crash ownership before
+the atomic successful transition. These choices produce different claim IDs,
+frontier histories, provider ledgers, ABI results, and replay obligations. This
+blocks only partial content-bearing bodyless exits; whole-root bodyless custody
+exit, checked partition theorem replay, internal structural results, and
+content-free projected provider completion remain available.

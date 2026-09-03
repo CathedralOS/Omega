@@ -1708,8 +1708,10 @@ Remaining:
   projection,
   and content algebra; verification rejects structural/content rebinding,
   provider rejection leaves custody live, and successful completion consumes
-  it. This slice remains deliberately whole-root: projected bodyless exits still
-  require authored partition/residual geometry. Bodyless boundary completion
+  it. This slice remains deliberately whole-root: projected bodyless exits remain
+  **OWNER-BLOCKED** on the structural-result and continuing-claim identity in
+  `OWNER_QUESTIONS.md` Q5, in addition to requiring authored partition/residual
+  geometry. Bodyless boundary completion
   without content now has a separate projected installed-provider replay
   slice. Omega resolves each relevant-record or in-range fixed-array path to
   the exact provider leaf type, rebases the provider's whole-root entry claim
@@ -13587,6 +13589,8 @@ specifications:
 
 - **RANKED-RECEIVER-SUBPLACE:** authored and semantic transfer identity in
   `OWNER_QUESTIONS.md` Q3.
+- **PARTIAL-BODYLESS-CONTENT-EXIT:** structural-result, continuing-claim, and
+  residual provider-custody identity in `OWNER_QUESTIONS.md` Q5.
 - **SUM-MATERIALIZATION:** tagged/untagged case-placement vocabulary deferred
   in `wiki/design_briefs/programmable_layouts.md`; the conventional read-only
   materialization reports do not settle authorable `Layout` placement.
