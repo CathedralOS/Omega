@@ -1976,6 +1976,57 @@ fn direct_write_only_ieee_float_store_crosses_source_codec_and_verification() {
 }
 
 #[test]
+fn direct_write_only_fixed_integer_parameter_store_crosses_source_codec_and_verification() {
+    let checked = checked_source(
+        r#"
+            data Sink {}
+            machine Sink::fill(destination: &write i32, replacement: i32) {
+                destination = replacement;
+            }
+        "#,
+    );
+    let lowered =
+        lower_machine(&checked, "Sink::fill").expect("lower fixed-integer parameter store closure");
+    let module = &lowered.semantic_module;
+    let [callee] = module.machines.as_slice() else {
+        panic!("one write-only callee is retained")
+    };
+    let [replacement] = callee.parameters.as_slice() else {
+        panic!("callee retains one fixed-integer scalar parameter")
+    };
+    assert!(
+        matches!(replacement.scalar_type, ScalarType::Integer(integer)
+        if integer == psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap())
+    );
+    let [store] = callee.blocks[0].operations.as_slice() else {
+        panic!("callee emits only the parameter-sourced store")
+    };
+    assert!(matches!(
+        store.kind,
+        OperationKind::WriteOnlyPrimitiveStore { destination, value }
+            if destination == callee.structural_parameters[0].place
+                && value == replacement.id
+    ));
+
+    let encoded =
+        psi_terminal_codec::encode_module(module).expect("encode fixed-integer parameter store");
+    let decoded =
+        psi_terminal_codec::decode_module(&encoded).expect("decode fixed-integer parameter store");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify fixed-integer parameter store");
+
+    let mut undefined = decoded;
+    let OperationKind::WriteOnlyPrimitiveStore { value, .. } =
+        &mut undefined.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *value = ValueId::new(u64::MAX).expect("nonzero undefined value");
+    psi_terminal_verifier::validate_module(&undefined)
+        .expect_err("runtime store source must be the exact declared scalar parameter");
+}
+
+#[test]
 fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
     let source = r#"
         data Leaf [copy] { value: u16; }

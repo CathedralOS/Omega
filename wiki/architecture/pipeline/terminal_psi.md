@@ -716,6 +716,12 @@ treating physical pointer-layout equivalence as permission equivalence. IEEE
 float stores retain their exact preceding definition, raw bits, referent shape,
 store-only source carrier, machine bytes, and attribution through both object
 and installation replay.
+The semantic store lane also admits one exact fixed-integer scalar parameter as
+the replacement source when it is the machine's sole scalar parameter and
+matches the primitive referent exactly. Checked planning retains the authored
+structural/scalar parameter partition; Terminal verification and target-neutral
+abstract lowering preserve the runtime value identity without fabricating a
+constant. Target realization and an exercising caller remain fail closed.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

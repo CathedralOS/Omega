@@ -2325,7 +2325,11 @@ pub(super) fn lower_attached_unit_closure_including(
                                         psi_checked_trees::CheckedBooleanExpression::Constant(_)
                                     )
                             );
-                    if !direct_literal {
+                    let direct_parameter = matches!(
+                        value,
+                        CheckedScalarExpression::Parameter { position: 0, .. }
+                    ) && scalar_parameters.len() == 1;
+                    if !direct_literal && !direct_parameter {
                         return unsupported(
                             "write-only store value is outside the direct primitive-literal rung",
                         );
@@ -2336,9 +2340,10 @@ pub(super) fn lower_attached_unit_closure_including(
                             "write-only store value type disagrees with its destination",
                         );
                     }
+                    validate_direct_parameter_types(&value, scalar_parameter_types)?;
                     let value = emit_direct_expression(
                         &value,
-                        &[],
+                        &scalar_parameters,
                         &mut next_value_identity,
                         &mut operations,
                     );

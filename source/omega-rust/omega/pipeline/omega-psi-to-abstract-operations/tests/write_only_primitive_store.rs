@@ -223,3 +223,55 @@ fn verified_ieee_float_store_retains_exact_write_only_parameter_and_preceding_va
             })
     );
 }
+
+#[test]
+fn verified_fixed_integer_parameter_store_retains_exact_runtime_source() {
+    let source = r#"
+        data Sink {}
+        machine Sink::fill(destination: &write i32, replacement: i32) {
+            destination = replacement;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Sink::fill")
+        .expect("write-only fixed-integer parameter store lowers to verified Terminal Psi");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("verified parameter store reaches target-neutral Omega");
+
+    let [function] = plan.functions.as_slice() else {
+        panic!("one store function")
+    };
+    let [replacement] = function.parameters.as_slice() else {
+        panic!("one runtime scalar source")
+    };
+    let store = function
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::WriteOnlyPrimitiveStore {
+                destination, value, ..
+            } => Some((destination, value)),
+            _ => None,
+        })
+        .expect("one parameter-sourced primitive store");
+    assert_eq!(store.0, &function.structural_parameters[0]);
+    assert_eq!(store.0.access, StructuralAccess::WriteOnlyBorrow);
+    assert_eq!(store.1.value, replacement.value);
+    assert_eq!(store.1.scalar_type, replacement.scalar_type);
+    assert_eq!(
+        replacement.scalar_type,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    );
+    assert!(!function.operations.iter().any(|operation| matches!(
+        operation,
+        AbstractOperation::IntegerConstant { .. }
+            | AbstractOperation::BooleanConstant { .. }
+            | AbstractOperation::IeeeFloatConstant { .. }
+    )));
+}

@@ -1039,6 +1039,7 @@ pub(super) fn build_checked_machine(
         machine,
         state,
         &structural_parameters,
+        &scalar_parameters,
         statements,
     );
     let construction = build_affine_array_construction_prefix(
@@ -1766,6 +1767,7 @@ fn build_write_only_primitive_store(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statements: &[StatementNode],
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let [StatementNode::Assignment(assignment)] = statements else {
@@ -1792,9 +1794,14 @@ fn build_write_only_primitive_store(
     else {
         return None;
     };
-    let [parameter] = program.state_parameters(state) else {
+    let parameter = program
+        .state_parameters(state)
+        .get(usize::try_from(destination.position).ok()?)?;
+    if program.state_parameters(state).len()
+        != structural_parameters.len() + scalar_parameters.len()
+    {
         return None;
-    };
+    }
     if parameter.is_self || parameter.is_const || !parameter.is_mutable {
         return None;
     }
@@ -1855,7 +1862,20 @@ fn build_write_only_primitive_store(
                     psi_checked_trees::CheckedBooleanExpression::Constant(_)
                 )
         );
-    if !direct_literal || crate::values::scalar_expression_type(value) != Some(*destination_type) {
+    let direct_parameter = matches!(
+        (value, scalar_parameters),
+        (
+            CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type,
+            },
+            [parameter],
+        ) if parameter.primitive_type == *primitive_type
+            && *primitive_type == *destination_type
+    );
+    if !(direct_literal && scalar_parameters.is_empty() || direct_parameter)
+        || crate::values::scalar_expression_type(value) != Some(*destination_type)
+    {
         return None;
     }
     Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
