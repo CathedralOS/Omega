@@ -1,16 +1,20 @@
 //! Independent object replay for whole-root non-observing primitive stores.
 
-use omega_calling_conventions::{ValueLocation, ValueShape};
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+};
 use omega_machine_code::{
     MachineCodeFunction, SemanticCodeSite, UnitWriteOnlyPrimitiveStoreRecord,
     UnitWriteOnlyPrimitiveStoreSourceRecord,
 };
-use omega_target::NativeTarget;
+use omega_target::{Architecture, NativeTarget};
 use psi_core::ScalarType;
 use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 use super::ObjectError;
-use super::unit_structural_scalar_field_store::{expected_store_bytes, integer_bits};
+use super::unit_structural_scalar_field_store::{
+    expected_parameter_store_bytes, expected_store_bytes, integer_bits,
+};
 
 pub(super) fn validate_unit_write_only_primitive_stores(
     target: NativeTarget,
@@ -39,6 +43,56 @@ fn validate_store(
     let parameter = function.unit_parameters.get(parameter_index)?;
     let home = function.unit_parameter_homes.get(parameter_index)?;
     let (source_is_exact, destination_scalar_type, byte_size, bits) = match store.source {
+        UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } => {
+            let abi = function.unit_scalar_abi.as_ref()?;
+            let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
+            let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
+            let scalar_shape = ValueShape::integer(4, 4);
+            let expected_register = match target.architecture {
+                Architecture::X86_64 => omega_target_operations::MachineRegister::X86Rdi,
+                Architecture::Aarch64 => omega_target_operations::MachineRegister::Aarch64X(0),
+            };
+            let expected_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![scalar_shape, parameter.shape],
+                    result: None,
+                },
+            )
+            .ok()?;
+            (
+                parameter_index == 0
+                    && abi.parameters.len() == 1
+                    && function.unit_parameters.len() == 1
+                    && scalar_type.carrier() == psi_core::IntegerCarrier::Fixed
+                    && scalar_type.sign() == psi_core::IntegerSign::Signed
+                    && scalar_type.bits() == 32
+                    && scalar_parameter.value == source_value
+                    && scalar_parameter.scalar_type == ScalarType::Integer(scalar_type)
+                    && scalar_parameter.placement.shape == scalar_shape
+                    && scalar_parameter.placement.locations.as_slice()
+                        == [ValueLocation::Register {
+                            register: expected_register,
+                            value_byte_offset: 0,
+                            byte_size: 4,
+                        }]
+                    && location
+                        == omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                            expected_register,
+                        )
+                    && abi.call_plan == expected_plan
+                    && abi.call_plan.parameters.first() == Some(&scalar_parameter.placement)
+                    && abi.call_plan.parameters.get(1) == Some(&home.source),
+                ScalarType::Integer(scalar_type),
+                4,
+                None,
+            )
+        }
         UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
             defining_operation,
             source_value,
@@ -64,7 +118,7 @@ fn validate_store(
                     && scalar_type.admits(value),
                 ScalarType::Integer(scalar_type),
                 byte_size,
-                integer_bits(scalar_type, value)?,
+                Some(integer_bits(scalar_type, value)?),
             )
         }
         UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
@@ -98,7 +152,7 @@ fn validate_store(
                 && zero_code_source_is_consistent(function, store.source),
             ScalarType::Boolean,
             1,
-            u64::from(value),
+            Some(u64::from(value)),
         ),
         UnitWriteOnlyPrimitiveStoreSourceRecord::IeeeFloatImmediate {
             defining_operation,
@@ -136,7 +190,7 @@ fn validate_store(
                     && zero_code_source_is_consistent(function, store.source),
                 ScalarType::IeeeFloat(value.format()),
                 byte_size,
-                bits,
+                Some(bits),
             )
         }
     };
@@ -202,7 +256,14 @@ fn validate_store(
     {
         return None;
     }
-    let expected = expected_store_bytes(target, home, 0, byte_size, bits)?;
+    let expected = match store.source {
+        UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+            location: omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+            ..
+        } => expected_parameter_store_bytes(target, home, 0, byte_size, register)?,
+        UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter { .. } => return None,
+        _ => expected_store_bytes(target, home, 0, byte_size, bits?)?,
+    };
     let end = store.code_offset.checked_add(store.byte_count)?;
     if store.byte_count == 0
         || store.byte_count != expected.len()
@@ -218,14 +279,16 @@ fn zero_code_source_is_consistent(
     function: &MachineCodeFunction,
     source: UnitWriteOnlyPrimitiveStoreSourceRecord,
 ) -> bool {
-    let defining_operation = source.defining_operation();
+    let Some(defining_operation) = source.defining_operation() else {
+        return false;
+    };
     let source_value = source.source_value();
     function
         .unit_write_only_primitive_stores
         .iter()
         .all(|candidate| {
             let candidate_source = candidate.source;
-            if candidate_source.defining_operation() == defining_operation
+            if candidate_source.defining_operation() == Some(defining_operation)
                 || candidate_source.source_value() == source_value
             {
                 candidate_source == source

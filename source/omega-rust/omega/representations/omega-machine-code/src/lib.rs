@@ -163,8 +163,8 @@ pub struct MachineCodeFunction {
     /// Exact semantic and physical custody for fixed-width immediate writes
     /// into staged attached-Unit structural parameter homes.
     pub unit_structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
-    /// Exact semantic and physical custody for non-observing immediate writes
-    /// through whole-root primitive borrowed parameters.
+    /// Exact semantic and physical custody for non-observing immediate or
+    /// retained scalar-parameter writes through whole-root primitive borrows.
     pub unit_write_only_primitive_stores: Vec<UnitWriteOnlyPrimitiveStoreRecord>,
     /// Exact one-store prefix for the bounded mutable-self scalar-return
     /// carrier. Unlike Unit stores, this writes through the incoming borrowed
@@ -1023,6 +1023,12 @@ pub struct UnitStructuralScalarFieldStoreRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnitWriteOnlyPrimitiveStoreSourceRecord {
+    Parameter {
+        parameter_index: u32,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        location: UnitScalarParameterLocationRecord,
+    },
     IntegerImmediate {
         defining_operation: OperationId,
         source_value: ValueId,
@@ -1044,8 +1050,9 @@ pub enum UnitWriteOnlyPrimitiveStoreSourceRecord {
 }
 
 impl UnitWriteOnlyPrimitiveStoreSourceRecord {
-    pub const fn defining_operation(&self) -> OperationId {
+    pub const fn defining_operation(&self) -> Option<OperationId> {
         match self {
+            Self::Parameter { .. } => None,
             Self::IntegerImmediate {
                 defining_operation, ..
             }
@@ -1054,13 +1061,14 @@ impl UnitWriteOnlyPrimitiveStoreSourceRecord {
             }
             | Self::IeeeFloatImmediate {
                 defining_operation, ..
-            } => *defining_operation,
+            } => Some(*defining_operation),
         }
     }
 
     pub const fn source_value(&self) -> ValueId {
         match self {
-            Self::IntegerImmediate { source_value, .. }
+            Self::Parameter { source_value, .. }
+            | Self::IntegerImmediate { source_value, .. }
             | Self::BooleanImmediate { source_value, .. }
             | Self::IeeeFloatImmediate { source_value, .. } => *source_value,
         }
@@ -1068,7 +1076,9 @@ impl UnitWriteOnlyPrimitiveStoreSourceRecord {
 
     pub const fn scalar_type(&self) -> ScalarType {
         match self {
-            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(*scalar_type),
+            Self::Parameter { scalar_type, .. } | Self::IntegerImmediate { scalar_type, .. } => {
+                ScalarType::Integer(*scalar_type)
+            }
             Self::BooleanImmediate { .. } => ScalarType::Boolean,
             Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
         }

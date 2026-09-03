@@ -152,6 +152,76 @@ pub(crate) fn expected_store_bytes(
     }
 }
 
+pub(crate) fn expected_parameter_store_bytes(
+    target: NativeTarget,
+    home: &omega_machine_code::UnitParameterHomeRecord,
+    field_byte_offset: u32,
+    byte_size: u16,
+    source: omega_target_operations::MachineRegister,
+) -> Option<Vec<u8>> {
+    match (target.architecture, source) {
+        (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rdi) => {
+            const ADDRESS_REGISTER: u8 = 10;
+            const SOURCE_REGISTER: u8 = 7;
+            let mut bytes = Vec::new();
+            if home.indirect {
+                emit_x86_stack_load(&mut bytes, ADDRESS_REGISTER, home.byte_offset, 8)?;
+                emit_x86_memory_store(
+                    &mut bytes,
+                    SOURCE_REGISTER,
+                    ADDRESS_REGISTER,
+                    field_byte_offset,
+                    byte_size,
+                )?;
+            } else {
+                emit_x86_stack_store(
+                    &mut bytes,
+                    SOURCE_REGISTER,
+                    home.byte_offset.checked_add(field_byte_offset)?,
+                    byte_size,
+                )?;
+            }
+            Some(bytes)
+        }
+        (Architecture::Aarch64, omega_target_operations::MachineRegister::Aarch64X(0)) => {
+            const ADDRESS_REGISTER: u8 = 17;
+            const SOURCE_REGISTER: u8 = 0;
+            let mut instructions = Vec::new();
+            if home.indirect {
+                instructions.push(aarch64_access(
+                    aarch64_load_base(8)?,
+                    ADDRESS_REGISTER,
+                    31,
+                    home.byte_offset,
+                    8,
+                )?);
+                instructions.push(aarch64_access(
+                    aarch64_store_base(byte_size)?,
+                    SOURCE_REGISTER,
+                    ADDRESS_REGISTER,
+                    field_byte_offset,
+                    byte_size,
+                )?);
+            } else {
+                instructions.push(aarch64_access(
+                    aarch64_store_base(byte_size)?,
+                    SOURCE_REGISTER,
+                    31,
+                    home.byte_offset.checked_add(field_byte_offset)?,
+                    byte_size,
+                )?);
+            }
+            Some(
+                instructions
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect(),
+            )
+        }
+        _ => None,
+    }
+}
+
 fn expected_x86_store(
     home: &omega_machine_code::UnitParameterHomeRecord,
     field_byte_offset: u32,

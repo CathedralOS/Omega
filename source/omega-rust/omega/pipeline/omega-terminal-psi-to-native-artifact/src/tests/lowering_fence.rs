@@ -475,7 +475,7 @@ fn verified_write_only_ieee_float_store_reaches_canonical_installation() {
 }
 
 #[test]
-fn verified_parameter_sourced_write_only_store_reaches_assignment() {
+fn verified_parameter_sourced_write_only_store_reaches_canonical_installation() {
     let checked = checked(
         r#"
             data Sink {}
@@ -600,10 +600,155 @@ fn verified_parameter_sourced_write_only_store_reaches_assignment() {
                 && psi_core::ScalarType::Integer(*scalar_type) == scalar_parameter.scalar_type
                 && register.architecture() == native_target.architecture
         ));
+        let mut corrupted_assigned = assigned.clone();
+        let corrupted_location = corrupted_assigned
+            .functions
+            .iter_mut()
+            .find_map(|function| match &mut function.operation {
+                omega_assigned_target_operations::AssignedOperation::UnitBody(body) => body
+                    .operations
+                    .iter_mut()
+                    .find_map(|operation| match operation {
+                        omega_assigned_target_operations::AssignedUnitOperation::WriteOnlyPrimitiveStore {
+                            source: omega_assigned_target_operations::AssignedUnitWriteOnlyPrimitiveStoreSource::Parameter {
+                                location,
+                                ..
+                            },
+                            ..
+                        } => Some(location),
+                        _ => None,
+                    }),
+                _ => None,
+            })
+            .expect("assigned store retains its incoming location");
+        *corrupted_location = match native_target.architecture {
+            omega_target::Architecture::X86_64 => {
+                omega_assigned_target_operations::AssignedScalarLocation::Register(
+                    omega_target_operations::MachineRegister::X86Rax,
+                )
+            }
+            omega_target::Architecture::Aarch64 => {
+                omega_assigned_target_operations::AssignedScalarLocation::Register(
+                    omega_target_operations::MachineRegister::Aarch64X(1),
+                )
+            }
+        };
         assert!(matches!(
-            omega_machine_emission::emit_machine_code(&assigned),
+            omega_machine_emission::emit_machine_code(&corrupted_assigned),
             Err(omega_machine_emission::EmissionError::InvalidWriteOnlyPrimitiveStoreCustody(_))
         ));
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("parameter-sourced store reaches exact machine emission");
+        let function = emitted
+            .functions
+            .iter()
+            .find(|function| function.unit_write_only_primitive_stores.len() == 1)
+            .expect("one machine owns the parameter-sourced primitive store");
+        let store = &function.unit_write_only_primitive_stores[0];
+        let expected_register = match native_target.architecture {
+            omega_target::Architecture::X86_64 => omega_target_operations::MachineRegister::X86Rdi,
+            omega_target::Architecture::Aarch64 => {
+                omega_target_operations::MachineRegister::Aarch64X(0)
+            }
+        };
+        assert!(matches!(
+            store.source,
+            omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                parameter_index: 0,
+                source_value,
+                scalar_type,
+                location: omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+            } if source_value == scalar_parameter.value
+                && psi_core::ScalarType::Integer(scalar_type) == scalar_parameter.scalar_type
+                && register == expected_register
+        ));
+        match native_target.architecture {
+            omega_target::Architecture::X86_64 => {
+                assert!(store.bytes.ends_with(&[0x41, 0x89, 0x3a]));
+            }
+            omega_target::Architecture::Aarch64 => {
+                assert_eq!(
+                    store.bytes.last_chunk::<4>(),
+                    Some(&0xb900_0220_u32.to_le_bytes())
+                );
+            }
+        }
+        assert_eq!(
+            function
+                .bytes
+                .get(store.code_offset..store.code_offset + store.byte_count),
+            Some(store.bytes.as_slice())
+        );
+
+        let mut changed_location = emitted.clone();
+        let changed_source = &mut changed_location
+            .functions
+            .iter_mut()
+            .find(|candidate| candidate.machine == function.machine)
+            .unwrap()
+            .unit_write_only_primitive_stores[0]
+            .source;
+        let omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+            location, ..
+        } = changed_source
+        else {
+            unreachable!()
+        };
+        *location = match native_target.architecture {
+            omega_target::Architecture::X86_64 => {
+                omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                    omega_target_operations::MachineRegister::X86Rax,
+                )
+            }
+            omega_target::Architecture::Aarch64 => {
+                omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                    omega_target_operations::MachineRegister::Aarch64X(1),
+                )
+            }
+        };
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&changed_location),
+            Err(
+                omega_image_emission::ObjectError::InvalidUnitWriteOnlyPrimitiveStoreEvidence(
+                    function.machine
+                )
+            )
+        );
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object construction independently replays the parameter store");
+        let object_function = object
+            .functions()
+            .iter()
+            .find(|candidate| candidate.machine == function.machine)
+            .expect("object retains the parameter-store function");
+        assert_eq!(
+            object_function.unit_write_only_primitive_stores,
+            function.unit_write_only_primitive_stores
+        );
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("replayed parameter store reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains the replayed parameter store");
+        let installed_function = installation
+            .functions()
+            .iter()
+            .find(|candidate| candidate.machine == function.machine)
+            .expect("installation retains the parameter-store function");
+        assert_eq!(
+            installed_function.unit_write_only_primitive_stores,
+            function.unit_write_only_primitive_stores
+        );
+        let installation_bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode installed parameter-store custody");
+        let decoded = omega_image_emission::decode_installation_record(&installation_bytes)
+            .expect("decode installed parameter-store custody");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("installed parameter store rejoins the executable image");
     }
 }
 

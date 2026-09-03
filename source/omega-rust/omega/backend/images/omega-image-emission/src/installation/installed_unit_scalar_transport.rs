@@ -5,7 +5,7 @@ use omega_calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
 };
 use omega_machine_code::SemanticCodeSite;
-use omega_target::NativeTarget;
+use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::CallSiteOwner;
 use psi_core::MachineId;
 use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
@@ -491,6 +491,66 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 .get(parameter_index)
                 .ok_or_else(invalid)?;
             let (source_is_exact, destination_scalar_type, width, bits) = match store.source {
+                omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                    parameter_index,
+                    source_value,
+                    scalar_type,
+                    location,
+                } => {
+                    let abi = function.unit_scalar_abi.as_ref().ok_or_else(invalid)?;
+                    let scalar_parameter_index =
+                        usize::try_from(parameter_index).map_err(|_| invalid())?;
+                    let scalar_parameter = abi
+                        .parameters
+                        .get(scalar_parameter_index)
+                        .ok_or_else(invalid)?;
+                    let scalar_shape = ValueShape::integer(4, 4);
+                    let expected_register = match record.target.architecture {
+                        Architecture::X86_64 => {
+                            omega_target_operations::MachineRegister::X86Rdi
+                        }
+                        Architecture::Aarch64 => {
+                            omega_target_operations::MachineRegister::Aarch64X(0)
+                        }
+                    };
+                    let expected_plan = evaluate_call_plan(
+                        CallingPolicy::native_for_target(record.target),
+                        &CallSignature {
+                            parameters: vec![scalar_shape, parameter.shape],
+                            result: None,
+                        },
+                    )
+                    .map_err(|_| invalid())?;
+                    (
+                        parameter_index == 0
+                            && abi.parameters.len() == 1
+                            && function.unit_parameters.len() == 1
+                            && scalar_type.carrier() == psi_core::IntegerCarrier::Fixed
+                            && scalar_type.sign() == psi_core::IntegerSign::Signed
+                            && scalar_type.bits() == 32
+                            && scalar_parameter.value == source_value
+                            && scalar_parameter.scalar_type
+                                == psi_core::ScalarType::Integer(scalar_type)
+                            && scalar_parameter.placement.shape == scalar_shape
+                            && scalar_parameter.placement.locations.as_slice()
+                                == [ValueLocation::Register {
+                                    register: expected_register,
+                                    value_byte_offset: 0,
+                                    byte_size: 4,
+                                }]
+                            && location
+                                == omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                                    expected_register,
+                                )
+                            && abi.call_plan == expected_plan
+                            && abi.call_plan.parameters.first()
+                                == Some(&scalar_parameter.placement)
+                            && abi.call_plan.parameters.get(1) == Some(&home.source),
+                        psi_core::ScalarType::Integer(scalar_type),
+                        4,
+                        None,
+                    )
+                }
                 omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
                     defining_operation,
                     source_value,
@@ -516,8 +576,13 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                             && scalar_type.admits(value),
                         psi_core::ScalarType::Integer(scalar_type),
                         width,
-                        crate::unit_structural_scalar_field_store::integer_bits(scalar_type, value)
+                        Some(
+                            crate::unit_structural_scalar_field_store::integer_bits(
+                                scalar_type,
+                                value,
+                            )
                             .ok_or_else(invalid)?,
+                        ),
                     )
                 }
                 omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
@@ -555,7 +620,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                             ),
                         psi_core::ScalarType::Boolean,
                         1,
-                        u64::from(value),
+                        Some(u64::from(value)),
                     )
                 }
                 omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IeeeFloatImmediate {
@@ -597,7 +662,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                             ),
                         psi_core::ScalarType::IeeeFloat(value.format()),
                         width,
-                        bits,
+                        Some(bits),
                     )
                 }
             };
@@ -626,14 +691,33 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 .iter()
                 .filter(|candidate| *candidate == &store.destination_type)
                 .count();
-            let expected_bytes = crate::unit_structural_scalar_field_store::expected_store_bytes(
-                record.target,
-                home,
-                0,
-                width,
-                bits,
-            )
-            .ok_or_else(invalid)?;
+            let expected_bytes = match store.source {
+                omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+                    ..
+                } => crate::unit_structural_scalar_field_store::expected_parameter_store_bytes(
+                    record.target,
+                    home,
+                    0,
+                    width,
+                    register,
+                )
+                .ok_or_else(invalid)?,
+                omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                    ..
+                } => {
+                    return Err(invalid());
+                }
+                _ => crate::unit_structural_scalar_field_store::expected_store_bytes(
+                    record.target,
+                    home,
+                    0,
+                    width,
+                    bits.ok_or_else(invalid)?,
+                )
+                .ok_or_else(invalid)?,
+            };
             let end = store
                 .code_offset
                 .checked_add(store.byte_count)
@@ -700,14 +784,16 @@ fn installed_zero_code_store_source_is_consistent(
     function: &InstalledFunction,
     source: omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord,
 ) -> bool {
-    let defining_operation = source.defining_operation();
+    let Some(defining_operation) = source.defining_operation() else {
+        return false;
+    };
     let source_value = source.source_value();
     function
         .unit_write_only_primitive_stores
         .iter()
         .all(|candidate| {
             let candidate_source = candidate.source;
-            if candidate_source.defining_operation() == defining_operation
+            if candidate_source.defining_operation() == Some(defining_operation)
                 || candidate_source.source_value() == source_value
             {
                 candidate_source == source

@@ -851,6 +851,38 @@ pub(super) fn emit_x86_64_unit_store_immediate(
     }
 }
 
+pub(super) fn emit_x86_64_unit_store_register(
+    bytes: &mut Vec<u8>,
+    home: &X86UnitParameterHome,
+    field_byte_offset: u32,
+    byte_size: u16,
+    source: omega_target_operations::MachineRegister,
+) -> Result<(), EmissionError> {
+    const ADDRESS_REGISTER: u8 = 10;
+    let source = crate::x86_unit_register(source)?;
+    if source == ADDRESS_REGISTER {
+        return Err(EmissionError::UnsupportedUnitRegister(
+            omega_target_operations::MachineRegister::X86R10,
+        ));
+    }
+    if home.indirect {
+        emit_x86_64_stack_load_width(bytes, ADDRESS_REGISTER, home.byte_offset, 8)?;
+        emit_x86_64_memory_store_width(
+            bytes,
+            source,
+            ADDRESS_REGISTER,
+            field_byte_offset,
+            byte_size,
+        )
+    } else {
+        let destination = home
+            .byte_offset
+            .checked_add(field_byte_offset)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+        emit_x86_64_stack_store_width(bytes, source, destination, byte_size)
+    }
+}
+
 pub(crate) fn emit_x86_64_memory_store_width(
     bytes: &mut Vec<u8>,
     source: u8,
@@ -914,6 +946,51 @@ pub(super) fn emit_aarch64_unit_store_immediate(
         instructions.push(aarch64_unit_stack_access(
             aarch64_store_base(byte_size)?,
             VALUE_REGISTER,
+            destination,
+            byte_size,
+        )?);
+    }
+    append_aarch64_instructions(bytes, instructions);
+    Ok(())
+}
+
+pub(super) fn emit_aarch64_unit_store_register(
+    bytes: &mut Vec<u8>,
+    home: &Aarch64UnitParameterHome,
+    field_byte_offset: u32,
+    byte_size: u16,
+    source: omega_target_operations::MachineRegister,
+) -> Result<(), EmissionError> {
+    const ADDRESS_REGISTER: u8 = 17;
+    let source = crate::aarch64_unit_register(source)?;
+    if source == ADDRESS_REGISTER {
+        return Err(EmissionError::UnsupportedUnitRegister(
+            omega_target_operations::MachineRegister::Aarch64X(ADDRESS_REGISTER),
+        ));
+    }
+    let mut instructions = Vec::new();
+    if home.indirect {
+        instructions.push(aarch64_unit_stack_access(
+            aarch64_load_base(8)?,
+            ADDRESS_REGISTER,
+            home.byte_offset,
+            8,
+        )?);
+        instructions.push(aarch64_unit_memory_access(
+            aarch64_store_base(byte_size)?,
+            source,
+            ADDRESS_REGISTER,
+            field_byte_offset,
+            byte_size,
+        )?);
+    } else {
+        let destination = home
+            .byte_offset
+            .checked_add(field_byte_offset)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+        instructions.push(aarch64_unit_stack_access(
+            aarch64_store_base(byte_size)?,
+            source,
             destination,
             byte_size,
         )?);
