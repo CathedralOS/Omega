@@ -86,6 +86,32 @@ fn direct_scalar_machine_plan(target: NativeTarget) -> omega_machine_code::Machi
     )
 }
 
+fn multi_hop_scalar_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    machine_plan_from_source(
+        r#"
+            trait Measure { machine measure(&self) -> i32; }
+            data Item { value: i32; }
+            Primary: Item satisfies Measure {
+                machine measure(&self) -> i32 { transition { _ -> self.value } }
+            }
+            data Main { selected: Item; }
+            machine Main::run(&self) {
+                let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
+                let result: i32 = forward(erased);
+            }
+            machine forward(erased: &dyn Measure) -> i32 {
+                let result: i32 = finish(erased);
+                transition { _ -> result }
+            }
+            machine finish(erased: &dyn Measure) -> i32 {
+                let result: i32 = erased.measure();
+                transition { _ -> result }
+            }
+        "#,
+        target,
+    )
+}
+
 fn unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     machine_plan_from_source(
         r#"
@@ -207,6 +233,78 @@ fn object_image_and_installation_replay_direct_selection_scalar_forwarding() {
         validate_installation_record(&installation, &image)
             .expect("replay direct-selection scalar installed evidence");
     }
+}
+
+#[test]
+fn object_and_image_replay_parameter_sourced_scalar_forwarding() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = multi_hop_scalar_machine_plan(target);
+        let machine_call = plan
+            .functions
+            .iter()
+            .find_map(|function| function.forwarded_dynamic_parameter_calls.first())
+            .expect("machine parameter-forwarding call");
+        let object = build_object_artifact(&plan)
+            .expect("replay parameter-sourced scalar forwarding object evidence");
+        let object_call = object
+            .functions()
+            .iter()
+            .find_map(|function| function.forwarded_dynamic_parameter_calls.first())
+            .expect("object parameter-forwarding call");
+        assert_eq!(object_call, machine_call);
+        assert!(matches!(
+            &object_call.argument.source,
+            omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(source)
+                if source == &object_call.parameter
+        ));
+        assert_eq!(object_call.instance, object_call.instance_destination);
+        assert_eq!(object_call.table, object_call.table_destination);
+        let image = emit_executable_image(&object, 3)
+            .expect("link parameter-sourced scalar forwarding image");
+        validate_executable_image(&object, &image)
+            .expect("replay parameter-sourced scalar forwarding linked image");
+        let image_call = image
+            .functions()
+            .iter()
+            .find_map(|function| function.forwarded_dynamic_parameter_calls.first())
+            .expect("image parameter-forwarding call");
+        assert_eq!(image_call, machine_call);
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("build parameter-sourced forwarding installation");
+        let [installed_call] = installation.forwarded_dynamic_parameter_calls() else {
+            panic!("one installed parameter-forwarding call expected")
+        };
+        assert_eq!(installed_call.machine, object_call.parameter.owner);
+        assert_eq!(installed_call.operation, object_call.psi_operation);
+        assert_eq!(installed_call.callee, object_call.callee);
+        assert_eq!(installed_call.source_value, object_call.source_value);
+        assert_eq!(installed_call.scalar_type, object_call.scalar_type);
+        assert_eq!(installed_call.source_parameter_ordinal, 0);
+        assert_eq!(installed_call.target_parameter_ordinal, 0);
+        validate_installation_record(&installation, &image)
+            .expect("replay parameter-sourced forwarding installation");
+        let encoded = encode_installation_record(&installation).expect("encode installation");
+        assert_eq!(decode_installation_record(&encoded), Ok(installation));
+    }
+}
+
+#[test]
+fn object_replay_rejects_parameter_sourced_forwarding_custody_drift() {
+    let mut plan = multi_hop_scalar_machine_plan(NativeTarget::linux_x64());
+    let (caller, operation) = plan
+        .functions
+        .iter_mut()
+        .find_map(|function| {
+            let call = function.forwarded_dynamic_parameter_calls.first_mut()?;
+            call.argument.target.ordinal += 1;
+            Some((function.machine, call.psi_operation))
+        })
+        .expect("parameter-forwarding machine row");
+    assert_eq!(
+        build_object_artifact(&plan),
+        Err(ObjectError::InvalidForwardedDynamicParameterCallEvidence { caller, operation })
+    );
 }
 
 #[test]

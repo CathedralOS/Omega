@@ -20,6 +20,7 @@ mod dynamic_conformance;
 mod dynamic_elf;
 mod final_image_validation;
 mod forwarded_dynamic_descriptor;
+mod forwarded_dynamic_parameter;
 mod fully_consumed_affine_pair;
 mod image_output;
 mod installation;
@@ -81,6 +82,7 @@ use byte_sequence_custody::linux_write_line_custody_is_exact;
 use completion_receipts::{CompletionCustodyError, validate_completion_custody};
 use dynamic_conformance::validate_dynamic_calls;
 use forwarded_dynamic_descriptor::validate_forwarded_dynamic_descriptors;
+use forwarded_dynamic_parameter::validate_forwarded_dynamic_parameter_calls;
 use fully_consumed_affine_pair::{
     exact_fully_consumed_affine_pair, exact_partially_consumed_affine_array,
 };
@@ -284,6 +286,8 @@ pub struct ObjectFunction {
         Vec<omega_machine_code::InstalledProviderUnitScalarCallRecord>,
     pub dynamic_calls: Vec<omega_machine_code::DynamicCallRecord>,
     pub dynamic_parameter_calls: Vec<omega_machine_code::DynamicParameterCallRecord>,
+    pub forwarded_dynamic_parameter_calls:
+        Vec<omega_machine_code::ForwardedDynamicParameterCallRecord>,
     pub forwarded_dynamic_descriptor_calls:
         Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
@@ -720,6 +724,7 @@ fn build_object_artifact_with_x86_feature_profile(
     }
     let forwarded_dynamic_applications =
         validate_forwarded_dynamic_descriptors(plan.target, &plan.functions)?;
+    validate_forwarded_dynamic_parameter_calls(plan.target, &plan.functions)?;
     let validated_private_functions = validate_private_functions(plan.target, private_functions)?;
     ranked_u32_countdown::replay_ranked_u32_countdown(plan)?;
     let mut previous = None;
@@ -2102,6 +2107,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 .clone(),
             dynamic_calls: function.dynamic_calls.clone(),
             dynamic_parameter_calls: function.dynamic_parameter_calls.clone(),
+            forwarded_dynamic_parameter_calls: function.forwarded_dynamic_parameter_calls.clone(),
             forwarded_dynamic_descriptor_calls: function.forwarded_dynamic_descriptor_calls.clone(),
             unit_scalar_homes: function.unit_scalar_homes.clone(),
             unit_integer_constants: function.unit_integer_constants.clone(),
@@ -3781,6 +3787,10 @@ pub enum ObjectError {
         operation: psi_core::OperationId,
     },
     InvalidDynamicParameterCallEvidence {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    InvalidForwardedDynamicParameterCallEvidence {
         caller: MachineId,
         operation: psi_core::OperationId,
     },
