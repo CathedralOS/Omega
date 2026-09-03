@@ -13016,7 +13016,8 @@ checked-result arithmetic decision listed below.
     telescope and exact machine-parented ordinary `Type` or const binders whose
     carrier is scalar or an exact validated structured-data shape. Structured
     const occurrences replay the exact binder symbol/name and matching template
-    carrier; type-property bounds, machine/proposition
+    carrier. Ordinary `Type` binders also retain their complete authored
+    multiplicity and four-axis carry-property bounds; machine/proposition
     binders, `satisfies`, conformance bounds, and broader supply/operational
     forms remain fenced. Finalization is suffix-scoped for satisfied
     declarations, progress premises, domain constraints, qualification casts,
@@ -13050,14 +13051,15 @@ checked-result arithmetic decision listed below.
     continuation, dependency-bundle no-rerun, unit-local normalization,
     no-source-reread, exact target selection and cross-unit cohort rejection,
     final generated-selection authority replay and transitive-dependency
-    rejection, generic-machine prefix preservation, exact lifetime-telescope
-    and scalar/structured-const carrier/value custody, transactional binder-kind
-    rejection, and structural absence of the retired rebuild path.
+    rejection, generic-machine prefix preservation, exact lifetime-telescope,
+    Type-property bounds, and scalar/structured-const carrier/value custody,
+    transactional binder-kind rejection, and structural absence of the retired
+    rebuild path.
 
   Remaining engineering work, not language design:
   - broaden the retained typed continuation beyond its current validated data
     and machine cohorts, including static machine/proposition generic binders,
-    generic property and conformance bounds, satisfactions, broader
+    conformance bounds, satisfactions, broader
     supply/operational forms, additional root kinds, and the currently fenced
     data shapes;
   - keep every new cohort append-only and transactional, extending prefix and

@@ -489,12 +489,11 @@ fn exact_extension_machine_symbol(
             .iter()
             .all(|parameter| match &parameter.kind {
                 psi_symbol_resolved_trees::data::TypeParameterKind::Type => {
-                    parameter.bounds == psi_symbol_resolved_trees::data::DataProperties::default()
-                        && seeded_local_instances::parameter_is_supported(
-                            source,
-                            machine.symbol,
-                            parameter,
-                        )
+                    seeded_local_instances::parameter_is_supported(
+                        source,
+                        machine.symbol,
+                        parameter,
+                    )
                 }
                 psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
                     seeded_local_instances::const_parameter_is_supported(

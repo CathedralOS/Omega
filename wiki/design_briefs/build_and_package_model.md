@@ -313,8 +313,10 @@ body whose binder list contains an authored-order erased-lifetime telescope
 followed only by exact machine-parented ordinary `Type` or const parameters
 whose carrier is scalar or an exact validated structured-data shape. A
 structured const occurrence must replay the exact binder symbol/name into a
-template slot with the same checked carrier. Type-property bounds, static-
-machine/proposition binders, conformance bounds, `satisfies`, and broader
+template slot with the same checked carrier. An ordinary `Type` binder also
+retains its complete authored multiplicity and four-axis carry-property bound
+through the append-only continuation. Static-machine/proposition binders,
+conformance bounds, `satisfies`, and broader
 supply/operational forms remain fenced. Suffix-only finalization owns satisfied
 declarations,
 progress premises, domain constraints, semantic qualification casts, and
@@ -357,8 +359,9 @@ Canaries cover exact configuration and build-evidence retention, one-way
 overload/conformance visibility, generated machine and attached-method
 continuation, unit-local normalization, dependency-bundle no-rerun,
 target-scoped rejection, source/custody counts, retained-prefix preservation,
-exact lifetime-telescope and scalar/structured-const carrier/value custody, and structural
-absence of the retired reconstruction route.
+exact lifetime-telescope, Type-property bounds, and scalar/structured-const
+carrier/value custody, and structural absence of the retired reconstruction
+route.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review

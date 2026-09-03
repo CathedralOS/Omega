@@ -6015,6 +6015,89 @@ fn seeded_continuation_appends_a_plain_type_generic_machine_exactly_once() {
 }
 
 #[test]
+fn seeded_continuation_retains_generic_machine_type_property_bounds() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+        "pub machine generated<T [copy]>(value: &T) {}",
+    );
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("a property-bounded generated machine should append from the retained base");
+
+    assert!(retained_typed_base_is_exact_prefix(&expected, &typed));
+    let generated = typed.machines().last().expect("generated generic machine");
+    let [type_parameter] = typed.machine_type_parameters(generated) else {
+        panic!("generated machine retains one exact Type parameter")
+    };
+    assert!(matches!(
+        type_parameter.kind,
+        psi_typed_trees::data::TypeParameterKind::Type
+    ));
+    assert_eq!(
+        type_parameter.bounds,
+        psi_typed_trees::data::DataProperties {
+            carry: None,
+            multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+        },
+        "the seeded continuation must preserve the authored [copy] contract",
+    );
+    assert_eq!(
+        typed.symbols.get(type_parameter.symbol).parent,
+        generated.symbol,
+        "the bounded Type binder remains owned by its exact generated machine",
+    );
+    let [state] = typed.machine_states(generated) else {
+        panic!("generated machine retains one entry state")
+    };
+    let [value] = typed.state_parameters(state) else {
+        panic!("generated machine retains one value parameter")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed
+        .type_reference_table
+        .type_reference(value.type_reference)
+    else {
+        panic!("value remains a reference to the property-bounded binder")
+    };
+    assert!(matches!(
+        typed.type_reference_table.type_reference(*referee),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if *symbol == type_parameter.symbol && name.as_str() == "T"
+    ));
+}
+
+#[test]
+fn seeded_continuation_retains_generic_machine_four_axis_carry_bound() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+        r#"
+            pub machine generated<T [carry(
+                suspension: allowed,
+                cpu: any,
+                thread: any,
+                address: movable,
+            )]>(value: &T) {}
+        "#,
+    );
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("a carry-bounded generated machine should append from the retained base");
+
+    assert!(retained_typed_base_is_exact_prefix(&expected, &typed));
+    let generated = typed.machines().last().expect("generated generic machine");
+    let [type_parameter] = typed.machine_type_parameters(generated) else {
+        panic!("generated machine retains one exact Type parameter")
+    };
+    assert_eq!(
+        type_parameter.bounds,
+        psi_typed_trees::data::DataProperties {
+            carry: Some(psi_language_semantics::CarryPolicy::PERMISSIVE),
+            multiplicity: psi_language_semantics::Multiplicity::Affine,
+        },
+        "the seeded continuation must preserve all four authored carry axes",
+    );
+}
+
+#[test]
 fn seeded_continuation_appends_a_lifetime_generic_machine_with_exact_binder_custody() {
     let (base, extension) = seeded_plain_data_inputs(
         "data Authored { value: u32; } machine authored() -> u32 { 1 }",
@@ -6262,7 +6345,6 @@ fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exa
 #[test]
 fn seeded_generic_machine_continuation_rejects_unadmitted_binder_kinds_transactionally() {
     for extension_source in [
-        "machine generated<T [copy]>() {}",
         "data Recursive { value: Recursive; } machine generated<const S: Recursive>() {}",
         "machine generated<machine Selected>() where machine Selected() -> u8; {}",
     ] {
