@@ -23,6 +23,7 @@ pub use sum_materialization::{
     project_conventional_record_with_depth_nine_nested_sums_materialization_layout,
     project_conventional_record_with_depth_seven_nested_sums_materialization_layout,
     project_conventional_record_with_depth_six_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_sixteen_nested_sums_materialization_layout,
     project_conventional_record_with_depth_ten_nested_sums_materialization_layout,
     project_conventional_record_with_depth_thirteen_nested_sums_materialization_layout,
     project_conventional_record_with_depth_three_nested_sum_materialization_layout,

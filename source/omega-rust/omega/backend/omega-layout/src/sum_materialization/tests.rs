@@ -29,6 +29,7 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 mod fixed_depth_eight_twelve;
+mod fixed_depth_sixteen;
 
 fn checked(source: &str) -> CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");

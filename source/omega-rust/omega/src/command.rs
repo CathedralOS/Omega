@@ -77,29 +77,19 @@ pub(crate) fn run() {
     } else {
         ArtifactEmissionPolicy::Full
     };
-    let package_inputs = match omega_package_manager::operations::prepare_local_project(
-        &options.root_path,
-    ) {
-        Ok(Some(prepared)) => {
-            let (entry_path, package_inputs) = prepared.into_parts();
-            options.root_path = entry_path;
-            Some(package_inputs)
-        }
-        Ok(None) => None,
-        Err(error) => {
-            eprintln!("{error}");
-            std::process::exit(1);
-        }
-    };
+    let prepared_project =
+        match omega_package_manager::operations::prepare_local_project(&options.root_path) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        };
     let requested_product = if arguments.check_only {
         RequestedCompileProduct::Check
     } else {
         RequestedCompileProduct::NativeArtifact
     };
-    let mut request = CompileRequest::new(options)
-        .with_requested_product(requested_product)
-        .with_artifact_policy(artifact_policy)
-        .with_optimization_rollback(arguments.optimization_rollback);
     let accepted_admissions = match omega_trust_ledger::read_trust_admissions(&policy_root_path) {
         Ok(admissions) => admissions,
         Err(diagnostics) => {
@@ -109,74 +99,155 @@ pub(crate) fn run() {
             std::process::exit(1);
         }
     };
-    request = request.with_accepted_trust_admissions(accepted_admissions);
-    if let Some(package_inputs) = package_inputs {
-        request = request.with_package_inputs(package_inputs);
-    }
-    match compile(request) {
-        Ok(report) => {
-            let settlement = report.trust_admission_settlement();
-            if arguments.accept_admissions {
-                if let Err(diagnostics) = omega_trust_ledger::accept_trust_admissions(
-                    &policy_root_path,
-                    settlement.required(),
-                ) {
-                    for diagnostic in diagnostics {
-                        eprintln!("{diagnostic}");
-                    }
+    let report = if !arguments.check_only && prepared_project.is_some() {
+        let prepared = prepared_project.expect("package project is present");
+        let target_profile =
+            omega_target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
+                .unwrap_or_else(|diagnostic| {
+                    eprintln!("{diagnostic}");
                     std::process::exit(1);
-                }
-            } else if !settlement.is_exactly_admitted() {
-                for admission in settlement.unresolved() {
-                    eprintln!(
-                        "unresolved trust admission `{}` [{}]{}",
-                        admission.commitment(),
-                        admission.digest(),
-                        admission
-                            .report_identity()
-                            .map(|identity| format!(" (report {identity:016x})"))
-                            .unwrap_or_default(),
-                    );
-                }
-                for admission in settlement.unused() {
-                    eprintln!(
-                        "stale trust admission `{}` [{}]{}",
-                        admission.commitment(),
-                        admission.digest(),
-                        admission
-                            .report_identity()
-                            .map(|identity| format!(" (report {identity:016x})"))
-                            .unwrap_or_default(),
-                    );
-                }
-                eprintln!("run again with --accept-admissions to accept this exact set");
+                });
+        let policy = arguments
+            .package_root_policy
+            .as_deref()
+            .map(open_package_root_policy)
+            .transpose()
+            .unwrap_or_else(|error| {
+                eprintln!("{error}");
                 std::process::exit(1);
-            }
-            if arguments.check_only {
-                println!("{}", report.summary());
-            } else {
-                match output::publish_native_artifact(report, &build_dir) {
-                    Ok((published, path)) => {
-                        if let Some(receipt) = published.optimization_rollback_receipt() {
-                            println!("optimizer rollback: {receipt}");
-                        }
-                        println!("published native output to {}", path.display());
-                    }
-                    Err(error) => {
-                        eprintln!("{error}");
-                        std::process::exit(1);
-                    }
-                }
-            }
+            });
+        let mut request =
+            omega_package_manager::operations::PreparedLocalProjectNativeRequest::new(
+                prepared,
+                &build_dir,
+                target_profile,
+            )
+            .with_artifact_policy(artifact_policy)
+            .with_accepted_trust_admissions(accepted_admissions)
+            .with_optimization_rollback(arguments.optimization_rollback);
+        if let Some((directory, name)) = policy.as_ref() {
+            request = request.with_root_policy(
+                omega_package_manager::operations::LocalProjectRootPolicy::new(directory, name),
+            );
         }
-        Err(diagnostics) => {
+        omega_package_manager::operations::compile_prepared_local_project_for_native(request)
+            .unwrap_or_else(|error| {
+                eprintln!("{error}");
+                std::process::exit(1);
+            })
+    } else {
+        if arguments.package_root_policy.is_some() {
+            eprintln!("--package-root-policy requires native production from a build.omg project");
+            std::process::exit(1);
+        }
+        let package_inputs = prepared_project.map(|prepared| {
+            let (entry_path, package_inputs) = prepared.into_parts();
+            options.root_path = entry_path;
+            package_inputs
+        });
+        let mut request = CompileRequest::new(options)
+            .with_requested_product(requested_product)
+            .with_artifact_policy(artifact_policy)
+            .with_optimization_rollback(arguments.optimization_rollback)
+            .with_accepted_trust_admissions(accepted_admissions);
+        if let Some(package_inputs) = package_inputs {
+            request = request.with_package_inputs(package_inputs);
+        }
+        compile(request).unwrap_or_else(|diagnostics| {
             for diagnostic in diagnostics {
                 eprintln!("{diagnostic}");
             }
-
+            std::process::exit(1);
+        })
+    };
+    let settlement = report.trust_admission_settlement();
+    if arguments.accept_admissions {
+        if let Err(diagnostics) =
+            omega_trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
+        {
+            for diagnostic in diagnostics {
+                eprintln!("{diagnostic}");
+            }
             std::process::exit(1);
         }
-    };
+    } else if !settlement.is_exactly_admitted() {
+        for admission in settlement.unresolved() {
+            eprintln!(
+                "unresolved trust admission `{}` [{}]{}",
+                admission.commitment(),
+                admission.digest(),
+                admission
+                    .report_identity()
+                    .map(|identity| format!(" (report {identity:016x})"))
+                    .unwrap_or_default(),
+            );
+        }
+        for admission in settlement.unused() {
+            eprintln!(
+                "stale trust admission `{}` [{}]{}",
+                admission.commitment(),
+                admission.digest(),
+                admission
+                    .report_identity()
+                    .map(|identity| format!(" (report {identity:016x})"))
+                    .unwrap_or_default(),
+            );
+        }
+        eprintln!("run again with --accept-admissions to accept this exact set");
+        std::process::exit(1);
+    }
+    if arguments.check_only {
+        println!("{}", report.summary());
+    } else {
+        match output::publish_native_artifact(report, &build_dir) {
+            Ok((published, path)) => {
+                if let Some(receipt) = published.optimization_rollback_receipt() {
+                    println!("optimizer rollback: {receipt}");
+                }
+                println!("published native output to {}", path.display());
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
+fn open_package_root_policy(
+    path: &std::path::Path,
+) -> Result<
+    (
+        omega_package_manager::review::ReviewOnlyRootPolicyDirectory,
+        omega_package_manager::review::ReviewOnlyRootPolicyName,
+    ),
+    String,
+> {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "--package-root-policy requires a UTF-8 direct-child filename".to_owned())?;
+    let name = omega_package_manager::review::ReviewOnlyRootPolicyName::parse(name)
+        .map_err(|error| error.to_string())?;
+    let directory_path = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let directory =
+        cap_std::fs::Dir::open_ambient_dir(directory_path, cap_std::ambient_authority()).map_err(
+            |error| {
+                format!(
+                    "cannot open explicit package root-policy directory {}: {error}",
+                    directory_path.display()
+                )
+            },
+        )?;
+    let directory = omega_package_manager::review::ReviewOnlyRootPolicyDirectory::from_capability(
+        directory,
+        directory_path,
+    )
+    .map_err(|error| error.to_string())?;
+    Ok((directory, name))
 }
 
 struct CliArguments {
@@ -184,13 +255,14 @@ struct CliArguments {
     build_dir: Option<PathBuf>,
     check_only: bool,
     output_only: bool,
+    package_root_policy: Option<PathBuf>,
     root_path: PathBuf,
     target_name: Option<String>,
     optimization_rollback: OptimizationRollback,
 }
 
 fn usage() -> &'static str {
-    "usage: omega [--check] [--accept-admissions] [--output-only] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega refresh-samples [samples-dir]"
+    "usage: omega [--check] [--accept-admissions] [--output-only] [--package-root-policy <file>] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega refresh-samples [samples-dir]"
 }
 
 fn parse_arguments() -> Result<CliArguments, String> {
@@ -199,6 +271,7 @@ fn parse_arguments() -> Result<CliArguments, String> {
     let mut check_only = false;
     let mut disabled_optimizations = Vec::new();
     let mut output_only = false;
+    let mut package_root_policy = None;
     let mut root_path = None;
     let mut target_name = None;
     let mut arguments = std::env::args_os().skip(1);
@@ -216,6 +289,14 @@ fn parse_arguments() -> Result<CliArguments, String> {
 
         if argument == "--output-only" {
             output_only = true;
+            continue;
+        }
+
+        if argument == "--package-root-policy" {
+            package_root_policy = arguments.next().map(PathBuf::from);
+            if package_root_policy.is_none() {
+                return Err("--package-root-policy requires a file".into());
+            }
             continue;
         }
 
@@ -266,6 +347,7 @@ fn parse_arguments() -> Result<CliArguments, String> {
         build_dir,
         check_only,
         output_only,
+        package_root_policy,
         root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
         target_name,
         optimization_rollback,

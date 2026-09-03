@@ -809,11 +809,11 @@ fn runnable_publication_rejects_compact_equal_different_artifact_occurrence() {
 }
 
 #[test]
-fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
+fn package_registration_owns_exact_component_era_lease_through_retry() {
     let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
     let process_entry = EntryStubId::from_normalized_identity(1).expect("process entry");
     let private_function = callback_private_function_identity();
-    let mut fixture = runnable_fixture(800);
+    let fixture = runnable_fixture(800);
     let other = runnable_fixture_at(800, 0x9000);
     let attribution = bind_installed_compiler_private_function_entry(
         fixture.runnable.installed_artifact(),
@@ -827,6 +827,23 @@ fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
         private_entry,
     )
     .expect("other installed occurrence attribution");
+    let mut other_lifecycle = lifecycle();
+    let other_candidate = candidate(10, &other.runnable);
+    let other_receipt = ComponentEraPublicationReceipt::from_runtime(
+        797,
+        other_lifecycle.lifecycle(),
+        &other_candidate,
+        true,
+        false,
+    );
+    other_lifecycle
+        .publish(other_candidate, other_receipt, other.runnable)
+        .expect("other callback component era");
+    let foreign_lease_identity = ProgramLocalRootEpochLeaseId::from_normalized_identity(797)
+        .expect("foreign callback lease");
+    let foreign_lease = other_lifecycle
+        .acquire_program_local_root_epoch_lease(foreign_lease_identity, 10, "CodecEntry/v1")
+        .expect("foreign component-era lease");
     assert!(
         bind_installed_compiler_private_function_entry(
             fixture.runnable.installed_artifact(),
@@ -838,9 +855,9 @@ fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
         .contains("text offset")
     );
 
-    let candidate = callback_root_candidate(fixture.runnable.installed(), private_entry);
+    let root_candidate = callback_root_candidate(fixture.runnable.installed(), private_entry);
     let boundary = callback_boundary();
-    let validated = validate_external_root(candidate, &boundary).expect("callback root");
+    let validated = validate_external_root(root_candidate, &boundary).expect("callback root");
     let slot = RootSlotAuthority::from_admitted_owner(
         root_id(720, RootSlotId::from_normalized_identity),
         root_id(721, RootSlotOwnerId::from_normalized_identity),
@@ -866,7 +883,21 @@ fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
         validated.candidate().trust_receipts.iter().copied(),
     )
     .expect("callback root admission");
-    let mut runtime = fixture.runnable.external_root_runtime();
+    let mut lifecycle = lifecycle();
+    let era_candidate = candidate(10, &fixture.runnable);
+    let era_receipt = ComponentEraPublicationReceipt::from_runtime(
+        799,
+        lifecycle.lifecycle(),
+        &era_candidate,
+        true,
+        false,
+    );
+    lifecycle
+        .publish(era_candidate, era_receipt, fixture.runnable)
+        .expect("callback component era");
+    let mut runtime = lifecycle
+        .callback_registration_runtime(10)
+        .expect("retained callback runtime");
     let root = runtime
         .install(validated, slot, admission)
         .expect("installed callback root");
@@ -957,10 +988,29 @@ fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
         .expect_err("collision-equal capacity occurrence rejects");
     let (attribution, root, accepted_receipt, collision_capacity) = (*error).into_parts();
     assert_eq!(collision_capacity.identity(), capacity_identity);
-    let registration = runtime
+    let registered = runtime
         .admit_compiler_private_callback(attribution, root, accepted_receipt, capacity)
         .expect("exact provider registration");
+    let lease_identity = ProgramLocalRootEpochLeaseId::from_normalized_identity(798)
+        .expect("callback component-era lease");
+    let lease = runtime
+        .acquire_registration_lease(lease_identity)
+        .expect("exact callback component-era lease");
+    let error = runtime
+        .lower_registration(registered, foreign_lease)
+        .expect_err("different installed occurrence lease cannot lower registration");
+    let (registered, foreign_lease) = (*error).into_parts();
+    assert_eq!(foreign_lease.identity(), foreign_lease_identity);
+    other_lifecycle
+        .release_program_local_root_epoch_lease(foreign_lease)
+        .expect("foreign lease remains returnable to its exact ledger");
+    let registration = runtime
+        .lower_registration(registered, lease)
+        .expect("package-visible linear registration");
     assert_eq!(registration.attribution().entry(), private_entry);
+    assert_eq!(registration.component_era_identity(), 10);
+    assert_eq!(registration.component_era_lease_identity(), lease_identity);
+    assert_eq!(runtime.component_era_lease_holds(), Some(1));
     assert_eq!(
         registration.registration().capacity().identity(),
         capacity_identity
@@ -979,6 +1029,7 @@ fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
         .expect_err("unsuccessful unregister retains callback custody");
     let (registration, _, not_quiesced) = (*error).into_parts();
     assert_eq!(registration.attribution().entry(), private_entry);
+    assert_eq!(runtime.component_era_lease_holds(), Some(1));
     assert_eq!(
         registration.registration().capacity().identity(),
         capacity_identity
@@ -997,6 +1048,7 @@ fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
         .expect_err("provider success without quiescence retains callback custody");
     let (registration, _, _) = (*error).into_parts();
     assert_eq!(registration.attribution().entry(), private_entry);
+    assert_eq!(runtime.component_era_lease_holds(), Some(1));
 
     let successful = OpaqueCallbackUnregistrationReceipt::from_provider(
         root_id(
@@ -1006,9 +1058,22 @@ fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
         registration.registration(),
         true,
     );
-    let completed = registration
+    let unregistered = registration
         .unregister_and_quiesce(&mut runtime, successful, quiesced)
         .expect("provider unregister plus root quiescence");
+    assert_eq!(unregistered.component_era_identity(), 10);
+    assert_eq!(unregistered.component_era_lease_identity(), lease_identity);
+    let mut other_runtime = other_lifecycle
+        .callback_registration_runtime(10)
+        .expect("other retained callback runtime");
+    let error = unregistered
+        .release_component_era(&mut other_runtime)
+        .expect_err("different retained component cannot release callback lease");
+    let unregistered = (*error).into_registration();
+    assert_eq!(unregistered.component_era_lease_identity(), lease_identity);
+    let completed = unregistered
+        .release_component_era(&mut runtime)
+        .expect("exact component-era release");
     let (attribution, completion) = completed.into_parts();
     assert_eq!(attribution.entry(), private_entry);
     let (returned_slot, returned_capacity) = completion.into_parts();
@@ -1017,6 +1082,8 @@ fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
         root_id(720, RootSlotId::from_normalized_identity)
     );
     assert_eq!(returned_capacity.identity(), capacity_identity);
+    drop(runtime);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
 }
 
 #[test]

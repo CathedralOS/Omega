@@ -169,6 +169,10 @@ impl ReviewedPackageProductionCandidate {
         self.target_profile
     }
 
+    pub(crate) const fn checked_root(&self) -> &omega_compiler::CheckedCompilation {
+        &self.checked_root
+    }
+
     pub(crate) fn into_production_parts(
         self,
     ) -> (

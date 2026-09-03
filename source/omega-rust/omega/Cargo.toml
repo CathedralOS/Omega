@@ -11,6 +11,7 @@ path = "src/main.rs"
 test = false
 
 [dependencies]
+cap-std = "4.0.3"
 omega-compiler = { path = "compiler/omega-compiler" }
 omega-core = { path = "representations/omega-core" }
 omega-package-manager = { path = "packages/manager" }

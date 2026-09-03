@@ -5,9 +5,14 @@
 //! admitting it. Future install and update transactions belong beside these
 //! operations rather than in the command-line binary.
 
+mod compile_project;
 pub mod inspect_source;
 mod prepare_project;
 
+pub use compile_project::{
+    CompilePreparedLocalProjectNativeError, LocalProjectRootPolicy,
+    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
+};
 pub use inspect_source::{
     PackageSourceInspection, PackageSourceInspectionError, PackageSourceRequest,
     PackageSourceRequestParseError, SourceAdapter, inspect_package_source,

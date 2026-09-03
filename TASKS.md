@@ -9031,19 +9031,28 @@ Owners:
   The runnable-component split borrow permits the root to pin code while only
   its independent ledger is mutated; failed admission returns attribution,
   root, provider receipt, and capacity, while failed unregister/quiescence
-  retains the registration and both receipts for retry. This bridge does not
-  yet establish the source `Registration` value or component-era lease. The first installed-entry
+  retains the registration and both receipts for retry. A retained-era split
+  now also joins that bridge to the exact non-clone component-era lease. It
+  derives the era and entry contract from the retained runtime, validates the
+  lease's complete installed occurrence, and lowers the package-visible linear
+  `Registration`. Its typestate admits lease release only after provider
+  unregister and exact-root quiescence; failed unregister reconstructs the live
+  registration and receipts, while failed or cross-component lease release
+  retains the completed callback, lease, returned root slot, and capacity for
+  retry. Capacity and slot become observable only after exact lease release.
+  The first installed-entry
   attribution prerequisite is live: a caller-supplied, already-admitted
   `EntryStubId` can be joined to the unique exact format-50 private-function
   row, its final text offset and bytes, and the opaque installed-code
   occurrence. Identity, process-entry, absent-entry, interior-offset, and
   cross-occurrence substitution reject. This carrier does not derive an entry,
   resolve an address, publish code, admit an external root, or grant registrar,
-  capacity, lease, unregister, or quiescence authority by itself. The next
-  implementation must join the live runtime bridge to the exact component-era
-  lease and lower the package-visible linear `Registration`. This is
-  engineering work under the settled protocol, not evidence that the deleted
-  carrier is still live.
+  capacity, lease, unregister, or quiescence authority by itself. The retained-
+  era runtime performs the lease acquisition and join; neither installed-entry
+  attribution nor the lower-level callback carrier can fabricate that
+  authority. Package-specific handler surfaces remain ordinary library work,
+  not a missing callback-lifetime protocol or evidence that the deleted carrier
+  is still live.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public
@@ -9410,11 +9419,18 @@ compiler concept is introduced.
   so sponsored review and ordinary production retain the same observation
   without weakening observation identity.
 
-  Remaining package work is production orchestration: the current CLI project
-  preparation returns raw package compilation inputs and does not yet compile
-  reviews, recover/accept root policy, or feed the resulting accepted policy to
-  either native request route. Add that workflow without inferring permissions
-  in project preparation. Then migrate
+  Production CLI orchestration now keeps project preparation policy-blind while
+  retaining the resolver-owned closure needed by a later operation. Native
+  project production compiles the final policy-bearing review, reconstructs the
+  exact initial conflict set, recovers an explicitly named direct-child root-
+  policy record against that fresh set when blockers exist, accepts ordinary
+  evidence, and only then enters the manager-owned retained native route. A
+  policy is required exactly when blocking rows exist; omission and a supplied
+  policy for a blocker-free review both reject. The operation derives package
+  permissions solely from accepted evidence and independently consumes the
+  receiving permission policy; project preparation never infers either.
+  Checked and standalone compilation retain their prior direct request route,
+  and `--package-root-policy` is rejected for both. Next migrate
   `FilesystemHost` and later services to
   their exact portable facets, prove selected-closure coverage for every
   transitional broad row, and only then remove the filename classifier and
@@ -12711,20 +12727,35 @@ checked-result arithmetic decision listed below.
   records, recursive or array-mediated paths, direct-sum coexistence, and
   target-dependent placement remain rejected; every shallower API retains its
   exact boundary.
-  The `omega-layout` materialization owner's 7,436-line regression corpus now
-  lives in a 4,305-line private test root over a focused 3,131-line
-  depth-eight-through-fifteen child. The 4,609-line production owner retains
-  49 production functions, 22 public projection entry points, exact module
-  paths, diagnostics, and the complete 30-test crate behavior. The matching
-  12,798-line Psi materialization owner is now a 4,994-line public
-  carrier/replay facade over private byte-derivation (6,121 lines), report-
-  identity (1,309 lines), and bounded sum-reachability (374 lines) owners. Its
-  append-only public inventory now has 33 carrier types and 18 validation entry
+  The complete plural depth-sixteen fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-fifteen report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-fifteen carriers, preserves repeated
+  nominal occurrences, rebuilds every nested zero-padded image in authored
+  order, replays every layout and occurrence identity hash-free, and performs
+  one final atomic copy. Projection and replay share one memoized bounded walk
+  and global leaf ceiling across the complete cohort. Paths deeper than sixteen
+  records, recursive or array-mediated paths, direct-sum coexistence, and
+  target-dependent placement remain rejected; every shallower API retains its
+  exact boundary.
+  The `omega-layout` materialization owner's 7,884-line regression corpus now
+  lives in a 4,306-line private test root over a focused 3,131-line
+  depth-eight-through-fifteen child and a 447-line depth-sixteen child. The
+  4,877-line production owner retains 51 production functions, 23 public
+  projection entry points, exact module paths, diagnostics, and the complete
+  31-test crate behavior. The matching 13,580-line Psi materialization owner is
+  now a 5,000-line public carrier/replay facade over private byte-derivation
+  (6,121 lines), report-identity (1,309 lines), bounded sum-reachability (374
+  lines), and a focused 776-line depth-sixteen successor. Its append-only
+  public inventory now has 35 carrier types and 19 validation entry
   points while preserving the sibling `SumReachability` import path and exact
   diagnostics. This remains module ownership only; the fixed-depth reports and
   their exact shallower/deeper rejection boundaries remain distinct.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  fifteen records, plural paths deeper than fifteen records, mixed
+  sixteen records, plural paths deeper than sixteen records, mixed
   common-field/case shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
