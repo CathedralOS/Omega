@@ -502,8 +502,37 @@ fn exact_extension_machine_symbol(
                         parameter,
                     )
                 }
-                psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
-                | psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+                psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract } => {
+                    match contract {
+                        psi_symbol_resolved_trees::data::MachineParameterContract::Structural(
+                            _,
+                        ) => exact_extension_structural_machine_parameter(
+                            source,
+                            data_frontier,
+                            local_instances,
+                            machine,
+                            type_parameters,
+                            parameter,
+                            contract,
+                        ),
+                        psi_symbol_resolved_trees::data::MachineParameterContract::Nominal {
+                            ..
+                        } => exact_extension_nominal_machine_parameter(
+                            source,
+                            data_frontier,
+                            local_instances,
+                            machine,
+                            type_parameters,
+                            parameter,
+                            contract,
+                        ),
+                        psi_symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+                        | psi_symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
+                            ..
+                        } => false,
+                    }
+                }
+                psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
             })
         || !machine.satisfies.is_empty()
         || !machine.conformance_bounds.is_empty()
@@ -570,6 +599,194 @@ fn exact_extension_machine_symbol(
                 })
         }
     }
+}
+
+fn exact_extension_structural_machine_parameter(
+    source: &SymbolResolvedTrees,
+    data_frontier: usize,
+    local_instances: &[psi_symbols::SymbolHandle],
+    machine: &psi_symbol_resolved_trees::machine::Machine,
+    owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
+    parameter: &psi_symbol_resolved_trees::data::TypeParameter,
+    contract: &psi_symbol_resolved_trees::data::MachineParameterContract,
+) -> bool {
+    let psi_symbol_resolved_trees::data::MachineParameterContract::Structural(signature) = contract
+    else {
+        return false;
+    };
+    parameter.bounds == psi_symbol_resolved_trees::data::DataProperties::default()
+        && parameter.symbol.is_valid()
+        && source.symbols.get(parameter.symbol).kind == psi_symbols::SymbolKind::MachineParameter
+        && source.symbols.get(parameter.symbol).parent == machine.symbol
+        && source.symbols.name(parameter.symbol) == parameter.name.as_str()
+        && signature.symbol == parameter.symbol
+        && signature.name.as_str() == parameter.name.as_str()
+        && signature.lifetime_parameters.is_empty()
+        && signature.type_parameters.is_empty()
+        && !signature.is_default
+        && signature.native_callback_parameters.is_empty()
+        && signature.invokes.is_empty()
+        && !signature.service_reach_is_installation_bound
+        && signature.suspends_keyword_source_spans.is_empty()
+        && signature.blocks_keyword_source_spans.is_empty()
+        && !signature.suspends
+        && !signature.blocks
+        && signature.contracts.is_empty()
+        && !signature.terminates_guarantee
+        && source
+            .state_parameters(signature.parameters)
+            .iter()
+            .all(|value| {
+                value.symbol.is_valid()
+                    && source.symbols.get(value.symbol).kind == psi_symbols::SymbolKind::Parameter
+                    && source.symbols.get(value.symbol).parent == parameter.symbol
+                    && source.symbols.name(value.symbol) == value.name.as_str()
+                    && !value.is_self
+                    && plain_type_is_supported(
+                        source,
+                        data_frontier,
+                        local_instances,
+                        machine.symbol,
+                        &machine.lifetime_parameters,
+                        owner_type_parameters,
+                        &value.type_reference,
+                    )
+            })
+        && signature.return_type.as_ref().is_none_or(|return_type| {
+            plain_type_is_supported(
+                source,
+                data_frontier,
+                local_instances,
+                machine.symbol,
+                &machine.lifetime_parameters,
+                owner_type_parameters,
+                return_type,
+            )
+        })
+}
+
+fn exact_extension_nominal_machine_parameter(
+    source: &SymbolResolvedTrees,
+    data_frontier: usize,
+    local_instances: &[psi_symbols::SymbolHandle],
+    machine: &psi_symbol_resolved_trees::machine::Machine,
+    owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
+    parameter: &psi_symbol_resolved_trees::data::TypeParameter,
+    contract: &psi_symbol_resolved_trees::data::MachineParameterContract,
+) -> bool {
+    let psi_symbol_resolved_trees::data::MachineParameterContract::Nominal {
+        trait_definition,
+        requirement,
+        authored_path,
+    } = contract
+    else {
+        return false;
+    };
+    let [trait_path @ .., requirement_name] = authored_path.as_slice() else {
+        return false;
+    };
+    let trait_definitions = source
+        .traits
+        .iter()
+        .filter(|candidate| candidate.symbol == *trait_definition)
+        .collect::<Vec<_>>();
+    let [trait_definition] = trait_definitions.as_slice() else {
+        return false;
+    };
+    let requirements = source
+        .trait_machine_signatures(trait_definition.machines)
+        .iter()
+        .filter(|candidate| candidate.symbol == *requirement)
+        .collect::<Vec<_>>();
+    let [requirement] = requirements.as_slice() else {
+        return false;
+    };
+    parameter.bounds == psi_symbol_resolved_trees::data::DataProperties::default()
+        && parameter.symbol.is_valid()
+        && source.symbols.get(parameter.symbol).kind == psi_symbols::SymbolKind::MachineParameter
+        && source.symbols.get(parameter.symbol).parent == machine.symbol
+        && source.symbols.name(parameter.symbol) == parameter.name.as_str()
+        && owner_type_parameters
+            .iter()
+            .filter(|candidate| {
+                matches!(
+                    candidate.kind,
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                )
+            })
+            .count()
+            == 1
+        && trait_definition.symbol.is_valid()
+        && source.symbols.get(trait_definition.symbol).kind == psi_symbols::SymbolKind::Trait
+        && source.symbols.get(trait_definition.symbol).parent == source.symbols.root()
+        && source.symbols.name(trait_definition.symbol) == trait_definition.name.as_str()
+        && !trait_definition.is_boundary
+        && trait_definition.lifetime_parameters.is_empty()
+        && source
+            .data_type_parameters(trait_definition.type_parameters)
+            .is_empty()
+        && trait_definition.conformance_bounds.is_empty()
+        && source
+            .trait_requirements(trait_definition.requires)
+            .is_empty()
+        && !trait_path.is_empty()
+        && trait_path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::")
+            == trait_definition.name.as_str()
+        && requirement_name.as_str() == requirement.name.as_str()
+        && requirement.symbol.is_valid()
+        && source.symbols.get(requirement.symbol).kind == psi_symbols::SymbolKind::State
+        && source.symbols.get(requirement.symbol).parent == trait_definition.symbol
+        && source.symbols.name(requirement.symbol) == requirement.name.as_str()
+        && requirement.spelling.is_none()
+        && requirement.lifetime_parameters.is_empty()
+        && source
+            .data_type_parameters(requirement.type_parameters)
+            .is_empty()
+        && !requirement.is_default
+        && requirement.native_callback_parameters.is_empty()
+        && source
+            .state_parameters(requirement.parameters)
+            .iter()
+            .all(|value| {
+                value.symbol.is_valid()
+                    && source.symbols.get(value.symbol).kind == psi_symbols::SymbolKind::Parameter
+                    && source.symbols.get(value.symbol).parent == requirement.symbol
+                    && source.symbols.name(value.symbol) == value.name.as_str()
+                    && !value.is_self
+                    && plain_type_is_supported(
+                        source,
+                        data_frontier,
+                        local_instances,
+                        machine.symbol,
+                        &machine.lifetime_parameters,
+                        owner_type_parameters,
+                        &value.type_reference,
+                    )
+            })
+        && requirement.return_type.as_ref().is_none_or(|return_type| {
+            plain_type_is_supported(
+                source,
+                data_frontier,
+                local_instances,
+                machine.symbol,
+                &machine.lifetime_parameters,
+                owner_type_parameters,
+                return_type,
+            )
+        })
+        && requirement.invokes.is_empty()
+        && requirement.service_reach_row == psi_language_semantics::ServiceReachRowTable::EMPTY_ROW
+        && !requirement.service_reach_is_installation_bound
+        && requirement.suspends_keyword_source_spans.is_empty()
+        && requirement.blocks_keyword_source_spans.is_empty()
+        && !requirement.suspends
+        && !requirement.blocks
+        && requirement.contracts.is_empty()
+        && !requirement.terminates_guarantee
 }
 
 fn exact_top_level_data_symbol(

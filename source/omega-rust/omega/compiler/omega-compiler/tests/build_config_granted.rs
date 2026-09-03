@@ -83,7 +83,10 @@ fn package_inputs(root: &Path) -> PackageCompilationInputs {
 fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
     let profile = omega_target::TargetProfile::WindowsX64;
     let project = Project::new("generated-source");
-    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "main.omg",
+        "pub trait GeneratedOperation { machine apply(value: u64) -> u64; }\ndata Main { value: u8; }\n",
+    );
     project.write("input.txt", "input\n");
     project.write(
         "build.omg",
@@ -103,7 +106,7 @@ machine build(builder: &mut Build) {{
     let output_descriptor: i32 = builder.output.create(generated, 438);
     let output_count: i64 = builder.output.write(
         output_descriptor,
-        "data Generated {{ base: Main; }}\npub data MachineConfig {{ count: u8; enabled: bool; }}\npub data ConfigIndexed<const C: MachineConfig> {{ marker: u8; }}\npub machine identity<'value, T>(value: &'value T) -> &'value T {{ value }}\npub machine bounded<T [copy]>(value: &T) {{}}\npub machine width<const N: u64>(value: [u8; N]) {{}}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {{}}\n"
+        "data Generated {{ base: Main; }}\npub data MachineConfig {{ count: u8; enabled: bool; }}\npub data ConfigIndexed<const C: MachineConfig> {{ marker: u8; }}\npub machine identity<'value, T>(value: &'value T) -> &'value T {{ value }}\npub machine bounded<T [copy]>(value: &T) {{}}\npub machine apply<machine Selected>(value: u64) -> u64 where machine Selected(value: u64) -> u64; {{ Selected(value) }}\npub machine apply_nominal<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; {{ Selected(value) }}\npub machine width<const N: u64>(value: [u8; N]) {{}}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {{}}\n"
     );
     let output_close: i32 = builder.output.close(output_descriptor);
     builder.output.include_source(generated);
@@ -186,6 +189,69 @@ machine build(builder: &mut Build) {{
             carry: None,
             multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
         },
+    );
+    let apply = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "apply")
+        .expect("generated static-machine generic reaches final checked program");
+    let [apply_parameter] = checked.typed.machine_type_parameters(apply) else {
+        panic!("generated apply machine retains one static-machine parameter")
+    };
+    let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &apply_parameter.kind
+    else {
+        panic!("apply.Selected remains a static-machine binder")
+    };
+    let psi_typed_trees::data::MachineParameterContract::Structural(signature) = contract else {
+        panic!("apply.Selected retains its structural signature")
+    };
+    assert_eq!(signature.symbol, apply_parameter.symbol);
+    assert_eq!(checked.typed.state_signature_parameters(signature).len(), 1);
+    let generated_operation = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "GeneratedOperation")
+        .expect("authored base retains the nominal contract trait");
+    let generated_requirement = checked
+        .typed
+        .trait_machine_signatures(generated_operation)
+        .first()
+        .expect("authored base retains the nominal contract requirement");
+    let apply_nominal = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "apply_nominal")
+        .expect("generated nominal static-machine generic reaches final checked program");
+    let [nominal_parameter] = checked.typed.machine_type_parameters(apply_nominal) else {
+        panic!("generated apply_nominal retains one static-machine parameter")
+    };
+    let psi_typed_trees::data::TypeParameterKind::Machine {
+        contract:
+            psi_typed_trees::data::MachineParameterContract::Nominal {
+                trait_definition,
+                requirement,
+            },
+    } = &nominal_parameter.kind
+    else {
+        panic!("apply_nominal.Selected retains its exact nominal contract")
+    };
+    assert_eq!(*trait_definition, generated_operation.symbol);
+    assert_eq!(*requirement, generated_requirement.symbol);
+    assert!(
+        checked
+            .typed
+            .expression_table
+            .iter_expressions()
+            .any(|(_, expression)| {
+                matches!(
+                    expression,
+                    psi_typed_trees::expression::ExpressionNode::Call(call)
+                        if call.target_symbol == nominal_parameter.symbol
+                )
+            })
     );
     let width = checked
         .typed
@@ -336,7 +402,7 @@ machine build(builder: &mut Build) {{
         .staged_output_tree()
         .expect("complete replay retains the staged output tree");
     assert_eq!(staged.entry_count(), 1);
-    let expected_generated = b"data Generated { base: Main; }\npub data MachineConfig { count: u8; enabled: bool; }\npub data ConfigIndexed<const C: MachineConfig> { marker: u8; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\npub machine bounded<T [copy]>(value: &T) {}\npub machine width<const N: u64>(value: [u8; N]) {}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {}\n";
+    let expected_generated = b"data Generated { base: Main; }\npub data MachineConfig { count: u8; enabled: bool; }\npub data ConfigIndexed<const C: MachineConfig> { marker: u8; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\npub machine bounded<T [copy]>(value: &T) {}\npub machine apply<machine Selected>(value: u64) -> u64 where machine Selected(value: u64) -> u64; { Selected(value) }\npub machine apply_nominal<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }\npub machine width<const N: u64>(value: [u8; N]) {}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {}\n";
     assert_eq!(staged.file_bytes(), expected_generated.len() as u64);
 
     assert_eq!(

@@ -6098,6 +6098,276 @@ fn seeded_continuation_retains_generic_machine_four_axis_carry_bound() {
 }
 
 #[test]
+fn seeded_continuation_retains_a_structural_static_machine_binder() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+        r#"
+            pub machine generated<machine Selected>(value: u64) -> u64
+            where machine Selected(value: u64) -> u64;
+            {
+                Selected(value)
+            }
+        "#,
+    );
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("a structural static-machine binder should append from the retained base");
+
+    assert!(retained_typed_base_is_exact_prefix(&expected, &typed));
+    let generated = typed.machines().last().expect("generated generic machine");
+    let [type_parameter] = typed.machine_type_parameters(generated) else {
+        panic!("generated machine retains one exact static-machine parameter")
+    };
+    assert_eq!(type_parameter.name.as_str(), "Selected");
+    assert_eq!(
+        typed.symbols.get(type_parameter.symbol).parent,
+        generated.symbol
+    );
+    let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &type_parameter.kind
+    else {
+        panic!("Selected remains a static-machine binder")
+    };
+    let psi_typed_trees::data::MachineParameterContract::Structural(signature) = contract else {
+        panic!("Selected retains its structural callback contract")
+    };
+    assert_eq!(signature.symbol, type_parameter.symbol);
+    assert_eq!(signature.name.as_str(), "Selected");
+    let [contract_value] = typed.state_signature_parameters(signature) else {
+        panic!("Selected retains one contract value")
+    };
+    assert_eq!(contract_value.name.as_str(), "value");
+    assert!(matches!(
+        typed
+            .type_reference_table
+            .type_reference(contract_value.type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if typed.symbols.builtin_type_atom(*symbol) == Some(psi_symbols::BuiltinTypeAtom::U64)
+                && name.as_str() == "u64"
+    ));
+    assert!(matches!(
+        typed
+            .type_reference_table
+            .type_reference(signature.return_type),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if typed.symbols.builtin_type_atom(*symbol) == Some(psi_symbols::BuiltinTypeAtom::U64)
+                && name.as_str() == "u64"
+    ));
+    assert!(
+        typed
+            .expression_table
+            .iter_expressions()
+            .any(|(_, expression)| {
+                matches!(
+                    expression,
+                    psi_typed_trees::expression::ExpressionNode::Call(call)
+                        if call.target_symbol == type_parameter.symbol
+                )
+            })
+    );
+}
+
+#[test]
+fn seeded_continuation_retains_a_base_owned_nominal_static_machine_binder() {
+    let (base, extension) = seeded_plain_data_inputs(
+        r#"
+            pub trait GeneratedOperation {
+                machine apply(value: u64) -> u64;
+            }
+            data Authored { value: u32; }
+            machine authored() -> u32 { 1 }
+        "#,
+        r#"
+            pub machine generated<machine Selected>(value: u64) -> u64
+            where machine Selected satisfies GeneratedOperation::apply;
+            {
+                Selected(value)
+            }
+        "#,
+    );
+    let expected = base.typed().clone();
+    let operation = expected
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "GeneratedOperation")
+        .expect("base owns the selected trait");
+    let requirement = expected
+        .trait_machine_signatures(operation)
+        .first()
+        .expect("base owns the selected requirement");
+    let typed = lower_seeded_extension(extension, base)
+        .expect("an exact base-owned nominal binder should append from the retained base");
+
+    assert!(retained_typed_base_is_exact_prefix(&expected, &typed));
+    let generated = typed.machines().last().expect("generated generic machine");
+    let [type_parameter] = typed.machine_type_parameters(generated) else {
+        panic!("generated machine retains one exact static-machine parameter")
+    };
+    let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &type_parameter.kind
+    else {
+        panic!("Selected remains a static-machine binder")
+    };
+    let psi_typed_trees::data::MachineParameterContract::Nominal {
+        trait_definition,
+        requirement: retained_requirement,
+    } = contract
+    else {
+        panic!("Selected retains its nominal requirement contract")
+    };
+    assert_eq!(*trait_definition, operation.symbol);
+    assert_eq!(*retained_requirement, requirement.symbol);
+    let psi_typed_trees::data::MachineParameterContractView::Nominal {
+        trait_definition: retained_trait,
+        requirement: retained_signature,
+    } = typed
+        .machine_parameter_contract_view(contract)
+        .expect("the nominal pair rejoins its retained base declarations")
+    else {
+        panic!("nominal contract view")
+    };
+    assert_eq!(retained_trait.symbol, operation.symbol);
+    assert_eq!(retained_signature.symbol, requirement.symbol);
+    assert!(
+        typed
+            .expression_table
+            .iter_expressions()
+            .any(|(_, expression)| {
+                matches!(
+                    expression,
+                    psi_typed_trees::expression::ExpressionNode::Call(call)
+                        if call.target_symbol == type_parameter.symbol
+                )
+            })
+    );
+}
+
+#[test]
+fn seeded_nominal_machine_gate_replays_the_exact_base_requirement_pair() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "trait GeneratedOperation { machine apply(value: u64) -> u64; }",
+        "machine generated<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }",
+    );
+    let data_frontier = base.resolved.data_definitions.len();
+    let machine_frontier = base.resolved.machines.len();
+    let resolved = extension.trees().clone();
+    assert!(seeded_extension_shape_is_supported(
+        &resolved,
+        data_frontier,
+        machine_frontier,
+    ));
+    let generated = &resolved.machines[machine_frontier];
+    let [parameter] = resolved.data_type_parameters(generated.type_parameters) else {
+        panic!("generated machine retains one nominal binder")
+    };
+
+    let mut requirement_drift = resolved.clone();
+    let [drifted] = requirement_drift
+        .tables
+        .declarations
+        .data_type_parameters
+        .span_mut_or_empty(generated.type_parameters)
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::data::TypeParameterKind::Machine {
+        contract:
+            psi_symbol_resolved_trees::data::MachineParameterContract::Nominal { requirement, .. },
+    } = &mut drifted.kind
+    else {
+        panic!("Selected retains a resolved nominal contract")
+    };
+    assert_ne!(*requirement, parameter.symbol);
+    *requirement = psi_symbols::SymbolHandle::invalid();
+    assert!(
+        !seeded_extension_shape_is_supported(&requirement_drift, data_frontier, machine_frontier,),
+        "a nominal requirement symbol cannot be detached from its base trait",
+    );
+
+    let mut path_drift = resolved.clone();
+    let [drifted] = path_drift
+        .tables
+        .declarations
+        .data_type_parameters
+        .span_mut_or_empty(generated.type_parameters)
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::data::TypeParameterKind::Machine {
+        contract:
+            psi_symbol_resolved_trees::data::MachineParameterContract::Nominal { authored_path, .. },
+    } = &mut drifted.kind
+    else {
+        unreachable!()
+    };
+    *authored_path.last_mut().expect("Trait::requirement path") =
+        psi_symbol_resolved_trees::name::DiagnosticName::generated("other");
+    assert!(
+        !seeded_extension_shape_is_supported(&path_drift, data_frontier, machine_frontier,),
+        "authored nominal path drift cannot reuse the retained symbol pair",
+    );
+
+    let mut declaration_identity = resolved.clone();
+    let [drifted] = declaration_identity
+        .tables
+        .declarations
+        .data_type_parameters
+        .span_mut_or_empty(generated.type_parameters)
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
+        &mut drifted.kind
+    else {
+        unreachable!()
+    };
+    *contract = psi_symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity;
+    assert!(
+        !seeded_extension_shape_is_supported(
+            &declaration_identity,
+            data_frontier,
+            machine_frontier,
+        ),
+        "a callable nominal binder cannot be substituted with declaration identity",
+    );
+}
+
+#[test]
+fn seeded_nominal_machine_continuation_preserves_broader_contract_fences() {
+    for (name, base_source, extension_source) in [
+        (
+            "extension_owned_trait",
+            "data Authored {}",
+            "trait GeneratedOperation { machine apply(value: u64) -> u64; } machine generated<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }",
+        ),
+        (
+            "boundary_requirement",
+            "boundary trait GeneratedOperation { machine apply(value: u64) -> u64; }",
+            "machine generated<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }",
+        ),
+        (
+            "nested_machine_telescope",
+            "trait GeneratedOperation { machine apply<machine Inner>(value: u64) -> u64 where machine Inner(value: u64) -> u64; ; }",
+            "machine generated<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }",
+        ),
+        (
+            "proof_contract",
+            "trait GeneratedOperation { machine apply(value: bool) requires value; }",
+            "machine generated<machine Selected>(value: bool) where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }",
+        ),
+    ] {
+        let (base, extension) = seeded_plain_data_inputs(base_source, extension_source);
+        let expected = base.typed().clone();
+        let (returned, error) = lower_seeded_extension(extension, base)
+            .expect_err("broader nominal contract must remain outside the checkpoint cohort");
+        assert_eq!(
+            error,
+            SeededContinuationError::UnsupportedExtensionShape,
+            "{name}"
+        );
+        assert_eq!(returned.into_typed(), expected, "{name}");
+    }
+}
+
+#[test]
 fn seeded_continuation_appends_a_lifetime_generic_machine_with_exact_binder_custody() {
     let (base, extension) = seeded_plain_data_inputs(
         "data Authored { value: u32; } machine authored() -> u32 { 1 }",
@@ -6346,16 +6616,15 @@ fn seeded_structured_const_machine_gate_replays_carrier_and_value_occurrence_exa
 fn seeded_generic_machine_continuation_rejects_unadmitted_binder_kinds_transactionally() {
     for extension_source in [
         "data Recursive { value: Recursive; } machine generated<const S: Recursive>() {}",
-        "machine generated<machine Selected>() where machine Selected() -> u8; {}",
+        "machine generated<machine Selected>() where machine Selected<T>(value: T) -> T; {}",
     ] {
         let (base, extension) = seeded_plain_data_inputs(
             "data Authored { value: u32; } machine authored() -> u32 { 1 }",
             extension_source,
         );
         let expected = base.typed().clone();
-        let (returned, error) = lower_seeded_extension(extension, base).expect_err(
-            "only settled lifetime, Type, and const binders enter this generic-machine rung",
-        );
+        let (returned, error) = lower_seeded_extension(extension, base)
+            .expect_err("only settled generic-machine binder cohorts enter this continuation rung");
         assert_eq!(error, SeededContinuationError::UnsupportedExtensionShape);
         assert_eq!(returned.into_typed(), expected);
     }
