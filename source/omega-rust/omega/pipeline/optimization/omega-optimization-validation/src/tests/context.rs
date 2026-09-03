@@ -43,7 +43,7 @@ fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {
             attachment: None,
             scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),

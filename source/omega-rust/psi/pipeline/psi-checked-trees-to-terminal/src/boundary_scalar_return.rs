@@ -37,7 +37,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
     if matches.next().is_some()
         || boundary.state != *target_state
         || boundary.contract_report_fingerprint != *target_contract_report_fingerprint
-        || boundary.result_type != Some(plan.result_type)
+        || boundary.result.scalar() != Some(plan.result_type)
         || !checked_unit_target_reach_matches(*service_reach, boundary.contract_service_reach)
     {
         return unsupported("result-bearing boundary call disagrees with its exact checked target");
@@ -119,7 +119,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             .transpose()?,
         scalar_parameters: boundary_scalar_parameters.clone(),
         structural_parameters: boundary_parameters,
-        result: Some(terminal_scalar_type(plan.result_type)?),
+        result: BoundaryMachineResult::Scalar(terminal_scalar_type(plan.result_type)?),
         requires,
         program_local_root_introductions: Vec::new(),
         content_guarantees: lower_boundary_content_guarantees(

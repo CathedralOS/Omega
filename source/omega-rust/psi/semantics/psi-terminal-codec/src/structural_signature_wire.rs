@@ -10,7 +10,8 @@ use psi_core::{
     DomainSemanticId, ServiceId,
 };
 use psi_terminal::{
-    BoundaryContentGuarantee, BoundaryMachineDeclaration, ProgramLocalRootIntroductionSchema,
+    BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult,
+    BoundaryStructuralResultDeclaration, ProgramLocalRootIntroductionSchema,
     RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
     RetainedBorrowPlaceRoot, StructuralAccess, StructuralContentProjection,
     StructuralDomainRequirement, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -42,9 +43,28 @@ pub(super) fn encode_boundary_machine(
         encode_scalar_type(writer, *parameter);
     }
     encode_structural_parameters(writer, &declaration.structural_parameters)?;
-    writer.boolean(declaration.result.is_some());
-    if let Some(result) = declaration.result {
-        encode_scalar_type(writer, result);
+    match &declaration.result {
+        BoundaryMachineResult::Unit => writer.u8(0),
+        BoundaryMachineResult::Scalar(result) => {
+            writer.u8(1);
+            encode_scalar_type(writer, *result);
+        }
+        BoundaryMachineResult::Structural(result) => {
+            writer.u8(2);
+            writer.id(result.structural_type);
+            writer.u8(match result.multiplicity {
+                StructuralMultiplicity::Unrestricted => 1,
+                StructuralMultiplicity::Affine => 2,
+                StructuralMultiplicity::Linear => 3,
+            });
+            writer.len(
+                "boundary result qualifications",
+                result.qualifications.len(),
+            )?;
+            for qualification in &result.qualifications {
+                writer.id(*qualification);
+            }
+        }
     }
     writer.len(
         "boundary structural requirements",
@@ -204,10 +224,21 @@ pub(super) fn decode_boundary_machine(
         attachment: decode_optional_id(reader, "StructuralTypeId")?,
         scalar_parameters: decode_counted(reader, decode_scalar_type)?,
         structural_parameters: decode_structural_parameters(reader)?,
-        result: reader
-            .boolean()?
-            .then(|| decode_scalar_type(reader))
-            .transpose()?,
+        result: match reader.u8()? {
+            0 => BoundaryMachineResult::Unit,
+            1 => BoundaryMachineResult::Scalar(decode_scalar_type(reader)?),
+            2 => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+                structural_type: reader.id("StructuralTypeId")?,
+                multiplicity: match reader.u8()? {
+                    1 => StructuralMultiplicity::Unrestricted,
+                    2 => StructuralMultiplicity::Affine,
+                    3 => StructuralMultiplicity::Linear,
+                    tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
+                },
+                qualifications: decode_ids(reader, "boundary result qualifications")?,
+            }),
+            tag => return Err(CodecError::InvalidTag("BoundaryMachineResult", tag)),
+        },
         requires: decode_counted(reader, |reader| {
             Ok(StructuralDomainRequirement {
                 argument_index: reader.u32()?,

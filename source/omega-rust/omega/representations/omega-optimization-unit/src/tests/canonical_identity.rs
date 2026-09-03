@@ -250,7 +250,7 @@ fn canonical_identity_binds_every_retained_field_class() {
         attachment: Some(structural_type),
         scalar_parameters: vec![ScalarType::Boolean],
         structural_parameters: Vec::new(),
-        result: Some(ScalarType::Boolean),
+        result: psi_terminal::BoundaryMachineResult::Scalar(ScalarType::Boolean),
         requires: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),

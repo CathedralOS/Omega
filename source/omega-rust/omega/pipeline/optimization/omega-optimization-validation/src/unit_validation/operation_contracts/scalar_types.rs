@@ -446,8 +446,16 @@ pub(crate) fn operation_scalar_types_match(
             arguments,
             ..
         } => boundary_machines.get(boundary).is_some_and(|boundary| {
-            result.as_ref().map(|result| result.scalar_type) == boundary.result
-                && arguments.len() == boundary.scalar_parameters.len()
+            (match boundary.result {
+                psi_terminal::BoundaryMachineResult::Unit => result.is_none(),
+                psi_terminal::BoundaryMachineResult::Scalar(expected) => {
+                    result.as_ref().map(|result| result.scalar_type) == Some(expected)
+                }
+                // The abstract Unit operation currently has no structural
+                // boundary-result carrier. Such a verified Terminal operation
+                // remains fail-closed until that lowering lane is added.
+                psi_terminal::BoundaryMachineResult::Structural(_) => false,
+            }) && arguments.len() == boundary.scalar_parameters.len()
                 && arguments
                     .iter()
                     .zip(&boundary.scalar_parameters)

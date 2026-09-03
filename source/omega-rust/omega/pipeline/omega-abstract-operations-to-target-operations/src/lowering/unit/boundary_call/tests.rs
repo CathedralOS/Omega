@@ -12,7 +12,7 @@ fn declaration(
         attachment: None,
         scalar_parameters,
         structural_parameters: Vec::new(),
-        result: None,
+        result: psi_terminal::BoundaryMachineResult::Unit,
         requires: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
@@ -549,7 +549,8 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
             let bytes = bits.div_ceil(8);
             let shape = ValueShape::integer(bytes, bytes.next_power_of_two().min(8));
             let mut declaration = declaration(boundary, Vec::new());
-            declaration.result = Some(ScalarType::Integer(integer));
+            declaration.result =
+                psi_terminal::BoundaryMachineResult::Scalar(ScalarType::Integer(integer));
             let plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
@@ -581,16 +582,17 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
             );
 
             let mut wrong_sign_declaration = declaration.clone();
-            wrong_sign_declaration.result = Some(ScalarType::Integer(
-                IntegerType::new(
-                    match sign {
-                        IntegerSign::Signed => IntegerSign::Unsigned,
-                        IntegerSign::Unsigned => IntegerSign::Signed,
-                    },
-                    bits,
-                )
-                .unwrap(),
-            ));
+            wrong_sign_declaration.result =
+                psi_terminal::BoundaryMachineResult::Scalar(ScalarType::Integer(
+                    IntegerType::new(
+                        match sign {
+                            IntegerSign::Signed => IntegerSign::Unsigned,
+                            IntegerSign::Unsigned => IntegerSign::Signed,
+                        },
+                        bits,
+                    )
+                    .unwrap(),
+                ));
             assert!(
                 lower_normalized_foreign_scalar_result(
                     boundary,
@@ -627,7 +629,8 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
         IntegerType::address(64).unwrap(),
     ] {
         let mut declaration = declaration(boundary, Vec::new());
-        declaration.result = Some(ScalarType::Integer(invalid));
+        declaration.result =
+            psi_terminal::BoundaryMachineResult::Scalar(ScalarType::Integer(invalid));
         let plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(NativeTarget::linux_x64()),
             &CallSignature {

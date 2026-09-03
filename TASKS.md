@@ -901,6 +901,22 @@ Remaining:
   inference, and removal of the remaining payload-free
   `via Binding::CompilerIntrinsic` forms remain open.
 
+  The portable prerequisite for `Console::read_byte` is now closed through
+  canonical Terminal Psi. Bodyless boundary declarations carry an explicit
+  role-tagged `Unit | Scalar | Structural` result instead of using absence for
+  Unit. Typed checking retains an owned nongeneric structural result's exact
+  nominal identity, multiplicity, and whole-root qualifications; the checked
+  Unit slice admits one immutable call result, and Terminal lowering publishes
+  the exact structural operation result and deterministically discards an
+  unused affine result. The verifier and format-75/vocabulary-78 codec replay
+  that closed result role, and source-to-checked plus source-to-Terminal
+  round-trip controls exercise a `ByteRead` sum. Structural boundary effects
+  still fail closed in the interpreter, optimizer/native carriers remain
+  Unit/scalar-only, and no Linux `read(0, ..., 1)` lowering is claimed. The
+  next rung is an exact structural effect-result carrier through abstract,
+  target, assignment, and native receipt custody, followed by the Linux read
+  realization and an executable echo canary.
+
   `InterruptMaskGuard::restore`, `InterruptAcknowledgement::complete`,
   `Task::request_cancel`, and `Task::finish` now use the public top-level
   requirement form with their exact preconditions, operational ceilings, and
@@ -9089,8 +9105,8 @@ Owners:
   laundering remain rejected. Terminal lowering independently replays the
   checked fact into one canonical declaration-only boundary content row with
   the exact callable, source/result places, lifetime ordinal, result nominal
-  and semantic domain, and both complete projections. The row is format-73,
-  vocabulary-76 semantic identity and cannot be called, selected as a provider,
+  and semantic domain, and both complete projections. The row is format-75,
+  vocabulary-78 semantic identity and cannot be called, selected as a provider,
   or mistaken for a Unit/scalar boundary result. Native-slot lowering, private
   snapshots, completion/reclamation, and provider backing remain later rungs.
 - Implement the narrow Windows `user32` canary without exposing a raw code
@@ -10416,7 +10432,7 @@ reach or trust, and private proof improvements do not change public identity.
   and a commitment over the complete ordered scalar frontier; the detailed row
   retains exact primitive type, parameter/straight-line-local/call-argument
   storage role, empty claim roster, and four-axis carry demands. Format 74 /
-  vocabulary 77 encode both rows, and independent verification rejoins their
+  vocabulary 78 encode both rows, and independent verification rejoins their
   bijection, call target, frontier commitment, SSA visibility and provenance,
   call-argument membership, canonical order, counts, types, and policies. This
   adds no local CFG terminator or cleanup edge. Receiver-bearing,
@@ -12222,7 +12238,7 @@ checked-result arithmetic decision listed below.
   Checked Psi publishes the exact caller/callee coordinate, dense runtime-
   parameter position, bare trait, source binding, and selected conformance for
   each descriptor transfer. Introduced in Terminal format 64 / vocabulary 67
-  and retained by current format 74 / vocabulary 77, these rows carry
+  and retained by current format 75 / vocabulary 78, these rows carry
   target-neutral descriptor parameters, ordered requirement slots, call
   arguments sourced from a direct selection, a rebound local descriptor, or an
   inbound descriptor parameter, and parameter-slot dispatches. Canonical validation
@@ -12381,7 +12397,7 @@ checked-result arithmetic decision listed below.
   verification, fixed fuel, and reference interpretation all retain Unit as
   Unit and reject scalar-result substitution. Format 71 / vocabulary 74 added
   an honest owner-local selection argument source, retained by current format
-  74 / vocabulary 77, so direct Unit and
+  75 / vocabulary 78, so direct Unit and
   scalar descriptor forwarding cross the same helper boundary without
   fabricating a rebound. The scalar form retains its checked result, helper
   parameter dispatch, durable caller home, adapters, and machine/object/image/

@@ -27,6 +27,10 @@ pub(super) fn return_unit_affine_discards(
                 structural_arguments,
                 ..
             }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                structural_arguments,
+                ..
+            }
             | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                 structural_arguments,
                 ..

@@ -1791,12 +1791,12 @@ pub(crate) fn build_checked_boundary_scalar_return_plans(
         .iter()
         .filter(|machine| machine.supply_mode.is_boundary_declaration())
         .filter_map(|machine| build_boundary_machine(program, facts, &mut shapes, machine))
-        .filter(|boundary| boundary.result_type.is_some())
+        .filter(|boundary| boundary.result.scalar().is_some())
         .collect::<Vec<_>>();
     boundary_machines.extend(
         build_static_boundary_requirements(program, facts, &mut shapes)
             .into_iter()
-            .filter(|boundary| boundary.result_type.is_some()),
+            .filter(|boundary| boundary.result.scalar().is_some()),
     );
     let machines = program
         .machines()
@@ -1908,7 +1908,7 @@ pub(super) fn build_boundary_scalar_return_machine(
         &entry_claims,
         call,
         false,
-        Some(result_type),
+        Some(ExpectedBoundaryValueResult::Scalar(result_type)),
     )?;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         target_machine,
@@ -1923,7 +1923,7 @@ pub(super) fn build_boundary_scalar_return_machine(
         .iter()
         .any(|argument| !argument.path.is_empty())
         || !boundaries.iter().any(|boundary| {
-            boundary.machine == *target_machine && boundary.result_type == Some(result_type)
+            boundary.machine == *target_machine && boundary.result.scalar() == Some(result_type)
         })
     {
         return None;

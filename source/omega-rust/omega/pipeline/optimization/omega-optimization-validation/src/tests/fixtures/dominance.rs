@@ -38,7 +38,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 }],
-                result: None,
+                result: psi_terminal::BoundaryMachineResult::Unit,
                 requires: Vec::new(),
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
@@ -155,7 +155,7 @@ pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 }],
-                result: None,
+                result: psi_terminal::BoundaryMachineResult::Unit,
                 requires: vec![psi_terminal::StructuralDomainRequirement {
                     argument_index: 0,
                     domain,

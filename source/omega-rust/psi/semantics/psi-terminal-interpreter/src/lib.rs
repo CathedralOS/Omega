@@ -22,9 +22,9 @@ use psi_core::{
 };
 use psi_numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
-    NominalAffineCleanup, OperationKind, StructuralAccess, StructuralAffineDiscard,
-    StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+    Block, BoundaryMachineDeclaration, BoundaryMachineResult, ClaimTransfer, CompletionReceipt,
+    CrashCause, EntryClaim, NominalAffineCleanup, OperationKind, OperationResult, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
     TerminalMachineResult, Terminator,
@@ -270,7 +270,7 @@ pub enum TerminalEffect {
         /// structural arguments remain `None`.
         byte_sequence_arguments: Vec<Option<Vec<u8>>>,
         completion_receipts: Vec<CompletionReceipt>,
-        result: Option<ScalarType>,
+        result: BoundaryMachineResult,
     },
     PortWrite {
         operation: OperationId,
@@ -1870,6 +1870,15 @@ impl TerminalExecution {
                             )?;
                             continue;
                         }
+                        // Structural effect results do not yet have a handler result
+                        // carrier. Reject before invoking the handler so an unsupported
+                        // call cannot perform an external effect and fail afterward.
+                        if matches!(
+                            &boundary_declaration.result,
+                            BoundaryMachineResult::Structural(_)
+                        ) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
                         let remaining_claims = complete_claims(
                             &self.live_claims,
                             &structural_arguments,
@@ -1896,7 +1905,7 @@ impl TerminalExecution {
                                 })
                                 .collect(),
                             completion_receipts,
-                            result: boundary_declaration.result,
+                            result: boundary_declaration.result.clone(),
                         };
                         let returned =
                             handler.handle_effect_result(&effect).map_err(|rejection| {
@@ -1905,13 +1914,20 @@ impl TerminalExecution {
                                     rejection,
                                 }
                             })?;
-                        match (operation.result.scalar(), returned) {
-                            (None, None) => {}
-                            (Some(declaration), Some(value))
-                                if declaration.scalar_type == value.scalar_type() =>
+                        match (&operation.result, &boundary_declaration.result, returned) {
+                            (OperationResult::Unit, BoundaryMachineResult::Unit, None) => {}
+                            (
+                                OperationResult::Scalar(declaration),
+                                BoundaryMachineResult::Scalar(expected),
+                                Some(value),
+                            ) if declaration.scalar_type == *expected
+                                && declaration.scalar_type == value.scalar_type() =>
                             {
                                 self.values.insert(declaration.id, value);
                             }
+                            // Structural boundary effects need a handler result carrier that
+                            // publishes the exact case/payload value. Representation and
+                            // verification are closed first; execution remains fail-closed.
                             _ => {
                                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
                             }

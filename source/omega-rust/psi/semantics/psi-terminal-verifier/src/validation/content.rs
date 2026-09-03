@@ -103,7 +103,7 @@ fn validate_retained_borrow_custody(
         && boundary.attachment.is_none()
         && boundary.scalar_parameters.is_empty()
         && boundary.structural_parameters.is_empty()
-        && boundary.result.is_none()
+        && boundary.result.is_unit()
         && boundary.requires.is_empty()
         && boundary.program_local_root_introductions.is_empty()
         && boundary.published_service_ceiling.is_empty()

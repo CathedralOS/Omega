@@ -93,7 +93,7 @@ pub(super) fn lower_linux_exit_group_i32(
         || function.block_entries[0].block != function.entry
         || declaration.scalar_parameters.as_slice() != [expected_scalar_type]
         || !declaration.structural_parameters.is_empty()
-        || declaration.result.is_some()
+        || !declaration.result.is_unit()
         || *called_boundary != *boundary
         || arguments.as_slice() != [*constant_result]
         || call_arguments.as_slice() != [*constant_result]
@@ -112,7 +112,7 @@ pub(super) fn lower_linux_exit_group_i32(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: None,
-mixed_structural_scalar_abi: None,
+        mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance {
             operations: vec![*constant_operation, *psi_operation],
             edges: vec![*nominal_return_edge],
@@ -147,7 +147,7 @@ pub(super) fn claim_completion_only_boundary_is_exact(
 ) -> bool {
     if !scalar_arguments.is_empty()
         || !declaration.scalar_parameters.is_empty()
-        || declaration.result.is_some()
+        || !declaration.result.is_unit()
         || !declaration.program_local_root_introductions.is_empty()
         || !declaration.content_guarantees.is_empty()
         || !declaration.published_service_ceiling.is_empty()

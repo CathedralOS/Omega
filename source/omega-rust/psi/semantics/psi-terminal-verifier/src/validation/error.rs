@@ -5,8 +5,8 @@ use psi_core::{
     StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    CrashCause, EvidenceContractLaneKind, StructuralAccess, StructuralMultiplicity,
-    StructuralPathSegment,
+    BoundaryMachineResult, CrashCause, EvidenceContractLaneKind, StructuralAccess,
+    StructuralMultiplicity, StructuralPathSegment,
 };
 use psi_terminal_semantics::OperationSemanticError;
 
@@ -580,8 +580,8 @@ pub enum ModuleError {
     UnitOperationHasScalarResult(OperationId),
     BoundaryCallResultMismatch {
         operation: OperationId,
-        expected: Option<ScalarType>,
-        actual: Option<ScalarType>,
+        expected: BoundaryMachineResult,
+        actual: Option<BoundaryMachineResult>,
     },
     BoundaryCallArgumentArityMismatch {
         operation: OperationId,

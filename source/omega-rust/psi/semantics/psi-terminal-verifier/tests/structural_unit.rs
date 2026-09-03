@@ -3014,7 +3014,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         }],
-        result: None,
+        result: psi_terminal::BoundaryMachineResult::Unit,
         requires: vec![StructuralDomainRequirement {
             argument_index: 0,
             domain: domain.id,
@@ -3947,7 +3947,7 @@ fn hard_root_module() -> TerminalModule {
         attachment: None,
         scalar_parameters: Vec::new(),
         structural_parameters: vec![boundary_parameter],
-        result: None,
+        result: psi_terminal::BoundaryMachineResult::Unit,
         requires: vec![StructuralDomainRequirement {
             argument_index: 0,
             domain: pending.id,

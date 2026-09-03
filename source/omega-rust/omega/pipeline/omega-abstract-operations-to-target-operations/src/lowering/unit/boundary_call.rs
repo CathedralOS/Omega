@@ -448,7 +448,7 @@ pub(super) fn lower_boundary_call(
                             Architecture::X86_64 | Architecture::Aarch64
                         )
                         || !arguments.is_empty()
-                        || declaration.result.is_some()
+                        || !declaration.result.is_unit()
                         || !declaration.scalar_parameters.is_empty()
                         || structural_arguments.len() != 1
                         || declaration.structural_parameters.len() != 1
@@ -507,7 +507,7 @@ pub(super) fn lower_boundary_call(
                         || declaration.scalar_parameters.as_slice()
                             != [ScalarType::Integer(i32_type)]
                         || !declaration.structural_parameters.is_empty()
-                        || declaration.result.is_some()
+                        || !declaration.result.is_unit()
                         || *actual_type != i32_type
                         || !i32_type.admits(*value)
                         || !structural_arguments.is_empty()
@@ -554,7 +554,7 @@ pub(super) fn lower_boundary_call(
                         || declaration.scalar_parameters.as_slice()
                             != [ScalarType::Integer(i32_type)]
                         || !declaration.structural_parameters.is_empty()
-                        || declaration.result.is_some()
+                        || !declaration.result.is_unit()
                         || known.scalar_type() != i32_type
                         || !structural_arguments.is_empty()
                         || placement.shape != shape

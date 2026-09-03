@@ -126,7 +126,7 @@ pub(in crate::tests) fn installed_provider_legalization_fixture() -> (
                 projected_qualifications: parameter.projected_qualifications.clone(),
             })
             .collect(),
-        result: None,
+        result: psi_terminal::BoundaryMachineResult::Unit,
         requires: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),

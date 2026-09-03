@@ -168,18 +168,21 @@ pub(super) fn lower_normalized_foreign_scalar_result(
     result: Option<omega_abstract_operations::AbstractResult>,
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
 ) -> Result<Option<TargetUnitScalarHomeRequirement>, LoweringError> {
-    let (declaration_result, result) = match (declaration.result, result) {
-        (None, None) => {
+    let (declaration_result, result) = match (&declaration.result, result) {
+        (psi_terminal::BoundaryMachineResult::Unit, None) => {
             if boundary_entry_plan.call.result.is_some() {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
             return Ok(None);
         }
-        (Some(ScalarType::Integer(declaration_result)), Some(result)) => {
+        (
+            psi_terminal::BoundaryMachineResult::Scalar(ScalarType::Integer(declaration_result)),
+            Some(result),
+        ) => {
             let ScalarType::Integer(result_type) = result.scalar_type else {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             };
-            (declaration_result, (result.value, result_type))
+            (*declaration_result, (result.value, result_type))
         }
         _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
     };

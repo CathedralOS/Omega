@@ -289,7 +289,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             attachment: Some(resource),
             scalar_parameters: Vec::new(),
             structural_parameters: vec![parameter(place_id(30), 0, true)],
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: vec![StructuralDomainRequirement {
                 argument_index: 0,
                 domain: pending,

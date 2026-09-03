@@ -26,7 +26,7 @@ fn accepts_content_only_boundary_completion_and_rejects_correspondence_corruptio
             attachment: None,
             scalar_parameters: Vec::new(),
             structural_parameters: vec![baseline.functions[1].structural_parameters[0].clone()],
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),

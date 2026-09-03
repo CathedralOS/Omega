@@ -1960,7 +1960,7 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
     let expected = vec![
         TerminalEffect::BoundaryCall {
             operation: operation_id(3),
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: vec![argument],
@@ -2061,7 +2061,7 @@ fn boundary_scalar_arguments_reach_effect_handlers_in_declared_order() {
         structural_arguments: Vec::new(),
         byte_sequence_arguments: Vec::new(),
         completion_receipts: Vec::new(),
-        result: None,
+        result: psi_terminal::BoundaryMachineResult::Unit,
     };
     assert_eq!(handler.effects, [expected.clone()]);
     assert_eq!(measured.effects(), &[expected]);
@@ -2084,6 +2084,25 @@ fn boundary_scalar_argument_effect_rejection_is_fail_closed() {
         Err(TerminalInterpretError::EffectRejected { operation, .. })
             if operation == operation_id(3)
     ));
+    assert!(execution.effects().is_empty());
+}
+
+#[test]
+fn unsupported_structural_boundary_result_rejects_before_the_effect() {
+    let module = structural_boundary_effect_module();
+    let semantic = encode_module(&module).expect("structural boundary module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
+            .expect("verified structural boundary call starts");
+    let mut meter = TerminalFuelMeter::unbounded();
+    let mut handler = RecordingHandler::default();
+
+    assert_eq!(
+        execution.resume_with_effect_handler(&mut meter, &mut handler),
+        Err(TerminalInterpretError::VerifiedOperationMalformed)
+    );
+    assert!(handler.effects.is_empty());
     assert!(execution.effects().is_empty());
 }
 
@@ -2453,7 +2472,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             }],
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
@@ -2555,7 +2574,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
             attachment: None,
             scalar_parameters: vec![ScalarType::Boolean, ScalarType::Boolean],
             structural_parameters: Vec::new(),
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
@@ -2631,6 +2650,52 @@ fn scalar_boundary_effect_module() -> TerminalModule {
     }
 }
 
+fn structural_boundary_effect_module() -> TerminalModule {
+    let mut module = scalar_boundary_effect_module();
+    let structural_type = structural_type_id(1);
+    let place = place_id(1);
+    let producer = operation_id(3);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::ByteRead".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    module.boundary_machines[0].result = psi_terminal::BoundaryMachineResult::Structural(
+        psi_terminal::BoundaryStructuralResultDeclaration {
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+        },
+    );
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place,
+            kind: psi_core::StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        });
+    module.machines[0].blocks[0].operations[2].result =
+        OperationResult::Structural(StructuralOperationResult {
+            place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        });
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!("scalar boundary fixture returns Unit")
+    };
+    trivial_affine_discards.push(place);
+    module
+}
+
 fn effect_module() -> TerminalModule {
     let structural_type = structural_type_id(1);
     let domain = structural_domain_id(1);
@@ -2668,7 +2733,7 @@ fn effect_module() -> TerminalModule {
             attachment: Some(structural_type),
             scalar_parameters: Vec::new(),
             structural_parameters: vec![structural_parameter(place_id(3), structural_type, domain)],
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: vec![StructuralDomainRequirement {
                 argument_index: 0,
                 domain,

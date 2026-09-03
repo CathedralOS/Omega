@@ -52,7 +52,7 @@ pub(super) fn replay_installed_provider_unit_calls(
                 .ok_or_else(malformed)?;
             if result.is_some()
                 || boundary_declaration.identity != provider.requirement_identity
-                || boundary_declaration.result.is_some()
+                || !boundary_declaration.result.is_unit()
                 || !matches!(&candidate.result, AbstractFunctionResult::Unit)
                 || !matches!(
                     &terminal_candidate.result,

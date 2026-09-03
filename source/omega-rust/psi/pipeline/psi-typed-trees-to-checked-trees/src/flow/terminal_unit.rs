@@ -2,18 +2,18 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_checked_trees::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedBooleanExpression,
-    CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedBoundaryScalarReturnPlans, CheckedClaimFreeAffineStructuralReturnMachinePlan,
-    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedIntegerBinaryKind,
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedPayloadlessCaseReturnMachinePlan, CheckedPayloadlessGuardedCallEvidencePlan,
-    CheckedPayloadlessGuardedCallEvidenceUsePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
-    CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding, CheckedScalarBindingValue,
-    CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedSelectedOperatorStructuralScalarReturnMachinePlan, CheckedStructuralAccess,
-    CheckedStructuralCallPlan, CheckedStructuralCallReturnMachinePlan,
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
+    CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedComposedUnitControlMachinePlan,
+    CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
+    CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessCaseReturnMachinePlan,
+    CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallEvidenceUsePlan,
+    CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedProviderAttachmentRequirementPlan,
+    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedSelectedOperatorStructuralScalarReturnMachinePlan,
+    CheckedStructuralAccess, CheckedStructuralCallPlan, CheckedStructuralCallReturnMachinePlan,
     CheckedStructuralCallReturnPlans, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
@@ -233,6 +233,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                 CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. } => {
                     boundary_symbols.contains(target_machine)
                 }
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    target_machine, ..
+                } => boundary_symbols.contains(target_machine),
                 // Exact realization custody was already joined by selected
                 // execution before this plan was minted.
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
@@ -280,6 +283,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         .iter()
                         .map(|parameter| parameter.type_identity.as_str()),
                 )
+                .chain(plan.result.structural_identity())
         })
         .chain(candidates.iter().flat_map(|plan| {
             plan.attachment_type_identity
@@ -416,6 +420,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                 retained_type_identities.insert(realization.attachment_type_identity.as_str());
                 retained_type_identities
                     .insert(realization.structural_parameter.type_identity.as_str());
+                retained_type_identities.insert(result.type_identity.as_str());
+            }
+            CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());
             }
             _ => {}

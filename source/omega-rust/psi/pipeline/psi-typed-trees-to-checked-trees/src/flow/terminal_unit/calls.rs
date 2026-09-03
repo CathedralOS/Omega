@@ -592,6 +592,32 @@ fn exact_direct_intrinsic_signature(
         && is_unit(program, return_type)
 }
 
+pub(super) enum ExpectedBoundaryValueResult<'result> {
+    Scalar(PrimitiveType),
+    Structural(&'result CheckedUnitStructuralResultBindingPlan),
+}
+
+fn boundary_value_result_matches(
+    program: &TypedTrees,
+    return_type: psi_typed_trees::types::TypeReferenceHandle,
+    expected: &ExpectedBoundaryValueResult<'_>,
+) -> bool {
+    match expected {
+        ExpectedBoundaryValueResult::Scalar(expected) => {
+            program.primitive_type_reference(return_type) == Some(*expected)
+        }
+        ExpectedBoundaryValueResult::Structural(expected) => {
+            program.primitive_type_reference(return_type).is_none()
+                && !is_unit(program, return_type)
+                && !is_reference(program, return_type)
+                && !type_graph_requires_nominal_drop(program, return_type)
+                && crate::checks::type_multiplicity(program, return_type) == expected.multiplicity
+                && base_type_identity(program, return_type, &[])
+                    .is_some_and(|identity| identity == expected.type_identity)
+        }
+    }
+}
+
 pub(super) fn build_call_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -603,7 +629,7 @@ pub(super) fn build_call_operation(
     entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &psi_checked_trees::FlowCallFact,
     allow_field_path_projection: bool,
-    expected_boundary_result: Option<PrimitiveType>,
+    expected_boundary_result: Option<ExpectedBoundaryValueResult<'_>>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(call.statement_index).ok()?,
@@ -854,8 +880,8 @@ pub(super) fn build_call_operation(
             }
             || match expected_boundary_result {
                 None => !is_unit(program, signature.return_type),
-                Some(expected) => {
-                    program.primitive_type_reference(signature.return_type) != Some(expected)
+                Some(ref expected) => {
+                    !boundary_value_result_matches(program, signature.return_type, expected)
                 }
             }
             || !signature_contracts_are_exact_parameter_qualifications(program, signature)
@@ -914,8 +940,8 @@ pub(super) fn build_call_operation(
     if if boundary {
         match expected_boundary_result {
             None => !is_unit(program, target_state.return_type),
-            Some(expected) => {
-                program.primitive_type_reference(target_state.return_type) != Some(expected)
+            Some(ref expected) => {
+                !boundary_value_result_matches(program, target_state.return_type, expected)
             }
         }
     } else {

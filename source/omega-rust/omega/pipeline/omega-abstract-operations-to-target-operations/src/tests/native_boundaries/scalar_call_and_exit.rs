@@ -12,7 +12,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         attachment: None,
         scalar_parameters: vec![scalar_type],
         structural_parameters: Vec::new(),
-        result: None,
+        result: psi_terminal::BoundaryMachineResult::Unit,
         requires: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),

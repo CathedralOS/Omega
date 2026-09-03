@@ -5284,7 +5284,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         attachment: None,
         scalar_parameters: Vec::new(),
         structural_parameters: vec![structural_parameter],
-        result: None,
+        result: psi_terminal::BoundaryMachineResult::Unit,
         requires: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: vec![psi_terminal::BoundaryContentGuarantee::Conservation(

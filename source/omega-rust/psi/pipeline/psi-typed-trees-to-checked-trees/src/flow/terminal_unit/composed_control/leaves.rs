@@ -55,7 +55,7 @@ pub(super) fn build(
                 completion_receipts,
                 &boundary.structural_parameters,
             ) || !boundary.domain_requirements.is_empty()
-                || boundary.result_type.is_some()
+                || !boundary.result.is_unit()
             {
                 return None;
             }

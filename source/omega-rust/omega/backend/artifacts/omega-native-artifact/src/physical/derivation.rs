@@ -819,16 +819,21 @@ fn derive_normalized_foreign_child(
     }
     let result_shape = match (
         &operation.result,
-        declaration.result,
+        &declaration.result,
         &foreign.scalar_result,
     ) {
-        (psi_terminal::OperationResult::Unit, None, None) => None,
-        (psi_terminal::OperationResult::Scalar(value), Some(declared), Some(physical))
-            if value.scalar_type == declared
-                && physical.home.source_value == value.id
-                && physical.home.scalar_type == declared =>
+        (psi_terminal::OperationResult::Unit, psi_terminal::BoundaryMachineResult::Unit, None) => {
+            None
+        }
+        (
+            psi_terminal::OperationResult::Scalar(value),
+            psi_terminal::BoundaryMachineResult::Scalar(declared),
+            Some(physical),
+        ) if value.scalar_type == *declared
+            && physical.home.source_value == value.id
+            && physical.home.scalar_type == *declared =>
         {
-            let Some(shape) = fixed_integer_shape(declared) else {
+            let Some(shape) = fixed_integer_shape(*declared) else {
                 return Ok(None);
             };
             Some(shape)

@@ -776,7 +776,7 @@ fn boundary_call_module() -> TerminalModule {
             attachment: None,
             scalar_parameters: vec![ScalarType::Boolean],
             structural_parameters: Vec::new(),
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
