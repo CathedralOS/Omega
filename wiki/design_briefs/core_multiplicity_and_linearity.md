@@ -122,8 +122,10 @@ projected, reordered, or intervening-call forms remain fail closed.
 The first bounded whole-root primitive store accepts a landed integer literal
 or Boolean literal and preserves its complete write-only parameter row and
 preceding exact-typed scalar use through target-neutral abstract operations and
-optimization validation. Physical lowering remains fenced until
-separate address, width, store, and provider non-observation authority exists.
+optimization validation. Target lowering now derives the primitive referent's
+exact width/alignment and selects a borrowed-reference ABI on x86-64 and
+AArch64 before reaching the explicit store fence. Physical store and provider
+non-observation authority remain absent.
 
 ## Consumers and cleanup
 

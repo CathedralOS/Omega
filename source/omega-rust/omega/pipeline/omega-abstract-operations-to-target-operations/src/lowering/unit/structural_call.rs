@@ -2,7 +2,8 @@
 
 use super::super::shared::*;
 use super::super::structural_layout::{
-    checked_align_up_u32, resolve_structural_field_path, structural_shape,
+    checked_align_up_u32, resolve_structural_field_path, structural_parameter_shape,
+    structural_shape,
 };
 
 #[derive(Debug, Clone)]
@@ -56,13 +57,14 @@ pub(super) fn lower_structural_unit_call(
     let callee_shapes = callee_function
         .structural_parameters
         .iter()
-        .map(|parameter| {
-            structural_shape(
+        .map(|parameter| -> Result<ValueShape, LoweringError> {
+            let referent = structural_shape(
                 parameter.structural_type,
                 structural_types,
                 shape_cache,
                 active,
-            )
+            )?;
+            Ok(structural_parameter_shape(referent, parameter.access))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let callee_plan = evaluate_call_plan(
@@ -228,8 +230,11 @@ pub(super) fn lower_structural_unit_call(
                         });
                     }
                 };
+            let projected_parameter_shape =
+                structural_parameter_shape(projected_shape, callee_parameter.access);
             if projected_type != callee_parameter.structural_type
-                || projected_shape != shape
+                || argument.access != callee_parameter.access
+                || projected_parameter_shape != shape
                 || u32::from(shape.byte_size)
                     .checked_add(source_byte_offset)
                     .is_none_or(|end| end > u32::from(source_shape.byte_size))

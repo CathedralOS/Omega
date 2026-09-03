@@ -2,7 +2,7 @@
 
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
-use super::super::structural_layout::structural_shape;
+use super::super::structural_layout::{structural_parameter_shape, structural_shape};
 
 pub(super) struct PreparedUnitFunction {
     pub(super) call_plan: CallPlan,
@@ -40,13 +40,7 @@ pub(super) fn prepare_unit_function(
                 &mut shape_cache,
                 &mut active,
             )?;
-            Ok(
-                if parameter.access == psi_terminal::StructuralAccess::MutableBorrow {
-                    ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
-                } else {
-                    shape
-                },
-            )
+            Ok(structural_parameter_shape(shape, parameter.access))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let signature = CallSignature {

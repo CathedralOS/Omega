@@ -16,16 +16,6 @@ pub(super) fn validate_unit_function_shape(
     {
         return Err(LoweringError::UnitFunctionNotStraightLine(function.machine));
     }
-    if let Some(AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }) = function
-        .operations
-        .iter()
-        .find(|operation| matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. }))
-    {
-        return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
-            machine: function.machine,
-            operation: *psi_operation,
-        });
-    }
     Ok(())
 }
 

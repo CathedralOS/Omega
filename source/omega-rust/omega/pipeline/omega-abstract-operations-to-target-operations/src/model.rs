@@ -214,7 +214,6 @@ pub enum LoweringError {
     EmptyStructuralType(StructuralTypeId),
     RelevantOpaqueStructuralField(StructuralTypeId),
     UnsupportedStructuralByteSequence(StructuralTypeId),
-    UnsupportedStructuralPrimitiveScalar(StructuralTypeId),
     UnsupportedStructuralSum(StructuralTypeId),
     StructuralTypeTooLarge(StructuralTypeId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
