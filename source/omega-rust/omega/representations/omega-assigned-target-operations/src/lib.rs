@@ -30,4 +30,5 @@ pub use unit::{
     AssignedRankedU32Countdown, AssignedStructuralHome, AssignedUnitBody, AssignedUnitOperation,
     AssignedUnitScalarArgumentSource, AssignedUnitScalarCallArgument, AssignedUnitScalarHome,
     AssignedUnitStructuralCasePayload, AssignedUnitStructuralCaseSuccessor,
+    AssignedUnitWriteOnlyPrimitiveStoreSource,
 };

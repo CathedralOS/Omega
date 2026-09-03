@@ -82,11 +82,14 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `lowering/unit/write_only_primitive_store.rs` owns the first whole-root
   non-observing primitive replacement. Fixed integers derive their exact native
   referent shape; Booleans retain a distinct one-byte referent and preceding
-  Boolean definition. Both select borrowed-reference placement and cross
-  independent physical assignment. Boolean machine emission then rejoins the
-  definition and emits an exact one-byte store. Object construction and
-  installation replay retain its exact definition ordinal, bytes, and
-  attribution.
+  Boolean definition. IEEE floats retain a four- or eight-byte referent and the
+  exact preceding raw-bit definition. All three use a store-only source carrier,
+  select borrowed-reference placement, and cross independent physical
+  assignment without widening scalar calls or foreign boundaries. Integer and
+  Boolean machine emission then rejoin their definitions and emit exact stores;
+  IEEE machine emission remains fail-closed. Object construction and
+  installation replay retain the completed families' exact definition ordinal,
+  bytes, and attribution.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider

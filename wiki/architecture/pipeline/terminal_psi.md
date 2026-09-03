@@ -712,8 +712,9 @@ and bytes. Object construction independently replays the declaration joins,
 borrowed-reference placement and home, literal source, architecture encoding,
 attribution, interval, and bytes. Installation format 72 transports and
 revalidates the integer and Boolean store families without treating physical
-pointer-layout equivalence as permission equivalence. IEEE float stores
-currently stop at target-neutral abstract operations; target assignment,
+pointer-layout equivalence as permission equivalence. IEEE float stores retain
+their exact preceding definition, raw bits, referent shape, and store-only
+source carrier through target planning and independent physical assignment;
 machine emission, object construction, and installation remain explicit
 fail-closed work.
 

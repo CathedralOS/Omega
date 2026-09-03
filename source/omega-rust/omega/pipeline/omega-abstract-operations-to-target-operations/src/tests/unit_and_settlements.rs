@@ -1,4 +1,5 @@
 use super::*;
+use omega_target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
 
 #[test]
 fn parameter_dynamic_unit_dispatch_retains_two_word_result_less_abi() {
@@ -178,7 +179,7 @@ fn write_only_primitive_store_reaches_exact_target_custody_on_both_linux_isas() 
         assert_eq!(destination_placement, &body.parameters[0].placement);
         assert!(matches!(
             source,
-            TargetUnitScalarArgumentSource::IntegerImmediate {
+            TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
                 source_value,
                 scalar_type: source_type,
                 value: IntegerValue::Signed(2),
