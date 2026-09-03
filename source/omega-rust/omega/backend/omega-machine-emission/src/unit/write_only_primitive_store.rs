@@ -63,35 +63,38 @@ pub(super) fn emit_write_only_primitive_store(
                 .scalar_parameters
                 .get(scalar_parameter_index)
                 .ok_or_else(invalid)?;
-            let scalar_shape = ValueShape::integer(4, 4);
+            let byte_size = require_native_integer_width(source_value, scalar_type)? / 8;
+            let scalar_shape = ValueShape::integer(byte_size, byte_size.min(8));
             let expected_plan = evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
-                    parameters: vec![scalar_shape, ValueShape::borrowed_reference(4, 4)],
+                    parameters: vec![
+                        scalar_shape,
+                        ValueShape::borrowed_reference(byte_size, byte_size.min(8)),
+                    ],
                     result: None,
                 },
             )
             .map_err(|_| invalid())?;
-            let expected_register = match target.architecture {
-                Architecture::X86_64 => omega_target_operations::MachineRegister::X86Rdi,
-                Architecture::Aarch64 => omega_target_operations::MachineRegister::Aarch64X(0),
+            let [
+                ValueLocation::Register {
+                    register: expected_register,
+                    value_byte_offset: 0,
+                    byte_size: placed_byte_size,
+                },
+            ] = scalar_parameter.placement.locations.as_slice()
+            else {
+                return Err(invalid());
             };
             if parameter_index != 0
                 || body.scalar_parameters.len() != 1
                 || body.parameters.len() != 1
                 || scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
-                || scalar_type.sign() != psi_core::IntegerSign::Signed
-                || scalar_type.bits() != 32
                 || scalar_parameter.value != source_value
                 || scalar_parameter.scalar_type != ScalarType::Integer(scalar_type)
                 || scalar_parameter.placement.shape != scalar_shape
-                || scalar_parameter.placement.locations.as_slice()
-                    != [ValueLocation::Register {
-                        register: expected_register,
-                        value_byte_offset: 0,
-                        byte_size: 4,
-                    }]
-                || location != AssignedScalarLocation::Register(expected_register)
+                || *placed_byte_size != byte_size
+                || location != AssignedScalarLocation::Register(*expected_register)
                 || body.call_plan != expected_plan
                 || body.call_plan.parameters.first() != Some(&scalar_parameter.placement)
                 || body.call_plan.parameters.get(1) != Some(destination_placement)
@@ -104,11 +107,11 @@ pub(super) fn emit_write_only_primitive_store(
                     source_value,
                     scalar_type,
                     location: omega_machine_code::UnitScalarParameterLocationRecord::Register(
-                        expected_register,
+                        *expected_register,
                     ),
                 },
                 ScalarType::Integer(scalar_type),
-                4,
+                byte_size,
                 None,
             )
         }
