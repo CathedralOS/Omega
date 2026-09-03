@@ -1,5 +1,6 @@
 //! Exact installed selected-provider closure review for D45's implemented
-//! compiler-intrinsic, normalized-foreign, and bounded checked-physical roles.
+//! compiler-intrinsic, normalized-foreign, direct-syscall, and bounded
+//! checked-physical roles.
 
 mod context;
 mod operations;

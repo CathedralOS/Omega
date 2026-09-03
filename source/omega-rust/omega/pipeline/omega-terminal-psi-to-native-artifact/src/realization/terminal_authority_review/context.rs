@@ -167,16 +167,20 @@ impl<'a> ReviewContext<'a> {
         let mechanism = self.mechanisms.get(&boundary).copied().ok_or_else(|| {
             format!("reachable terminal boundary {boundary:?} has no admitted physical mechanism")
         })?;
-        let role_matches = matches!(
-            (binding, mechanism),
+        let role_matches = match (binding, mechanism) {
             (
                 ProviderBinding::CompilerIntrinsic { .. },
-                TerminalMechanismIdentity::CompilerIntrinsic(_)
-            ) | (
-                ProviderBinding::Import { .. },
-                TerminalMechanismIdentity::NormalizedForeign(_)
+                TerminalMechanismIdentity::CompilerIntrinsic(_),
             )
-        );
+            | (ProviderBinding::Import { .. }, TerminalMechanismIdentity::NormalizedForeign(_)) => {
+                true
+            }
+            (ProviderBinding::Syscall { number }, TerminalMechanismIdentity::Syscall(syscall)) => {
+                u32::try_from(*number).ok() == Some(syscall.number())
+                    && syscall.target() == self.target_profile
+            }
+            _ => false,
+        };
         if !role_matches {
             return Err(format!(
                 "reachable terminal boundary {boundary:?} substituted its selected binding role"
