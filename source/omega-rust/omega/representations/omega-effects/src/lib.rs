@@ -68,8 +68,8 @@ pub use service_terminal_authority_permission::ServiceTerminalAuthorityPermissio
 pub use terminal_authority::{
     CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    NormalizedForeignTerminalMechanismIdentity, TerminalAuthorityClass,
-    TerminalAuthorityClosureLeaf, TerminalAuthorityClosureReviewBuildError,
+    NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
+    TerminalAuthorityClass, TerminalAuthorityClosureLeaf, TerminalAuthorityClosureReviewBuildError,
     TerminalAuthorityClosureReviewReceipt, TerminalAuthorityDisposition,
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
     TerminalMechanismIdentity, compiler_intrinsic_execution_identity_bytes,

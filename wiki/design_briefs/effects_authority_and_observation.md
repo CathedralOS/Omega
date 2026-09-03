@@ -567,6 +567,11 @@ least content read, content write, metadata query, directory enumeration,
 namespace mutation, and metadata mutation while exact operation identity
 remains retained. Until raw integer descriptors migrate to typed unforgeable
 handles, those groups bound operations but make no object-confinement claim.
+The representation layer exposes that closed six-facet set as an explicit
+filesystem-policy authoring vocabulary. It canonicalizes into the same
+terminal classes consumed by selected-closure containment while still
+requiring the consumer to provide exact schema and requirement coordinates;
+the helper does not inspect service paths or readable method names.
 
 The current filename-and-trait keyed dangerous-authority classifier is a
 transitional implementation defect. Receiving target policy now classifies the

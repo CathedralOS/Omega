@@ -3,7 +3,7 @@
 use super::*;
 use psi_layout_plans::ConventionalDepthSixteenRecordSumPathsLayoutReport;
 
-fn depth_sixteen_paths_reports_match_for_replay(
+pub(super) fn depth_sixteen_paths_reports_match_for_replay(
     left: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
     right: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
 ) -> bool {
@@ -167,7 +167,7 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
         )
     }
 
-    fn replay_against_with_reachability(
+    pub(super) fn replay_against_with_reachability(
         &self,
         typed: &TypedTrees,
         schema_name: &str,
@@ -321,7 +321,7 @@ pub fn validate_const_materializable_record_with_depth_sixteen_nested_sums(
     )
 }
 
-fn validate_const_materializable_record_with_depth_sixteen_nested_sums_with_reachability(
+pub(super) fn validate_const_materializable_record_with_depth_sixteen_nested_sums_with_reachability(
     typed: &TypedTrees,
     schema_name: &str,
     path_layout: &ConventionalDepthSixteenRecordSumPathsLayoutReport,

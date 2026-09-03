@@ -1363,6 +1363,12 @@ fn compile_assembled_checked_child(
             authored_root_grants: &build_config.grants,
         },
     )?;
+    if let Some(package_inputs) = package_inputs {
+        crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
+            &checked.program,
+            package_inputs,
+        )?;
+    }
     let exact_component_progress_root = selected_program_entry.as_ref().map(|entry| {
         let source = entry.source_signature();
         crate::pipeline::component_progress::ExactComponentProgressRoot::new(

@@ -1,4 +1,7 @@
-use crate::{TerminalAuthorityDisposition, provider_plan::ServiceSchemaDigest};
+use crate::{
+    PortableFilesystemAuthorityFacet, TerminalAuthorityDisposition,
+    provider_plan::ServiceSchemaDigest,
+};
 
 /// One consumer-supplied permission for an exact requirement in one complete
 /// normalized service schema.
@@ -25,6 +28,21 @@ impl ServiceTerminalAuthorityPermission {
             requirement_identity: requirement_identity.into(),
             permitted,
         }
+    }
+
+    /// Construct consumer policy from D45's closed portable filesystem facet
+    /// vocabulary. The caller must still supply the exact checked schema and
+    /// requirement identities; this helper performs no name-based inference.
+    pub fn for_filesystem_facets(
+        service_schema: ServiceSchemaDigest,
+        requirement_identity: impl Into<String>,
+        facets: impl IntoIterator<Item = PortableFilesystemAuthorityFacet>,
+    ) -> Self {
+        Self::new(
+            service_schema,
+            requirement_identity,
+            TerminalAuthorityDisposition::from_filesystem_facets(facets),
+        )
     }
 
     pub const fn service_schema(&self) -> ServiceSchemaDigest {
@@ -68,6 +86,31 @@ mod tests {
             &[
                 TerminalAuthorityClass::ProcessOutput,
                 TerminalAuthorityClass::ProcessTermination,
+            ]
+        );
+    }
+
+    #[test]
+    fn filesystem_permission_keeps_exact_key_and_portable_facets() {
+        let row = ServiceTerminalAuthorityPermission::for_filesystem_facets(
+            schema(8),
+            "FilesystemHost::open#exact",
+            [
+                PortableFilesystemAuthorityFacet::MetadataQuery,
+                PortableFilesystemAuthorityFacet::ContentWrite,
+                PortableFilesystemAuthorityFacet::ContentRead,
+                PortableFilesystemAuthorityFacet::ContentWrite,
+            ],
+        );
+
+        assert_eq!(row.service_schema(), schema(8));
+        assert_eq!(row.requirement_identity(), "FilesystemHost::open#exact");
+        assert_eq!(
+            row.permitted().classes(),
+            &[
+                TerminalAuthorityClass::FilesystemContentRead,
+                TerminalAuthorityClass::FilesystemContentWrite,
+                TerminalAuthorityClass::FilesystemMetadataQuery,
             ]
         );
     }

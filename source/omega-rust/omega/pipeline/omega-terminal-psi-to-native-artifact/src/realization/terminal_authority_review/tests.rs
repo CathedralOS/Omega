@@ -2,7 +2,8 @@ use super::*;
 use omega_abstract_operations::{AbstractFunction, AbstractOperation, AbstractOperationPlan};
 use omega_effects::{
     CheckedPhysicalTerminalMechanismIdentity, CompilerIntrinsicExecutionIdentity,
-    TerminalAuthorityClass, TerminalAuthorityDisposition, TerminalMechanismIdentity,
+    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission, TerminalAuthorityClass,
+    TerminalAuthorityDisposition, TerminalMechanismIdentity,
     provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema},
 };
 use psi_core::{BoundaryMachineId, MachineId};
@@ -222,6 +223,52 @@ fn intrinsic_mechanism(boundary: u32) -> AdmittedTerminalMechanism {
     }
 }
 
+fn filesystem_foreign_fixture() -> (
+    omega_effects::provider_plan::EvaluatedForeignImport,
+    TerminalMechanismIdentity,
+) {
+    let locator = omega_target::normalize_foreign_locator(
+        omega_target::ForeignLocatorCandidate::ElfVersioned {
+            object: b"libfixture.so".to_vec(),
+            symbol: b"filesystem_operation".to_vec(),
+            version: b"FIXTURE_1".to_vec(),
+        },
+        omega_target::TargetProfile::LinuxX64,
+    )
+    .expect("fixture locator normalizes");
+    let usage = omega_effects::provider_plan::EvaluatedBindingUsage::from_evaluator(
+        1, 1, 1, 1, 0, 0, 1, 1, 1, 0,
+    )
+    .expect("fixture usage");
+    let receipt = omega_effects::provider_plan::EvaluatedBindingReceipt::from_evaluation(
+        None,
+        "test::filesystem_binding".to_owned(),
+        omega_effects::provider_plan::EvaluatedBindingProducerClosureDigest::from_bytes([31; 32])
+            .unwrap(),
+        1,
+        usage,
+        omega_effects::provider_plan::EvaluatedBindingEvaluationDigest::from_bytes([32; 32])
+            .unwrap(),
+        1,
+        omega_effects::provider_plan::EvaluatedBindingMaterializationDigest::from_bytes([33; 32])
+            .unwrap(),
+        locator.identity_digest(),
+    )
+    .expect("fixture receipt");
+    let evaluated = omega_effects::provider_plan::EvaluatedForeignImport::from_retained_evidence(
+        locator.clone(),
+        receipt,
+    )
+    .expect("fixture receipt matches locator");
+    let mechanism =
+        omega_effects::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
+            &locator,
+            omega_effects::provider_plan::BoundaryCallingPlanCommitment::from_digest([34; 32]),
+        )
+        .into();
+    (evaluated, mechanism)
+}
+
 fn checked_port_write_mechanism(
     target: omega_target::TargetProfile,
     port: u16,
@@ -311,6 +358,61 @@ fn intrinsic_leaf_requires_exact_service_permission() {
             .expect_err("missing exact permission rejects")
             .contains("no exact row")
         );
+}
+
+#[test]
+fn portable_filesystem_facets_cover_their_exact_selected_closure_rows() {
+    const REQUIREMENT: &str = "test::FilesystemHost::operation()";
+    let (evaluated, mechanism) = filesystem_foreign_fixture();
+    let leaf = selected_plan(
+        "filesystem-leaf",
+        "FilesystemProvider",
+        REQUIREMENT,
+        ProviderBinding::Import { evaluated },
+    );
+    let selected =
+        SelectedProviderPlanFacts::from_selected_plans(vec![leaf.clone()]).expect("selected leaf");
+    let plan = abstract_plan(
+        vec![boundary(1, REQUIREMENT)],
+        Vec::new(),
+        vec![function(1, &[1])],
+    );
+
+    for facet in PortableFilesystemAuthorityFacet::ALL {
+        let disposition = TerminalAuthorityDisposition::from_filesystem_facets([facet]);
+        let physical =
+            super::super::terminal_authority_policy::terminal_authority_policy_with_rows(vec![
+                super::super::terminal_authority_policy::TerminalAuthorityPolicyRow::new(
+                    mechanism,
+                    disposition.clone(),
+                ),
+            ])
+            .expect("one exact normalized-foreign policy row");
+        let permitted = super::super::terminal_authority_permission_policy::terminal_authority_permission_policy_with_rows(vec![
+            ServiceTerminalAuthorityPermission::for_filesystem_facets(
+                leaf.schema.identity_digest(),
+                REQUIREMENT,
+                [facet],
+            ),
+        ])
+        .expect("exact filesystem permission row");
+        let receipt = review_terminal_authority_closure(
+            [29; 32],
+            omega_target::TargetProfile::LinuxX64,
+            &plan,
+            &selected,
+            &physical,
+            &permitted,
+            &[AdmittedTerminalMechanism {
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                mechanism,
+            }],
+            &[],
+        )
+        .expect("the exact selected row covers its explicitly supplied filesystem facet");
+        assert_eq!(receipt.leaves()[0].exercised(), &disposition);
+        assert_eq!(receipt.leaves()[0].permitted(), &disposition);
+    }
 }
 
 #[test]

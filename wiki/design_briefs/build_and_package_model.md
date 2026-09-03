@@ -317,7 +317,14 @@ A final structural gate requires every retained root graph, symbol/name/path
 row, authored selection, semantic table, evidence/proof/ranking record, and
 layout/placement/wire/specialization sidecar to remain an exact prefix. Failure
 returns the owned base unchanged inside the continuation layer and rejects the
-compilation.
+compilation. Package-aware compilation then repeats authored-declaration
+authority validation over the exact final checked base-plus-extension program
+before package-subject derivation. The earlier opaque verdict remains the
+frozen base commitment used to admit build execution; this final replay instead
+requires every generated selection to retain an exact requesting package and
+obey the ordinary public-visibility and direct-dependency rules. Access to the
+retained dependency source closure therefore cannot promote a transitive-only
+declaration into generated package authority.
 
 There is no whole-program escape hatch. The raw combined-syntax carrier,
 rebuild flag, second `lower_checked_frontend` call, and nominal
