@@ -91,10 +91,13 @@ fn structural_call_and_return_retain_the_exact_projected_result_roster() {
     caller_result.projected_qualifications.clear();
     refresh_function_derivatives(&mut missing_call_row, 0);
     let error = validate_psi_optimization_unit(&missing_call_row).unwrap_err();
-    assert!(matches!(
-        error,
-        OptimizationUnitValidationError::StructuralCallContractMismatch { .. }
-    ), "{error:?}");
+    assert!(
+        matches!(
+            error,
+            OptimizationUnitValidationError::StructuralCallContractMismatch { .. }
+        ),
+        "{error:?}"
+    );
 
     let mut missing_return_row = unit;
     let omega_abstract_operations::AbstractFunctionResult::Structural(result) =
@@ -168,7 +171,7 @@ fn boundary_requirement_consumes_a_dominating_operation_result_qualification() {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             }],
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: vec![psi_terminal::StructuralDomainRequirement {
                 argument_index: 0,
                 domain,

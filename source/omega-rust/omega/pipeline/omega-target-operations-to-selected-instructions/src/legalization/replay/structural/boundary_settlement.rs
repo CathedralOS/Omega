@@ -103,7 +103,7 @@ pub(crate) fn replay_boundary_settlement(
         || target_receipts != completion_receipts
         || structural_arguments.is_empty()
         || !declaration.scalar_parameters.is_empty()
-        || declaration.result.is_some()
+        || !declaration.result.is_unit()
         || !declaration.program_local_root_introductions.is_empty()
         || !declaration.content_guarantees.is_empty()
         || !declaration.published_service_ceiling.is_empty()

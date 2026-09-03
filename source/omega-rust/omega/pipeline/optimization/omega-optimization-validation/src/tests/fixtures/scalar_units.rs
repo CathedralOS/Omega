@@ -340,7 +340,7 @@ pub(crate) fn scalar_boundary_call_unit() -> PsiOptimizationUnit {
             attachment: None,
             scalar_parameters: vec![scalar_type],
             structural_parameters: Vec::new(),
-            result: Some(scalar_type),
+            result: psi_terminal::BoundaryMachineResult::Scalar(scalar_type),
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),

@@ -862,7 +862,7 @@ impl TerminalEffectHandler for O0Meaning {
         else {
             return Self::reject("O0 admits only Console boundary effects");
         };
-        if result.is_some() || self.exit_status.is_some() {
+        if !result.is_unit() || self.exit_status.is_some() {
             return Self::reject("O0 effect after exit or with a result");
         }
         if Some(*boundary) == self.write_boundary {

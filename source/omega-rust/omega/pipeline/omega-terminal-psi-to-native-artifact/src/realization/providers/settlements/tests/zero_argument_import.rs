@@ -24,7 +24,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             attachment: None,
             scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),

@@ -51,7 +51,7 @@ fn rejects_structural_call_argument_arity_and_access_corruption() {
             attachment: None,
             scalar_parameters: Vec::new(),
             structural_parameters: vec![boundary.functions[1].structural_parameters[0].clone()],
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),

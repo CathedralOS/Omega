@@ -73,7 +73,7 @@ fn checked_retained_shared_borrow_reaches_canonical_terminal_custody() {
     assert_eq!(boundary.identity, custody.callable_identity);
     assert!(boundary.scalar_parameters.is_empty());
     assert!(boundary.structural_parameters.is_empty());
-    assert!(boundary.result.is_none());
+    assert!(boundary.result.is_unit());
     assert_eq!(custody.access, psi_terminal::StructuralAccess::SharedBorrow);
     assert_eq!(custody.callable_lifetime_parameter_count, 1);
     assert_eq!(custody.callable_lifetime_parameter_ordinal, 0);

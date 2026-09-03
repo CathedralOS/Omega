@@ -752,7 +752,7 @@ mod tests {
                     projected_qualifications: Vec::new(),
                 },
             ],
-            result: Some(u8_type),
+            result: psi_terminal::BoundaryMachineResult::Scalar(u8_type),
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),

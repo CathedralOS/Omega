@@ -61,7 +61,7 @@ pub(super) fn build(
                             && boundary.scalar_parameters.is_empty()
                             && boundary.structural_parameters.is_empty()
                             && boundary.domain_requirements.is_empty()
-                            && boundary.result_type.is_none())
+                            && boundary.result.is_unit())
                 }
                 _ => false,
             };

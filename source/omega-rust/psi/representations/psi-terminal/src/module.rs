@@ -31,7 +31,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        77
+        78
     }
 }
 
@@ -992,6 +992,37 @@ pub struct StructuralDomainRequirement {
     pub domain: StructuralDomainId,
 }
 
+/// Exact structural signature returned by one bodyless boundary declaration.
+/// Unlike a machine result declaration this has no proof-visible place: the
+/// successful call operation creates the caller-local result place.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BoundaryStructuralResultDeclaration {
+    pub structural_type: StructuralTypeId,
+    pub multiplicity: StructuralMultiplicity,
+    pub qualifications: Vec<StructuralDomainId>,
+}
+
+/// Closed result role of one bodyless boundary declaration.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryMachineResult {
+    Unit,
+    Scalar(ScalarType),
+    Structural(BoundaryStructuralResultDeclaration),
+}
+
+impl BoundaryMachineResult {
+    pub const fn scalar(&self) -> Option<ScalarType> {
+        match self {
+            Self::Scalar(scalar) => Some(*scalar),
+            Self::Unit | Self::Structural(_) => None,
+        }
+    }
+
+    pub const fn is_unit(&self) -> bool {
+        matches!(self, Self::Unit)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
@@ -1001,10 +1032,9 @@ pub struct BoundaryMachineDeclaration {
     /// arguments positionally and preserve this authored order exactly.
     pub scalar_parameters: Vec<ScalarType>,
     /// Ordered runtime structural parameters, independently positional from
-    /// the scalar lane. A primitive scalar result is retained when the
-    /// successful invocation returns a runtime status/value.
+    /// the scalar lane.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
-    pub result: Option<ScalarType>,
+    pub result: BoundaryMachineResult,
     /// Strictly ordered qualification checks by `(argument_index, domain)`.
     /// Admission consumes qualifications already carried by the arguments;
     /// these rows are not proof propositions.
@@ -2149,7 +2179,7 @@ pub enum OperationKind {
     /// Invoke one exact bodyless boundary machine. Completion receipts
     /// name every live caller claim consumed by the successful invocation at
     /// its exact structural argument position. The operation result must agree
-    /// with the boundary declaration's optional scalar result.
+    /// with the boundary declaration's closed result role.
     BoundaryCall {
         boundary: BoundaryMachineId,
         /// Positional scalar arguments in the boundary declaration's exact

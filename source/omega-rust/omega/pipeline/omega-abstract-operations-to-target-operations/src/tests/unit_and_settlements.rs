@@ -313,7 +313,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             }],
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
@@ -456,7 +456,8 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
         value: ValueId::new(1).unwrap(),
         scalar_type: ScalarType::Boolean,
     };
-    result_bearing.boundary_machines[0].result = Some(result.scalar_type);
+    result_bearing.boundary_machines[0].result =
+        psi_terminal::BoundaryMachineResult::Scalar(result.scalar_type);
     let AbstractOperation::BoundaryCall {
         result: operation_result,
         ..
@@ -599,7 +600,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
                 qualifications: vec![granted],
                 projected_qualifications: Vec::new(),
             }],
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: vec![psi_terminal::StructuralDomainRequirement {
                 argument_index: 0,
                 domain: granted,

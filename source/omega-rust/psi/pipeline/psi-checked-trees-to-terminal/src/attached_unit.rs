@@ -61,6 +61,35 @@ use selected_operator::{
     validate_selected_operator_structural_scalar_call,
 };
 
+fn lower_boundary_result(
+    result: &CheckedBoundaryMachineResultPlan,
+    type_ids: &[(String, StructuralTypeId)],
+    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+) -> Result<BoundaryMachineResult, LoweringError> {
+    Ok(match result {
+        CheckedBoundaryMachineResultPlan::Unit => BoundaryMachineResult::Unit,
+        CheckedBoundaryMachineResultPlan::Scalar(scalar) => {
+            BoundaryMachineResult::Scalar(terminal_scalar_type(*scalar)?)
+        }
+        CheckedBoundaryMachineResultPlan::Structural {
+            type_identity,
+            multiplicity,
+            qualifications,
+        } => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+            structural_type: lookup_type_id(type_ids, type_identity)?,
+            multiplicity: match multiplicity {
+                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                Multiplicity::Affine => StructuralMultiplicity::Affine,
+                Multiplicity::Linear => StructuralMultiplicity::Linear,
+            },
+            qualifications: qualifications
+                .iter()
+                .map(|domain| lookup_domain_id(domain_ids, *domain))
+                .collect::<Result<Vec<_>, _>>()?,
+        }),
+    })
+}
+
 fn retain_exact_checked_flow_call(
     checked: &CheckedTrees,
     machine: &CheckedUnitEffectMachinePlan,
@@ -119,7 +148,7 @@ pub(super) fn retain_exact_unit_boundary<'plans>(
     target_state: psi_symbols::SymbolHandle,
     target_contract_report_fingerprint: u64,
     service_reach: ServiceReachSummary,
-    expected_result: Option<PrimitiveType>,
+    expected_result: CheckedBoundaryMachineResultPlan,
 ) -> Result<(), LoweringError> {
     let target = unique_unit_boundary(plans, target_machine)?;
     if target.contract_report_fingerprint == 0 {
@@ -127,7 +156,7 @@ pub(super) fn retain_exact_unit_boundary<'plans>(
     }
     if target.state != target_state
         || target.contract_report_fingerprint != target_contract_report_fingerprint
-        || target.result_type != expected_result
+        || target.result != expected_result
         || !checked_unit_target_reach_matches(service_reach, target.contract_service_reach)
     {
         return unsupported(
@@ -373,7 +402,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         *target_state,
                         *target_contract_report_fingerprint,
                         *service_reach,
-                        None,
+                        CheckedBoundaryMachineResultPlan::Unit,
                     )?;
                 }
                 CheckedUnitEffectOperationPlan::BoundaryScalarCall {
@@ -394,7 +423,42 @@ pub(super) fn lower_attached_unit_closure_including(
                         *target_state,
                         *target_contract_report_fingerprint,
                         *service_reach,
-                        Some(result.primitive_type),
+                        CheckedBoundaryMachineResultPlan::Scalar(result.primitive_type),
+                    )?;
+                }
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    coordinate,
+                    target_machine,
+                    target_state,
+                    target_contract_report_fingerprint,
+                    service_reach,
+                    result,
+                    ..
+                } => {
+                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_machine)?;
+                    let target = unique_unit_boundary(plans, *target_machine)?;
+                    if !matches!(
+                        &target.result,
+                        CheckedBoundaryMachineResultPlan::Structural {
+                            type_identity,
+                            multiplicity,
+                            ..
+                        } if type_identity == &result.type_identity
+                            && multiplicity == &result.multiplicity
+                    ) {
+                        return unsupported(
+                            "Unit structural result drifted from its checked boundary target",
+                        );
+                    }
+                    retain_exact_unit_boundary(
+                        checked,
+                        plans,
+                        &mut boundaries,
+                        *target_machine,
+                        *target_state,
+                        *target_contract_report_fingerprint,
+                        *service_reach,
+                        target.result.clone(),
                     )?;
                 }
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
@@ -580,7 +644,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 .transpose()?,
             scalar_parameters: scalar_parameters.clone(),
             structural_parameters: parameters.clone(),
-            result: plan.result_type.map(terminal_scalar_type).transpose()?,
+            result: lower_boundary_result(&plan.result, &type_ids, &domain_ids)?,
             requires,
             program_local_root_introductions,
             content_guarantees,
@@ -764,9 +828,10 @@ pub(super) fn lower_attached_unit_closure_including(
             .iter()
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. } => {
-                    Some(*target_machine)
-                }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    target_machine, ..
+                } => Some(*target_machine),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -847,6 +912,10 @@ pub(super) fn lower_attached_unit_closure_including(
                     ..
                 }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    structural_arguments,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                     structural_arguments,
                     ..
                 } => literal_arguments.extend(
@@ -1824,7 +1893,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         );
                     }
                     let target = unique_unit_boundary(plans, *target_machine)?;
-                    if target.result_type != Some(result.primitive_type) {
+                    if target.result.scalar() != Some(result.primitive_type) {
                         return unsupported(
                             "Unit scalar result type drifted from its checked boundary target",
                         );
@@ -1975,6 +2044,201 @@ pub(super) fn lower_attached_unit_closure_including(
                         kind,
                     });
                     scalar_result_values.push(value);
+                    continue;
+                }
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    coordinate,
+                    source_site,
+                    result,
+                    target_machine,
+                    scalar_arguments,
+                    structural_arguments,
+                    completion_receipts,
+                    discard_result_on_return,
+                    ..
+                } => {
+                    if usize::try_from(result.binding_ordinal).ok()
+                        != Some(structural_result_places.len())
+                    {
+                        return unsupported(
+                            "Unit structural result binding ordinal drifted from source order",
+                        );
+                    }
+                    let target = unique_unit_boundary(plans, *target_machine)?;
+                    let CheckedBoundaryMachineResultPlan::Structural {
+                        type_identity,
+                        multiplicity,
+                        qualifications,
+                    } = &target.result
+                    else {
+                        return unsupported(
+                            "Unit structural result target is not a structural boundary",
+                        );
+                    };
+                    if type_identity != &result.type_identity
+                        || multiplicity != &result.multiplicity
+                    {
+                        return unsupported(
+                            "Unit structural result drifted from its checked boundary target",
+                        );
+                    }
+                    let expected_claim_arguments = structural_arguments
+                        .iter()
+                        .enumerate()
+                        .flat_map(|(argument_index, argument)| {
+                            plan.entry_claims
+                                .iter()
+                                .filter(move |claim| {
+                                    argument.byte_sequence_literal().is_none()
+                                        && Some(claim.parameter_index)
+                                            == argument.source_parameter_index()
+                                        && (argument.path.is_empty() || claim.path == argument.path)
+                                })
+                                .map(move |_| {
+                                    u32::try_from(argument_index).map_err(|_| {
+                                        LoweringError::Unsupported(
+                                            "boundary structural argument index exceeds u32",
+                                        )
+                                    })
+                                })
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    validate_transfer_shape(
+                        structural_arguments,
+                        completion_receipts,
+                        parameters,
+                        &[],
+                        &[],
+                        &target.structural_parameters,
+                        &type_ids,
+                        &structural_types,
+                        &expected_claim_arguments,
+                    )?;
+                    let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
+                        .iter()
+                        .find(|(symbol, _, _, _)| *symbol == *target_machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "boundary structural call target is absent from the lowered closure",
+                        ))?;
+                    if scalar_arguments.len() != target_scalar_parameters.len() {
+                        return unsupported(
+                            "boundary structural argument count disagrees with its declaration",
+                        );
+                    }
+                    let scalar_value_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
+                    let arguments = scalar_arguments
+                        .iter()
+                        .zip(target_scalar_parameters)
+                        .map(|(argument, target_type)| {
+                            let argument = lower_checked_scalar_expression(argument)?;
+                            if argument.scalar_type() != *target_type {
+                                return unsupported(
+                                    "boundary structural scalar argument type disagrees with its declaration",
+                                );
+                            }
+                            validate_direct_parameter_types(&argument, &scalar_value_types)?;
+                            Ok(emit_direct_expression(
+                                &argument,
+                                &scalar_result_values,
+                                &mut next_value_identity,
+                                &mut operations,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let literal_count = structural_arguments
+                        .iter()
+                        .filter(|argument| argument.byte_sequence_literal().is_some())
+                        .count();
+                    let literal_end = next_literal_argument.checked_add(literal_count).ok_or(
+                        LoweringError::Unsupported(
+                            "byte-sequence literal argument count overflows usize",
+                        ),
+                    )?;
+                    let call_literal_places = literal_places
+                        .get(next_literal_argument..literal_end)
+                        .ok_or(LoweringError::Unsupported(
+                            "byte-sequence literal argument place is absent",
+                        ))?
+                        .iter()
+                        .map(|place| place.id)
+                        .collect::<Vec<_>>();
+                    next_literal_argument = literal_end;
+                    let kind = OperationKind::BoundaryCall {
+                        boundary: *boundary,
+                        arguments,
+                        structural_arguments: lower_structural_arguments(
+                            structural_arguments,
+                            parameters,
+                            &[],
+                            &[],
+                            &call_literal_places,
+                        )?,
+                        completion_receipts: completion_receipts
+                            .iter()
+                            .map(|settlement| {
+                                Ok(CompletionReceipt {
+                                    claim: lookup_claim_id(
+                                        claim_bindings,
+                                        settlement.claim_identity,
+                                    )?,
+                                    argument_index: settlement.argument_index,
+                                })
+                            })
+                            .collect::<Result<Vec<_>, LoweringError>>()?,
+                    };
+                    let id = operations.allocate();
+                    let structural_type = lookup_type_id(&type_ids, type_identity)?;
+                    let result_place = place_id(allocate_dense(&mut next_place)?);
+                    let result_declaration = StructuralPlaceDeclaration {
+                        id: result_place,
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer: id,
+                            structural_type,
+                        },
+                    };
+                    operations.record_source_call(
+                        SourceCallCoordinate {
+                            state: plan.state,
+                            statement_index: usize::try_from(coordinate.statement_index).map_err(
+                                |_| {
+                                    LoweringError::Unsupported(
+                                        "boundary structural call statement coordinate exceeds usize",
+                                    )
+                                },
+                            )?,
+                            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
+                                LoweringError::Unsupported(
+                                    "boundary structural call ordinal coordinate exceeds usize",
+                                )
+                            })?,
+                        },
+                        *source_site,
+                        id,
+                        *target_machine,
+                    )?;
+                    operations.push(Operation {
+                        id,
+                        result: OperationResult::Structural(StructuralOperationResult {
+                            place: result_place,
+                            structural_type,
+                            multiplicity: match multiplicity {
+                                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                                Multiplicity::Affine => StructuralMultiplicity::Affine,
+                                Multiplicity::Linear => StructuralMultiplicity::Linear,
+                            },
+                            qualifications: qualifications
+                                .iter()
+                                .map(|domain| lookup_domain_id(&domain_ids, *domain))
+                                .collect::<Result<Vec<_>, _>>()?,
+                            projected_qualifications: Vec::new(),
+                            claims: Vec::new(),
+                        }),
+                        kind,
+                    });
+                    structural_result_places.push((result_declaration, *discard_result_on_return));
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::PortWrite {

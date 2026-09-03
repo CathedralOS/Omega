@@ -687,11 +687,8 @@ pub(super) fn build_boundary_machine(
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    let result_type = if is_unit(program, state.return_type) {
-        None
-    } else {
-        Some(program.primitive_type_reference(state.return_type)?)
-    };
+    let binders = machine_binders(program, machine);
+    let result = boundary_result_plan(program, shapes, state.return_type, &binders)?;
     if !program
         .statement_table
         .statements(state.statement_nodes)
@@ -699,7 +696,6 @@ pub(super) fn build_boundary_machine(
     {
         return None;
     }
-    let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
         structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
     let domain_requirements = boundary_domain_requirements(
@@ -721,7 +717,7 @@ pub(super) fn build_boundary_machine(
         attachment_type_identity: Some(attachment_type_identity),
         structural_parameters,
         scalar_parameters,
-        result_type,
+        result,
         domain_requirements,
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
@@ -769,14 +765,9 @@ pub(super) fn build_static_boundary_requirements(
             {
                 continue;
             }
-            let result_type = if is_unit(program, signature.return_type) {
-                None
-            } else {
-                let Some(result_type) = program.primitive_type_reference(signature.return_type)
-                else {
-                    continue;
-                };
-                Some(result_type)
+            let Some(result) = boundary_result_plan(program, shapes, signature.return_type, &[])
+            else {
+                continue;
             };
             let mut structural_parameters = Vec::new();
             let mut scalar_parameters = Vec::new();
@@ -902,7 +893,7 @@ pub(super) fn build_static_boundary_requirements(
                 attachment_type_identity: None,
                 structural_parameters,
                 scalar_parameters,
-                result_type,
+                result,
                 domain_requirements,
                 contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
                 contract_commitment: capsule.target_contract_commitment(),
@@ -919,6 +910,30 @@ pub(super) fn build_static_boundary_requirements(
     plans.sort_by_key(|plan| (plan.machine.arena_index(), plan.machine.generation()));
     plans.dedup_by_key(|plan| plan.machine);
     plans
+}
+
+fn boundary_result_plan(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> Option<CheckedBoundaryMachineResultPlan> {
+    if is_unit(program, type_reference) {
+        return Some(CheckedBoundaryMachineResultPlan::Unit);
+    }
+    if let Some(scalar) = program.primitive_type_reference(type_reference) {
+        return Some(CheckedBoundaryMachineResultPlan::Scalar(scalar));
+    }
+    if is_reference(program, type_reference)
+        || type_graph_requires_nominal_drop(program, type_reference)
+    {
+        return None;
+    }
+    Some(CheckedBoundaryMachineResultPlan::Structural {
+        type_identity: shapes.add_type(type_reference, binders, &[])?,
+        multiplicity: crate::checks::type_multiplicity(program, type_reference),
+        qualifications: parameter_qualifications(program, shapes, type_reference, binders)?,
+    })
 }
 
 pub(super) fn build_checked_machine(
@@ -955,6 +970,15 @@ pub(super) fn build_checked_machine(
         .as_ref()
         .map(|(_, _, symbol)| *symbol);
     let binders = machine_binders(program, machine);
+    let boundary_structural_result_local = selected_structural_result_local
+        .is_none()
+        .then(|| {
+            checked_unit_boundary_structural_result_local(program, shapes, statements, &binders)
+        })
+        .flatten();
+    let boundary_structural_result_symbol = boundary_structural_result_local
+        .as_ref()
+        .map(|(_, symbol)| *symbol);
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
         psi_typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
             .is_some()
@@ -972,7 +996,8 @@ pub(super) fn build_checked_machine(
                     free_fused_service_scalar_signature(program, shapes, state, &binders)?;
                 (None, structural, scalar)
             } else if (selected_scalar_result_local.is_some()
-                || selected_structural_result_local.is_some())
+                || selected_structural_result_local.is_some()
+                || boundary_structural_result_local.is_some())
                 && !carries_scalar_parameter
             {
                 let structural =
@@ -1034,13 +1059,16 @@ pub(super) fn build_checked_machine(
         statements,
         selected_ieee_float_fma_applications,
     );
-    if (selected_scalar_result_local.is_some() || selected_structural_result_local.is_some())
+    if (selected_scalar_result_local.is_some()
+        || selected_structural_result_local.is_some()
+        || boundary_structural_result_local.is_some())
         && selected_ieee_float_fma_result_locals.is_some()
     {
         return None;
     }
     let scalar_result_local = (selected_scalar_result_local.is_none()
         && selected_structural_result_local.is_none()
+        && boundary_structural_result_local.is_none()
         && selected_ieee_float_fma_result_locals.is_none())
     .then(|| checked_unit_scalar_result_local(program, statements))
     .flatten();
@@ -1055,7 +1083,8 @@ pub(super) fn build_checked_machine(
             usize::from(
                 scalar_result_local.is_some()
                     || selected_scalar_result_local.is_some()
-                    || selected_structural_result_local.is_some(),
+                    || selected_structural_result_local.is_some()
+                    || boundary_structural_result_local.is_some(),
             ) + scalar_expression_locals.len()
         },
         Vec::len,
@@ -1101,9 +1130,9 @@ pub(super) fn build_checked_machine(
             return None;
         }
     } else {
-        let expected_call_count = call_statements
-            .len()
-            .checked_add(usize::from(scalar_result_local.is_some()))?;
+        let expected_call_count = call_statements.len().checked_add(usize::from(
+            scalar_result_local.is_some() || boundary_structural_result_local.is_some(),
+        ))?;
         if calls.len() != expected_call_count
             || call_statements
                 .iter()
@@ -1198,6 +1227,7 @@ pub(super) fn build_checked_machine(
             .map(|local| local.symbol),
     );
     admitted_local_symbols.extend(selected_structural_result_symbol);
+    admitted_local_symbols.extend(boundary_structural_result_symbol);
 
     let mut operations = trivial_affine_locals
         .iter()
@@ -1229,109 +1259,158 @@ pub(super) fn build_checked_machine(
     if let Some(store) = write_only_store {
         operations.push(store);
     } else {
-        let call_offset = if let Some((application, result)) = selected_scalar_result_local {
-            let operation =
-                build_selected_operator_scalar_call(program, facts, state, application, result)
-                    .or_else(|| {
-                        build_selected_operator_structural_scalar_call(
-                            program,
-                            facts,
-                            shapes,
-                            machine,
-                            state,
-                            &mut structural_parameters,
-                            &entry_claims,
-                            application,
-                            result,
-                        )
-                    })?;
-            operations.push(operation);
-            operations.extend(scalar_expression_locals.iter().cloned().map(
-                |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-                    result,
-                    value,
-                },
-            ));
-            0
-        } else if let Some((application, result, _)) = selected_structural_result_local {
-            operations.push(build_selected_operator_structural_call(
-                program,
-                facts,
-                shapes,
-                machine,
-                state,
-                &mut structural_parameters,
-                &entry_claims,
-                application,
-                result,
-            )?);
-            0
-        } else if let Some(locals) = selected_ieee_float_fma_result_locals {
-            for (application, result) in locals {
-                operations.push(build_selected_ieee_float_fma(
+        let call_offset =
+            if let Some((application, result)) = selected_scalar_result_local {
+                let operation =
+                    build_selected_operator_scalar_call(program, facts, state, application, result)
+                        .or_else(|| {
+                            build_selected_operator_structural_scalar_call(
+                                program,
+                                facts,
+                                shapes,
+                                machine,
+                                state,
+                                &mut structural_parameters,
+                                &entry_claims,
+                                application,
+                                result,
+                            )
+                        })?;
+                operations.push(operation);
+                operations.extend(scalar_expression_locals.iter().cloned().map(
+                    |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                        result,
+                        value,
+                    },
+                ));
+                0
+            } else if let Some((application, result, _)) = selected_structural_result_local {
+                operations.push(build_selected_operator_structural_call(
                     program,
                     facts,
+                    shapes,
+                    machine,
                     state,
+                    &mut structural_parameters,
+                    &entry_claims,
                     application,
                     result,
                 )?);
-            }
-            0
-        } else if let Some(result) = scalar_result_local {
-            let call = calls.first()?;
-            if call.statement_index != usize::try_from(result.statement_index).ok()?
-                || call.call_ordinal != 0
-            {
-                return None;
-            }
-            let CheckedUnitEffectOperationPlan::BoundaryCall {
-                coordinate,
-                source_site,
-                target_machine,
-                target_state,
-                target_contract_report_fingerprint,
-                service_reach,
-                scalar_arguments,
-                structural_arguments,
-                completion_receipts,
-            } = build_call_operation(
-                program,
-                facts,
-                machine,
-                state,
-                &structural_parameters,
-                &local_rows,
-                affine_scalar_record_local.as_slice(),
-                &entry_claims,
-                call,
-                false,
-                Some(result.primitive_type),
-            )?
-            else {
-                return None;
-            };
-            operations.push(CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                coordinate,
-                source_site,
-                result,
-                target_machine,
-                target_state,
-                target_contract_report_fingerprint,
-                service_reach,
-                scalar_arguments,
-                structural_arguments,
-                completion_receipts,
-            });
-            operations.extend(scalar_expression_locals.iter().cloned().map(
-                |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                0
+            } else if let Some(locals) = selected_ieee_float_fma_result_locals {
+                for (application, result) in locals {
+                    operations.push(build_selected_ieee_float_fma(
+                        program,
+                        facts,
+                        state,
+                        application,
+                        result,
+                    )?);
+                }
+                0
+            } else if let Some((result, _)) = boundary_structural_result_local {
+                let call = calls.first()?;
+                if call.statement_index != usize::try_from(result.statement_index).ok()?
+                    || call.call_ordinal != 0
+                {
+                    return None;
+                }
+                let CheckedUnitEffectOperationPlan::BoundaryCall {
+                    coordinate,
+                    source_site,
+                    target_machine,
+                    target_state,
+                    target_contract_report_fingerprint,
+                    service_reach,
+                    scalar_arguments,
+                    structural_arguments,
+                    completion_receipts,
+                } = build_call_operation(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    &structural_parameters,
+                    &local_rows,
+                    affine_scalar_record_local.as_slice(),
+                    &entry_claims,
+                    call,
+                    false,
+                    Some(ExpectedBoundaryValueResult::Structural(&result)),
+                )?
+                else {
+                    return None;
+                };
+                let discard_result_on_return = result.multiplicity == Multiplicity::Affine;
+                operations.push(CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    coordinate,
+                    source_site,
                     result,
-                    value,
-                },
-            ));
-            1
-        } else {
-            0
-        };
+                    target_machine,
+                    target_state,
+                    target_contract_report_fingerprint,
+                    service_reach,
+                    scalar_arguments,
+                    structural_arguments,
+                    completion_receipts,
+                    discard_result_on_return,
+                });
+                1
+            } else if let Some(result) = scalar_result_local {
+                let call = calls.first()?;
+                if call.statement_index != usize::try_from(result.statement_index).ok()?
+                    || call.call_ordinal != 0
+                {
+                    return None;
+                }
+                let CheckedUnitEffectOperationPlan::BoundaryCall {
+                    coordinate,
+                    source_site,
+                    target_machine,
+                    target_state,
+                    target_contract_report_fingerprint,
+                    service_reach,
+                    scalar_arguments,
+                    structural_arguments,
+                    completion_receipts,
+                } = build_call_operation(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    &structural_parameters,
+                    &local_rows,
+                    affine_scalar_record_local.as_slice(),
+                    &entry_claims,
+                    call,
+                    false,
+                    Some(ExpectedBoundaryValueResult::Scalar(result.primitive_type)),
+                )?
+                else {
+                    return None;
+                };
+                operations.push(CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    coordinate,
+                    source_site,
+                    result,
+                    target_machine,
+                    target_state,
+                    target_contract_report_fingerprint,
+                    service_reach,
+                    scalar_arguments,
+                    structural_arguments,
+                    completion_receipts,
+                });
+                operations.extend(scalar_expression_locals.iter().cloned().map(
+                    |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                        result,
+                        value,
+                    },
+                ));
+                1
+            } else {
+                0
+            };
         for (call_index, call) in calls[call_offset..].iter().enumerate() {
             let statement_index = local_count.checked_add(call_index)?;
             if call.statement_index != statement_index || call.call_ordinal != 0 {
@@ -1364,6 +1443,10 @@ pub(super) fn build_checked_machine(
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                 structural_arguments,
                 ..
             }
@@ -1638,6 +1721,42 @@ fn checked_unit_scalar_result_local(
         binding_ordinal: 0,
         primitive_type,
     })
+}
+
+fn checked_unit_boundary_structural_result_local(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    statements: &[StatementNode],
+    binders: &[(SymbolHandle, String)],
+) -> Option<(CheckedUnitStructuralResultBindingPlan, SymbolHandle)> {
+    let StatementNode::LocalData(local) = statements.first()? else {
+        return None;
+    };
+    if local.is_mutable
+        || !local.initial_value.is_valid()
+        || program
+            .primitive_type_reference(local.type_reference)
+            .is_some()
+        || is_reference(program, local.type_reference)
+        || crate::checks::type_multiplicity(program, local.type_reference) == Multiplicity::Linear
+        || type_graph_requires_nominal_drop(program, local.type_reference)
+        || !matches!(
+            program.expression_table.expression(local.initial_value),
+            ExpressionNode::Call(_)
+        )
+        || !parameter_qualifications(program, shapes, local.type_reference, binders)?.is_empty()
+    {
+        return None;
+    }
+    Some((
+        CheckedUnitStructuralResultBindingPlan {
+            statement_index: 0,
+            binding_ordinal: 0,
+            type_identity: shapes.add_type(local.type_reference, binders, &[])?,
+            multiplicity: crate::checks::type_multiplicity(program, local.type_reference),
+        },
+        local.symbol,
+    ))
 }
 
 fn build_write_only_primitive_store(

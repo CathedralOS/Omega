@@ -109,6 +109,64 @@ fn retains_exact_byte_literal_for_static_bodyless_boundary() {
 }
 
 #[test]
+fn retains_owned_structural_result_for_static_bodyless_boundary() {
+    let checked = checked(
+        r#"
+        data ByteRead {
+            case Eof;
+            case Byte(value: i32);
+        }
+
+        boundary trait Console {
+            machine read_byte() -> ByteRead
+            reaches Console;
+        }
+
+        data Root {}
+        machine Root::enter()
+        reaches Console
+        {
+            let result: ByteRead = Console::read_byte();
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let boundary = plans
+        .boundary_machines
+        .iter()
+        .find(|boundary| {
+            matches!(
+                boundary.result,
+                CheckedBoundaryMachineResultPlan::Structural { .. }
+            )
+        })
+        .expect("read_byte boundary structural result");
+    assert!(matches!(
+        &boundary.result,
+        CheckedBoundaryMachineResultPlan::Structural {
+            multiplicity: Multiplicity::Affine,
+            qualifications,
+            ..
+        } if qualifications.is_empty()
+    ));
+    let root = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("structural boundary-result caller plan");
+    assert!(matches!(
+        root.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                result,
+                discard_result_on_return: true,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+        ] if result.type_identity.contains("ByteRead")
+            && result.multiplicity == Multiplicity::Affine
+    ));
+}
+
+#[test]
 fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirements() {
     let checked = checked(
         r#"

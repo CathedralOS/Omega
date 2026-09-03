@@ -2,6 +2,7 @@
 
 use super::proposition_encoding::encode_proposition;
 use super::*;
+use psi_terminal::BoundaryMachineResult;
 
 pub(super) fn encode_place_declaration(
     bytes: &mut CanonicalBytes,
@@ -75,9 +76,23 @@ pub(super) fn encode_boundary_machine(
         &declaration.structural_parameters,
         encode_structural_parameter,
     );
-    encode_optional(bytes, declaration.result.as_ref(), |bytes, result| {
-        encode_scalar_type(bytes, *result)
-    });
+    match &declaration.result {
+        BoundaryMachineResult::Unit => bytes.u8(0),
+        BoundaryMachineResult::Scalar(result) => {
+            bytes.u8(1);
+            encode_scalar_type(bytes, *result);
+        }
+        BoundaryMachineResult::Structural(result) => {
+            bytes.u8(2);
+            bytes.id(result.structural_type);
+            bytes.u8(match result.multiplicity {
+                StructuralMultiplicity::Unrestricted => 1,
+                StructuralMultiplicity::Affine => 2,
+                StructuralMultiplicity::Linear => 3,
+            });
+            encode_ids(bytes, &result.qualifications);
+        }
+    }
     bytes.slice(&declaration.requires, encode_domain_requirement);
     bytes.slice(
         &declaration.program_local_root_introductions,

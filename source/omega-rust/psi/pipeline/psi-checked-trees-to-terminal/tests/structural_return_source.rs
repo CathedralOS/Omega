@@ -1382,7 +1382,7 @@ impl TerminalEffectHandler for ResultBoundaryHandler {
         assert!(matches!(
             effect,
             TerminalEffect::BoundaryCall {
-                result: Some(psi_core::ScalarType::Boolean),
+                result: psi_terminal::BoundaryMachineResult::Scalar(psi_core::ScalarType::Boolean,),
                 ..
             }
         ));
@@ -1417,7 +1417,7 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
     assert_eq!(module.boundary_machines.len(), 1);
     assert_eq!(
         module.boundary_machines[0].result,
-        Some(psi_core::ScalarType::Boolean)
+        psi_terminal::BoundaryMachineResult::Scalar(psi_core::ScalarType::Boolean)
     );
     let operation = &module.machines[0].blocks[0].operations[0];
     assert!(operation.result.scalar().is_some());
@@ -1443,7 +1443,7 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
     )
     .expect("result-bearing boundary custody verifies");
     let mut mismatched_result = module.clone();
-    mismatched_result.boundary_machines[0].result = None;
+    mismatched_result.boundary_machines[0].result = psi_terminal::BoundaryMachineResult::Unit;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&mismatched_result),
         Err(psi_terminal_verifier::ModuleError::BoundaryCallResultMismatch {

@@ -495,7 +495,7 @@ fn retain_call_boundary<'a>(
         *target_state,
         *target_contract_report_fingerprint,
         *service_reach,
-        None,
+        CheckedBoundaryMachineResultPlan::Unit,
     )
 }
 

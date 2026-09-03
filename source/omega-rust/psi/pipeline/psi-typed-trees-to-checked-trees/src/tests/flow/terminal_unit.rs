@@ -14,7 +14,8 @@ mod returns;
 mod shared_convergence;
 
 use psi_checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
 use psi_language_core::BindingRelevance;

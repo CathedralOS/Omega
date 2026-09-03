@@ -2553,7 +2553,7 @@ fn program_local_root_module() -> TerminalModule {
                 qualifications: vec![qualification],
                 projected_qualifications: Vec::new(),
             }],
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: vec![StructuralDomainRequirement {
                 argument_index: 0,
                 domain: qualification,

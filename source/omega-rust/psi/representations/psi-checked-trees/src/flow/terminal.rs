@@ -1290,6 +1290,40 @@ pub struct CheckedUnitStructuralResultBindingPlan {
     pub multiplicity: Multiplicity,
 }
 
+/// Exact result role of one bodyless boundary declaration. Unit, primitive,
+/// and structural results are distinct identities; an absent result is never
+/// reused to mean an empty structural result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedBoundaryMachineResultPlan {
+    Unit,
+    Scalar(PrimitiveType),
+    Structural {
+        type_identity: String,
+        multiplicity: Multiplicity,
+        qualifications: Vec<SemanticDomainId>,
+    },
+}
+
+impl CheckedBoundaryMachineResultPlan {
+    pub const fn scalar(&self) -> Option<PrimitiveType> {
+        match self {
+            Self::Scalar(scalar) => Some(*scalar),
+            Self::Unit | Self::Structural { .. } => None,
+        }
+    }
+
+    pub const fn is_unit(&self) -> bool {
+        matches!(self, Self::Unit)
+    }
+
+    pub fn structural_identity(&self) -> Option<&str> {
+        match self {
+            Self::Structural { type_identity, .. } => Some(type_identity),
+            Self::Unit | Self::Scalar(_) => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
     EstablishTrivialAffineLocal {
@@ -1355,6 +1389,25 @@ pub enum CheckedUnitEffectOperationPlan {
         scalar_arguments: Vec<CheckedScalarExpression>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
+    },
+    /// Invoke one result-bearing bodyless boundary and bind its whole
+    /// structural result to the exact immutable local declared by this
+    /// statement. The result signature remains target-neutral; physical
+    /// placement belongs to native realization.
+    BoundaryStructuralCall {
+        coordinate: CheckedUnitCallCoordinate,
+        source_site: Option<NominalMachineUseSite>,
+        result: CheckedUnitStructuralResultBindingPlan,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        target_contract_report_fingerprint: u64,
+        service_reach: ServiceReachSummary,
+        scalar_arguments: Vec<CheckedScalarExpression>,
+        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
+        completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
+        /// One affine result not consumed by a later operation is explicitly
+        /// discarded on the caller's final Unit return.
+        discard_result_on_return: bool,
     },
     /// Call the exact checked scalar machine selected for one authored
     /// boundary-operator use and bind its result. The requirement and
@@ -1501,7 +1554,7 @@ pub struct CheckedBoundaryMachinePlan {
     /// Primitive parameters in authored order after removing structural
     /// parameters into their independent custody namespace.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
-    pub result_type: Option<PrimitiveType>,
+    pub result: CheckedBoundaryMachineResultPlan,
     /// Canonical `(argument_index, domain)` order derived from exact normalized
     /// membership facts in the boundary contract.
     pub domain_requirements: Vec<CheckedUnitStructuralDomainRequirementPlan>,

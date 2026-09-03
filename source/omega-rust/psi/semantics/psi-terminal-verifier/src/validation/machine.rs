@@ -239,11 +239,29 @@ pub(super) fn validate_machine(
                         operation: operation.id,
                         boundary: *boundary,
                     })?;
-                let actual = operation.result.scalar().map(|result| result.scalar_type);
-                if actual != boundary.result {
+                let actual = match &operation.result {
+                    OperationResult::Unit => Some(BoundaryMachineResult::Unit),
+                    OperationResult::Scalar(result) => {
+                        Some(BoundaryMachineResult::Scalar(result.scalar_type))
+                    }
+                    OperationResult::Structural(result)
+                        if result.projected_qualifications.is_empty()
+                            && result.claims.is_empty() =>
+                    {
+                        Some(BoundaryMachineResult::Structural(
+                            BoundaryStructuralResultDeclaration {
+                                structural_type: result.structural_type,
+                                multiplicity: result.multiplicity,
+                                qualifications: result.qualifications.clone(),
+                            },
+                        ))
+                    }
+                    OperationResult::Structural(_) => None,
+                };
+                if actual.as_ref() != Some(&boundary.result) {
                     return Err(ModuleError::BoundaryCallResultMismatch {
                         operation: operation.id,
-                        expected: boundary.result,
+                        expected: boundary.result.clone(),
                         actual,
                     });
                 }

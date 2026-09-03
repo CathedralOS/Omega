@@ -143,7 +143,7 @@ pub(super) fn validate_boundary(
             if boundary.attachment_type_identity.is_some()
                 || !boundary.structural_parameters.is_empty()
                 || !boundary.domain_requirements.is_empty()
-                || boundary.result_type.is_some()
+                || !boundary.result.is_unit()
             {
                 return unsupported("composed Unit boundary is not scalar-only Unit");
             }
@@ -159,7 +159,7 @@ pub(super) fn validate_boundary(
             if !parameter.is_self
                 || !boundary.scalar_parameters.is_empty()
                 || !boundary.domain_requirements.is_empty()
-                || boundary.result_type.is_some()
+                || !boundary.result.is_unit()
             {
                 return unsupported("composed Unit settlement escaped the exact linear boundary");
             }

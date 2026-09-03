@@ -229,7 +229,7 @@ fn lower_catalogs(
                 .transpose()?,
             scalar_parameters: scalar_parameters.clone(),
             structural_parameters: structural_parameters.clone(),
-            result: None,
+            result: BoundaryMachineResult::Unit,
             requires: Vec::new(),
             program_local_root_introductions: lower_program_local_root_introductions(
                 checked,

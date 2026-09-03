@@ -93,11 +93,12 @@ use psi_core::{
     ServiceId, StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
-    NominalAffineCleanup, Operation, OperationKind, OperationResult, StructuralAffineDiscard,
-    StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator,
+    BoundaryMachineResult, BoundaryStructuralResultDeclaration, NominalAffineCleanup, Operation,
+    OperationKind, OperationResult, StructuralAffineDiscard, StructuralArgument,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
@@ -106,7 +107,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 74;
+const FORMAT_MARKER: u16 = 75;
 const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
 const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -1441,7 +1442,25 @@ fn validate_operation_foundation(
             else {
                 return malformed("boundary call references an unknown boundary");
             };
-            if operation.result.scalar().map(|result| result.scalar_type) != boundary.result {
+            let actual_result = match &operation.result {
+                OperationResult::Unit => Some(BoundaryMachineResult::Unit),
+                OperationResult::Scalar(result) => {
+                    Some(BoundaryMachineResult::Scalar(result.scalar_type))
+                }
+                OperationResult::Structural(result)
+                    if result.projected_qualifications.is_empty() && result.claims.is_empty() =>
+                {
+                    Some(BoundaryMachineResult::Structural(
+                        BoundaryStructuralResultDeclaration {
+                            structural_type: result.structural_type,
+                            multiplicity: result.multiplicity,
+                            qualifications: result.qualifications.clone(),
+                        },
+                    ))
+                }
+                OperationResult::Structural(_) => None,
+            };
+            if actual_result.as_ref() != Some(&boundary.result) {
                 return malformed("boundary call result disagrees with its declaration");
             }
             if arguments.len() != boundary.scalar_parameters.len() {

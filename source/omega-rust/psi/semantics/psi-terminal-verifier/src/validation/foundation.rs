@@ -501,7 +501,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 .all(|(boundary, candidate)| *boundary == candidate.scalar_type);
         if attachment.identity.is_empty()
             || !scalar_signature_matches
-            || boundary.result.is_some()
+            || !boundary.result.is_unit()
             || candidate.result != TerminalMachineResult::Unit
             || row.signature.parameters != boundary_signature
             || row.signature.parameters != candidate_signature

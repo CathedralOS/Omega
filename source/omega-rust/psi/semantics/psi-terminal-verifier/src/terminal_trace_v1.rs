@@ -2,7 +2,7 @@
 
 use psi_core::{BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType};
 use psi_terminal::{
-    OperationKind, StructuralAccess, TerminalMachineResult, TerminalModule,
+    BoundaryMachineResult, OperationKind, StructuralAccess, TerminalMachineResult, TerminalModule,
     TerminalObservationSchema, TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind,
     TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema, TerminalTraceRootRow,
     TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceV1Rows,
@@ -295,14 +295,25 @@ fn reconstruct_boundary_call_event(
                 comparison: exact,
             })
             .collect(),
-        result: declaration
-            .result
-            .map_or(TerminalTraceResultSchema::Unit, |scalar_type| {
+        result: match &declaration.result {
+            BoundaryMachineResult::Unit => TerminalTraceResultSchema::Unit,
+            BoundaryMachineResult::Scalar(scalar_type) => {
                 TerminalTraceResultSchema::Scalar(TerminalTraceScalarSchema {
-                    scalar_type,
+                    scalar_type: *scalar_type,
                     comparison: exact,
                 })
-            }),
+            }
+            BoundaryMachineResult::Structural(result) => {
+                TerminalTraceResultSchema::Structural(TerminalTraceStructuralSchema {
+                    structural_type: result.structural_type,
+                    multiplicity: result.multiplicity,
+                    access: StructuralAccess::Owned,
+                    qualifications: result.qualifications.clone(),
+                    projected_qualifications: Vec::new(),
+                    comparison: exact,
+                })
+            }
+        },
     }
 }
 
@@ -588,7 +599,7 @@ mod tests {
                     projected_qualifications: Vec::new(),
                 },
             ],
-            result: Some(u8_type),
+            result: psi_terminal::BoundaryMachineResult::Scalar(u8_type),
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),

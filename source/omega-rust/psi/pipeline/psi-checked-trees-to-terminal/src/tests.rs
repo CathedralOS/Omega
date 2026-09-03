@@ -3401,7 +3401,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &74_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &75_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -3420,6 +3420,47 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
             if matches!(premise.as_ref(), Proposition::Conjunction(_))
                 && matches!(conclusion.as_ref(), Proposition::Falsehood)
     ));
+}
+
+#[test]
+fn structural_boundary_result_lowers_and_round_trips() {
+    let checked = checked_source(
+        r#"
+        data ByteRead {
+            case Eof;
+            case Byte(value: i32);
+        }
+        boundary trait Console {
+            machine read_byte() -> ByteRead
+            reaches Console;
+        }
+        data Root {}
+        machine Root::enter()
+        reaches Console
+        {
+            let result: ByteRead = Console::read_byte();
+        }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Root::enter").expect("lower terminal");
+    let module = &lowered.semantic_module;
+    let [boundary] = module.boundary_machines.as_slice() else {
+        panic!("one structural-result boundary")
+    };
+    let BoundaryMachineResult::Structural(signature) = &boundary.result else {
+        panic!("boundary result should retain its structural signature")
+    };
+    assert_eq!(signature.multiplicity, StructuralMultiplicity::Affine);
+    let operation = &module.machines[0].blocks[0].operations[0];
+    let OperationResult::Structural(result) = &operation.result else {
+        panic!("boundary call should produce one structural result")
+    };
+    assert_eq!(result.structural_type, signature.structural_type);
+    assert_eq!(result.multiplicity, signature.multiplicity);
+    assert!(matches!(operation.kind, OperationKind::BoundaryCall { .. }));
+    let bytes = psi_terminal_codec::encode_module(module).expect("encode terminal module");
+    let decoded = psi_terminal_codec::decode_module(&bytes).expect("decode terminal module");
+    assert_eq!(&decoded, module);
 }
 
 #[test]
@@ -3482,7 +3523,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &74_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &75_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -3663,7 +3704,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                 ..structural_parameter(0)
             }],
             scalar_parameters: Vec::new(),
-            result_type: None,
+            result: CheckedBoundaryMachineResultPlan::Unit,
             domain_requirements: vec![
                 psi_checked_trees::CheckedUnitStructuralDomainRequirementPlan {
                     argument_index: 0,

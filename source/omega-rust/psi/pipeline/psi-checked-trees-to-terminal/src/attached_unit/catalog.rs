@@ -193,6 +193,9 @@ pub(super) fn lower_unit_structural_types(
                     roots.push(realization.structural_parameter.type_identity.clone());
                     roots.push(realization.result.type_identity.clone());
                 }
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
+                    roots.push(result.type_identity.clone());
+                }
                 _ => {}
             }
         }
@@ -205,6 +208,7 @@ pub(super) fn lower_unit_structural_types(
                 .iter()
                 .map(|parameter| parameter.type_identity.clone()),
         );
+        roots.extend(boundary.result.structural_identity().map(str::to_owned));
     }
     lower_unit_structural_type_roots(checked, &roots)
 }
@@ -596,6 +600,9 @@ pub(super) fn lower_unit_services(
                 CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { service_reach, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    service_reach, ..
+                }
                 | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
                     service_reach,
                     ..

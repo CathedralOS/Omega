@@ -2196,7 +2196,7 @@ fn unit_effect_fixture() -> TerminalModule {
             attachment: None,
             scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
-            result: None,
+            result: psi_terminal::BoundaryMachineResult::Unit,
             requires: Vec::new(),
             published_service_ceiling: Vec::new(),
             program_local_root_introductions: Vec::new(),
