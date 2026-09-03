@@ -142,6 +142,7 @@ fn emit_x86_64_unit_scalar_call(
             parameter_index,
             argument,
             call_plan,
+            &[],
             preceding_operations,
         )?;
         let code_offset = bytes.len();
@@ -221,6 +222,7 @@ fn emit_aarch64_unit_scalar_call(
             parameter_index,
             argument,
             call_plan,
+            &[],
             preceding_operations,
         )?;
         let code_offset = bytes.len();
@@ -266,6 +268,7 @@ pub(super) fn validate_unit_scalar_argument(
     parameter_index: usize,
     argument: &AssignedUnitScalarCallArgument,
     call_plan: &omega_calling_conventions::CallPlan,
+    caller_parameters: &[omega_target_operations::UnitScalarAbiValue],
     preceding_operations: &[AssignedUnitOperation],
 ) -> Result<(), EmissionError> {
     let Some(placement) = call_plan.parameters.get(parameter_index) else {
@@ -280,6 +283,52 @@ pub(super) fn validate_unit_scalar_argument(
         || assigned_destination_for_placement(placement) != Some(argument.destination)
     {
         return Err(EmissionError::InvalidUnitScalarCallCustody(operation));
+    }
+    if let AssignedUnitScalarArgumentSource::Parameter {
+        parameter_index,
+        source_value,
+        scalar_type,
+        location,
+    } = argument.source
+    {
+        let index = usize::try_from(parameter_index)
+            .map_err(|_| EmissionError::InvalidUnitScalarCallCustody(operation))?;
+        let Some(parameter) = caller_parameters.get(index) else {
+            return Err(EmissionError::InvalidUnitScalarCallCustody(operation));
+        };
+        let expected_location = match parameter.placement.locations.as_slice() {
+            [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size,
+                },
+            ] if *byte_size == parameter.placement.shape.byte_size => {
+                omega_assigned_target_operations::AssignedScalarLocation::Register(*register)
+            }
+            [
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ] if *byte_size == parameter.placement.shape.byte_size => {
+                omega_assigned_target_operations::AssignedScalarLocation::IncomingStack {
+                    byte_offset: *stack_byte_offset,
+                }
+            }
+            _ => return Err(EmissionError::InvalidUnitScalarCallCustody(operation)),
+        };
+        if parameter.value != source_value
+            || parameter.scalar_type != psi_core::ScalarType::Integer(scalar_type)
+            || parameter.placement.shape
+                != unit_scalar_shape(source_value, psi_core::ScalarType::Integer(scalar_type))?
+            || location != expected_location
+        {
+            return Err(EmissionError::InvalidUnitScalarCallCustody(operation));
+        }
+        return Ok(());
     }
     let exact_source_count = preceding_operations
         .iter()
@@ -487,9 +536,17 @@ pub(super) fn emit_x86_64_unit_scalar_argument(
         } => (11, Some(byte_offset)),
     };
     match argument.source {
-        AssignedUnitScalarArgumentSource::Parameter { source_value, .. } => {
-            return Err(EmissionError::UnsupportedUnitScalarType(source_value));
-        }
+        AssignedUnitScalarArgumentSource::Parameter {
+            source_value,
+            location,
+            ..
+        } => match (location, argument.destination) {
+            (
+                omega_assigned_target_operations::AssignedScalarLocation::Register(source),
+                omega_assigned_target_operations::AssignedCallDestination::Register(destination),
+            ) if source == destination => {}
+            _ => return Err(EmissionError::UnsupportedUnitScalarType(source_value)),
+        },
         AssignedUnitScalarArgumentSource::IntegerImmediate {
             source_value,
             scalar_type,
@@ -531,9 +588,17 @@ pub(super) fn emit_aarch64_unit_scalar_argument(
     };
     let mut instructions = Vec::new();
     match argument.source {
-        AssignedUnitScalarArgumentSource::Parameter { source_value, .. } => {
-            return Err(EmissionError::UnsupportedUnitScalarType(source_value));
-        }
+        AssignedUnitScalarArgumentSource::Parameter {
+            source_value,
+            location,
+            ..
+        } => match (location, argument.destination) {
+            (
+                omega_assigned_target_operations::AssignedScalarLocation::Register(source),
+                omega_assigned_target_operations::AssignedCallDestination::Register(destination),
+            ) if source == destination => {}
+            _ => return Err(EmissionError::UnsupportedUnitScalarType(source_value)),
+        },
         AssignedUnitScalarArgumentSource::IntegerImmediate {
             source_value,
             scalar_type,

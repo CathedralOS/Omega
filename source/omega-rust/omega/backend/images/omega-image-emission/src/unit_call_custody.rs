@@ -372,7 +372,13 @@ pub(super) fn validate_internal_unit_call_custody(
         && callee_mixed_structural_return.is_none()
         && !custody.scalar_arguments.is_empty()
     {
-        return Err(invalid());
+        let CallSiteOwner::Operation(operation) = custody.owner else {
+            return Err(invalid());
+        };
+        return Err(ObjectError::UnsupportedInternalUnitCallScalarArguments {
+            caller: machine,
+            operation,
+        });
     }
     let expected_plan = omega_calling_conventions::evaluate_call_plan(
         omega_calling_conventions::CallingPolicy::native_for_target(target),

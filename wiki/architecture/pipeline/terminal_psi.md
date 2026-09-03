@@ -734,9 +734,12 @@ same scalar arguments. Abstract-to-Target lowering now derives one complete
 call plan with a scalar prefix and structural suffix while preserving the exact
 caller source. Target-to-assigned lowering now independently replays that plan
 and binds the caller's scalar parameter to its exact incoming physical
-location. Machine emission rejects scalar-bearing `CallUnit` explicitly until
-it emits the argument transfer, so native caller transport and general
-parameter forwarding remain open rather than being silently erased.
+location. Machine emission admits the bounded same-register forwarding case,
+emits the structural suffix and call, and records the scalar source,
+destination, interval, and relocation custody. Object construction rejects
+that record explicitly until it independently replays the Unit callee ABI and
+argument bytes, so general parameter forwarding remains open rather than being
+silently accepted.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

@@ -4068,6 +4068,10 @@ pub enum ObjectError {
         owner: CallSiteOwner,
     },
     InvalidInternalUnitCallEvidence(MachineId),
+    UnsupportedInternalUnitCallScalarArguments {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
     InvalidInternalUnitScalarCallEvidence(MachineId),
     InvalidUnitScalarFunctionAbi(MachineId),
     InvalidInstalledProviderUnitScalarCallEvidence(MachineId),

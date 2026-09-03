@@ -30,8 +30,9 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - `assignment/function/unit/operation.rs` applies the same exact plan/source
   replay to ordinary Unit-result calls. Its bounded forwarding lane binds an
   incoming fixed-integer caller parameter to the scalar prefix of the callee
-  ABI while keeping structural copies in the remaining suffix; machine
-  emission is the next explicit fence.
+  ABI while keeping structural copies in the remaining suffix. Machine
+  emission admits the exact same-register case and records its complete call
+  custody; object construction is the next explicit replay fence.
 - `assignment/function/unit/structural_scalar.rs` independently reconstructs
   the bounded projected integer-field store and structural scalar call,
   including carrier layout, source definition, field offset, projected copy,

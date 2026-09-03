@@ -102,8 +102,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   including optimizer identity and dataflow. This stage now derives the exact
   target call plan, retaining scalar arguments as its prefix and structural
   arguments as its suffix. Physical assignment independently replays that plan
-  and preserves the caller parameter's incoming location; machine emission
-  remains explicitly fenced until it emits the scalar transfer.
+  and preserves the caller parameter's incoming location. Machine emission
+  admits exact same-register forwarding and retains scalar call custody beside
+  the structural copies; object construction is the next explicit replay
+  boundary.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider
