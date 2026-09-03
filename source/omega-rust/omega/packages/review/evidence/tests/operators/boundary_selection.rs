@@ -790,6 +790,12 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .contains("operator::Math::same")
     );
     assert_eq!(demand.operator_declaration().path(), "Math::same");
+    let exact_operator = review
+        .public_operators()
+        .iter()
+        .find(|operator| operator.coordinate().identity().path() == "Math::same")
+        .expect("exact public operator overload");
+    assert_eq!(demand.operator_coordinate(), exact_operator.coordinate());
     assert_eq!(
         demand.operator_declaration().owner(),
         PackageReviewNominalOwner::Package(package_identity())

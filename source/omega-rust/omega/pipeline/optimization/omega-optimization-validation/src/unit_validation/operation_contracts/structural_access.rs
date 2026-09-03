@@ -280,7 +280,7 @@ pub(crate) fn is_bounded_partial_affine_path(
                 let Some(inner) = types.get(&element) else {
                     return false;
                 };
-                let psi_terminal::StructuralTypeShape::FixedArray { length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15), .. } = inner.shape else {
+                let psi_terminal::StructuralTypeShape::FixedArray { length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16), .. } = inner.shape else {
                     return false;
                 };
                 matches!(path, [psi_terminal::StructuralPathSegment::FixedIndex(outer), psi_terminal::StructuralPathSegment::FixedIndex(index)] if *outer < 2 && *index < inner_length)

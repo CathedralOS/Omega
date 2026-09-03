@@ -1202,6 +1202,7 @@ name = "omega-package-manager"
 version = "0.1.0"
 dependencies = [
  "cap-std",
+ "omega-boundary-applications",
  "omega-build-declarations",
  "omega-build-evaluation",
  "omega-compiler",
@@ -1217,6 +1218,7 @@ dependencies = [
  "psi-checked-interpreter",
  "psi-core",
  "psi-diagnostics",
+ "psi-language-semantics",
  "psi-proof-admission",
  "psi-source",
  "psi-source-files-to-tokens",

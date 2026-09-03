@@ -209,7 +209,8 @@ pub(super) fn lower_unit_return(
                                             | 12
                                             | 13
                                             | 14
-                                            | 15,
+                                            | 15
+                                            | 16,
                                         ..
                                     }
                                 )

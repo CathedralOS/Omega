@@ -263,6 +263,17 @@ const NESTED_AFFINE_FIFTEEN_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_AFFINE_SIXTEEN_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Sink {}
+    machine Sink::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 16]; 2]) {
+        Sink::take(values[1][15]);
+        Sink::take(values[0][1]);
+    }
+"#;
+
 #[test]
 fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
@@ -1559,6 +1570,42 @@ fn nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
             (1, 2),
             (1, 1),
             (1, 0),
+            (0, 14),
+            (0, 13),
+            (0, 12),
+            (0, 11),
+            (0, 10),
+            (0, 9),
+            (0, 8),
+            (0, 7),
+            (0, 6),
+            (0, 5),
+            (0, 4),
+            (0, 3),
+            (0, 2),
+            (0, 0),
+        ],
+    );
+    assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter(
+        NESTED_AFFINE_SIXTEEN_SOURCE,
+        &[(1, 15), (0, 1)],
+        &[
+            (1, 14),
+            (1, 13),
+            (1, 12),
+            (1, 11),
+            (1, 10),
+            (1, 9),
+            (1, 8),
+            (1, 7),
+            (1, 6),
+            (1, 5),
+            (1, 4),
+            (1, 3),
+            (1, 2),
+            (1, 1),
+            (1, 0),
+            (0, 15),
             (0, 14),
             (0, 13),
             (0, 12),

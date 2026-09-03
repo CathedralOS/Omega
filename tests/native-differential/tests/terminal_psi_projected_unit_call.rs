@@ -261,6 +261,17 @@ const NESTED_AFFINE_FIFTEEN_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_AFFINE_SIXTEEN_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 16]; 2]) {
+        Helper::take(values[1][15]);
+        Helper::take(values[0][1]);
+    }
+"#;
+
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     domain [u8; 3]::Utf8
     requires
@@ -847,6 +858,26 @@ fn nested_affine_fifteen_plan() -> omega_abstract_operations::AbstractOperationP
         .expect("encode nested affine length-fifteen proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified nested affine length-fifteen artifact enters Omega")
+}
+
+fn nested_affine_sixteen_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let tokens = Lexer::new(NESTED_AFFINE_SIXTEEN_SOURCE)
+        .tokenize()
+        .expect("tokenize nested affine length-sixteen source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse nested affine length-sixteen source");
+    let resolved =
+        lower_syntax_trees(&syntax).expect("resolve nested affine length-sixteen source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type nested affine length-sixteen source");
+    let checked = lower_typed_trees(typed).expect("check nested affine length-sixteen source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower nested affine length-sixteen Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode nested affine length-sixteen Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle)
+        .expect("encode nested affine length-sixteen proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified nested affine length-sixteen artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan() -> omega_abstract_operations::AbstractOperationPlan {
@@ -2702,7 +2733,7 @@ fn assert_wider_nested_affine_array_native_custody(
             decode_installation_record(&encoded),
             Ok(installation.clone())
         );
-        if matches!(inner_length, 9 | 10 | 11 | 12 | 13 | 14 | 15) {
+        if matches!(inner_length, 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16) {
             assert_widest_image_installation_and_codec_tamper(
                 target,
                 &object,
@@ -2729,7 +2760,8 @@ fn assert_widest_image_installation_and_codec_tamper(
         13 => nested_affine_twelve_plan(),
         14 => nested_affine_thirteen_plan(),
         15 => nested_affine_fourteen_plan(),
-        _ => unreachable!("only the seven widest nested rungs request width tampering"),
+        16 => nested_affine_fifteen_plan(),
+        _ => unreachable!("only the eight widest nested rungs request width tampering"),
     };
     let control_target = lower_to_target_operations(&control_plan, target).unwrap();
     let control_assigned = assign_registers(&control_target).unwrap();
@@ -2782,6 +2814,7 @@ fn wider_nested_affine_arrays_retain_exact_native_custody() {
     assert_wider_nested_affine_array_native_custody(nested_affine_thirteen_plan(), 13);
     assert_wider_nested_affine_array_native_custody(nested_affine_fourteen_plan(), 14);
     assert_wider_nested_affine_array_native_custody(nested_affine_fifteen_plan(), 15);
+    assert_wider_nested_affine_array_native_custody(nested_affine_sixteen_plan(), 16);
 }
 
 #[test]

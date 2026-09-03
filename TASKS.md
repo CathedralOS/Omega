@@ -2719,9 +2719,22 @@ Owners:
   and component-candidate replay requires both to match independently. Thus a
   coverage or resolved-reach change cannot hide behind unchanged selected plan
   rows.
-  Verifier-derived concrete/symbolic demand and coverage rows, final-
-  composition wiring, and installation-bound exact issuance occurrences remain
-  engineering rungs.
+  The first cross-artifact final-substitution prerequisite is now live without
+  authorizing anything: one supplied request joins an exact producer-reviewed
+  public-callable symbolic row and explicit package/callable/binder/category/
+  type specialization to an independently reviewed exact operator overload and
+  closed selected-plan coordinate. It rejects owner, callable, overload,
+  category, arity, lifetime, bound, missing/extra/unused-substitution, closed-
+  application, and plan-coordinate drift, retains the symbolic binder mapping
+  and concrete specialization for later source-row replay, and canonically
+  deduplicates equal validated supplied demands only after the selected
+  artifact and plan digest rejoin. Its output is deliberately a demand-only
+  set for supplied requests, not proof that all reachable specializations were
+  supplied; it creates no coverage, selected realization, `PackageInstance`,
+  Terminal/native authority, or installation issuance. Verifier-derived
+  reachability-complete concrete/symbolic demand and coverage rows, complete-
+  set final-composition wiring, source-occurrence replay, and installation-
+  bound exact issuance occurrences remain engineering rungs.
 - Schema/device correspondence now has a distinct provider-issued,
   provenance-bearing authority carrier separate from storage compatibility.
   It binds one exact validated placement and resource-profile grant to a
@@ -10090,7 +10103,18 @@ reach or trust, and private proof improvements do not change public identity.
   240-byte outer layout, 120-byte outer stride, exact offsets, and five fuel
   units. Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup,
   wrong-length/layout/stride/offset, codec, object, image, and installation
-  mutations reject. `[[T; 16]; 2]` and wider forms remain fenced without
+  mutations reject.
+
+  The next exact nested successor is now closed. The same carrier admits
+  `[[T; 16]; 2]` with one distinct literal leaf move from each outer element
+  and thirty live residual leaves in decreasing outer-then-inner order.
+  Checked production through Terminal codec/interpreter replay, Omega
+  lowering, optimization validation, five-target layout and machine emission,
+  object, image, and installation replay retain the authored two-call order,
+  256-byte outer layout, 128-byte outer stride, exact offsets, and five fuel
+  units. Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup,
+  wrong-length/layout/stride/offset, codec, object, image, and installation
+  mutations reject. `[[T; 17]; 2]` and wider forms remain fenced without
   runtime liveness state or a cleanup loop.
 
   The first construction-prefix ordinary-abandonment rung is closed. An
@@ -10355,7 +10379,7 @@ reach or trust, and private proof improvements do not change public identity.
   cleanup-order, and artifact mutations reject; `[T; 27]` and wider prefixes
   remain fail closed without runtime liveness state or a loop.
 
-  Extend recursive coverage beyond the exact `[[T; 15]; 2]` rung and extend
+  Extend recursive coverage beyond the exact `[[T; 16]; 2]` rung and extend
   construction-prefix cleanup beyond `[T; 26]` to deeper canonical fuel/action
   ordinals.
 

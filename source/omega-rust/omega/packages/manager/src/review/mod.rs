@@ -6,6 +6,7 @@ mod candidate;
 mod compare;
 mod decision;
 pub(crate) mod reconstruction;
+mod symbolic_boundary_applications;
 
 pub use audit::{
     CompilerReviewTriage, PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits,
@@ -56,4 +57,11 @@ pub use reconstruction::{
     FreshPackageRootPolicyError, LocallyComposedPackageObligationEntry,
     LocallyComposedPackageObligationResults, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
     bind_fresh_package_root_policy,
+};
+pub use symbolic_boundary_applications::{
+    ClosedSuppliedBoundaryApplicationDemand, ClosedSuppliedBoundaryApplicationDemands,
+    ClosedSuppliedBoundaryApplicationSource, ConcreteProducerBinderCategory,
+    ConcreteProducerTypeSpecialization, ConcreteProducerTypeSubstitution,
+    SymbolicBoundaryApplicationClosureError, SymbolicBoundaryApplicationClosureRequest,
+    close_supplied_reviewed_symbolic_boundary_applications,
 };
