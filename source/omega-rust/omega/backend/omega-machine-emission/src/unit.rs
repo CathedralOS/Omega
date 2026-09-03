@@ -1070,6 +1070,7 @@ pub(super) fn emit_unit_body(
                     &aarch64_homes,
                     &established_integer_constants,
                     &established_boolean_constants,
+                    &established_ieee_float_constants,
                     &mut bytes,
                     operation_ordinal,
                     code_offset,
@@ -1097,7 +1098,7 @@ pub(super) fn emit_unit_body(
             } => {
                 operation_site = Some(*psi_operation);
                 if established_ieee_float_constants
-                    .insert(*result, (*psi_operation, *value))
+                    .insert(*result, (*psi_operation, *value, operation_ordinal))
                     .is_some()
                 {
                     return Err(EmissionError::InvalidIeeeFloatFmaCustody(*psi_operation));
@@ -1132,8 +1133,10 @@ pub(super) fn emit_unit_body(
                 }
                 let mut emit_operand = |operand: &omega_assigned_target_operations::AssignedIeeeFloatFmaOperand|
                  -> Result<X86ScalarFmaOperandRecord, EmissionError> {
-                    if established_ieee_float_constants.get(&operand.source_value)
-                        != Some(&(operand.defining_operation, operand.value))
+                    if established_ieee_float_constants
+                        .get(&operand.source_value)
+                        .map(|(operation, value, _)| (*operation, *value))
+                        != Some((operand.defining_operation, operand.value))
                         || operand.value.format() != *format
                     {
                         return Err(EmissionError::InvalidIeeeFloatFmaCustody(*psi_operation));

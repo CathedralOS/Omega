@@ -99,9 +99,11 @@ event through target-neutral operations and optimization validation. Integer
 literals continue through physical assignment and native store emission;
 Boolean literals retain their exact Boolean definition, one-byte referent, and
 borrowed-reference placement through independent assignment and native store
-emission. Object construction independently replays both exact non-observing
-store families and their bytes; installation format 72 transports that replay
-canonically. The classification prevents scalar dead-code reasoning from
+emission. IEEE float literals retain their exact raw-bit definition and four-
+or eight-byte referent without using a floating register. Object construction
+independently replays all three non-observing store families and their bytes;
+installation format 73 transports that replay canonically. The classification
+prevents scalar dead-code reasoning from
 erasing the write; it does not claim a readable
 observation of the prior referent or authorize an opaque provider.
 

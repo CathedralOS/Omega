@@ -201,7 +201,7 @@ fn verified_write_only_primitive_store_reaches_exact_machine_emission() {
 }
 
 #[test]
-fn verified_write_only_ieee_float_store_reaches_assignment_and_stops_before_emission() {
+fn verified_write_only_ieee_float_store_reaches_canonical_installation() {
     let checked = checked(
         r#"
             data Sink {}
@@ -360,9 +360,116 @@ fn verified_write_only_ieee_float_store_reaches_assignment_and_stops_before_emis
                 value: psi_core::IeeeFloatValue::Binary64(0x3ff4_0000_0000_0000),
             } if *retained_operation == defining_operation && *retained_value == source_value
         ));
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("IEEE float store reaches exact machine emission");
+        let function = emitted
+            .functions
+            .iter()
+            .find(|function| function.unit_write_only_primitive_stores.len() == 1)
+            .expect("one machine owns the IEEE float primitive store");
+        let store = &function.unit_write_only_primitive_stores[0];
         assert!(matches!(
-            omega_machine_emission::emit_machine_code(&assigned),
-            Err(omega_machine_emission::EmissionError::InvalidWriteOnlyPrimitiveStoreCustody(_))
+            store.source,
+            omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IeeeFloatImmediate {
+                defining_operation: retained_operation,
+                source_value: retained_value,
+                value: psi_core::IeeeFloatValue::Binary64(0x3ff4_0000_0000_0000),
+                definition_ordinal,
+            } if retained_operation == defining_operation
+                && retained_value == source_value
+                && definition_ordinal < store.operation_ordinal
+        ));
+        match native_target.architecture {
+            omega_target::Architecture::X86_64 => {
+                assert!(
+                    store
+                        .bytes
+                        .starts_with(&[0x49, 0xbb, 0, 0, 0, 0, 0, 0, 0xf4, 0x3f,])
+                );
+                assert!(store.bytes.ends_with(&[0x4d, 0x89, 0x1a]));
+            }
+            omega_target::Architecture::Aarch64 => {
+                assert_eq!(
+                    store.bytes.first_chunk::<4>(),
+                    Some(&0xd280_0010_u32.to_le_bytes())
+                );
+                assert_eq!(
+                    store.bytes.last_chunk::<4>(),
+                    Some(&0xf900_0230_u32.to_le_bytes())
+                );
+            }
+        }
+        assert_eq!(
+            function
+                .bytes
+                .get(store.code_offset..store.code_offset + store.byte_count),
+            Some(store.bytes.as_slice())
+        );
+
+        let mut changed_definition_ordinal = emitted.clone();
+        let changed_store = &mut changed_definition_ordinal
+            .functions
+            .iter_mut()
+            .find(|candidate| candidate.machine == function.machine)
+            .unwrap()
+            .unit_write_only_primitive_stores[0];
+        let omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IeeeFloatImmediate {
+            definition_ordinal,
+            ..
+        } = &mut changed_store.source
+        else {
+            unreachable!()
+        };
+        *definition_ordinal = store.operation_ordinal;
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&changed_definition_ordinal),
+            Err(
+                omega_image_emission::ObjectError::InvalidUnitWriteOnlyPrimitiveStoreEvidence(
+                    function.machine
+                )
+            )
+        );
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object construction independently replays the IEEE float store");
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("replayed IEEE float store reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains the replayed IEEE float store");
+        let installed_function = installation
+            .functions()
+            .iter()
+            .find(|candidate| candidate.machine == function.machine)
+            .expect("installation retains the IEEE float store-owning function");
+        assert_eq!(
+            installed_function.unit_write_only_primitive_stores,
+            function.unit_write_only_primitive_stores
+        );
+        let installation_bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode installed IEEE float store custody");
+        let decoded = omega_image_emission::decode_installation_record(&installation_bytes)
+            .expect("decode installed IEEE float store custody");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("installed IEEE float store rejoins the executable image");
+
+        let raw_bits = 0x3ff4_0000_0000_0000_u64.to_le_bytes();
+        let mut corrupted_installation = installation_bytes;
+        let encoded_source = corrupted_installation
+            .windows(raw_bits.len())
+            .rposition(|window| window == raw_bits)
+            .expect("IEEE float raw bits occur in the canonical installation record");
+        corrupted_installation[encoded_source] ^= 1;
+        assert!(matches!(
+            omega_image_emission::decode_installation_record(&corrupted_installation),
+            Err(
+                omega_image_emission::InstallationError::InvalidUnitWriteOnlyPrimitiveStore(
+                    machine
+                )
+            ) if machine == function.machine
         ));
     }
 }

@@ -549,16 +549,55 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                                 home.defining_operation != defining_operation
                                     && home.source_value != source_value
                             })
-                            && installed_boolean_store_source_is_consistent(
+                            && installed_zero_code_store_source_is_consistent(
                                 function,
-                                defining_operation,
-                                source_value,
-                                value,
-                                definition_ordinal,
+                                store.source,
                             ),
                         psi_core::ScalarType::Boolean,
                         1,
                         u64::from(value),
+                    )
+                }
+                omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IeeeFloatImmediate {
+                    defining_operation,
+                    source_value,
+                    value,
+                    definition_ordinal,
+                } => {
+                    let definition_count = record
+                        .semantic_code_attribution
+                        .iter()
+                        .filter(|attribution| {
+                            attribution.machine == function.machine
+                                && attribution.attribution.site
+                                    == SemanticCodeSite::Operation(defining_operation)
+                                && attribution.attribution.operation_ordinal == definition_ordinal
+                                && attribution.attribution.code_offset <= store.code_offset
+                                && attribution.attribution.byte_count == 0
+                        })
+                        .count();
+                    let (width, bits) = match value {
+                        psi_core::IeeeFloatValue::Binary32(bits) => (4, u64::from(bits)),
+                        psi_core::IeeeFloatValue::Binary64(bits) => (8, bits),
+                    };
+                    (
+                        definition_ordinal < store.operation_ordinal
+                            && definition_count == 1
+                            && function.unit_integer_constants.iter().all(|constant| {
+                                constant.defining_operation != defining_operation
+                                    && constant.source_value != source_value
+                            })
+                            && function.unit_scalar_homes.iter().all(|home| {
+                                home.defining_operation != defining_operation
+                                    && home.source_value != source_value
+                            })
+                            && installed_zero_code_store_source_is_consistent(
+                                function,
+                                store.source,
+                            ),
+                        psi_core::ScalarType::IeeeFloat(value.format()),
+                        width,
+                        bits,
                     )
                 }
             };
@@ -657,29 +696,24 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
     Ok(())
 }
 
-fn installed_boolean_store_source_is_consistent(
+fn installed_zero_code_store_source_is_consistent(
     function: &InstalledFunction,
-    defining_operation: psi_core::OperationId,
-    source_value: psi_core::ValueId,
-    value: bool,
-    definition_ordinal: usize,
+    source: omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord,
 ) -> bool {
+    let defining_operation = source.defining_operation();
+    let source_value = source.source_value();
     function
         .unit_write_only_primitive_stores
         .iter()
-        .all(|candidate| match candidate.source {
-            omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
-                defining_operation: candidate_operation,
-                source_value: candidate_value,
-                value: candidate_literal,
-                definition_ordinal: candidate_ordinal,
-            } if candidate_operation == defining_operation || candidate_value == source_value => {
-                candidate_operation == defining_operation
-                    && candidate_value == source_value
-                    && candidate_literal == value
-                    && candidate_ordinal == definition_ordinal
+        .all(|candidate| {
+            let candidate_source = candidate.source;
+            if candidate_source.defining_operation() == defining_operation
+                || candidate_source.source_value() == source_value
+            {
+                candidate_source == source
+            } else {
+                true
             }
-            _ => true,
         })
 }
 
