@@ -210,9 +210,17 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         } => {
             bytes.u8(6);
             bytes.id(*psi_operation);
-            encode_optional(bytes, result.as_ref(), |bytes, result| {
-                encode_abstract_result(bytes, *result)
-            });
+            match result {
+                omega_abstract_operations::AbstractBoundaryResult::Unit => bytes.u8(0),
+                omega_abstract_operations::AbstractBoundaryResult::Scalar(result) => {
+                    bytes.u8(1);
+                    encode_abstract_result(bytes, *result);
+                }
+                omega_abstract_operations::AbstractBoundaryResult::Structural(result) => {
+                    bytes.u8(2);
+                    encode_structural_operation_result(bytes, result);
+                }
+            }
             bytes.id(*boundary);
             encode_ids(bytes, arguments);
             bytes.slice(structural_arguments, encode_structural_argument);

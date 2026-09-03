@@ -373,10 +373,12 @@ pub(crate) fn scalar_boundary_call_unit() -> PsiOptimizationUnit {
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: id(327, OperationId::new),
-                    result: Some(AbstractResult {
-                        value: result,
-                        scalar_type,
-                    }),
+                    result: omega_abstract_operations::AbstractBoundaryResult::Scalar(
+                        AbstractResult {
+                            value: result,
+                            scalar_type,
+                        },
+                    ),
                     boundary,
                     arguments: vec![argument],
                     structural_arguments: Vec::new(),

@@ -68,7 +68,7 @@ fn rejects_structural_call_argument_arity_and_access_corruption() {
         };
     boundary.functions[0].blocks[0].nodes[0].operation = AbstractOperation::BoundaryCall {
         psi_operation,
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary: boundary_id,
         arguments: Vec::new(),
         structural_arguments,

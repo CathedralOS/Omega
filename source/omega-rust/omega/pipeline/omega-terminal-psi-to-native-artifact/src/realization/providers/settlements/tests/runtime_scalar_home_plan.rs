@@ -65,7 +65,7 @@ pub(super) fn runtime_argument_abstract_plan(
                     },
                     omega_abstract_operations::AbstractOperation::BoundaryCall {
                         psi_operation: psi_core::OperationId::new(822).unwrap(),
-                        result: None,
+                        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                         boundary,
                         arguments: vec![runtime; argument_count],
                         structural_arguments: Vec::new(),

@@ -435,10 +435,12 @@ mod tests {
                     },
                     AbstractOperation::BoundaryCall {
                         psi_operation: operation(11),
-                        result: Some(AbstractResult {
-                            value: ValueId::new(21).unwrap(),
-                            scalar_type,
-                        }),
+                        result: omega_abstract_operations::AbstractBoundaryResult::Scalar(
+                            AbstractResult {
+                                value: ValueId::new(21).unwrap(),
+                                scalar_type,
+                            },
+                        ),
                         boundary: BoundaryMachineId::new(30).unwrap(),
                         arguments: Vec::new(),
                         structural_arguments: Vec::new(),

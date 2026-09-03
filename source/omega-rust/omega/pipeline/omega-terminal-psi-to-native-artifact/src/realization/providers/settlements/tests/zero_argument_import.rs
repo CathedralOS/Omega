@@ -48,7 +48,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             operations: vec![
                 omega_abstract_operations::AbstractOperation::BoundaryCall {
                     psi_operation: operation,
-                    result: None,
+                    result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                     boundary,
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),

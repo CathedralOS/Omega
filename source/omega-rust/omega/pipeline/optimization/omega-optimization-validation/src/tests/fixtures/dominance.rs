@@ -74,7 +74,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
                     },
                     AbstractOperation::BoundaryCall {
                         psi_operation: id(4_607, OperationId::new),
-                        result: None,
+                        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                         boundary,
                         arguments: Vec::new(),
                         structural_arguments: vec![psi_terminal::StructuralArgument {
@@ -194,7 +194,7 @@ pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
                 operations: vec![
                     AbstractOperation::BoundaryCall {
                         psi_operation: id(4_731, OperationId::new),
-                        result: None,
+                        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                         boundary,
                         arguments: Vec::new(),
                         structural_arguments: vec![psi_terminal::StructuralArgument {

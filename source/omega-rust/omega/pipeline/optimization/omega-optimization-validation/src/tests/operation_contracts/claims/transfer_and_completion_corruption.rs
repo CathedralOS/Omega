@@ -68,7 +68,7 @@ fn rejects_self_consistent_internal_claim_transfer_and_boundary_completion_corru
         };
     boundary.functions[0].blocks[0].nodes[0].operation = AbstractOperation::BoundaryCall {
         psi_operation,
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary: boundary_id,
         arguments: Vec::new(),
         structural_arguments,

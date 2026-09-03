@@ -446,15 +446,26 @@ pub(crate) fn operation_scalar_types_match(
             arguments,
             ..
         } => boundary_machines.get(boundary).is_some_and(|boundary| {
-            (match boundary.result {
-                psi_terminal::BoundaryMachineResult::Unit => result.is_none(),
-                psi_terminal::BoundaryMachineResult::Scalar(expected) => {
-                    result.as_ref().map(|result| result.scalar_type) == Some(expected)
+            (match (&boundary.result, result) {
+                (
+                    psi_terminal::BoundaryMachineResult::Unit,
+                    omega_abstract_operations::AbstractBoundaryResult::Unit,
+                ) => true,
+                (
+                    psi_terminal::BoundaryMachineResult::Scalar(expected),
+                    omega_abstract_operations::AbstractBoundaryResult::Scalar(actual),
+                ) => actual.scalar_type == *expected,
+                (
+                    psi_terminal::BoundaryMachineResult::Structural(expected),
+                    omega_abstract_operations::AbstractBoundaryResult::Structural(actual),
+                ) => {
+                    actual.structural_type == expected.structural_type
+                        && actual.multiplicity == expected.multiplicity
+                        && actual.qualifications == expected.qualifications
+                        && actual.projected_qualifications.is_empty()
+                        && actual.claims.is_empty()
                 }
-                // The abstract Unit operation currently has no structural
-                // boundary-result carrier. Such a verified Terminal operation
-                // remains fail-closed until that lowering lane is added.
-                psi_terminal::BoundaryMachineResult::Structural(_) => false,
+                _ => false,
             }) && arguments.len() == boundary.scalar_parameters.len()
                 && arguments
                     .iter()

@@ -91,7 +91,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: write_operation,
-                    result: None,
+                    result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                     boundary: write_boundary,
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
@@ -110,7 +110,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: exit_operation,
-                    result: None,
+                    result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                     boundary: exit_boundary,
                     arguments: vec![exit_value],
                     structural_arguments: Vec::new(),

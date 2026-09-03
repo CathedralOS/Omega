@@ -352,7 +352,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: settlement_operation,
-                    result: None,
+                    result: omega_abstract_operations::AbstractBoundaryResult::Unit,
                     boundary,
                     arguments: Vec::new(),
                     structural_arguments: vec![psi_terminal::StructuralArgument {
@@ -465,7 +465,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
     else {
         unreachable!("fixture contains a boundary call")
     };
-    *operation_result = Some(result);
+    *operation_result = omega_abstract_operations::AbstractBoundaryResult::Scalar(result);
     assert_eq!(
         lower_to_target_operations_with_settlements(
             &result_bearing,
@@ -544,7 +544,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
     };
     let settle = |operation, place, claim| AbstractOperation::BoundaryCall {
         psi_operation: operation,
-        result: None,
+        result: omega_abstract_operations::AbstractBoundaryResult::Unit,
         boundary,
         arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {

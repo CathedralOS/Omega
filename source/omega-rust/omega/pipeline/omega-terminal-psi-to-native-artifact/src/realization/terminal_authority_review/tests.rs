@@ -92,7 +92,7 @@ fn function(machine: u32, boundary_ids: &[u32]) -> AbstractFunction {
                 machine.get().saturating_mul(10) + index as u64 + 1,
             )
             .unwrap(),
-            result: None,
+            result: omega_abstract_operations::AbstractBoundaryResult::Unit,
             boundary: BoundaryMachineId::new(u64::from(*boundary)).unwrap(),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
