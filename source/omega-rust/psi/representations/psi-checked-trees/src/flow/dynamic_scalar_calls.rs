@@ -445,6 +445,11 @@ pub struct CheckedDynamicUnitContinuationPlan {
     pub guard: CheckedScalarExpression,
     pub when_true: CheckedStructuralControlSuccessorPlan,
     pub when_false: CheckedStructuralControlSuccessorPlan,
+    /// The one no-code affine local discarded when a stored descriptor's
+    /// owning record dies at both outgoing edges. This remains checked-side
+    /// custody: Terminal retains the descriptor store/reload rather than
+    /// fabricating an unrelated structural place.
+    pub trivial_affine_local_discard: Option<SymbolHandle>,
     pub leaves: Vec<CheckedComposedUnitControlStatePlan>,
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
 }

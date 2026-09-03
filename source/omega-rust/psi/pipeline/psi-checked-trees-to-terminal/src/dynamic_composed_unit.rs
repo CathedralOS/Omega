@@ -116,9 +116,6 @@ fn lower_dynamic_composed_unit_machine(
         DynamicLoweringLane::Stored(stored) => validate_exact_stored_plan(checked, stored)?,
     };
     if let Some(unit_continuation) = &plan.unit_continuation {
-        if matches!(lane, DynamicLoweringLane::Stored(_)) {
-            return unsupported("stored dynamic result control is not admitted in this rung");
-        }
         return continuation::lower(checked, plan, unit_continuation, caller, lane);
     }
     let (structural_types, type_ids) =
@@ -539,7 +536,6 @@ fn validate_exact_stored_plan(
         || destination_type_identity != stored.destination_type_identity
         || destination_field_identity != stored.destination_field_identity
         || plan.caller_structural_scalar_field_store.is_some()
-        || plan.unit_continuation.is_some()
         || !plan.forwarding_transfers.is_empty()
         || !matches!(
             plan.origin,

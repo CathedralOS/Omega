@@ -62,7 +62,10 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   place, realization, and exact establishment/call text intervals as one
   canonical stored-call row. Installation validation independently reconstructs
   that projection from the final image and rejects ordering, table, source, or
-  interval substitution.
+  interval substitution. When the stored result feeds the bounded immediate
+  control diamond, subsequent scalar-source assignment recognizes only this
+  call's exact durable result-home requirement; another dynamic-call family or
+  reconstructed value cannot satisfy it.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is

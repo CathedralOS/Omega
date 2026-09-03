@@ -10,6 +10,7 @@ pub(crate) fn build(
     machine: &psi_typed_trees::machine::Machine,
     entry: &psi_typed_trees::state::State,
     dynamic: &psi_checked_trees::CheckedDynamicScalarCallPlan,
+    stored: Option<&psi_checked_trees::DynamicDescriptorStorageFact>,
 ) -> Option<psi_checked_trees::CheckedDynamicUnitContinuationPlan> {
     if dynamic.caller_structural_scalar_field_store.is_some() {
         return None;
@@ -79,6 +80,26 @@ pub(crate) fn build(
     if !exact_result_guard(&guard, dynamic.result) {
         return None;
     }
+    let admitted_local_discards = match stored {
+        Some(storage) => {
+            let StatementNode::LocalData(destination) = statements.get(storage.statement_index)?
+            else {
+                return None;
+            };
+            if storage.machine != machine.symbol
+                || storage.state != entry.symbol
+                || destination.symbol != storage.destination_binding
+                || super::super::types::type_graph_requires_nominal_drop(
+                    program,
+                    destination.type_reference,
+                )
+            {
+                return None;
+            }
+            vec![storage.destination_binding]
+        }
+        None => Vec::new(),
+    };
     let successors = [
         super::topology::successor(
             program,
@@ -92,6 +113,7 @@ pub(crate) fn build(
             guard_ordinal,
             when_true,
             when_true_state.symbol,
+            &admitted_local_discards,
         )?,
         super::topology::successor(
             program,
@@ -105,6 +127,7 @@ pub(crate) fn build(
             guard_ordinal.checked_add(1)?,
             when_false,
             when_false_state.symbol,
+            &admitted_local_discards,
         )?,
     ];
     let leaves = vec![
@@ -159,6 +182,7 @@ pub(crate) fn build(
         guard,
         when_true: successors[0].clone(),
         when_false: successors[1].clone(),
+        trivial_affine_local_discard: stored.map(|storage| storage.destination_binding),
         leaves,
         provider_attachment_requirements,
     })

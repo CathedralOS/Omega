@@ -103,11 +103,13 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   parameter to the callee's identical interface and retains both native
   two-word call plans without reconstructing a local selection.
 - `lowering/unit/conditional_exit.rs` owns the exact attached-Unit control
-  diamond used by a rebound dynamic result followed by two admitted
-  nonreturning boundary leaves. The ten-operation integer form retains its
-  explicit equality; the eight-operation Boolean form branches directly on
-  the producer-bound result home. Both preserve Terminal operation ordinals
-  and successor edges; neither is a general CFG legalization path.
+  diamond used by a direct, rebound, forwarded, or aggregate-stored dynamic
+  result followed by two admitted nonreturning boundary leaves. The stored
+  form preserves its descriptor-establishment operation as an additional
+  prefix and requires the following call to cite that exact store. The integer
+  form retains its explicit equality; the Boolean form branches directly on
+  the producer-bound result home. All preserve Terminal operation ordinals and
+  successor edges; none is a general CFG legalization path.
 - `lowering/unit/projected_argument.rs` owns the shared target-layout lowering
   for one structural argument projected from an attached Unit parameter.
 - `lowering/unit/boundary_call.rs` also owns the bounded native

@@ -12547,11 +12547,17 @@ checked-result arithmetic decision listed below.
     selected slot and realization, and both exact text intervals. Decoding and
     image-binding replay reject reordered, malformed, table-substituted,
     source-substituted, or byte-range-drifted rows. The image/installation test
-    covers all four native targets. A rooted compiler canary carries the stored
-    descriptor through native object and image custody on x86-64 and AArch64;
-    on a matching Linux host it executes the reload and indirect call to normal
-    return. Result-bearing continuation after that call remains outside this
-    bounded rung. Do not extend local
+    covers all four native targets. The scalar result may now feed the same
+    immediate checked equality/effect diamond as a direct or rebound call.
+    Checked custody explicitly names the descriptor-owning affine local's
+    no-code state-exit drop; checked-to-Terminal replay requires that exact
+    local and refuses to reinterpret an arbitrary missing edge-cleanup row.
+    Target lowering admits the store/call pair as one extra prefix to the
+    bounded control shape, and physical assignment resolves later scalar uses
+    only through the stored call's durable result home. A rooted compiler
+    canary carries this path through native object and image custody on x86-64
+    and AArch64; on a matching Linux host the reloaded result selects exit 70.
+    Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a
