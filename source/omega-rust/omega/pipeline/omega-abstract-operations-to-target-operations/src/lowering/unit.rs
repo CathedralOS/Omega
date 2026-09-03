@@ -41,23 +41,6 @@ pub(super) fn lower_unit_function(
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
-    if let Some(operation) = function
-        .operations
-        .iter()
-        .find_map(|operation| match operation {
-            AbstractOperation::CallUnit {
-                psi_operation,
-                arguments,
-                ..
-            } if !arguments.is_empty() => Some(*psi_operation),
-            _ => None,
-        })
-    {
-        return Err(LoweringError::UnsupportedUnitCallScalarArguments {
-            machine: function.machine,
-            operation,
-        });
-    }
     if let Some(lowered) = forwarded_dynamic_parameter::lower(function, target, functions)? {
         return Ok(lowered);
     }

@@ -62,6 +62,10 @@ pub enum AssignmentError {
         machine: MachineId,
         operation: OperationId,
     },
+    UnsupportedUnitCallScalarArguments {
+        machine: MachineId,
+        operation: OperationId,
+    },
     StructuralScalarFieldStoreCustodyMismatch {
         machine: MachineId,
         operation: OperationId,

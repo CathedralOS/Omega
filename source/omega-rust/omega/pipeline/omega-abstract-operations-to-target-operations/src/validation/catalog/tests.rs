@@ -165,6 +165,12 @@ fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
                     TargetUnitOperation::Call {
                         psi_operation: call_operation,
                         callee,
+                        call_plan: evaluate_call_plan(
+                            CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+                            &CallSignature::default(),
+                        )
+                        .unwrap(),
+                        scalar_arguments: Vec::new(),
                         arguments: Vec::new(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),

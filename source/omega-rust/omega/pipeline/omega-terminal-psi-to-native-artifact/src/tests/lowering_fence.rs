@@ -862,21 +862,56 @@ fn parameter_sourced_write_only_store_caller_reaches_verified_terminal_execution
         panic!("abstract caller retains one ordinary Unit call")
     };
     assert_eq!(abstract_arguments, &[scalar_parameter.id]);
-    let target_result = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+    let target_plan = omega_abstract_operations_to_target_operations::lower_to_target_operations(
         &abstract_plan,
         omega_target::NativeTarget::linux_x64(),
-    );
+    )
+    .expect("scalar-bearing Unit call reaches Target IR");
+    let target_root = target_plan
+        .functions
+        .iter()
+        .find(|function| function.machine == target_plan.entry)
+        .expect("target caller is retained");
+    let omega_target_operations::TargetOperation::UnitBody(target_body) = &target_root.operation
+    else {
+        panic!("target caller remains a Unit body")
+    };
+    let omega_target_operations::TargetUnitOperation::Call {
+        call_plan,
+        scalar_arguments,
+        ..
+    } = &target_body.operations[0]
+    else {
+        panic!("target caller retains one ordinary Unit call")
+    };
+    assert_eq!(call_plan.parameters.len(), 2);
+    assert!(matches!(
+        scalar_arguments.as_slice(),
+        [omega_target_operations::TargetUnitScalarCallArgument {
+            parameter_index: 0,
+            source: omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
+                parameter_index: 0,
+                source_value,
+                scalar_type,
+            },
+            placement,
+        }] if *source_value == scalar_parameter.id
+            && *scalar_type == integer
+            && placement == &call_plan.parameters[0]
+    ));
+    let assignment_result =
+        omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan);
     assert!(
         matches!(
-        &target_result,
+        &assignment_result,
         Err(
-            omega_abstract_operations_to_target_operations::LoweringError::UnsupportedUnitCallScalarArguments {
+            omega_target_operations_to_assigned_target_operations::AssignmentError::UnsupportedUnitCallScalarArguments {
                 machine,
                 operation,
             }
         ) if *machine == abstract_plan.entry && *operation == call.id
         ),
-        "unexpected target boundary: {target_result:?}"
+        "unexpected assignment boundary: {assignment_result:?}"
     );
 
     let mut missing_argument = lowered.semantic_module.clone();

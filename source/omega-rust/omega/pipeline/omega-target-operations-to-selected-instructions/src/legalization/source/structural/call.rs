@@ -28,6 +28,8 @@ pub(crate) fn derive_structural_call(
             TargetUnitOperation::Call {
                 psi_operation: target_operation,
                 callee: target_callee,
+                call_plan: _,
+                scalar_arguments: target_scalar_arguments,
                 arguments: target_arguments,
                 claim_transfers: target_transfers,
                 requirement_obligations: target_requirements,
@@ -45,6 +47,7 @@ pub(crate) fn derive_structural_call(
         ) if target_operation == psi_operation
             && target_callee == callee
             && arguments.is_empty()
+            && target_scalar_arguments.is_empty()
             && target_transfers == claim_transfers
             && target_requirements == requirement_obligations
             && target_crash_continuations == crash_continuations =>
