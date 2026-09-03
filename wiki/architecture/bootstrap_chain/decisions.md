@@ -4020,3 +4020,38 @@ that interpretation solves the old generated-Beta pathology and makes a
 Forth-like rung plausible; it does not yet make the complete chain easier to
 audit. Selection remains unchanged until static assurance and scale are solved
 without erasing the interpreter's root-size advantage.
+
+## D94 — Functional Gamma shrinks by centralizing existing invariants
+
+D94 follows D93's negative result by reducing the selected functional evaluator
+without changing Gamma meaning. Tail and ordinary calls now share target lookup,
+argument evaluation, context allocation, and exact arity checking. Tail and
+ordinary `let` forms share binder parsing, initializer evaluation, and lexical
+insertion. Three single-use token predicates are inlined at their only owners.
+
+The larger reduction replaces fifteen predicate wrappers and three repeated
+expression-head dispatch chains with one explicit classification table. Each
+row visibly pairs packed ASCII with a documented class and length; no indirect
+jump or computed control target is introduced. Validation groups binary and
+unary classes, ordinary evaluation maps binary classes directly to the existing
+operator body, and tail evaluation distinguishes only `if`, `let`, known
+builtins, and calls.
+
+```text
+                              Lines  Source items  Labels  Control  Tape bytes
+selected Gamma before D94     1,410         1,151     181      582       7,690
+selected Gamma after D94      1,254         1,005     160      459       6,545
+```
+
+The evaluator removes 156 lines, 146 source items, 21 labels, 123 control
+transfers, and 1,145 tape bytes. Exact reconstruction, all expression forms,
+unreachable-body validation, nested ordinary calls, 100,000-step proper tails,
+immutable pairs, composed publication, and the complete staged Delta workload
+remain checked.
+
+This materially weakens Forth-Gamma's only decisive advantage. Its interpreter
+is now 364 rather than 520 lines smaller, while its complete authored route is
+235 lines larger and still lacks whole-program stack-effect validation. Gamma
+remains selected. Further reductions should continue to centralize duplicated
+semantic invariants; they must not trade explicit control for opaque tables or
+weaken static validation.

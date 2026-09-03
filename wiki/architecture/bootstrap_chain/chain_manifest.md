@@ -8,7 +8,7 @@ This ledger names only the selected chain. Missing artifacts remain explicit.
 | --- | --- | --- | --- |
 | Alpha VM | audited native source/listing per host | Alpha execution | macOS arm64 and Windows x86-64 seeds retained; conformance passes |
 | Beta compiler | admitted Alpha tape with addressed Beta self-reconstruction source | `beta_compiler_bytecode.tape` | 1,792-byte tape retained; reconstruction and differential gates pass |
-| Gamma evaluator | Beta source | `gamma_evaluator_bytecode.tape` | provisional 1,410-line typed scalar/effect evaluator; 7,690-byte tape; static validation, 100,000-step proper tails, immutable pairs, readable character literals, and self-augmentation pass |
+| Gamma evaluator | Beta source | `gamma_evaluator_bytecode.tape` | provisional 1,254-line typed scalar/effect evaluator; 6,545-byte tape; static validation, 100,000-step proper tails, immutable pairs, readable character literals, and self-augmentation pass |
 | Delta compiler | Gamma source transformer to canonical Gamma | exact `GammaComposedV1` identity and staged receipts | 852-line stage lowers arbitrary-field recursive ADTs through immutable pairs; List, Bytes-rope, and 3,001-function witnesses pass; normative Bytes and complete checking remain open |
 | Epsilon compiler | Delta source to canonical Delta, then selected lower compilers | `epsilon_compiler_bytecode.tape` | incomplete `source/epsilon/compiler/epsilon_compiler.delta`; tape absent |
 | Omega `D` | Epsilon source to canonical Epsilon, then selected lower compilers | `omega0_compiler_bytecode.tape` | incomplete `source/omega/omega_compiler.epsilon`; tape absent |

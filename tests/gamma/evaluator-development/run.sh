@@ -40,10 +40,10 @@ import subprocess
 from pathlib import Path
 
 artifacts = (
-    ("SYMBOLIC", 32096, "5536cc82d08aff023ed3092838b203b5a1e06d686e56681ed778b6b0bfd7a184"),
+    ("SYMBOLIC", 29090, "28b1dff02fac546dad478252bb7e9cb14309407473b6aa3a3371b8c4bed5dc9a"),
     ("RESOLVER", 2302, "71bca1be08a58ae8596b0f829d48ee43f48d963829ea8a21208197be0598d3c8"),
-    ("BETA", 39423, "3cecc17595639fbd1b7ddd7748d7033896596f56feef1d014a31303613a3d134"),
-    ("TAPE", 7690, "008ad07e8db094d644c52d205f3a55229a0df04ace3bd170872439e1878cd7a8"),
+    ("BETA", 34950, "aa028b9bc2f85ab7f01e1ceb887ec76de53137e28713fba329d593c9ef333b95"),
+    ("TAPE", 6545, "d00b1d5107b310e8a8411b56feff7efd0bce9b8d20dfc53d026085e39495e025"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()

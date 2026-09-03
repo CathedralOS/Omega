@@ -58,7 +58,7 @@ their tapes through the immediately preceding trusted language.
 ## Current state
 
 Alpha conformance and trusted Beta compiler reconstruction are executable. The
-provisional 1,410-line Beta-written Gamma evaluator and its 7,690-byte tape run
+provisional 1,254-line Beta-written Gamma evaluator and its 6,545-byte tape run
 the typed scalar/effect and self-augmentation gates. Proper tail execution,
 static validation, immutable pairs, and bounded output are implemented; complete
 profile outcomes remain. The selected Gamma-authored Delta compiler has a

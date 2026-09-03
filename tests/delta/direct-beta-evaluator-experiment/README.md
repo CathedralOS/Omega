@@ -17,7 +17,7 @@ Delta source -> direct Beta evaluator -> result
 
 ```text
 							  Lines  Instructions  Labels  Control  Tape bytes
-selected Gamma evaluator      1,410         1,151     181      582       7,690
+selected Gamma evaluator      1,254         1,005     160      459       6,545
 matched direct Delta evaluator 2,019         1,655     262      836      11,004
 selected Delta transformer      852 Gamma source lines
 ```
@@ -33,8 +33,8 @@ function activation and call-context storage.
 ## Finding
 
 Direct Delta execution is feasible, but it is not an obvious trust reduction.
-At matched current structural coverage, the prototype is 609 low-level lines
-and 3,314 tape bytes larger than the selected Gamma evaluator. It removes the
+At matched current structural coverage, the prototype is 765 low-level lines
+and 4,459 tape bytes larger than the selected Gamma evaluator. It removes the
 852-line higher-level transformer at the cost of moving constructor and match
 semantics into the low-level root.
 

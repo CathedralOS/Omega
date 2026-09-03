@@ -256,6 +256,32 @@ token_equals_true:
         mov r0 r91
         ret
 
+; Classify the current list head through the explicit table below. Zero is call.
+classify_list_head:
+        imm r8 @list_head_table
+classify_list_head_loop:
+        load r0 r8
+        imm r1 0x8
+        add r8 r1
+        load r3 r8
+        jz r3 @classify_list_head_call
+        mov r1 r3
+        imm r4 0x100
+        mod r1 r4
+        call @token_equals
+        jnz r0 @classify_list_head_found
+        imm r1 0x8
+        add r8 r1
+        jmp @classify_list_head_loop
+classify_list_head_found:
+        load r0 r8
+        imm r1 0x100
+        div r0 r1
+        ret
+classify_list_head_call:
+        mov r0 r90
+        ret
+
 is_open:
         imm r0 0x28
         imm r1 0x1
@@ -266,97 +292,6 @@ is_close:
         imm r1 0x1
         call @token_equals
         ret
-is_def:
-        imm r0 0x666564
-        imm r1 0x3
-        call @token_equals
-        ret
-is_int:
-        imm r0 0x746e49
-        imm r1 0x3
-        call @token_equals
-        ret
-is_main:
-        imm r0 0x6e69616d
-        imm r1 0x4
-        call @token_equals
-        ret
-is_if:
-        imm r0 0x6669
-        imm r1 0x2
-        call @token_equals
-        ret
-is_let:
-        imm r0 0x74656c
-        imm r1 0x3
-        call @token_equals
-        ret
-is_add:
-        imm r0 0x2b
-        imm r1 0x1
-        call @token_equals
-        ret
-is_sub:
-        imm r0 0x2d
-        imm r1 0x1
-        call @token_equals
-        ret
-is_mul:
-        imm r0 0x2a
-        imm r1 0x1
-        call @token_equals
-        ret
-is_div:
-        imm r0 0x2f
-        imm r1 0x1
-        call @token_equals
-        ret
-is_mod:
-        imm r0 0x25
-        imm r1 0x1
-        call @token_equals
-        ret
-is_eq:
-        imm r0 0x7165
-        imm r1 0x2
-        call @token_equals
-        ret
-is_lt:
-        imm r0 0x746c
-        imm r1 0x2
-        call @token_equals
-        ret
-is_input:
-        imm r0 0x7475706e69
-        imm r1 0x5
-        call @token_equals
-        ret
-is_read:
-        imm r0 0x64616572
-        imm r1 0x4
-        call @token_equals
-        ret
-is_write:
-        imm r0 0x6574697277
-        imm r1 0x5
-        call @token_equals
-        ret
-is_pair:
-        imm r0 0x72696170
-        imm r1 0x4
-        call @token_equals
-        ret
-is_first:
-        imm r0 0x7473726966
-        imm r1 0x5
-        call @token_equals
-        ret
-is_second:
-        imm r0 0x646e6f636573
-        imm r1 0x6
-        call @token_equals
-        ret
-
 expect_open:
         call @need_token
         call @is_open
@@ -369,7 +304,9 @@ expect_close:
         ret
 expect_int:
         call @need_token
-        call @is_int
+        imm r0 0x746e49
+        imm r1 0x3
+        call @token_equals
         jz r0 @invalid
         ret
 
@@ -607,7 +544,9 @@ census_loop:
         call @is_open
         jz r0 @invalid
         call @need_token
-        call @is_def
+        imm r0 0x666564
+        imm r1 0x3
+        call @token_equals
         jz r0 @invalid
         call @need_token
         call @find_function
@@ -620,7 +559,9 @@ census_loop:
         imm r1 0x8
         add r0 r1
         store r0 r87
-        call @is_main
+        imm r0 0x6e69616d
+        imm r1 0x4
+        call @token_equals
         jz r0 @census_parameters
         jnz r8b @invalid
         mov r8b r8c
@@ -726,37 +667,16 @@ validate_expression_done:
 
 validate_list_expression:
         call @need_token
-        call @is_if
-        jnz r0 @validate_if_expression
-        call @is_let
-        jnz r0 @validate_let_expression
-        call @is_add
-        jnz r0 @validate_binary_expression
-        call @is_sub
-        jnz r0 @validate_binary_expression
-        call @is_mul
-        jnz r0 @validate_binary_expression
-        call @is_div
-        jnz r0 @validate_binary_expression
-        call @is_mod
-        jnz r0 @validate_binary_expression
-        call @is_eq
-        jnz r0 @validate_binary_expression
-        call @is_lt
-        jnz r0 @validate_binary_expression
-        call @is_input
-        jnz r0 @validate_input_expression
-        call @is_read
-        jnz r0 @validate_unary_expression
-        call @is_write
-        jnz r0 @validate_unary_expression
-        call @is_pair
-        jnz r0 @validate_binary_expression
-        call @is_first
-        jnz r0 @validate_unary_expression
-        call @is_second
-        jnz r0 @validate_unary_expression
-        jmp @validate_call_expression
+        call @classify_list_head
+        jz r0 @validate_call_expression
+        imm r1 0x1
+        jeq r0 r1 @validate_if_expression
+        imm r1 0x2
+        jeq r0 r1 @validate_let_expression
+        imm r1 0xb
+        jlt r0 r1 @validate_binary_expression
+        jeq r0 r1 @validate_input_expression
+        jmp @validate_unary_expression
 validate_if_expression:
         call @validate_expression
         call @validate_expression
@@ -799,18 +719,8 @@ validate_let_expression:
 validate_call_expression:
         call @find_function
         jz r0 @invalid
-        add r8e r91
-        imm r1 0x100
-        jlt r8e r1 @validate_call_context_ready
-        jmp @incomplete
-validate_call_context_ready:
-        mov r6 r0
-        call @call_context
-        mov r7 r0
-        store r7 r6
-        imm r1 0x10
-        add r7 r1
-        store r7 r90
+        mov r1 r90
+        call @begin_call_context
 validate_call_arguments:
         call @need_token
         call @is_close
@@ -825,19 +735,7 @@ validate_call_arguments:
         store r0 r2
         jmp @validate_call_arguments
 validate_call_done:
-        call @call_context
-        mov r7 r0
-        load r6 r7
-        imm r1 0x10
-        add r7 r1
-        load r2 r7
-        mov r0 r6
-        imm r1 0x20
-        add r0 r1
-        load r0 r0
-        jeq r2 r0 @validate_call_ready
-        jmp @invalid
-validate_call_ready:
+        call @finish_call_context
         sub r8e r91
         ret
 
@@ -847,6 +745,44 @@ call_context:
         mul r0 r8e
         imm r1 0x1f00000
         add r0 r1
+        ret
+
+; Allocate a call-context row from function r0 and argument base r1.
+begin_call_context:
+        mov r6 r0
+        mov r5 r1
+        add r8e r91
+        imm r1 0x100
+        jlt r8e r1 @begin_call_context_ready
+        jmp @incomplete
+begin_call_context_ready:
+        call @call_context
+        mov r7 r0
+        store r7 r6
+        imm r1 0x8
+        add r7 r1
+        store r7 r5
+        add r7 r1
+        store r7 r90
+        ret
+
+; Load current target/base/count into r99/r9a/r9b and check exact arity.
+finish_call_context:
+        call @call_context
+        mov r7 r0
+        load r99 r7
+        imm r1 0x8
+        add r7 r1
+        load r9a r7
+        add r7 r1
+        load r9b r7
+        mov r0 r99
+        imm r1 0x20
+        add r0 r1
+        load r0 r0
+        jeq r9b r0 @finish_call_context_ready
+        jmp @invalid
+finish_call_context_ready:
         ret
 
 ; Enter r0 function with argument base r1 and count r2. Return value r0.
@@ -962,37 +898,13 @@ eval_tail_expression:
         call @is_open
         jz r0 @eval_tail_fallback_reset
         call @need_token
-        call @is_if
-        jnz r0 @eval_tail_if
-        call @is_let
-        jnz r0 @eval_tail_let
-        call @is_add
-        jnz r0 @eval_tail_fallback_reset
-        call @is_sub
-        jnz r0 @eval_tail_fallback_reset
-        call @is_mul
-        jnz r0 @eval_tail_fallback_reset
-        call @is_div
-        jnz r0 @eval_tail_fallback_reset
-        call @is_mod
-        jnz r0 @eval_tail_fallback_reset
-        call @is_eq
-        jnz r0 @eval_tail_fallback_reset
-        call @is_lt
-        jnz r0 @eval_tail_fallback_reset
-        call @is_input
-        jnz r0 @eval_tail_fallback_reset
-        call @is_read
-        jnz r0 @eval_tail_fallback_reset
-        call @is_write
-        jnz r0 @eval_tail_fallback_reset
-        call @is_pair
-        jnz r0 @eval_tail_fallback_reset
-        call @is_first
-        jnz r0 @eval_tail_fallback_reset
-        call @is_second
-        jnz r0 @eval_tail_fallback_reset
-        jmp @eval_tail_call
+        call @classify_list_head
+        jz r0 @eval_tail_call
+        imm r1 0x1
+        jeq r0 r1 @eval_tail_if
+        imm r1 0x2
+        jeq r0 r1 @eval_tail_let
+        jmp @eval_tail_fallback_reset
 eval_tail_fallback_reset:
         mov r85 r9c
         call @eval_expression
@@ -1005,6 +917,11 @@ eval_tail_if_false:
         call @skip_expression
         jmp @eval_tail_expression
 eval_tail_let:
+        call @bind_let_initializer
+        jmp @eval_tail_expression
+
+; Consume a let binder/type/initializer and extend the active environment.
+bind_let_initializer:
         call @need_token
         mov r0 r86
         call @push_value
@@ -1019,29 +936,24 @@ eval_tail_let:
         mov r86 r0
         mov r0 r8
         call @add_environment
-        jmp @eval_tail_expression
+        ret
 
 eval_tail_call:
+        call @prepare_call
+        sub r8e r91
+        mov r98 r91
+        ret
+
+; Prepare the current callee token. Leave target/base/count in r99/r9a/r9b.
+prepare_call:
         call @find_function
         jz r0 @authored_trap
-        add r8e r91
-        imm r1 0x100
-        jlt r8e r1 @eval_tail_call_context_ready
-        jmp @incomplete
-eval_tail_call_context_ready:
-        mov r6 r0
-        call @call_context
-        mov r7 r0
-        store r7 r6
-        imm r1 0x8
-        add r7 r1
-        store r7 r8a
-        add r7 r1
-        store r7 r90
-eval_tail_call_arguments:
+        mov r1 r8a
+        call @begin_call_context
+prepare_call_arguments:
         call @need_token
         call @is_close
-        jnz r0 @eval_tail_call_done
+        jnz r0 @prepare_call_done
         mov r85 r86
         call @eval_expression
         call @push_value
@@ -1051,25 +963,9 @@ eval_tail_call_arguments:
         load r2 r0
         add r2 r91
         store r0 r2
-        jmp @eval_tail_call_arguments
-eval_tail_call_done:
-        call @call_context
-        mov r7 r0
-        load r99 r7
-        imm r1 0x8
-        add r7 r1
-        load r9a r7
-        add r7 r1
-        load r9b r7
-        mov r0 r99
-        imm r1 0x20
-        add r0 r1
-        load r0 r0
-        jeq r9b r0 @eval_tail_call_ready
-        jmp @invalid
-eval_tail_call_ready:
-        sub r8e r91
-        mov r98 r91
+        jmp @prepare_call_arguments
+prepare_call_done:
+        call @finish_call_context
         ret
 
 ; Evaluate one expression at r85 and leave r85 after it.
@@ -1089,37 +985,24 @@ eval_return:
 
 eval_list:
         call @need_token
-        call @is_if
-        jnz r0 @eval_if
-        call @is_let
-        jnz r0 @eval_let
-        call @is_add
-        jnz r0 @eval_add
-        call @is_sub
-        jnz r0 @eval_sub
-        call @is_mul
-        jnz r0 @eval_mul
-        call @is_div
-        jnz r0 @eval_div
-        call @is_mod
-        jnz r0 @eval_mod
-        call @is_eq
-        jnz r0 @eval_eq
-        call @is_lt
-        jnz r0 @eval_lt
-        call @is_input
-        jnz r0 @eval_input
-        call @is_read
-        jnz r0 @eval_read
-        call @is_write
-        jnz r0 @eval_write
-        call @is_pair
-        jnz r0 @eval_pair
-        call @is_first
-        jnz r0 @eval_first
-        call @is_second
-        jnz r0 @eval_second
-        jmp @eval_call
+        call @classify_list_head
+        jz r0 @eval_call
+        imm r1 0x1
+        jeq r0 r1 @eval_if
+        imm r1 0x2
+        jeq r0 r1 @eval_let
+        imm r1 0xa
+        jlt r0 r1 @eval_binary_classified
+        jeq r0 r1 @eval_pair
+        imm r1 0xb
+        jeq r0 r1 @eval_input
+        imm r1 0xc
+        jeq r0 r1 @eval_read
+        imm r1 0xd
+        jeq r0 r1 @eval_write
+        imm r1 0xe
+        jeq r0 r1 @eval_first
+        jmp @eval_second
 
 eval_if:
         call @eval_expression
@@ -1141,20 +1024,7 @@ eval_if_false:
 eval_let:
         mov r0 r89
         call @push_value
-        call @need_token
-        mov r0 r86
-        call @push_value
-        mov r0 r87
-        call @push_value
-        call @expect_int
-        call @eval_expression
-        mov r6 r0
-        call @pop_value
-        mov r87 r0
-        call @pop_value
-        mov r86 r0
-        mov r0 r6
-        call @add_environment
+        call @bind_let_initializer
         call @eval_expression
         call @push_value
         call @expect_close
@@ -1165,26 +1035,9 @@ eval_let:
         mov r0 r6
         ret
 
-eval_add:
-        imm r0 0x0
-        jmp @eval_binary
-eval_sub:
-        imm r0 0x1
-        jmp @eval_binary
-eval_mul:
-        imm r0 0x2
-        jmp @eval_binary
-eval_div:
-        imm r0 0x3
-        jmp @eval_binary
-eval_mod:
-        imm r0 0x4
-        jmp @eval_binary
-eval_eq:
-        imm r0 0x5
-        jmp @eval_binary
-eval_lt:
-        imm r0 0x6
+eval_binary_classified:
+        imm r1 0x3
+        sub r0 r1
 
 eval_binary:
         call @push_value
@@ -1338,54 +1191,10 @@ eval_second:
 
 ; Current token is the callee name.
 eval_call:
-        call @find_function
-        jz r0 @authored_trap
-        add r8e r91
-        imm r1 0x100
-        jlt r8e r1 @eval_call_context_ready
-        jmp @incomplete
-eval_call_context_ready:
-        mov r6 r0
-        call @call_context
-        mov r7 r0
-        store r7 r6
-        imm r1 0x8
-        add r7 r1
-        store r7 r8a
-        add r7 r1
-        store r7 r90
-eval_call_arguments:
-        call @need_token
-        call @is_close
-        jnz r0 @eval_call_done
-        mov r85 r86
-        call @eval_expression
-        call @push_value
-        call @call_context
-        imm r1 0x10
-        add r0 r1
-        load r2 r0
-        add r2 r91
-        store r0 r2
-        jmp @eval_call_arguments
-eval_call_done:
-        call @call_context
-        mov r7 r0
-        load r6 r7
-        imm r1 0x8
-        add r7 r1
-        load r1 r7
-        imm r4 0x8
-        add r7 r4
-        load r2 r7
-        mov r3 r6
-        imm r4 0x20
-        add r3 r4
-        load r3 r3
-        jeq r2 r3 @eval_call_enter
-        jmp @invalid
-eval_call_enter:
-        mov r0 r6
+        call @prepare_call
+        mov r0 r99
+        mov r1 r9a
+        mov r2 r9b
         call @enter_function
         mov r6 r0
         call @call_context
@@ -1408,3 +1217,38 @@ incomplete:
 internal:
         imm r0 0x4
         halt r0
+
+; Packed ASCII followed by (class * 256 + token length). Zero terminates.
+list_head_table:
+        dw 0x6669             ; 1 if
+        dw 0x102
+        dw 0x74656c           ; 2 let
+        dw 0x203
+        dw 0x2b               ; 3 +
+        dw 0x301
+        dw 0x2d               ; 4 -
+        dw 0x401
+        dw 0x2a               ; 5 *
+        dw 0x501
+        dw 0x2f               ; 6 /
+        dw 0x601
+        dw 0x25               ; 7 %
+        dw 0x701
+        dw 0x7165             ; 8 eq
+        dw 0x802
+        dw 0x746c             ; 9 lt
+        dw 0x902
+        dw 0x72696170         ; 10 pair
+        dw 0xa04
+        dw 0x7475706e69       ; 11 input
+        dw 0xb05
+        dw 0x64616572         ; 12 read
+        dw 0xc04
+        dw 0x6574697277       ; 13 write
+        dw 0xd05
+        dw 0x7473726966       ; 14 first
+        dw 0xe05
+        dw 0x646e6f636573     ; 15 second
+        dw 0xf06
+        dw 0x0
+        dw 0x0
