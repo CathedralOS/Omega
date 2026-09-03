@@ -98,19 +98,19 @@ use report_identity::*;
 pub(super) use sum_reachability::SumReachability;
 use sum_reachability::{record_sum_profile, reject_sum_array_type};
 
-/// Exact custody for one authored outer-field occurrence in the complete
-/// plural depth-thirteen path set.
+/// Exact custody for one outer-field occurrence at any supported recursive
+/// record-path depth.
 ///
-/// The nested carrier retains its complete plural depth-twelve custody. This
-/// type deliberately does not implement `Clone`.
+/// The concrete `Inner` type preserves the preceding depth in the Rust type;
+/// fixed-depth public names below remain aliases with no dynamic widening.
 #[derive(Debug)]
-pub struct ValidatedConstDepthThirteenNestedSumOccurrenceMaterialization {
+pub struct ValidatedConstRecursiveNestedSumOccurrenceMaterialization<Inner> {
     outer_field: String,
     outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization,
+    inner: Inner,
 }
 
-impl ValidatedConstDepthThirteenNestedSumOccurrenceMaterialization {
+impl<Inner> ValidatedConstRecursiveNestedSumOccurrenceMaterialization<Inner> {
     pub fn outer_field(&self) -> &str {
         &self.outer_field
     }
@@ -119,10 +119,26 @@ impl ValidatedConstDepthThirteenNestedSumOccurrenceMaterialization {
         self.outer_member_identity
     }
 
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization {
+    pub const fn inner(&self) -> &Inner {
         &self.inner
     }
 }
+
+struct DerivedRecursiveNestedSumsMaterialization<Inner> {
+    schema_report_fingerprint: u64,
+    occurrences: Vec<ValidatedConstRecursiveNestedSumOccurrenceMaterialization<Inner>>,
+    bytes: Vec<u8>,
+}
+
+/// Exact custody for one authored outer-field occurrence in the complete
+/// plural depth-thirteen path set.
+///
+/// The nested carrier retains its complete plural depth-twelve custody. This
+/// type deliberately does not implement `Clone`.
+pub type ValidatedConstDepthThirteenNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -386,37 +402,19 @@ fn validate_const_materializable_record_with_depth_thirteen_nested_sums_with_rea
     )
 }
 
-struct DerivedDepthThirteenNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthThirteenNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthThirteenNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-fourteen path set.
 ///
 /// The nested carrier retains its complete plural depth-thirteen custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthFourteenNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthFourteenNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthFourteenNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -680,37 +678,19 @@ fn validate_const_materializable_record_with_depth_fourteen_nested_sums_with_rea
     )
 }
 
-struct DerivedDepthFourteenNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthFourteenNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthFourteenNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-fifteen path set.
 ///
 /// The nested carrier retains its complete plural depth-fourteen custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -974,37 +954,19 @@ fn validate_const_materializable_record_with_depth_fifteen_nested_sums_with_reac
     )
 }
 
-struct DerivedDepthFifteenNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthFifteenNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-twelve path set.
 ///
 /// The nested carrier retains its complete plural depth-eleven custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthTwelveNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthElevenNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthTwelveNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthElevenNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthTwelveNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthElevenNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -1268,36 +1230,18 @@ fn validate_const_materializable_record_with_depth_twelve_nested_sums_with_reach
     )
 }
 
-struct DerivedDepthTwelveNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthTwelveNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthTwelveNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthElevenNestedSumsMaterialization,
+>;
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-eleven path set.
 ///
 /// The nested carrier retains its complete plural depth-ten custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthElevenNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthTenNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthElevenNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthTenNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthElevenNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthTenNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -1561,37 +1505,19 @@ fn validate_const_materializable_record_with_depth_eleven_nested_sums_with_reach
     )
 }
 
-struct DerivedDepthElevenNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthElevenNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthElevenNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthTenNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-ten path set.
 ///
 /// The nested carrier retains its complete plural depth-nine custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthTenNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthNineNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthTenNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthNineNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthTenNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthNineNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -1850,37 +1776,19 @@ fn validate_const_materializable_record_with_depth_ten_nested_sums_with_reachabi
     })
 }
 
-struct DerivedDepthTenNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthTenNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthTenNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthNineNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-nine path set.
 ///
 /// The nested carrier retains its complete plural depth-eight custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthNineNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthEightNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthNineNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthEightNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthNineNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthEightNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -2139,37 +2047,19 @@ fn validate_const_materializable_record_with_depth_nine_nested_sums_with_reachab
     })
 }
 
-struct DerivedDepthNineNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthNineNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthNineNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthEightNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-eight path set.
 ///
 /// The nested carrier retains its complete plural depth-seven custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthEightNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthSevenNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthEightNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthSevenNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthEightNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthSevenNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -2433,37 +2323,19 @@ fn validate_const_materializable_record_with_depth_eight_nested_sums_with_reacha
     )
 }
 
-struct DerivedDepthEightNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthEightNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthEightNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthSevenNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-seven path set.
 ///
 /// The nested carrier retains its complete plural depth-six custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthSevenNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthSixNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthSevenNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthSixNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthSevenNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthSixNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -2727,37 +2599,19 @@ fn validate_const_materializable_record_with_depth_seven_nested_sums_with_reacha
     )
 }
 
-struct DerivedDepthSevenNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthSevenNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthSevenNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthSixNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-six path set.
 ///
 /// The nested carrier retains its complete plural depth-five custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthSixNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthFiveNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthSixNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthFiveNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthSixNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthFiveNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -3016,37 +2870,19 @@ fn validate_const_materializable_record_with_depth_six_nested_sums_with_reachabi
     })
 }
 
-struct DerivedDepthSixNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthSixNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthSixNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthFiveNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-five path set.
 ///
 /// The nested carrier retains its complete plural depth-four custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthFiveNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthFourNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthFiveNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthFourNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthFiveNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthFourNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -3305,37 +3141,19 @@ fn validate_const_materializable_record_with_depth_five_nested_sums_with_reachab
     })
 }
 
-struct DerivedDepthFiveNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthFiveNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthFiveNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthFourNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-four path set.
 ///
 /// The nested carrier retains its complete plural depth-three custody. This
 /// type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthFourNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthThreeNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthFourNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthThreeNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthFourNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthThreeNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> Second -> First -> Middle -> Leaf -> direct sums` paths.
@@ -3594,37 +3412,19 @@ fn validate_const_materializable_record_with_depth_four_nested_sums_with_reachab
     })
 }
 
-struct DerivedDepthFourNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthFourNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthFourNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthThreeNestedSumsMaterialization,
+>;
 
 /// Exact custody for one authored outer-field occurrence in the complete
 /// plural depth-three path set.
 ///
 /// The nested carrier retains its own complete authored-order depth-two path
 /// set. This type deliberately does not implement `Clone`.
-#[derive(Debug)]
-pub struct ValidatedConstDepthThreeNestedSumOccurrenceMaterialization {
-    outer_field: String,
-    outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthTwoNestedSumsMaterialization,
-}
-
-impl ValidatedConstDepthThreeNestedSumOccurrenceMaterialization {
-    pub fn outer_field(&self) -> &str {
-        &self.outer_field
-    }
-
-    pub const fn outer_member_identity(&self) -> Option<u64> {
-        self.outer_member_identity
-    }
-
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthTwoNestedSumsMaterialization {
-        &self.inner
-    }
-}
+pub type ValidatedConstDepthThreeNestedSumOccurrenceMaterialization =
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization<
+        ValidatedConstRecordWithDepthTwoNestedSumsMaterialization,
+    >;
 
 /// Exact custody for the complete authored-order set of qualifying
 /// `Outer -> First -> Middle -> Leaf -> direct sums` paths.
@@ -3888,11 +3688,9 @@ fn validate_const_materializable_record_with_depth_three_nested_sums_with_reacha
     )
 }
 
-struct DerivedDepthThreeNestedSumsMaterialization {
-    schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthThreeNestedSumOccurrenceMaterialization>,
-    bytes: Vec<u8>,
-}
+type DerivedDepthThreeNestedSumsMaterialization = DerivedRecursiveNestedSumsMaterialization<
+    ValidatedConstRecordWithDepthTwoNestedSumsMaterialization,
+>;
 
 /// Exact custody for one fixed-depth
 /// `Outer -> First -> Middle -> Leaf -> direct sums` chain.
