@@ -673,6 +673,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 22 => 23,
                 23 => 24,
                 24 => 25,
+                25 => 26,
                 _ => 0,
             };
             let exact_prefix = expected_root_length != 0
