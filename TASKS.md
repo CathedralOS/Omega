@@ -47,14 +47,6 @@ These are the next product-level priorities for the maintained Rust
 implementation. They take precedence over adding another evidence carrier that
 has no exercising program.
 
-- **SHARD-OVERSIZED-RUST-MODULES.** Eliminate every exact source-file,
-  package-leaf, and entrance exception in the architecture tests. Split by
-  semantic family without raising a ratchet: production dispatchers first,
-  then shared test fixtures. Acceptance: the exception tables in
-  `optimizer_source_organization/bounds.rs` and
-  `package_source_organization.rs` are empty and the full architecture suite
-  remains green.
-
 - **CLOSED-SUM-INSPECTION-E2E.** Complete target-neutral and native inspection
   of conventional closed sums. The acceptance program reads
   `Console::read_byte() -> ByteRead`, branches on `Eof | Byte(value)`, consumes
