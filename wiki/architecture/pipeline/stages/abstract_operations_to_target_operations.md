@@ -98,18 +98,22 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   assignment, machine emission, object construction, and installation
   independently replay the function ABI, incoming `RDI`/`X0` register,
   destination home, native store bytes, and source record on both Linux
-  targets. Additional parameters, computed sources, IEEE runtime sources, and
-  non-native integer carriers remain fail closed. Terminal and Abstract IR
+  targets. An ordinary call may also materialize one exact preceding Boolean
+  literal directly into that scalar prefix; its definition identity and value
+  remain distinct from caller-parameter custody. Additional parameters,
+  computed nonliteral sources, IEEE runtime sources, and non-native integer
+  carriers remain fail closed. Terminal and Abstract IR
   verify, canonically bind, and retain scalar arguments on ordinary `CallUnit`,
   including optimizer identity and dataflow. This stage now derives the exact
   target call plan, retaining scalar arguments as its prefix and structural
   arguments as its suffix. Physical assignment independently replays that plan
-  and preserves the caller parameter's exact type and incoming location.
-  Machine emission admits exact same-register forwarding for native fixed
-  integers and Boolean and retains scalar call custody beside the structural
-  copies. Object and installation validation independently
-  rejoin the Unit callee ABI, source location, zero-byte transfer, aggregate
-  copy, stack evidence, and call bytes on Linux x86-64 and AArch64.
+  and preserves either the caller parameter's exact type and incoming location
+  or the Boolean literal's preceding definition. Machine emission admits exact
+  same-register forwarding for native fixed integers and Boolean, plus direct
+  Boolean materialization, and retains scalar call custody beside the
+  structural copies. Object and installation validation independently rejoin
+  the Unit callee ABI, source definition or location, scalar transfer,
+  aggregate copy, stack evidence, and call bytes on Linux x86-64 and AArch64.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider

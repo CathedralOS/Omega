@@ -1432,6 +1432,136 @@ fn boolean_parameter_store_caller_reaches_canonical_installation() {
 }
 
 #[test]
+fn boolean_literal_store_caller_reaches_canonical_installation() {
+    let checked = checked(
+        r#"
+            data Sink {}
+            machine Sink::fill(destination: &write bool, replacement: bool) {
+                destination = replacement;
+            }
+
+            data Root {}
+            machine Root::enter(destination: &mut bool) {
+                Sink::fill(&write destination, false);
+            }
+        "#,
+    );
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("Boolean literal caller reaches verified Terminal production");
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode Boolean literal caller semantics");
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("encode Boolean literal caller proof");
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
+        &semantic,
+        &proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("Boolean literal caller reaches Abstract operations");
+
+    for native_target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstract_plan,
+            native_target,
+        )
+        .expect("Boolean literal caller reaches Target IR");
+        let target_root = target
+            .functions
+            .iter()
+            .find(|function| function.machine == target.entry)
+            .expect("Target caller is retained");
+        let omega_target_operations::TargetOperation::UnitBody(body) = &target_root.operation
+        else {
+            panic!("Target caller remains a Unit body")
+        };
+        let source = body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_target_operations::TargetUnitOperation::Call {
+                    scalar_arguments, ..
+                } => scalar_arguments.first().map(|argument| argument.source),
+                _ => None,
+            });
+        assert!(matches!(
+            source,
+            Some(
+                omega_target_operations::TargetUnitScalarArgumentSource::BooleanImmediate {
+                    value: false,
+                    ..
+                }
+            )
+        ));
+
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target)
+                .expect("Boolean literal caller reaches physical assignment");
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("Boolean literal caller reaches machine emission");
+        let emitted_root = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("emitted Boolean literal caller is retained");
+        let [call] = emitted_root.internal_unit_calls.as_slice() else {
+            panic!("emitted Boolean literal caller retains one internal Unit call")
+        };
+        assert!(matches!(
+            call.scalar_arguments.as_slice(),
+            [omega_machine_code::InternalUnitScalarCallArgumentRecord {
+                source: omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                    value: false,
+                    definition_ordinal,
+                    ..
+                },
+                byte_count,
+                ..
+            }] if *definition_ordinal < call.operation_ordinal && *byte_count != 0
+        ));
+
+        let mut corrupted = emitted.clone();
+        let corrupted_root = corrupted
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == emitted.entry)
+            .unwrap();
+        let operation_ordinal = corrupted_root.internal_unit_calls[0].operation_ordinal;
+        let omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+            definition_ordinal,
+            ..
+        } = &mut corrupted_root.internal_unit_calls[0].scalar_arguments[0].source
+        else {
+            unreachable!()
+        };
+        *definition_ordinal = operation_ordinal;
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&corrupted),
+            Err(omega_image_emission::ObjectError::InvalidInternalUnitCallEvidence(emitted.entry))
+        );
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object replay accepts Boolean literal caller custody");
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("Boolean literal caller reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains Boolean literal caller custody");
+        let bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode installed Boolean literal caller");
+        let decoded = omega_image_emission::decode_installation_record(&bytes)
+            .expect("decode installed Boolean literal caller");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("installation replays Boolean literal caller custody");
+    }
+}
+
+#[test]
 fn parameter_sourced_store_and_caller_cover_all_native_fixed_integers() {
     for (source_type, sign, bits) in [
         ("i8", psi_core::IntegerSign::Signed, 8),

@@ -97,6 +97,7 @@ pub(crate) fn linux_write_byte_custody_is_exact(
                     .count()
                     == 1
         }
+        InternalUnitScalarArgumentSourceRecord::BooleanImmediate { .. } => false,
         InternalUnitScalarArgumentSourceRecord::Home(home) => {
             let ordinary_home = scalar_homes
                 .iter()

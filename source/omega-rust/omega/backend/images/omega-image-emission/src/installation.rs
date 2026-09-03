@@ -95,7 +95,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 77;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 78;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -1730,6 +1730,45 @@ fn installed_scalar_source_is_exact(
                 .count()
                 == 1
         }
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+            definition_ordinal,
+        } => {
+            definition_ordinal < consumer.operation_ordinal
+                && record
+                    .semantic_code_attribution
+                    .iter()
+                    .filter(|attribution| {
+                        attribution.machine == machine
+                            && attribution.attribution.site
+                                == omega_machine_code::SemanticCodeSite::Operation(
+                                    defining_operation,
+                                )
+                            && attribution.attribution.operation_ordinal == definition_ordinal
+                            && attribution.attribution.code_offset <= consumer.code_offset
+                            && attribution.attribution.byte_count == 0
+                    })
+                    .count()
+                    == 1
+                && function.unit_integer_constants.iter().all(|constant| {
+                    constant.defining_operation != defining_operation
+                        && constant.source_value != source_value
+                })
+                && function.unit_scalar_homes.iter().all(|home| {
+                    home.defining_operation != defining_operation
+                        && home.source_value != source_value
+                })
+                && installed_boolean_call_source_is_consistent(
+                    record,
+                    machine,
+                    defining_operation,
+                    source_value,
+                    value,
+                    definition_ordinal,
+                )
+        }
         omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
             function
                 .unit_scalar_homes
@@ -1755,6 +1794,35 @@ fn installed_scalar_source_is_exact(
                     == 1
         }
     }
+}
+
+fn installed_boolean_call_source_is_consistent(
+    record: &InstallationRecord,
+    machine: MachineId,
+    defining_operation: psi_core::OperationId,
+    source_value: psi_core::ValueId,
+    value: bool,
+    definition_ordinal: usize,
+) -> bool {
+    record
+        .internal_unit_calls
+        .iter()
+        .filter(|call| call.machine == machine)
+        .flat_map(|call| &call.custody.scalar_arguments)
+        .all(|argument| match argument.source {
+            omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                defining_operation: candidate_operation,
+                source_value: candidate_value,
+                value: candidate_literal,
+                definition_ordinal: candidate_ordinal,
+            } if candidate_operation == defining_operation || candidate_value == source_value => {
+                candidate_operation == defining_operation
+                    && candidate_value == source_value
+                    && candidate_literal == value
+                    && candidate_ordinal == definition_ordinal
+            }
+            _ => true,
+        })
 }
 
 fn validate_record_shape(record: &InstallationRecord) -> Result<(), InstallationError> {

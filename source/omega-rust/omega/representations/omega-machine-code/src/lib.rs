@@ -922,8 +922,8 @@ pub struct InternalUnitCallRecord {
     /// Exact structural result custody for the bounded direct-return call
     /// family. Mutually exclusive with `result`; absent on Unit/scalar calls.
     pub structural_result: Option<InternalStructuralCallResult>,
-    /// Exact fixed-integer arguments in the scalar prefix of the shared call
-    /// plan. Aggregate-only calls retain the canonical empty roster.
+    /// Exact scalar arguments in the scalar prefix of the shared call plan.
+    /// Aggregate-only calls retain the canonical empty roster.
     pub scalar_arguments: Vec<InternalUnitScalarCallArgumentRecord>,
     pub arguments: Vec<InternalUnitCallArgumentRecord>,
     pub claim_transfers: Vec<ClaimTransfer>,
@@ -1136,6 +1136,12 @@ pub enum InternalUnitScalarArgumentSourceRecord {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+    BooleanImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: bool,
+        definition_ordinal: usize,
+    },
     Home(UnitScalarHomeRecord),
 }
 
@@ -1144,6 +1150,7 @@ impl InternalUnitScalarArgumentSourceRecord {
         match self {
             Self::Parameter { source_value, .. } => source_value,
             Self::IntegerImmediate { source_value, .. } => source_value,
+            Self::BooleanImmediate { source_value, .. } => source_value,
             Self::Home(home) => home.source_value,
         }
     }
@@ -1152,6 +1159,7 @@ impl InternalUnitScalarArgumentSourceRecord {
         match self {
             Self::Parameter { scalar_type, .. } => scalar_type,
             Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::BooleanImmediate { .. } => ScalarType::Boolean,
             Self::Home(home) => home.scalar_type,
         }
     }

@@ -287,6 +287,7 @@ pub(super) fn lower_unit_body(
                 &parameters_by_place,
                 &established_affine_local_sources,
                 &scalar_values,
+                &boolean_constants,
                 &mut shape_cache,
                 &mut active,
                 &mut operations,

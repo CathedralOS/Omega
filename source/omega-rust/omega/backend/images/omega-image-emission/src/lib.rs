@@ -3809,6 +3809,9 @@ fn validate_foreign_scalar_source(
                     && constant.operation_ordinal < attribution.operation_ordinal
             })
             .count(),
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate { .. } => {
+            return Err(invalid());
+        }
         omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
             if !function.unit_scalar_homes.contains(&home) {
                 return Err(invalid());
@@ -3899,6 +3902,9 @@ fn expected_foreign_scalar_argument_bytes(
                     }
                 }
             }
+        }
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate { .. } => {
+            return None;
         }
         omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
             match target.architecture {

@@ -806,7 +806,11 @@ fn emit_x86_64_mixed_call(
         emit_x86_64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
         scalar_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
-            source: unit_scalar_argument_source_record(argument.source),
+            source: unit_scalar_argument_source_record(
+                psi_operation,
+                argument.source,
+                preceding_operations,
+            )?,
             destination: call_plan.parameters[parameter_index].clone(),
             code_offset,
             byte_count: bytes.len() - code_offset,
@@ -911,7 +915,11 @@ fn emit_aarch64_mixed_call(
         emit_aarch64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
         scalar_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
-            source: unit_scalar_argument_source_record(argument.source),
+            source: unit_scalar_argument_source_record(
+                psi_operation,
+                argument.source,
+                preceding_operations,
+            )?,
             destination: call_plan.parameters[parameter_index].clone(),
             code_offset,
             byte_count: bytes.len() - code_offset,

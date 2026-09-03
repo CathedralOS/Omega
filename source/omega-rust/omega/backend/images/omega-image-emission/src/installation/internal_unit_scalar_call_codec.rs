@@ -21,6 +21,7 @@ use super::{
     },
     value_placement_codec::{decode_direct_placement, encode_direct_placement},
     value_placement_codec::{decode_register, register_tag},
+    wire_codec::decode_boolean,
 };
 
 pub(super) fn encode_internal_unit_scalar_calls(
@@ -166,6 +167,19 @@ pub(super) fn encode_argument_source(
             encode_integer_type(bytes, scalar_type)?;
             encode_integer_value(bytes, value);
         }
+        InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+            definition_ordinal,
+        } => {
+            bytes.extend_from_slice(&[4, 0, 0, 0]);
+            push_u64(bytes, defining_operation.get());
+            push_u64(bytes, source_value.get());
+            encode_offset(bytes, definition_ordinal)?;
+            bytes.push(u8::from(value));
+            bytes.extend_from_slice(&[0; 7]);
+        }
         InternalUnitScalarArgumentSourceRecord::Home(home) => {
             bytes.extend_from_slice(&[2, 0, 0, 0]);
             encode_unit_scalar_home(bytes, home)?;
@@ -228,6 +242,23 @@ pub(super) fn decode_argument_source(
                 location,
             })
         }
+        4 => {
+            let defining_operation = OperationId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let source_value = ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let definition_ordinal = decode_offset(reader)?;
+            let value = decode_boolean(reader.u8()?)?;
+            if reader.take(7)? != [0; 7] {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            Ok(InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                defining_operation,
+                source_value,
+                value,
+                definition_ordinal,
+            })
+        }
         tag => Err(InstallationError::InvalidInstalledScalarSourceTag(tag)),
     }
 }
@@ -269,5 +300,18 @@ mod tests {
             encode_argument_source(&mut bytes, source).expect("encode parameter source");
             assert_eq!(decode_argument_source(&mut Reader::new(&bytes)), Ok(source));
         }
+    }
+
+    #[test]
+    fn ordinary_installation_codec_round_trips_boolean_immediate_sources() {
+        let mut bytes = Vec::new();
+        let source = InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+            defining_operation: OperationId::new(2).unwrap(),
+            source_value: ValueId::new(3).unwrap(),
+            value: true,
+            definition_ordinal: 4,
+        };
+        encode_argument_source(&mut bytes, source).expect("encode Boolean immediate source");
+        assert_eq!(decode_argument_source(&mut Reader::new(&bytes)), Ok(source));
     }
 }
