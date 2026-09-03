@@ -103,6 +103,68 @@ impl NormalizedForeignTerminalMechanismIdentity {
     }
 }
 
+/// Strong identity of the compiler-checked argument contract that constrains
+/// one direct syscall leaf.
+///
+/// This is deliberately distinct from a boundary calling-plan commitment:
+/// the calling plan fixes ABI movement, while this identity commits to the
+/// checked constants, ranges, handle provenance, or conservative
+/// unconstrained argument contract used for authority classification. A
+/// checking stage must define and retain the committed contract; a syscall
+/// number or readable requirement name never substitutes for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedSyscallArgumentContractIdentity([u8; 32]);
+
+impl CheckedSyscallArgumentContractIdentity {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
+}
+
+/// One exact direct-syscall leaf after target selection and argument-contract
+/// checking. The complete deployment profile retains the target ABI; syscall
+/// number zero is valid and therefore is not an absence sentinel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SyscallTerminalMechanismIdentity {
+    target: omega_target::TargetProfile,
+    number: u32,
+    checked_argument_contract: CheckedSyscallArgumentContractIdentity,
+}
+
+impl SyscallTerminalMechanismIdentity {
+    pub const fn new(
+        target: omega_target::TargetProfile,
+        number: u32,
+        checked_argument_contract: CheckedSyscallArgumentContractIdentity,
+    ) -> Self {
+        Self {
+            target,
+            number,
+            checked_argument_contract,
+        }
+    }
+
+    pub const fn target(self) -> omega_target::TargetProfile {
+        self.target
+    }
+
+    pub const fn number(self) -> u32 {
+        self.number
+    }
+
+    pub const fn checked_argument_contract(self) -> CheckedSyscallArgumentContractIdentity {
+        self.checked_argument_contract
+    }
+}
+
 /// Closed checked-physical operation catalog understood by D45.
 ///
 /// Values written by an operation are trace data rather than mechanism
@@ -143,13 +205,14 @@ impl CheckedPhysicalTerminalMechanismIdentity {
 ///
 /// The role discriminant is semantic identity. Compiler intrinsics and foreign
 /// locators therefore cannot collide even if their child encodings happen to
-/// contain equal bytes. Future syscall and firmware/table roles must be added
+/// contain equal bytes. Future firmware/table roles must be added
 /// as explicit variants rather than flattened optional fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalMechanismIdentity {
     CompilerIntrinsic(CompilerIntrinsicExecutionIdentity),
     NormalizedForeign(NormalizedForeignTerminalMechanismIdentity),
     CheckedPhysical(CheckedPhysicalTerminalMechanismIdentity),
+    Syscall(SyscallTerminalMechanismIdentity),
 }
 
 impl From<CompilerIntrinsicExecutionIdentity> for TerminalMechanismIdentity {
@@ -167,6 +230,12 @@ impl From<NormalizedForeignTerminalMechanismIdentity> for TerminalMechanismIdent
 impl From<CheckedPhysicalTerminalMechanismIdentity> for TerminalMechanismIdentity {
     fn from(identity: CheckedPhysicalTerminalMechanismIdentity) -> Self {
         Self::CheckedPhysical(identity)
+    }
+}
+
+impl From<SyscallTerminalMechanismIdentity> for TerminalMechanismIdentity {
+    fn from(identity: SyscallTerminalMechanismIdentity) -> Self {
+        Self::Syscall(identity)
     }
 }
 
@@ -209,6 +278,21 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
                     bytes.extend_from_slice(&port.to_be_bytes());
                 }
             }
+            bytes
+        }
+        TerminalMechanismIdentity::Syscall(syscall) => {
+            let target = syscall.target().identity().as_str().as_bytes();
+            let mut bytes = Vec::with_capacity(1 + 4 + target.len() + 4 + 32);
+            // Preserve the three published role tags; new roles append.
+            bytes.push(3);
+            bytes.extend_from_slice(
+                &u32::try_from(target.len())
+                    .expect("target-profile identity length fits u32")
+                    .to_be_bytes(),
+            );
+            bytes.extend_from_slice(target);
+            bytes.extend_from_slice(&syscall.number().to_be_bytes());
+            bytes.extend_from_slice(&syscall.checked_argument_contract().as_bytes());
             bytes
         }
     }
@@ -960,6 +1044,42 @@ mod tests {
         assert_ne!(
             terminal_mechanism_identity_bytes(linux.into()),
             terminal_mechanism_identity_bytes(other_port.into()),
+        );
+    }
+
+    #[test]
+    fn syscall_identity_binds_profile_number_and_checked_argument_contract() {
+        let exact = SyscallTerminalMechanismIdentity::new(
+            omega_target::TargetProfile::LinuxX64,
+            0,
+            CheckedSyscallArgumentContractIdentity::from_digest([1; 32]),
+        );
+        let other_target = SyscallTerminalMechanismIdentity::new(
+            omega_target::TargetProfile::LinuxArm64,
+            0,
+            CheckedSyscallArgumentContractIdentity::from_digest([1; 32]),
+        );
+        let other_number = SyscallTerminalMechanismIdentity::new(
+            omega_target::TargetProfile::LinuxX64,
+            1,
+            CheckedSyscallArgumentContractIdentity::from_digest([1; 32]),
+        );
+        let other_contract = SyscallTerminalMechanismIdentity::new(
+            omega_target::TargetProfile::LinuxX64,
+            0,
+            CheckedSyscallArgumentContractIdentity::from_digest([2; 32]),
+        );
+        assert_ne!(
+            terminal_mechanism_identity_bytes(exact.into()),
+            terminal_mechanism_identity_bytes(other_target.into()),
+        );
+        assert_ne!(
+            terminal_mechanism_identity_bytes(exact.into()),
+            terminal_mechanism_identity_bytes(other_number.into()),
+        );
+        assert_ne!(
+            terminal_mechanism_identity_bytes(exact.into()),
+            terminal_mechanism_identity_bytes(other_contract.into()),
         );
     }
 }

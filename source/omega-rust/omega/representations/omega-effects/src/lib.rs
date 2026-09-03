@@ -67,11 +67,12 @@ pub use selected_provider_plans::{
 pub use service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
 pub use terminal_authority::{
     CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
-    CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    CheckedSyscallArgumentContractIdentity, CompilerIntrinsicExecutionIdentity,
+    CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
-    TerminalAuthorityClass, TerminalAuthorityClosureLeaf, TerminalAuthorityClosureReviewBuildError,
-    TerminalAuthorityClosureReviewReceipt, TerminalAuthorityDisposition,
-    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
-    TerminalMechanismIdentity, compiler_intrinsic_execution_identity_bytes,
-    terminal_mechanism_identity_bytes,
+    SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityClosureLeaf,
+    TerminalAuthorityClosureReviewBuildError, TerminalAuthorityClosureReviewReceipt,
+    TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
+    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
+    compiler_intrinsic_execution_identity_bytes, terminal_mechanism_identity_bytes,
 };

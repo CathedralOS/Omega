@@ -6061,10 +6061,61 @@ fn seeded_continuation_appends_a_lifetime_generic_machine_with_exact_binder_cust
 }
 
 #[test]
+fn seeded_continuation_appends_a_scalar_const_generic_machine_with_exact_binder_custody() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; } machine authored() -> u32 { 1 }",
+        "pub machine generated<const N: u64>(value: [u8; N]) {}",
+    );
+    let expected = base.typed().clone();
+    let typed = lower_seeded_extension(extension, base)
+        .expect("scalar-const generated machine should append from the retained base");
+
+    assert!(retained_typed_base_is_exact_prefix(&expected, &typed));
+    assert_eq!(typed.machines().len(), expected.machines().len() + 1);
+    let generated = typed.machines().last().expect("generated generic machine");
+    let [const_parameter] = typed.machine_type_parameters(generated) else {
+        panic!("generated machine retains one exact const parameter")
+    };
+    assert_eq!(const_parameter.name.as_str(), "N");
+    assert_eq!(
+        typed.symbols.get(const_parameter.symbol).parent,
+        generated.symbol
+    );
+    let psi_typed_trees::data::TypeParameterKind::Const { type_reference } = &const_parameter.kind
+    else {
+        panic!("generated machine retains the const binder kind")
+    };
+    assert!(matches!(
+        typed.type_reference_table.type_reference(*type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if typed.symbols.builtin_type_atom(*symbol) == Some(psi_symbols::BuiltinTypeAtom::U64)
+                && name.as_str() == "u64"
+    ));
+    let [state] = typed.machine_states(generated) else {
+        panic!("generated machine retains one entry state")
+    };
+    let [value] = typed.state_parameters(state) else {
+        panic!("generated machine retains one value parameter")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray { length, .. } = typed
+        .type_reference_table
+        .type_reference(value.type_reference)
+    else {
+        panic!("value remains a const-sized fixed array")
+    };
+    assert!(matches!(
+        length,
+        psi_typed_trees::types::FixedArrayLength::ConstParameter { symbol, name }
+            if *symbol == const_parameter.symbol && name.as_str() == "N"
+    ));
+}
+
+#[test]
 fn seeded_generic_machine_continuation_rejects_unadmitted_binder_kinds_transactionally() {
     for extension_source in [
-        "machine generated<const N: u64>() {}",
         "machine generated<T [copy]>() {}",
+        "data Shape { value: u8; } machine generated<const S: Shape>() {}",
+        "machine generated<machine Selected>() where machine Selected() -> u8; {}",
     ] {
         let (base, extension) = seeded_plain_data_inputs(
             "data Authored { value: u32; } machine authored() -> u32 { 1 }",
@@ -6072,7 +6123,7 @@ fn seeded_generic_machine_continuation_rejects_unadmitted_binder_kinds_transacti
         );
         let expected = base.typed().clone();
         let (returned, error) = lower_seeded_extension(extension, base).expect_err(
-            "only lifetime and plain unbounded Type binders enter this generic-machine rung",
+            "only lifetime, plain Type, and scalar const binders enter this generic-machine rung",
         );
         assert_eq!(error, SeededContinuationError::UnsupportedExtensionShape);
         assert_eq!(returned.into_typed(), expected);

@@ -9,6 +9,7 @@ use super::*;
 mod checked_physical_rows;
 mod foreign_rows;
 mod inventory;
+mod syscall_rows;
 
 fn foreign_mechanism(
     candidate: omega_target::ForeignLocatorCandidate,

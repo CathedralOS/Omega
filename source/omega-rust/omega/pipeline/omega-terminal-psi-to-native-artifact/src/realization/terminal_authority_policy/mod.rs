@@ -28,7 +28,7 @@ use commitment::complete_policy_commitment;
 
 /// Version of the receiving-realization policy table over D45's shared
 /// role-tagged terminal-mechanism identity.
-pub const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 4;
+pub const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 5;
 
 /// Build one accepted receiving policy from explicit exact non-intrinsic rows.
 /// Compiler-intrinsic rows cannot be overridden, duplicate physical identities
@@ -52,6 +52,26 @@ pub fn terminal_authority_policy_with_rows(
                 );
             }
             TerminalMechanismIdentity::NormalizedForeign(_) => {}
+            TerminalMechanismIdentity::Syscall(syscall)
+                if !matches!(
+                    syscall.target(),
+                    omega_target::TargetProfile::LinuxX64 | omega_target::TargetProfile::LinuxArm64
+                ) =>
+            {
+                return Err(TerminalAuthorityPolicyBuildError::UnsupportedSyscallTarget(
+                    row.mechanism,
+                ));
+            }
+            TerminalMechanismIdentity::Syscall(syscall)
+                if syscall.checked_argument_contract().is_zero() =>
+            {
+                return Err(
+                    TerminalAuthorityPolicyBuildError::EmptyCheckedSyscallArgumentContract(
+                        row.mechanism,
+                    ),
+                );
+            }
+            TerminalMechanismIdentity::Syscall(_) => {}
             TerminalMechanismIdentity::CheckedPhysical(physical) => match physical.operation() {
                 CheckedPhysicalOperationIdentity::PortWrite { .. }
                     if row.disposition.classes() != [TerminalAuthorityClass::PortIo] =>

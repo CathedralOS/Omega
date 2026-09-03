@@ -545,6 +545,22 @@ two distinct checked mechanisms under the same bounded requirement. This
 retains classification evidence only; it does not perform or authorize port
 I/O or mint provider, installation, or invocation custody.
 
+Receiving-policy version 5 adds the exact direct-syscall role as a
+classification carrier. Its key commits the complete target profile, the
+`u32` syscall number (including valid number zero), and a distinct nonempty
+identity for the compiler-checked argument contract. That contract identity is
+not the boundary calling-plan commitment: it must cover the conservative
+unconstrained argument case or the exact retained constants, ranges, handle
+provenance, and other constraints used to narrow authority. Explicit rows are
+canonicalized into whole-policy identity; target, number, or contract
+substitution and absent rows fail closed; the current table also rejects every
+profile outside the evaluated Linux x86-64/AArch64 syscall domain. Provider
+settlement and closure review still reject direct syscalls until a checked
+lowering stage supplies that exact contract identity. No service or method
+spelling can synthesize it, and this carrier does not resolve filesystem
+descriptor confinement or the unsettled authority classes in
+`OWNER_QUESTIONS.md` Q4.
+
 A row publishes the union over every authority reachable through its argument
 values. Narrowing requires retained compiler-checked constants, ranges, handle
 provenance, or another exact constraint proof whose identity enters the

@@ -106,10 +106,10 @@ Subsequent independent fixed-depth reports extend that same composition through
 the complete plural depth-three, depth-four, depth-five, depth-six,
 depth-seven, depth-eight, depth-nine, depth-ten, depth-eleven, depth-twelve,
 depth-thirteen, depth-fourteen, depth-fifteen, depth-sixteen,
-depth-seventeen, depth-eighteen, and depth-nineteen cohorts.
+depth-seventeen, depth-eighteen, depth-nineteen, and depth-twenty cohorts.
 The deepest live form is
-`Outer -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`:
-each outer occurrence owns the unchanged depth-eighteen report and non-clone
+`Outer -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`:
+each outer occurrence owns the unchanged depth-nineteen report and non-clone
 carrier, repeated nominal occurrences remain distinct, and projection plus
 replay share one memoized bounded walk and one global leaf ceiling. Every nested
 image is rebuilt from zero padding before one atomic outer copy. Deeper, recursive,
