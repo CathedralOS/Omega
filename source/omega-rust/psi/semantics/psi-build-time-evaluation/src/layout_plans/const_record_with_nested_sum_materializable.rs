@@ -18,9 +18,9 @@ use psi_layout_plans::{
     ConventionalDepthTwelveRecordSumPathsLayoutReport,
     ConventionalDepthTwoRecordSumPathLayoutReport, ConventionalDepthTwoRecordSumPathsLayoutReport,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,
-    MaterializationDiagnostic, conventional_sum_layout_reports_match_for_replay,
-    layout_plan_reports_match_for_replay, materialize_aggregate_layout_into,
-    normalized_layout_plan_report_fingerprint,
+    ConventionalRecordSumPathsLayoutReport, MaterializationDiagnostic,
+    conventional_sum_layout_reports_match_for_replay, layout_plan_reports_match_for_replay,
+    materialize_aggregate_layout_into, normalized_layout_plan_report_fingerprint,
 };
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
@@ -41,28 +41,18 @@ use super::{
 };
 use crate::layout_plans::ValidatedConstRecordWithSumMaterialization;
 
-mod depth_sixteen;
-mod depth_seventeen;
 mod depth_eighteen;
 mod depth_nineteen;
+mod depth_seventeen;
+mod depth_sixteen;
 mod depth_twenty;
 mod depth_twenty_one;
-mod depth_twenty_two;
 mod depth_twenty_three;
+mod depth_twenty_two;
 mod derivation;
 mod report_identity;
 mod sum_reachability;
 
-pub use depth_sixteen::{
-    ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_sixteen_nested_sums,
-};
-pub use depth_seventeen::{
-    ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthSeventeenNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_seventeen_nested_sums,
-};
 pub use depth_eighteen::{
     ValidatedConstDepthEighteenNestedSumOccurrenceMaterialization,
     ValidatedConstRecordWithDepthEighteenNestedSumsMaterialization,
@@ -72,6 +62,16 @@ pub use depth_nineteen::{
     ValidatedConstDepthNineteenNestedSumOccurrenceMaterialization,
     ValidatedConstRecordWithDepthNineteenNestedSumsMaterialization,
     validate_const_materializable_record_with_depth_nineteen_nested_sums,
+};
+pub use depth_seventeen::{
+    ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization,
+    ValidatedConstRecordWithDepthSeventeenNestedSumsMaterialization,
+    validate_const_materializable_record_with_depth_seventeen_nested_sums,
+};
+pub use depth_sixteen::{
+    ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization,
+    ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization,
+    validate_const_materializable_record_with_depth_sixteen_nested_sums,
 };
 pub use depth_twenty::{
     ValidatedConstDepthTwentyNestedSumOccurrenceMaterialization,
@@ -83,15 +83,15 @@ pub use depth_twenty_one::{
     ValidatedConstRecordWithDepthTwentyOneNestedSumsMaterialization,
     validate_const_materializable_record_with_depth_twenty_one_nested_sums,
 };
-pub use depth_twenty_two::{
-    ValidatedConstDepthTwentyTwoNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthTwentyTwoNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_twenty_two_nested_sums,
-};
 pub use depth_twenty_three::{
     ValidatedConstDepthTwentyThreeNestedSumOccurrenceMaterialization,
     ValidatedConstRecordWithDepthTwentyThreeNestedSumsMaterialization,
     validate_const_materializable_record_with_depth_twenty_three_nested_sums,
+};
+pub use depth_twenty_two::{
+    ValidatedConstDepthTwentyTwoNestedSumOccurrenceMaterialization,
+    ValidatedConstRecordWithDepthTwentyTwoNestedSumsMaterialization,
+    validate_const_materializable_record_with_depth_twenty_two_nested_sums,
 };
 use derivation::*;
 use report_identity::*;
@@ -208,7 +208,7 @@ impl ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_thirteen_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-thirteen layout drifted from retained custody"
@@ -502,7 +502,7 @@ impl ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_fourteen_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-fourteen layout drifted from retained custody"
@@ -796,7 +796,7 @@ impl ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_fifteen_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-fifteen layout drifted from retained custody"
@@ -1090,7 +1090,7 @@ impl ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_twelve_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-twelve layout drifted from retained custody"
@@ -1383,7 +1383,7 @@ impl ValidatedConstRecordWithDepthElevenNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_eleven_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-eleven layout drifted from retained custody"
@@ -1677,7 +1677,7 @@ impl ValidatedConstRecordWithDepthTenNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_ten_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-ten layout drifted from retained custody".into(),
@@ -1966,7 +1966,7 @@ impl ValidatedConstRecordWithDepthNineNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_nine_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-nine layout drifted from retained custody".into(),
@@ -2255,7 +2255,7 @@ impl ValidatedConstRecordWithDepthEightNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_eight_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-eight layout drifted from retained custody"
@@ -2549,7 +2549,7 @@ impl ValidatedConstRecordWithDepthSevenNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_seven_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-seven layout drifted from retained custody"
@@ -2843,7 +2843,7 @@ impl ValidatedConstRecordWithDepthSixNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_six_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-six layout drifted from retained custody".into(),
@@ -3132,7 +3132,7 @@ impl ValidatedConstRecordWithDepthFiveNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_five_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-five layout drifted from retained custody".into(),
@@ -3421,7 +3421,7 @@ impl ValidatedConstRecordWithDepthFourNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_four_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-four layout drifted from retained custody".into(),
@@ -3710,7 +3710,7 @@ impl ValidatedConstRecordWithDepthThreeNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_three_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-three layout drifted from retained custody"
@@ -4354,7 +4354,7 @@ impl ValidatedConstRecordWithDepthTwoNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_two_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-two layout drifted from retained custody".into(),
@@ -4785,7 +4785,7 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !nested_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable nested-record paths layout drifted from retained custody"

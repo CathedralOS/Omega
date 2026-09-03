@@ -57,299 +57,63 @@ pub(super) fn depth_three_path_reports_match_for_replay(
         && depth_two_path_reports_match_for_replay(&left.depth_two_path, &right.depth_two_path)
 }
 
-pub(super) fn depth_three_paths_reports_match_for_replay(
-    left: &ConventionalDepthThreeRecordSumPathsLayoutReport,
-    right: &ConventionalDepthThreeRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_two_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
+pub(super) trait RecordSumPathsReplay {
+    fn matches_for_replay(&self, other: &Self) -> bool;
 }
 
-pub(super) fn depth_twelve_paths_reports_match_for_replay(
-    left: &ConventionalDepthTwelveRecordSumPathsLayoutReport,
-    right: &ConventionalDepthTwelveRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_eleven_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
+impl RecordSumPathsReplay for ConventionalNestedRecordSumPathsLayoutReport {
+    fn matches_for_replay(&self, other: &Self) -> bool {
+        layout_plan_reports_match_for_replay(&self.outer_layout, &other.outer_layout)
+            && self.paths.len() == other.paths.len()
+            && self.paths.iter().zip(&other.paths).all(|(left, right)| {
+                field_occurrence_matches(
+                    &left.outer_field,
+                    left.outer_member_identity,
+                    &right.outer_field,
+                    right.outer_member_identity,
+                ) && layout_plan_reports_match_for_replay(&left.inner_layout, &right.inner_layout)
+                    && left.child_sum_layouts.len() == right.child_sum_layouts.len()
+                    && left
+                        .child_sum_layouts
+                        .iter()
+                        .zip(&right.child_sum_layouts)
+                        .all(|(left, right)| {
+                            field_occurrence_matches(
+                                &left.field,
+                                left.member_identity,
+                                &right.field,
+                                right.member_identity,
+                            ) && conventional_sum_layout_reports_match_for_replay(
+                                &left.layout,
+                                &right.layout,
+                            )
+                        })
+            })
+    }
 }
 
-pub(super) fn depth_thirteen_paths_reports_match_for_replay(
-    left: &ConventionalDepthThirteenRecordSumPathsLayoutReport,
-    right: &ConventionalDepthThirteenRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_twelve_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
+impl<InnerPaths: RecordSumPathsReplay> RecordSumPathsReplay
+    for ConventionalRecordSumPathsLayoutReport<InnerPaths>
+{
+    fn matches_for_replay(&self, other: &Self) -> bool {
+        layout_plan_reports_match_for_replay(&self.outer_layout, &other.outer_layout)
+            && self.paths.len() == other.paths.len()
+            && self.paths.iter().zip(&other.paths).all(|(left, right)| {
+                field_occurrence_matches(
+                    &left.outer_field,
+                    left.outer_member_identity,
+                    &right.outer_field,
+                    right.outer_member_identity,
+                ) && left.inner.matches_for_replay(&right.inner)
+            })
+    }
 }
 
-pub(super) fn depth_fourteen_paths_reports_match_for_replay(
-    left: &ConventionalDepthFourteenRecordSumPathsLayoutReport,
-    right: &ConventionalDepthFourteenRecordSumPathsLayoutReport,
+pub(super) fn record_sum_paths_reports_match_for_replay<Paths: RecordSumPathsReplay>(
+    left: &Paths,
+    right: &Paths,
 ) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_thirteen_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_fifteen_paths_reports_match_for_replay(
-    left: &ConventionalDepthFifteenRecordSumPathsLayoutReport,
-    right: &ConventionalDepthFifteenRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_fourteen_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_eleven_paths_reports_match_for_replay(
-    left: &ConventionalDepthElevenRecordSumPathsLayoutReport,
-    right: &ConventionalDepthElevenRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_ten_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_ten_paths_reports_match_for_replay(
-    left: &ConventionalDepthTenRecordSumPathsLayoutReport,
-    right: &ConventionalDepthTenRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_nine_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_nine_paths_reports_match_for_replay(
-    left: &ConventionalDepthNineRecordSumPathsLayoutReport,
-    right: &ConventionalDepthNineRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_eight_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_eight_paths_reports_match_for_replay(
-    left: &ConventionalDepthEightRecordSumPathsLayoutReport,
-    right: &ConventionalDepthEightRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_seven_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_seven_paths_reports_match_for_replay(
-    left: &ConventionalDepthSevenRecordSumPathsLayoutReport,
-    right: &ConventionalDepthSevenRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_six_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_six_paths_reports_match_for_replay(
-    left: &ConventionalDepthSixRecordSumPathsLayoutReport,
-    right: &ConventionalDepthSixRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_five_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_five_paths_reports_match_for_replay(
-    left: &ConventionalDepthFiveRecordSumPathsLayoutReport,
-    right: &ConventionalDepthFiveRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_four_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_four_paths_reports_match_for_replay(
-    left: &ConventionalDepthFourRecordSumPathsLayoutReport,
-    right: &ConventionalDepthFourRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_three_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
-
-pub(super) fn depth_two_paths_reports_match_for_replay(
-    left: &ConventionalDepthTwoRecordSumPathsLayoutReport,
-    right: &ConventionalDepthTwoRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && nested_paths_reports_match_for_replay(&left.inner, &right.inner)
-        })
-}
-
-pub(super) fn nested_paths_reports_match_for_replay(
-    left: &ConventionalNestedRecordSumPathsLayoutReport,
-    right: &ConventionalNestedRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && layout_plan_reports_match_for_replay(&left.inner_layout, &right.inner_layout)
-                && left.child_sum_layouts.len() == right.child_sum_layouts.len()
-                && left
-                    .child_sum_layouts
-                    .iter()
-                    .zip(&right.child_sum_layouts)
-                    .all(|(left, right)| {
-                        field_occurrence_matches(
-                            &left.field,
-                            left.member_identity,
-                            &right.field,
-                            right.member_identity,
-                        ) && conventional_sum_layout_reports_match_for_replay(
-                            &left.layout,
-                            &right.layout,
-                        )
-                    })
-        })
+    left.matches_for_replay(right)
 }
 
 pub(super) fn depth_twelve_nested_sums_materialization_report_fingerprint(
