@@ -118,17 +118,31 @@ pub(super) fn record_sum_paths_reports_match_for_replay<Paths: RecordSumPathsRep
 
 pub(super) trait RecordSumPathsInnerLayout {
     fn outer_layout(&self) -> &psi_layout_plans::LayoutPlanReport;
+
+    fn leaf_occurrence_count(&self) -> Option<usize>;
 }
 
 impl RecordSumPathsInnerLayout for ConventionalNestedRecordSumPathsLayoutReport {
     fn outer_layout(&self) -> &psi_layout_plans::LayoutPlanReport {
         &self.outer_layout
     }
+
+    fn leaf_occurrence_count(&self) -> Option<usize> {
+        Some(self.paths.len())
+    }
 }
 
-impl<InnerPaths> RecordSumPathsInnerLayout for ConventionalRecordSumPathsLayoutReport<InnerPaths> {
+impl<InnerPaths: RecordSumPathsInnerLayout> RecordSumPathsInnerLayout
+    for ConventionalRecordSumPathsLayoutReport<InnerPaths>
+{
     fn outer_layout(&self) -> &psi_layout_plans::LayoutPlanReport {
         &self.outer_layout
+    }
+
+    fn leaf_occurrence_count(&self) -> Option<usize> {
+        self.paths.iter().try_fold(0usize, |total, path| {
+            total.checked_add(path.inner.leaf_occurrence_count()?)
+        })
     }
 }
 
