@@ -66,8 +66,7 @@ pub(super) fn validate_boundary_content_guarantees(
 fn validate_retained_projection(projection: &RetainedBorrowContentProjection) -> bool {
     !projection.carrier_identity.is_empty()
         && projection.semantic_domain.get() != 0
-        && projection.projection.identity.domain.get()
-            == u64::from(projection.semantic_domain.get())
+        && projection.projection.identity.domain.get() == projection.semantic_domain.get()
         && projection.projection.identity.projection_report_fingerprint != 0
         && psi_language_semantics::content::terminal_projection_report_fingerprint(
             &projection.projection.algebra,

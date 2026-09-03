@@ -123,10 +123,7 @@ pub(super) fn reconstruct(
     let quotient = scalar_type
         .wrapping_div(*left, *right)
         .ok_or(Error::SourceDivideUndefined)?;
-    if *result != function_result
-        || *value != *divide_result
-        || *return_type != expected_type
-    {
+    if *result != function_result || *value != *divide_result || *return_type != expected_type {
         return Err(Error::SourceResultLink);
     }
     Ok(ReconstructedWrappingIntegerDivideImmediateOperands {

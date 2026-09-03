@@ -207,7 +207,7 @@ pub fn replay_non_executable_quotient_correspondence(
 fn validate_transport_roster(
     facts: &[psi_language_semantics::quotient_correspondence::QuotientForwardPreconditionTransportFact],
 ) -> Result<(), QuotientCorrespondenceReplayError> {
-    if facts.len() % 2 != 0 {
+    if !facts.len().is_multiple_of(2) {
         return Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch);
     }
     let mut previous_source = None;
@@ -217,10 +217,10 @@ fn validate_transport_roster(
         if pair[0].application != QuotientTheoremApplicationSide::Left
             || pair[1].application != QuotientTheoremApplicationSide::Right
             || pair[0].source != pair[1].source
-            || previous_source.map_or(false, |previous| previous >= pair[0].source)
+            || previous_source.is_some_and(|previous| previous >= pair[0].source)
             || !actuals.insert(pair[0].actual)
             || !actuals.insert(pair[1].actual)
-            || previous_actual.map_or(false, |previous| previous >= pair[0].actual)
+            || previous_actual.is_some_and(|previous| previous >= pair[0].actual)
             || pair[0].actual >= pair[1].actual
         {
             return Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch);

@@ -25,19 +25,16 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
                 };
                 symbol_seed(kind, &parameter.name, has_sources)
             })
-            .chain(
-                program
-                    .data_members(data_definition.members)
-                    .iter()
-                    .filter_map(|member| match member {
-                        psi_symbol_resolved_trees::data::DataMember::Field(field) => {
-                            Some(symbol_seed(SymbolKind::Field, &field.name, has_sources))
-                        }
-                        psi_symbol_resolved_trees::data::DataMember::Variant(variant) => {
-                            Some(symbol_seed(SymbolKind::Variant, &variant.name, has_sources))
-                        }
-                    }),
-            ),
+            .chain(program.data_members(data_definition.members).iter().map(
+                |member| match member {
+                    psi_symbol_resolved_trees::data::DataMember::Field(field) => {
+                        symbol_seed(SymbolKind::Field, &field.name, has_sources)
+                    }
+                    psi_symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                        symbol_seed(SymbolKind::Variant, &variant.name, has_sources)
+                    }
+                },
+            )),
     );
 
     let mut data_children = SymbolTableBuilder::child_handles(data_children);

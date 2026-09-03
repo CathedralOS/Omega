@@ -82,7 +82,7 @@ fn finite_boolean_cleanup_accepts_two_leaf_and_wider_trees() {
     let TargetBooleanControl::Conditional { when_true, .. } = control else {
         unreachable!()
     };
-    when_true.control = Box::new(boolean_immediate_return(13));
+    *when_true.control = boolean_immediate_return(13);
     assign_registers(&two_leaf).expect("assign two-leaf Boolean cleanup");
 
     let mut wider = boolean_cleanup_plan(NativeTarget::linux_x64());
@@ -102,13 +102,13 @@ fn finite_boolean_cleanup_accepts_two_leaf_and_wider_trees() {
     else {
         unreachable!()
     };
-    nested_true.control = Box::new(TargetBooleanControl::Conditional {
+    *nested_true.control = TargetBooleanControl::Conditional {
         condition_source: ValueId::new(1).unwrap(),
         condition_parameter_index: 0,
         condition_location: location,
         when_true: boolean_arm(20, boolean_immediate_return(20)),
         when_false: boolean_arm(21, boolean_immediate_return(21)),
-    });
+    };
     assign_registers(&wider).expect("assign wider Boolean cleanup");
 }
 
@@ -126,7 +126,7 @@ fn finite_boolean_cleanup_requires_distinct_return_edges() {
     let TargetBooleanControl::Conditional { when_false, .. } = when_true.control.as_mut() else {
         unreachable!()
     };
-    when_false.control = Box::new(boolean_immediate_return(10));
+    *when_false.control = boolean_immediate_return(10);
     assert!(matches!(
         assign_registers(&plan),
         Err(AssignmentError::UnsupportedScalarCleanup(_))
@@ -244,7 +244,7 @@ fn boolean_immediate_return(edge: u64) -> TargetBooleanControl {
     TargetBooleanControl::ReturnImmediate {
         psi_return_edge: EdgeId::new(edge).unwrap(),
         source_value: ValueId::new(edge).unwrap(),
-        value: edge % 2 == 0,
+        value: edge.is_multiple_of(2),
     }
 }
 

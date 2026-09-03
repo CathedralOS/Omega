@@ -302,7 +302,7 @@ mod tests {
         let selected = capture_primary_git_from_snapshot(
             None,
             Some(snapshot.as_os_str()),
-            &[package_root.clone()],
+            std::slice::from_ref(&package_root),
         )
         .expect("skip package-controlled Git and select host Git");
         assert_eq!(selected.path(), host_git.canonicalize().unwrap());

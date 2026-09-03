@@ -3069,19 +3069,19 @@ fn retains_authored_expression_exposure_for_embedded_type_lowering() {
         .bodies
         .expressions
         .iter_expressions()
-        .filter_map(|(expression, node)| {
+        .filter(|&(_, node)| {
             matches!(
                 node,
                 psi_symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_)
             )
-            .then(|| {
-                program
-                    .tables
-                    .bodies
-                    .expressions
-                    .authored_expression_exposure(expression)
-                    .expect("authored zero-value expression exposure")
-            })
+        })
+        .map(|(expression, _)| {
+            program
+                .tables
+                .bodies
+                .expressions
+                .authored_expression_exposure(expression)
+                .expect("authored zero-value expression exposure")
         })
         .collect::<Vec<_>>();
     exposures.sort_by_key(|exposure| match exposure {

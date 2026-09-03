@@ -32,11 +32,22 @@ The long-term pitch is ambitious on purpose: write programs as explicit state ev
 
 ## Building
 
-Run the full Rust workspace verification:
+The repository pins its Rust compiler, formatter, and linter in
+`rust-toolchain.toml`; `rustup` selects that toolchain automatically. The
+baseline gates for a fresh checkout are:
 
 ```bash
-cargo test
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test -p omega-architecture-test --all-targets
+cargo check --workspace --all-targets
+cargo test --workspace --lib
 ```
+
+The final command is the platform-portable test subset: all workspace library
+tests, without target-specific executable/runtime integration legs. Platform
+integration tests remain separate and must report an explicit skip when the
+host cannot execute them.
 
 If many small Rust crates each pause for seconds before parsing, inspect the
 derived Cargo cache before changing compiler or test architecture. A long-lived

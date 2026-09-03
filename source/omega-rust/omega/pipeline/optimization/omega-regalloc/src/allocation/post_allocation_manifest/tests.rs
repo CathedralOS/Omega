@@ -57,9 +57,7 @@ fn identity_binds_every_post_allocation_domain() {
                 PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"other")
         },
         |record| record.target = NativeTarget::linux_arm64(),
-        |record| {
-            record.selected = SelectedInstructionPlanIdentity::from_canonical_bytes(b"other")
-        },
+        |record| record.selected = SelectedInstructionPlanIdentity::from_canonical_bytes(b"other"),
         |record| {
             record.selected_lowering_completion = Some(
                 SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"completed"),
@@ -67,17 +65,15 @@ fn identity_binds_every_post_allocation_domain() {
         },
         |record| {
             record.selected_transformations.push(
-                PostAllocationSelectedTransformation::FixedViewCopy(FixedViewCopyIdentity([
-                    6; 32
-                ])),
+                PostAllocationSelectedTransformation::FixedViewCopy(FixedViewCopyIdentity([6; 32])),
             )
         },
         |record| {
-            record.selected_transformations.push(
-                PostAllocationSelectedTransformation::LiteralFold(LiteralFoldIdentity::from_bytes(
-                    [13; 32],
-                )),
-            )
+            record
+                .selected_transformations
+                .push(PostAllocationSelectedTransformation::LiteralFold(
+                    LiteralFoldIdentity::from_bytes([13; 32]),
+                ))
         },
         |record| {
             record.selected_transformations.push(
@@ -93,8 +89,7 @@ fn identity_binds_every_post_allocation_domain() {
             record.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([10; 32])
         },
         |record| {
-            record.allocator_availability =
-                AllocatorAvailabilityIdentity::from_bytes([12; 32])
+            record.allocator_availability = AllocatorAvailabilityIdentity::from_bytes([12; 32])
         },
         |record| record.homes = RegisterHomeIdentity::from_bytes([11; 32]),
         |record| record.statistics.functions += 1,
@@ -137,14 +132,13 @@ fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
     );
 
     let mut transformed = record();
-    transformed.selected_lowering_completion = Some(
-        SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"completed"),
-    );
+    transformed.selected_lowering_completion =
+        Some(SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"completed"));
     transformed.selected_transformations = vec![
         PostAllocationSelectedTransformation::FixedViewCopy(FixedViewCopyIdentity([12; 32])),
-        PostAllocationSelectedTransformation::LiteralFold(LiteralFoldIdentity::from_bytes([
-            13; 32
-        ])),
+        PostAllocationSelectedTransformation::LiteralFold(LiteralFoldIdentity::from_bytes(
+            [13; 32],
+        )),
         PostAllocationSelectedTransformation::PressureRematerialization(
             PressureRematerializationIdentity::from_bytes([14; 32]),
         ),

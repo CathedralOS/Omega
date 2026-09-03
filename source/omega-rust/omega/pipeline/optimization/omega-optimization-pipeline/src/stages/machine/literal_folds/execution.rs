@@ -159,7 +159,7 @@ pub(super) fn execute_selected_lowering_optimizations(
         selections,
         selected_lowering_selections,
         steps,
-        attempt: attempt,
+        attempt,
         custody,
     })
 }

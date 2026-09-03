@@ -808,7 +808,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let direct_target = lower_to_target_operations_with_provider_executions(
         &direct_plan,
         NativeTarget::linux_x64(),
-        &[direct_settlement.clone()],
+        std::slice::from_ref(&direct_settlement),
     )
     .expect("direct result lowering");
     let TargetOperation::ReturnBoundaryPortReadU8 {

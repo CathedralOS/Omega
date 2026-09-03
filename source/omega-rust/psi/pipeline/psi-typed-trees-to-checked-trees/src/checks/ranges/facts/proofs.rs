@@ -334,10 +334,10 @@ impl RangeFacts<'_> {
         if start < 0 {
             return;
         }
-        if let Some(exact) = self.exact_length(parent) {
-            if exact >= start {
-                self.prove_exact_length(child.to_owned(), exact - start);
-            }
+        if let Some(exact) = self.exact_length(parent)
+            && exact >= start
+        {
+            self.prove_exact_length(child.to_owned(), exact - start);
         }
         if let Some(minimum) = self.minimum_length(parent) {
             // `prove_minimum_length` drops non-positive floors, so a shrink

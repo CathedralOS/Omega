@@ -12,10 +12,10 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::{SignatureContractKind, StateSignature};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) fn domain_definition<'program>(
-    program: &'program TypedTrees,
+pub(crate) fn domain_definition(
+    program: &TypedTrees,
     domain_symbol: SymbolHandle,
-) -> Option<&'program psi_typed_trees::domain::DomainDefinition> {
+) -> Option<&psi_typed_trees::domain::DomainDefinition> {
     program
         .domain_definitions()
         .iter()
@@ -144,15 +144,14 @@ pub(crate) fn call_contract_evidence(
         .traits()
         .iter()
         .find(|definition| definition.symbol == target_symbol)
+        && trait_definition.is_boundary
     {
-        if trait_definition.is_boundary {
-            return contract.qualification_authorization.map(|authorization| {
-                QualificationEvidence::from_admitted_requirement(
-                    authorization.requirement_symbol,
-                    authorization.signature_symbol,
-                )
-            });
-        }
+        return contract.qualification_authorization.map(|authorization| {
+            QualificationEvidence::from_admitted_requirement(
+                authorization.requirement_symbol,
+                authorization.signature_symbol,
+            )
+        });
     }
 
     Some(QualificationEvidence::from_origin(
@@ -180,9 +179,7 @@ fn machine_domain_establishment_origin(
     ) {
         return None;
     }
-    let Some(domain) = domain_definition(program, domain_symbol) else {
-        return None;
-    };
+    let domain = domain_definition(program, domain_symbol)?;
     let machine_name = machine
         .name
         .as_str()
@@ -198,20 +195,14 @@ fn machine_domain_establishment_origin(
                 trait_definition,
                 requirement,
             } => {
-                let Some(trait_definition) = program
+                let trait_definition = program
                     .traits()
                     .iter()
-                    .find(|definition| definition.symbol == *trait_definition)
-                else {
-                    return None;
-                };
-                let Some(requirement) = program
+                    .find(|definition| definition.symbol == *trait_definition)?;
+                let requirement = program
                     .trait_machine_signatures(trait_definition)
                     .iter()
-                    .find(|signature| signature.symbol == *requirement)
-                else {
-                    return None;
-                };
+                    .find(|signature| signature.symbol == *requirement)?;
                 program
                     .machine_trait_conformances(machine)
                     .iter()

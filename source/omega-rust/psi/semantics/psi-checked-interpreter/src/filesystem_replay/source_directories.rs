@@ -240,9 +240,7 @@ fn source_directory_open_identity(
     let [authorized] = open.authorized_paths.as_slice() else {
         return None;
     };
-    let Some(output) = open.logical_handle_output else {
-        return None;
-    };
+    let output = open.logical_handle_output?;
     (open.operation_tag == 2
         && open.provider == FilesystemObservationProvider::RealScoped
         && rooted.operand_ordinal == 0

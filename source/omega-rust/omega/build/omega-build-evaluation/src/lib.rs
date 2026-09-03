@@ -1453,12 +1453,8 @@ impl AdmittedBuildProgram {
         let AdmittedBuildMachine::Selected(selected) = &self.machine else {
             return None;
         };
-        let Some(vocabulary) = selected.target_vocabulary else {
-            return None;
-        };
-        let Some(profile) = self.selected_target_profile else {
-            return None;
-        };
+        let vocabulary = selected.target_vocabulary?;
+        let profile = self.selected_target_profile?;
         Some(AdmittedBuildTargetInputs {
             profile,
             build_symbol: vocabulary.build_symbol,
@@ -2874,7 +2870,7 @@ const fn unknown_native_handle_final_path_tag(operation_tag: u16) -> bool {
 }
 
 const fn unknown_native_handle_mutation_tag(operation_tag: u16) -> bool {
-    matches!(operation_tag, 32 | 33 | 34)
+    matches!(operation_tag, 32..=34)
 }
 
 const fn get_last_error_tag(operation_tag: u16) -> bool {
@@ -3041,9 +3037,7 @@ fn source_input_replay_prefix_end(
             event_count += 1;
             continue;
         }
-        let Some(identity) = source_read_chain_open_identity(&attempts[cursor]) else {
-            return None;
-        };
+        let identity = source_read_chain_open_identity(&attempts[cursor])?;
         if identities.contains(&identity) {
             return None;
         }
@@ -3392,9 +3386,7 @@ fn source_read_chain_open_identity(
     let [flags] = open.scalar_operands() else {
         return None;
     };
-    let Some(output) = open.logical_handle_output() else {
-        return None;
-    };
+    let output = open.logical_handle_output()?;
     let identity = output.identity();
     (open.operation_tag() == 2
         && open.provider() == psi_checked_interpreter::FilesystemObservationProvider::RealScoped

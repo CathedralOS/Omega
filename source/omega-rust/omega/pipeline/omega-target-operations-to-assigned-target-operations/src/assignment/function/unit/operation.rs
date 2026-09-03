@@ -24,7 +24,7 @@ pub(super) fn assign(
             bytes,
         } => AssignedUnitOperation::EstablishByteSequenceLiteral {
             psi_operation: *psi_operation,
-            place: place.clone(),
+            place: *place,
             structural_type: structural_type.clone(),
             bytes: bytes.clone(),
         },
@@ -135,7 +135,7 @@ pub(super) fn assign(
             structural_type,
         } => AssignedUnitOperation::EstablishTrivialAffineLocal {
             psi_operation: *psi_operation,
-            place: place.clone(),
+            place: *place,
             structural_type: structural_type.clone(),
         },
         TargetUnitOperation::EstablishAffineScalarRecord {
@@ -644,7 +644,7 @@ pub(super) fn assign(
             if scalar_arguments.is_empty() {
                 return Err(
                     AssignmentError::InstalledProviderCallRequiresOptimizedLane {
-                        machine: machine,
+                        machine,
                         operation: *psi_operation,
                         boundary: *boundary,
                     },

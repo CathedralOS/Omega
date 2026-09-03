@@ -522,14 +522,11 @@ fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool
         }))
         || matches!(
             path,
-            [psi_terminal::StructuralPathSegment::FixedIndex(
-                0 | 1 | 2 | 3
-            )] | [
-                psi_terminal::StructuralPathSegment::FixedIndex(0 | 1),
-                psi_terminal::StructuralPathSegment::FixedIndex(
-                    0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14
-                ),
-            ]
+            [psi_terminal::StructuralPathSegment::FixedIndex(0..=3)]
+                | [
+                    psi_terminal::StructuralPathSegment::FixedIndex(0 | 1),
+                    psi_terminal::StructuralPathSegment::FixedIndex(0..=14),
+                ]
         )
 }
 
@@ -538,5 +535,5 @@ fn bounded_nominal_receiver_shape(shape: omega_calling_conventions::ValueShape) 
         || shape.class == omega_calling_conventions::ValueClass::Integer
             && shape.byte_size != 0
             && matches!(shape.alignment, 1 | 2 | 4 | 8)
-            && shape.byte_size % shape.alignment == 0
+            && shape.byte_size.is_multiple_of(shape.alignment)
 }

@@ -167,12 +167,12 @@ fn signed_x86_return_crash_division_stack_facts_survive_installation() {
     else {
         unreachable!()
     };
-    when_false.control = Box::new(TargetIntegerControl::Crash {
+    *when_false.control = TargetIntegerControl::Crash {
         psi_crash_edge: edge_id(4),
         cause: CrashCause::Trap,
         site_guard: Vec::new(),
         frontier_lower_bound: Vec::new(),
-    });
+    };
     let assigned = assign_registers(&plan).expect("assign signed x86 return/crash division");
     let emitted =
         emit_machine_code(&assigned).expect("emit signed x86 return/crash division evidence");
@@ -280,12 +280,12 @@ fn conditional_two_crash_stack_facts_survive_installation_and_reject_forgery() {
         else {
             unreachable!()
         };
-        when_false.control = Box::new(TargetIntegerControl::Crash {
+        *when_false.control = TargetIntegerControl::Crash {
             psi_crash_edge: edge_id(4),
             cause: CrashCause::Trap,
             site_guard: Vec::new(),
             frontier_lower_bound: Vec::new(),
-        });
+        };
         let assigned = assign_registers(&plan).expect("assign two-crash conditional");
         let emitted = emit_machine_code(&assigned).expect("emit two-crash conditional");
         let ScalarControlFlowEvidence::ConditionalTree {

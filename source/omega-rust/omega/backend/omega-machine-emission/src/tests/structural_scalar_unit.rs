@@ -223,7 +223,7 @@ fn assigned_structural_scalar_return_plan(target: NativeTarget) -> AssignedOpera
         unreachable!()
     };
     let psi_operation = *psi_operation;
-    let result = result.clone();
+    let result = *result;
     let callee = *callee;
     let mut copies = copies.clone();
     let structural_types = body.structural_types.clone();
@@ -300,7 +300,7 @@ fn assigned_mixed_call_plan(target: NativeTarget) -> AssignedOperationPlan {
         unreachable!()
     };
     let mut copy = copies[0].clone();
-    let result = result.clone();
+    let result = *result;
     let callee = *callee;
     let mixed_call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),

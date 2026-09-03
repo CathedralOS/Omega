@@ -1039,7 +1039,7 @@ fn bindings_are_forall_general(
         {
             return false;
         }
-        if seen.iter().any(|previous| *previous == name) {
+        if seen.contains(&name) {
             return false;
         }
         seen.push(name);

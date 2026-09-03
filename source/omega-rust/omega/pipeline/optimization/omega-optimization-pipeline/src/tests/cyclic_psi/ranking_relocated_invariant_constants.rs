@@ -55,7 +55,7 @@ fn relocated_revisions_reconstruct_counted_invariant_and_placement_custody() {
         assert_eq!(session.unit().identity, revision);
         assert_eq!(
             session.ranking_certificates().certificates(),
-            [certificate.clone()]
+            std::slice::from_ref(&certificate)
         );
 
         let counted = session

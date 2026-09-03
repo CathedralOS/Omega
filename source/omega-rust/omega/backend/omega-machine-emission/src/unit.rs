@@ -1111,7 +1111,6 @@ pub(super) fn emit_unit_body(
                 let left_record = emit_operand(left)?;
                 let right_record = emit_operand(right)?;
                 let addend_record = emit_operand(addend)?;
-                drop(emit_operand);
                 let fma_format = match format {
                     psi_core::IeeeFloatFormat::Binary32 => X86ScalarFmaFormat::Binary32,
                     psi_core::IeeeFloatFormat::Binary64 => X86ScalarFmaFormat::Binary64,
@@ -2853,14 +2852,11 @@ fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool
         }))
         || matches!(
             path,
-            [psi_terminal::StructuralPathSegment::FixedIndex(
-                0 | 1 | 2 | 3
-            )] | [
-                psi_terminal::StructuralPathSegment::FixedIndex(0 | 1),
-                psi_terminal::StructuralPathSegment::FixedIndex(
-                    0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14
-                ),
-            ]
+            [psi_terminal::StructuralPathSegment::FixedIndex(0..=3)]
+                | [
+                    psi_terminal::StructuralPathSegment::FixedIndex(0 | 1),
+                    psi_terminal::StructuralPathSegment::FixedIndex(0..=14),
+                ]
         )
 }
 
@@ -2965,29 +2961,27 @@ pub(super) fn emit_x86_64_unit_call(
         let Some(home) = homes.iter().find(|home| home.place == copy.place) else {
             if let Some((_, result, _, value, shape)) =
                 established_affine_scalar_records.get(&copy.place)
+                && copy.path.is_empty()
+                && copy.access == psi_terminal::StructuralAccess::Owned
+                && copy.source_byte_offset == 0
+                && copy.root_structural_type == result.structural_type
+                && copy.structural_type == result.structural_type
+                && copy.shape == *shape
+                && copy.source.shape == *shape
+                && copy.source.locations.is_empty()
+                && result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
             {
-                if copy.path.is_empty()
-                    && copy.access == psi_terminal::StructuralAccess::Owned
-                    && copy.source_byte_offset == 0
-                    && copy.root_structural_type == result.structural_type
-                    && copy.structural_type == result.structural_type
-                    && copy.shape == *shape
-                    && copy.source.shape == *shape
-                    && copy.source.locations.is_empty()
-                    && result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
-                {
-                    emit_x86_64_affine_scalar_record_argument(bytes, copy, *value)?;
-                    argument_intervals.push((
-                        copy_offset,
-                        bytes.len() - copy_offset,
-                        0,
-                        call_stack_bytes,
-                    ));
-                    continue;
-                }
+                emit_x86_64_affine_scalar_record_argument(bytes, copy, *value)?;
+                argument_intervals.push((
+                    copy_offset,
+                    bytes.len() - copy_offset,
+                    0,
+                    call_stack_bytes,
+                ));
+                continue;
             }
             let local = established_affine_locals
                 .iter()
@@ -3079,29 +3073,27 @@ pub(super) fn emit_aarch64_unit_call(
         let Some(home) = homes.iter().find(|home| home.place == copy.place) else {
             if let Some((_, result, _, value, shape)) =
                 established_affine_scalar_records.get(&copy.place)
+                && copy.path.is_empty()
+                && copy.access == psi_terminal::StructuralAccess::Owned
+                && copy.source_byte_offset == 0
+                && copy.root_structural_type == result.structural_type
+                && copy.structural_type == result.structural_type
+                && copy.shape == *shape
+                && copy.source.shape == *shape
+                && copy.source.locations.is_empty()
+                && result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
             {
-                if copy.path.is_empty()
-                    && copy.access == psi_terminal::StructuralAccess::Owned
-                    && copy.source_byte_offset == 0
-                    && copy.root_structural_type == result.structural_type
-                    && copy.structural_type == result.structural_type
-                    && copy.shape == *shape
-                    && copy.source.shape == *shape
-                    && copy.source.locations.is_empty()
-                    && result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
-                {
-                    emit_aarch64_affine_scalar_record_argument(&mut instructions, copy, *value)?;
-                    argument_intervals.push((
-                        bytes.len() + instruction_offset * 4,
-                        (instructions.len() - instruction_offset) * 4,
-                        0,
-                        call_stack_bytes,
-                    ));
-                    continue;
-                }
+                emit_aarch64_affine_scalar_record_argument(&mut instructions, copy, *value)?;
+                argument_intervals.push((
+                    bytes.len() + instruction_offset * 4,
+                    (instructions.len() - instruction_offset) * 4,
+                    0,
+                    call_stack_bytes,
+                ));
+                continue;
             }
             let local = established_affine_locals
                 .iter()
@@ -3423,144 +3415,6 @@ fn validate_dynamic_frame_region(
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod dynamic_frame_tests {
-    use super::*;
-
-    fn result_home(operation: psi_core::OperationId, byte_offset: u32) -> AssignedUnitScalarHome {
-        let scalar_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
-        AssignedUnitScalarHome {
-            defining_operation: operation,
-            source_value: psi_core::ValueId::new(1).unwrap(),
-            scalar_type: psi_core::ScalarType::Integer(scalar_type),
-            shape: ValueShape::integer(4, 4),
-            byte_offset,
-        }
-    }
-
-    #[test]
-    fn dynamic_descriptor_and_result_occupy_distinct_exact_frame_regions() {
-        let operation = psi_core::OperationId::new(1).unwrap();
-        let target = omega_target::NativeTarget::linux_x64();
-        let descriptor = omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
-            0, 8, 8, 16, 8,
-        );
-        let mut cursor = 5;
-
-        validate_dynamic_frame_region(
-            &mut cursor,
-            operation,
-            descriptor,
-            8,
-            Some(result_home(operation, 24)),
-            target,
-        )
-        .expect("aligned descriptor and following result home must validate");
-
-        assert_eq!(cursor, 32);
-    }
-
-    #[test]
-    fn dynamic_unit_descriptor_occupies_no_result_region() {
-        let operation = psi_core::OperationId::new(1).unwrap();
-        let target = omega_target::NativeTarget::linux_x64();
-        let descriptor = omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
-            0, 8, 8, 16, 8,
-        );
-        let mut cursor = 5;
-
-        validate_dynamic_frame_region(&mut cursor, operation, descriptor, 8, None, target)
-            .expect("aligned Unit descriptor must validate without a result region");
-
-        assert_eq!(cursor, 24);
-    }
-
-    #[test]
-    fn dynamic_frame_rejects_descriptor_result_and_owner_substitution() {
-        let operation = psi_core::OperationId::new(1).unwrap();
-        let other = psi_core::OperationId::new(2).unwrap();
-        let target = omega_target::NativeTarget::linux_arm64();
-        let descriptor = omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
-            0, 8, 8, 16, 8,
-        );
-        let rejects = |descriptor, descriptor_offset, result| {
-            let mut cursor = 5;
-            assert_eq!(
-                validate_dynamic_frame_region(
-                    &mut cursor,
-                    operation,
-                    descriptor,
-                    descriptor_offset,
-                    Some(result),
-                    target,
-                ),
-                Err(EmissionError::InvalidDynamicCallCustody(operation))
-            );
-        };
-
-        rejects(descriptor, 16, result_home(operation, 24));
-        rejects(descriptor, 8, result_home(operation, 32));
-        rejects(descriptor, 8, result_home(other, 24));
-        rejects(
-            omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
-                0, 16, 8, 16, 8,
-            ),
-            8,
-            result_home(operation, 24),
-        );
-    }
-
-    #[test]
-    fn boolean_home_branch_is_exact_and_rejects_type_or_shape_drift() {
-        let operation = psi_core::OperationId::new(1).unwrap();
-        let boolean_home = AssignedUnitScalarHome {
-            defining_operation: operation,
-            source_value: psi_core::ValueId::new(2).unwrap(),
-            scalar_type: psi_core::ScalarType::Boolean,
-            shape: ValueShape::integer(1, 1),
-            byte_offset: 16,
-        };
-
-        let mut x86 = Vec::new();
-        assert_eq!(
-            emit_unit_boolean_branch(&mut x86, Architecture::X86_64, boolean_home).unwrap(),
-            8
-        );
-        assert_eq!(
-            x86,
-            [
-                0x40, 0x0f, 0xb6, 0x44, 0x24, 0x10, 0x84, 0xc0, 0x0f, 0x84, 0, 0, 0, 0,
-            ]
-        );
-
-        let mut aarch64 = Vec::new();
-        assert_eq!(
-            emit_unit_boolean_branch(&mut aarch64, Architecture::Aarch64, boolean_home).unwrap(),
-            8
-        );
-        assert_eq!(
-            aarch64,
-            [
-                0xe9, 0x43, 0x40, 0x39, 0x3f, 0x01, 0x00, 0x71, 0, 0, 0, 0x54
-            ]
-        );
-
-        let mut wrong_type = boolean_home;
-        wrong_type.scalar_type = psi_core::ScalarType::Integer(
-            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
-        );
-        assert!(
-            emit_unit_boolean_branch(&mut Vec::new(), Architecture::X86_64, wrong_type).is_err()
-        );
-
-        let mut wrong_shape = boolean_home;
-        wrong_shape.shape = ValueShape::integer(8, 8);
-        assert!(
-            emit_unit_boolean_branch(&mut Vec::new(), Architecture::Aarch64, wrong_shape).is_err()
-        );
-    }
 }
 
 pub(super) fn unit_scalar_shape(
@@ -4162,4 +4016,142 @@ fn emit_aarch64_aggregate_copy_from_home(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod dynamic_frame_tests {
+    use super::*;
+
+    fn result_home(operation: psi_core::OperationId, byte_offset: u32) -> AssignedUnitScalarHome {
+        let scalar_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
+        AssignedUnitScalarHome {
+            defining_operation: operation,
+            source_value: psi_core::ValueId::new(1).unwrap(),
+            scalar_type: psi_core::ScalarType::Integer(scalar_type),
+            shape: ValueShape::integer(4, 4),
+            byte_offset,
+        }
+    }
+
+    #[test]
+    fn dynamic_descriptor_and_result_occupy_distinct_exact_frame_regions() {
+        let operation = psi_core::OperationId::new(1).unwrap();
+        let target = omega_target::NativeTarget::linux_x64();
+        let descriptor = omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
+            0, 8, 8, 16, 8,
+        );
+        let mut cursor = 5;
+
+        validate_dynamic_frame_region(
+            &mut cursor,
+            operation,
+            descriptor,
+            8,
+            Some(result_home(operation, 24)),
+            target,
+        )
+        .expect("aligned descriptor and following result home must validate");
+
+        assert_eq!(cursor, 32);
+    }
+
+    #[test]
+    fn dynamic_unit_descriptor_occupies_no_result_region() {
+        let operation = psi_core::OperationId::new(1).unwrap();
+        let target = omega_target::NativeTarget::linux_x64();
+        let descriptor = omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
+            0, 8, 8, 16, 8,
+        );
+        let mut cursor = 5;
+
+        validate_dynamic_frame_region(&mut cursor, operation, descriptor, 8, None, target)
+            .expect("aligned Unit descriptor must validate without a result region");
+
+        assert_eq!(cursor, 24);
+    }
+
+    #[test]
+    fn dynamic_frame_rejects_descriptor_result_and_owner_substitution() {
+        let operation = psi_core::OperationId::new(1).unwrap();
+        let other = psi_core::OperationId::new(2).unwrap();
+        let target = omega_target::NativeTarget::linux_arm64();
+        let descriptor = omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
+            0, 8, 8, 16, 8,
+        );
+        let rejects = |descriptor, descriptor_offset, result| {
+            let mut cursor = 5;
+            assert_eq!(
+                validate_dynamic_frame_region(
+                    &mut cursor,
+                    operation,
+                    descriptor,
+                    descriptor_offset,
+                    Some(result),
+                    target,
+                ),
+                Err(EmissionError::InvalidDynamicCallCustody(operation))
+            );
+        };
+
+        rejects(descriptor, 16, result_home(operation, 24));
+        rejects(descriptor, 8, result_home(operation, 32));
+        rejects(descriptor, 8, result_home(other, 24));
+        rejects(
+            omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
+                0, 16, 8, 16, 8,
+            ),
+            8,
+            result_home(operation, 24),
+        );
+    }
+
+    #[test]
+    fn boolean_home_branch_is_exact_and_rejects_type_or_shape_drift() {
+        let operation = psi_core::OperationId::new(1).unwrap();
+        let boolean_home = AssignedUnitScalarHome {
+            defining_operation: operation,
+            source_value: psi_core::ValueId::new(2).unwrap(),
+            scalar_type: psi_core::ScalarType::Boolean,
+            shape: ValueShape::integer(1, 1),
+            byte_offset: 16,
+        };
+
+        let mut x86 = Vec::new();
+        assert_eq!(
+            emit_unit_boolean_branch(&mut x86, Architecture::X86_64, boolean_home).unwrap(),
+            8
+        );
+        assert_eq!(
+            x86,
+            [
+                0x40, 0x0f, 0xb6, 0x44, 0x24, 0x10, 0x84, 0xc0, 0x0f, 0x84, 0, 0, 0, 0,
+            ]
+        );
+
+        let mut aarch64 = Vec::new();
+        assert_eq!(
+            emit_unit_boolean_branch(&mut aarch64, Architecture::Aarch64, boolean_home).unwrap(),
+            8
+        );
+        assert_eq!(
+            aarch64,
+            [
+                0xe9, 0x43, 0x40, 0x39, 0x3f, 0x01, 0x00, 0x71, 0, 0, 0, 0x54
+            ]
+        );
+
+        let mut wrong_type = boolean_home;
+        wrong_type.scalar_type = psi_core::ScalarType::Integer(
+            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
+        );
+        assert!(
+            emit_unit_boolean_branch(&mut Vec::new(), Architecture::X86_64, wrong_type).is_err()
+        );
+
+        let mut wrong_shape = boolean_home;
+        wrong_shape.shape = ValueShape::integer(8, 8);
+        assert!(
+            emit_unit_boolean_branch(&mut Vec::new(), Architecture::Aarch64, wrong_shape).is_err()
+        );
+    }
 }

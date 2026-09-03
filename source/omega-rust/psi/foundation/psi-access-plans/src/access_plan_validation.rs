@@ -160,7 +160,7 @@ fn logical_extent_covers_effect(
     let Some(effect_end) = effect.end().checked_mul(8) else {
         return false;
     };
-    let mut by_layout = logical.fragments.iter().copied().collect::<Vec<_>>();
+    let mut by_layout = logical.fragments.to_vec();
     by_layout.sort_unstable_by_key(|fragment| fragment.layout_bit_offset);
     let mut next_bit = effect_start;
     for fragment in by_layout {
@@ -179,7 +179,7 @@ fn logical_extent_covers_effect(
         return false;
     }
 
-    let mut by_source = logical.fragments.iter().copied().collect::<Vec<_>>();
+    let mut by_source = logical.fragments.to_vec();
     by_source.sort_unstable_by_key(|fragment| fragment.source_bit_offset);
     let mut next_source_bit = 0;
     for fragment in by_source {

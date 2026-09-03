@@ -173,7 +173,7 @@ pub(super) fn collect_loop_invariant_facts(
             let Some(direction) = loop_modifications_direction(
                 program,
                 machine,
-                &call_frames,
+                call_frames,
                 states,
                 &loop_states,
                 counter,
@@ -191,7 +191,7 @@ pub(super) fn collect_loop_invariant_facts(
                 head.symbol,
                 counter,
                 machine,
-                &call_frames,
+                call_frames,
                 &index_name,
             ) else {
                 continue;
@@ -268,7 +268,7 @@ pub(super) fn collect_loop_invariant_facts(
                 && loop_preserves_path(
                     program,
                     machine,
-                    &call_frames,
+                    call_frames,
                     states,
                     &loop_states,
                     &collection,
@@ -300,9 +300,9 @@ pub(super) fn collect_loop_invariant_facts(
                     head.symbol,
                     counter,
                 )
-                && machine_preserves_path(program, machine, &call_frames, &bound)
+                && machine_preserves_path(program, machine, call_frames, &bound)
             {
-                for chain in machine_bound_collection_chains(program, machine, &call_frames, &bound)
+                for chain in machine_bound_collection_chains(program, machine, call_frames, &bound)
                 {
                     if edge_strict || chain.strict {
                         invariants.push(LoopInvariant {
@@ -450,7 +450,7 @@ fn natural_loop(
     loop_nodes
 }
 
-fn find_state<'state>(states: &'state [State], symbol: SymbolHandle) -> Option<&'state State> {
+fn find_state(states: &[State], symbol: SymbolHandle) -> Option<&State> {
     states.iter().find(|state| state.symbol == symbol)
 }
 
@@ -492,9 +492,9 @@ fn classify_counter_write(
         BinaryOperator::Add => {
             let left_is_counter = expression_is_counter_member(program, binary.left, counter);
             let right_is_counter = expression_is_counter_member(program, binary.right, counter);
-            if left_is_counter && is_positive_integer_literal(program, binary.right) {
-                CounterWrite::Increment
-            } else if right_is_counter && is_positive_integer_literal(program, binary.left) {
+            if (left_is_counter && is_positive_integer_literal(program, binary.right))
+                || (right_is_counter && is_positive_integer_literal(program, binary.left))
+            {
                 CounterWrite::Increment
             } else {
                 CounterWrite::Other
@@ -1041,22 +1041,19 @@ fn loop_modifications_direction(
             if statement_may_write_path(machine, call_frames, statement, counter_path)? {
                 return None;
             }
-            match statement {
-                StatementNode::Assignment(assignment) => {
-                    if assignment_counter_field(program, assignment) != Some(counter) {
-                        continue;
-                    }
-                    let observed = match classify_counter_write(program, counter, assignment) {
-                        CounterWrite::Decrement => Direction::Decreasing,
-                        CounterWrite::Increment => Direction::Increasing,
-                        CounterWrite::Other => return None,
-                    };
-                    match direction {
-                        Some(existing) if existing != observed => return None,
-                        _ => direction = Some(observed),
-                    }
+            if let StatementNode::Assignment(assignment) = statement {
+                if assignment_counter_field(program, assignment) != Some(counter) {
+                    continue;
                 }
-                _ => {}
+                let observed = match classify_counter_write(program, counter, assignment) {
+                    CounterWrite::Decrement => Direction::Decreasing,
+                    CounterWrite::Increment => Direction::Increasing,
+                    CounterWrite::Other => return None,
+                };
+                match direction {
+                    Some(existing) if existing != observed => return None,
+                    _ => direction = Some(observed),
+                }
             }
         }
     }
@@ -1177,20 +1174,17 @@ fn probe_state_init(
             Some(true) | None => probe = InitProbe::Unknown,
             Some(false) => {}
         }
-        match statement {
-            StatementNode::Assignment(assignment) => {
-                if assignment_counter_field(program, assignment) != Some(counter) {
-                    continue;
-                }
-                probe = match program.expression_table.expression(assignment.value) {
-                    ExpressionNode::Integer(value) => match value.value_i64() {
-                        Some(value) => InitProbe::Constant(value),
-                        None => InitProbe::Unknown,
-                    },
-                    _ => InitProbe::Unknown,
-                };
+        if let StatementNode::Assignment(assignment) = statement {
+            if assignment_counter_field(program, assignment) != Some(counter) {
+                continue;
             }
-            _ => {}
+            probe = match program.expression_table.expression(assignment.value) {
+                ExpressionNode::Integer(value) => match value.value_i64() {
+                    Some(value) => InitProbe::Constant(value),
+                    None => InitProbe::Unknown,
+                },
+                _ => InitProbe::Unknown,
+            };
         }
     }
     probe

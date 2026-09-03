@@ -1,9 +1,9 @@
 use super::*;
 
-pub(super) fn index_structural_types<'unit>(
-    unit: &'unit PsiOptimizationUnit,
+pub(super) fn index_structural_types(
+    unit: &PsiOptimizationUnit,
 ) -> Result<
-    BTreeMap<StructuralTypeId, &'unit psi_terminal::StructuralTypeDeclaration>,
+    BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     OptimizationUnitValidationError,
 > {
     let mut types = BTreeMap::new();
@@ -148,7 +148,7 @@ pub(super) fn index_structural_domains<'unit>(
                     declaration.semantic_domain,
                     declaration.carrier,
                     projection,
-                    &types,
+                    types,
                 )
             })
         {

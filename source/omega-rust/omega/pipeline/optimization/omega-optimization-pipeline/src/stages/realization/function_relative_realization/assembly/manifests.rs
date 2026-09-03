@@ -1,7 +1,7 @@
 use super::super::prelude::*;
 use super::super::{
-    error::*, model::*, FunctionRelativeOptimizationRealizationScope,
-    FunctionRelativeOptimizationRealizationStage, FunctionRelativeOptimizationUnavailableData,
+    FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
+    FunctionRelativeOptimizationUnavailableData, error::*, model::*,
 };
 use super::rel8::{final_layout, rel8_selected, validate_relaxation_manifest_roots};
 use super::statistics::function_relative_statistics;

@@ -13,8 +13,8 @@ pub mod rollback;
 pub(super) use native_report::{NativeInputReuseKey, PreparedNativeReport};
 pub use rollback::{OptimizationRollback, OptimizationRollbackInputError};
 
-use crate::compiler::request::ValidatedCompileRequest;
 use crate::compiler::CompileReport;
+use crate::compiler::request::ValidatedCompileRequest;
 use psi_diagnostics::Diagnostic;
 
 pub(super) fn prepare_native_report(

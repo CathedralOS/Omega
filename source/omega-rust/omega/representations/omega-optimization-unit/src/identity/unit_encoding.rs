@@ -279,7 +279,7 @@ fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunctio
     encode_optional(
         bytes,
         function.verified_contract.as_ref(),
-        |bytes, contract| encode_machine_contract(bytes, contract),
+        encode_machine_contract,
     );
     bytes.slice(
         &function.evidence_contract_lanes,

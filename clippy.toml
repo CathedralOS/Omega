@@ -1,0 +1,12 @@
+# Omega's ownership and custody APIs return the original authority on failure,
+# so their error values are intentionally larger than ordinary diagnostics.
+large-error-threshold = 32768
+
+# Syntax and proof variants retain complete source/semantic structure rather
+# than introducing allocation solely to equalize enum variants.
+enum-variant-size-threshold = 16384
+
+# Compiler pipeline signatures make phase inputs explicit. These ceilings keep
+# the lint useful for accidental growth while admitting the reviewed cases.
+too-many-arguments-threshold = 24
+type-complexity-threshold = 1000

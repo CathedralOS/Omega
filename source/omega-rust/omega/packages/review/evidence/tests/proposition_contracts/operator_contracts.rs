@@ -122,7 +122,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .contract_facts
         .iter()
         .find(|(_, fact)| fact.owner == owner)
-        .map(|(handle, fact)| (handle, fact.clone()))
+        .map(|(handle, fact)| (handle, *fact))
         .expect("one checked operator-declaration contract row");
 
     let assert_owner_row_rejects = |checked: &CheckedCompilation, count: usize| {
@@ -150,7 +150,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .facts
         .proof
         .contract_facts
-        .append(checked_contract.clone());
+        .append(checked_contract);
     assert_owner_row_rejects(&duplicate, 2);
 
     let mut wrong_owner = checked.clone();

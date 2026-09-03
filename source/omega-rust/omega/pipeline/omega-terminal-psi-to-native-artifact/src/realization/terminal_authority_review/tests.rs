@@ -585,7 +585,7 @@ fn checked_adapter_port_write_requires_exact_physical_and_service_policy() {
         &physical,
         &permitted,
         &[],
-        &[candidate.clone()],
+        std::slice::from_ref(&candidate),
     )
     .expect("selected checked adapter retains one exact PortWrite leaf");
     assert_eq!(receipt.leaves().len(), 1);
@@ -616,7 +616,7 @@ fn checked_adapter_port_write_requires_exact_physical_and_service_policy() {
                 &wrong_policy,
                 &permitted,
                 &[],
-                &[candidate.clone()],
+                std::slice::from_ref(&candidate),
             )
             .expect_err("missing, wrong-port, or wrong-profile physical row rejects")
             .contains("does not classify")
@@ -691,7 +691,7 @@ fn checked_adapter_port_write_rejects_service_target_and_plural_mechanism_drift(
             &physical,
             &permitted,
             &[],
-            &[candidate.clone()],
+            std::slice::from_ref(&candidate),
         )
         .expect_err("one requirement cannot smuggle two distinct checked mechanisms")
         .contains("repeats")
@@ -713,7 +713,7 @@ fn checked_adapter_port_write_rejects_service_target_and_plural_mechanism_drift(
             &physical,
             &permitted,
             &[],
-            &[candidate.clone()],
+            std::slice::from_ref(&candidate),
         )
         .expect_err("operation outside the checked service ceiling rejects")
         .contains("outside its verified service ceiling")
@@ -733,7 +733,7 @@ fn checked_adapter_port_write_rejects_service_target_and_plural_mechanism_drift(
             &physical,
             &permitted,
             &[],
-            &[candidate.clone()],
+            std::slice::from_ref(&candidate),
         )
         .expect_err("PortWrite remains fenced on a non-x86 target")
         .contains("selected target")

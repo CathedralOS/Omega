@@ -712,13 +712,10 @@ fn caller_state_preserves_field(
 ) -> bool {
     use psi_typed_trees::statement::StatementNode;
     for statement in program.statement_table.statements(state.statement_nodes) {
-        match statement {
-            StatementNode::Assignment(assignment) => {
-                if assignment_target_mentions_field(program, assignment.target, field) {
-                    return false;
-                }
-            }
-            _ => {}
+        if let StatementNode::Assignment(assignment) = statement
+            && assignment_target_mentions_field(program, assignment.target, field)
+        {
+            return false;
         }
     }
     true

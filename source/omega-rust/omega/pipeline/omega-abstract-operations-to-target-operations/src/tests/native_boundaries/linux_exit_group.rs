@@ -83,7 +83,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
     let x86 = lower_to_target_operations_with_settlements(
         &plan,
         NativeTarget::linux_x64(),
-        &[binding.clone()],
+        std::slice::from_ref(&binding),
     )
     .expect("Linux x86-64 exit_group lowering");
     assert_eq!(
@@ -91,7 +91,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
         lower_to_target_operations_with_settlements(
             &plan,
             NativeTarget::linux_x64(),
-            &[binding.clone()],
+            std::slice::from_ref(&binding),
         )
         .expect("deterministic lowering")
     );
@@ -107,7 +107,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
     let arm = lower_to_target_operations_with_settlements(
         &plan,
         NativeTarget::linux_arm64(),
-        &[binding.clone()],
+        std::slice::from_ref(&binding),
     )
     .expect("Linux AArch64 exit_group lowering");
     assert!(matches!(
@@ -119,7 +119,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
         lower_to_target_operations_with_settlements(
             &plan,
             NativeTarget::windows_x64(),
-            &[binding.clone()],
+            std::slice::from_ref(&binding),
         ),
         Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
     ));
@@ -127,7 +127,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
         lower_to_target_operations_with_settlements(
             &plan,
             NativeTarget::macos_arm64(),
-            &[binding.clone()],
+            std::slice::from_ref(&binding),
         ),
         Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
     ));
@@ -138,7 +138,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
         lower_to_target_operations_with_settlements(
             &wrong_signature,
             NativeTarget::linux_x64(),
-            &[binding.clone()],
+            std::slice::from_ref(&binding),
         ),
         Err(LoweringError::InvalidLinuxExitGroupShape(machine))
     );

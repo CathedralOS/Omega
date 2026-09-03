@@ -1303,9 +1303,9 @@ pub fn validate_selected_synchronous_invocation_cycles(
     Ok(())
 }
 
-fn exact_selected_synchronous_plans<'plans>(
-    selected_plans: &'plans [ProviderPlan],
-) -> Result<Vec<&'plans ProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
+fn exact_selected_synchronous_plans(
+    selected_plans: &[ProviderPlan],
+) -> Result<Vec<&ProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
     let mut selected = Vec::new();
     let mut diagnostics = Vec::new();
     let mut seen_plans = Vec::new();

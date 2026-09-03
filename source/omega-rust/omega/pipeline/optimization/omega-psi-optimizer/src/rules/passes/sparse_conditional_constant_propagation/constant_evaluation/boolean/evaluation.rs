@@ -5,8 +5,8 @@ use omega_optimization_unit::{
     IntegerEvaluationWitness, OptimizationNode, PsiOptimizationFunction,
 };
 
-use crate::rules::passes::support::boolean_constant;
 use crate::ScalarConstantAnalysis;
+use crate::rules::passes::support::boolean_constant;
 
 use super::super::integer::{integer_constant, integer_value_type};
 use super::model::{BooleanEvaluation, BooleanEvaluationKind};

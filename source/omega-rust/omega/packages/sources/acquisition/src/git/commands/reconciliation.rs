@@ -18,9 +18,7 @@ pub(crate) fn reconcile_git_cache_operation_result<T>(
     namespace_result: Result<(), SourceResolveError>,
     invalidation_result: Option<Result<(), SourceResolveError>>,
 ) -> Result<T, SourceResolveError> {
-    if let Err(error) = namespace_result {
-        return Err(error);
-    }
+    namespace_result?;
     if let Some(Err(error)) = invalidation_result {
         return Err(error);
     }

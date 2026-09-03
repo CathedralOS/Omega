@@ -159,7 +159,7 @@ pub(super) fn record_sum_paths_materialization_report_fingerprint<
     byte_order: ByteOrder,
     value: &BuildTimeValue,
     bytes: &[u8],
-    inner_fingerprint: impl Fn(&Occurrence) -> u64,
+    inner_report_fingerprint: impl Fn(&Occurrence) -> u64,
 ) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
     hash_bytes(&mut hash, domain);
@@ -182,7 +182,7 @@ pub(super) fn record_sum_paths_materialization_report_fingerprint<
             &mut hash,
             normalized_layout_plan_report_fingerprint(path.inner.outer_layout()),
         );
-        hash_u64(&mut hash, inner_fingerprint(occurrence));
+        hash_u64(&mut hash, inner_report_fingerprint(occurrence));
     }
     hash_byte(
         &mut hash,

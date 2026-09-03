@@ -154,28 +154,25 @@ impl<'program> Evaluator<'program> {
                 Value::Struct { type_name, .. } => type_name.clone(),
                 _ => String::new(),
             };
-            if let Some(machine) = self.find_machine_by_name(&self_type) {
-                if let Some(data_name) = machine.attached_data.as_ref() {
-                    if let Some(data) = self.find_data_by_name(data_name.as_str()) {
-                        for member in self.program.data_members(data) {
-                            if let DataMember::Field(field) = member {
-                                if field.name.as_str() == leaf {
-                                    let type_symbol =
-                                        self.program.type_reference_symbol(field.type_reference);
-                                    if self.is_boundary_trait_symbol(type_symbol) {
-                                        return true;
-                                    }
-                                    // Fallback for an imported boundary trait whose
-                                    // `is_boundary` flag did not survive resolution (the std
-                                    // `console`): a canonical host method on a `Console`-typed
-                                    // field is a host call.
-                                    let type_name =
-                                        self.program.display_type_reference(field.type_reference);
-                                    return type_name.contains("Console")
-                                        && is_canonical_host_method(call.target.as_str());
-                                }
-                            }
+            if let Some(machine) = self.find_machine_by_name(&self_type)
+                && let Some(data_name) = machine.attached_data.as_ref()
+                && let Some(data) = self.find_data_by_name(data_name.as_str())
+            {
+                for member in self.program.data_members(data) {
+                    if let DataMember::Field(field) = member
+                        && field.name.as_str() == leaf
+                    {
+                        let type_symbol = self.program.type_reference_symbol(field.type_reference);
+                        if self.is_boundary_trait_symbol(type_symbol) {
+                            return true;
                         }
+                        // Fallback for an imported boundary trait whose
+                        // `is_boundary` flag did not survive resolution (the std
+                        // `console`): a canonical host method on a `Console`-typed
+                        // field is a host call.
+                        let type_name = self.program.display_type_reference(field.type_reference);
+                        return type_name.contains("Console")
+                            && is_canonical_host_method(call.target.as_str());
                     }
                 }
             }

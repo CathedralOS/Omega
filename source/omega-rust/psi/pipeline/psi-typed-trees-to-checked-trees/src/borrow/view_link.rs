@@ -772,10 +772,10 @@ fn type_structurally_carries_borrow(
     }
 }
 
-fn data_definition<'a>(
-    program: &'a TypedTrees,
+fn data_definition(
+    program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&'a psi_typed_trees::data::DataDefinition> {
+) -> Option<&psi_typed_trees::data::DataDefinition> {
     program
         .data_definitions()
         .iter()

@@ -144,7 +144,7 @@ fn optimized_target_lowering_retains_constant_boolean_not_immediate_custody() {
                     source_value: result,
                     value,
                     ..
-                } if result == ValueId::new(68_006).unwrap() && value == !source_value
+                } if result == ValueId::new(68_006).unwrap() && value != source_value
             ));
         }
     }

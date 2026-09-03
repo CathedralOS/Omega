@@ -124,10 +124,10 @@ fn wrapping_integer_divide_target_nested_operand_corruption_fails_closed() {
             };
             let operand = if mutate_left { left } else { right };
             let nested = operand.clone();
-            *operand = Box::new(TargetIntegerExpression::BitwiseNot {
+            **operand = TargetIntegerExpression::BitwiseNot {
                 psi_operation: OperationId::new(51_514).unwrap(),
                 operand: nested,
-            });
+            };
         });
     }
 }

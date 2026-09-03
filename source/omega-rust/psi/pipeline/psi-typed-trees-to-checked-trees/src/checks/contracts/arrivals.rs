@@ -63,8 +63,8 @@ pub(super) fn check_self_transition_arrival_requires(
         let StatementNode::Transition(transition) = statement else {
             continue;
         };
-        if !target_is_self(program, transition.target)
-            && !(transition.continuation.is_valid()
+        if !(target_is_self(program, transition.target)
+            || transition.continuation.is_valid()
                 && target_is_self(program, transition.continuation))
         {
             continue;

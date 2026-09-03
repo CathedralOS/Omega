@@ -123,6 +123,10 @@ pub(crate) struct ElfProcedureLinkageSectionDescriptorContents {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
+#[allow(
+    clippy::enum_variant_names,
+    reason = "the repeated Procedure prefix preserves exact ELF section-domain terminology"
+)]
 pub(crate) enum ElfProcedureLinkageSectionKind {
     ProcedureLinkage = 1,
     ProcedureGot = 2,

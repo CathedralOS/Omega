@@ -482,11 +482,11 @@ impl SyntaxTrees {
                     requirement: clause.requirement,
                     alias: clause.alias,
                     via: clause.via,
-                    via_expression: clause
-                        .via_expression
-                        .is_valid()
-                        .then(|| this.copy_expression_handle(other, clause.via_expression))
-                        .unwrap_or_else(crate::expression::ExpressionHandle::invalid),
+                    via_expression: if clause.via_expression.is_valid() {
+                        this.copy_expression_handle(other, clause.via_expression)
+                    } else {
+                        crate::expression::ExpressionHandle::invalid()
+                    },
                     via_keyword_source_span: clause.via_keyword_source_span,
                 },
                 |this, clause| this.items.append_satisfies_clause(clause),
@@ -1227,11 +1227,11 @@ impl SyntaxTrees {
             ExpressionNode::Atomic(atomic) => {
                 ExpressionNode::Atomic(crate::expression::TableAtomicExpression {
                     value: self.copy_expression_handle(other, atomic.value),
-                    result: atomic
-                        .result
-                        .is_valid()
-                        .then(|| self.copy_expression_handle(other, atomic.result))
-                        .unwrap_or_else(ExpressionHandle::invalid),
+                    result: if atomic.result.is_valid() {
+                        self.copy_expression_handle(other, atomic.result)
+                    } else {
+                        ExpressionHandle::invalid()
+                    },
                     ordering: atomic.ordering,
                     result_custody: atomic.result_custody,
                 })

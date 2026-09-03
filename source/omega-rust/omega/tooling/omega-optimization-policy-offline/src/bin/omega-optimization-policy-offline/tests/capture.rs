@@ -2,7 +2,7 @@ use std::fs;
 
 use omega_optimization_policy_offline::decode_offline_policy_corpus;
 
-use super::fixture::{arguments, encoded_log, FixtureDirectory};
+use super::fixture::{FixtureDirectory, arguments, encoded_log};
 use crate::run;
 
 #[test]

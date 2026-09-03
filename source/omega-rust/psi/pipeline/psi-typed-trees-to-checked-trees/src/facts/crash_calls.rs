@@ -228,13 +228,12 @@ fn normalize_summary_guards(guards: &mut Vec<SummaryCrashRouteGuard>) {
             Some(SummaryCrashRouteGuard::Predicate(existing)),
             SummaryCrashRouteGuard::Predicate(candidate),
         ) = (normalized.last_mut(), &guard)
+            && existing.identity == candidate.identity
         {
-            if existing.identity == candidate.identity {
-                if existing.scalar.is_none() {
-                    existing.scalar.clone_from(&candidate.scalar);
-                }
-                continue;
+            if existing.scalar.is_none() {
+                existing.scalar.clone_from(&candidate.scalar);
             }
+            continue;
         }
         normalized.push(guard);
     }

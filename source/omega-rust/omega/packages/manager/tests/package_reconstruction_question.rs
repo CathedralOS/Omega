@@ -367,6 +367,12 @@ machine build(builder: &mut Build) {
     let mut permissions = std::fs::metadata(&snapshot_main)
         .expect("snapshot source metadata")
         .permissions();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        permissions.set_mode(permissions.mode() | 0o200);
+    }
+    #[cfg(not(unix))]
     permissions.set_readonly(false);
     std::fs::set_permissions(&snapshot_main, permissions).expect("make snapshot writable");
     std::fs::write(&snapshot_main, "pub machine altered() -> u64 { 2 }\n")

@@ -9,14 +9,13 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<usize> {
-        if symbol.is_valid() {
-            if let Some(length) = self
+        if symbol.is_valid()
+            && let Some(length) = self
                 .fields
                 .iter()
                 .find_map(|(field, _, length)| (*field == symbol).then_some(*length))
-            {
-                return Some(length);
-            }
+        {
+            return Some(length);
         }
 
         self.fields.iter().find_map(|(_, field_name, length)| {
@@ -30,15 +29,14 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<usize> {
-        if symbol.is_valid() {
-            if let Some(length) = self
+        if symbol.is_valid()
+            && let Some(length) = self
                 .locals
                 .iter()
                 .rev()
                 .find_map(|(local, _, length)| (*local == symbol).then_some(*length))
-            {
-                return Some(length);
-            }
+        {
+            return Some(length);
         }
 
         self.locals
@@ -55,15 +53,14 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<i64> {
-        if symbol.is_valid() {
-            if let Some(value) = self
+        if symbol.is_valid()
+            && let Some(value) = self
                 .integer_locals
                 .iter()
                 .rev()
                 .find_map(|(local, _, value)| (*local == symbol).then_some(*value))
-            {
-                return Some(value);
-            }
+        {
+            return Some(value);
         }
 
         self.integer_locals
@@ -80,15 +77,14 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<i64> {
-        if symbol.is_valid() {
-            if let Some(value) = self
+        if symbol.is_valid()
+            && let Some(value) = self
                 .integer_fields
                 .iter()
                 .rev()
                 .find_map(|(field, _, value)| (*field == symbol).then_some(*value))
-            {
-                return Some(value);
-            }
+        {
+            return Some(value);
         }
 
         self.integer_fields
@@ -174,15 +170,14 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<ExpressionHandle> {
-        if symbol.is_valid() {
-            if let Some(guard) = self
+        if symbol.is_valid()
+            && let Some(guard) = self
                 .boolean_locals
                 .iter()
                 .rev()
                 .find_map(|(local, _, guard)| (*local == symbol).then_some(*guard))
-            {
-                return Some(guard);
-            }
+        {
+            return Some(guard);
         }
 
         self.boolean_locals

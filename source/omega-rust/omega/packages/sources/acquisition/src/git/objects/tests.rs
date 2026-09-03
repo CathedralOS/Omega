@@ -206,7 +206,7 @@ fn git_blob_batch_parser_binds_order_type_size_and_framing() {
     assign_git_batch_output(&mut entries, valid).expect("parse exact batch response");
     assert!(matches!(
         &entries[0].kind,
-        GitTreeEntryKind::File { bytes, .. } if bytes.as_slice() == &[0, 255, b'\n']
+        GitTreeEntryKind::File { bytes, .. } if bytes.as_slice() == [0, 255, b'\n']
     ));
     assert!(matches!(
         &entries[1].kind,

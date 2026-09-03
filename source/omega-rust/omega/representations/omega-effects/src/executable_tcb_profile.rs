@@ -321,8 +321,10 @@ mod tests {
     fn identity_evidence_and_containment_drift_reject() {
         let entry = opaque_entry();
         let mut compact_equal_wrong_digest = profile(&entry);
-        let mut structurally_different_plan = ProviderPlan::default();
-        structurally_different_plan.name = "different-plan".into();
+        let structurally_different_plan = ProviderPlan {
+            name: "different-plan".into(),
+            ..ProviderPlan::default()
+        };
         compact_equal_wrong_digest.exact_allowances[0].provider_plan_digest =
             structurally_different_plan.identity_digest();
         let rejected = evaluate_executable_tcb_profile(

@@ -66,7 +66,7 @@ pub(super) fn partial_affine_residuals(
         };
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15),
+            length: inner_length @ (3..=15),
         } = structural_types.get(&element)?.shape
         else {
             return None;
@@ -146,10 +146,10 @@ pub(super) fn is_bounded_partial_affine_path(
                         [StructuralPathSegment::FixedIndex(0 | 1)]
                     ) | (
                         StructuralTypeShape::FixedArray { length: 3, .. },
-                        [StructuralPathSegment::FixedIndex(0 | 1 | 2)]
+                        [StructuralPathSegment::FixedIndex(0..=2)]
                     ) | (
                         StructuralTypeShape::FixedArray { length: 4, .. },
-                        [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
+                        [StructuralPathSegment::FixedIndex(0..=3)]
                     )
                 )
             }))
@@ -161,7 +161,7 @@ pub(super) fn is_bounded_partial_affine_path(
                 let Some(inner) = structural_types.get(&element) else {
                     return false;
                 };
-                let StructuralTypeShape::FixedArray { length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15), .. } = inner.shape else {
+                let StructuralTypeShape::FixedArray { length: inner_length @ (3..=15), .. } = inner.shape else {
                     return false;
                 };
                 matches!(path, [StructuralPathSegment::FixedIndex(outer), StructuralPathSegment::FixedIndex(index)] if *outer < 2 && *index < inner_length)

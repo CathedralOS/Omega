@@ -355,11 +355,11 @@ fn insert_reload(
     Ok(view)
 }
 
-fn legality_row<'a>(
+fn legality_row(
     function: usize,
-    legality: &'a crate::FunctionAllocationLegality,
+    legality: &crate::FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&'a crate::VirtualRegisterAllocationLegality, ReloadValueHomeError> {
+) -> Result<&crate::VirtualRegisterAllocationLegality, ReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()
@@ -459,7 +459,7 @@ fn blocked_original(
     active.iter().any(|home| {
         let conflicts = home
             .register
-            .map_or(true, |other| interferes(register, other, interference));
+            .is_none_or(|other| interferes(register, other, interference));
         conflicts && views_overlap(candidate, home.view, physical)
     })
 }

@@ -230,7 +230,7 @@ fn outcome(
     if already_elided {
         return Aarch64SameViewCopyElisionAttemptOutcome::AlreadyElided;
     }
-    for relation in matched.failed_relations() {
+    if let Some(relation) = matched.failed_relations().iter().next() {
         match relation {
             OperandRelation::SamePhysicalViewAndStorageUnits(_, _) => {
                 return Aarch64SameViewCopyElisionAttemptOutcome::DifferentPhysicalStorage;

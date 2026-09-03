@@ -35,9 +35,10 @@ fn runtime_i64_parameter_less_or_equal_reaches_signed_object_and_callable_on_bot
                 assert!(!text.windows(2).any(|bytes| bytes[0] == 0x72));
             }
             omega_target::Architecture::Aarch64 => {
-                assert!(text
-                    .windows(4)
-                    .any(|bytes| bytes == [0x3f, 0x00, 0x00, 0xeb]));
+                assert!(
+                    text.windows(4)
+                        .any(|bytes| bytes == [0x3f, 0x00, 0x00, 0xeb])
+                );
                 assert!(text.windows(4).any(|bytes| {
                     let word = u32::from_le_bytes(bytes.try_into().unwrap());
                     word & 0xff00_001f == 0x5400_000b
@@ -56,10 +57,12 @@ fn runtime_i64_parameter_less_or_equal_reaches_signed_object_and_callable_on_bot
         let entry = callable.entry();
         assert_eq!(entry.calling_policy, policy);
         assert_eq!(entry.parameters.len(), 2);
-        assert!(entry
-            .parameters
-            .iter()
-            .all(|parameter| parameter.scalar_type == i64_type));
+        assert!(
+            entry
+                .parameters
+                .iter()
+                .all(|parameter| parameter.scalar_type == i64_type)
+        );
         assert_eq!(entry.parameters[0].abi_register, parameters[0]);
         assert_eq!(entry.parameters[1].abi_register, parameters[1]);
         assert_eq!(entry.result.declaration.scalar_type, u64_type);

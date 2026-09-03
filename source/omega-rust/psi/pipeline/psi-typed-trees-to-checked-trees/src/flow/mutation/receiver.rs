@@ -124,9 +124,9 @@ fn canonical_self_receiver_path(
     statement: &psi_typed_trees::statement::TableCall,
 ) -> Option<CanonicalPlace> {
     let members = statement_call_receiver_members(program, statement)?;
-    if !members
+    if members
         .first()
-        .is_some_and(|member| member.as_str() == "self")
+        .is_none_or(|member| member.as_str() != "self")
     {
         return None;
     }

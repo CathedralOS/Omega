@@ -82,22 +82,16 @@ fn component_comparison(
     field: &Identifier,
 ) -> Option<Comparison> {
     // `<param>.field - positive` strictly decreases.
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(value) {
-        if matches!(binary.operator, BinaryOperator::Subtract)
-            && patterns::expression_is_parameter_member(
-                program,
-                binary.left,
-                parameter,
-                field.as_str(),
-            )
-            && matches!(
-                program.expression_table.expression(binary.right),
-                ExpressionNode::Integer(literal)
-                    if literal.value_i64().is_some_and(|literal| literal > 0)
-            )
-        {
-            return Some(Comparison::StrictlyDecreasing);
-        }
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(value)
+        && matches!(binary.operator, BinaryOperator::Subtract)
+        && patterns::expression_is_parameter_member(program, binary.left, parameter, field.as_str())
+        && matches!(
+            program.expression_table.expression(binary.right),
+            ExpressionNode::Integer(literal)
+                if literal.value_i64().is_some_and(|literal| literal > 0)
+        )
+    {
+        return Some(Comparison::StrictlyDecreasing);
     }
 
     // `<param>.field` unchanged is non-increasing.

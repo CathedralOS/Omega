@@ -296,12 +296,12 @@ impl<'program> Evaluator<'program> {
         }
 
         // String concatenation: `a + b` over two strings yields a fresh string.
-        if let (Value::Str(a), Value::Str(b)) = (&left, &right) {
-            if operator == Add {
-                let mut joined = a.borrow().clone();
-                joined.extend_from_slice(&b.borrow());
-                return self.allocate_text(joined);
-            }
+        if let (Value::Str(a), Value::Str(b)) = (&left, &right)
+            && operator == Add
+        {
+            let mut joined = a.borrow().clone();
+            joined.extend_from_slice(&b.borrow());
+            return self.allocate_text(joined);
         }
 
         // Float arithmetic / comparison if either operand is float.
@@ -337,8 +337,8 @@ impl<'program> Evaluator<'program> {
         // x86_64 idiv guard), Saturating clamps it to MAX (`a % -1` is 0
         // either way), Trapping traps. Division by zero keeps the existing
         // trap. Unsigned div/mod never overflow and fall through.
-        if matches!(operator, Divide | Modulo) {
-            if let Some((
+        if matches!(operator, Divide | Modulo)
+            && let Some((
                 ty @ (PrimitiveType::I8
                 | PrimitiveType::I16
                 | PrimitiveType::I32
@@ -347,33 +347,32 @@ impl<'program> Evaluator<'program> {
                 | ArithmeticDomain::Saturating
                 | ArithmeticDomain::Trapping),
             )) = scalar_type
-            {
-                if r == 0 {
-                    return if operator == Divide {
-                        trap("integer division by zero")
-                    } else {
-                        trap("integer modulo by zero")
-                    };
-                }
-                let wide = if operator == Divide {
-                    l as i128 / r as i128
+        {
+            if r == 0 {
+                return if operator == Divide {
+                    trap("integer division by zero")
                 } else {
-                    l as i128 % r as i128
-                };
-                let (min, max) = integer_bounds(ty).unwrap_or((i64::MIN, i64::MAX));
-                return match domain {
-                    ArithmeticDomain::Wrapping => Ok(Value::Int(wrap_to_width(wide as i64, ty))),
-                    ArithmeticDomain::Saturating => {
-                        Ok(Value::Int(wide.clamp(min as i128, max as i128) as i64))
-                    }
-                    ArithmeticDomain::Trapping if wide < min as i128 || wide > max as i128 => {
-                        trap(format!(
-                            "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
-                        ))
-                    }
-                    _ => Ok(Value::Int(wide as i64)),
+                    trap("integer modulo by zero")
                 };
             }
+            let wide = if operator == Divide {
+                l as i128 / r as i128
+            } else {
+                l as i128 % r as i128
+            };
+            let (min, max) = integer_bounds(ty).unwrap_or((i64::MIN, i64::MAX));
+            return match domain {
+                ArithmeticDomain::Wrapping => Ok(Value::Int(wrap_to_width(wide as i64, ty))),
+                ArithmeticDomain::Saturating => {
+                    Ok(Value::Int(wide.clamp(min as i128, max as i128) as i64))
+                }
+                ArithmeticDomain::Trapping if wide < min as i128 || wide > max as i128 => {
+                    trap(format!(
+                        "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
+                    ))
+                }
+                _ => Ok(Value::Int(wide as i64)),
+            };
         }
         // A WRAPPING Add/Sub/Mul likewise wraps at the node: with no landing
         // seam (a guard-direct `au + bu == 44`), the full-width comparison
@@ -381,37 +380,37 @@ impl<'program> Evaluator<'program> {
         // wrapped 44. Wrapping is congruence-preserving for +/-/* chains, so
         // truncating each intermediate agrees with native's wide-compute +
         // width-sensitive-op truncation everywhere.
-        if let Some((ty, ArithmeticDomain::Wrapping)) = scalar_type {
-            if matches!(operator, Add | Subtract | Multiply | ShiftLeft | ShiftRight) {
-                let wide = match operator {
-                    Add => l.wrapping_add(r),
-                    Subtract => l.wrapping_sub(r),
-                    Multiply => l.wrapping_mul(r),
-                    // MASKED COUNT at the operand width (F8, ch5 shift-count
-                    // ruling, settled 2026-07-18: Wrapping masks the count to
-                    // `k & (width - 1)` -- the genuinely modular reading, and
-                    // what the hardware computes anyway). This SUPERSEDES the
-                    // 2026-07-13 modular-VALUE semantics (at-width counts no
-                    // longer collapse to 0/sign-fill; they shift by the
-                    // masked count). Bit-masking the two's-complement count
-                    // is well-defined for negative counts too, exactly like
-                    // the register-form shifts on both ISAs.
-                    ShiftLeft => {
-                        let masked = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
-                        l.wrapping_shl(masked)
+        if let Some((ty, ArithmeticDomain::Wrapping)) = scalar_type
+            && matches!(operator, Add | Subtract | Multiply | ShiftLeft | ShiftRight)
+        {
+            let wide = match operator {
+                Add => l.wrapping_add(r),
+                Subtract => l.wrapping_sub(r),
+                Multiply => l.wrapping_mul(r),
+                // MASKED COUNT at the operand width (F8, ch5 shift-count
+                // ruling, settled 2026-07-18: Wrapping masks the count to
+                // `k & (width - 1)` -- the genuinely modular reading, and
+                // what the hardware computes anyway). This SUPERSEDES the
+                // 2026-07-13 modular-VALUE semantics (at-width counts no
+                // longer collapse to 0/sign-fill; they shift by the
+                // masked count). Bit-masking the two's-complement count
+                // is well-defined for negative counts too, exactly like
+                // the register-form shifts on both ISAs.
+                ShiftLeft => {
+                    let masked = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
+                    l.wrapping_shl(masked)
+                }
+                ShiftRight => {
+                    let masked = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
+                    if unsigned_operands {
+                        ((l as u64).wrapping_shr(masked)) as i64
+                    } else {
+                        l.wrapping_shr(masked)
                     }
-                    ShiftRight => {
-                        let masked = ((r as u64) & (primitive_bit_width(ty) - 1)) as u32;
-                        if unsigned_operands {
-                            ((l as u64).wrapping_shr(masked)) as i64
-                        } else {
-                            l.wrapping_shr(masked)
-                        }
-                    }
-                    _ => unreachable!(),
-                };
-                return Ok(Value::Int(wrap_to_width(wide, ty)));
-            }
+                }
+                _ => unreachable!(),
+            };
+            return Ok(Value::Int(wrap_to_width(wide, ty)));
         }
         if let Some((ty, domain @ (ArithmeticDomain::Saturating | ArithmeticDomain::Trapping))) =
             scalar_type

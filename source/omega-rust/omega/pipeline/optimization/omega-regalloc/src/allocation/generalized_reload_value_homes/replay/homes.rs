@@ -66,11 +66,11 @@ pub(super) fn retain_pair(
     }
 }
 
-pub(super) fn find_legality<'a>(
+pub(super) fn find_legality(
     function: usize,
-    legality: &'a crate::FunctionAllocationLegality,
+    legality: &crate::FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&'a crate::VirtualRegisterAllocationLegality, GeneralizedReloadValueHomeError> {
+) -> Result<&crate::VirtualRegisterAllocationLegality, GeneralizedReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()

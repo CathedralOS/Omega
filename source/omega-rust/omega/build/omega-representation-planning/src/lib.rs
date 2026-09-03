@@ -268,7 +268,7 @@ pub fn is_compiler_owned_opaque_representation_trait(
     let parameters = typed.trait_type_parameters(definition);
     if definition.name.as_str() != REPRESENTATION_TRAIT_NAME
         || definition.is_boundary
-        || definition.lifetime_parameters.len() != 0
+        || !definition.lifetime_parameters.is_empty()
         || parameters.len() != 1
         || !matches!(parameters[0].kind, TypeParameterKind::Type)
         || !definition.conformance_bounds.is_empty()

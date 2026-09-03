@@ -387,7 +387,7 @@ fn field_store_custody_round_trips_through_object_image_and_installation() {
         let object = build_object_artifact(&machine).expect("replay field-store object");
         assert_eq!(
             object.functions()[0].unit_structural_scalar_field_stores,
-            [machine_store.clone()]
+            std::slice::from_ref(machine_store)
         );
         let image = emit_executable_image(&object, 3).expect("emit field-store image");
         let record =
@@ -395,7 +395,7 @@ fn field_store_custody_round_trips_through_object_image_and_installation() {
                 .expect("build field-store installation");
         assert_eq!(
             record.functions()[0].unit_structural_scalar_field_stores,
-            [machine_store.clone()]
+            std::slice::from_ref(machine_store)
         );
         let bytes = encode_installation_record(&record).expect("encode field-store installation");
         let decoded = decode_installation_record(&bytes).expect("decode field-store installation");

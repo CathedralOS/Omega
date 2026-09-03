@@ -60,30 +60,35 @@ pub(super) fn reconstruct(
     function: &AbstractFunction,
 ) -> Result<ReconstructedSaturatingIntegerDivideImmediateOperands, Error> {
     let (function_result, function_type) = reconstruct_envelope(function)?;
-    let [AbstractOperation::IntegerConstant {
-        psi_operation: left_constant_operation,
-        result: left_constant_result,
-        scalar_type: left_constant_type,
-        value: left,
-    }, AbstractOperation::IntegerConstant {
-        psi_operation: right_constant_operation,
-        result: right_constant_result,
-        scalar_type: right_constant_type,
-        value: right,
-    }, AbstractOperation::SaturatingIntegerDivide {
-        psi_operation: divide_operation,
-        obligation,
-        result: divide_result,
-        scalar_type,
-        left: left_operand,
-        right: right_operand,
-    }, AbstractOperation::Return {
-        psi_edge: return_edge,
-        result,
-        value,
-        scalar_type: return_type,
-        cleanup_actions,
-    }] = function.operations.as_slice()
+    let [
+        AbstractOperation::IntegerConstant {
+            psi_operation: left_constant_operation,
+            result: left_constant_result,
+            scalar_type: left_constant_type,
+            value: left,
+        },
+        AbstractOperation::IntegerConstant {
+            psi_operation: right_constant_operation,
+            result: right_constant_result,
+            scalar_type: right_constant_type,
+            value: right,
+        },
+        AbstractOperation::SaturatingIntegerDivide {
+            psi_operation: divide_operation,
+            obligation,
+            result: divide_result,
+            scalar_type,
+            left: left_operand,
+            right: right_operand,
+        },
+        AbstractOperation::Return {
+            psi_edge: return_edge,
+            result,
+            value,
+            scalar_type: return_type,
+            cleanup_actions,
+        },
+    ] = function.operations.as_slice()
     else {
         return Err(Error::SourceOperationRoster);
     };

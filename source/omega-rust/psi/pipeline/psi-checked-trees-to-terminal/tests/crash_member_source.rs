@@ -1951,7 +1951,10 @@ fn nested_boolean_member_path_survives_source_call_codec_verification_interpreta
         root.structural_parameters[0].place,
         helper.structural_parameters[0].place
     );
-    assert_ne!(root.contract.crash_routes, [helper_route.clone()]);
+    assert_ne!(
+        root.contract.crash_routes.as_slice(),
+        std::slice::from_ref(helper_route)
+    );
 
     let verified = psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -3476,8 +3479,7 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
     else {
         unreachable!()
     };
-    *right =
-        Box::new(ScalarTerm::integer(*scalar_type, psi_core::IntegerValue::Unsigned(0)).unwrap());
+    **right = ScalarTerm::integer(*scalar_type, psi_core::IntegerValue::Unsigned(0)).unwrap();
     *predicate = CrashPredicateTerm::new(proposition);
     let unsafe_result = psi_terminal_verifier::validate_module(&unsafe_divisor);
     assert!(
@@ -4097,7 +4099,7 @@ fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
         value: value.clone(),
         count: count.clone(),
     };
-    *conjuncts
+    **conjuncts
         .iter_mut()
         .find_map(|conjunct| {
             let Proposition::Equal(_, ScalarTerm::IntegerEqual { left, .. }) = conjunct else {
@@ -4105,7 +4107,7 @@ fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
             };
             matches!(left.as_ref(), ScalarTerm::WrappingIntegerShiftLeft { .. }).then_some(left)
         })
-        .expect("wrapping shift term") = Box::new(exact);
+        .expect("wrapping shift term") = exact;
     *predicate = CrashPredicateTerm::new(proposition);
     assert!(matches!(
         psi_terminal_verifier::validate_module(&forged_exact),
@@ -4452,8 +4454,7 @@ fn wrapping_negative_one_literal_divisor_is_self_proving() {
     else {
         unreachable!()
     };
-    *right =
-        Box::new(ScalarTerm::integer(*scalar_type, psi_core::IntegerValue::Signed(0)).unwrap());
+    **right = ScalarTerm::integer(*scalar_type, psi_core::IntegerValue::Signed(0)).unwrap();
     *predicate = CrashPredicateTerm::new(proposition);
     assert!(matches!(
         psi_terminal_verifier::validate_module(&zero),

@@ -250,14 +250,14 @@ pub(super) fn bind_checked_x86_scalar_fma_plan_associations(
         if !exact_demands.insert((plan_digest, slot)) {
             continue;
         }
-        if let Some(existing_digest) = plan_by_slot.insert(slot, plan_digest) {
-            if existing_digest != plan_digest {
-                diagnostics.push(Diagnostic::error(format!(
-                    "more than one exact selected ProviderPlan claims x86 scalar FMA slot `{}`",
-                    slot.requirement_identity(),
-                )));
-                continue;
-            }
+        if let Some(existing_digest) = plan_by_slot.insert(slot, plan_digest)
+            && existing_digest != plan_digest
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "more than one exact selected ProviderPlan claims x86 scalar FMA slot `{}`",
+                slot.requirement_identity(),
+            )));
+            continue;
         }
         if retained.plan != *plan {
             diagnostics.push(Diagnostic::error(format!(
@@ -295,18 +295,13 @@ fn validate_provenance_alignment(
         .plans()
         .iter()
         .zip(provenance)
-        .filter_map(|(plan, retained)| {
-            (retained.plan != *plan
+        .filter(|&(plan, retained)| retained.plan != *plan
                 || retained.provider.row_requirements.len() != plan.rows.len()
                 || retained.provider.row_realizations.len() != plan.rows.len()
-                || retained.row_compiler_intrinsic_executions.len() != plan.rows.len())
-            .then(|| {
-                Diagnostic::error(format!(
+                || retained.row_compiler_intrinsic_executions.len() != plan.rows.len()).map(|(plan, _retained)| Diagnostic::error(format!(
                     "selected provider plan `{}` has incomplete or misaligned compiler-owned review provenance",
                     plan.name,
-                ))
-            })
-        })
+                )))
         .collect()
 }
 

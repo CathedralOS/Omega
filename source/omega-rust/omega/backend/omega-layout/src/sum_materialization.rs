@@ -2123,10 +2123,10 @@ fn unique_data_layout<'a>(
     Ok(layout)
 }
 
-fn exact_named_data<'a>(
-    program: &'a CheckedTrees,
+fn exact_named_data(
+    program: &CheckedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
-) -> Result<Option<&'a DataDefinition>, Diagnostic> {
+) -> Result<Option<&DataDefinition>, Diagnostic> {
     if program.primitive_type_reference(type_reference).is_some() {
         return Ok(None);
     }

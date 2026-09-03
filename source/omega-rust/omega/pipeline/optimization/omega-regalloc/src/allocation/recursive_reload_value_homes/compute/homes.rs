@@ -5,11 +5,11 @@ use omega_selected_instructions::VirtualRegisterId;
 
 use crate::{LiveRangePoint, RecursiveReloadValueHomeError};
 
-pub(super) fn legality_row<'a>(
+pub(super) fn legality_row(
     function: usize,
-    legality: &'a crate::FunctionAllocationLegality,
+    legality: &crate::FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&'a crate::VirtualRegisterAllocationLegality, RecursiveReloadValueHomeError> {
+) -> Result<&crate::VirtualRegisterAllocationLegality, RecursiveReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()

@@ -127,9 +127,7 @@ pub(in crate::quotients) fn complete_single_state_result_flow(
         .machines()
         .iter()
         .filter(|candidate| candidate.symbol == machine.symbol);
-    let Some(exact_owner) = owner_matches.next() else {
-        return None;
-    };
+    let exact_owner = owner_matches.next()?;
     if exact_owner != machine || owner_matches.next().is_some() {
         return None;
     }
@@ -138,9 +136,7 @@ pub(in crate::quotients) fn complete_single_state_result_flow(
         .iter()
         .flat_map(|candidate| program.machine_states(candidate))
         .filter(|candidate| candidate.symbol == state.symbol);
-    let Some(exact_state) = state_matches.next() else {
-        return None;
-    };
+    let exact_state = state_matches.next()?;
     if exact_state != state || state_matches.next().is_some() {
         return None;
     }

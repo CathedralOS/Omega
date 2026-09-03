@@ -16,12 +16,90 @@ struct EntranceException {
     semantic_reason: &'static str,
 }
 
+#[derive(Clone, Copy)]
+struct SourceFileException {
+    path: &'static str,
+    ceiling: usize,
+    semantic_reason: &'static str,
+}
+
+/// Exact no-growth ratchets for oversized files that predate this gate.
+///
+/// Each row becomes stale as soon as its file is sharded beneath the ordinary
+/// production/test ceiling. New files and unlisted growth still fail closed.
+const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/straight_line/operation.rs",
+        ceiling: 638,
+        semantic_reason: "the scalar-operation dispatcher still owns several lowering families",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/structural_layout.rs",
+        ceiling: 693,
+        semantic_reason: "recursive structural layout and residual-path replay remain colocated",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/unit/boundary_call.rs",
+        ceiling: 661,
+        semantic_reason: "boundary lowering still joins argument, result, and custody projection",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/unit/structural_scalar.rs",
+        ceiling: 673,
+        semantic_reason: "structural-scalar direct and dynamic call lowering remain colocated",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/calls.rs",
+        ceiling: 909,
+        semantic_reason: "dynamic call custody variants still share one lowering owner",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/unit/operation.rs",
+        ceiling: 851,
+        semantic_reason: "the unit-operation assignment dispatcher has not yet been split by family",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/unit/structural_scalar.rs",
+        ceiling: 623,
+        semantic_reason: "structural-scalar assignment and field layout replay remain colocated",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/structural_encoding.rs",
+        ceiling: 669,
+        semantic_reason: "the canonical structural identity vocabulary remains one encoding owner",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/tests/dynamic_dispatch.rs",
+        ceiling: 954,
+        semantic_reason: "the dynamic-dispatch custody scenarios still share one test fixture",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/tests/dynamic_dispatch.rs",
+        ceiling: 919,
+        semantic_reason: "the assignment dynamic-dispatch scenarios still share one test fixture",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_review/tests.rs",
+        ceiling: 936,
+        semantic_reason: "terminal authority policy scenarios still share a large fixture vocabulary",
+    },
+    SourceFileException {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/tests/native_realization/construction_prefix.rs",
+        ceiling: 863,
+        semantic_reason: "the construction-prefix depth ladder remains in one source fixture",
+    },
+];
+
 /// Exact exceptions to the preferred 100-line entrance ceiling.
 ///
 /// An exception is stale when its file disappears, ceases to be an entrance,
 /// or returns to 100 lines or fewer. Ceilings may never exceed the hard
 /// 200-line entrance limit.
-const ENTRANCE_EXCEPTIONS: &[EntranceException] = &[];
+const ENTRANCE_EXCEPTIONS: &[EntranceException] = &[EntranceException {
+    path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_policy/mod.rs",
+    ceiling: 129,
+    semantic_reason: "the entrance still exposes the complete closed authority-policy vocabulary",
+}];
 
 fn is_entrance(path: &str) -> bool {
     path.rsplit('/')
@@ -36,6 +114,36 @@ pub(super) fn is_test_source(path: &str) -> bool {
 pub(crate) fn check(audit: &mut Audit) {
     let source_lines = &audit.source_lines;
     let violations = &mut audit.violations;
+
+    let mut source_file_exceptions = BTreeMap::<&str, &SourceFileException>::new();
+    for exception in SOURCE_FILE_EXCEPTIONS {
+        if source_file_exceptions
+            .insert(exception.path, exception)
+            .is_some()
+        {
+            violations.insert(format!(
+                "duplicate source-file exception: {}",
+                exception.path
+            ));
+        }
+        let ordinary_ceiling = if is_test_source(exception.path) {
+            MAX_TEST_RUST_FILE_LINES
+        } else {
+            MAX_PRODUCTION_RUST_FILE_LINES
+        };
+        if exception.ceiling <= ordinary_ceiling {
+            violations.insert(format!(
+                "stale source-file exception ceiling {} for {} (ordinary ceiling is {})",
+                exception.ceiling, exception.path, ordinary_ceiling
+            ));
+        }
+        if exception.semantic_reason.trim().is_empty() {
+            violations.insert(format!(
+                "source-file exception lacks a semantic reason: {}",
+                exception.path
+            ));
+        }
+    }
 
     let mut exceptions = BTreeMap::<&str, &EntranceException>::new();
     for exception in ENTRANCE_EXCEPTIONS {
@@ -60,16 +168,30 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     let mut observed_exceptions = BTreeSet::new();
+    let mut observed_source_file_exceptions = BTreeSet::new();
     for (path, lines) in source_lines {
-        let ceiling = if is_test_source(path) {
+        let ordinary_ceiling = if is_test_source(path) {
             MAX_TEST_RUST_FILE_LINES
         } else {
             MAX_PRODUCTION_RUST_FILE_LINES
         };
+        let source_file_exception = source_file_exceptions.get(path.as_str()).copied();
+        let ceiling = source_file_exception
+            .map(|exception| exception.ceiling)
+            .unwrap_or(ordinary_ceiling);
         if *lines > ceiling {
             violations.insert(format!(
                 "Rust file exceeds its {ceiling}-line ceiling: {path} ({lines})"
             ));
+        }
+        if let Some(exception) = source_file_exception {
+            observed_source_file_exceptions.insert(path.as_str());
+            if *lines <= ordinary_ceiling {
+                violations.insert(format!(
+                    "stale source-file exception: {} is now {} lines (reason: {})",
+                    path, lines, exception.semantic_reason
+                ));
+            }
         }
 
         if !is_entrance(path) {
@@ -128,6 +250,15 @@ pub(crate) fn check(audit: &mut Audit) {
                     exception.path
                 ));
             }
+        }
+    }
+
+    for exception in SOURCE_FILE_EXCEPTIONS {
+        if !observed_source_file_exceptions.contains(exception.path) {
+            violations.insert(format!(
+                "stale source-file exception points to a missing or ungoverned file: {}",
+                exception.path
+            ));
         }
     }
 }

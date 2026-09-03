@@ -395,10 +395,15 @@ pub(crate) fn make_tree_owner_writable(root: &Path) {
             if let Ok(entries) = std::fs::read_dir(root) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if let Ok(metadata) = std::fs::symlink_metadata(&path)
-                        && metadata.is_dir()
-                    {
-                        make_tree_owner_writable(&path);
+                    if let Ok(metadata) = std::fs::symlink_metadata(&path) {
+                        if metadata.is_dir() {
+                            make_tree_owner_writable(&path);
+                        } else if metadata.is_file() {
+                            let _ = std::fs::set_permissions(
+                                &path,
+                                std::fs::Permissions::from_mode(0o600),
+                            );
+                        }
                     }
                 }
             }

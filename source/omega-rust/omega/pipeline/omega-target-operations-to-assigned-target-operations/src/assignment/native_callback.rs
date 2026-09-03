@@ -17,8 +17,7 @@ pub(super) fn assign(
     }
     let mut operations = BTreeSet::new();
     let mut placement_indices = BTreeSet::new();
-    let mut assigned = Vec::new();
-    assigned.reserve(callbacks.len());
+    let mut assigned = Vec::with_capacity(callbacks.len());
     for callback in callbacks {
         if !operations.insert(callback.terminal_operation)
             || !placement_indices.insert(callback.placement_index)

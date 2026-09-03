@@ -511,11 +511,11 @@ fn place_reload(
     Ok(view)
 }
 
-fn find_legality<'a>(
+fn find_legality(
     function: usize,
-    legality: &'a crate::FunctionAllocationLegality,
+    legality: &crate::FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&'a crate::VirtualRegisterAllocationLegality, ReloadValueHomeError> {
+) -> Result<&crate::VirtualRegisterAllocationLegality, ReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()

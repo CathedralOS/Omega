@@ -209,6 +209,7 @@ fn statement_root_expressions(
 ///     running bound; otherwise an owned carrier read contributes its declared
 ///     `[u8; N]` capacity;
 ///   * a value call contributes its declared bounded-carrier return capacity.
+///
 /// Anything else -- a `&[u8]` view source (no inline capacity) or an unresolved
 /// local -- is unbounded, yielding `None` (conservatively rejected by the
 /// caller). The `known_lengths` input is a conservative straight-line

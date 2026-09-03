@@ -113,7 +113,8 @@ fn affine_branch(
     let mut prior = definition_axiom_count.min(semantic_axioms.len());
     let mut definition_axioms = BTreeSet::new();
     let mut reverse_steps = Vec::new();
-    for _ in 0..=prior {
+    let maximum_steps = prior.saturating_add(1);
+    for _ in 0..maximum_steps {
         if !definition_axioms.is_empty()
             && matches!(
                 &current,

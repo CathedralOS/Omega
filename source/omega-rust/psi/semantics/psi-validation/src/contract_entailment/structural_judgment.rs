@@ -1463,12 +1463,13 @@ fn sorted_multiset_subtract<T: Clone + PartialEq>(left: &[T], from: &[T]) -> Opt
 /// other term is one addend, compared by canonical display (the Opaque
 /// discipline).
 fn additive_addends(term: &StructuralTerm, op: &str, out: &mut Vec<String>) {
-    if let StructuralTerm::Application { machine, arguments } = term {
-        if machine == op && arguments.len() == 2 {
-            additive_addends(&arguments[0], op, out);
-            additive_addends(&arguments[1], op, out);
-            return;
-        }
+    if let StructuralTerm::Application { machine, arguments } = term
+        && machine == op
+        && arguments.len() == 2
+    {
+        additive_addends(&arguments[0], op, out);
+        additive_addends(&arguments[1], op, out);
+        return;
     }
     out.push(display_structural_term(term));
 }

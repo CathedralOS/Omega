@@ -294,7 +294,7 @@ fn gapped_record_nested_array_materialization_is_exact_and_atomic() {
     let cell = |type_name: &str, tag: i64, values: Vec<BuildTimeValue>| BuildTimeValue::Struct {
         type_name: type_name.to_owned(),
         fields: vec![
-            ("tag".to_owned(), BuildTimeValue::Int(tag.into())),
+            ("tag".to_owned(), BuildTimeValue::Int(tag)),
             ("values".to_owned(), BuildTimeValue::Array(values)),
         ],
     };

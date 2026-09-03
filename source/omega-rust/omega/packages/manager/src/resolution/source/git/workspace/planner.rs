@@ -174,7 +174,7 @@ pub(crate) fn account_declaration_bytes(
     bytes: &[u8],
 ) -> Result<usize, GitWorkspaceSelectionError> {
     check_declaration_size(bytes)?;
-    let observed = current.checked_add(bytes.len()).unwrap_or(usize::MAX);
+    let observed = current.saturating_add(bytes.len());
     if observed > MAX_TOTAL_BUILD_DECLARATION_BYTES {
         return Err(GitWorkspaceSelectionError::ResourceLimit {
             limit: GitWorkspaceSelectionLimit::TotalDeclarationBytes,

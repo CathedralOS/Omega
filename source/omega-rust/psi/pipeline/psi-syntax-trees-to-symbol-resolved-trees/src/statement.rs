@@ -1481,11 +1481,8 @@ fn is_member_of_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionHa
         return false;
     };
     let mut receiver = member.receiver;
-    loop {
-        match expressions.expression(receiver) {
-            ExpressionNode::Member(inner) => receiver = inner.receiver,
-            _ => break,
-        }
+    while let ExpressionNode::Member(inner) = expressions.expression(receiver) {
+        receiver = inner.receiver;
     }
     if !is_runtime_indexed_read(lowerer, receiver) {
         return false;

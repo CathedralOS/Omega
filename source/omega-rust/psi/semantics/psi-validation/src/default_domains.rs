@@ -176,7 +176,7 @@ fn analyze_default_domain_writes(
                     })
                     .collect();
                 let mut changed = false;
-                for index in 1..states.len() {
+                for (index, current_entry) in entry.iter_mut().enumerate().skip(1) {
                     let predecessors: Vec<usize> = edges
                         .iter()
                         .filter(|(_, to)| *to == index)
@@ -197,8 +197,8 @@ fn analyze_default_domain_writes(
                         });
                     }
                     let meet = meet.unwrap_or_default();
-                    if meet != entry[index] {
-                        entry[index] = meet;
+                    if meet != *current_entry {
+                        *current_entry = meet;
                         changed = true;
                     }
                 }

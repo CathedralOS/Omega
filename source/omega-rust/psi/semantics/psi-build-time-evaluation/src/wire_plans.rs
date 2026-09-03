@@ -146,8 +146,7 @@ pub fn compute_wire_plans_with_authority_from(
         let mut derived: Vec<WirePlacement> = fields
             .iter()
             .map(|&(number, shape)| {
-                let tag = u64::try_from(number)
-                    .expect("classifiable wire fields have nonnegative identity numbers");
+                let tag = number;
                 if shape.is_varint() {
                     WirePlacement::Varint { tag }
                 } else {

@@ -1354,7 +1354,7 @@ mod tests {
             check_certificate(
                 &context,
                 &expected,
-                &[first.clone()],
+                std::slice::from_ref(&first),
                 &[],
                 &proof(
                     Proposition::Equal(literal(-2), literal(-2)),

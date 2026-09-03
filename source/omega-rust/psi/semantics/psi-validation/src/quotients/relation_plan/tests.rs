@@ -8898,9 +8898,9 @@ fn complete_result_flow_requires_one_exact_machine_state() {
     );
     program.machines_mut()[0] = machine;
     let machine = &program.machines()[0];
-    let state = &program.machine_states(&machine)[0];
+    let state = &program.machine_states(machine)[0];
     assert_eq!(
-        complete_single_state_result_flow(&program, &machine, state, root),
+        complete_single_state_result_flow(&program, machine, state, root),
         None
     );
 }
@@ -8935,11 +8935,11 @@ fn complete_result_flow_rejects_a_transition_before_fallthrough() {
     program.push_machine_state(&mut machine, state);
     program.push_machine(machine);
     let machine = &program.machines()[0];
-    let state = &program.machine_states(&machine)[0];
+    let state = &program.machine_states(machine)[0];
     let root = fallthrough_result_root(&program, state).expect("fallthrough edge still exists");
 
     assert_eq!(
-        complete_single_state_result_flow(&program, &machine, state, root),
+        complete_single_state_result_flow(&program, machine, state, root),
         None
     );
 }

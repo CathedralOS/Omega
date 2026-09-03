@@ -384,7 +384,7 @@ pub(super) fn validate_selected_operator_structural_call(
         || realization.structural_parameter.position != 0
         || realization.scalar_parameters[0].source_position != 1
         || structural_arguments.len() != 1
-        || machine.entry_claims.len() != 0
+        || !machine.entry_claims.is_empty()
         || machine.structural_parameters.len() != 1
     {
         return unsupported(

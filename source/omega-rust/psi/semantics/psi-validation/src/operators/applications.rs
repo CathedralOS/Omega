@@ -700,7 +700,7 @@ fn static_type_argument_matches(
                 && supplied.symbol == *base_symbol
                 && lifetime_arguments.is_empty()
                 && application.lifetime_arguments.is_empty()
-                && application.arguments.len() == arguments.len() as usize
+                && application.arguments.len() == arguments.len()
                 && application
                     .arguments
                     .iter()

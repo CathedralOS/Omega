@@ -42,13 +42,12 @@ impl NativeCompilationWithCheckedReceipt {
         if artifact.target() != native_target {
             return Err("checked native receipt retained artifact target disagrees with checking");
         }
-        if let Some(manifest) = report.production_manifest() {
-            if manifest.subject().target_profile() != profile
+        if let Some(manifest) = report.production_manifest()
+            && (manifest.subject().target_profile() != profile
                 || manifest.subject().native_target() != native_target
-                || !manifest.matches_native_artifact(artifact)
-            {
-                return Err("checked native receipt production manifest disagrees with checking");
-            }
+                || !manifest.matches_native_artifact(artifact))
+        {
+            return Err("checked native receipt production manifest disagrees with checking");
         }
         Ok(Self { checked, report })
     }

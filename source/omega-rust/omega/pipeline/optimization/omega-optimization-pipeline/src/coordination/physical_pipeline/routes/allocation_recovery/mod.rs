@@ -7,8 +7,8 @@ use omega_machine_optimizer::PostAllocationMachineRuleCatalogEntry;
 use omega_optimization_core::{Optimization, OptimizationExecutionPhase};
 
 use crate::{
-    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
     StagedOptimizedVerifiedPhysicalPipeline, ValidatedOptimizedTargetOperations,
+    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
 };
 
 use super::super::OptimizedVerifiedPhysicalPipelineError;

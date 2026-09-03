@@ -1390,10 +1390,10 @@ fn collect_bounded_state_return_obligation(
     ));
 }
 
-fn call_target_parameters<'program>(
-    program: &'program TypedTrees,
+fn call_target_parameters(
+    program: &TypedTrees,
     target_symbol: SymbolHandle,
-) -> Option<&'program [StateParameter]> {
+) -> Option<&[StateParameter]> {
     state_by_symbol(program, target_symbol)
         .map(|state| program.state_parameters(state))
         .or_else(|| {

@@ -50,9 +50,7 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_allocation_recovery_
                 optimization,
             )
             .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
-            return Ok(
-                StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization },
-            );
+            Ok(StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization })
         }
         ResolvedNonAllocationComposition::PostAllocationMachine {
             entry,

@@ -205,13 +205,11 @@ fn validate_closed_rows(
             )));
             continue;
         };
-        if row.source == ConformanceRowSource::TraitDefault {
-            if !requirement.is_default {
-                diagnostics.push(Diagnostic::error(format!(
+        if row.source == ConformanceRowSource::TraitDefault && !requirement.is_default {
+            diagnostics.push(Diagnostic::error(format!(
                     "closed conformance `{type_name} satisfies {}` selects a default for bodyless requirement `{}::{}`",
                     root_trait.name, row.declaring_trait_name, row.requirement_name
                 )));
-            }
         }
         let Some(machine) = program
             .machines()
@@ -319,10 +317,7 @@ fn validate_data_satisfies_trait(
     diagnostics: &mut Vec<Diagnostic>,
     visited_traits: &mut Vec<psi_symbols::SymbolHandle>,
 ) {
-    if visited_traits
-        .iter()
-        .any(|symbol| *symbol == trait_definition.symbol)
-    {
+    if visited_traits.contains(&trait_definition.symbol) {
         return;
     }
     visited_traits.push(trait_definition.symbol);

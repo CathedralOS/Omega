@@ -187,14 +187,10 @@ fn invalid<T>(
     Err(ModuleError::InvalidSuspensionCallPlan { operation, reason })
 }
 
-fn operation_owner<'module>(
-    module: &'module TerminalModule,
+fn operation_owner(
+    module: &TerminalModule,
     operation: OperationId,
-) -> Option<(
-    &'module TerminalMachine,
-    &'module psi_terminal::Block,
-    usize,
-)> {
+) -> Option<(&TerminalMachine, &psi_terminal::Block, usize)> {
     module.machines.iter().find_map(|machine| {
         machine.blocks.iter().find_map(|block| {
             block

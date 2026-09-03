@@ -782,7 +782,7 @@ impl CrashRouteBucket {
             alternative_guards.sort();
             alternative_guards.dedup();
         }
-        (!alternative_guards.is_empty()).then(|| Self {
+        (!alternative_guards.is_empty()).then_some(Self {
             cause,
             alternative_guards,
         })
@@ -1487,6 +1487,10 @@ impl CheckedMachineResourceEnvelopes {
 
     pub const fn len(&self) -> usize {
         self.entries.len()
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.entries.is_empty()
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
@@ -2270,7 +2274,7 @@ mod tests {
         let plan = CrashPlan::default()
             .with_checked_calls(vec![call.clone(), call.clone()])
             .expect("an identical duplicate canonicalizes away");
-        assert_eq!(plan.checked_calls(), &[call.clone()]);
+        assert_eq!(plan.checked_calls(), std::slice::from_ref(&call));
         assert!(plan.checked_calls()[0].surviving_buckets().is_empty());
         assert!(plan.checked_call_at(state, 4, 1).is_some());
 

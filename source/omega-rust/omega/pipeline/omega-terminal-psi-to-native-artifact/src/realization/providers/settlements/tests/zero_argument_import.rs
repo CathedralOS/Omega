@@ -368,7 +368,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
         assert_eq!(relocation.addend, 0);
         assert_eq!(
             relocation.origin.semantic_operation_identity(),
-            Some(u64::from(operation.get())),
+            Some(operation.get()),
         );
         assert_eq!(
             relocation.kind,

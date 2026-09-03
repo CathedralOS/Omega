@@ -539,7 +539,7 @@ pub(crate) fn validate_transfer_shape(
         || actual.iter().any(|index| {
             usize::try_from(*index)
                 .ok()
-                .map_or(true, |index| index >= arguments.len())
+                .is_none_or(|index| index >= arguments.len())
         })
     {
         return unsupported("Unit claim transfer does not exactly match target entry custody");

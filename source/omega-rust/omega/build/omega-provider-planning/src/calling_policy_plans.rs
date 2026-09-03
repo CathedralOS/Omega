@@ -657,7 +657,7 @@ fn compatibility_call_signature(
                 if syscall_words {
                     Ok(ValueShape::integer(8, 8))
                 } else {
-                    classified_boundary_shape(&materialized, root, policy)
+                    classified_boundary_shape(materialized, root, policy)
                 }
             })
             .collect::<Result<Vec<_>, _>>()?,
@@ -667,7 +667,7 @@ fn compatibility_call_signature(
                 if syscall_words {
                     Ok(ValueShape::integer(8, 8))
                 } else {
-                    classified_boundary_shape(&materialized, root, policy)
+                    classified_boundary_shape(materialized, root, policy)
                 }
             })
             .transpose()?,
@@ -2269,13 +2269,10 @@ fn value_shape_from_type(
         ),
         TypeReferenceNode::Reference { referee, .. } => {
             let mut referee = substituted_type_reference(typed, *referee, bindings);
-            loop {
-                match typed.type_reference_table.type_reference(referee) {
-                    TypeReferenceNode::Constrained { base_type, .. } => {
-                        referee = substituted_type_reference(typed, *base_type, bindings);
-                    }
-                    _ => break,
-                }
+            while let TypeReferenceNode::Constrained { base_type, .. } =
+                typed.type_reference_table.type_reference(referee)
+            {
+                referee = substituted_type_reference(typed, *base_type, bindings);
             }
             let is_fat = match typed.type_reference_table.type_reference(referee) {
                 TypeReferenceNode::Slice { .. } => true,
@@ -2640,7 +2637,7 @@ fn primitive_value_shape(primitive: PrimitiveType) -> Result<ValueShape, String>
     let byte_size = u16::try_from(byte_size).expect("primitive size fits u16");
     Ok(match primitive {
         PrimitiveType::F32 | PrimitiveType::F64 => ValueShape::float(byte_size),
-        _ => ValueShape::integer(byte_size, byte_size.min(8).max(1)),
+        _ => ValueShape::integer(byte_size, byte_size.clamp(1, 8)),
     })
 }
 

@@ -20,6 +20,12 @@ fn review_compilation_rejects_snapshot_tampering_before_compiler_consumption() {
         .expect("root custody")
         .join("main.omg");
     let mut permissions = std::fs::metadata(&main).unwrap().permissions();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        permissions.set_mode(permissions.mode() | 0o200);
+    }
+    #[cfg(not(unix))]
     permissions.set_readonly(false);
     std::fs::set_permissions(&main, permissions).unwrap();
     std::fs::write(&main, b"pub machine altered() -> u32 { 0 }\n").unwrap();

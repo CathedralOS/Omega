@@ -181,6 +181,12 @@ impl std::ops::Deref for CheckedTrees {
     }
 }
 
+impl AsRef<psi_typed_trees::TypedTrees> for CheckedTrees {
+    fn as_ref(&self) -> &psi_typed_trees::TypedTrees {
+        &self.typed
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{CheckFacts, CheckedTrees};
@@ -194,11 +200,5 @@ mod tests {
 
         assert_eq!(checked.typed, typed);
         assert_eq!(checked.facts, facts);
-    }
-}
-
-impl AsRef<psi_typed_trees::TypedTrees> for CheckedTrees {
-    fn as_ref(&self) -> &psi_typed_trees::TypedTrees {
-        &self.typed
     }
 }

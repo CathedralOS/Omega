@@ -722,7 +722,7 @@ pub(super) fn build_boundary_machine(
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
-        service_reach: state_flow.service_reach.clone(),
+        service_reach: state_flow.service_reach,
     })
 }
 
@@ -1533,7 +1533,7 @@ pub(super) fn build_checked_machine(
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
-        service_reach: state_flow.service_reach.clone(),
+        service_reach: state_flow.service_reach,
         operations,
     })
 }
@@ -1575,7 +1575,7 @@ fn reborrow_restored_call_alias_prefix(
                         .max(1)
                 })
         })
-        .find(|count| matches!(count, 1 | 2 | 3))?;
+        .find(|count| matches!(count, 1..=3))?;
     let child_locals = statements
         .get(1..=child_count)?
         .iter()

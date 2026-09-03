@@ -42,28 +42,28 @@ pub(super) fn validate_expression(
             }
         }
         ExpressionNode::Member(member) => {
-            if context == Context::Runtime {
-                if !report_runtime_erased_field(program, member.member_symbol, diagnostics) {
-                    if crate::places::direct_self_field_member(program, expression)
-                        == Some(member.member.as_str())
-                    {
-                        report_runtime_erased_attached_field(
-                            program,
-                            machine,
-                            member.member.as_str(),
-                            diagnostics,
-                        );
-                    } else {
-                        report_runtime_erased_member_by_receiver(
-                            program,
-                            machine,
-                            state,
-                            member.receiver,
-                            member.member.as_str(),
-                            member.case_variant.as_ref().map(|variant| variant.as_str()),
-                            diagnostics,
-                        );
-                    }
+            if context == Context::Runtime
+                && !report_runtime_erased_field(program, member.member_symbol, diagnostics)
+            {
+                if crate::places::direct_self_field_member(program, expression)
+                    == Some(member.member.as_str())
+                {
+                    report_runtime_erased_attached_field(
+                        program,
+                        machine,
+                        member.member.as_str(),
+                        diagnostics,
+                    );
+                } else {
+                    report_runtime_erased_member_by_receiver(
+                        program,
+                        machine,
+                        state,
+                        member.receiver,
+                        member.member.as_str(),
+                        member.case_variant.as_ref().map(|variant| variant.as_str()),
+                        diagnostics,
+                    );
                 }
             }
             validate_expression(

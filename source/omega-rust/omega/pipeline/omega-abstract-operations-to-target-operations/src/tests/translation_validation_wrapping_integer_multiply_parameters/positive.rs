@@ -29,7 +29,7 @@ fn validates_all_wrapping_integer_multiply_types_and_operand_placements_on_every
         for scalar_type in &integers {
             for (left, right) in operand_pairs {
                 let source = wrapping_integer_multiply_parameters_plan(
-                    &vec![ScalarType::Integer(*scalar_type); 10],
+                    &[ScalarType::Integer(*scalar_type); 10],
                     left,
                     right,
                 );

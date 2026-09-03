@@ -29,14 +29,14 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 mod fixed_depth_eight_twelve;
-mod fixed_depth_sixteen;
-mod fixed_depth_seventeen;
 mod fixed_depth_eighteen;
 mod fixed_depth_nineteen;
+mod fixed_depth_seventeen;
+mod fixed_depth_sixteen;
 mod fixed_depth_twenty;
 mod fixed_depth_twenty_one;
-mod fixed_depth_twenty_two;
 mod fixed_depth_twenty_three;
+mod fixed_depth_twenty_two;
 
 fn checked(source: &str) -> CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -132,9 +132,8 @@ fn mixed_common_field_shape_is_not_projected_as_a_pure_sum() {
         .find(|definition| definition.name.as_str() == "Event")
         .unwrap();
     let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let error =
-        project_conventional_sum_materialization_layout(&checked, &plan, definition.symbol)
-            .unwrap_err();
+    let error = project_conventional_sum_materialization_layout(&checked, &plan, definition.symbol)
+        .unwrap_err();
     assert!(error.message.contains("pure sum"));
 }
 
@@ -270,8 +269,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
             .is_err()
     );
     let mut wrong_inner_layout = path.clone();
-    wrong_inner_layout.inner_layout.entries[1].placement =
-        LayoutPlacementReport::At { offset: 10 };
+    wrong_inner_layout.inner_layout.entries[1].placement = LayoutPlacementReport::At { offset: 10 };
     assert!(
         carrier
             .replay_against(
@@ -712,8 +710,7 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
         paths.paths[0].child_sum_layouts[1].member_identity;
     rejects(&wrong_child_identity);
     let mut wrong_outer_layout = paths.clone();
-    wrong_outer_layout.outer_layout.entries[2].placement =
-        LayoutPlacementReport::At { offset: 26 };
+    wrong_outer_layout.outer_layout.entries[2].placement = LayoutPlacementReport::At { offset: 26 };
     rejects(&wrong_outer_layout);
     let mut wrong_inner_layout = paths.clone();
     wrong_inner_layout.paths[1].inner_layout.entries[1].placement =
@@ -868,8 +865,8 @@ fn depth_two_record_chain_projects_replays_and_fails_closed_on_every_adjacent_sh
     assert_eq!(
         carrier.bytes(),
         &[
-            0xdd, 0, 0, 0, 0xcc, 0, 0, 0, 0xaa, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x22, 0x11, 0,
-            0, 1, 0, 0, 0, 0x44, 0x33, 0, 0, 0xbb, 0, 0, 0, 0x66, 0x55, 0, 0, 0x88, 0x77, 0, 0,
+            0xdd, 0, 0, 0, 0xcc, 0, 0, 0, 0xaa, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x22, 0x11, 0, 0,
+            1, 0, 0, 0, 0x44, 0x33, 0, 0, 0xbb, 0, 0, 0, 0x66, 0x55, 0, 0, 0x88, 0x77, 0, 0,
         ]
     );
     assert_eq!(carrier.middle().inner().nested_sums().len(), 2);
@@ -897,20 +894,13 @@ fn depth_two_record_chain_projects_replays_and_fails_closed_on_every_adjacent_sh
         .replay_against(&checked, "Outer", &renamed, &value, ByteOrder::LittleEndian)
         .expect("stable-numbered names at all three layers are presentation-only");
 
-    let rejects =
-        |mutated: &psi_layout_plans::ConventionalDepthTwoRecordSumPathLayoutReport| {
-            assert!(
+    let rejects = |mutated: &psi_layout_plans::ConventionalDepthTwoRecordSumPathLayoutReport| {
+        assert!(
             carrier
-                .replay_against(
-                    &checked,
-                    "Outer",
-                    mutated,
-                    &value,
-                    ByteOrder::LittleEndian,
-                )
+                .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian,)
                 .is_err()
         );
-        };
+    };
     let mut wrong_outer_identity = path.clone();
     wrong_outer_identity.outer_member_identity = Some(3);
     rejects(&wrong_outer_identity);
@@ -984,8 +974,7 @@ fn depth_two_record_chain_projects_replays_and_fails_closed_on_every_adjacent_sh
     else {
         unreachable!("fixture is a record")
     };
-    let middle_layout =
-        unique_data_layout(&plan, definition("Middle").symbol, "Middle").unwrap();
+    let middle_layout = unique_data_layout(&plan, definition("Middle").symbol, "Middle").unwrap();
     let DataShape::Record {
         fields: middle_fields,
     } = middle_layout.shape
@@ -1052,9 +1041,7 @@ fn depth_two_record_chain_projects_replays_and_fails_closed_on_every_adjacent_sh
         .data_members(middle)
         .iter()
         .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "tail" => {
-                Some(field.type_reference)
-            }
+            DataMember::Field(field) if field.name.as_str() == "tail" => Some(field.type_reference),
             DataMember::Field(_) | DataMember::Variant(_) => None,
         })
         .unwrap();
@@ -1289,20 +1276,13 @@ fn depth_three_record_chain_composes_existing_custody_and_fails_closed() {
         .replay_against(&checked, "Outer", &renamed, &value, ByteOrder::LittleEndian)
         .expect("stable-numbered names at every record edge are presentation-only");
 
-    let rejects =
-        |mutated: &psi_layout_plans::ConventionalDepthThreeRecordSumPathLayoutReport| {
-            assert!(
-                carrier
-                    .replay_against(
-                        &checked,
-                        "Outer",
-                        mutated,
-                        &value,
-                        ByteOrder::LittleEndian,
-                    )
-                    .is_err()
-            );
-        };
+    let rejects = |mutated: &psi_layout_plans::ConventionalDepthThreeRecordSumPathLayoutReport| {
+        assert!(
+            carrier
+                .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian,)
+                .is_err()
+        );
+    };
     let mut wrong_outer_identity = path.clone();
     wrong_outer_identity.outer_member_identity = Some(3);
     rejects(&wrong_outer_identity);
@@ -1516,9 +1496,7 @@ fn depth_three_record_chain_composes_existing_custody_and_fails_closed() {
         .data_members(first)
         .iter()
         .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "tail" => {
-                Some(field.type_reference)
-            }
+            DataMember::Field(field) if field.name.as_str() == "tail" => Some(field.type_reference),
             DataMember::Field(_) | DataMember::Variant(_) => None,
         })
         .unwrap();
@@ -1592,13 +1570,12 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
     let first_two = definition("FirstTwo");
     let middle = definition("Middle");
     let leaf = definition("Leaf");
-    let paths =
-        project_conventional_record_with_depth_three_nested_sums_materialization_layout(
-            &checked,
-            &plan,
-            outer.symbol,
-        )
-        .expect("the complete plural depth-three path set should project");
+    let paths = project_conventional_record_with_depth_three_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        outer.symbol,
+    )
+    .expect("the complete plural depth-three path set should project");
     assert_eq!(paths.paths.len(), 2);
     assert_eq!(paths.paths[0].outer_field, "first");
     assert_eq!(paths.paths[0].outer_member_identity, Some(2));
@@ -1713,20 +1690,19 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
     assert!(carrier.apply(&checked, &mut short).is_err());
     assert_eq!(short, [0x6b; 35]);
 
-    let rejects =
-        |mutated: &psi_layout_plans::ConventionalDepthThreeRecordSumPathsLayoutReport| {
-            assert!(
-                carrier
-                    .replay_against(
-                        &checked,
-                        "OuterPlural",
-                        mutated,
-                        &value,
-                        ByteOrder::LittleEndian,
-                    )
-                    .is_err()
-            );
-        };
+    let rejects = |mutated: &psi_layout_plans::ConventionalDepthThreeRecordSumPathsLayoutReport| {
+        assert!(
+            carrier
+                .replay_against(
+                    &checked,
+                    "OuterPlural",
+                    mutated,
+                    &value,
+                    ByteOrder::LittleEndian,
+                )
+                .is_err()
+        );
+    };
     let mut missing = paths.clone();
     missing.paths.pop();
     rejects(&missing);
@@ -1749,16 +1725,10 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
     wrong_first_identity.paths[1].inner.paths[1].outer_member_identity = Some(1);
     rejects(&wrong_first_identity);
     let mut wrong_middle_identity = paths.clone();
-    wrong_middle_identity.paths[1].inner.paths[1]
-        .inner
-        .paths[0]
-        .outer_member_identity = Some(2);
+    wrong_middle_identity.paths[1].inner.paths[1].inner.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_middle_identity);
     let mut wrong_leaf_identity = paths.clone();
-    wrong_leaf_identity.paths[1].inner.paths[1]
-        .inner
-        .paths[0]
-        .child_sum_layouts[0]
+    wrong_leaf_identity.paths[1].inner.paths[1].inner.paths[0].child_sum_layouts[0]
         .member_identity = Some(2);
     rejects(&wrong_leaf_identity);
     let mut wrong_outer_geometry = paths.clone();
@@ -1766,11 +1736,8 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
         LayoutPlacementReport::At { offset: 20 };
     rejects(&wrong_outer_geometry);
     let mut wrong_first_geometry = paths.clone();
-    wrong_first_geometry.paths[1]
-        .inner
-        .outer_layout
-        .entries[1]
-        .placement = LayoutPlacementReport::At { offset: 12 };
+    wrong_first_geometry.paths[1].inner.outer_layout.entries[1].placement =
+        LayoutPlacementReport::At { offset: 12 };
     rejects(&wrong_first_geometry);
     let mut wrong_middle_geometry = paths.clone();
     wrong_middle_geometry.paths[1].inner.paths[1]
@@ -1780,18 +1747,13 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
         .placement = LayoutPlacementReport::At { offset: 4 };
     rejects(&wrong_middle_geometry);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[1].inner.paths[1]
-        .inner
-        .paths[0]
+    wrong_leaf_geometry.paths[1].inner.paths[1].inner.paths[0]
         .inner_layout
         .entries[0]
         .placement = LayoutPlacementReport::At { offset: 4 };
     rejects(&wrong_leaf_geometry);
     let mut wrong_sum_geometry = paths.clone();
-    wrong_sum_geometry.paths[1].inner.paths[1]
-        .inner
-        .paths[0]
-        .child_sum_layouts[0]
+    wrong_sum_geometry.paths[1].inner.paths[1].inner.paths[0].child_sum_layouts[0]
         .layout
         .cases[1]
         .payload_fields[0]
@@ -1944,9 +1906,7 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
         .data_members(first)
         .iter()
         .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "tail" => {
-                Some(field.type_reference)
-            }
+            DataMember::Field(field) if field.name.as_str() == "tail" => Some(field.type_reference),
             DataMember::Field(_) | DataMember::Variant(_) => None,
         })
         .unwrap();
@@ -2116,20 +2076,13 @@ fn plural_depth_four_paths_compose_depth_three_custody_and_retain_fences() {
     assert!(carrier.apply(&checked, &mut short).is_err());
     assert_eq!(short, [0x6b; 47]);
 
-    let rejects =
-        |mutated: &psi_layout_plans::ConventionalDepthFourRecordSumPathsLayoutReport| {
-            assert!(
-                carrier
-                    .replay_against(
-                        &checked,
-                        "Outer",
-                        mutated,
-                        &value,
-                        ByteOrder::LittleEndian,
-                    )
-                    .is_err()
-            );
-        };
+    let rejects = |mutated: &psi_layout_plans::ConventionalDepthFourRecordSumPathsLayoutReport| {
+        assert!(
+            carrier
+                .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian,)
+                .is_err()
+        );
+    };
     let mut missing = paths.clone();
     missing.paths.pop();
     rejects(&missing);
@@ -2143,9 +2096,7 @@ fn plural_depth_four_paths_compose_depth_three_custody_and_retain_fences() {
     wrong_inner_identity.paths[0].inner.paths[1].outer_member_identity = Some(1);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].inner.paths[1]
-        .inner
-        .paths[0]
+    wrong_leaf_geometry.paths[0].inner.paths[1].inner.paths[0]
         .inner
         .paths[0]
         .child_sum_layouts[0]
@@ -2212,9 +2163,7 @@ fn plural_depth_four_paths_compose_depth_three_custody_and_retain_fences() {
         .data_members(second)
         .iter()
         .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "tail" => {
-                Some(field.type_reference)
-            }
+            DataMember::Field(field) if field.name.as_str() == "tail" => Some(field.type_reference),
             DataMember::Field(_) | DataMember::Variant(_) => None,
         })
         .unwrap();
@@ -2443,20 +2392,13 @@ fn plural_depth_five_paths_compose_depth_four_custody_and_retain_fences() {
     assert!(carrier.apply(&checked, &mut short).is_err());
     assert_eq!(short, [0x6b; 95]);
 
-    let rejects =
-        |mutated: &psi_layout_plans::ConventionalDepthFiveRecordSumPathsLayoutReport| {
-            assert!(
-                carrier
-                    .replay_against(
-                        &checked,
-                        "Outer",
-                        mutated,
-                        &value,
-                        ByteOrder::LittleEndian,
-                    )
-                    .is_err()
-            );
-        };
+    let rejects = |mutated: &psi_layout_plans::ConventionalDepthFiveRecordSumPathsLayoutReport| {
+        assert!(
+            carrier
+                .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian,)
+                .is_err()
+        );
+    };
     let mut missing = paths.clone();
     missing.paths.pop();
     rejects(&missing);
@@ -2473,9 +2415,7 @@ fn plural_depth_five_paths_compose_depth_four_custody_and_retain_fences() {
     wrong_inner_identity.paths[0].inner.paths[1].outer_member_identity = Some(1);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].inner.paths[1]
-        .inner
-        .paths[0]
+    wrong_leaf_geometry.paths[0].inner.paths[1].inner.paths[0]
         .inner
         .paths[0]
         .inner
@@ -2487,16 +2427,10 @@ fn plural_depth_five_paths_compose_depth_four_custody_and_retain_fences() {
         .offset += 1;
     rejects(&wrong_leaf_geometry);
     let mut wrong_child_extent = paths.clone();
-    wrong_child_extent.paths[0]
-        .inner
-        .outer_layout
-        .size = Some(48);
+    wrong_child_extent.paths[0].inner.outer_layout.size = Some(48);
     rejects(&wrong_child_extent);
     let mut wrong_child_alignment = paths.clone();
-    wrong_child_alignment.paths[0]
-        .inner
-        .outer_layout
-        .align = 8;
+    wrong_child_alignment.paths[0].inner.outer_layout.align = 8;
     rejects(&wrong_child_alignment);
     let mut wrong_outer_geometry = paths.clone();
     wrong_outer_geometry.outer_layout.entries[1].placement =
@@ -2573,9 +2507,7 @@ fn plural_depth_five_paths_compose_depth_four_custody_and_retain_fences() {
         .data_members(third)
         .iter()
         .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "tail" => {
-                Some(field.type_reference)
-            }
+            DataMember::Field(field) if field.name.as_str() == "tail" => Some(field.type_reference),
             DataMember::Field(_) | DataMember::Variant(_) => None,
         })
         .unwrap();
@@ -2755,20 +2687,13 @@ fn plural_depth_six_paths_compose_depth_five_custody_and_retain_fences() {
     assert!(carrier.apply(&checked, &mut short).is_err());
     assert_eq!(short, [0x6b; 15]);
 
-    let rejects =
-        |mutated: &psi_layout_plans::ConventionalDepthSixRecordSumPathsLayoutReport| {
-            assert!(
-                carrier
-                    .replay_against(
-                        &checked,
-                        "Outer",
-                        mutated,
-                        &value,
-                        ByteOrder::LittleEndian,
-                    )
-                    .is_err()
-            );
-        };
+    let rejects = |mutated: &psi_layout_plans::ConventionalDepthSixRecordSumPathsLayoutReport| {
+        assert!(
+            carrier
+                .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian,)
+                .is_err()
+        );
+    };
     let mut missing = paths.clone();
     missing.paths.pop();
     rejects(&missing);
@@ -2785,9 +2710,7 @@ fn plural_depth_six_paths_compose_depth_five_custody_and_retain_fences() {
     wrong_inner_identity.paths[0].inner.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].inner.paths[0]
-        .inner
-        .paths[0]
+    wrong_leaf_geometry.paths[0].inner.paths[0].inner.paths[0]
         .inner
         .paths[0]
         .inner
@@ -2801,10 +2724,7 @@ fn plural_depth_six_paths_compose_depth_five_custody_and_retain_fences() {
         .offset += 1;
     rejects(&wrong_leaf_geometry);
     let mut wrong_child_extent = paths.clone();
-    wrong_child_extent.paths[0]
-        .inner
-        .outer_layout
-        .size = Some(16);
+    wrong_child_extent.paths[0].inner.outer_layout.size = Some(16);
     rejects(&wrong_child_extent);
     let mut wrong_outer_geometry = paths.clone();
     wrong_outer_geometry.outer_layout.entries[1].placement =
@@ -2953,13 +2873,12 @@ fn plural_depth_seven_paths_compose_depth_six_custody_and_retain_fences() {
     };
     let outer = definition("Outer");
     let fifth = definition("Fifth");
-    let paths =
-        project_conventional_record_with_depth_seven_nested_sums_materialization_layout(
-            &checked,
-            &plan,
-            outer.symbol,
-        )
-        .expect("the complete depth-seven occurrence cohort should project");
+    let paths = project_conventional_record_with_depth_seven_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        outer.symbol,
+    )
+    .expect("the complete depth-seven occurrence cohort should project");
     assert_eq!(paths.paths.len(), 2);
     assert_eq!(paths.paths[0].outer_field, "left");
     assert_eq!(paths.paths[0].outer_member_identity, Some(1));
@@ -3056,20 +2975,13 @@ fn plural_depth_seven_paths_compose_depth_six_custody_and_retain_fences() {
     assert!(carrier.apply(&checked, &mut short).is_err());
     assert_eq!(short, [0x6b; 15]);
 
-    let rejects =
-        |mutated: &psi_layout_plans::ConventionalDepthSevenRecordSumPathsLayoutReport| {
-            assert!(
-                carrier
-                    .replay_against(
-                        &checked,
-                        "Outer",
-                        mutated,
-                        &value,
-                        ByteOrder::LittleEndian,
-                    )
-                    .is_err()
-            );
-        };
+    let rejects = |mutated: &psi_layout_plans::ConventionalDepthSevenRecordSumPathsLayoutReport| {
+        assert!(
+            carrier
+                .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian,)
+                .is_err()
+        );
+    };
     let mut missing = paths.clone();
     missing.paths.pop();
     rejects(&missing);
@@ -3086,9 +2998,7 @@ fn plural_depth_seven_paths_compose_depth_six_custody_and_retain_fences() {
     wrong_inner_identity.paths[0].inner.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].inner.paths[0]
-        .inner
-        .paths[0]
+    wrong_leaf_geometry.paths[0].inner.paths[0].inner.paths[0]
         .inner
         .paths[0]
         .inner
@@ -3104,9 +3014,7 @@ fn plural_depth_seven_paths_compose_depth_six_custody_and_retain_fences() {
         .offset += 1;
     rejects(&wrong_leaf_geometry);
     let mut wrong_case_ordinal = paths.clone();
-    wrong_case_ordinal.paths[0].inner.paths[0]
-        .inner
-        .paths[0]
+    wrong_case_ordinal.paths[0].inner.paths[0].inner.paths[0]
         .inner
         .paths[0]
         .inner
@@ -3121,16 +3029,10 @@ fn plural_depth_seven_paths_compose_depth_six_custody_and_retain_fences() {
         .ordinal = 7;
     rejects(&wrong_case_ordinal);
     let mut wrong_child_extent = paths.clone();
-    wrong_child_extent.paths[0]
-        .inner
-        .outer_layout
-        .size = Some(16);
+    wrong_child_extent.paths[0].inner.outer_layout.size = Some(16);
     rejects(&wrong_child_extent);
     let mut wrong_child_alignment = paths.clone();
-    wrong_child_alignment.paths[0]
-        .inner
-        .outer_layout
-        .align = 16;
+    wrong_child_alignment.paths[0].inner.outer_layout.align = 16;
     rejects(&wrong_child_alignment);
     let mut wrong_outer_geometry = paths.clone();
     wrong_outer_geometry.outer_layout.entries[1].placement =
@@ -3320,9 +3222,7 @@ fn producer_reachability_validates_siblings_after_an_already_found_sum() {
         .data_members(root)
         .iter()
         .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "trap" => {
-                Some(field.type_reference)
-            }
+            DataMember::Field(field) if field.name.as_str() == "trap" => Some(field.type_reference),
             DataMember::Field(_) | DataMember::Variant(_) => None,
         })
         .expect("trap field");
@@ -3561,27 +3461,19 @@ fn plural_depth_two_record_chains_retain_complete_occurrence_custody() {
     renamed.paths[0].outer_field = "renamed_middle".into();
     renamed.paths[0].inner.outer_layout.entries[1].field = "renamed_leaf".into();
     renamed.paths[0].inner.paths[0].outer_field = "renamed_leaf".into();
-    renamed.paths[0].inner.paths[0].inner_layout.entries[1].field =
-        "renamed_choice".into();
+    renamed.paths[0].inner.paths[0].inner_layout.entries[1].field = "renamed_choice".into();
     renamed.paths[0].inner.paths[0].child_sum_layouts[0].field = "renamed_choice".into();
     carrier
         .replay_against(&checked, "Outer", &renamed, &value, ByteOrder::LittleEndian)
         .expect("stable-numbered plural names at all three layers are presentation-only");
 
-    let rejects =
-        |mutated: &psi_layout_plans::ConventionalDepthTwoRecordSumPathsLayoutReport| {
-            assert!(
-                carrier
-                    .replay_against(
-                        &checked,
-                        "Outer",
-                        mutated,
-                        &value,
-                        ByteOrder::LittleEndian,
-                    )
-                    .is_err()
-            );
-        };
+    let rejects = |mutated: &psi_layout_plans::ConventionalDepthTwoRecordSumPathsLayoutReport| {
+        assert!(
+            carrier
+                .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian,)
+                .is_err()
+        );
+    };
     let mut missing_outer = paths.clone();
     missing_outer.paths.pop();
     rejects(&missing_outer);
@@ -3610,19 +3502,14 @@ fn plural_depth_two_record_chains_retain_complete_occurrence_custody() {
     wrong_middle_identity.paths[0].inner.paths[0].outer_member_identity = Some(4);
     rejects(&wrong_middle_identity);
     let mut wrong_child_identity = paths.clone();
-    wrong_child_identity.paths[0].inner.paths[0].child_sum_layouts[0].member_identity =
-        Some(3);
+    wrong_child_identity.paths[0].inner.paths[0].child_sum_layouts[0].member_identity = Some(3);
     rejects(&wrong_child_identity);
     let mut wrong_outer_layout = paths.clone();
-    wrong_outer_layout.outer_layout.entries[1].placement =
-        LayoutPlacementReport::At { offset: 8 };
+    wrong_outer_layout.outer_layout.entries[1].placement = LayoutPlacementReport::At { offset: 8 };
     rejects(&wrong_outer_layout);
     let mut wrong_middle_layout = paths.clone();
-    wrong_middle_layout.paths[0]
-        .inner
-        .outer_layout
-        .entries[1]
-        .placement = LayoutPlacementReport::At { offset: 8 };
+    wrong_middle_layout.paths[0].inner.outer_layout.entries[1].placement =
+        LayoutPlacementReport::At { offset: 8 };
     rejects(&wrong_middle_layout);
     let mut wrong_leaf_layout = paths.clone();
     wrong_leaf_layout.paths[0].inner.paths[0]
@@ -3769,9 +3656,7 @@ fn plural_depth_two_record_chains_retain_complete_occurrence_custody() {
         .data_members(middle_definition)
         .iter()
         .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "lead" => {
-                Some(field.type_reference)
-            }
+            DataMember::Field(field) if field.name.as_str() == "lead" => Some(field.type_reference),
             DataMember::Field(_) | DataMember::Variant(_) => None,
         })
         .unwrap();
@@ -4001,13 +3886,12 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         .iter()
         .find(|definition| definition.name.as_str() == "ErasedAlso")
         .unwrap();
-    let (erased_outer, erased_rows) =
-        project_conventional_record_with_sum_materialization_layout(
-            &checked,
-            &plan,
-            erased_also.symbol,
-        )
-        .expect("erased sum fields are not runtime materialization occurrences");
+    let (erased_outer, erased_rows) = project_conventional_record_with_sum_materialization_layout(
+        &checked,
+        &plan,
+        erased_also.symbol,
+    )
+    .expect("erased sum fields are not runtime materialization occurrences");
     assert_eq!(erased_outer.offsets.as_deref(), Some(&[0][..]));
     assert_eq!(
         erased_rows
@@ -4082,16 +3966,15 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
             ),
         ],
     };
-    let two_array_materialized =
-        validate_const_materializable_record_with_conventional_sum_arrays(
-            &checked,
-            "TwoArrayOwner",
-            &two_array_outer,
-            &two_array_rows,
-            &two_array_value,
-            ByteOrder::LittleEndian,
-        )
-        .expect("the plural target report should rejoin plural value custody");
+    let two_array_materialized = validate_const_materializable_record_with_conventional_sum_arrays(
+        &checked,
+        "TwoArrayOwner",
+        &two_array_outer,
+        &two_array_rows,
+        &two_array_value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("the plural target report should rejoin plural value custody");
     assert_eq!(
         two_array_materialized.bytes(),
         &[
@@ -4124,8 +4007,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         "target-dependent placement on the second qualifying array must reject"
     );
 
-    let array_data_layout =
-        unique_data_layout(&plan, array_owner.symbol, "ArrayOwner").unwrap();
+    let array_data_layout = unique_data_layout(&plan, array_owner.symbol, "ArrayOwner").unwrap();
     let DataShape::Record {
         fields: array_fields,
     } = array_data_layout.shape
@@ -4195,8 +4077,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
     assert_eq!(
         materialized.bytes(),
         &[
-            0xaa, 0xbb, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0x5c, 0, 0, 0, 0x22, 0x11, 0,
-            0,
+            0xaa, 0xbb, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0x5c, 0, 0, 0, 0x22, 0x11, 0, 0,
         ]
     );
     let neighbor_data_layout =

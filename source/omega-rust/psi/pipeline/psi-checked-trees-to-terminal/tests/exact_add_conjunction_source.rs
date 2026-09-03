@@ -45,7 +45,7 @@ fn exact_outer_fork_join_crosses_source_codec_and_independent_verification() {
             OperationKind::ExactIntegerAdd { obligation, .. } => Some(obligation),
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("source retains the final exact add");
     let evidence = lowered
         .proof_bundle

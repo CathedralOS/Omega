@@ -902,7 +902,7 @@ fn substate_parameter_descends(
                         };
                         let forwarded = match program.expression_table.expression(*bound) {
                             ExpressionNode::Name(path) if path.symbol.is_valid() => {
-                                descending.iter().any(|known| *known == path.symbol)
+                                descending.contains(&path.symbol)
                             }
                             _ => false,
                         };
@@ -933,8 +933,7 @@ fn substate_parameter_descends(
             .state_parameters(state)
             .get(*position)
             .is_some_and(|parameter| {
-                parameter.symbol.is_valid()
-                    && descending.iter().any(|known| *known == parameter.symbol)
+                parameter.symbol.is_valid() && descending.contains(&parameter.symbol)
             })
     })
 }

@@ -131,9 +131,7 @@ fn compute_domain_dependency_segments(
                 let base_segments: Vec<_> = semantic
                     .place_segments
                     .span_or_empty(place.segments)
-                    .iter()
-                    .copied()
-                    .collect();
+                    .to_vec();
                 let imported_dependencies = compute_domain_dependency_segments(
                     program,
                     semantic,

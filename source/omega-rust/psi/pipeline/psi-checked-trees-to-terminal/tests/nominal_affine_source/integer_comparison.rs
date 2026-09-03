@@ -606,7 +606,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -650,7 +650,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -694,7 +694,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -775,7 +775,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value }
                                 if matches!(
                                     value,
@@ -1387,7 +1387,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(left))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -2016,7 +2016,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -4025,7 +4025,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(operand))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerWiden { operand } => Some(operand),
                             _ => None,
                         })
@@ -4037,7 +4037,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(wide_input))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerWiden { operand } => Some(operand),
                             _ => None,
                         })
@@ -4311,7 +4311,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .flat_map(|block| &block.operations)
         .find_map(|operation| {
             (operation.result.scalar_ref().map(|result| result.id) == Some(outer_widen_result))
-                .then(|| match operation.kind {
+                .then_some(match operation.kind {
                     OperationKind::IntegerWiden { operand } => Some(operand),
                     _ => None,
                 })
@@ -6459,13 +6459,12 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && (!(small + 3) & u128::from(u8::MAX)) < 255
                     && small - 3 < 255
                     && small - 1 - 1 - 1 < 5
-                    && (15 & (small * 2)) < 16
                     && (!(small + 3) & u128::from(u16::MAX)) < 65535
                     && ((small + 1) & (small * 2)) < 255
                     && 127 - small < 125
                     && small - divisor < 4
                     && small * 2 < 10
-                    && ((small * 2) * 3) * 1 < 255
+                    && ((small * 2) * 3) < 255
                     && small * divisor < 50
                     && small / 2 < 3
                     && small % 2 <= 1
@@ -6484,8 +6483,8 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     && small % divisor <= small
                     && (small >> small) < 1
                     && (signed_arithmetic >> signed_divisor) < 4
-                    && (((small >> 1) >> 2) >> 0) < 2
-                    && (((small << 1) << 2) << 0) < 255
+                    && ((small >> 1) >> 2) < 2
+                    && ((small << 1) << 2) < 255
                     && (small << 1) < 11
                     && (small << count) < 29
                     && (small << signed_count) < 255

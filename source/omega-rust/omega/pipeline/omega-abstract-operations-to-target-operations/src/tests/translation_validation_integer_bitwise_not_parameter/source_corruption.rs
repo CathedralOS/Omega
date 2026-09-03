@@ -138,7 +138,7 @@ fn integer_bitwise_not_shared_source_envelope_corruption_fails_closed() {
         StraightLineIntegerBitwiseNotParameterTranslationError::SourceBlockRoster
     );
     assert_eq!(
-        leaf_error(|function| function.parameters.push(function.parameters[0].clone())),
+        leaf_error(|function| function.parameters.push(function.parameters[0])),
         StraightLineIntegerBitwiseNotParameterTranslationError::SourceParameterRoster
     );
     assert_eq!(

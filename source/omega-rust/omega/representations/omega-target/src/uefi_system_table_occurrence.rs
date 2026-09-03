@@ -342,7 +342,7 @@ fn crc32_ieee(bytes: impl IntoIterator<Item = u8>) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{plan_uefi_system_table_native_layout, TargetProfile};
+    use crate::{TargetProfile, plan_uefi_system_table_native_layout};
 
     const TEST_REVISION: u32 = (2 << 16) | 100;
 
@@ -396,10 +396,12 @@ mod tests {
         geometry.reserved = layout
             .field_layout(UefiSystemTableNativeField::ConsoleOut)
             .unwrap();
-        assert!(validate_header_geometry(&layout, geometry)
-            .unwrap_err()
-            .message
-            .contains("drifted EFI_TABLE_HEADER field layout"));
+        assert!(
+            validate_header_geometry(&layout, geometry)
+                .unwrap_err()
+                .message
+                .contains("drifted EFI_TABLE_HEADER field layout")
+        );
     }
 
     #[test]
@@ -436,10 +438,12 @@ mod tests {
 
         let mut corrupt = bytes;
         corrupt[135] ^= 1;
-        assert!(rejection(&corrupt)
-            .diagnostic()
-            .message
-            .contains("computed"));
+        assert!(
+            rejection(&corrupt)
+                .diagnostic()
+                .message
+                .contains("computed")
+        );
     }
 
     #[test]
@@ -454,53 +458,65 @@ mod tests {
 
         let mut wrong_signature = valid_occurrence(120, 120);
         wrong_signature[0] ^= 1;
-        assert!(rejection(&wrong_signature)
-            .diagnostic()
-            .message
-            .contains("expected EFI_SYSTEM_TABLE signature"));
+        assert!(
+            rejection(&wrong_signature)
+                .diagnostic()
+                .message
+                .contains("expected EFI_SYSTEM_TABLE signature")
+        );
     }
 
     #[test]
     fn rejects_header_size_below_prefix_or_beyond_supplied_bytes() {
         let mut below_prefix = valid_occurrence(120, 120);
         below_prefix[field_range(geometry().header_size)].copy_from_slice(&119_u32.to_le_bytes());
-        assert!(rejection(&below_prefix)
-            .diagnostic()
-            .message
-            .contains("does not cover"));
+        assert!(
+            rejection(&below_prefix)
+                .diagnostic()
+                .message
+                .contains("does not cover")
+        );
 
         let mut beyond_supplied = valid_occurrence(120, 120);
         beyond_supplied[field_range(geometry().header_size)]
             .copy_from_slice(&121_u32.to_le_bytes());
-        assert!(rejection(&beyond_supplied)
-            .diagnostic()
-            .message
-            .contains("only 120 occurrence bytes were supplied"));
+        assert!(
+            rejection(&beyond_supplied)
+                .diagnostic()
+                .message
+                .contains("only 120 occurrence bytes were supplied")
+        );
 
         let mut header_only = vec![0; 24];
         header_only[field_range(geometry().signature)]
             .copy_from_slice(&UEFI_SYSTEM_TABLE_SIGNATURE.to_le_bytes());
         header_only[field_range(geometry().header_size)].copy_from_slice(&u32::MAX.to_le_bytes());
-        assert!(rejection(&header_only)
-            .diagnostic()
-            .message
-            .contains("only 24 occurrence bytes were supplied"));
+        assert!(
+            rejection(&header_only)
+                .diagnostic()
+                .message
+                .contains("only 24 occurrence bytes were supplied")
+        );
     }
 
     #[test]
     fn rejects_nonzero_reserved_field_and_crc_mismatch() {
         let mut nonzero_reserved = valid_occurrence(120, 120);
         nonzero_reserved[geometry().reserved.byte_offset() as usize] = 1;
-        assert!(rejection(&nonzero_reserved)
-            .diagnostic()
-            .message
-            .contains("expected zero"));
+        assert!(
+            rejection(&nonzero_reserved)
+                .diagnostic()
+                .message
+                .contains("expected zero")
+        );
 
         let mut crc_mismatch = valid_occurrence(120, 120);
         crc_mismatch[64] ^= 1;
-        assert!(rejection(&crc_mismatch)
-            .diagnostic()
-            .message
-            .contains("CRC32"));
+        assert!(
+            rejection(&crc_mismatch)
+                .diagnostic()
+                .message
+                .contains("CRC32")
+        );
     }
 }

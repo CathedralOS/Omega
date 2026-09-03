@@ -430,10 +430,11 @@ fn expression_symbol_trace(
             call.private_layout_operation,
             call.evidence_arguments,
             call.operational_acknowledgement,
-            call.receiver
-                .is_valid()
-                .then(|| trace(call.receiver))
-                .unwrap_or_default(),
+            if call.receiver.is_valid() {
+                trace(call.receiver)
+            } else {
+                Default::default()
+            },
             program
                 .expression_table
                 .expression_handles(call.arguments)

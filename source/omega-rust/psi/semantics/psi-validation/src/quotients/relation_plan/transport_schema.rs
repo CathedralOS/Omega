@@ -149,7 +149,7 @@ pub(super) fn verify_forward_precondition_transport_schema(
                 expected,
                 actual.fact,
                 ProofFactIdentityContext {
-                    values: &public_values,
+                    values: public_values,
                     static_bindings: &[],
                 },
                 ProofFactIdentityContext {
@@ -189,7 +189,7 @@ pub(super) fn verify_forward_precondition_transport_schema(
                 expected,
                 actual.fact,
                 ProofFactIdentityContext {
-                    values: &representative_values,
+                    values: representative_values,
                     static_bindings: &representative.static_application.bindings,
                 },
                 ProofFactIdentityContext {

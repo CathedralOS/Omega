@@ -4386,7 +4386,7 @@ fn mixed_edge_owned_cleanup_plan() -> MachineCodePlan {
     let caller = &mut plan.functions[2];
     let trivial_place = PlaceId::new(2).expect("trivial place");
     let trivial_type = StructuralTypeId::new(3).expect("trivial type");
-    let mut trivial_parameter = caller.unit_parameters[0].clone();
+    let mut trivial_parameter = caller.unit_parameters[0];
     trivial_parameter.place = trivial_place;
     trivial_parameter.structural_type = trivial_type;
     let mut trivial_home = caller.unit_parameter_homes[0].clone();

@@ -2,7 +2,7 @@
 
 use super::super::*;
 use super::nonzero_divisor_immediate_operands::{
-    nonzero_divisor_integer_immediate_operands_return_artifact, NonzeroDivisorIntegerOperation,
+    NonzeroDivisorIntegerOperation, nonzero_divisor_integer_immediate_operands_return_artifact,
 };
 
 pub(crate) fn saturating_integer_divide_immediate_operands_return_artifact(

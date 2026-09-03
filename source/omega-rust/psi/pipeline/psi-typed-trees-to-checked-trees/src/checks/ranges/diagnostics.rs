@@ -57,9 +57,7 @@ pub(super) fn known_length_range_bound_failure(
         return Some(SubsliceRangeFailure::StartBound);
     }
 
-    let Some(end) = end else {
-        return None;
-    };
+    let end = end?;
     if end < 0 || usize::try_from(end).map_or(true, |end| end > length) {
         return Some(SubsliceRangeFailure::EndBound);
     }

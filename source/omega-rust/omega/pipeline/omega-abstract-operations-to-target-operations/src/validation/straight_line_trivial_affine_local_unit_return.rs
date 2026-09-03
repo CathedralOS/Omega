@@ -170,7 +170,7 @@ pub(crate) fn validate(
         StraightLineTrivialAffineLocalUnitReturnTranslationReceipt::new(
             source.machine,
             *psi_operation,
-            place.clone(),
+            *place,
             structural_type.clone(),
             *psi_edge,
         ),

@@ -244,7 +244,7 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
     {
         return Err(invalid());
     }
-    let unit_stack = relocation.unit_stack.clone().ok_or_else(invalid)?;
+    let unit_stack = relocation.unit_stack.ok_or_else(invalid)?;
     let (direct_call_offset, direct_call_byte_count) = match target.architecture {
         Architecture::X86_64 => (relocation.offset.checked_sub(1).ok_or_else(invalid)?, 5),
         Architecture::Aarch64 => (relocation.offset, 4),

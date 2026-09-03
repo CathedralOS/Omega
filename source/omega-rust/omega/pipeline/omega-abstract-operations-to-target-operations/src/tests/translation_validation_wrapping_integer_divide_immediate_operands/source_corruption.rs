@@ -39,7 +39,9 @@ fn envelope_and_roster_corruption_fail_closed() {
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceEntryClaims
     );
     assert_eq!(
-        leaf_error(|function| function.published_service_ceiling.push(ServiceId::new(84_106).unwrap())),
+        leaf_error(|function| function
+            .published_service_ceiling
+            .push(ServiceId::new(84_106).unwrap())),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourcePublishedServices
     );
     assert_eq!(
@@ -56,21 +58,33 @@ fn envelope_and_roster_corruption_fail_closed() {
 fn definition_type_value_obligation_and_operand_corruption_fail_closed() {
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::IntegerConstant { psi_operation, .. } = &mut function.operations[1] else { unreachable!() };
+            let AbstractOperation::IntegerConstant { psi_operation, .. } =
+                &mut function.operations[1]
+            else {
+                unreachable!()
+            };
             *psi_operation = OperationId::new(84_003).unwrap();
         }),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceDefinitionRoster
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::WrappingIntegerDivide { result, .. } = &mut function.operations[2] else { unreachable!() };
+            let AbstractOperation::WrappingIntegerDivide { result, .. } =
+                &mut function.operations[2]
+            else {
+                unreachable!()
+            };
             *result = ValueId::new(84_004).unwrap();
         }),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceDefinitionRoster
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::IntegerConstant { scalar_type, .. } = &mut function.operations[0] else { unreachable!() };
+            let AbstractOperation::IntegerConstant { scalar_type, .. } =
+                &mut function.operations[0]
+            else {
+                unreachable!()
+            };
             *scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).unwrap());
         }),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceConstantType
@@ -82,11 +96,20 @@ fn definition_type_value_obligation_and_operand_corruption_fail_closed() {
         assert_eq!(
             leaf_error(|function| {
                 for operation in &mut function.operations[0..2] {
-                    let AbstractOperation::IntegerConstant { scalar_type, value, .. } = operation else { unreachable!() };
+                    let AbstractOperation::IntegerConstant {
+                        scalar_type, value, ..
+                    } = operation
+                    else {
+                        unreachable!()
+                    };
                     *scalar_type = ScalarType::Integer(invalid);
                     *value = invalid.maximum_value();
                 }
-                let AbstractOperation::WrappingIntegerDivide { scalar_type, .. } = &mut function.operations[2] else { unreachable!() };
+                let AbstractOperation::WrappingIntegerDivide { scalar_type, .. } =
+                    &mut function.operations[2]
+                else {
+                    unreachable!()
+                };
                 *scalar_type = invalid;
             }),
             StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceIntegerType
@@ -101,21 +124,32 @@ fn definition_type_value_obligation_and_operand_corruption_fail_closed() {
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::IntegerConstant { value, .. } = &mut function.operations[1] else { unreachable!() };
+            let AbstractOperation::IntegerConstant { value, .. } = &mut function.operations[1]
+            else {
+                unreachable!()
+            };
             *value = IntegerValue::Signed(0);
         }),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceDivideUndefined
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::WrappingIntegerDivide { left, right, .. } = &mut function.operations[2] else { unreachable!() };
+            let AbstractOperation::WrappingIntegerDivide { left, right, .. } =
+                &mut function.operations[2]
+            else {
+                unreachable!()
+            };
             std::mem::swap(left, right);
         }),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceDivideOperands
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::WrappingIntegerDivide { obligation, .. } = &mut function.operations[2] else { unreachable!() };
+            let AbstractOperation::WrappingIntegerDivide { obligation, .. } =
+                &mut function.operations[2]
+            else {
+                unreachable!()
+            };
             *obligation = ObligationId::new(84_111).unwrap();
         }),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::TargetOperation
@@ -126,22 +160,33 @@ fn definition_type_value_obligation_and_operand_corruption_fail_closed() {
 fn return_and_cleanup_corruption_fail_closed() {
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::Return { value, .. } = &mut function.operations[3] else { unreachable!() };
+            let AbstractOperation::Return { value, .. } = &mut function.operations[3] else {
+                unreachable!()
+            };
             *value = ValueId::new(84_004).unwrap();
         }),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceResultLink
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::Return { scalar_type, .. } = &mut function.operations[3] else { unreachable!() };
+            let AbstractOperation::Return { scalar_type, .. } = &mut function.operations[3] else {
+                unreachable!()
+            };
             *scalar_type = ScalarType::Boolean;
         }),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceResultLink
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::Return { cleanup_actions, .. } = &mut function.operations[3] else { unreachable!() };
-            cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(84_107).unwrap()));
+            let AbstractOperation::Return {
+                cleanup_actions, ..
+            } = &mut function.operations[3]
+            else {
+                unreachable!()
+            };
+            cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(
+                PlaceId::new(84_107).unwrap(),
+            ));
         }),
         StraightLineWrappingIntegerDivideImmediateOperandsTranslationError::SourceCleanup
     );

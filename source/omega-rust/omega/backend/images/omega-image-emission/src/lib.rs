@@ -1643,25 +1643,25 @@ fn build_object_artifact_with_x86_feature_profile(
             }
             if let Err(error) = validate_completion_custody(settlement) {
                 return Err(match error {
-                    CompletionCustodyError::InvalidArgumentPath => {
+                    CompletionCustodyError::ArgumentPath => {
                         ObjectError::InvalidBoundarySettlementArgumentPath {
                             machine: function.machine,
                             operation: settlement.psi_operation,
                         }
                     }
-                    CompletionCustodyError::InvalidReceiptArgumentIndex => {
+                    CompletionCustodyError::ReceiptArgumentIndex => {
                         ObjectError::InvalidCompletionReceiptArgumentIndex {
                             machine: function.machine,
                             operation: settlement.psi_operation,
                         }
                     }
-                    CompletionCustodyError::InvalidReceiptCustody => {
+                    CompletionCustodyError::ReceiptCustody => {
                         ObjectError::InvalidCompletionReceiptCustody {
                             machine: function.machine,
                             operation: settlement.psi_operation,
                         }
                     }
-                    CompletionCustodyError::InvalidProviderCustody => {
+                    CompletionCustodyError::ProviderCustody => {
                         ObjectError::InvalidCompletionProviderCustody {
                             machine: function.machine,
                             operation: settlement.psi_operation,

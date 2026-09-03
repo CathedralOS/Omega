@@ -56,7 +56,7 @@ pub(super) fn validate_forwarded_dynamic_descriptors(
                     != 1
                 || call.dynamic_arguments.len() != 1
                 || call.call_plan.parameters.len() != 2
-                || machine_functions.get(&call.callee).is_none()
+                || !machine_functions.contains_key(&call.callee)
                 || call.semantic_result.is_some() != call.result.is_some()
             {
                 return Err(invalid());

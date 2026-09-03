@@ -127,7 +127,9 @@ fn validate_geometry(
         .checked_add(placement.size_bytes);
     if placement.size_bytes == 0
         || !placement.alignment_bytes.is_power_of_two()
-        || placement.spill_area_offset % placement.alignment_bytes != 0
+        || !placement
+            .spill_area_offset
+            .is_multiple_of(placement.alignment_bytes)
         || !matches!(end, Some(end) if end <= area)
     {
         return Err(AbstractSpillAccessConstraintError::InvalidGeometry {

@@ -677,15 +677,11 @@ fn terminal_authority_permission_policy(
         .plans()
         .iter()
         .flat_map(|plan| {
-            plan.rows.iter().filter_map(move |row| {
-                matches!(row.binding, ProviderBinding::Import { .. }).then(|| {
-                    omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+            plan.rows.iter().filter(|&row| matches!(row.binding, ProviderBinding::Import { .. })).map(|row| omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
                         plan.schema.identity_digest(),
                         row.requirement_identity.clone(),
                         omega_effects::TerminalAuthorityDisposition::from_classes([]),
-                    )
-                })
-            })
+                    ))
         })
         .collect();
     omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(rows)
@@ -702,7 +698,7 @@ fn admit_import(
     retained: &omega_compilation_report::RetainedTerminalArtifact,
     receipt: SameStackContributionAdmissionReceiptId,
 ) -> AdmittedImport {
-    let (requirement, plan_report_identity, plan_commitment) = import_coordinates(&retained);
+    let (requirement, plan_report_identity, plan_commitment) = import_coordinates(retained);
     let execution = TestProviderExecution {
         requirement: requirement.clone(),
         plan_report_identity,

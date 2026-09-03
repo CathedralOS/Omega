@@ -9,7 +9,7 @@ pub(super) fn project(
     function: usize,
     source: &FunctionAbstractSpillMemoryEffects,
 ) -> Result<Vec<AbstractSpillAccessPlacement>, AbstractSpillAccessConstraintError> {
-    let mut ordered = source.effects.iter().copied().collect::<Vec<_>>();
+    let mut ordered = source.effects.to_vec();
     ordered.sort_by_key(|effect| {
         let (block, point) = position(*effect);
         (block, point, effect.pseudo())
@@ -118,7 +118,9 @@ fn validate_geometry(
 ) -> Result<(), AbstractSpillAccessConstraintError> {
     if placement.size_bytes == 0
         || !placement.alignment_bytes.is_power_of_two()
-        || placement.spill_area_offset % placement.alignment_bytes != 0
+        || !placement
+            .spill_area_offset
+            .is_multiple_of(placement.alignment_bytes)
         || placement
             .spill_area_offset
             .checked_add(placement.size_bytes)

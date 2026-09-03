@@ -487,6 +487,6 @@ fn integer_literal_fits(
     unsigned_width.is_some_and(|width| {
         literal
             .value_u64()
-            .is_some_and(|value| width == 64 || value <= (1u64 << width) - 1)
+            .is_some_and(|value| width == 64 || value < (1u64 << width))
     })
 }

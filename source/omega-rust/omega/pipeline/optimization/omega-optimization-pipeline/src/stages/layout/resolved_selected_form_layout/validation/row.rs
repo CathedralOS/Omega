@@ -153,13 +153,13 @@ pub(super) fn validate(
     }
 }
 
-fn copy_action<'a>(
-    elision: Option<&'a StagedOptimizedAarch64SameViewCopyElision>,
+fn copy_action(
+    elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
     machine: MachineId,
     block: SelectedBlockId,
     copy: SelectedInstructionId,
     returned: SelectedInstructionId,
-) -> Result<&'a Aarch64SameViewCopyElisionAction, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<&Aarch64SameViewCopyElisionAction, OptimizedResolvedSelectedFormLayoutError> {
     elision
         .and_then(|elision| {
             elision.elision().plan().actions.iter().find(|action| {
@@ -172,13 +172,13 @@ fn copy_action<'a>(
         .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
 }
 
-fn fusion_action<'a>(
-    fusion: Option<&'a StagedOptimizedAarch64CbnzFusion>,
+fn fusion_action(
+    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
     machine: MachineId,
     block: SelectedBlockId,
     compare: SelectedInstructionId,
     branch: SelectedInstructionId,
-) -> Result<&'a Aarch64CbnzFusionAction, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<&Aarch64CbnzFusionAction, OptimizedResolvedSelectedFormLayoutError> {
     fusion
         .and_then(|fusion| {
             fusion.fusion().plan().actions.iter().find(|action| {

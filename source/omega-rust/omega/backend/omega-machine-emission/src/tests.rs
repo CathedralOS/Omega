@@ -889,7 +889,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
                 operations: vec![
                     TargetUnitOperation::EstablishByteSequenceLiteral {
                         psi_operation: literal_operation,
-                        place: place.clone(),
+                        place,
                         structural_type: structural_type.clone(),
                         bytes: literal_bytes.clone(),
                     },
@@ -2176,7 +2176,7 @@ fn x86_executable_nominal_cleanup_call_is_edge_owned_and_precedes_epilogue() {
     assert!(custody.claim_transfers.is_empty());
     let cleanup = root.unit_affine_cleanup.as_ref().expect("cleanup ledger");
     assert_eq!(cleanup.psi_edge, root_return);
-    assert!(cleanup.code_offset <= relocation.offset - 1);
+    assert!(cleanup.code_offset < relocation.offset);
     assert!(relocation.offset + 4 < cleanup.code_offset + cleanup.byte_count);
     let frame = root
         .unit_stack
@@ -4216,13 +4216,13 @@ fn retains_arbitrarily_nested_integer_decisions() {
         } else {
             when_true
         };
-        nested_arm.control = Box::new(TargetIntegerControl::Conditional {
+        *nested_arm.control = TargetIntegerControl::Conditional {
             condition_source: ValueId::new(8).expect("nested condition"),
             condition_parameter_index: if nested_false_arm { 2 } else { 1 },
             condition_location: ScalarParameterLocation::Register(nested_register),
             when_true: returned(5, 7, 9, 7),
             when_false: returned(6, 8, 10, 9),
-        });
+        };
         plan
     };
 
@@ -4275,13 +4275,13 @@ fn retains_arbitrarily_nested_integer_decisions() {
         else {
             unreachable!()
         };
-        when_false.control = Box::new(TargetIntegerControl::Conditional {
+        *when_false.control = TargetIntegerControl::Conditional {
             condition_source: ValueId::new(12).expect("false nested condition"),
             condition_parameter_index: 2,
             condition_location: ScalarParameterLocation::Register(false_register),
             when_true: returned(11, 13, 13, 11),
             when_false: returned(12, 14, 14, 13),
-        });
+        };
         let emitted =
             emit_machine_code(&four_leaf).expect("emit one nested decision in each outer arm");
         let ScalarControlFlowEvidence::ConditionalTree {
@@ -4314,12 +4314,12 @@ fn retains_arbitrarily_nested_integer_decisions() {
         else {
             unreachable!()
         };
-        when_true.control = Box::new(TargetIntegerControl::Crash {
+        *when_true.control = TargetIntegerControl::Crash {
             psi_crash_edge: EdgeId::new(16).expect("crash edge"),
             cause: psi_terminal::CrashCause::Trap,
             site_guard: Vec::new(),
             frontier_lower_bound: Vec::new(),
-        });
+        };
         let emitted =
             emit_machine_code(&four_leaf).expect("emit four-leaf conditional with a crash leaf");
         assert!(matches!(
@@ -4342,12 +4342,12 @@ fn retains_arbitrarily_nested_integer_decisions() {
         else {
             unreachable!()
         };
-        when_false.control = Box::new(TargetIntegerControl::Crash {
+        *when_false.control = TargetIntegerControl::Crash {
             psi_crash_edge: EdgeId::new(15).expect("crash edge"),
             cause: psi_terminal::CrashCause::Trap,
             site_guard: Vec::new(),
             frontier_lower_bound: Vec::new(),
-        });
+        };
         let emitted =
             emit_machine_code(&nested_crash).expect("emit nested conditional with a crash leaf");
         assert!(matches!(
@@ -4375,7 +4375,7 @@ fn retains_arbitrarily_nested_integer_decisions() {
         unreachable!()
     };
     let leaf = nested_true.control.clone();
-    nested_true.control = Box::new(TargetIntegerControl::Conditional {
+    *nested_true.control = TargetIntegerControl::Conditional {
         condition_source: ValueId::new(11).expect("third condition"),
         condition_parameter_index: 1,
         condition_location: ScalarParameterLocation::Register(MachineRegister::X86Rsi),
@@ -4387,7 +4387,7 @@ fn retains_arbitrarily_nested_integer_decisions() {
             psi_edge: EdgeId::new(10).expect("edge"),
             control: leaf,
         },
-    });
+    };
     let emitted = emit_machine_code(&too_deep).expect("third decision emits with evidence");
     let ScalarControlFlowEvidence::ConditionalTree {
         decisions,
@@ -4501,12 +4501,12 @@ fn conditional_division_and_crash_admit_accountable_arm_forms() {
     else {
         unreachable!()
     };
-    when_false.control = Box::new(TargetIntegerControl::Crash {
+    *when_false.control = TargetIntegerControl::Crash {
         psi_crash_edge: EdgeId::new(10).expect("crash edge"),
         cause: psi_terminal::CrashCause::Trap,
         site_guard: Vec::new(),
         frontier_lower_bound: Vec::new(),
-    });
+    };
     let emitted = emit_machine_code(&signed_return_crash)
         .expect("signed x86 division plus crash emits with stack evidence");
     let ScalarControlFlowEvidence::ConditionalTree {
@@ -4540,12 +4540,12 @@ fn conditional_division_and_crash_admit_accountable_arm_forms() {
             } else {
                 when_true
             };
-            crash_arm.control = Box::new(TargetIntegerControl::Crash {
+            *crash_arm.control = TargetIntegerControl::Crash {
                 psi_crash_edge: EdgeId::new(9).expect("crash edge"),
                 cause: psi_terminal::CrashCause::Trap,
                 site_guard: Vec::new(),
                 frontier_lower_bound: Vec::new(),
-            });
+            };
             let emitted = emit_machine_code(&crash_plan)
                 .expect("conditional return/crash emits with stack evidence");
             let ScalarControlFlowEvidence::ConditionalTree { crash_leaves, .. } = &emitted
@@ -4577,12 +4577,12 @@ fn conditional_division_and_crash_admit_accountable_arm_forms() {
             unreachable!()
         };
         for (edge, arm) in [(11, when_true), (12, when_false)] {
-            arm.control = Box::new(TargetIntegerControl::Crash {
+            *arm.control = TargetIntegerControl::Crash {
                 psi_crash_edge: EdgeId::new(edge).expect("crash edge"),
                 cause: psi_terminal::CrashCause::Trap,
                 site_guard: Vec::new(),
                 frontier_lower_bound: Vec::new(),
-            });
+            };
         }
         let emitted = emit_machine_code(&two_crash_plan)
             .expect("two-crash conditional emits with stack evidence");

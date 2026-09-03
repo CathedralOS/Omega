@@ -1401,7 +1401,7 @@ fn lower_evidence_interface(
     requirements.dedup();
     Ok(EvidenceInterfaceIdentity {
         trait_identity: checked.symbols.display_path(interface.trait_symbol, "::"),
-        arguments: interface.arguments.iter().cloned().collect(),
+        arguments: interface.arguments.to_vec(),
         requirements,
     })
 }

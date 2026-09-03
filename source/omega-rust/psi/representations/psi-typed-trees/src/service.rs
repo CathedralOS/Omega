@@ -28,17 +28,13 @@ pub fn classify_exact_bound_service_carrier(
 ) -> Result<Option<ExactBoundServiceCarrier>, String> {
     let mut current = type_reference;
     let mut constraints = Vec::new();
-    loop {
-        match program.type_reference_table.type_reference(current) {
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints: span,
-            } => {
-                constraints.extend_from_slice(program.type_reference_table.constraints(*span));
-                current = *base_type;
-            }
-            _ => break,
-        }
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints: span,
+    } = program.type_reference_table.type_reference(current)
+    {
+        constraints.extend_from_slice(program.type_reference_table.constraints(*span));
+        current = *base_type;
     }
 
     let exact_bound_domain = exact_bound_domain_symbol(program);

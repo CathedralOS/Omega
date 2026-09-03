@@ -58,10 +58,10 @@ pub(crate) fn validate_x86_scalar_fma_function(
 
     let mut previous_end = None;
     for fragment in &function.x86_scalar_fma {
-        if let Some(end) = previous_end {
-            if fragment.code_offset < end {
-                return Err(ObjectError::NonCanonicalX86ScalarFmaOrder(function.machine));
-            }
+        if let Some(end) = previous_end
+            && fragment.code_offset < end
+        {
+            return Err(ObjectError::NonCanonicalX86ScalarFmaOrder(function.machine));
         }
         if fragment.byte_count != 5 {
             return Err(ObjectError::InvalidX86ScalarFmaInterval {

@@ -39,8 +39,8 @@ pub(super) fn validate_structural_placement(
                 byte_size,
                 alignment,
                 ..
-            } if u16::try_from(placement.shape.byte_size) == Ok(*byte_size)
-                && u16::try_from(placement.shape.alignment) == Ok(*alignment) =>
+            } if placement.shape.byte_size == *byte_size
+                && placement.shape.alignment == *alignment =>
             {
                 Ok(())
             }
@@ -97,28 +97,61 @@ fn validate_structural_register(
     register: MachineRegister,
     architecture: Architecture,
 ) -> Result<(), AssignmentError> {
-    let matches_architecture = match (architecture, register) {
-        (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rax)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rcx)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rdx)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rbx)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rsp)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rbp)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rsi)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rdi)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86R8)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86R9)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86R10)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86R11)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86R12)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86R13)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86R14)
-        | (Architecture::X86_64, omega_target_operations::MachineRegister::X86R15)
-        | (Architecture::Aarch64, omega_target_operations::MachineRegister::Aarch64X(0..=30)) => {
-            true
-        }
-        _ => false,
-    };
+    let matches_architecture = matches!(
+        (architecture, register),
+        (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86Rax
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86Rcx
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86Rdx
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86Rbx
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86Rsp
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86Rbp
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86Rsi
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86Rdi
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86R8
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86R9
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86R10
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86R11
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86R12
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86R13
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86R14
+        ) | (
+            Architecture::X86_64,
+            omega_target_operations::MachineRegister::X86R15
+        ) | (
+            Architecture::Aarch64,
+            omega_target_operations::MachineRegister::Aarch64X(0..=30)
+        )
+    );
     if !matches_architecture {
         return Err(AssignmentError::StructuralRegisterArchitectureMismatch {
             place,

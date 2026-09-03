@@ -113,33 +113,6 @@ fn report_partial(
     )));
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn exact_division_definedness_follows_the_shared_policy_catalog() {
-        assert_eq!(
-            exact_definedness_conditions(BinaryOperator::Divide),
-            ExactDefinednessConditions {
-                nonzero_divisor: true,
-                signed_result_representable: true,
-            }
-        );
-    }
-
-    #[test]
-    fn exact_remainder_definedness_follows_the_shared_policy_catalog() {
-        assert_eq!(
-            exact_definedness_conditions(BinaryOperator::Modulo),
-            ExactDefinednessConditions {
-                nonzero_divisor: true,
-                signed_result_representable: true,
-            }
-        );
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_concrete(
     program: &TypedTrees,
@@ -429,4 +402,31 @@ pub(super) fn validate_abstract(
         diagnostics,
         &mut Vec::new(),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exact_division_definedness_follows_the_shared_policy_catalog() {
+        assert_eq!(
+            exact_definedness_conditions(BinaryOperator::Divide),
+            ExactDefinednessConditions {
+                nonzero_divisor: true,
+                signed_result_representable: true,
+            }
+        );
+    }
+
+    #[test]
+    fn exact_remainder_definedness_follows_the_shared_policy_catalog() {
+        assert_eq!(
+            exact_definedness_conditions(BinaryOperator::Modulo),
+            ExactDefinednessConditions {
+                nonzero_divisor: true,
+                signed_result_representable: true,
+            }
+        );
+    }
 }

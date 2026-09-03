@@ -279,9 +279,8 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
             };
             planned_requests.push(result_root.request_expression);
             let operation = operation_name(request.kind);
-            match relation_plan::derive_direct_terminal_plan(
-                program, machine, state, call, request,
-            ) {
+            match relation_plan::derive_direct_terminal_plan(program, machine, state, call, request)
+            {
                 Ok(plan) => {
                     let congruence = &plan.theorem_evidence[0];
                     let representative_purity = relation_plan::pure_representative_effect(
@@ -295,14 +294,17 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         state,
                         result_root,
                     );
-                    let complete_forwarded_result_flow = complete_result_flow.is_none().then(|| {
-                        relation_plan::complete_state_forwarding_result_flow(
-                            program,
-                            machine,
-                            state,
-                            result_root,
-                        )
-                    }).flatten();
+                    let complete_forwarded_result_flow = complete_result_flow
+                        .is_none()
+                        .then(|| {
+                            relation_plan::complete_state_forwarding_result_flow(
+                                program,
+                                machine,
+                                state,
+                                result_root,
+                            )
+                        })
+                        .flatten();
                     let correspondence = plan
                         .render_define_correspondence()
                         .or_else(|| plan.render_direct_lift_correspondence())
@@ -336,10 +338,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     let purity = representative_purity
                         .map(|_| " plus checked pure representative effect summary")
                         .unwrap_or_default();
-                    let theorem = format!(
-                        " plus exact {}",
-                        plan.render_selected_theorem(program)
-                    );
+                    let theorem = format!(" plus exact {}", plan.render_selected_theorem(program));
                     let transport = plan
                         .render_selected_transport(program)
                         .map(|value| format!(" plus exact {value}"))
@@ -362,10 +361,11 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         .purity
                         .map(|_| " plus checked pure theorem effect summary")
                         .unwrap_or_default();
-                    let theorem_crash = congruence
-                        .crash_free
-                        .then_some(" plus checked crash-free theorem routes")
-                        .unwrap_or_default();
+                    let theorem_crash = if congruence.crash_free {
+                        " plus checked crash-free theorem routes"
+                    } else {
+                        Default::default()
+                    };
                     let transport_schema = plan
                         .render_transport_schema_verification()
                         .map(|value| format!(" plus {value}"))
@@ -379,17 +379,23 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         .and_then(|transport| transport.purity)
                         .map(|_| " plus checked pure forward-transport effect summary")
                         .unwrap_or_default();
-                    let transport_crash = selected_transport
-                        .is_some_and(|transport| transport.crash_free)
-                        .then_some(" plus checked crash-free forward-transport routes")
-                        .unwrap_or_default();
+                    let transport_crash =
+                        if selected_transport.is_some_and(|transport| transport.crash_free) {
+                            " plus checked crash-free forward-transport routes"
+                        } else {
+                            Default::default()
+                        };
                     let result_path = if result_root.alias_count == 0 {
                         "the exact result root".to_owned()
                     } else {
                         format!(
                             "{} exact immutable result alias{}",
                             result_root.alias_count,
-                            if result_root.alias_count == 1 { "" } else { "es" },
+                            if result_root.alias_count == 1 {
+                                ""
+                            } else {
+                                "es"
+                            },
                         )
                     };
                     let result_flow = if complete_result_flow.is_some() {
@@ -437,14 +443,11 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                             );
                         }
                         if transport.purity.is_none() {
-                            remaining.push(
-                                "the selected forward-transport effect fence".to_owned(),
-                            );
+                            remaining
+                                .push("the selected forward-transport effect fence".to_owned());
                         }
                         if !transport.crash_free {
-                            remaining.push(
-                                "the selected forward-transport crash fence".to_owned(),
-                            );
+                            remaining.push("the selected forward-transport crash fence".to_owned());
                         }
                         if plan
                             .transport_schema_verification
@@ -461,7 +464,8 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     }
                     if request.kind == psi_typed_trees::expression::QuotientOperationKind::Lift {
                         remaining.push(
-                            "general precondition implication and adapted lift arguments".to_owned(),
+                            "general precondition implication and adapted lift arguments"
+                                .to_owned(),
                         );
                     }
                     if plan.has_undischarged_fixed_representative_preconditions() {

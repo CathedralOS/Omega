@@ -172,7 +172,7 @@ fn fixed_array_layout_repeats_padded_nested_elements_and_rejects_overflow() {
     let oversized_array_type = StructuralTypeId::new(4).unwrap();
     let u64_type =
         ScalarType::Integer(IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap());
-    let declarations = vec![
+    let declarations = [
         StructuralTypeDeclaration {
             id: element_type,
             identity: "PaddedElement".into(),
@@ -380,7 +380,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
     let lowered = lower_to_target_operations_with_settlements(
         &plan,
         NativeTarget::linux_x64(),
-        &[binding.clone()],
+        std::slice::from_ref(&binding),
     )
     .expect("exact effect evidence");
     let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
@@ -427,7 +427,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
         lower_to_target_operations_with_settlements(
             &scalar_argument,
             NativeTarget::linux_x64(),
-            &[binding.clone()],
+            std::slice::from_ref(&binding),
         ),
         Err(
             LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
@@ -470,7 +470,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
         lower_to_target_operations_with_settlements(
             &result_bearing,
             NativeTarget::linux_x64(),
-            &[binding.clone()],
+            std::slice::from_ref(&binding),
         ),
         Err(
             LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
@@ -643,7 +643,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
     let lowered = lower_to_target_operations_with_settlements(
         &plan,
         NativeTarget::uefi_x64(),
-        &[binding.clone()],
+        std::slice::from_ref(&binding),
     )
     .expect("claim completion is an evidence-bearing zero-input target settlement");
     let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
@@ -700,7 +700,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
         lower_to_target_operations_with_settlements(
             &missing_receipt,
             NativeTarget::uefi_x64(),
-            &[binding.clone()],
+            std::slice::from_ref(&binding),
         ),
         Err(LoweringError::InvalidClaimCompletionOnlyShape {
             machine,

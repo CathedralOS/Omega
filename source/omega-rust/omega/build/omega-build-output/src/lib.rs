@@ -443,7 +443,7 @@ pub fn capture(
                 ))
             })?);
         }
-        bounded_children.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+        bounded_children.sort_by_key(|left| left.file_name());
 
         for child in bounded_children {
             let path = child.path();

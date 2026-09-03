@@ -499,7 +499,11 @@ mod tests {
             }],
         };
         assert_eq!(
-            check_integer_shift_chain_witness(&context, &[definition.clone()], &witness(0, None),),
+            check_integer_shift_chain_witness(
+                &context,
+                std::slice::from_ref(&definition),
+                &witness(0, None),
+            ),
             Err(IntegerShiftChainWitnessError::MissingCountAxiom(0)),
         );
         assert_eq!(

@@ -114,8 +114,8 @@ fn static_persistent_paths_at_state_entries(
                     |prior| {
                         prior
                             .iter()
+                            .filter(|&path| exit.contains(path))
                             .cloned()
-                            .filter(|path| exit.contains(path))
                             .collect()
                     },
                 );

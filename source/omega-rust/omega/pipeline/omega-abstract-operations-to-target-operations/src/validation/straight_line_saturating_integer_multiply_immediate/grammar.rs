@@ -58,29 +58,34 @@ pub(super) fn reconstruct(
     function: &AbstractFunction,
 ) -> Result<ReconstructedSaturatingIntegerMultiplyImmediate, Error> {
     let (function_result, function_type) = reconstruct_envelope(function)?;
-    let [AbstractOperation::IntegerConstant {
-        psi_operation: left_constant_operation,
-        result: left_constant_result,
-        scalar_type: left_type,
-        value: left_value,
-    }, AbstractOperation::IntegerConstant {
-        psi_operation: right_constant_operation,
-        result: right_constant_result,
-        scalar_type: right_type,
-        value: right_value,
-    }, AbstractOperation::SaturatingIntegerMultiply {
-        psi_operation: saturating_mul_operation,
-        result: saturating_mul_result,
-        scalar_type,
-        left,
-        right,
-    }, AbstractOperation::Return {
-        psi_edge: return_edge,
-        result,
-        value,
-        scalar_type: return_type,
-        cleanup_actions,
-    }] = function.operations.as_slice()
+    let [
+        AbstractOperation::IntegerConstant {
+            psi_operation: left_constant_operation,
+            result: left_constant_result,
+            scalar_type: left_type,
+            value: left_value,
+        },
+        AbstractOperation::IntegerConstant {
+            psi_operation: right_constant_operation,
+            result: right_constant_result,
+            scalar_type: right_type,
+            value: right_value,
+        },
+        AbstractOperation::SaturatingIntegerMultiply {
+            psi_operation: saturating_mul_operation,
+            result: saturating_mul_result,
+            scalar_type,
+            left,
+            right,
+        },
+        AbstractOperation::Return {
+            psi_edge: return_edge,
+            result,
+            value,
+            scalar_type: return_type,
+            cleanup_actions,
+        },
+    ] = function.operations.as_slice()
     else {
         return Err(Error::SourceOperationRoster);
     };

@@ -696,6 +696,10 @@ fn encode_content_algebra(
     writer.string("content algebra parameter", &algebra.parameter)
 }
 
+#[allow(
+    clippy::only_used_in_recursion,
+    reason = "the format marker is deliberately threaded through recursive proof encoding"
+)]
 fn encode_content_term(
     writer: &mut Writer,
     term: &ContentTerm,
@@ -747,6 +751,10 @@ fn encode_content_term(
     Ok(())
 }
 
+#[allow(
+    clippy::only_used_in_recursion,
+    reason = "the format marker is deliberately threaded through recursive proof encoding"
+)]
 fn encode_scalar_term(
     writer: &mut Writer,
     term: &ScalarTerm,
@@ -1572,6 +1580,10 @@ fn decode_content_algebra(reader: &mut Reader<'_>) -> Result<ContentAlgebra, Pro
     })
 }
 
+#[allow(
+    clippy::only_used_in_recursion,
+    reason = "the format marker is deliberately threaded through recursive proof decoding"
+)]
 fn decode_content_term(
     reader: &mut Reader<'_>,
     depth: usize,
@@ -1623,6 +1635,10 @@ fn decode_content_term(
     })
 }
 
+#[allow(
+    clippy::only_used_in_recursion,
+    reason = "the format marker is deliberately threaded through recursive proof decoding"
+)]
 fn decode_scalar_term(
     reader: &mut Reader<'_>,
     depth: usize,

@@ -76,7 +76,7 @@ pub(super) fn build(
         } else {
             durable_registers
         };
-        for argument_index in 0..2 {
+        for (argument_index, input_register) in input_registers.into_iter().enumerate() {
             let instruction_id = base_instruction + u32::try_from(argument_index).unwrap();
             let register_id = base_register + u32::try_from(argument_index).unwrap();
             let source_value = selected_call.arguments[argument_index]
@@ -94,10 +94,7 @@ pub(super) fn build(
                 SelectedInstructionId(instruction_id),
                 SelectedInstructionKind::CopyI64,
                 constraints.keys.copy_i64,
-                &[
-                    input_registers[argument_index],
-                    VirtualRegisterId(register_id),
-                ],
+                &[input_register, VirtualRegisterId(register_id)],
                 SelectedInstructionProvenance {
                     values: vec![source_value],
                     ..Default::default()

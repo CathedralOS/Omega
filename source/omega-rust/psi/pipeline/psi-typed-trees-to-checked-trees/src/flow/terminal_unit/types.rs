@@ -562,11 +562,11 @@ fn type_domain_carrier(
     Some(*carrier)
 }
 
-pub(super) fn state_flow<'a>(
-    facts: &'a CheckFacts,
+pub(super) fn state_flow(
+    facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-) -> Option<&'a psi_checked_trees::FlowStateFact> {
+) -> Option<&psi_checked_trees::FlowStateFact> {
     facts.flow.control.states.iter().find_map(|(_, candidate)| {
         (candidate.machine_symbol == machine && candidate.state_symbol == state)
             .then_some(candidate)
@@ -648,14 +648,12 @@ pub(super) fn byte_sequence_type_identity(
     let carrier = byte_sequence_carrier(program, type_reference, substitutions)?;
     let mut identity_type = type_reference;
     if carrier == psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-        loop {
-            match program.type_reference_table.type_reference(identity_type) {
-                TypeReferenceNode::Reference { referee, .. }
-                | TypeReferenceNode::Constrained {
-                    base_type: referee, ..
-                } => identity_type = *referee,
-                _ => break,
-            }
+        while let TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } = program.type_reference_table.type_reference(identity_type)
+        {
+            identity_type = *referee;
         }
     }
     Some(
@@ -1164,22 +1162,16 @@ impl<'program> ShapeCollector<'program> {
         allow_construction_lengths: bool,
     ) -> Option<String> {
         let mut resolved = type_reference;
-        loop {
-            match self.program.type_reference_table.type_reference(resolved) {
-                TypeReferenceNode::Reference { referee, .. }
-                | TypeReferenceNode::Constrained {
-                    base_type: referee, ..
-                } => resolved = *referee,
-                _ => break,
-            }
+        while let TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } = self.program.type_reference_table.type_reference(resolved)
+        {
+            resolved = *referee;
         }
         let TypeReferenceNode::FixedArray {
             element_type,
-            length:
-                psi_typed_trees::types::FixedArrayLength::Literal(
-                    length @ (2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17
-                    | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25),
-                ),
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length @ (2..=25)),
         } = self.program.type_reference_table.type_reference(resolved)
         else {
             return self.add_type(type_reference, binders, &[]);
@@ -1194,10 +1186,7 @@ impl<'program> ShapeCollector<'program> {
         {
             TypeReferenceNode::FixedArray {
                 element_type: leaf_type,
-                length:
-                    psi_typed_trees::types::FixedArrayLength::Literal(
-                        inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15),
-                    ),
+                length: psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3..=15)),
             } if *length == 2 => Some((*leaf_type, *inner_length)),
             _ => None,
         };

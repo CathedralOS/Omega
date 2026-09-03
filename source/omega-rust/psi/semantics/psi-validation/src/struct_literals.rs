@@ -117,8 +117,8 @@ fn scan_expression(
             scan_expression(program, machine, state, atomic.value, diagnostics)
         }
         ExpressionNode::StructLiteral(literal) => {
-            validate_literal_field_names(program, machine, state, &literal, diagnostics);
-            enforce_construction_field_obligations(program, machine, state, &literal, diagnostics);
+            validate_literal_field_names(program, machine, state, literal, diagnostics);
+            enforce_construction_field_obligations(program, machine, state, literal, diagnostics);
             for field in program.expression_table.struct_fields(literal.fields) {
                 scan_expression(program, machine, state, field.value, diagnostics);
             }

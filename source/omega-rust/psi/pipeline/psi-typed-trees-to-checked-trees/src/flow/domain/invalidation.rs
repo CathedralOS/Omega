@@ -21,11 +21,7 @@ pub(crate) fn filter_contexts_after_place_mutations(
 
     let mut filtered = psi_arena::HandleSpan::empty();
     let mut removed_any = false;
-    let copied: Vec<_> = semantic_context_refs
-        .span_or_empty(source)
-        .iter()
-        .copied()
-        .collect();
+    let copied: Vec<_> = semantic_context_refs.span_or_empty(source).to_vec();
     for context_ref in copied {
         let context = semantic.contexts.get(context_ref.context);
         let mut invalidated_any = false;

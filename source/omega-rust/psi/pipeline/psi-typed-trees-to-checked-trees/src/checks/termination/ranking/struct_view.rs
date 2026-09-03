@@ -31,8 +31,8 @@ pub(super) fn state_has_proven_self_loop(
             let Some(argument) = self_loop.arguments.get(argument_index).copied() else {
                 return false;
             };
-            guard_is_positive_member(program, self_loop.guard, &parameter, field)
-                && argument_rebuilds_with_field_minus_one(program, argument, &parameter, field)
+            guard_is_positive_member(program, self_loop.guard, parameter, field)
+                && argument_rebuilds_with_field_minus_one(program, argument, parameter, field)
         })
 }
 

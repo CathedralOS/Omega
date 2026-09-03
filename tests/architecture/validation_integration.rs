@@ -2589,7 +2589,7 @@ fn dynamic_rebind_without_an_exact_cast_cannot_reuse_the_initializer_selection()
 }
 
 #[test]
-fn different_conformance_local_dynamic_rebind_remains_rejected() {
+fn different_conformance_local_dynamic_rebind_retains_both_exact_selections() {
     let typed = typed_program_from_source(
         r#"
         trait Shape { machine code(&self) -> i32; }
@@ -2609,18 +2609,15 @@ fn different_conformance_local_dynamic_rebind_remains_rejected() {
         "#,
     );
 
-    let diagnostics = validate_program(&typed)
-        .expect_err("a bounded rebind cannot change exact conformance identity");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("must retain its exact trait and named conformance")
-    }));
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.message.contains(
-            "a recast binds to a reference-typed let (`let v: &T = &x as &T;`) in this rung",
-        )
-    }));
+    validate_program(&typed).expect("changed-conformance dynamic rebind");
+    let selections = psi_validation::collect_dynamic_conformance_selections(&typed)
+        .expect("exact changed-conformance selections");
+    assert_eq!(selections.len(), 2);
+    assert_eq!(selections[0].binding, selections[1].binding);
+    assert_eq!(selections[0].target_trait, selections[1].target_trait);
+    assert_ne!(selections[0].conformance, selections[1].conformance);
+    assert_ne!(selections[0].source_symbol, selections[1].source_symbol);
+    assert!(selections[0].statement_index < selections[1].statement_index);
 }
 
 #[test]

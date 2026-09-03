@@ -107,7 +107,9 @@ pub(super) fn candidate_error(
         ..
     } = validate_abstract_to_target_translation(&source, target_profile, &target).unwrap_err()
     else {
-        panic!("constant integer wrapping integer addition corruption must fail in its exact validator")
+        panic!(
+            "constant integer wrapping integer addition corruption must fail in its exact validator"
+        )
     };
     error
 }

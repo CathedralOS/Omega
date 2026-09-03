@@ -1,4 +1,8 @@
 #![forbid(unsafe_code)]
+#![allow(
+    clippy::obfuscated_if_else,
+    reason = "valid-handle copy expressions use one uniform then/fallback idiom"
+)]
 
 //! Source-shaped Psi trees after name and symbol identity resolution.
 

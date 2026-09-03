@@ -44,18 +44,12 @@ pub(crate) fn call_site_boolean_contract_expression_value(
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<bool> {
-    let Some(caller_state) =
-        crate::find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
-    else {
-        return None;
-    };
-    let Some(caller_machine) = program
+    let caller_state =
+        crate::find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)?;
+    let caller_machine = program
         .machines()
         .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
-        return None;
-    };
+        .find(|machine| machine.symbol == state_flow.machine_symbol)?;
 
     ContractExpressionEvaluator {
         program,

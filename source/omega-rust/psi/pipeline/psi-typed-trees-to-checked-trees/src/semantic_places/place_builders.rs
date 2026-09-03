@@ -29,12 +29,7 @@ pub(crate) fn append_place_segment(
     segment: psi_facts::PlaceSegment,
 ) -> psi_facts::PlaceHandle {
     let place = *facts.places.get(base_place);
-    let mut segments: Vec<_> = facts
-        .place_segments
-        .span_or_empty(place.segments)
-        .iter()
-        .copied()
-        .collect();
+    let mut segments: Vec<_> = facts.place_segments.span_or_empty(place.segments).to_vec();
     segments.push(segment);
     append_place_with_segments(facts, place.root, &segments)
 }
@@ -52,27 +47,25 @@ pub(crate) fn resolve_place_member_symbol(
         .machines()
         .iter()
         .find(|machine| machine.symbol == base_symbol)
+        && let Some(attached_data) = machine.attached_data.as_deref()
+        && let Some(data) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == attached_data)
     {
-        if let Some(attached_data) = machine.attached_data.as_deref()
-            && let Some(data) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == attached_data)
-        {
-            for member in program.data_members(data) {
-                match member {
-                    psi_typed_trees::data::DataMember::Field(field)
-                        if field.name.as_str() == member_name =>
-                    {
-                        return Some(field.symbol);
-                    }
-                    psi_typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == member_name =>
-                    {
-                        return Some(variant.symbol);
-                    }
-                    _ => {}
+        for member in program.data_members(data) {
+            match member {
+                psi_typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == member_name =>
+                {
+                    return Some(field.symbol);
                 }
+                psi_typed_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == member_name =>
+                {
+                    return Some(variant.symbol);
+                }
+                _ => {}
             }
         }
     }

@@ -584,7 +584,7 @@ impl<'program> LayoutBuilder<'program> {
                         .span(fields)
                         .expect("newly inserted plan-laid fields retain their span"),
                     self.target,
-                    &canonical_layout_subject,
+                    canonical_layout_subject,
                     terminal_layout_identity,
                 )?
             };
@@ -1932,10 +1932,10 @@ fn const_argument_value(
     else {
         return None;
     };
-    if !symbol.is_valid() {
-        if let Ok(value) = name.as_str().parse::<usize>() {
-            return Some(value);
-        }
+    if !symbol.is_valid()
+        && let Ok(value) = name.as_str().parse::<usize>()
+    {
+        return Some(value);
     }
     let binding = binding_for_type(*symbol, name, bindings)?;
     const_argument_value(program, binding.argument, bindings, depth + 1)

@@ -64,7 +64,7 @@ fn ordered_native_mutation_and_last_error_round_trip_all_variants() {
         let [mutation, error_read] = replay.attempts() else {
             panic!("ordered sequence retains exactly two attempts")
         };
-        assert!(matches!(mutation.operation_tag(), 32 | 33 | 34));
+        assert!(matches!(mutation.operation_tag(), 32..=34));
         assert_eq!(error_read.operation_tag(), 35);
         assert_eq!(
             error_read.result(),

@@ -452,8 +452,7 @@ pub struct CheckedOperatorFacts {
     pub boundary_applications: Vec<CheckedBoundaryOperatorApplicationDemand>,
     /// D29 open demands retained separately from closed applications so no
     /// downstream consumer can accidentally interpret them as coverage.
-    pub symbolic_boundary_applications:
-        Vec<CheckedSymbolicBoundaryOperatorApplicationDemand>,
+    pub symbolic_boundary_applications: Vec<CheckedSymbolicBoundaryOperatorApplicationDemand>,
 }
 
 /// Retained checked baseline for one machine-to-operator realization.
@@ -665,18 +664,20 @@ impl CheckedOperatorFacts {
     }
 
     pub fn resolution_issues(&self) -> impl Iterator<Item = CheckedOperatorResolutionIssue<'_>> {
-        self.uses.iter().filter_map(|(_, operator_use)| {
-            matches!(
-                operator_use.status,
-                CheckedOperatorResolutionStatus::Missing
-                    | CheckedOperatorResolutionStatus::Ambiguous
-                    | CheckedOperatorResolutionStatus::Inadmissible
-            )
-            .then(|| CheckedOperatorResolutionIssue {
+        self.uses
+            .iter()
+            .filter(|&(_, operator_use)| {
+                matches!(
+                    operator_use.status,
+                    CheckedOperatorResolutionStatus::Missing
+                        | CheckedOperatorResolutionStatus::Ambiguous
+                        | CheckedOperatorResolutionStatus::Inadmissible
+                )
+            })
+            .map(|(_, operator_use)| CheckedOperatorResolutionIssue {
                 operator_use,
                 candidates: self.candidates(operator_use),
             })
-        })
     }
 
     /// The candidate fact carrying the selected operator symbol of a resolved

@@ -3102,8 +3102,7 @@ fn validate_filesystem_replay_size(attempts: &[FilesystemOperationAttempt]) -> R
             .and_then(|total| total.checked_add(weight))
             .filter(|total| *total <= MAX_FILESYSTEM_REPLAY_RETENTION_WEIGHT);
     };
-    let lane_weight =
-        |length: usize, weight: usize| length.checked_mul(weight).unwrap_or(usize::MAX);
+    let lane_weight = |length: usize, weight: usize| length.saturating_mul(weight);
     for attempt in attempts {
         add(lane_weight(
             attempt.scalar_operands.len(),
@@ -3444,7 +3443,7 @@ fn output_seek_record_from_attempt(
     let Some(FilesystemOperationResult::Scalar(result)) = operation.result() else {
         return Err("filesystem replay Output seek did not return a scalar".to_owned());
     };
-    if !matches!(*whence, 0 | 1 | 2)
+    if !matches!(*whence, 0..=2)
         || result < 0
         || operation.provider != FilesystemObservationProvider::RealScoped
         || operation.post_error() != Some(0)
@@ -4520,7 +4519,10 @@ mod filesystem_replay_record_tests {
                 .collect::<Vec<_>>(),
             b"firstsecond"
         );
-        assert_eq!(replay.expected_included_sources(), &[handoff.clone()]);
+        assert_eq!(
+            replay.expected_included_sources(),
+            std::slice::from_ref(&handoff)
+        );
 
         assert!(FilesystemOutputWriteReplayRecord::new(vec![1, 2], 1, 0).is_err());
         let mut no_writes = replay.attempts().to_vec();

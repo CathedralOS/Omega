@@ -31,7 +31,7 @@ fn validates_all_fixed_exact_integer_subtract_types_and_operand_placements_on_ev
         for scalar_type in &integers {
             for (left, right) in operand_pairs {
                 let source = exact_integer_subtract_parameters_plan(
-                    &vec![ScalarType::Integer(*scalar_type); 10],
+                    &[ScalarType::Integer(*scalar_type); 10],
                     left,
                     right,
                 );

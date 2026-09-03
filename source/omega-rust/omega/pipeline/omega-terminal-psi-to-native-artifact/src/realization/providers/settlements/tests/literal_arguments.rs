@@ -312,8 +312,8 @@ fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
         argument.placement.locations = vec![omega_calling_conventions::ValueLocation::Stack {
             stack_byte_offset: 0,
             value_byte_offset: 0,
-            byte_size: u16::try_from(bytes).unwrap(),
-            alignment: u16::try_from(bytes).unwrap(),
+            byte_size: bytes,
+            alignment: bytes,
         }];
     });
 
@@ -550,8 +550,8 @@ fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
         .locations = vec![omega_calling_conventions::ValueLocation::Stack {
         stack_byte_offset: 0,
         value_byte_offset: 0,
-        byte_size: u16::try_from(bytes).unwrap(),
-        alignment: u16::try_from(bytes).unwrap(),
+        byte_size: bytes,
+        alignment: bytes,
     }];
     assert!(omega_image_emission::build_object_artifact(&changed_stack).is_err());
     let mut stripped = machine_code.clone();

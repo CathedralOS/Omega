@@ -41,11 +41,11 @@ pub(in crate::validation::catalog) use wrapping_integer_shift_right::DESCRIPTOR 
 pub(in crate::validation::catalog) use wrapping_integer_subtract::DESCRIPTOR as WRAPPING_INTEGER_SUBTRACT;
 
 use super::super::super::{
+    AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
     straight_line_boolean_immediate, straight_line_boolean_not_immediate,
     straight_line_integer_bitwise_not_immediate,
     straight_line_integer_exact_cast_immediate_operand, straight_line_integer_immediate,
-    straight_line_integer_widen_immediate, AbstractToTargetFunctionTranslationReceipt,
-    AbstractToTargetTranslationFamilyError,
+    straight_line_integer_widen_immediate,
 };
 use super::super::model::TranslationFamilyDescriptor;
 use crate::AbstractToTargetTranslationFamily;

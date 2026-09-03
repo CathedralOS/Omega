@@ -1296,10 +1296,8 @@ pub(super) fn normalize_generic_template_const_expressions(
                 .items
                 .type_parameters(definition.type_parameters)
                 .iter()
-                .filter_map(|parameter| {
-                    matches!(parameter.kind, TypeParameterKind::Const { .. })
-                        .then(|| parameter.name.as_str().to_string())
-                })
+                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
+                .map(|parameter| parameter.name.as_str().to_string())
                 .collect();
             let fields = syntax
                 .tables

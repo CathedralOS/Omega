@@ -83,10 +83,10 @@ pub(crate) fn declared_receiver_type_reference(
         })
 }
 
-pub(super) fn named_type_reference_name<'program>(
-    program: &'program TypedTrees,
+pub(super) fn named_type_reference_name(
+    program: &TypedTrees,
     handle: TypeReferenceHandle,
-) -> Option<&'program str> {
+) -> Option<&str> {
     if let Some(requirement) =
         psi_typed_trees::service::exact_bound_service_requirement(program, handle)
     {

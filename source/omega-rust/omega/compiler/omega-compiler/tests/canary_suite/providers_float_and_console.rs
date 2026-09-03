@@ -1815,7 +1815,8 @@ fn linux_console_compiler_intrinsic_review_identities_are_exact() {
             "requirement, realization, and selected target are independent catalog authority",
         );
     }
-    for method in ["read_line"] {
+    {
+        let method = "read_line";
         let index = plan
             .rows
             .iter()
@@ -1896,23 +1897,18 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
                     .plans()
                     .iter()
                     .flat_map(|plan| {
-                        plan.rows.iter().filter_map(move |row| {
-                            matches!(
+                        plan.rows.iter().filter(|&row| matches!(
                                 row.binding,
                                 omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
                                     ..
                                 }
-                            )
-                                .then(|| {
-                                    omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                            )).map(|row| omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
                                         plan.schema.identity_digest(),
                                         row.requirement_identity.clone(),
                                         omega_effects::TerminalAuthorityDisposition::from_classes([
                                             omega_effects::TerminalAuthorityClass::ProcessTermination,
                                         ]),
-                                    )
-                                })
-                        })
+                                    ))
                     })
                     .collect(),
             )

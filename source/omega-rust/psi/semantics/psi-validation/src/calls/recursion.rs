@@ -153,7 +153,7 @@ fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallEx
 /// embedded in a larger computation, so the frame outlives the call.
 fn reject_embedded_self_calls(
     program: &TypedTrees,
-    machine: &Machine,
+    _machine: &Machine,
     entry_name: &str,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -162,7 +162,7 @@ fn reject_embedded_self_calls(
         return;
     }
     let recurse = |handle: ExpressionHandle, diagnostics: &mut Vec<Diagnostic>| {
-        reject_embedded_self_calls(program, machine, entry_name, handle, diagnostics);
+        reject_embedded_self_calls(program, _machine, entry_name, handle, diagnostics);
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => recurse(atomic.value, diagnostics),

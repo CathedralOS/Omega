@@ -37,6 +37,7 @@ pub(in crate::legalization) enum ScalarCallUnitLegalizationMatcherKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)] // Rows retain the exact legalization shape they recognize.
 pub(in crate::legalization) enum StructuralUnitLegalizationMatcherKind {
     ReturnUnit,
     AuthoredCallThenReturnUnit,
@@ -76,6 +77,7 @@ pub(in crate::legalization) enum ScalarCallUnitLegalizationValidatorKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)] // Rows retain the exact legalization shape they validate.
 pub(in crate::legalization) enum StructuralUnitLegalizationValidatorKind {
     ReturnUnit,
     AuthoredCallThenReturnUnit,

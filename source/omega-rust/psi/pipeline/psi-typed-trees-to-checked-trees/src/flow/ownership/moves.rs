@@ -1,4 +1,4 @@
-use super::type_references::{classify_operator_result_ownership, OperatorResultOwnership};
+use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
 use super::*;
 
 pub(super) fn append_move_events_for_expression(
@@ -320,10 +320,11 @@ pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call
         resolved.receiver_is_value,
     );
 
-    if resolved.receiver_is_value && policy.receiver_transfers() {
-        if let Some(place) = canonical_place_from_symbol(call.receiver_symbol) {
-            append_move_event_for_place(program, sink, place, source);
-        }
+    if resolved.receiver_is_value
+        && policy.receiver_transfers()
+        && let Some(place) = canonical_place_from_symbol(call.receiver_symbol)
+    {
+        append_move_event_for_place(program, sink, place, source);
     }
 
     for (ordinal, argument) in arguments.iter().enumerate() {
@@ -438,10 +439,10 @@ fn receiver_expression_is_static_type_path(
 /// the receiver is absent or is a runtime value expression. A bare `Name` path
 /// counts as static exactly when its resolved symbol has no value type (it is
 /// not a local, parameter, field, or contained object).
-fn receiver_expression_static_path_segments<'program>(
-    program: &'program psi_typed_trees::TypedTrees,
+fn receiver_expression_static_path_segments(
+    program: &psi_typed_trees::TypedTrees,
     receiver: ExpressionHandle,
-) -> Option<Vec<&'program str>> {
+) -> Option<Vec<&str>> {
     if !receiver.is_valid() {
         return None;
     }

@@ -19,8 +19,8 @@ pub(crate) use input::{
 pub use model::StagedOptimizedVerifiedPhysicalPipeline;
 
 pub(crate) use routes::{
-    resolve_physical_phase_composition, ResolvedNonAllocationComposition,
-    ResolvedPhysicalPhaseComposition,
+    ResolvedNonAllocationComposition, ResolvedPhysicalPhaseComposition,
+    resolve_physical_phase_composition,
 };
 use routes::{stage_allocation_recovery_pipeline, stage_non_allocation_recovery_physical_pipeline};
 

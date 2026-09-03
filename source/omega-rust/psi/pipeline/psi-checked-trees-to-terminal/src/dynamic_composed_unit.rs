@@ -1406,10 +1406,8 @@ fn dynamic_parameter_interface(
             let slot = u32::try_from(ordinal).map_err(|_| {
                 LoweringError::Unsupported("dynamic parameter requirement ordinal exceeds u32")
             })?;
-            if row == selected_row {
-                if selected_slot.replace(slot).is_some() {
-                    return unsupported("dynamic parameter selected requirement is duplicated");
-                }
+            if row == selected_row && selected_slot.replace(slot).is_some() {
+                return unsupported("dynamic parameter selected requirement is duplicated");
             }
             let callable_identity =
                 row.realization_callable_identity

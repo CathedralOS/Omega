@@ -76,17 +76,17 @@ pub(super) fn derive(
     }
     for (index, before) in placements.iter().enumerate() {
         for after in &placements[index + 1..] {
-            if before.block == after.block {
-                if let Some((spill_area_offset, size_bytes)) = overlap(before, after)? {
-                    dependencies.push(AbstractSpillAccessDependency {
-                        before: before.pseudo,
-                        after: after.pseudo,
-                        reason: AbstractSpillAccessDependencyReason::OverlappingAbstractSlice {
-                            spill_area_offset,
-                            size_bytes,
-                        },
-                    });
-                }
+            if before.block == after.block
+                && let Some((spill_area_offset, size_bytes)) = overlap(before, after)?
+            {
+                dependencies.push(AbstractSpillAccessDependency {
+                    before: before.pseudo,
+                    after: after.pseudo,
+                    reason: AbstractSpillAccessDependencyReason::OverlappingAbstractSlice {
+                        spill_area_offset,
+                        size_bytes,
+                    },
+                });
             }
         }
     }

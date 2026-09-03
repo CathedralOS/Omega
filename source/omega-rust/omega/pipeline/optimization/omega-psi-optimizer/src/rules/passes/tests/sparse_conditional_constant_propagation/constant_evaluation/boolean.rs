@@ -213,7 +213,10 @@ fn every_boolean_constant_rule_declines_every_other_operation_kind() {
         let constants = compute_analysis(unit, AnalysisKind::ScalarConstants).unwrap();
         for (rule_index, rule) in rules.iter().enumerate() {
             let candidates = rule
-                .propose(unit, RuleAnalysisView::new(&[constants.clone()]))
+                .propose(
+                    unit,
+                    RuleAnalysisView::new(std::slice::from_ref(&constants)),
+                )
                 .unwrap();
             assert_eq!(
                 candidates.len(),

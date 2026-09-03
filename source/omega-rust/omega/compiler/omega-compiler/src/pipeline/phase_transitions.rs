@@ -157,11 +157,8 @@ pub(super) fn typed_trees_to_checked_trees(
             )?;
         let opaque_property_receipts = rederived_opaque_representation_selections
             .iter()
-            .filter_map(|selection| {
-                (selection.copy_disposition()
-                    == omega_representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy)
-                    .then(|| psi_validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
-            })
+            .filter(|&selection| selection.copy_disposition()
+                    == omega_representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy ).map(|selection| psi_validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
             .collect::<Vec<_>>();
         let mut program = if settlement.package_inputs.is_some() {
             psi_typed_trees_to_checked_trees::lower_package_typed_trees_with_selected_generic_operator_providers(

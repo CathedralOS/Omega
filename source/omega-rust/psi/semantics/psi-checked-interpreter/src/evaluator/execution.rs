@@ -151,10 +151,10 @@ impl<'program> Evaluator<'program> {
         // backend: `machine Main::main(...) -> i32` returns the exit status.
         let returned =
             self.run_state_collect(&entry_machine, &entry_state_name, instance, Vec::new())?;
-        if let Some(value) = returned {
-            if let Some(code) = value.as_int() {
-                return Err(Halt::Exit(code as i32));
-            }
+        if let Some(value) = returned
+            && let Some(code) = value.as_int()
+        {
+            return Err(Halt::Exit(code as i32));
         }
         Ok(())
     }
@@ -453,10 +453,10 @@ impl<'program> Evaluator<'program> {
     fn instantiate_machine(&mut self, machine: &Machine) -> EvalResult<Cell> {
         let mut fields: BTreeMap<String, Cell> = BTreeMap::new();
 
-        if let Some(data_name) = machine.attached_data.as_ref() {
-            if let Some(data) = self.find_data_by_name(data_name.as_str()) {
-                self.populate_data_fields(data, &mut fields)?;
-            }
+        if let Some(data_name) = machine.attached_data.as_ref()
+            && let Some(data) = self.find_data_by_name(data_name.as_str())
+        {
+            self.populate_data_fields(data, &mut fields)?;
         }
 
         // Machine-owned data (the `owned_data` span) are additional named cells.
@@ -738,10 +738,10 @@ impl<'program> Evaluator<'program> {
         else {
             return None;
         };
-        if !symbol.is_valid() {
-            if let Ok(value) = name.as_str().parse::<usize>() {
-                return Some(value);
-            }
+        if !symbol.is_valid()
+            && let Ok(value) = name.as_str().parse::<usize>()
+        {
+            return Some(value);
         }
         let argument = self.generic_binding_argument(*symbol, name.as_str(), bindings)?;
         self.const_argument_value_with_bindings(argument, bindings, depth + 1)

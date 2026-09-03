@@ -315,8 +315,7 @@ mod tests {
             child.options.target_name = Some("windows_x64".to_owned());
             child
         })
-        .err()
-        .expect("duplicated child target must reject");
+        .expect_err("duplicated child target must reject");
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].message.contains("sole target source"));
     }

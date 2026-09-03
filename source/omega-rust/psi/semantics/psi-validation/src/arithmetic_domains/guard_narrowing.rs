@@ -291,7 +291,7 @@ pub(super) fn narrow_env_by_condition(
         BinaryOperator::And | BinaryOperator::Or => return,
         _ => {}
     }
-    let comparison = comparison.clone();
+    let comparison = *comparison;
     // Float facts are independent from the integer interval lattice. A
     // positive self-equality proves non-NaN; a positive ordered comparison
     // proves both non-NaN and its one-sided bound. Negated IEEE comparisons
@@ -414,9 +414,7 @@ pub(super) fn narrow_env_by_condition(
     // exactly on the excluded literal (`n == 0` refuted with `n: u64` gives
     // n >= 1), handled below after the type/declared intersection.
     let negated_equality = !positive && comparison.operator == BinaryOperator::Equal;
-    let operator = if positive {
-        comparison.operator
-    } else if negated_equality {
+    let operator = if positive || negated_equality {
         comparison.operator
     } else {
         let Some(negated) = negate_comparison(comparison.operator) else {
@@ -1006,6 +1004,7 @@ fn seed_ensures_conjunct(
 ///   loop-invariant territory, owned by loop_invariants.rs);
 /// - exclude every CALL entry (statement or value position), because calls
 ///   carry no guard.
+///
 /// Facts seeded here are body-scoped exactly like any env entry: a write to
 /// the guarded place inside the body replaces its interval.
 pub(crate) fn incoming_guard_env(
@@ -1042,7 +1041,7 @@ pub(crate) fn incoming_guard_env(
                             // (loop_invariants.rs), not entry seeding.
                             disqualified = true;
                         } else {
-                            entries.push(transition.guard.clone());
+                            entries.push(transition.guard);
                         }
                     }
                     if target_names_state(transition.continuation) {

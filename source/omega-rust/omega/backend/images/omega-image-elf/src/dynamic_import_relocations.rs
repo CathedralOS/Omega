@@ -323,7 +323,7 @@ fn call_site(
         }
         TargetProfile::LinuxArm64 => {
             require(
-                relocation.offset % 4 == 0
+                relocation.offset.is_multiple_of(4)
                     && text.get(relocation.offset..end) == Some(&[0, 0, 0, 0x94]),
                 "AArch64 import call does not retain the exact unresolved BL placeholder",
             )?;

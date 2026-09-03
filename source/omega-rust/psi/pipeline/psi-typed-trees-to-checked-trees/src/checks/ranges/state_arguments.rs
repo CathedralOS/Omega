@@ -58,8 +58,9 @@ impl MergedBound {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 enum MergedFact<T> {
+    #[default]
     Unseen,
     Known(T),
     Conflicting,
@@ -74,12 +75,6 @@ struct ParameterIndexProof {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MergedIndexProofs {
     proofs: Option<Vec<ParameterIndexProof>>,
-}
-
-impl<T> Default for MergedFact<T> {
-    fn default() -> Self {
-        Self::Unseen
-    }
 }
 
 impl<T: Copy + Eq> MergedFact<T> {

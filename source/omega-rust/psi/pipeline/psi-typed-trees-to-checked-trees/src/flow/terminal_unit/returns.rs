@@ -1161,7 +1161,7 @@ fn build_structural_call_return_machine(
             target_machine: target_machine.symbol,
             target_state: target_state.symbol,
             target_contract_report_fingerprint: target_contract.report_fingerprint,
-            service_reach: call.service_reach.clone(),
+            service_reach: call.service_reach,
             structural_arguments,
             claim_transfers,
             callee_returned_claim: target.transferred_claim,
@@ -1972,7 +1972,7 @@ pub(super) fn build_boundary_scalar_return_machine(
         result_type,
         return_statement_ordinal,
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
-        service_reach: state_flow.service_reach.clone(),
+        service_reach: state_flow.service_reach,
     })
 }
 

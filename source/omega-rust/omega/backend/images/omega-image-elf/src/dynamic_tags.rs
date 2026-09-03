@@ -556,7 +556,7 @@ fn validate_fixed_rows(
         .procedure_relocation_count();
     require(
         relocation_bytes > 0
-            && relocation_bytes % ELF64_RELA_SIZE == 0
+            && relocation_bytes.is_multiple_of(ELF64_RELA_SIZE)
             && relocation_bytes
                 == checked_product(
                     relocation_count,
@@ -1058,7 +1058,7 @@ mod tests {
             .map(|offset| dynamic_string(dynstr, *offset).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(names, [b"liba\xff.so".as_slice(), b"libb.so".as_slice()]);
-        assert!(names[0].iter().any(|byte| *byte == 0xff));
+        assert!(names[0].contains(&0xff));
     }
 
     #[test]

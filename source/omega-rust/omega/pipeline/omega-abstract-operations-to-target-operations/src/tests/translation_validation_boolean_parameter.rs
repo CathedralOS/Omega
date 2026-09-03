@@ -142,7 +142,7 @@ fn validates_a_boolean_return_from_a_mixed_scalar_roster() {
 #[test]
 fn boolean_parameter_source_corruption_fails_closed() {
     assert_eq!(
-        leaf_error(|function| function.parameters.push(function.parameters[0].clone())),
+        leaf_error(|function| function.parameters.push(function.parameters[0])),
         StraightLineBooleanParameterTranslationError::SourceParameterRoster
     );
     assert_eq!(

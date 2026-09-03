@@ -80,6 +80,10 @@ fn call_result_label(
     }
 }
 
+#[allow(
+    clippy::only_used_in_recursion,
+    reason = "call-site coordinates are deliberately threaded through recursive label rendering"
+)]
 pub(crate) fn instantiate_call_contract_expression_label(
     program: &psi_typed_trees::TypedTrees,
     caller_state_symbol: SymbolHandle,

@@ -383,9 +383,11 @@ mod tests {
         assert!(guarantee.matches_exact_uefi_x64_entry_stack_guarantee());
         assert_eq!(guarantee.guaranteed_available_bytes(), 128 * 1024);
         assert_eq!(guarantee.required_alignment(), 16);
-        assert!(guarantee
-            .application()
-            .matches_exact_uefi_x64_entry_stack_application());
+        assert!(
+            guarantee
+                .application()
+                .matches_exact_uefi_x64_entry_stack_application()
+        );
         assert_ne!(
             guarantee.non_authoritative_compatibility_report_identity(),
             guarantee

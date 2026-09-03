@@ -136,7 +136,7 @@ fn signedness_and_predicate_boundaries_are_distinct() {
 
 #[test]
 fn reversed_signed_less_is_exact_at_equality_and_sign_boundaries() {
-    let inclusive_via_reversed_less = |left: i64, right: i64| !(right < left);
+    let inclusive_via_reversed_less = |left: i64, right: i64| right >= left;
     for (left, right) in [
         (i64::MIN, i64::MIN),
         (i64::MAX, i64::MAX),

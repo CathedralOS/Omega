@@ -130,7 +130,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                 }
                 let right = selected_domain(program, binary.right, expression_domain);
                 match (left, right) {
-                    (Some(left), Some(right)) if left == ArithmeticDomain::Exact => Some(right),
+                    (Some(ArithmeticDomain::Exact), Some(right)) => Some(right),
                     (Some(left), Some(_)) => Some(left),
                     (Some(domain), None) | (None, Some(domain)) => Some(domain),
                     (None, None) => None,
@@ -210,7 +210,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                     left
                 } else {
                     match (left, right) {
-                        (Some(left), Some(right)) if left == ArithmeticDomain::Exact => Some(right),
+                        (Some(ArithmeticDomain::Exact), Some(right)) => Some(right),
                         (Some(left), Some(_)) => Some(left),
                         (Some(domain), None) | (None, Some(domain)) => Some(domain),
                         (None, None) => None,
@@ -258,15 +258,14 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     recurse(*argument, diagnostics, visited);
                 }
-                if resolve_named_float_arithmetic(program, call).is_some() {
-                    if selected_domain(program, expression, expression_domain)
+                if resolve_named_float_arithmetic(program, call).is_some()
+                    && selected_domain(program, expression, expression_domain)
                         == Some(ArithmeticDomain::Trapping)
-                    {
-                        diagnostics.push(Diagnostic::error(format!(
+                {
+                    diagnostics.push(Diagnostic::error(format!(
                             "direct Trapping named float operation `{}` is illegal in {owner}: specification terms are total and cannot transfer runtime control. Use `Float::meaning32`/`Float::meaning64` or an explicitly total policy",
                             call.target,
                         )));
-                    }
                 }
             }
             ExpressionNode::Indexed(indexed) => {
@@ -447,10 +446,10 @@ pub(super) fn abstract_specification_place_type(
         })
     }
 
-    fn named_data<'program>(
-        program: &'program TypedTrees,
+    fn named_data(
+        program: &TypedTrees,
         mut type_reference: TypeReferenceHandle,
-    ) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+    ) -> Option<&psi_typed_trees::data::DataDefinition> {
         let (symbol, name) = loop {
             match program.type_reference_table.type_reference(type_reference) {
                 TypeReferenceNode::Reference { referee, .. }

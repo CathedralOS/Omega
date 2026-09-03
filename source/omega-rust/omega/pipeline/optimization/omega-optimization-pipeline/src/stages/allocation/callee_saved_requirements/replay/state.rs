@@ -68,6 +68,7 @@ pub(super) fn add(
         .ok_or(super::super::AllocatedCalleeSavedRequirementError::WorkOverflow)
 }
 
+#[allow(clippy::needless_lifetimes)] // The explicit replay lifetime makes independent custody visible to architecture review.
 pub(super) fn keyed_homes<'home>(
     functions: &'home [omega_regalloc::FunctionRegisterHomes],
 ) -> Result<

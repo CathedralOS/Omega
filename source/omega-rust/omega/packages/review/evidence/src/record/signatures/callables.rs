@@ -30,7 +30,6 @@ pub struct PackageReviewCallableConformance {
 /// Closed structural identity of executable code supplied outside Omega.
 /// String fields are foreign ABI identifiers, not package-authored policy or
 /// capability classifications.
-
 impl PackageReviewCallableConformance {
     pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
         &self.trait_identity

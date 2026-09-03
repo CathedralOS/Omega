@@ -155,9 +155,12 @@ fn unary_integer_rules_decline_every_other_operation_kind() {
         let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
         for rule in wrong_rules {
             assert!(
-                rule.propose(&unit, RuleAnalysisView::new(&[constants.clone()]))
-                    .unwrap()
-                    .is_empty(),
+                rule.propose(
+                    &unit,
+                    RuleAnalysisView::new(std::slice::from_ref(&constants)),
+                )
+                .unwrap()
+                .is_empty(),
                 "an exact unary entrance must not claim another operation kind",
             );
         }

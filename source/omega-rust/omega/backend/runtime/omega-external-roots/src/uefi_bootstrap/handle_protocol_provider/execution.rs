@@ -307,7 +307,7 @@ pub fn admit_uefi_loaded_image_handle_protocol_execution<'system_table, 'boot_se
             );
         }
     };
-    if execution.interface_output as usize % layout.alignment() as usize != 0 {
+    if !(execution.interface_output as usize).is_multiple_of(layout.alignment() as usize) {
         return reject(
             execution,
             "UEFI Loaded Image interface is not aligned for its exact target layout",

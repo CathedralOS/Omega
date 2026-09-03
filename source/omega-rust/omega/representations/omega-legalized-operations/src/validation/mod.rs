@@ -35,7 +35,7 @@ impl LegalizedCallUnit {
                         .iter()
                         .zip(&provider.signature.parameters)
                         .any(|(argument, parameter)| {
-                            argument.semantic.path.len() != 0
+                            !argument.semantic.path.is_empty()
                                 || argument.semantic.access != parameter.access
                                 || argument.target.access != parameter.access
                                 || argument.target.structural_type != parameter.structural_type

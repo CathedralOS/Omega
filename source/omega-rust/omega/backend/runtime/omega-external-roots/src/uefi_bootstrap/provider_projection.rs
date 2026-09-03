@@ -8,8 +8,8 @@ use std::num::NonZeroU64;
 
 use omega_program_entry_plan::exact_uefi_x64_physical_boundary_entry_plan;
 use omega_target::{
-    plan_uefi_system_table_native_layout, TargetProfile, UefiSystemTableNativeField,
-    UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,
+    TargetProfile, UefiSystemTableNativeField, UefiSystemTableNativeFieldKind,
+    UefiSystemTableNativeFieldLayout, plan_uefi_system_table_native_layout,
 };
 
 use super::{
@@ -290,20 +290,21 @@ fn reject<'occurrence>(
 mod tests {
     use super::*;
     use crate::{
+        UefiApplicationBootstrapLedgerId, UefiApplicationPhysicalArrival,
+        UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId, UefiImageHandleOccurrenceId,
+        UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
         join_lifecycle_scoped_uefi_system_table, join_uefi_application_physical_arrival,
-        prepare_uefi_application_bootstrap_adapter_invocation, UefiApplicationBootstrapLedgerId,
-        UefiApplicationPhysicalArrival, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
-        UefiImageHandleOccurrenceId, UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
+        prepare_uefi_application_bootstrap_adapter_invocation,
     };
     use omega_program_entry_plan::{
-        exact_uefi_x64_physical_boundary_entry_plan,
-        exact_uefi_x64_physical_contract_package_source_digest, ProgramEntryPhysicalContractPlan,
-        UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY, UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY,
-        UEFI_X64_STATUS_TYPE_IDENTITY, UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY,
+        ProgramEntryPhysicalContractPlan, UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
+        UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, UEFI_X64_STATUS_TYPE_IDENTITY,
+        UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, exact_uefi_x64_physical_boundary_entry_plan,
+        exact_uefi_x64_physical_contract_package_source_digest,
     };
     use omega_target::{
-        validate_uefi_system_table_occurrence, ProgramEntryPhysicalContractPackage,
-        UEFI_SYSTEM_TABLE_SIGNATURE,
+        ProgramEntryPhysicalContractPackage, UEFI_SYSTEM_TABLE_SIGNATURE,
+        validate_uefi_system_table_occurrence,
     };
 
     const REVISION: u32 = (2 << 16) | 100;
@@ -560,11 +561,13 @@ mod tests {
         let arrival = arrival(&mut ledger, &bytes, 73);
         let projection = project_uefi_application_boot_services(&ledger, arrival).unwrap();
 
-        assert!(ledger
-            .begin_firmware_return()
-            .unwrap_err()
-            .0
-            .contains("lease"));
+        assert!(
+            ledger
+                .begin_firmware_return()
+                .unwrap_err()
+                .0
+                .contains("lease")
+        );
         ledger
             .release_lifecycle_scoped_boot_services_projection(projection)
             .unwrap();

@@ -499,7 +499,7 @@ fn validate_reborrow_restored_call_uses(
                 ) && row.shared_cohort.is_empty()
             }
             psi_terminal::TerminalReborrowRestorationClass::SharedFreezeRestoration => {
-                if !matches!(row.shared_cohort.len(), 1 | 2 | 3) {
+                if !matches!(row.shared_cohort.len(), 1..=3) {
                     return Err(ModuleError::InvalidReborrowRestoredCallUse {
                         machine: row.machine,
                         operation: row.operation,

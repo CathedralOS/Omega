@@ -217,9 +217,7 @@ fn plural_depth_nineteen_paths_compose_depth_eighteen_custody_and_retain_fences(
     wrong_inner_identity.paths[0].inner.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].inner.paths[0]
-        .inner
-        .paths[0]
+    wrong_leaf_geometry.paths[0].inner.paths[0].inner.paths[0]
         .inner
         .paths[0]
         .inner
@@ -259,9 +257,7 @@ fn plural_depth_nineteen_paths_compose_depth_eighteen_custody_and_retain_fences(
         .offset += 1;
     rejects(&wrong_leaf_geometry);
     let mut wrong_case_ordinal = paths.clone();
-    wrong_case_ordinal.paths[0].inner.paths[0]
-        .inner
-        .paths[0]
+    wrong_case_ordinal.paths[0].inner.paths[0].inner.paths[0]
         .inner
         .paths[0]
         .inner
@@ -300,16 +296,10 @@ fn plural_depth_nineteen_paths_compose_depth_eighteen_custody_and_retain_fences(
         .ordinal = 7;
     rejects(&wrong_case_ordinal);
     let mut wrong_child_extent = paths.clone();
-    wrong_child_extent.paths[0]
-        .inner
-        .outer_layout
-        .size = Some(16);
+    wrong_child_extent.paths[0].inner.outer_layout.size = Some(16);
     rejects(&wrong_child_extent);
     let mut wrong_child_alignment = paths.clone();
-    wrong_child_alignment.paths[0]
-        .inner
-        .outer_layout
-        .align = 16;
+    wrong_child_alignment.paths[0].inner.outer_layout.align = 16;
     rejects(&wrong_child_alignment);
     let mut wrong_outer_geometry = paths.clone();
     wrong_outer_geometry.outer_layout.entries[1].placement =

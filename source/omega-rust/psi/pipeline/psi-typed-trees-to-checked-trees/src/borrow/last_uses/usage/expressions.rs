@@ -54,8 +54,7 @@ pub(super) fn expression_uses_symbol(
                 || program
                     .expression_table
                     .name_path_member_symbols(path.member_symbols)
-                    .iter()
-                    .any(|member_symbol| *member_symbol == symbol)
+                    .contains(&symbol)
                 || path.symbol == symbol
         }
         psi_typed_trees::expression::ExpressionNode::StructLiteral(struct_literal) => program

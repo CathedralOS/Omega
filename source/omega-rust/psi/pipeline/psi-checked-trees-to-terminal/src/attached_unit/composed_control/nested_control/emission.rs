@@ -65,9 +65,11 @@ pub(super) fn emit(
         source_call_occurrences.append(&mut source_calls);
         blocks.push(Block {
             id: state_ids[index],
-            parameters: (index != 0)
-                .then(|| control_parameters[index].clone())
-                .unwrap_or_default(),
+            parameters: if index != 0 {
+                control_parameters[index].clone()
+            } else {
+                Default::default()
+            },
             operations,
             terminator: Terminator::Conditional {
                 condition,

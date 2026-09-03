@@ -137,13 +137,13 @@ pub(super) fn unknown_descriptor_write_operation(operation: u16) -> bool {
 pub(super) fn unknown_descriptor_write_operation_failure_shape_is_exact(
     shape: &AttemptShape<'_>,
 ) -> bool {
-    let scalars_are_exact = match (shape.operation, shape.scalars.as_slice()) {
+    let scalars_are_exact = matches!(
+        (shape.operation, shape.scalars.as_slice()),
         (17, [(1, ShapeScalar::U32(_))])
-        | (41, [(1, ShapeScalar::I64(_))])
-        | (46, [(1, ShapeScalar::I32(_))])
-        | (49, [(1, ShapeScalar::I32(_)), (2, ShapeScalar::I32(_))]) => true,
-        _ => false,
-    };
+            | (41, [(1, ShapeScalar::I64(_))])
+            | (46, [(1, ShapeScalar::I32(_))])
+            | (49, [(1, ShapeScalar::I32(_)), (2, ShapeScalar::I32(_))])
+    );
     scalars_are_exact && unknown_descriptor_failure_base_is_exact(shape)
 }
 
@@ -216,10 +216,10 @@ pub(super) fn unknown_descriptor_write_payload_operation(operation: u16) -> bool
 pub(super) fn unknown_descriptor_write_payload_failure_shape_is_exact(
     shape: &AttemptShape<'_>,
 ) -> bool {
-    let scalars_are_exact = match (shape.operation, shape.scalars.as_slice()) {
-        (5, []) | (7, [(2, ShapeScalar::I64(_))]) => true,
-        _ => false,
-    };
+    let scalars_are_exact = matches!(
+        (shape.operation, shape.scalars.as_slice()),
+        (5, []) | (7, [(2, ShapeScalar::I64(_))])
+    );
     let [(payload_ordinal, _payload)] = shape.byte_operands.as_slice() else {
         return false;
     };

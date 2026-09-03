@@ -180,7 +180,7 @@ fn every_range_pair_rule_declines_every_other_operation_shape() {
         let ranges = compute_analysis(&unit, AnalysisKind::ValueRanges).unwrap();
         for (rule_index, candidate_kind) in kinds.into_iter().enumerate() {
             let candidates = rule(candidate_kind)
-                .propose(&unit, RuleAnalysisView::new(&[ranges.clone()]))
+                .propose(&unit, RuleAnalysisView::new(std::slice::from_ref(&ranges)))
                 .unwrap();
             assert_eq!(
                 candidates.len(),

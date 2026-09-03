@@ -18,7 +18,6 @@ pub(crate) fn validate_fact_index(
 /// producer. Immutable source-frontier rows do not authorize a root at a
 /// rewritten site. Compressed return-tuple locals are metadata-only and have
 /// no executable producer, so they are deliberately absent from this walk.
-
 pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<OptimizationFact> {
     use omega_abstract_operations::AbstractOperation as O;
 

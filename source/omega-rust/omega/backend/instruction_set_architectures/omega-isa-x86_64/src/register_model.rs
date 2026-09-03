@@ -61,10 +61,10 @@ pub fn x86_64_fixed_register_view(
 /// lane for one supported x86-64 target. Keeping this mapping in the ISA owner
 /// prevents target-neutral orchestration from inferring ABI policy from vector
 /// positions or authored names.
-pub fn x86_64_preservation_convention_for_target<'model>(
-    model: &'model ValidatedPhysicalRegisterModel,
+pub fn x86_64_preservation_convention_for_target(
+    model: &ValidatedPhysicalRegisterModel,
     target: NativeTarget,
-) -> Option<&'model PreservationConvention> {
+) -> Option<&PreservationConvention> {
     if target.architecture != Architecture::X86_64 {
         return None;
     }

@@ -73,7 +73,7 @@ pub(crate) fn assign(
             .result
             .as_ref()
             .is_none_or(|placement| !direct_structural_fragments(placement))
-        || argument.path.len() != 0
+        || !argument.path.is_empty()
         || argument.place != parameter.place
         || argument.root_structural_type != parameter.structural_type
         || argument.structural_type != parameter.structural_type

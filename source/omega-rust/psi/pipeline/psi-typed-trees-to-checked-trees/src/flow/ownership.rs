@@ -47,15 +47,15 @@ pub(super) fn append_statement_ownership_events(
             // source-side recursion records nothing for a non-place
             // initializer. Record the production as a move into the target
             // place.
-            if initializer_produces_owned_value(program, assignment.value) {
-                if let Some(place) = canonical_place_from_expression_in_state(
+            if initializer_produces_owned_value(program, assignment.value)
+                && let Some(place) = canonical_place_from_expression_in_state(
                     program,
                     state_symbol,
                     statement_index,
                     assignment.target,
-                ) {
-                    append_move_event_for_place(program, sink, place, source);
-                }
+                )
+            {
+                append_move_event_for_place(program, sink, place, source);
             }
         }
         StatementNode::LocalData(local_data) => {
@@ -77,10 +77,10 @@ pub(super) fn append_statement_ownership_events(
                 // owned value would otherwise leave no ownership event. Record the
                 // production as a move into the bound local place; this is the
                 // slice/string operator-result extension of ownership events.
-                if initializer_produces_owned_value(program, local_data.initial_value) {
-                    if let Some(place) = canonical_place_from_symbol(local_data.symbol) {
-                        append_move_event_for_place(program, sink, place, source);
-                    }
+                if initializer_produces_owned_value(program, local_data.initial_value)
+                    && let Some(place) = canonical_place_from_symbol(local_data.symbol)
+                {
+                    append_move_event_for_place(program, sink, place, source);
                 }
             }
         }

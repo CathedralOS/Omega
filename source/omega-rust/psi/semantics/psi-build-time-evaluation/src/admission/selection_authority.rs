@@ -204,16 +204,11 @@ fn expression_selection_violation(
             psi_typed_trees::AuthoredDeclarationSelectionTarget::LateBound(binding) => {
                 if binding
                     == psi_typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
-                    && psi_typed_trees_to_checked_trees::typed_operator_has_no_authored_selection(
+                    && (psi_typed_trees_to_checked_trees::typed_operator_has_no_authored_selection(
                         program, expression,
-                    )
-                {
-                    continue;
-                } else if binding
-                    == psi_typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
-                    && unresolved_operator_candidates_are_confined(
+                    ) || unresolved_operator_candidates_are_confined(
                         program, expression, requester, authority,
-                    )
+                    ))
                 {
                     continue;
                 } else {

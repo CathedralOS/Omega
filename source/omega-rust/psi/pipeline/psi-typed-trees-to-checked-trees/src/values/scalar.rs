@@ -737,12 +737,9 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             parameter_position: u32,
             path: &[CheckedStructuralPredicatePathSegment],
         ) -> Option<TypeReferenceHandle> {
-            let Some(parameter) = usize::try_from(parameter_position)
+            let parameter = usize::try_from(parameter_position)
                 .ok()
-                .and_then(|position| parameters.get(position))
-            else {
-                return None;
-            };
+                .and_then(|position| parameters.get(position))?;
             let mut receiver = parameter.type_reference;
             let mut selected_case = None;
             for segment in path {
@@ -799,10 +796,10 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             )?)
         }
 
-        fn structural_data<'program>(
-            program: &'program TypedTrees,
+        fn structural_data(
+            program: &TypedTrees,
             mut type_reference: TypeReferenceHandle,
-        ) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+        ) -> Option<&psi_typed_trees::data::DataDefinition> {
             let (symbol, name) = loop {
                 match program.type_reference_table.type_reference(type_reference) {
                     TypeReferenceNode::Reference { referee, .. }
@@ -824,10 +821,10 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 .find(|data| (symbol.is_valid() && data.symbol == symbol) || data.name == *name)
         }
 
-        fn structural_record_fields<'program>(
-            program: &'program TypedTrees,
+        fn structural_record_fields(
+            program: &TypedTrees,
             type_reference: TypeReferenceHandle,
-        ) -> Option<Vec<&'program psi_typed_trees::data::DataField>> {
+        ) -> Option<Vec<&psi_typed_trees::data::DataField>> {
             let data = structural_data(program, type_reference)?;
             let mut fields = Vec::new();
             for member in program.data_members(data) {
@@ -1497,8 +1494,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 left_parameter: u32,
                 right_parameter: u32,
                 type_reference: TypeReferenceHandle,
-                left_path: &mut Vec<CheckedStructuralPredicatePathSegment>,
-                right_path: &mut Vec<CheckedStructuralPredicatePathSegment>,
+                left_path: &mut [CheckedStructuralPredicatePathSegment],
+                right_path: &mut [CheckedStructuralPredicatePathSegment],
                 output: &mut Vec<CheckedBooleanExpression>,
                 visiting: &mut Vec<psi_symbols::SymbolHandle>,
                 allow_direct_nested_mixed: bool,

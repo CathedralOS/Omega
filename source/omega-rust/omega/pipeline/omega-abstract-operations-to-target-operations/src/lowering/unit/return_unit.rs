@@ -65,8 +65,8 @@ pub(super) fn lower_unit_return(
                 .collect::<BTreeSet<_>>();
             let fully_consumed_affine_pair = exact_fully_consumed_affine_pair_root(
                 function,
-                &parameters,
-                &operations,
+                parameters,
+                operations,
                 structural_types,
                 functions,
             );
@@ -200,22 +200,7 @@ pub(super) fn lower_unit_return(
                             if structural_types.get(&element).is_some_and(|inner| {
                                 matches!(
                                     inner.shape,
-                                    StructuralTypeShape::FixedArray {
-                                        length: 3
-                                            | 4
-                                            | 5
-                                            | 6
-                                            | 7
-                                            | 8
-                                            | 9
-                                            | 10
-                                            | 11
-                                            | 12
-                                            | 13
-                                            | 14
-                                            | 15,
-                                        ..
-                                    }
+                                    StructuralTypeShape::FixedArray { length: 3..=15, .. }
                                 )
                             }) =>
                         {

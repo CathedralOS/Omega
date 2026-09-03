@@ -169,7 +169,9 @@ fn admit_storage(
 ) -> Result<(), AbstractSpillMemoryEffectError> {
     if storage.size_bytes == 0
         || !storage.alignment_bytes.is_power_of_two()
-        || storage.spill_area_offset % storage.alignment_bytes != 0
+        || !storage
+            .spill_area_offset
+            .is_multiple_of(storage.alignment_bytes)
         || storage
             .spill_area_offset
             .checked_add(storage.size_bytes)

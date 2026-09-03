@@ -11,9 +11,7 @@ use super::super::TotalScalarIdentityShape;
 /// For commutative operations the left-identity row precedes the right row.
 /// Signed one-bit integers have no positive-one literal, so the shared literal
 /// fact lookup naturally declines both multiplication rows for that type.
-pub(super) fn classify(
-    operation: &O,
-) -> Vec<TotalScalarIdentityShape> {
+pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     match operation {
         O::SaturatingIntegerAdd {
             psi_operation,

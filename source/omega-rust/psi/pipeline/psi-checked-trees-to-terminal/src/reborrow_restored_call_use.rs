@@ -140,7 +140,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             == CheckedReborrowAccessEffect::ExclusiveSuspension;
         let shared_freeze_cohort = child.access == BorrowAccessKind::Read
             && child.access_effect == CheckedReborrowAccessEffect::SharedFreeze
-            && matches!(disposition.shared_cohort.len(), 1 | 2 | 3);
+            && matches!(disposition.shared_cohort.len(), 1..=3);
 
         let mut shared_cohort = Vec::new();
         let exact_shared_cohort = if shared_freeze_cohort {

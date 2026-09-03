@@ -103,10 +103,10 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
     ]
 }
 
-fn convention_for<'model>(
+fn convention_for(
     case: ScalarAbiCase,
-    model: &'model omega_register_model::ValidatedPhysicalRegisterModel,
-) -> &'model PreservationConvention {
+    model: &omega_register_model::ValidatedPhysicalRegisterModel,
+) -> &PreservationConvention {
     let convention = match case.target.architecture {
         Architecture::X86_64 => x86_64_preservation_convention_for_target(model, case.target),
         Architecture::Aarch64 => aarch64_preservation_convention_for_target(model, case.target),

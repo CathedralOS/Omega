@@ -1519,12 +1519,11 @@ fn check_callable(
                     let ProofFact::Membership(membership) = fact else {
                         continue;
                     };
-                    if expression_names_parameter(program, membership.value, parameter) {
-                        if let Some(domain) =
+                    if expression_names_parameter(program, membership.value, parameter)
+                        && let Some(domain) =
                             nominal_domain_application(program, membership.domain_symbol)
-                        {
-                            push_unique_domain_application(&mut parameter_domains, domain);
-                        }
+                    {
+                        push_unique_domain_application(&mut parameter_domains, domain);
                     }
                 }
             }
@@ -1569,7 +1568,7 @@ fn check_callable(
             result_domain.semantic_domain,
             result_plan,
             parameters,
-        ) && owned_sources.iter().any(|name| *name == selected)
+        ) && owned_sources.contains(&selected)
         {
             continue;
         }

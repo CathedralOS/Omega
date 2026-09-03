@@ -111,11 +111,7 @@ fn git_resolution_issuance_rejects_final_snapshot_drift() {
     .expect("resolve source before issuance-drift probe");
     let pending = PendingResolvedGitSource::from_issued(&resolved);
     let payload = pending.snapshot_root.join("main.omg");
-    let mut permissions = std::fs::metadata(&payload)
-        .expect("stat published payload")
-        .permissions();
-    permissions.set_readonly(false);
-    std::fs::set_permissions(&payload, permissions).expect("make payload mutable for probe");
+    make_tree_owner_writable(&pending.snapshot_root);
     std::fs::write(&payload, "machine Drift::main() {}\n")
         .expect("mutate published payload for probe");
 

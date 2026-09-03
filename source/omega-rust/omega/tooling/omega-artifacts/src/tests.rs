@@ -801,7 +801,7 @@ fn installed_code_fixture(entry: EntryStubId) -> InstalledCode {
         contracts,
         footprint,
         install_id(32, PlacementPlanId::from_normalized_identity),
-        constraints.clone(),
+        constraints,
         install_id(33, EntrySetId::from_normalized_identity),
         vec![ArtifactEntry::from_canonical_decode(entry, 16)],
         install_id(34, RelocationSetId::from_normalized_identity),

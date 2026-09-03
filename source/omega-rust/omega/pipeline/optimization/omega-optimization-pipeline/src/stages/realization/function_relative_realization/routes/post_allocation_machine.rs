@@ -6,6 +6,10 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 
 use super::super::{assembly::*, carriers::*, error::*};
 use crate::{
+    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
+    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
+    ValidatedWholeFunctionExitContract,
     stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
     stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
     stage_whole_function_exit_contract_with_post_allocation_machine_optimization,
@@ -18,10 +22,6 @@ use crate::{
     validate_optimized_register_home_custody,
     validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
     validate_whole_function_exit_contract_with_post_allocation_machine_optimization,
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
-    ValidatedWholeFunctionExitContract,
 };
 
 pub use allocation_recovery::stage_post_allocation_machine_function_relative_realization_after_allocation_recovery;

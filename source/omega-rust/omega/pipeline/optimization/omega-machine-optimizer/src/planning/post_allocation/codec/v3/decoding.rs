@@ -26,41 +26,41 @@ use super::super::{
 };
 
 pub(in crate::planning::post_allocation::codec) fn decode_content(
-    mut cursor: &mut effect_codec::Cursor<'_>,
+    cursor: &mut effect_codec::Cursor<'_>,
     identity: PostAllocationMachineIdentity,
     allow_i64_less_than: bool,
     allow_scalar_call: bool,
 ) -> Result<PostAllocationMachinePlan, PostAllocationMachineDecodeError> {
-    let selected = SelectedInstructionPlanIdentity::from_bytes(array(&mut cursor)?);
-    let effects = PreAllocationMachineEffectIdentity::from_bytes(array(&mut cursor)?);
-    let ranges = LiveRangeIdentity::from_bytes(array(&mut cursor)?);
-    let legality = AllocationLegalityIdentity::from_bytes(array(&mut cursor)?);
-    let homes = RegisterHomeIdentity::from_bytes(array(&mut cursor)?);
+    let selected = SelectedInstructionPlanIdentity::from_bytes(array(cursor)?);
+    let effects = PreAllocationMachineEffectIdentity::from_bytes(array(cursor)?);
+    let ranges = LiveRangeIdentity::from_bytes(array(cursor)?);
+    let legality = AllocationLegalityIdentity::from_bytes(array(cursor)?);
+    let homes = RegisterHomeIdentity::from_bytes(array(cursor)?);
     let post_allocation_manifest =
-        PostAllocationOptimizationManifestIdentity::from_bytes(array(&mut cursor)?);
-    let target = effect_codec::decode_target(&mut cursor).map_err(map_field_error)?;
-    let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(array(&mut cursor)?);
-    let physical_register_model = PhysicalRegisterModelIdentity::from_bytes(array(&mut cursor)?);
-    let register_constraints = RegisterConstraintCatalogIdentity::from_bytes(array(&mut cursor)?);
-    let machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes(array(&mut cursor)?);
-    let choice_rule = match byte(&mut cursor)? {
+        PostAllocationOptimizationManifestIdentity::from_bytes(array(cursor)?);
+    let target = effect_codec::decode_target(cursor).map_err(map_field_error)?;
+    let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(array(cursor)?);
+    let physical_register_model = PhysicalRegisterModelIdentity::from_bytes(array(cursor)?);
+    let register_constraints = RegisterConstraintCatalogIdentity::from_bytes(array(cursor)?);
+    let machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes(array(cursor)?);
+    let choice_rule = match byte(cursor)? {
         0 => MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
         _ => return Err(PostAllocationMachineDecodeError::InvalidField),
     };
-    let function_count = length(&mut cursor)?;
+    let function_count = length(cursor)?;
     let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
     for _ in 0..function_count {
-        let machine = MachineId::new(u64_field(&mut cursor)?)
+        let machine = MachineId::new(u64_field(cursor)?)
             .ok_or(PostAllocationMachineDecodeError::InvalidField)?;
-        let block_count = length(&mut cursor)?;
+        let block_count = length(cursor)?;
         let mut blocks = Vec::with_capacity(block_count.min(cursor.remaining()));
         for _ in 0..block_count {
-            let block = SelectedBlockId(u32_field(&mut cursor)?);
-            let instruction_count = length(&mut cursor)?;
+            let block = SelectedBlockId(u32_field(cursor)?);
+            let instruction_count = length(cursor)?;
             let mut instructions = Vec::with_capacity(instruction_count.min(cursor.remaining()));
             for _ in 0..instruction_count {
                 instructions.push(decode_instruction(
-                    &mut cursor,
+                    cursor,
                     allow_i64_less_than,
                     allow_scalar_call,
                 )?);
@@ -72,25 +72,22 @@ pub(in crate::planning::post_allocation::codec) fn decode_content(
         }
         functions.push(PostAllocationMachineFunction { machine, blocks });
     }
-    let structural_count = length(&mut cursor)?;
+    let structural_count = length(cursor)?;
     let mut structural_unit_functions =
         Vec::with_capacity(structural_count.min(cursor.remaining()));
     for _ in 0..structural_count {
-        let machine = MachineId::new(u64_field(&mut cursor)?)
+        let machine = MachineId::new(u64_field(cursor)?)
             .ok_or(PostAllocationMachineDecodeError::InvalidField)?;
-        let block = SelectedBlockId(u32_field(&mut cursor)?);
-        let call = match byte(&mut cursor)? {
+        let block = SelectedBlockId(u32_field(cursor)?);
+        let call = match byte(cursor)? {
             0 => None,
-            1 => Some(effect_codec::decode_structural_call(&mut cursor).map_err(map_field_error)?),
+            1 => Some(effect_codec::decode_structural_call(cursor).map_err(map_field_error)?),
             _ => return Err(PostAllocationMachineDecodeError::InvalidField),
         };
-        let return_instruction = decode_instruction(&mut cursor, allow_i64_less_than, false)?;
-        let return_provenance =
-            effect_codec::decode_provenance(&mut cursor).map_err(map_field_error)?;
-        let return_effect =
-            effect_codec::decode_effect_link(&mut cursor).map_err(map_field_error)?;
-        let return_ownership =
-            effect_codec::decode_ownership(&mut cursor).map_err(map_field_error)?;
+        let return_instruction = decode_instruction(cursor, allow_i64_less_than, false)?;
+        let return_provenance = effect_codec::decode_provenance(cursor).map_err(map_field_error)?;
+        let return_effect = effect_codec::decode_effect_link(cursor).map_err(map_field_error)?;
+        let return_ownership = effect_codec::decode_ownership(cursor).map_err(map_field_error)?;
         structural_unit_functions.push(PostAllocationStructuralUnitFunction {
             machine,
             block,

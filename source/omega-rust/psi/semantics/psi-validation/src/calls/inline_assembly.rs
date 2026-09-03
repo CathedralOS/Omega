@@ -73,10 +73,11 @@ pub(super) fn validate_asm_operand_constraint(
     let actual = actual
         .map(|primitive| format!("`{}`", primitive.name()))
         .unwrap_or_else(|| expression_type_name_handle(program, operand).to_owned());
-    let place_requirement = constraint
-        .requires_writable_place()
-        .then_some(" writable place")
-        .unwrap_or("");
+    let place_requirement = if constraint.requires_writable_place() {
+        " writable place"
+    } else {
+        ""
+    };
     diagnostics.push(Diagnostic::error(format!(
         "asm instruction `{instruction}` operand `{}` requires an exact `{}`{place_requirement} \
          for target register `{}`, found {actual}",

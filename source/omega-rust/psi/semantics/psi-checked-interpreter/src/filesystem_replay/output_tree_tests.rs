@@ -115,7 +115,10 @@ fn output_only_tree_round_trips_exact_mixed_entries_and_handoff() {
         (0..replay.attempts().len()).all(|index| replay.executes_replay_attempt(index)),
         "every Output-only attempt executes against the replay namespace"
     );
-    assert_eq!(replay.expected_included_sources(), &[included.clone()]);
+    assert_eq!(
+        replay.expected_included_sources(),
+        std::slice::from_ref(&included)
+    );
 
     let observations = EvaluationObservations::from_filesystem_operation_attempts(
         replay.attempts().to_vec(),

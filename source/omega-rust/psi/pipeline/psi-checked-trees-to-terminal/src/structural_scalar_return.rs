@@ -188,7 +188,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
             "trait operator realization produced no terminal machine",
         ))?;
     if callee.id != machine_id(2)
-        || callee.parameters.len() != 0
+        || !callee.parameters.is_empty()
         || callee.structural_parameters.len() != structural_parameters.len()
         || callee.result.scalar().map(|result| result.scalar_type) != Some(result_type)
     {

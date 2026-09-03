@@ -3149,10 +3149,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             }
                             [
                                 StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                                StructuralPathSegment::FixedIndex(
-                                    inner @ (0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12
-                                    | 13 | 14),
-                                ),
+                                StructuralPathSegment::FixedIndex(inner @ (0..=14)),
                             ] => {
                                 let leaf_stride = u32::from(argument.shape.byte_size)
                                     .next_multiple_of(u32::from(argument.shape.alignment));
@@ -3329,16 +3326,15 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
     let mut previous_operation_ordinal = 0;
     let mut operations = std::collections::BTreeSet::new();
     for installed in &record.boundary_settlements {
-        if let Some(machine) = previous_machine {
-            if installed.machine < machine
+        if let Some(machine) = previous_machine
+            && (installed.machine < machine
                 || (installed.machine == machine
                     && (
                         installed.text_offset,
                         installed.settlement.operation_ordinal,
-                    ) <= (previous_text_offset, previous_operation_ordinal))
-            {
-                return Err(InstallationError::NonCanonicalBoundarySettlementOrder);
-            }
+                    ) <= (previous_text_offset, previous_operation_ordinal)))
+        {
+            return Err(InstallationError::NonCanonicalBoundarySettlementOrder);
         }
         if !operations.insert((installed.machine, installed.settlement.psi_operation)) {
             return Err(InstallationError::DuplicateBoundarySettlementOperation {
@@ -3367,22 +3363,22 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         }
         if let Err(error) = validate_completion_custody(&installed.settlement) {
             return Err(match error {
-                CompletionCustodyError::InvalidArgumentPath => {
+                CompletionCustodyError::ArgumentPath => {
                     InstallationError::InvalidSettlementArgumentField
                 }
-                CompletionCustodyError::InvalidReceiptArgumentIndex => {
+                CompletionCustodyError::ReceiptArgumentIndex => {
                     InstallationError::InvalidCompletionReceiptArgumentIndex {
                         machine: installed.machine,
                         operation: installed.settlement.psi_operation,
                     }
                 }
-                CompletionCustodyError::InvalidReceiptCustody => {
+                CompletionCustodyError::ReceiptCustody => {
                     InstallationError::InvalidCompletionReceiptCustody {
                         machine: installed.machine,
                         operation: installed.settlement.psi_operation,
                     }
                 }
-                CompletionCustodyError::InvalidProviderCustody => {
+                CompletionCustodyError::ProviderCustody => {
                     InstallationError::InvalidCompletionProviderCustody {
                         machine: installed.machine,
                         operation: installed.settlement.psi_operation,
@@ -3721,7 +3717,7 @@ fn validate_installed_dynamic_conformance(
         )
         .ok_or(InstallationError::InvalidImageSectionLayout)?;
     if sections.layout.data_address < text_end
-        || sections.layout.data_address % 8 != 0
+        || !sections.layout.data_address.is_multiple_of(8)
         || (record.dynamic_conformance_tables.is_empty()
             && record.forwarded_dynamic_descriptor_tables.is_empty())
     {
@@ -3989,11 +3985,11 @@ fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
         }))
         || matches!(
             path,
-            [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
+            [StructuralPathSegment::FixedIndex(0..=3)]
                 | [
                     StructuralPathSegment::FixedIndex(0 | 1),
                     StructuralPathSegment::FixedIndex(
-                        0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14,
+                        0..=14,
                     ),
                 ]
         )
@@ -4220,7 +4216,7 @@ fn bounded_nominal_receiver_shape(shape: ValueShape) -> bool {
         || shape.class == ValueClass::Integer
             && shape.byte_size != 0
             && matches!(shape.alignment, 1 | 2 | 4 | 8)
-            && shape.byte_size % shape.alignment == 0
+            && shape.byte_size.is_multiple_of(shape.alignment)
 }
 
 fn encode_structural_types(

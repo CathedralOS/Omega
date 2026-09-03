@@ -391,6 +391,7 @@ fn push_unknown_field_type(
 /// - cross-era recycling of a retired (reserved) number is legal: `reserved`
 ///   is era-scoped, so a later era declaring a field on a number a prior era
 ///   reserved produces no diagnostic.
+///
 /// Renames (same number, same type, new name) and additive fields are
 /// compatible and produce no diagnostics.
 fn validate_adjacent_eras(

@@ -33,18 +33,17 @@ pub(super) fn lower(
             place: argument.place,
         });
     }
-    let (projected_type, projected_shape, source_byte_offset) =
-        resolve_structural_field_path(
-            source.structural_type,
-            &argument.path,
-            structural_types,
-            shape_cache,
-            active,
-        )
-        .map_err(|_| LoweringError::StructuralCallArgumentTypeMismatch {
-            callee,
-            place: argument.place,
-        })?;
+    let (projected_type, projected_shape, source_byte_offset) = resolve_structural_field_path(
+        source.structural_type,
+        &argument.path,
+        structural_types,
+        shape_cache,
+        active,
+    )
+    .map_err(|_| LoweringError::StructuralCallArgumentTypeMismatch {
+        callee,
+        place: argument.place,
+    })?;
     if projected_type != callee_parameter.structural_type
         || projected_shape != destination.shape
         || u32::from(projected_shape.byte_size)

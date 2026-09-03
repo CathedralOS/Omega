@@ -154,8 +154,16 @@ ensures result == constant<LIMIT>();
 
     let mut changed_target = ledger_bytes.clone();
     let target_range = ledger_target_range(&changed_target);
-    assert_eq!(target_range.len(), b"linux_arm64".len());
-    changed_target[target_range].copy_from_slice(b"linux_arm64");
+    let replacement_target = if target == "linux_arm64" {
+        b"macos_arm64".as_slice()
+    } else {
+        b"linux_arm64".as_slice()
+    };
+    let target_length_range = target_range.start - std::mem::size_of::<u64>()..target_range.start;
+    let replacement_target_length =
+        u64::try_from(replacement_target.len()).expect("canonical target length fits u64");
+    changed_target[target_length_range].copy_from_slice(&replacement_target_length.to_le_bytes());
+    changed_target.splice(target_range, replacement_target.iter().copied());
     let error = decode_ordinary_package_obligation_ledger(&changed_target)
         .expect_err("ledger target and row target must agree");
     assert!(error.message().contains("different target"));

@@ -102,9 +102,12 @@ pub(super) fn candidate_error(
     let mut target = lower_to_target_operations(&source, target_profile).unwrap();
     mutate(&mut target);
     let AbstractToTargetTranslationValidationError::FunctionFamily {
-        family: AbstractToTargetTranslationFamily::StraightLineWrappingIntegerDivideImmediateOperands,
+        family:
+            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerDivideImmediateOperands,
         error:
-            AbstractToTargetTranslationFamilyError::StraightLineWrappingIntegerDivideImmediateOperands(error),
+            AbstractToTargetTranslationFamilyError::StraightLineWrappingIntegerDivideImmediateOperands(
+                error,
+            ),
         ..
     } = validate_abstract_to_target_translation(&source, target_profile, &target).unwrap_err()
     else {

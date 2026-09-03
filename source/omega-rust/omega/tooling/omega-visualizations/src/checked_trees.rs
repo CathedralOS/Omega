@@ -1367,7 +1367,7 @@ fn validated_content_projection_plans(
         .content
         .plans
         .iter()
-        .map(|plan| {
+        .inspect(|plan| {
             assert!(
                 plan.domain.is_valid(),
                 "content projection plan must name a nonempty exact declared domain",
@@ -1427,7 +1427,6 @@ fn validated_content_projection_plans(
                 "content projection plans must retain one row per exact semantic domain",
             );
             seen_semantic_domains.push(plan.semantic_domain);
-            plan
         })
         .collect()
 }
@@ -3034,7 +3033,7 @@ pub fn task_activation_manifest_json(
     use omega_task_plans::TaskStartOperation;
     use psi_checked_trees::machine::Machine;
 
-    fn machine_name<'a>(machines: &'a [Machine], symbol: SymbolHandle) -> &'a str {
+    fn machine_name(machines: &[Machine], symbol: SymbolHandle) -> &str {
         machines
             .iter()
             .find(|machine| machine.symbol == symbol)

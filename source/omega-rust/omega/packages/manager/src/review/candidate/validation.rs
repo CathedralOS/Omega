@@ -299,7 +299,10 @@ mod tests {
         let duplicate = review(&root);
 
         assert_eq!(
-            validate_review_closure_records(&[root.clone()], &[duplicate.clone(), duplicate]),
+            validate_review_closure_records(
+                std::slice::from_ref(&root),
+                &[duplicate.clone(), duplicate]
+            ),
             Err(ReviewOnlyClosureValidationError::ReviewSet(
                 ReviewOnlySetValidationError::DuplicateReview {
                     package: root.key.clone(),
@@ -327,7 +330,10 @@ mod tests {
         let dependency = source("dependency", 2);
 
         assert_eq!(
-            validate_review_closure_records(&[root.clone()], &[review(&root), review(&dependency)],),
+            validate_review_closure_records(
+                std::slice::from_ref(&root),
+                &[review(&root), review(&dependency)],
+            ),
             Err(ReviewOnlyClosureValidationError::UnexpectedReview {
                 package: dependency.key.clone(),
             })
@@ -341,7 +347,7 @@ mod tests {
         stale.source.resolution = resolution(3);
 
         assert_eq!(
-            validate_review_closure_records(&[root.clone()], &[stale]),
+            validate_review_closure_records(std::slice::from_ref(&root), &[stale]),
             Err(ReviewOnlyClosureValidationError::ResolutionMismatch {
                 package: root.key.clone(),
             })
@@ -355,7 +361,7 @@ mod tests {
         spoofed.projection_identity_matches = false;
 
         assert_eq!(
-            validate_review_closure_records(&[root.clone()], &[spoofed]),
+            validate_review_closure_records(std::slice::from_ref(&root), &[spoofed]),
             Err(ReviewOnlyClosureValidationError::ReviewSet(
                 ReviewOnlySetValidationError::ProjectionIdentityMismatch {
                     package: root.key.clone(),

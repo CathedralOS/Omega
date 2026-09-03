@@ -14,12 +14,11 @@ fn optimized_target_lowering_retains_wrapping_divide_immediate_operand_custody()
         for scalar_type in native_fixed_types() {
             for (left, right) in boundary_pairs(scalar_type) {
                 let expected = scalar_type.wrapping_div(left, right).unwrap();
-                let (semantic, proof) =
-                    wrapping_integer_divide_immediate_operands_return_artifact(
-                        scalar_type,
-                        left,
-                        right,
-                    );
+                let (semantic, proof) = wrapping_integer_divide_immediate_operands_return_artifact(
+                    scalar_type,
+                    left,
+                    right,
+                );
                 let optimized = optimize_artifact_sections(
                     &semantic,
                     &proof,
@@ -36,8 +35,14 @@ fn optimized_target_lowering_retains_wrapping_divide_immediate_operand_custody()
                     panic!("optimized constant-operand wrapping divide must retain its proof-bearing family")
                 };
                 assert_eq!(row.machine(), MachineId::new(84_001).unwrap());
-                assert_eq!(row.left_constant_operation(), OperationId::new(84_003).unwrap());
-                assert_eq!(row.right_constant_operation(), OperationId::new(84_005).unwrap());
+                assert_eq!(
+                    row.left_constant_operation(),
+                    OperationId::new(84_003).unwrap()
+                );
+                assert_eq!(
+                    row.right_constant_operation(),
+                    OperationId::new(84_005).unwrap()
+                );
                 assert_eq!(row.divide_operation(), OperationId::new(84_007).unwrap());
                 assert_eq!(row.obligation(), ObligationId::new(84_011).unwrap());
                 assert_eq!(row.return_edge(), EdgeId::new(84_009).unwrap());

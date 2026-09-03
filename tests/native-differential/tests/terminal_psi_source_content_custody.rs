@@ -163,7 +163,7 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
         lower_to_target_operations_with_provider_executions(
             &unbound_linear_input,
             omega_target::NativeTarget::linux_x64(),
-            &[settlement.clone()],
+            std::slice::from_ref(&settlement),
         ),
         Err(
             omega_abstract_operations_to_target_operations::LoweringError::UnsupportedOperationInScalarFunction(_)

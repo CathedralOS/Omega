@@ -1489,7 +1489,7 @@ fn structural_call_rejects_overlapping_exclusive_arguments() {
     second_target.place = place_id(99);
     second_target.position = 1;
     module.machines[1].structural_parameters.push(second_target);
-    let mut second_place = module.machines[1].structural_places[0].clone();
+    let mut second_place = module.machines[1].structural_places[0];
     second_place.id = place_id(99);
     second_place.kind = StructuralPlaceKind::Parameter {
         position: 1,

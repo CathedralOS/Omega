@@ -191,8 +191,10 @@ fn retains_owned_structural_result_for_attached_bodyless_boundary() {
         .expect("attached structural boundary-result caller plan");
     assert!(matches!(
         root.operations.as_slice(),
-        [CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. },
-         CheckedUnitEffectOperationPlan::ReturnUnit { .. }]
+        [
+            CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+        ]
     ));
 }
 

@@ -313,7 +313,7 @@ fn validate_callable_parts(
 
     validate_contract_facts(
         program,
-        &label,
+        label,
         parameter,
         requirement,
         actual_contracts,

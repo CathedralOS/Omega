@@ -156,12 +156,12 @@ fn nested_crash_leaf_stack_facts_survive_installation_and_reject_forgery() {
         else {
             unreachable!()
         };
-        when_false.control = Box::new(TargetIntegerControl::Crash {
+        *when_false.control = TargetIntegerControl::Crash {
             psi_crash_edge: edge_id(8),
             cause: CrashCause::Trap,
             site_guard: Vec::new(),
             frontier_lower_bound: Vec::new(),
-        });
+        };
         let assigned = assign_registers(&plan).expect("assign nested crash conditional");
         let emitted = emit_machine_code(&assigned).expect("emit nested crash conditional");
         let ScalarControlFlowEvidence::ConditionalTree {
@@ -215,12 +215,12 @@ fn four_leaf_crash_stack_facts_survive_installation_and_reject_forgery() {
         else {
             unreachable!()
         };
-        when_true.control = Box::new(TargetIntegerControl::Crash {
+        *when_true.control = TargetIntegerControl::Crash {
             psi_crash_edge: edge_id(11),
             cause: CrashCause::Trap,
             site_guard: Vec::new(),
             frontier_lower_bound: Vec::new(),
-        });
+        };
         let assigned = assign_registers(&plan).expect("assign four-leaf crash conditional");
         let emitted = emit_machine_code(&assigned).expect("emit four-leaf crash conditional");
         let ScalarControlFlowEvidence::ConditionalTree {
@@ -451,7 +451,7 @@ fn deeper_conditional_tree_survives_installation_and_rejects_forgery() {
             unreachable!()
         };
         let leaf = nested_true.control.clone();
-        nested_true.control = Box::new(TargetIntegerControl::Conditional {
+        *nested_true.control = TargetIntegerControl::Conditional {
             condition_source: value_id(20),
             condition_parameter_index: 1,
             condition_location: ScalarParameterLocation::Register(condition_register),
@@ -463,7 +463,7 @@ fn deeper_conditional_tree_survives_installation_and_rejects_forgery() {
                 psi_edge: edge_id(10),
                 control: leaf,
             },
-        });
+        };
         plan.functions[0].provenance.edges = (1..=10).map(edge_id).collect();
 
         let assigned = assign_registers(&plan).expect("assign deeper conditional tree");
@@ -634,10 +634,10 @@ fn signed_division_condition(
 fn signed_control_immediates(control: &mut TargetIntegerControl) {
     match control {
         TargetIntegerControl::Return { expression, .. } => {
-            if let TargetIntegerExpression::Immediate { value, .. } = expression {
-                if let IntegerValue::Unsigned(raw) = value {
-                    *value = IntegerValue::Signed((*raw as i64).into());
-                }
+            if let TargetIntegerExpression::Immediate { value, .. } = expression
+                && let IntegerValue::Unsigned(raw) = value
+            {
+                *value = IntegerValue::Signed((*raw as i64).into());
             }
         }
         TargetIntegerControl::Conditional {
@@ -679,13 +679,13 @@ fn four_leaf_conditional_plan(target: NativeTarget) -> TargetOperationPlan {
     else {
         unreachable!()
     };
-    when_false.control = Box::new(TargetIntegerControl::Conditional {
+    *when_false.control = TargetIntegerControl::Conditional {
         condition_source: value_id(6),
         condition_parameter_index: 2,
         condition_location: ScalarParameterLocation::Register(condition_register),
         when_true: returned(9, 11, 7, 13),
         when_false: returned(10, 12, 8, 15),
-    });
+    };
     plan.functions[0].provenance.edges = (1..=12).map(edge_id).collect();
     plan
 }

@@ -692,10 +692,10 @@ pub(super) fn checked_exact_cross_cast_chain_family(
     }
 }
 
-pub(super) fn checked_exact_cross_cast_chain_link<'a>(
-    expression: &'a CheckedScalarExpression,
+pub(super) fn checked_exact_cross_cast_chain_link(
+    expression: &CheckedScalarExpression,
     family: ExactCrossCastChainFamily,
-) -> Option<(PrimitiveType, &'a CheckedScalarExpression)> {
+) -> Option<(PrimitiveType, &CheckedScalarExpression)> {
     match (family, expression) {
         (
             ExactCrossCastChainFamily::DivideRemainder,

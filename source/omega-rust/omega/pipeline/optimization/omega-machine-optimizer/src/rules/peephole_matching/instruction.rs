@@ -170,16 +170,11 @@ fn match_view<'a>(
                 .strip_prefix(prefix)
                 .and_then(|name| name.parse::<u8>().ok())
                 .is_some_and(|index| index <= maximum_index);
-            if !valid_index
+            !(!valid_index
                 || view.bits != bits
                 || !view.allocatable
                 || view.class != operand.class
-                || view.units != operand.storage_units
-            {
-                false
-            } else {
-                true
-            }
+                || view.units != operand.storage_units)
         }
         ViewPattern::Named { name, bits } => {
             view.name == name

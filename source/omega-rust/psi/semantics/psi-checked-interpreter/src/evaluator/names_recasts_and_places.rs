@@ -721,7 +721,7 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Coerce a stored SCALAR to a declared TYPE reference (resolves its primitive
-    /// + domain, then [`coerce_scalar_with`]). A non-primitive type passes through.
+    /// and domain, then [`coerce_scalar_with`]). A non-primitive type passes through.
     /// Used where a value lands in a typed slot with the type in hand: struct/case
     /// literal FIELD init + the LocalData store (the type carries its own domain).
     pub(super) fn coerce_scalar_value(

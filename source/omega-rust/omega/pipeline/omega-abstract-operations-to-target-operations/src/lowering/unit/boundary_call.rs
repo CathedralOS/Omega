@@ -29,8 +29,8 @@ pub(super) fn lower_boundary_call(
     >,
     native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    mut shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    mut active: &mut BTreeSet<StructuralTypeId>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
     established_byte_sequences: &BTreeMap<
         PlaceId,
         (OperationId, StructuralTypeDeclaration, Vec<u8>),
@@ -128,8 +128,8 @@ pub(super) fn lower_boundary_call(
                         structural_shape(
                             parameter.structural_type,
                             structural_types,
-                            &mut shape_cache,
-                            &mut active,
+                            shape_cache,
+                            active,
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -409,8 +409,8 @@ pub(super) fn lower_boundary_call(
                     let layout = structural_sum_layout(
                         result.structural_type,
                         structural_types,
-                        &mut shape_cache,
-                        &mut active,
+                        shape_cache,
+                        active,
                     )?;
                     omega_target_operations::TargetBoundaryResult::Structural(
                         omega_target_operations::TargetStructuralHomeRequirement {
@@ -476,7 +476,7 @@ pub(super) fn lower_boundary_call(
                         structural_arguments,
                         completion_claim_sources,
                         completion_receipts,
-                        &parameters_by_place,
+                        parameters_by_place,
                     ) {
                         return Err(LoweringError::InvalidClaimCompletionOnlyShape {
                             machine: function.machine,

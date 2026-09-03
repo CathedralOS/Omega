@@ -507,9 +507,7 @@ fn console_row_shape(
         }
         _ => None,
     };
-    if (!inferred_supply && legacy_binding.is_none())
-        || (require_inferred_supply && !inferred_supply)
-    {
+    if !inferred_supply && (legacy_binding.is_none() || require_inferred_supply) {
         return Ok(false);
     }
     let [entry] = typed.machine_states(realization) else {

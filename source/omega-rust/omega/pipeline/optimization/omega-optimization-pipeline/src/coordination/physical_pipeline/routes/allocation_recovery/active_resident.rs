@@ -4,14 +4,14 @@ use omega_regalloc::{
 };
 
 use crate::{
+    StagedAllocationRecoveryFunctionRelativeSource, StagedOptimizedLiveRanges,
+    StagedOptimizedVerifiedPhysicalPipeline,
     stage_allocation_recovery_function_relative_realization,
     stage_optimized_active_resident_rematerialization,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_for_catalog_entry,
     stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
     stage_post_allocation_machine_function_relative_realization_after_allocation_recovery,
-    StagedAllocationRecoveryFunctionRelativeSource, StagedOptimizedLiveRanges,
-    StagedOptimizedVerifiedPhysicalPipeline,
 };
 
 use super::super::super::OptimizedVerifiedPhysicalPipelineError;

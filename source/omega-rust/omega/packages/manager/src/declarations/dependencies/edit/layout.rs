@@ -179,19 +179,18 @@ fn dependency_rows(
             && semantic
                 .get(position + 3)
                 .is_some_and(|next| tokens[*next].lexeme == "(")
+            && let Some(end_position) = dependency_row_end(tokens, &semantic, position + 3)
         {
-            if let Some(end_position) = dependency_row_end(tokens, &semantic, position + 3) {
-                let end_index = semantic[end_position];
-                rows.push(DependencyRow {
-                    start: token.span.start,
-                    end: tokens[end_index].span.end,
-                    contains_comment: tokens[index..=end_index]
-                        .iter()
-                        .any(|token| token.comment().is_some()),
-                });
-                position = end_position + 1;
-                continue;
-            }
+            let end_index = semantic[end_position];
+            rows.push(DependencyRow {
+                start: token.span.start,
+                end: tokens[end_index].span.end,
+                contains_comment: tokens[index..=end_index]
+                    .iter()
+                    .any(|token| token.comment().is_some()),
+            });
+            position = end_position + 1;
+            continue;
         }
         match token.lexeme.try_as_str() {
             Some("{") => brace_depth += 1,

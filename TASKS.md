@@ -47,13 +47,13 @@ These are the next product-level priorities for the maintained Rust
 implementation. They take precedence over adding another evidence carrier that
 has no exercising program.
 
-- **RESTORE-BASELINE-GREEN.** Fix the compact-identity architecture inventory
-  failures introduced by the nested-sum work, the Windows ledger test that
-  assumes a Linux target-name length, and the repository formatter/linter
-  baseline. A fresh checkout must have one documented toolchain and commands
-  for which formatting, architecture tests, workspace compilation, and the
-  portable test subset are green. Platform-only runtime legs may remain
-  explicitly skipped, never silently failed or ignored.
+- **SHARD-OVERSIZED-RUST-MODULES.** Eliminate every exact source-file,
+  package-leaf, and entrance exception in the architecture tests. Split by
+  semantic family without raising a ratchet: production dispatchers first,
+  then shared test fixtures. Acceptance: the exception tables in
+  `optimizer_source_organization/bounds.rs` and
+  `package_source_organization.rs` are empty and the full architecture suite
+  remains green.
 
 - **CLOSED-SUM-INSPECTION-E2E.** Complete target-neutral and native inspection
   of conventional closed sums. The acceptance program reads

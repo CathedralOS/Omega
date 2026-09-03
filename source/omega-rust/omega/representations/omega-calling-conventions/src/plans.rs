@@ -1024,7 +1024,7 @@ fn validate_signature_shapes(
                     && !(matches!(members, 2..=4)
                         && shape.byte_size <= 16
                         && matches!(shape.alignment, 4 | 8)
-                        && shape.byte_size == u16::from(members) * u16::from(shape.alignment)) =>
+                        && shape.byte_size == u16::from(members) * shape.alignment) =>
             {
                 return Err(PlanDiagnostic(
                     "SysV AMD64 homogeneous-float normalization requires two to four f32/f64 members totaling at most two eightbytes"
@@ -1356,24 +1356,10 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             ));
         }
         let slot = parameter_slot_base + index;
-        let location = if matches!(shape.class, ValueClass::BorrowedReference) {
-            let pointer = if slot < 4 {
-                IndirectPointerLocation::Register(integer[slot])
-            } else {
-                IndirectPointerLocation::Stack {
-                    stack_byte_offset: 32 + ((slot - 4) * 8) as u32,
-                    alignment: 8,
-                }
-            };
-            ValueLocation::Indirect {
-                pointer,
-                copy_stack_byte_offset: None,
-                byte_size: shape.byte_size,
-                alignment: shape.alignment,
-            }
-        } else if matches!(shape.class, ValueClass::Integer)
-            && !matches!(shape.byte_size, 1 | 2 | 4 | 8)
-        {
+        let indirect = matches!(shape.class, ValueClass::BorrowedReference)
+            || (matches!(shape.class, ValueClass::Integer)
+                && !matches!(shape.byte_size, 1 | 2 | 4 | 8));
+        let location = if indirect {
             let pointer = if slot < 4 {
                 IndirectPointerLocation::Register(integer[slot])
             } else {

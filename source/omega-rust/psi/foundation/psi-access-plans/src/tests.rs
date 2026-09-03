@@ -1489,7 +1489,7 @@ const fn all_atomic_operations() -> AtomicPermissions {
 }
 
 fn atomic_word_placement() -> ValidatedPlacementPlan {
-    atomic_word_placement_with_operations(0xa70_1c, all_atomic_operations())
+    atomic_word_placement_with_operations(0x000a_701c, all_atomic_operations())
 }
 
 fn atomic_word_placement_with_operations(
@@ -2232,6 +2232,10 @@ fn corresponded_view_retains_and_replays_evidence_through_primitive_specializati
 }
 
 #[test]
+#[allow(
+    clippy::drop_non_drop,
+    reason = "the test makes loan release explicit before probing restored parent access"
+)]
 fn borrowed_admission_withdraws_the_exact_shared_loan() {
     let plan = uart_placement_plan();
     let mut extent = uart_extent_with_lineage(0x7200, 32, 76);
@@ -2272,6 +2276,10 @@ fn borrowed_admission_withdraws_the_exact_shared_loan() {
 }
 
 #[test]
+#[allow(
+    clippy::drop_non_drop,
+    reason = "the test makes loan release explicit before probing restored parent access"
+)]
 fn borrowed_admission_withdraws_the_exact_exclusive_loan() {
     let plan = uart_placement_plan();
     let mut extent = uart_extent_with_lineage(0x7300, 32, 78);
@@ -2780,7 +2788,7 @@ fn borrowed_atomic_resident_formation_rejects_non_atomic_lender_observation() {
 #[test]
 fn borrowed_atomic_resident_views_add_no_permissions_and_recover_from_authority_drift() {
     let once_only = atomic_word_placement_with_operations(
-        0xa70_1d,
+        0x000a_701d,
         AtomicPermissions {
             compare_exchange_once: true,
             ..AtomicPermissions::default()

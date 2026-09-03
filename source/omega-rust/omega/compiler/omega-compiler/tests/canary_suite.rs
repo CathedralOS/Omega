@@ -2598,9 +2598,7 @@ fn configured_canary_worker_count(
 }
 
 fn default_canary_outer_job_count(available_parallelism: usize) -> usize {
-    available_parallelism
-        .max(1)
-        .min(DEFAULT_CANARY_OUTER_JOB_CAP)
+    available_parallelism.clamp(1, DEFAULT_CANARY_OUTER_JOB_CAP)
 }
 
 /// Run independent corpus members with bounded outer parallelism. Backend

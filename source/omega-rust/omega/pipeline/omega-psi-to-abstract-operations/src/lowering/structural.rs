@@ -401,7 +401,7 @@ fn lower_claim_free_affine_mixed_machine(
                 }
             )
         })
-        || !result_place.is_some_and(|place| place.kind == StructuralPlaceKind::Result)
+        || result_place.is_none_or(|place| place.kind != StructuralPlaceKind::Result)
     {
         return Ok(None);
     }

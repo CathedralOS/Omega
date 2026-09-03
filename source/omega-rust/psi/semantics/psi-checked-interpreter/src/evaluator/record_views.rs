@@ -75,7 +75,8 @@ impl<'program> Evaluator<'program> {
         interpretation: psi_layout_plans::IntegerInterpretation,
         value: Value,
     ) -> EvalResult<()> {
-        if stored_width_bits == 0 || stored_width_bits > 64 || stored_width_bits % 8 != 0 {
+        if stored_width_bits == 0 || stored_width_bits > 64 || !stored_width_bits.is_multiple_of(8)
+        {
             return trap("invalid stored-integer width reached mutable record view");
         }
         let primitive = self
@@ -233,7 +234,7 @@ impl<'program> Evaluator<'program> {
         visiting.remove(type_name);
         Ok(Some(Value::Struct {
             type_symbol,
-            type_name: type_name.to_owned().into(),
+            type_name: type_name.to_owned(),
             fields: field_values,
         }))
     }
@@ -265,7 +266,8 @@ impl<'program> Evaluator<'program> {
         stored_width_bits: u16,
         interpretation: psi_layout_plans::IntegerInterpretation,
     ) -> EvalResult<Value> {
-        if stored_width_bits == 0 || stored_width_bits > 64 || stored_width_bits % 8 != 0 {
+        if stored_width_bits == 0 || stored_width_bits > 64 || !stored_width_bits.is_multiple_of(8)
+        {
             return trap("stored-integer record view has an invalid physical width");
         }
         let byte_count = usize::from(stored_width_bits / 8);
@@ -360,7 +362,7 @@ impl<'program> Evaluator<'program> {
                     return Ok(None);
                 };
                 let remaining = cells.len().saturating_sub(base_offset);
-                if stride == 0 || remaining % stride != 0 {
+                if stride == 0 || !remaining.is_multiple_of(stride) {
                     return trap("slice recast bytes do not tile the element layout");
                 }
                 let length = remaining / stride;
@@ -880,7 +882,10 @@ impl<'program> Evaluator<'program> {
                     return trap("cannot lay out mutable slice element");
                 };
                 let available = cells.len().saturating_sub(base_offset);
-                if stride == 0 || available % stride != 0 || values.len() != available / stride {
+                if stride == 0
+                    || !available.is_multiple_of(stride)
+                    || values.len() != available / stride
+                {
                     return trap("mutable slice recast write has the wrong length");
                 }
                 for (index, value) in values.into_iter().enumerate() {

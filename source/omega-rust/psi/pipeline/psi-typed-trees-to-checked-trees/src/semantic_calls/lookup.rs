@@ -15,11 +15,11 @@ pub(crate) fn call_site_argument_expressions<'program>(
     }
 }
 
-pub(crate) fn find_state_in_machine<'program>(
-    program: &'program psi_typed_trees::TypedTrees,
+pub(crate) fn find_state_in_machine(
+    program: &psi_typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-) -> Option<&'program psi_typed_trees::state::State> {
+) -> Option<&psi_typed_trees::state::State> {
     let machine = program
         .machines()
         .iter()
@@ -30,10 +30,10 @@ pub(crate) fn find_state_in_machine<'program>(
         .find(|state| state.symbol == state_symbol)
 }
 
-pub(crate) fn find_state<'program>(
-    program: &'program psi_typed_trees::TypedTrees,
+pub(crate) fn find_state(
+    program: &psi_typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
-) -> Option<&'program psi_typed_trees::state::State> {
+) -> Option<&psi_typed_trees::state::State> {
     if !state_symbol.is_valid() {
         return None;
     }
@@ -51,10 +51,10 @@ pub(crate) fn find_state<'program>(
 /// The parameter list of a call target: a machine state's parameters, or --
 /// for a call through a trait-typed receiver (boundary trait machines) or a
 /// boundary-trait receiver -- the owning signature's parameters.
-pub(crate) fn call_target_parameters<'program>(
-    program: &'program psi_typed_trees::TypedTrees,
+pub(crate) fn call_target_parameters(
+    program: &psi_typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
-) -> Option<&'program [psi_typed_trees::signature::StateParameter]> {
+) -> Option<&[psi_typed_trees::signature::StateParameter]> {
     if let Some(state) = find_state(program, target_state_symbol) {
         return Some(program.state_parameters(state));
     }

@@ -37,7 +37,7 @@ fn append_boundary_edges_for_trait(
     visited_traits: &mut Vec<SymbolHandle>,
     span: &mut HandleSpan<FlowBoundaryEdgeFact>,
 ) {
-    if !trait_symbol.is_valid() || visited_traits.iter().any(|symbol| *symbol == trait_symbol) {
+    if !trait_symbol.is_valid() || visited_traits.contains(&trait_symbol) {
         return;
     }
 
