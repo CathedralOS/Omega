@@ -21,6 +21,10 @@ pub struct CheckedDynamicDispatchPlans {
     pub transfers: Vec<CheckedDynamicDescriptorTransferPlan>,
     pub direct_scalar_calls: Vec<CheckedDynamicScalarCallPlan>,
     pub rebound_scalar_calls: Vec<CheckedReboundDynamicScalarCallPlan>,
+    /// Two branch-local exact selections entering one shared descriptor
+    /// parameter. This is one atomic source-control plan, not two competing
+    /// whole-machine lowering candidates.
+    pub joined_scalar_calls: Vec<CheckedJoinedDynamicScalarCallPlan>,
     /// Calls through descriptors stored in local aggregate fields. These stay
     /// separate from direct devirtualization until Terminal Psi explicitly
     /// materializes and reloads the two-word field representation.
@@ -30,6 +34,26 @@ pub struct CheckedDynamicDispatchPlans {
     /// or continuation may be inferred for this lane.
     pub direct_unit_calls: Vec<CheckedDynamicUnitCallPlan>,
     pub rebound_unit_calls: Vec<CheckedReboundDynamicUnitCallPlan>,
+}
+
+/// The first source-level runtime descriptor phi. Each branch retains its
+/// complete ordinary dynamic-call plan, while the enclosing row owns the one
+/// checked Boolean control split that selects between them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedJoinedDynamicScalarCallPlan {
+    pub caller_machine: SymbolHandle,
+    pub entry_state: SymbolHandle,
+    pub caller_attachment_type_identity: String,
+    pub scalar_parameters: Vec<crate::CheckedStructuralScalarParameterPlan>,
+    pub guard: CheckedScalarExpression,
+    pub when_true: CheckedJoinedDynamicScalarCallBranchPlan,
+    pub when_false: CheckedJoinedDynamicScalarCallBranchPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedJoinedDynamicScalarCallBranchPlan {
+    pub successor: CheckedStructuralControlSuccessorPlan,
+    pub call: CheckedDynamicScalarCallPlan,
 }
 
 /// One complete checked scalar call whose descriptor reaches the receiver

@@ -603,9 +603,12 @@ descriptor argument to one shared callee descriptor parameter. That parameter
 is the runtime phi; no representative conformance and no synthetic joined table
 exists. Verification, canonical encoding, and interpretation exercise two
 branch-local arguments with distinct source places and distinct closed
-conformances. Checked-to-Terminal source composition remains fenced until it
-retains and emits the predecessor conditional/control body rather than the
-current linear helper chain. Physical selection, aggregate storage beyond the
+conformances. The checked producer now groups the first three-state Boolean
+source shape into one joined-call plan containing the exact guard, both
+successor edges, both complete branch-local calls, and the two exact root
+transfers into the shared parameter. This avoids presenting the backend with
+two rival plans for one source machine. Checked-to-Terminal emission of that
+atomic plan remains fenced. Physical selection, aggregate storage beyond the
 bounded single-field local form below, returns, forwarding after the join, and
 component crossings remain fenced.
 

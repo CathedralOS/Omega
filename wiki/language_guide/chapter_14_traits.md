@@ -711,8 +711,12 @@ yet compose that source control graph into Terminal Psi. The Terminal semantic
 model itself requires no special joined descriptor: two calls may supply their
 distinct selection-sourced descriptor arguments to one callee descriptor
 parameter, and verification, canonical encoding, and interpretation preserve
-the selected referent and private table on both branches. Three-way joins,
-forwarding after a join, native source lowering, aggregate storage beyond the
+the selected referent and private table on both branches. Checking groups the
+first three-state Boolean form into one plan with the exact guard, successors,
+branch-local calls, and both selection-sourced transfers; it does not leave two
+whole-machine candidates for lowering to choose between. Terminal source
+emission, three-way joins, forwarding after a join, native source lowering,
+aggregate storage beyond the
 bounded single-field local form below, returns, and component crossings remain
 rejected.
 
