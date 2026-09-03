@@ -29,11 +29,6 @@ struct SourceFileException {
 /// production/test ceiling. New files and unlisted growth still fail closed.
 const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[
     SourceFileException {
-        path: "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/structural_encoding.rs",
-        ceiling: 669,
-        semantic_reason: "the canonical structural identity vocabulary remains one encoding owner",
-    },
-    SourceFileException {
         path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/tests/dynamic_dispatch.rs",
         ceiling: 954,
         semantic_reason: "the dynamic-dispatch custody scenarios still share one test fixture",
