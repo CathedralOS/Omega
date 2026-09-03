@@ -30,11 +30,7 @@ const MAX_ENTRANCE_LINES: usize = 160;
 const MAX_SOURCE_DIRECTORY_DEPTH: usize = 5;
 
 /// Exact no-growth ratchets for package leaves that predate the bound.
-const PRODUCTION_LEAF_EXCEPTIONS: &[(&str, usize, &str)] = &[(
-    "review/evidence/src/ledger/results.rs",
-    653,
-    "ordinary obligation result models and reconstruction remain colocated",
-)];
+const PRODUCTION_LEAF_EXCEPTIONS: &[(&str, usize, &str)] = &[];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
