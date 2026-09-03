@@ -91,7 +91,8 @@ inner image plus the outer image before one atomic copy; it does not flatten
 child placement into the outer schema or expose programmable tag placement.
 Repeated uses of one inner type remain occurrence-distinct. Deeper paths,
 zero-length or nested sum arrays, mixed common-field/case shapes, and target-
-dependent sum geometry remain excluded. One further fixed-depth report retains
+dependent sum geometry remain excluded. The plural depth-two fixed-depth report
+retains
 the outer whole-record plan once and composes each exact outer occurrence with
 the unchanged plural one-level report, admitting the complete nonempty
 authored-order set of `Outer -> Middle -> Leaf -> direct sums` chains. Its
@@ -102,20 +103,18 @@ chains and every shallower, array-mediated, or enclosing direct-sum occurrence
 remain excluded; no child placement is flattened or exposed as programmable
 tag placement.
 
-Subsequent independent fixed-depth reports extend that same composition through
-the complete plural depth-three, depth-four, depth-five, depth-six,
-depth-seven, depth-eight, depth-nine, depth-ten, depth-eleven, depth-twelve,
-depth-thirteen, depth-fourteen, depth-fifteen, depth-sixteen,
-depth-seventeen, depth-eighteen, depth-nineteen, depth-twenty,
-depth-twenty-one, depth-twenty-two, and depth-twenty-three cohorts.
-The deepest live form is
-`Outer -> TwentyFirst -> Twentieth -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`:
-each outer occurrence owns the unchanged depth-twenty-two report and non-clone
-carrier, repeated nominal occurrences remain distinct, and projection plus
-replay share one memoized bounded walk and one global leaf ceiling. Every nested
-image is rebuilt from zero padding before one atomic outer copy. Deeper, recursive,
-array-mediated, direct-sum-coexisting, and target-dependent paths remain
-excluded, while each shallower API preserves its own exact depth boundary.
+The exact plural depth-three-through-depth-twenty-three reports extend that
+same composition as public aliases over one recursive carrier, with thin
+depth-specific projection wrappers over one shared projector. At depth N,
+each outer occurrence owns the depth N-1 report and non-clone carrier.
+Repeated nominal occurrences remain distinct, and projection plus replay share
+one memoized bounded walk and one global leaf ceiling. Every nested image is
+rebuilt from zero padding before one atomic outer copy. This shared
+implementation does not merge semantic boundaries: each public API still
+accepts only its named depth, each fingerprint retains its depth-specific
+domain separator, and deeper, recursive, array-mediated,
+direct-sum-coexisting, and target-dependent paths remain excluded. Depth
+twenty-three is the fixed-depth ceiling.
 
 The closed vocabulary includes only primitive placement concepts the backend
 must understand: offsets/alignment, fixed and runtime strides, tagged/untagged

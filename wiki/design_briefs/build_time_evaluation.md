@@ -394,7 +394,8 @@ walk with explicit record and edge bounds plus a linear authored-order cursor
 classifies excluded recursive and deeper sum paths without host recursion,
 repeated traversal of shared subgraphs, or occurrence cross-products.
 
-The complete plural fixed-depth rung admits the nonempty authored-order set of
+The complete plural depth-two fixed-depth rung admits the nonempty
+authored-order set of
 `Outer -> Middle -> Leaf -> direct conventional sums` record chains. Its report
 retains the outer whole-record plan once and one exact row per authored-order
 outer occurrence; each row's unchanged plural one-level report owns the
@@ -421,299 +422,27 @@ recursive, array-mediated, or direct-sum-coexisting paths reject, as does
 target-dependent placement at any of the four record layers. Existing direct,
 one-level, singular depth-two, and plural depth-two APIs remain unchanged.
 
-The complete plural depth-three fixed-depth rung admits a nonempty
-authored-order set of `Outer -> First -> Middle -> Leaf -> direct conventional
-sums` chains. Its compact report retains the outer whole-record plan once and
-one exact row per outer occurrence; each row owns the unchanged plural
-depth-two report for that occurrence. A distinct non-clone carrier composes the
-corresponding plural depth-two carriers, independently rebuilds every nested
-image and the outer zero-padded image, replays every layout and occurrence
-identity hash-free, and performs one final atomic copy. Repeated nominal types
-remain occurrence-distinct. The singular depth-three API remains exact-one. A
-shared memoized bounded reachability walk, fallible storage, and a global
-leaf-occurrence ceiling bound both production and replay. Shallower, deeper,
-recursive, array-mediated, or direct-sum-coexisting paths reject, as does
-target-dependent placement at every layer.
+The complete plural fixed-depth family covers every exact depth from three
+through twenty-three; together with the preceding depth-two rung, the public
+surface therefore supports exact plural depths two through twenty-three. At
+depth N, the report retains the outer whole-record plan once and one exact row
+per authored-order outer occurrence, with each row owning the depth N-1 report
+for that occurrence. Repeated nominal occurrences remain distinct. The
+non-clone carrier mirrors that recursive shape, rebuilds every nested image
+from zero padding in authored order, replays every layout and occurrence
+identity hash-free, and performs one final atomic outer copy.
 
-The complete plural depth-four fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-three
-report for that occurrence. A distinct non-clone carrier composes the
-corresponding plural depth-three carriers, preserves repeated nominal
-occurrences separately, independently rebuilds every nested zero-padded image,
-replays layouts and occurrence identities hash-free, and performs one final
-atomic copy. One shared memoized bounded reachability walk and global
-leaf-occurrence ceiling cover the whole cohort. Paths deeper than four records,
-recursion, arrays containing sums, direct sums at an enclosing layer, and
-target-dependent placement remain rejected; shallower APIs are unchanged.
-
-The complete plural depth-five fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-four
-report for that occurrence. A distinct non-clone carrier composes those
-depth-four carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than five records, recursion, arrays containing
-sums, enclosing direct sums, and target-dependent placement remain rejected;
-every shallower API keeps its exact boundary.
-
-The complete plural depth-six fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-five
-report for that occurrence. A distinct non-clone carrier composes those
-depth-five carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than six records, recursion, arrays containing
-sums, enclosing direct sums, and target-dependent placement remain rejected;
-every shallower API keeps its exact boundary.
-
-The complete plural depth-seven fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-six
-report for that occurrence. A distinct non-clone carrier composes those
-depth-six carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than seven records, recursion, arrays containing
-sums, enclosing direct sums, and target-dependent placement remain rejected;
-every shallower API keeps its exact boundary.
-
-The complete plural depth-eight fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-seven
-report for that occurrence. A distinct non-clone carrier composes those
-depth-seven carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than eight records, recursion, arrays containing
-sums, enclosing direct sums, and target-dependent placement remain rejected;
-every shallower API keeps its exact boundary.
-
-The complete plural depth-nine fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-eight
-report for that occurrence. A distinct non-clone carrier composes those
-depth-eight carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than nine records, recursion, arrays containing
-sums, enclosing direct sums, and target-dependent placement remain rejected;
-every shallower API keeps its exact boundary.
-
-The complete plural depth-ten fixed-depth rung admits a nonempty authored-order
-set of
-`Outer -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-nine
-report for that occurrence. A distinct non-clone carrier composes those
-depth-nine carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than ten records, recursion, arrays containing
-sums, enclosing direct sums, and target-dependent placement remain rejected;
-every shallower API keeps its exact boundary.
-
-The complete plural depth-eleven fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-ten
-report for that occurrence. A distinct non-clone carrier composes those
-depth-ten carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than eleven records, recursion, arrays containing
-sums, enclosing direct sums, and target-dependent placement remain rejected;
-every shallower API keeps its exact boundary.
-
-The complete plural depth-twelve fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-eleven
-report for that occurrence. A distinct non-clone carrier composes those
-depth-eleven carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than twelve records, recursion, arrays containing
-sums, enclosing direct sums, and target-dependent placement remain rejected;
-every shallower API keeps its exact boundary.
-
-The complete plural depth-thirteen fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-twelve
-report for that occurrence. A distinct non-clone carrier composes those
-depth-twelve carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than thirteen records, recursion, arrays
-containing sums, enclosing direct sums, and target-dependent placement remain
-rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-fourteen fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural
-depth-thirteen report for that occurrence. A distinct non-clone carrier
-composes those depth-thirteen carriers, keeps repeated nominal occurrences
-distinct, rebuilds every nested zero-padded image in authored order, replays
-all layouts and occurrence identities hash-free, and performs one final atomic
-copy. One shared memoized bounded reachability walk and global leaf-occurrence
-ceiling cover the complete cohort. Paths deeper than fourteen records,
-recursion, arrays containing sums, enclosing direct sums, and target-dependent
-placement remain rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-fifteen fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural
-depth-fourteen report for that occurrence. A distinct non-clone carrier
-composes those depth-fourteen carriers, keeps repeated nominal occurrences
-distinct, rebuilds every nested zero-padded image in authored order, replays
-all layouts and occurrence identities hash-free, and performs one final atomic
-copy. One shared memoized bounded reachability walk and global leaf-occurrence
-ceiling cover the complete cohort. Paths deeper than fifteen records,
-recursion, arrays containing sums, enclosing direct sums, and target-dependent
-placement remain rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-sixteen fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural
-depth-fifteen report for that occurrence. A distinct non-clone carrier
-composes those depth-fifteen carriers, keeps repeated nominal occurrences
-distinct, rebuilds every nested zero-padded image in authored order, replays
-all layouts and occurrence identities hash-free, and performs one final atomic
-copy. One shared memoized bounded reachability walk and global leaf-occurrence
-ceiling cover the complete cohort. Paths deeper than sixteen records,
-recursion, arrays containing sums, enclosing direct sums, and target-dependent
-placement remain rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-seventeen fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural
-depth-sixteen report for that occurrence. A distinct non-clone carrier
-composes those depth-sixteen carriers, keeps repeated nominal occurrences
-distinct, rebuilds every nested zero-padded image in authored order, replays
-all layouts and occurrence identities hash-free, and performs one final atomic
-copy. One shared memoized bounded reachability walk and global leaf-occurrence
-ceiling cover the complete cohort. Paths deeper than seventeen records,
-recursion, arrays containing sums, enclosing direct sums, and target-dependent
-placement remain rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-eighteen fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural
-depth-seventeen report for that occurrence. A distinct non-clone carrier
-composes those depth-seventeen carriers, keeps repeated nominal occurrences
-distinct, rebuilds every nested zero-padded image in authored order, replays
-all layouts and occurrence identities hash-free, and performs one final atomic
-copy. One shared memoized bounded reachability walk and global leaf-occurrence
-ceiling cover the complete cohort. Paths deeper than eighteen records,
-recursion, arrays containing sums, enclosing direct sums, and target-dependent
-placement remain rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-nineteen fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural
-depth-eighteen report for that occurrence. A distinct non-clone carrier
-composes those depth-eighteen carriers, keeps repeated nominal occurrences
-distinct, rebuilds every nested zero-padded image in authored order, replays
-all layouts and occurrence identities hash-free, and performs one final atomic
-copy. One shared memoized bounded reachability walk and global leaf-occurrence
-ceiling cover the complete cohort. Paths deeper than nineteen records,
-recursion, arrays containing sums, enclosing direct sums, and target-dependent
-placement remain rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-twenty fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural
-depth-nineteen report for that occurrence. A distinct non-clone carrier
-composes those depth-nineteen carriers, keeps repeated nominal occurrences
-distinct, rebuilds every nested zero-padded image in authored order, replays
-all layouts and occurrence identities hash-free, and performs one final atomic
-copy. One shared memoized bounded reachability walk and global leaf-occurrence
-ceiling cover the complete cohort. Paths deeper than twenty records,
-recursion, arrays containing sums, enclosing direct sums, and target-dependent
-placement remain rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-twenty-one fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural depth-twenty
-report for that occurrence. A distinct non-clone carrier composes those
-depth-twenty carriers, keeps repeated nominal occurrences distinct, rebuilds
-every nested zero-padded image in authored order, replays all layouts and
-occurrence identities hash-free, and performs one final atomic copy. One shared
-memoized bounded reachability walk and global leaf-occurrence ceiling cover the
-complete cohort. Paths deeper than twenty-one records, recursion, arrays
-containing sums, enclosing direct sums, and target-dependent placement remain
-rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-twenty-two fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> Twentieth -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural
-depth-twenty-one report for that occurrence. A distinct non-clone carrier
-composes those depth-twenty-one carriers, keeps repeated nominal occurrences
-distinct, rebuilds every nested zero-padded image in authored order, replays
-all layouts and occurrence identities hash-free, and performs one final atomic
-copy. One shared memoized bounded reachability walk and global leaf-occurrence
-ceiling cover the complete cohort. Paths deeper than twenty-two records,
-recursion, arrays containing sums, enclosing direct sums, and target-dependent
-placement remain rejected; every shallower API keeps its exact boundary.
-
-The complete plural depth-twenty-three fixed-depth rung admits a nonempty
-authored-order set of
-`Outer -> TwentyFirst -> Twentieth -> Nineteenth -> Eighteenth -> Seventeenth -> Sixteenth -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
-chains. Its compact report retains the outer whole-record plan once and one
-exact row per outer occurrence; each row owns the unchanged plural
-depth-twenty-two report for that occurrence. A distinct non-clone carrier
-composes those depth-twenty-two carriers, keeps repeated nominal occurrences
-distinct, rebuilds every nested zero-padded image in authored order, replays
-all layouts and occurrence identities hash-free, and performs one final atomic
-copy. One shared memoized bounded reachability walk and global leaf-occurrence
-ceiling cover the complete cohort. Paths deeper than twenty-three records,
-recursion, arrays containing sums, enclosing direct sums, and target-dependent
-placement remain rejected; every shallower API keeps its exact boundary.
+The depth-specific public report, projection, validation, and replay names
+remain exact-depth boundaries, but they are aliases or thin wrappers over one
+recursive report carrier and shared projection, byte-derivation,
+fingerprinting, and custody-replay owners. This implementation sharing does
+not broaden any accepted shape: a depth-N API still rejects shallower and
+deeper paths, recursion, arrays containing sums, enclosing direct sums, and
+target-dependent placement at any layer. Each depth retains its established
+fingerprint domain separator. Projection and replay share one memoized bounded
+reachability walk and one global leaf-occurrence ceiling across the cohort.
+Depth twenty-three remains the maximum admitted fixed-depth form; adding a
+depth twenty-four permutation is not the extension mechanism.
 
 Zero-length or nested sum arrays, coexistence with direct sum fields,
 plural paths deeper than twenty-three records, paths deeper than twenty-three
