@@ -42,8 +42,8 @@ functional language required by Epsilon.
   compiler tape byte-for-byte; the independent six-case differential and
   strict grammar regression pass.
 - [ ] Gamma's typed scalar/effect contract is fixed at
-  `source/gamma/LANGUAGE.md`. Its provisional 1,410-line Beta evaluator assembles
-  to a 7,690-byte tape and runs integer/character literals, typed lexical lets, conditionals,
+  `source/gamma/LANGUAGE.md`. Its provisional 1,254-line Beta evaluator assembles
+  to a 6,545-byte tape and runs integer/character literals, typed lexical lets, conditionals,
   scalar operators, forward calls, recursion, sealed input, indexed reads, and
   byte output plus nested immutable pairs. It executes the unchanged 85-line
   Gamma-authored augmenter and its exact result-42 receipt. Proper tail
@@ -67,13 +67,13 @@ functional language required by Epsilon.
 - [x] A matched direct Beta Delta evaluator experiment covers the selected
   recursive Nat, two-field List, three-field Bytes-rope, malformed-source,
   3,001-function, and 100,000-node proper-tail witnesses. It requires 2,019 Beta
-  lines and an 11,004-byte tape: 609 additional low-level lines and 254 additional
+  lines and an 11,004-byte tape: 765 additional low-level lines and 377 additional
   control transfers versus selected Gamma. D92 therefore retains Gamma and keeps
   constructor/match semantics in the more readable staged compiler.
 - [x] A purely interpreted Forth-Gamma experiment eliminates per-program Beta
   expansion and adds named values plus readable quoted emission. Its 890-line
   Beta interpreter produces a 5,145-byte tape, but its Delta compiler remains
-  1,451 lines across 555 tiny words; total authored source is 79 lines larger
+  1,451 lines across 555 tiny words; total authored source is 235 lines larger
   than the functional route. It passes recursive Nat/List/rope, malformed,
   empty-index, and 100,000-tail witnesses, while 3,001-function compilation
   exceeds 600 seconds and unreachable names/stack effects remain unchecked.

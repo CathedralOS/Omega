@@ -117,7 +117,7 @@ def metrics(path):
     control = branches + calls + instructions.count("ret")
     return len(lines), len(instructions), labels, control, branches, calls
 
-if metrics(os.environ["GAMMA_SYMBOLIC"]) != (1410, 1151, 181, 582, 237, 261):
+if metrics(os.environ["GAMMA_SYMBOLIC"]) != (1254, 1005, 160, 459, 195, 192):
     raise SystemExit("Gamma comparison metrics changed")
 if metrics(os.environ["SYMBOLIC"]) != (2019, 1655, 262, 836, 346, 387):
     raise SystemExit("direct Delta comparison metrics changed")

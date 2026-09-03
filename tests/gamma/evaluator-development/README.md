@@ -19,10 +19,10 @@ emits no Gamma or Alpha code.
 ## Measurements
 
 ```text
-1,410-line / 32,096-byte symbolic addressed-Beta source
+1,254-line / 29,090-byte symbolic addressed-Beta source
 81-line / 2,070-byte test-only label resolver
-1,410-line / 39,423-byte canonical addressed Beta with named control targets
-7,690-byte evaluator tape
+1,254-line / 34,950-byte canonical addressed Beta with named control targets
+6,545-byte evaluator tape
 ```
 
 The resolver only computes numeric addresses and the gate pins the resulting
@@ -56,7 +56,7 @@ This is not yet an admitted Gamma evaluator:
 - Resource partitions and detailed profile outcomes are experimental.
 
 The remaining capacity proof requires real work, but the measured margin remains:
-the direct candidate is 1,410 Beta lines versus 2,337 lines across the former
+the direct candidate is 1,254 Beta lines versus 2,337 lines across the former
 concatenative route. More importantly, its state is held in documented
 registers and five explicit memory regions rather than hidden behind a generic
 stack-machine expansion.
