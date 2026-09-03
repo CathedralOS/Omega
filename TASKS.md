@@ -12469,7 +12469,11 @@ checked-result arithmetic decision listed below.
     object/image/installation replay; the Unit form now reaches verified
     Terminal Psi, machine emission, and native artifact replay, and a retained
     scalar caller continuation now makes the complete multi-hop result
-    observable through the native exit canary. Do not extend local
+    observable through the native exit canary. Frontend place validation now
+    resolves a dynamic member call through a lifetime-applied borrow-carrying
+    local record instead of falsely classifying that member as an unknown
+    callable; checked descriptor storage custody and materialization remain to
+    be added. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a

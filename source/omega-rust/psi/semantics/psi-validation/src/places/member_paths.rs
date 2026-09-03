@@ -70,16 +70,7 @@ pub(crate) fn declared_member_path_type(
             // construction enforces the field range (see
             // struct_literals::enforce_construction_field_ranges).
             let receiver_type = local_or_parameter_type(program, current_state, root)?;
-            let unwrapped = unwrapped_type_reference(program, receiver_type)?;
-            let TypeReferenceNode::Named { name, .. } =
-                program.type_reference_table.type_reference(unwrapped)
-            else {
-                return None;
-            };
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.name == *name)?;
+            let data = data_definition_for_type(program, receiver_type)?;
             data_field_or_payload_type(program, data, field_name)
         }
         // A NESTED place, 3+ members (`self.p.x`, `self.a.inner.x`, or a
