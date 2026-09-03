@@ -58,7 +58,6 @@ pub enum AssignmentError {
         operation: OperationId,
     },
     UnitScalarCallSourceMismatch(ValueId),
-    UnitBooleanParameterControlUnsupported(MachineId),
     UnitCallCustodyMismatch {
         machine: MachineId,
         operation: OperationId,

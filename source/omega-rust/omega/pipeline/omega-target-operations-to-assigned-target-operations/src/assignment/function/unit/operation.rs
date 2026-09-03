@@ -559,10 +559,64 @@ pub(super) fn assign(
                 when_false: *when_false,
             }
         }
-        TargetUnitOperation::ConditionalBooleanParameter { .. } => {
-            return Err(AssignmentError::UnitBooleanParameterControlUnsupported(
-                machine,
-            ));
+        TargetUnitOperation::ConditionalBooleanParameter {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let matching_parameters = body
+                .scalar_parameters
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| *parameter == condition)
+                .collect::<Vec<_>>();
+            let [(parameter_index, parameter)] = matching_parameters.as_slice() else {
+                return Err(AssignmentError::UnitScalarCallSourceMismatch(
+                    condition.value,
+                ));
+            };
+            if condition.scalar_type != psi_core::ScalarType::Boolean
+                || condition.placement.shape != ValueShape::integer(1, 1)
+                || body.call_plan.parameters.get(*parameter_index) != Some(&parameter.placement)
+            {
+                return Err(AssignmentError::UnitScalarCallSourceMismatch(
+                    condition.value,
+                ));
+            }
+            let location = match condition.placement.locations.as_slice() {
+                [
+                    ValueLocation::Register {
+                        register,
+                        value_byte_offset: 0,
+                        byte_size: 1,
+                    },
+                ] => ScalarParameterLocation::Register(*register),
+                [
+                    ValueLocation::Stack {
+                        stack_byte_offset,
+                        value_byte_offset: 0,
+                        byte_size: 1,
+                        ..
+                    },
+                ] => ScalarParameterLocation::IncomingStack {
+                    byte_offset: *stack_byte_offset,
+                },
+                _ => {
+                    return Err(AssignmentError::UnitScalarCallSourceMismatch(
+                        condition.value,
+                    ));
+                }
+            };
+            AssignedUnitOperation::ConditionalBooleanParameter {
+                condition: condition.clone(),
+                location: crate::assignment::placement::assign_direct_location(
+                    condition.value,
+                    location,
+                    target.architecture,
+                )?,
+                when_true: *when_true,
+                when_false: *when_false,
+            }
         }
         TargetUnitOperation::ConditionalDispatch { fallthrough_edge } => {
             AssignedUnitOperation::ConditionalDispatch {

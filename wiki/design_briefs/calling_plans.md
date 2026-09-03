@@ -623,9 +623,12 @@ attached-Unit ABI keeps the entry guard as an exact Boolean parameter, and one
 parameter-conditional operation binds both successor ordinals and nominal
 return edges to the two descriptor-bearing leaves. Each leaf still owns its
 distinct selection/application custody and the same helper target. Physical
-assignment and native encoding remain fenced at that explicit operation;
-aggregate storage beyond the bounded single-field local form below, forwarding
-after the join, and component crossings also remain fenced.
+assignment rejoins the guard with the complete Unit call plan, selects its
+exact register or incoming-stack coordinate, and assigns both leaf descriptor
+arguments independently; guard identity or placement drift fails closed.
+Native encoding remains fenced at that explicit assigned operation. Aggregate
+storage beyond the bounded single-field local form below, forwarding after the
+join, and component crossings also remain fenced.
 
 The first Terminal aggregate-storage rung accepts only the checked immutable
 one-field record initialized from one earlier exact shared-borrow selection.

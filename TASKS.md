@@ -12541,11 +12541,15 @@ checked-result arithmetic decision listed below.
   Boolean rather than laundering it through the fixed-integer function ABI;
   one parameter-conditional operation names both successor ordinals and return
   edges, and both leaf operations retain their own descriptor argument and
-  shared helper target on x86-64 and AArch64 plans. Physical assignment and
-  native lowering remain the open seam and reject this new operation
-  explicitly. Aggregate storage, forwarding after the join, and component
-  crossing remain fenced; do not add a representative conformance or a second
-  joined-descriptor vocabulary to bypass that control seam.
+  shared helper target on x86-64 and AArch64 plans. Physical assignment now
+  replays the Boolean parameter against the complete Unit call plan, reduces
+  its exact placement to the selected register or incoming-stack coordinate,
+  and independently assigns both descriptor-bearing branch calls. Parameter
+  identity or placement substitution rejects. Native encoding remains the
+  open seam and rejects this new operation explicitly. Aggregate storage,
+  forwarding after the join, and component crossing remain fenced; do not add
+  a representative conformance or a second joined-descriptor vocabulary to
+  bypass that control seam.
 
   Remaining work:
 
