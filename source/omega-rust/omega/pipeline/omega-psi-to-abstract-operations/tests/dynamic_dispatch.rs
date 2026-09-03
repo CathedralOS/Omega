@@ -15,6 +15,105 @@ use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
+fn verified_stored_dynamic_descriptor_retains_aggregate_custody_through_optimization_seed() {
+    let source = r#"
+        trait Measure { machine measure(&self) -> bool; }
+        data Item [copy] { value: bool; }
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> bool { transition { _ -> self.value } }
+        }
+        data Holder<'item> { handler: &'item dyn Measure; }
+        data Main [copy] { item: Item; }
+        machine Main::run<'item>(&self) {
+            let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+            let holder: Holder<'item> = Holder { handler: erased };
+            let result: bool = holder.handler.measure();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("stored dynamic source lowers to verified Terminal Psi");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("stored descriptor reaches target-neutral Omega");
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let store = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::StoreDynamicDescriptor {
+                psi_operation,
+                stored,
+            } => Some((*psi_operation, stored)),
+            _ => None,
+        })
+        .expect("one target-neutral descriptor store");
+    let call = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::CallStoredDynamicScalar {
+                psi_operation,
+                dynamic_dispatch,
+                ..
+            } => Some((*psi_operation, dynamic_dispatch)),
+            _ => None,
+        })
+        .expect("one target-neutral stored descriptor call");
+    assert!(store.1.has_complete_custody(caller.machine, store.0));
+    assert!(call.1.has_complete_custody(caller.machine, call.0));
+    assert_eq!(&call.1.stored, store.1);
+    assert!(
+        store
+            .1
+            .descriptor
+            .aggregate_type_identity
+            .contains("Holder")
+    );
+    assert_eq!(store.1.descriptor.field_identity, "handler");
+
+    let optimization = reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).expect("nonzero test fuel schedule"),
+    )
+    .expect("stored descriptor custody reconstructs into the optimizer");
+    validate_psi_optimization_unit(&optimization)
+        .expect("stored descriptor optimizer custody validates independently");
+
+    let mut drifted = optimization.clone();
+    let dynamic = drifted
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == drifted.entry)
+        .expect("entry optimization function")
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            AbstractOperation::CallStoredDynamicScalar {
+                dynamic_dispatch, ..
+            } => Some(dynamic_dispatch),
+            _ => None,
+        })
+        .expect("stored descriptor optimization dispatch");
+    dynamic.stored.descriptor.field_identity = "other".into();
+    drifted.identity = recompute_psi_optimization_unit_identity(&drifted);
+    assert!(
+        validate_psi_optimization_unit(&drifted).is_err(),
+        "a call may not drift from the exact preceding descriptor store"
+    );
+}
+
+#[test]
 fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
     let rebound = r#"
         trait Touch {

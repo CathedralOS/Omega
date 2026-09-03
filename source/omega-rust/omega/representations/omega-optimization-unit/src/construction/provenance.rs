@@ -28,6 +28,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         }
         O::WriteOnlyPrimitiveStore { psi_operation, .. }
         | O::StructuralScalarFieldStore { psi_operation, .. }
+        | O::StoreDynamicDescriptor { psi_operation, .. }
         | O::EstablishPayloadlessCase { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
@@ -37,6 +38,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::CallStructuralScalar { psi_operation, .. }
         | O::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
         | O::CallDynamicScalar { psi_operation, .. }
+        | O::CallStoredDynamicScalar { psi_operation, .. }
         | O::CallDynamicParameterScalar { psi_operation, .. }
         | O::CallDynamicUnit { psi_operation, .. }
         | O::CallDynamicParameterUnit { psi_operation, .. }

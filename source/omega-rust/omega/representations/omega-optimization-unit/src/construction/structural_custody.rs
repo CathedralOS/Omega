@@ -22,6 +22,14 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::IntegerStructuralField { source, .. } => {
             places.insert(source.place);
         }
+        O::StoreDynamicDescriptor { stored, .. } => {
+            places.insert(stored.selection.source.place);
+        }
+        O::CallStoredDynamicScalar {
+            dynamic_dispatch, ..
+        } => {
+            places.insert(dynamic_dispatch.stored.selection.source.place);
+        }
         O::CallDynamicScalar {
             dynamic_dispatch, ..
         }

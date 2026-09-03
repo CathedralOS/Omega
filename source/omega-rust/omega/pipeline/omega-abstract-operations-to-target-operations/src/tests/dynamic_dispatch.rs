@@ -53,6 +53,64 @@ fn abstract_plan() -> omega_abstract_operations::AbstractOperationPlan {
         .expect("lower verified Terminal artifact")
 }
 
+fn stored_descriptor_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let source = r#"
+        trait Measure { machine measure(&self) -> bool; }
+        data Item [copy] { value: bool; }
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> bool { transition { _ -> self.value } }
+        }
+        data Holder<'item> { handler: &'item dyn Measure; }
+        data Main [copy] { item: Item; }
+        machine Main::run<'item>(&self) {
+            let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+            let holder: Holder<'item> = Holder { handler: erased };
+            let result: bool = holder.handler.measure();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("lower stored dynamic source");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("lower verified stored dynamic Terminal artifact")
+}
+
+#[test]
+fn explicitly_rejects_stored_descriptor_before_physical_two_word_planning() {
+    let source = stored_descriptor_plan();
+    let caller = source
+        .functions
+        .iter()
+        .find(|function| function.machine == source.entry)
+        .expect("entry caller");
+    let operation = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_abstract_operations::AbstractOperation::StoreDynamicDescriptor {
+                psi_operation,
+                ..
+            } => Some(*psi_operation),
+            _ => None,
+        })
+        .expect("stored descriptor operation");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        assert_eq!(
+            lower_to_target_operations(&source, target),
+            Err(LoweringError::UnsupportedStoredDynamicDescriptor {
+                machine: caller.machine,
+                operation,
+            })
+        );
+    }
+}
+
 fn forwarded_parameter_plan() -> omega_abstract_operations::AbstractOperationPlan {
     let source = r#"
         trait Measure {

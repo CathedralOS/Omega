@@ -22,6 +22,7 @@ use psi_terminal::{
     TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
     TerminalIndirectDynamicDispatch, TerminalModule, TerminalParameterDynamicDispatch,
     TerminalPsiIdentity, TerminalRankedScc, TerminalReboundDynamicDescriptor,
+    TerminalStoredDynamicDescriptor, TerminalStoredDynamicDispatch,
 };
 
 /// Exact caller claim source needed to replay boundary-completion custody after
@@ -272,6 +273,81 @@ pub struct AbstractReboundDynamicDispatch {
     pub initial_application: ClosedConformanceApplication,
     pub application: ClosedConformanceApplication,
     pub dispatch: TerminalIndirectDynamicDispatch,
+}
+
+/// Exact target-neutral custody for one descriptor stored in an aggregate
+/// field. Establishment and dispatch remain separate operations, but both
+/// retain this same source selection and closed application instead of
+/// reconstructing either from a descriptor ordinal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractStoredDynamicDescriptor {
+    pub selection: TerminalDynamicConformanceSelection,
+    pub descriptor: TerminalStoredDynamicDescriptor,
+    pub application: ClosedConformanceApplication,
+}
+
+impl AbstractStoredDynamicDescriptor {
+    pub fn has_complete_custody(&self, owner: MachineId, operation: OperationId) -> bool {
+        self.descriptor.owner == owner
+            && self.descriptor.establishment_operation == operation
+            && self.selection.owner == owner
+            && self.selection.ordinal == self.descriptor.selection_ordinal
+            && self.application.owner == owner
+            && !self.descriptor.aggregate_type_identity.is_empty()
+            && !self.descriptor.field_identity.is_empty()
+            && self.selection.conformance_application_report_fingerprint
+                == self.application.report_fingerprint
+            && self.selection.conformance_application_commitment == self.application.commitment
+            && self.application.report_fingerprint
+                == psi_terminal::closed_conformance_application_report_fingerprint(
+                    &self.application,
+                )
+            && self.application.commitment
+                == psi_terminal::closed_conformance_application_commitment(&self.application)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractStoredDynamicDispatch {
+    pub stored: AbstractStoredDynamicDescriptor,
+    pub dispatch: TerminalStoredDynamicDispatch,
+}
+
+impl AbstractStoredDynamicDispatch {
+    pub fn has_complete_custody(&self, owner: MachineId, operation: OperationId) -> bool {
+        self.stored
+            .has_complete_custody(owner, self.stored.descriptor.establishment_operation)
+            && self.dispatch.owner == owner
+            && self.dispatch.operation == operation
+            && self.dispatch.descriptor_ordinal == self.stored.descriptor.ordinal
+            && self
+                .stored
+                .application
+                .rows
+                .iter()
+                .filter(|row| {
+                    row.declaring_trait_identity == self.dispatch.declaring_trait_identity
+                        && row.public_requirement_identity
+                            == self.dispatch.public_requirement_identity
+                        && row.requirement_identity == self.dispatch.requirement_identity
+                        && row.realization_identity == self.dispatch.realization_identity
+                        && row.realization_callable_identity.as_deref()
+                            == Some(self.dispatch.realization_callable_identity.as_str())
+                })
+                .count()
+                == 1
+            && self
+                .stored
+                .application
+                .realization_callables
+                .iter()
+                .filter(|callable| {
+                    callable.source_callable_identity == self.dispatch.realization_callable_identity
+                        && callable.machine == self.dispatch.realization
+                })
+                .count()
+                == 1
+    }
 }
 
 /// One target-neutral dynamic descriptor argument after the Terminal catalog
@@ -580,6 +656,13 @@ pub enum AbstractOperation {
     DynamicDescriptorParameter {
         parameter: TerminalDynamicDescriptorParameter,
     },
+    /// Establish a selected `{instance, table}` descriptor in one exact
+    /// aggregate field. This remains target-neutral; later stages choose the
+    /// physical two-word local and field offsets.
+    StoreDynamicDescriptor {
+        psi_operation: OperationId,
+        stored: AbstractStoredDynamicDescriptor,
+    },
     /// One verifier-approved non-observing replacement through an exact
     /// whole-root write-only structural parameter. The complete parameter row
     /// keeps access, multiplicity, nominal type, and signature position from
@@ -680,6 +763,15 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: AbstractResult,
         dynamic_dispatch: AbstractReboundDynamicDispatch,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one scalar requirement by reloading a descriptor previously
+    /// established in an aggregate field.
+    CallStoredDynamicScalar {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractStoredDynamicDispatch,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

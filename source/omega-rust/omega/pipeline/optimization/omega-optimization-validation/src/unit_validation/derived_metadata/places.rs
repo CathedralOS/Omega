@@ -129,6 +129,14 @@ pub(crate) fn validate_operation_places(
             require(*source, known)?;
         }
         O::IntegerStructuralField { source, .. } => require(source.place, known)?,
+        O::StoreDynamicDescriptor { stored, .. } => {
+            require(stored.selection.source.place, known)?;
+        }
+        O::CallStoredDynamicScalar {
+            dynamic_dispatch, ..
+        } => {
+            require(dynamic_dispatch.stored.selection.source.place, known)?;
+        }
         O::CallDynamicScalar {
             dynamic_dispatch, ..
         }

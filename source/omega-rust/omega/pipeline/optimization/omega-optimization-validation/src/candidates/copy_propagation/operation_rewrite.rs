@@ -100,6 +100,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         }
         O::Return { value, .. } => replace(value),
         O::DynamicDescriptorParameter { .. }
+        | O::StoreDynamicDescriptor { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
@@ -109,6 +110,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
+        | O::CallStoredDynamicScalar { .. }
         | O::CallDynamicParameterScalar { .. }
         | O::CallDynamicUnit { .. }
         | O::CallDynamicParameterUnit { .. }

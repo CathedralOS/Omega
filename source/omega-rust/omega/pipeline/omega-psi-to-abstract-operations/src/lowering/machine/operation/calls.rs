@@ -1,7 +1,7 @@
 use omega_abstract_operations::{
     AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource, AbstractOperation,
     AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
-    CompletionClaimSource,
+    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
 };
 use psi_terminal::{
     ClosedConformanceApplication, Operation, OperationKind, TerminalDynamicDescriptorSource,
@@ -104,22 +104,44 @@ pub(super) fn lower(
             crash_continuations,
         } => {
             let result = operation.result.expect_scalar();
-            AbstractOperation::CallDynamicScalar {
-                psi_operation: operation.id,
-                result: AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
-                dynamic_dispatch: lower_rebound_dynamic_dispatch(
-                    machine,
-                    operation,
-                    descriptor_ordinal,
-                    Some(result.scalar_type),
-                    dynamic_dispatch,
-                    closed_conformance_applications,
-                )?,
-                requirement_obligations,
-                crash_continuations,
+            let result = AbstractResult {
+                value: result.id,
+                scalar_type: result.scalar_type,
+            };
+            if dynamic_dispatch
+                .stored_dispatches
+                .iter()
+                .any(|dispatch| dispatch.owner == machine.id && dispatch.operation == operation.id)
+            {
+                AbstractOperation::CallStoredDynamicScalar {
+                    psi_operation: operation.id,
+                    result,
+                    dynamic_dispatch: lower_stored_dynamic_dispatch(
+                        machine,
+                        operation,
+                        descriptor_ordinal,
+                        Some(result.scalar_type),
+                        dynamic_dispatch,
+                        closed_conformance_applications,
+                    )?,
+                    requirement_obligations,
+                    crash_continuations,
+                }
+            } else {
+                AbstractOperation::CallDynamicScalar {
+                    psi_operation: operation.id,
+                    result,
+                    dynamic_dispatch: lower_rebound_dynamic_dispatch(
+                        machine,
+                        operation,
+                        descriptor_ordinal,
+                        Some(result.scalar_type),
+                        dynamic_dispatch,
+                        closed_conformance_applications,
+                    )?,
+                    requirement_obligations,
+                    crash_continuations,
+                }
             }
         }
         OperationKind::CallDynamicParameterScalar {
@@ -293,6 +315,131 @@ pub(super) fn lower(
         },
         _ => unreachable!("call router is exhaustive"),
     })
+}
+
+pub(super) fn lower_stored_descriptor(
+    machine: &TerminalMachine,
+    operation: &Operation,
+    descriptor_ordinal: u32,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+    closed_conformance_applications: &[ClosedConformanceApplication],
+) -> Result<AbstractStoredDynamicDescriptor, LoweringError> {
+    let descriptors = dynamic_dispatch
+        .stored_descriptors
+        .iter()
+        .filter(|descriptor| {
+            descriptor.owner == machine.id
+                && descriptor.ordinal == descriptor_ordinal
+                && descriptor.establishment_operation == operation.id
+        })
+        .collect::<Vec<_>>();
+    let [descriptor] = descriptors.as_slice() else {
+        return Err(LoweringError::InvalidDynamicCall(operation.id));
+    };
+    rejoin_stored_descriptor(
+        machine,
+        operation,
+        descriptor,
+        dynamic_dispatch,
+        closed_conformance_applications,
+    )
+}
+
+fn lower_stored_dynamic_dispatch(
+    machine: &TerminalMachine,
+    operation: &Operation,
+    descriptor_ordinal: u32,
+    expected_result: Option<psi_core::ScalarType>,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+    closed_conformance_applications: &[ClosedConformanceApplication],
+) -> Result<AbstractStoredDynamicDispatch, LoweringError> {
+    let dispatches = dynamic_dispatch
+        .stored_dispatches
+        .iter()
+        .filter(|dispatch| {
+            dispatch.owner == machine.id
+                && dispatch.operation == operation.id
+                && dispatch.descriptor_ordinal == descriptor_ordinal
+        })
+        .collect::<Vec<_>>();
+    let [dispatch] = dispatches.as_slice() else {
+        return Err(LoweringError::InvalidDynamicCall(operation.id));
+    };
+    let descriptors = dynamic_dispatch
+        .stored_descriptors
+        .iter()
+        .filter(|descriptor| {
+            descriptor.owner == machine.id && descriptor.ordinal == descriptor_ordinal
+        })
+        .collect::<Vec<_>>();
+    let [descriptor] = descriptors.as_slice() else {
+        return Err(LoweringError::InvalidDynamicCall(operation.id));
+    };
+    let stored = rejoin_stored_descriptor(
+        machine,
+        operation,
+        descriptor,
+        dynamic_dispatch,
+        closed_conformance_applications,
+    )?;
+    let callable_count = stored
+        .application
+        .realization_callables
+        .iter()
+        .filter(|callable| {
+            callable.source_callable_identity == dispatch.realization_callable_identity
+                && callable.machine == dispatch.realization
+                && closed_result_scalar(callable.result) == expected_result
+        })
+        .count();
+    let lowered = AbstractStoredDynamicDispatch {
+        stored,
+        dispatch: (*dispatch).clone(),
+    };
+    if callable_count != 1 || !lowered.has_complete_custody(machine.id, operation.id) {
+        return Err(LoweringError::InvalidDynamicCall(operation.id));
+    }
+    Ok(lowered)
+}
+
+fn rejoin_stored_descriptor(
+    machine: &TerminalMachine,
+    operation: &Operation,
+    descriptor: &psi_terminal::TerminalStoredDynamicDescriptor,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+    closed_conformance_applications: &[ClosedConformanceApplication],
+) -> Result<AbstractStoredDynamicDescriptor, LoweringError> {
+    let selections = dynamic_dispatch
+        .selections
+        .iter()
+        .filter(|selection| {
+            selection.owner == machine.id && selection.ordinal == descriptor.selection_ordinal
+        })
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        return Err(LoweringError::InvalidDynamicCall(operation.id));
+    };
+    let applications = closed_conformance_applications
+        .iter()
+        .filter(|application| {
+            application.owner == machine.id
+                && application.report_fingerprint
+                    == selection.conformance_application_report_fingerprint
+                && application.commitment == selection.conformance_application_commitment
+        })
+        .collect::<Vec<_>>();
+    let [application] = applications.as_slice() else {
+        return Err(LoweringError::InvalidDynamicCall(operation.id));
+    };
+    let lowered = AbstractStoredDynamicDescriptor {
+        selection: (*selection).clone(),
+        descriptor: descriptor.clone(),
+        application: (*application).clone(),
+    };
+    if !lowered.has_complete_custody(machine.id, descriptor.establishment_operation) {
+        return Err(LoweringError::InvalidDynamicCall(operation.id));
+    }
+    Ok(lowered)
 }
 
 fn lower_rebound_dynamic_dispatch(

@@ -287,6 +287,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
     match operation {
         AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
         | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
+        | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
         | AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
         | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
         | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
@@ -296,6 +297,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::CallStructuralScalar { psi_operation, .. }
         | AbstractOperation::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
         | AbstractOperation::CallDynamicScalar { psi_operation, .. }
+        | AbstractOperation::CallStoredDynamicScalar { psi_operation, .. }
         | AbstractOperation::CallDynamicParameterScalar { psi_operation, .. }
         | AbstractOperation::CallDynamicUnit { psi_operation, .. }
         | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. }

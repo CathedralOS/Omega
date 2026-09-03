@@ -79,6 +79,13 @@ pub(super) fn lower_unit_body(
         }
         match operation {
             AbstractOperation::DynamicDescriptorParameter { .. } => {}
+            AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
+            | AbstractOperation::CallStoredDynamicScalar { psi_operation, .. } => {
+                return Err(LoweringError::UnsupportedStoredDynamicDescriptor {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                });
+            }
             AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
                 return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
                     machine: function.machine,
