@@ -71,7 +71,7 @@ fn append_expected_partial_residuals(
         };
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3..=15),
+            length: inner_length @ (3..=16),
         } = declarations.get(&element)?.shape
         else {
             return None;

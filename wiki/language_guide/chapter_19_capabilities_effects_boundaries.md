@@ -1265,10 +1265,24 @@ optimization.
 The first package-exported symbolic form is deliberately narrow: a public
 generic callable may map each named boundary operator type binder directly to
 one of its own type binders. The package row retains both package-qualified
-declarations and the binder ordinals. It remains a blocking composition input,
-not a selected-provider or realization claim. Nested symbolic types and other
-static categories remain unsupported until their final substitution and
-recheck are implemented end to end.
+declarations, the exact overload coordinate, and the binder ordinals. It
+remains a blocking composition input, not a selected-provider or realization
+claim. Nested symbolic types and other static categories remain unsupported
+until their final substitution and recheck are implemented end to end.
+
+The first cross-artifact closing step accepts only explicitly supplied direct
+type-binder requests. It rejoins an independently reviewed producer row,
+operator owner, concrete producer specialization, and consumer-side closed
+selected-plan coordinate. The supplied specialization grants nothing by
+construction: every producer binder must occur exactly once, have the reviewed
+type category, be used by the reviewed symbolic mapping, and reproduce the
+independently reviewed closed application. Lifetimes, bounds, conformance
+bounds, and other static categories fail closed. Equal supplied demands merge
+only after their exact selected artifact and plan digest match, and retain the
+symbolic mapping plus concrete substitution so later composition can rejoin
+the original package row and its authored use locations. This result is not a
+reachability-complete application set and cannot produce coverage,
+`PackageInstance`, Terminal/native authority, or installation issuance.
 
 For a checked generic body, the compiler creates an ordinary authoritative
 machine specialization per distinct closed application and rechecks the

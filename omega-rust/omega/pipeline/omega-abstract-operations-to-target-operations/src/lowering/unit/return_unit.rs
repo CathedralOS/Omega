@@ -200,7 +200,7 @@ pub(super) fn lower_unit_return(
                             if structural_types.get(&element).is_some_and(|inner| {
                                 matches!(
                                     inner.shape,
-                                    StructuralTypeShape::FixedArray { length: 3..=15, .. }
+                                    StructuralTypeShape::FixedArray { length: 3..=16, .. }
                                 )
                             }) =>
                         {

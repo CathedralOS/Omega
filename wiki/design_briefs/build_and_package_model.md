@@ -1139,19 +1139,35 @@ direct call. The still-open occurrence in the authored template remains
 symbolic non-coverage. This local fixed point is not an artifact-qualified
 symbolic-demand exchange and grants nothing to a separately compiled consumer.
 
-Package review v126/canonical row v84/recovery v21 implements the first
+Package review v129/canonical row v87/recovery v23 implements the first
 producer side of that exchange. A public generic callable using a named
 generic boundary operator exports an opaque-blocking symbolic-demand row under
-the exact producer `PackageKey`, callable nominal, operator nominal, stable
-requirement identity, and direct requirement-type-binder to
+the exact producer `PackageKey`, callable nominal, exact operator overload
+coordinate, stable requirement identity, and direct requirement-type-binder to
 callable-type-binder mapping. Checked conversion and package capture each
 rejoin the authored use to its enclosing callable and exact declaration
 telescopes. Private callables, nested symbolic types, consts, lifetimes,
 machines, propositions, fixed-token uses, and statement uses remain absent or
 fail closed. This row is composition input only: it names no provider and
 claims no realization, coverage, Terminal custody, native code, or admission.
-Foreign reachable specialization and final closed substitution remain work of
-compiler-owned independently compiled artifact composition.
+
+The first non-authorizing cross-artifact consumer of that row closes only
+explicitly supplied requests. It independently takes the producer review, the
+exact operator-owner review, a package/callable/binder/category/type producer
+specialization, and a consumer-side reviewed closed selected-plan coordinate.
+The specialization constructor is inert: output exists only after every
+producer binder is present exactly once, every substitution is used by the
+reviewed direct mapping, and the resulting application equals the independently
+reviewed requirement, overload, application, selected artifact, and nonzero
+plan digest. Nonzero lifetimes, non-type categories, bounds, and conformance
+bounds remain fail-closed. Equal outputs deduplicate only after that exact
+rejoin, while retaining the original symbolic mapping and specialization for
+later source-row replay. This is a canonical demand-only set of validated
+supplied requests, not evidence that the list exhausts reachable
+specializations; it cannot construct realization, coverage, `PackageInstance`,
+Terminal/native authority, or installation evidence. Reachability-derived
+complete-set wiring, source-occurrence replay, coverage, and authorization
+remain work of compiler-owned independently compiled artifact composition.
 
 D32 keeps physical realization distinct. A validated optimization projection
 retains the immutable canonical Terminal identity and identifies the surviving

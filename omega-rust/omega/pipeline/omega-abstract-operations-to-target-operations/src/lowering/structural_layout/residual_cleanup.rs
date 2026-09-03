@@ -68,7 +68,7 @@ pub(in crate::lowering) fn expected_maximal_residual_subtrees(
         };
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3..=15),
+            length: inner_length @ (3..=16),
         } = declarations.get(&element)?.shape
         else {
             return None;

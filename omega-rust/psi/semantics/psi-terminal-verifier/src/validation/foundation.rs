@@ -1799,7 +1799,7 @@ pub(super) fn is_bounded_partial_affine_path(
                                     (&inner.shape, path),
                                     (
                                         StructuralTypeShape::FixedArray {
-                                            length: inner_length @ (3..=15),
+                                            length: inner_length @ (3..=16),
                                             ..
                                         },
                                         [
@@ -1889,7 +1889,7 @@ pub(super) fn partial_affine_residuals(
             .find(|declaration| declaration.id == element)?;
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3..=15),
+            length: inner_length @ (3..=16),
         } = inner.shape
         else {
             return None;

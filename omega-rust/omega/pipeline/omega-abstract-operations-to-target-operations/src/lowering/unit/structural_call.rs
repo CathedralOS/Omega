@@ -301,7 +301,7 @@ pub(super) fn lower_structural_unit_call(
                             .ok_or(LoweringError::UnknownStructuralType(inner_type))?;
                         let StructuralTypeShape::FixedArray {
                             element: leaf_type,
-                            length: inner_length @ (3..=15),
+                            length: inner_length @ (3..=16),
                         } = inner_declaration.shape
                         else {
                             return Err(LoweringError::StructuralCallArgumentTypeMismatch {

@@ -4,6 +4,7 @@
 //! callables. They are composition inputs only: no row in this module claims a
 //! selected realization, semantic coverage, Terminal custody, or native code.
 
+use super::super::api::operators::project_operator_coordinate;
 use super::super::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use super::super::source::locations::canonical_source_span_location;
 use super::application_realizations::authored_application_source_span;
@@ -153,7 +154,7 @@ pub(crate) fn project_boundary_application_demands(
         }
         let row = CheckedPackageBoundaryApplicationDemandReview {
             requirement_identity,
-            operator_declaration: nominal_identity(compilation, operator.symbol)?,
+            operator_coordinate: project_operator_coordinate(compilation, operator)?,
             producer_callable,
             arguments,
         };
@@ -182,13 +183,13 @@ pub(crate) fn project_boundary_application_demands(
 fn demand_key(
     row: &CheckedPackageBoundaryApplicationDemandReview,
 ) -> (
-    &crate::record::PackageReviewNominalIdentity,
+    &crate::record::PackageReviewOperatorCoordinate,
     &str,
     &crate::record::PackageReviewNominalIdentity,
     &[PackageReviewSymbolicBoundaryApplicationArgument],
 ) {
     (
-        &row.operator_declaration,
+        &row.operator_coordinate,
         row.requirement_identity.as_str(),
         &row.producer_callable,
         &row.arguments,
