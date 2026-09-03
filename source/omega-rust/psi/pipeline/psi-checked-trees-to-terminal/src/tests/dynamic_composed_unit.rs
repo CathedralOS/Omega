@@ -457,6 +457,11 @@ const JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE: &str = r#"
     }
 
     machine forward(erased: &dyn Measure) -> bool {
+        let result: bool = relay(erased);
+        transition { _ -> result }
+    }
+
+    machine relay(erased: &dyn Measure) -> bool {
         let result: bool = finish(erased);
         transition { _ -> result }
     }
@@ -1307,39 +1312,46 @@ fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
 }
 
 #[test]
-fn lowers_one_transparent_forward_after_a_two_predecessor_join() {
+fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
     let mut checked = checked_source(JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     let [joined] = checked_catalog.joined_scalar_calls.as_slice() else {
         panic!("one checked forwarded dynamic join expected: {checked_catalog:#?}")
     };
-    let [forwarding] = joined.when_true.call.forwarding_transfers.as_slice() else {
-        panic!("one shared post-join forwarding transfer expected: {joined:#?}")
+    let [joined_transfer, forwarded_transfer] =
+        joined.when_true.call.forwarding_transfers.as_slice()
+    else {
+        panic!("two shared post-join forwarding transfers expected: {joined:#?}")
     };
     assert_eq!(
         joined.when_false.call.forwarding_transfers,
-        [forwarding.clone()]
+        [joined_transfer.clone(), forwarded_transfer.clone()]
     );
-    assert_eq!(forwarding.source_predecessor_count, 2);
-    assert_eq!(forwarding.source_paths.len(), 2);
-    assert!(forwarding.has_complete_source_custody(&checked_catalog.transfers));
+    assert_eq!(joined_transfer.source_predecessor_count, 2);
+    assert_eq!(forwarded_transfer.source_predecessor_count, 1);
+    assert_eq!(joined_transfer.source_paths.len(), 2);
+    assert_eq!(forwarded_transfer.source_paths.len(), 2);
+    assert!(joined_transfer.has_complete_source_custody(&checked_catalog.transfers));
+    assert!(forwarded_transfer.has_complete_source_custody(&checked_catalog.transfers));
 
     let lowered = lower_machine(&checked, "Main::run")
-        .expect("one transparent forwarding edge after the join should lower");
+        .expect("the transparent forwarding chain after the join should lower");
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the forwarded joined Terminal module should verify");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
     assert_eq!(catalog.selections.len(), 2);
-    assert_eq!(catalog.parameters.len(), 2);
-    assert_eq!(catalog.arguments.len(), 3);
+    assert_eq!(catalog.parameters.len(), 3);
+    assert_eq!(catalog.arguments.len(), 4);
     assert_eq!(catalog.parameter_dispatches.len(), 1);
     assert_eq!(
         catalog.arguments[2].source,
         psi_terminal::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
     );
     let first_helper = catalog.parameters[0].owner;
-    let final_helper = catalog.parameters[1].owner;
+    let second_helper = catalog.parameters[1].owner;
+    let final_helper = catalog.parameters[2].owner;
     assert_eq!(catalog.arguments[2].owner, first_helper);
+    assert_eq!(catalog.arguments[3].owner, second_helper);
     assert_eq!(catalog.parameter_dispatches[0].owner, final_helper);
     let first_helper_machine = lowered
         .semantic_module
@@ -1353,10 +1365,10 @@ fn lowers_one_transparent_forward_after_a_two_predecessor_join() {
             [Operation {
                 kind: OperationKind::CallStructuralScalar { callee, .. },
                 ..
-            }] if *callee == final_helper
+            }] if *callee == second_helper
         )
     }));
-    assert_eq!(lowered.source_call_occurrences.len(), 4);
+    assert_eq!(lowered.source_call_occurrences.len(), 5);
 
     let artifact = produce_terminal_artifact(&checked, "Main::run")
         .expect("forwarded joined module should encode canonically");
@@ -1376,7 +1388,7 @@ fn lowers_one_transparent_forward_after_a_two_predecessor_join() {
     else {
         unreachable!("checked above")
     };
-    joined.when_true.call.forwarding_transfers[0]
+    joined.when_true.call.forwarding_transfers[1]
         .source_paths
         .pop();
     assert_eq!(

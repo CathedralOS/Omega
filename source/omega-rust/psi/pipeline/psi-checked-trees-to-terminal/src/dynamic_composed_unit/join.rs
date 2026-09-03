@@ -348,9 +348,6 @@ fn joined_helper_chain_ids(
     plan: &psi_checked_trees::CheckedDynamicScalarCallPlan,
     realizations: &[LoweredDynamicRealization],
 ) -> Result<Vec<ForwardedHelperIds>, LoweringError> {
-    if plan.forwarding_transfers.len() > 1 {
-        return unsupported("joined dynamic control forwards beyond one shared helper");
-    }
     let first_machine = u64::try_from(realizations.len())
         .map_err(|_| LoweringError::Unsupported("joined realization count exceeds u64"))?
         .checked_add(2)

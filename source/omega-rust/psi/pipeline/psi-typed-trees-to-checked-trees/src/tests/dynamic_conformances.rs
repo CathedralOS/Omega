@@ -1562,7 +1562,7 @@ fn descriptor_transfer_fences_join_with_an_unadmitted_third_predecessor() {
 }
 
 #[test]
-fn descriptor_transfer_fences_a_second_forwarding_hop_after_the_join() {
+fn descriptor_transfer_retains_transparent_forwarding_after_the_join() {
     let checked = check_dynamic_source(
         r#"
         trait Shape {
@@ -1615,9 +1615,78 @@ fn descriptor_transfer_fences_a_second_forwarding_hop_after_the_join() {
         })
         .expect("the first exact two-way join must be retained");
     assert!(joined.has_complete_source_custody(&dynamic.transfers));
+    let forwarded = dynamic
+        .transfers
+        .iter()
+        .find(|transfer| {
+            transfer.caller_machine == joined.target_machine
+                && transfer.caller_state == joined.target_state
+                && matches!(
+                    transfer.source,
+                    psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                        parameter_position: 0
+                    }
+                )
+        })
+        .expect("the joined alternatives must cross the next transparent hop");
+    assert_eq!(forwarded.source_predecessor_count, 1);
+    assert_eq!(forwarded.source_paths.len(), 2);
+    assert!(forwarded.has_complete_source_custody(&dynamic.transfers));
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+}
+
+#[test]
+fn descriptor_transfer_fences_a_second_join_over_joined_custody() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { first: Item; second: Item; third: Item; }
+
+        machine Main::run(&self, choose_first: bool, choose_third: bool) {
+            let selected_first: &dyn Shape = &self.first as &dyn Item::Primary;
+            let selected_second: &dyn Shape = &self.second as &dyn Item::Primary;
+            transition choose_first {
+                true -> first_join(selected_first, choose_third)
+                _ -> first_join(selected_second, choose_third)
+            }
+
+            state first_join(&self, erased: &dyn Shape, choose_third: bool) {
+                let selected_third: &dyn Shape = &self.third as &dyn Item::Primary;
+                transition choose_third {
+                    true -> second_join(erased)
+                    _ -> second_join(selected_third)
+                }
+            }
+
+            state second_join(&self, erased: &dyn Shape) {
+                let result: i32 = finish(erased);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let first_join = dynamic
+        .transfers
+        .iter()
+        .find(|transfer| transfer.source_paths.len() == 2)
+        .expect("the first exact join must be retained");
+    assert!(first_join.has_complete_source_custody(&dynamic.transfers));
     assert!(!dynamic.transfers.iter().any(|transfer| {
-        transfer.caller_machine == joined.target_machine
-            && transfer.caller_state == joined.target_state
+        transfer.caller_state == first_join.target_state
             && matches!(
                 transfer.source,
                 psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {

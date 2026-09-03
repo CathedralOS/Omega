@@ -286,9 +286,10 @@ fn build_checked_dynamic_descriptor_transfers(
                             };
                             if inbound_call_site_count != incoming.len()
                                 || !matches!(incoming.len(), 1 | 2)
-                                || incoming
-                                    .iter()
-                                    .any(|incoming| incoming.source_paths.len() != 1)
+                                || (incoming.len() == 2
+                                    && incoming
+                                        .iter()
+                                        .any(|incoming| incoming.source_paths.len() != 1))
                                 || incoming.iter().any(|incoming| {
                                     !incoming.has_complete_source_custody(&transfers)
                                 })
@@ -619,7 +620,6 @@ fn joined_dynamic_branches_match(
         || when_true.result.primitive_type != when_false.result.primitive_type
         || when_true.checked_call_service_reach != when_false.checked_call_service_reach
         || when_true.origin != when_false.origin
-        || when_true.forwarding_transfers.len() > 1
         || when_true.forwarding_transfers != when_false.forwarding_transfers
         || when_true.caller_structural_scalar_field_store.is_some()
         || when_false.caller_structural_scalar_field_store.is_some()
@@ -645,22 +645,37 @@ fn joined_dynamic_branches_match(
     let (target_machine, target_state, parameter) = match when_true.forwarding_transfers.as_slice()
     {
         [] => (dispatch_machine, dispatch_state, dispatch_parameter),
-        [forwarding]
-            if forwarding.source
+        forwarding @ [first, ..]
+            if first.source
                 == psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 }
-                && forwarding.source_predecessor_count == 2
-                && forwarding.source_paths.len() == 2
-                && forwarding.target_machine == dispatch_machine
-                && forwarding.target_state == dispatch_state
-                && forwarding.parameter == dispatch_parameter
-                && forwarding.has_complete_source_custody(transfers) =>
+                && first.source_predecessor_count == 2
+                && first.source_paths.len() == 2
+                && forwarding.iter().all(|transfer| {
+                    transfer.source
+                        == psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                            parameter_position: 0,
+                        }
+                        && transfer.source_paths.len() == 2
+                        && transfer.has_complete_source_custody(transfers)
+                })
+                && forwarding.windows(2).all(|pair| {
+                    pair[0].target_machine == pair[1].caller_machine
+                        && pair[0].target_state == pair[1].caller_state
+                        && pair[0].parameter == pair[1].source_binding
+                        && pair[1].source_predecessor_count == 1
+                })
+                && forwarding.last().is_some_and(|last| {
+                    last.target_machine == dispatch_machine
+                        && last.target_state == dispatch_state
+                        && last.parameter == dispatch_parameter
+                }) =>
         {
             (
-                forwarding.caller_machine,
-                forwarding.caller_state,
-                forwarding.source_binding,
+                first.caller_machine,
+                first.caller_state,
+                first.source_binding,
             )
         }
         _ => return false,
