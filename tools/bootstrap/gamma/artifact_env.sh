@@ -1,19 +1,19 @@
 #!/usr/bin/env sh
-# Materialize and invoke the canonical Gamma-to-Beta compiler.
+# Materialize and invoke the downgraded concatenative Gamma-to-Beta compiler.
 # Source tools/bootstrap/paths.sh and beta/artifact_env.sh first.
 
-[ -n "${OMEGA_PATH_GAMMA_COMPILER_TAPE:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
-  echo "Gamma artifact: source tools/bootstrap/paths.sh first" >&2
+[ -n "${OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_TAPE:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
+  echo "Concatenative Gamma artifact: source tools/bootstrap/paths.sh first" >&2
   return 2 2>/dev/null || exit 2
 }
 
 materialize_gamma_compiler() {
   GAMMA_COMPILER_DEST=$1
-  [ -f "$OMEGA_PATH_GAMMA_COMPILER_TAPE" ] || {
-    echo "Gamma artifact: missing $OMEGA_PATH_GAMMA_COMPILER_TAPE" >&2
+  [ -f "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_TAPE" ] || {
+    echo "Concatenative Gamma artifact: missing $OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_TAPE" >&2
     return 2
   }
-  stamp_seed "$OMEGA_PATH_GAMMA_COMPILER_TAPE" \
+  stamp_seed "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_TAPE" \
     "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$GAMMA_COMPILER_DEST"
 }
 

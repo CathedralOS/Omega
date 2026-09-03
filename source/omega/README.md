@@ -71,7 +71,7 @@ source bundles rather than recursively executing their builds or retaining live
 partial compiler checkpoints.
 
 Its retained Alpha encoder targets `AlphaBootstrapV2` directly: at most
-1,048,572 raw tape bytes, targets below that exact extent, and at most 116,508
+16,777,212 raw tape bytes, targets below that exact extent, and at most 1,864,134
 nine-byte-dominated fixups. These are outer compiler-resource bounds, not Omega
 language limits, and move only with the common seed/checker profile.
 

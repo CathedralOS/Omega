@@ -1,0 +1,7 @@
+; Exercise all five immutable Bytes operations through nested descriptors.
+
+(def main () Int
+  (+ (bytes_length (bytes_empty))
+     (bytes_get
+       (bytes_concat (bytes_single 65) (bytes_single 66))
+       1)))

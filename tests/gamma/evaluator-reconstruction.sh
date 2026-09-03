@@ -16,10 +16,10 @@ trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 RECONSTRUCTOR="$GATE_DIR/evaluator_reconstructor.gamma"
 
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
-"$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/expected.tape"
+"$TMP/beta-compiler" < "$OMEGA_PATH_CONCATENATIVE_GAMMA_EVALUATOR_SOURCE" > "$TMP/expected.tape"
 stamp_seed "$TMP/expected.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/evaluator" >/dev/null
 
-RECONSTRUCTOR=$RECONSTRUCTOR SUBJECT=$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE \
+RECONSTRUCTOR=$RECONSTRUCTOR SUBJECT=$OMEGA_PATH_CONCATENATIVE_GAMMA_EVALUATOR_SOURCE \
     python3 -c '
 import os, struct, sys
 from pathlib import Path
@@ -31,7 +31,7 @@ sys.stdout.buffer.write(struct.pack("<I", len(program)) + program + subject)
 "$TMP/evaluator" < "$TMP/request" > "$TMP/actual.tape"
 cmp "$TMP/expected.tape" "$TMP/actual.tape"
 
-RECONSTRUCTOR=$RECONSTRUCTOR SUBJECT=$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE \
+RECONSTRUCTOR=$RECONSTRUCTOR SUBJECT=$OMEGA_PATH_CONCATENATIVE_GAMMA_EVALUATOR_SOURCE \
     python3 -c '
 import os, re, struct, sys
 from pathlib import Path

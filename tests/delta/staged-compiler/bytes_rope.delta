@@ -1,0 +1,24 @@
+(data ByteSeq
+  (Empty)
+  (Single Int)
+  (Concat Int ByteSeq ByteSeq))
+(def bytes_empty () ByteSeq Empty)
+(def bytes_single ((value Int)) ByteSeq
+  (Single value))
+(def bytes_length ((value ByteSeq)) Int
+  (match value
+    (Empty 0)
+    ((Single byte) 1)
+    ((Concat length left right) length)))
+(def bytes_concat ((left ByteSeq) (right ByteSeq)) ByteSeq
+  (Concat (+ (bytes_length left) (bytes_length right)) left right))
+(def bytes_get ((value ByteSeq) (index Int)) Int
+  (match value
+    (Empty (read (input)))
+    ((Single byte) byte)
+    ((Concat length left right)
+      (if (lt index (bytes_length left))
+        (bytes_get left index)
+        (bytes_get right (- index (bytes_length left)))))))
+(def main () Int
+  (bytes_get (bytes_concat (bytes_single 65) (bytes_single 66)) 1))

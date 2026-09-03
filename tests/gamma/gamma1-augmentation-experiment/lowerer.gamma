@@ -1,0 +1,193 @@
+# Gamma1-to-Gamma0 source lowerer.
+#
+# Directive lines begin in column zero and use LF line endings:
+#   cell NAME
+#   const NAME HEXWORD
+#   text NAME ASCII-THROUGH-END-OF-LINE
+# Every other line is copied byte for byte. The resulting source is ordinary
+# Gamma. Cell addresses are allocated consecutively from zero.
+
+: cursor 0x0 cell-get ;
+: set_cursor 0x0 cell-set ;
+: line_start 0x1 cell-get ;
+: set_line_start 0x1 cell-set ;
+: line_end 0x2 cell-get ;
+: set_line_end 0x2 cell-set ;
+: line_after 0x3 cell-get ;
+: set_line_after 0x3 cell-set ;
+: parse_cursor 0x4 cell-get ;
+: set_parse_cursor 0x4 cell-set ;
+: token_start 0x5 cell-get ;
+: set_token_start 0x5 cell-set ;
+: token_length 0x6 cell-get ;
+: set_token_length 0x6 cell-set ;
+: compare_index 0x7 cell-get ;
+: set_compare_index 0x7 cell-set ;
+: expected_value 0x8 cell-get ;
+: set_expected_value 0x8 cell-set ;
+: expected_length 0x9 cell-get ;
+: set_expected_length 0x9 cell-set ;
+: cell_next 0xa cell-get ;
+: set_cell_next 0xa cell-set ;
+: copy_index 0xb cell-get ;
+: set_copy_index 0xb cell-set ;
+: digit_value 0xc cell-get ;
+: set_digit_value 0xc cell-set ;
+: text_start 0xd cell-get ;
+: set_text_start 0xd cell-set ;
+
+: main 0x0 set_cursor 0x0 set_cell_next jump line_loop ;
+: line_loop cursor input-length = branch done find_line ;
+: find_line cursor set_line_start cursor set_parse_cursor jump find_line_end ;
+: find_line_end
+  parse_cursor input-length = branch line_at_source_end line_end_byte
+;
+: line_end_byte
+  parse_cursor input-get 0xa = branch line_at_lf line_end_advance
+;
+: line_end_advance parse_cursor 0x1 + set_parse_cursor jump find_line_end ;
+: line_at_lf
+  parse_cursor set_line_end parse_cursor 0x1 + set_line_after jump classify_line
+;
+: line_at_source_end
+  parse_cursor set_line_end parse_cursor set_line_after jump classify_line
+;
+
+: classify_line
+  line_start input-get 0x63 = branch classify_c classify_text_test
+;
+: classify_text_test
+  line_start input-get 0x74 = branch classify_text copy_line
+;
+: classify_c
+  line_start set_parse_cursor next_token
+  is_cell branch lower_cell classify_const_test
+;
+: classify_const_test is_const branch lower_const copy_line ;
+: classify_text
+  line_start set_parse_cursor next_token
+  is_text branch lower_text copy_line
+;
+
+: next_token jump token_skip ;
+: token_skip
+  parse_cursor line_end = branch bad token_skip_byte
+;
+: token_skip_byte
+  parse_cursor input-get 0x21 < branch token_skip_advance token_begin
+;
+: token_skip_advance parse_cursor 0x1 + set_parse_cursor jump token_skip ;
+: token_begin parse_cursor set_token_start jump token_body ;
+: token_body
+  parse_cursor line_end = branch token_done token_body_byte
+;
+: token_body_byte
+  parse_cursor input-get 0x21 < branch token_done token_advance
+;
+: token_advance parse_cursor 0x1 + set_parse_cursor jump token_body ;
+: token_done parse_cursor token_start - set_token_length ;
+
+: token_exact set_expected_length set_expected_value
+  token_length expected_length = branch token_exact_begin token_false
+;
+: token_exact_begin 0x0 set_compare_index jump token_exact_loop ;
+: token_exact_loop
+  compare_index expected_length = branch token_true token_exact_byte
+;
+: token_exact_byte
+  expected_value 0x100 % token_start compare_index + input-get
+  = branch token_exact_next token_false
+;
+: token_exact_next
+  expected_value 0x100 / set_expected_value
+  compare_index 0x1 + set_compare_index jump token_exact_loop
+;
+: token_true 0x1 ;
+: token_false 0x0 ;
+: is_cell 0x6c6c6563 0x4 token_exact ;
+: is_const 0x74736e6f63 0x5 token_exact ;
+: is_text 0x74786574 0x4 token_exact ;
+
+: emit_space 0x20 output-byte ;
+: emit_newline 0xa output-byte ;
+: emit_colon 0x3a output-byte emit_space ;
+: emit_end emit_space 0x3b output-byte emit_newline ;
+: emit_set_prefix 0x73 output-byte 0x65 output-byte 0x74 output-byte 0x5f output-byte ;
+: emit_0x 0x30 output-byte 0x78 output-byte ;
+: emit_cell_get
+  0x63 output-byte 0x65 output-byte 0x6c output-byte 0x6c output-byte
+  0x2d output-byte 0x67 output-byte 0x65 output-byte 0x74 output-byte
+;
+: emit_cell_set
+  0x63 output-byte 0x65 output-byte 0x6c output-byte 0x6c output-byte
+  0x2d output-byte 0x73 output-byte 0x65 output-byte 0x74 output-byte
+;
+: emit_output_byte
+  0x6f output-byte 0x75 output-byte 0x74 output-byte 0x70 output-byte
+  0x75 output-byte 0x74 output-byte 0x2d output-byte 0x62 output-byte
+  0x79 output-byte 0x74 output-byte 0x65 output-byte
+;
+
+: copy_token 0x0 set_copy_index jump copy_token_loop ;
+: copy_token_loop
+  copy_index token_length = branch copy_done copy_token_byte
+;
+: copy_token_byte
+  token_start copy_index + input-get output-byte
+  copy_index 0x1 + set_copy_index jump copy_token_loop
+;
+: copy_span set_token_length set_token_start jump copy_token ;
+: copy_done ;
+
+: emit_nibble
+  dup 0xa < branch emit_decimal_nibble emit_alpha_nibble
+;
+: emit_decimal_nibble 0x30 + output-byte ;
+: emit_alpha_nibble 0x57 + output-byte ;
+: emit_cell_literal
+  emit_0x cell_next 0x10 / emit_nibble cell_next 0x10 % emit_nibble
+;
+: emit_byte_literal
+  set_digit_value emit_0x
+  digit_value 0x10 / emit_nibble digit_value 0x10 % emit_nibble
+;
+
+: lower_cell
+  next_token
+  emit_colon copy_token emit_space emit_cell_literal emit_space emit_cell_get emit_end
+  emit_colon emit_set_prefix copy_token emit_space emit_cell_literal emit_space emit_cell_set emit_end
+  cell_next 0x1 + dup 0x100 < branch lower_cell_done bad
+;
+: lower_cell_done set_cell_next jump next_line ;
+
+: lower_const
+  next_token
+  emit_colon copy_token emit_space
+  next_token copy_token emit_end jump next_line
+;
+
+: lower_text
+  next_token
+  emit_colon copy_token emit_space
+  parse_cursor line_end = branch bad lower_text_separator
+;
+: lower_text_separator
+  parse_cursor input-get 0x20 = 0x1 assert-equal
+  parse_cursor 0x1 + dup set_text_start set_parse_cursor
+  jump lower_text_loop
+;
+: lower_text_loop
+  parse_cursor line_end = branch lower_text_done lower_text_byte
+;
+: lower_text_byte
+  parse_cursor input-get emit_byte_literal emit_space emit_output_byte emit_space
+  parse_cursor 0x1 + set_parse_cursor jump lower_text_loop
+;
+: lower_text_done emit_end jump next_line ;
+
+: copy_line
+  line_start line_after line_start - copy_span jump next_line
+;
+: next_line line_after set_cursor jump line_loop ;
+: done ;
+: bad input-length input-get ;

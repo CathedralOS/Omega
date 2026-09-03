@@ -107,7 +107,7 @@ have written a stdout prefix before discovering a late failure; invocation
 plumbing publishes stdout as an artifact if and only if the compiler returns
 status zero. Accepting a malformed input does not extend this language.
 
-The admitted compiler profile retains at most `0x1000000` source bytes,
+The admitted compiler profile retains at most `0x4000000` source bytes,
 and emits at most `0xffffc` output bytes. It checks each extent before advancing
 and returns nonzero without publishing an artifact on exhaustion.
 

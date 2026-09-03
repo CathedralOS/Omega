@@ -806,7 +806,7 @@ and publishes no tape bytes. A returned storage refusal and adapter resource
 exhaustion both produce tag 2; traps and contradictions produce tag 3.
 
 D30 fixes `EpsilonCompilerV1` profile ID 2, a 4,194,304-byte maximum sealed
-Epsilon input, and AlphaBootstrapV2's 1,048,572-byte maximum successful output.
+Epsilon input, and AlphaBootstrapV2's 16,777,212-byte maximum successful output.
 `ECOUT` V1 magic is `[FF 45 43 4F 55 54 01 00]`. Its 40-byte frame uses
 coordinate spaces 0 none, 1 Epsilon-source byte, 2 emitted-payload byte, and 3
 runtime-internal row. D17 rejection codes 1 through 26 above remain unchanged.

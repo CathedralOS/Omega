@@ -121,8 +121,8 @@ arity and framing errors, exact source offsets, and node/depth exhaustion.
 The encoder covers every Alpha opcode and target shape, forward labels,
 exact-ended input, high-bit immediate bytes, labels above 255,
 duplicate/missing/extra labels, undefined targets, malformed records,
-fail-before-output behavior, the exact 1,048,572-byte payload, and adjacent
-oversize rejection.
+fail-before-output behavior, its retained 1,048,572-byte comparison payload,
+and adjacent oversize rejection.
 
 The call gate additionally executes zero- and thirteen-argument calls, rejects arity
 fourteen, rejects mismatched call arity and aggregate parameters, and runs a
@@ -163,8 +163,10 @@ One twelve-word item row arena and one two-word label row arena consume
 117,440,064 bytes; with Delta's 1 MiB static base they end at byte 118,488,640,
 below Alpha's 256 MiB memory bound. Row fields carry nominal owner/type checks
 instead of relying on fourteen parallel-array conventions.
-The customer now carries the full 1,048,572-byte Alpha payload envelope, but it
-does not independently replay emitted bytes. Connecting actual Epsilon lowering
+The customer retains a 1,048,572-byte bounded comparison envelope; scaling its
+fourteen-word-per-item fixed arenas to the selected 16 MiB Alpha profile would
+exceed Alpha's 256 MiB memory and is not evidence against the selected
+Functional representation. It does not independently replay emitted bytes. Connecting actual Epsilon lowering
 and deciding whether symbolic prevalidation is sufficient remain required before
 selecting normative Delta.
 

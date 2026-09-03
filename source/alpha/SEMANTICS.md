@@ -144,8 +144,8 @@ rung doc; they are **not** yet specified behavior:
   bounds and this document does not assign a meaning to violations.
 - **Memory size is fixed** (`MEMSIZE`, and the tape hole) rather than an
   execution parameter with a defined out-of-memory result. AlphaBootstrapV2
-  selects 256 MiB of semantic memory and an exact one-MiB stamped hole,
-  including the four-byte length, for a 1,048,572-byte raw-tape maximum.
+  selects 256 MiB of semantic memory and an exact 16 MiB stamped hole,
+  including the four-byte length, for a 16,777,212-byte raw-tape maximum.
   Capacity is not part of Alpha's opcode semantics; the same admitted tape runs
   identically on both platform realizations.
 

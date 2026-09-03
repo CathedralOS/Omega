@@ -1,0 +1,11 @@
+; Nested match fixture where inner and outer binders are both used.
+
+(data Option (None) (Some Int))
+
+(def main () Int
+  (match (Some 4)
+    (None 0)
+    ((Some outer)
+      (match (Some 5)
+        (None outer)
+        ((Some inner) (+ outer inner))))))

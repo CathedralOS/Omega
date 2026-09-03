@@ -1,0 +1,8 @@
+(data List (Nil) (Cons Int List))
+(def sum ((items List) (total Int)) Int
+  (match items
+    (Nil total)
+    ((Cons head tail)
+      (sum tail (+ total head)))))
+(def main () Int
+  (sum (Cons 4 (Cons 3 (Cons 2 Nil))) 0))

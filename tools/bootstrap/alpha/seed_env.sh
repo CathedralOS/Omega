@@ -7,9 +7,9 @@
 # (alpha_arm64_macos), the hole at a different file offset, and a mandatory
 # re-sign after stamping (dd invalidates the code signature; Apple Silicon
 # refuses to exec an invalid one). AlphaBootstrapV2 gives both containers one
-# exact 1 MiB hole including the four-byte length.
-ALPHA_SEED_HOLE_SIZE=1048576
-ALPHA_MAX_RAW_TAPE_SIZE=1048572
+# exact 16 MiB hole including the four-byte length.
+ALPHA_SEED_HOLE_SIZE=16777216
+ALPHA_MAX_RAW_TAPE_SIZE=16777212
 
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)

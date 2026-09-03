@@ -16,14 +16,14 @@
 ; Constants: r99 = 0 from Alpha initialization,
 ;   r9a = 1, r9b = 8-byte Alpha word width, r9c = 9 failure status,
 ;   r9d = ASCII '0'.
-; Buffer: 0x100000..0x1100000 source.
+; Buffer: 0x100000..0x4100000 source.
 ; Mnemonic table: 21 Alpha instructions plus dw at mnemonic_table.
 
 ; ---------------- main ----------------
         imm   r8c, 0x80060
         imm   r91, 0x100000
-        imm   r92, 0x1100000
-        imm   r95, 0xffffc
+        imm   r92, 0x4100000
+        imm   r95, 0xfffffc
         imm   r9a, 0x1
         imm   r9b, 0x8
         imm   r9c, 0x9

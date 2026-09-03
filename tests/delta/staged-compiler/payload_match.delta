@@ -1,0 +1,7 @@
+(data Option (None) (Some Int))
+(def unwrap ((value Option) (fallback Int)) Int
+  (match value
+    (None fallback)
+    ((Some payload) payload)))
+(def main () Int
+  (unwrap (Some 9) 7))

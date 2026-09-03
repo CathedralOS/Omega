@@ -151,12 +151,12 @@ printf '%s\n' 'dw 0x10000000000000000' > "$T/dw-wide.beta"
 expect_reject dw-wide 7 "$T/dw-wide.beta"
 
 # The source and output regions are half-open and checked before advancement.
-python3 -c 'import sys; sys.stdout.write(" " * 0x1000000)' > "$T/source-full.beta"
+python3 -c 'import sys; sys.stdout.write(" " * 0x4000000)' > "$T/source-full.beta"
 "$T/compiler" < "$T/source-full.beta" > "$T/source-full.tape"
 [ ! -s "$T/source-full.tape" ]
-python3 -c 'import sys; sys.stdout.write(" " * 0x1000001)' > "$T/source-over.beta"
+python3 -c 'import sys; sys.stdout.write(" " * 0x4000001)' > "$T/source-over.beta"
 expect_reject source-over 9 "$T/source-over.beta"
-python3 -c 'import sys; sys.stdout.write("jmp 0x0\n" * 116509)' > "$T/output-over.beta"
+python3 -c 'import sys; sys.stdout.write("jmp 0x0\n" * 1864135)' > "$T/output-over.beta"
 expect_reject output-over 9 "$T/output-over.beta"
 
 # The complete byte envelope is checked while loading, including comments.

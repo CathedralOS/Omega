@@ -9,16 +9,16 @@ source/
     compiler/
       beta_compiler.beta         self-reconstructing source
       beta_compiler_bytecode.tape admitted Alpha implementation
-  gamma/                         bounded concatenative compiler machine
+  gamma/                         typed scalar/effect functional language
     evaluator/
-      gamma_evaluator.beta       in-progress Beta-written evaluator
-    compiler/
-      gamma_compiler.gamma       selected Gamma-to-Beta compiler
-      gamma_compiler.beta        canonical self-expansion receipt
-      gamma_compiler_bytecode.tape composed native compiler
+      gamma_evaluator.beta       provisional direct Beta evaluator
+      gamma_evaluator_bytecode.tape derived Alpha implementation
+    bootstrap/concatenative/     downgraded former Gamma implementation
   delta/                         typed pure functional language
     compiler/
-      delta_compiler.gamma       selected in-progress Delta-to-Gamma compiler
+      delta_compiler.gamma       selected staged nullary-ADT/match compiler
+    bootstrap/
+      concatenative-compiler/    downgraded former Delta compiler
   epsilon/                       fixed-storage compiler-host language
     compiler/
       epsilon_compiler.delta     incomplete Delta-written Epsilon compiler
@@ -44,9 +44,9 @@ tests/
 ```
 
 The Gamma evaluator belongs under `source/gamma/evaluator/` because it
-implements Gamma meaning and is written in Beta. The selected in-progress Delta
-compiler belongs under `source/delta/compiler/`; comparison implementations
-remain test-owned.
+implements Gamma meaning and is written in Beta. Downgraded implementations
+remain nested beneath the language whose transition they document; there is no
+generic source/bootstrap owner. The selected Delta compiler path remains open.
 
 ## Naming
 
@@ -60,11 +60,12 @@ the language implementing it:
 | --- | --- |
 | Beta compiler | `source/beta/compiler/beta_compiler.beta` |
 | Gamma evaluator | `source/gamma/evaluator/gamma_evaluator.beta` |
-| Delta compiler | `source/delta/compiler/delta_compiler.gamma` |
+| Delta compiler | `source/delta/compiler/delta_compiler.gamma` (first staged slice) |
 | Epsilon compiler | `source/epsilon/compiler/epsilon_compiler.delta` |
 | Omega `D` | `source/omega/omega_compiler.epsilon` |
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 
-There is no intermediate self-host owner, generic bootstrap source bucket, or
-compatibility compiler. Cross-owner paths are checked by
+There is no intermediate self-host owner or generic bootstrap source bucket.
+Language-owned bootstrap subdirectories are explicitly nonselected and excluded
+from edge inventories. Cross-owner paths are checked by
 `tools/bootstrap/check-chain-hygiene.sh`.

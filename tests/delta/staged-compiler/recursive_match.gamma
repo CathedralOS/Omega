@@ -1,0 +1,3 @@
+(def depth ((value Int)) Int (let __v60 Int value (let __m60 Int (first __v60) (let __p60 Int (second __v60) (if (eq __m60 0) 0 (let previous Int __p60 (+ 1 (depth previous))))))))
+(def main () Int (depth (pair 1 (pair 1 (pair 1 (pair 0 0))))))
+

@@ -19,7 +19,7 @@ COMPILER="$GATE_DIR/compiler.gamma"
 CUSTOMER="$GATE_DIR/scalar_recursive.delta"
 
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
-"$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
+"$TMP/beta-compiler" < "$OMEGA_PATH_CONCATENATIVE_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
 stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/evaluator" >/dev/null
 materialize_gamma_compiler "$TMP/gamma-compiler" >/dev/null

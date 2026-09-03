@@ -1,0 +1,1690 @@
+# Downgraded Functional Delta-to-concatenative-Gamma compiler.
+# This executable slice covers Int expressions, nominal data, constructors, and
+# exhaustive match, and immutable Bytes; profiles and exact outcomes remain.
+# Rows: kind start length owner aux0 aux1 aux2 aux3.
+
+: cursor 0x0 cell-get ;
+: set_cursor 0x0 cell-set ;
+: token_start 0x1 cell-get ;
+: set_token_start 0x1 cell-set ;
+: token_length 0x2 cell-get ;
+: set_token_length 0x2 cell-set ;
+: row_count 0x3 cell-get ;
+: set_row_count 0x3 cell-set ;
+: current_function 0x4 cell-get ;
+: set_current_function 0x4 cell-set ;
+: main_function 0x5 cell-get ;
+: set_main_function 0x5 cell-set ;
+: variable_next 0x6 cell-get ;
+: set_variable_next 0x6 cell-set ;
+: scan_index 0x7 cell-get ;
+: set_scan_index 0x7 cell-set ;
+: compare_index 0x8 cell-get ;
+: set_compare_index 0x8 cell-set ;
+: lookup_owner 0x9 cell-get ;
+: set_lookup_owner 0x9 cell-set ;
+: saved_start 0xa cell-get ;
+: set_saved_start 0xa cell-set ;
+: saved_length 0xb cell-get ;
+: set_saved_length 0xb cell-set ;
+: pending_kind 0xc cell-get ;
+: set_pending_kind 0xc cell-set ;
+: pending_aux0 0xd cell-get ;
+: set_pending_aux0 0xd cell-set ;
+: pending_aux1 0xe cell-get ;
+: set_pending_aux1 0xe cell-set ;
+: new_row 0x11 cell-get ;
+: set_new_row 0x11 cell-set ;
+: temp_one 0x12 cell-get ;
+: set_temp_one 0x12 cell-set ;
+: temp_two 0x13 cell-get ;
+: set_temp_two 0x13 cell-set ;
+: number_index 0x14 cell-get ;
+: set_number_index 0x14 cell-set ;
+: number_value 0x15 cell-get ;
+: set_number_value 0x15 cell-set ;
+: number_negative 0x16 cell-get ;
+: set_number_negative 0x16 cell-set ;
+: expression_depth 0x17 cell-get ;
+: set_expression_depth 0x17 cell-set ;
+: expression_context expression_depth 0x2 * 0x40 + ;
+: expression_context_start expression_context cell-get ;
+: expression_context_row expression_context 0x1 + cell-get ;
+: emit_index 0x18 cell-get ;
+: set_emit_index 0x18 cell-set ;
+: hex_value 0x19 cell-get ;
+: set_hex_value 0x19 cell-set ;
+: hex_divisor 0x1a cell-get ;
+: set_hex_divisor 0x1a cell-set ;
+: hex_count 0x1b cell-get ;
+: set_hex_count 0x1b cell-set ;
+: hex_digit 0x1c cell-get ;
+: set_hex_digit 0x1c cell-set ;
+: current_scope 0x1d cell-get ;
+: set_current_scope 0x1d cell-set ;
+: scope_next 0x1e cell-get ;
+: set_scope_next 0x1e cell-set ;
+: pending_aux2 0x1f cell-get ;
+: set_pending_aux2 0x1f cell-set ;
+: pending_aux3 0x20 cell-get ;
+: set_pending_aux3 0x20 cell-set ;
+: seen_function 0x21 cell-get ;
+: set_seen_function 0x21 cell-set ;
+: constructor_tag_next 0x22 cell-get ;
+: set_constructor_tag_next 0x22 cell-set ;
+: current_type 0x23 cell-get ;
+: set_current_type 0x23 cell-set ;
+: type_value 0x24 cell-get ;
+: set_type_value 0x24 cell-set ;
+: heap_required 0x25 cell-get ;
+: set_heap_required 0x25 cell-set ;
+: arm_count 0x26 cell-get ;
+: set_arm_count 0x26 cell-set ;
+: pattern_ctor 0x27 cell-get ;
+: set_pattern_ctor 0x27 cell-set ;
+: pattern_binders 0x28 cell-get ;
+: set_pattern_binders 0x28 cell-set ;
+: token_first 0x29 cell-get ;
+: set_token_first 0x29 cell-set ;
+: arm_type 0x2a cell-get ;
+: set_arm_type 0x2a cell-set ;
+: match_row 0x2b cell-get ;
+: set_match_row 0x2b cell-set ;
+: check_index 0x2c cell-get ;
+: set_check_index 0x2c cell-set ;
+: binding_value 0x2d cell-get ;
+: set_binding_value 0x2d cell-set ;
+: temp_three 0x2e cell-get ;
+: set_temp_three 0x2e cell-set ;
+: match_saved_arm_count expression_depth 0xc0000 + cell-get ;
+: set_match_saved_arm_count expression_depth 0xc0000 + cell-set ;
+: match_saved_arm_type expression_depth 0xd0000 + cell-get ;
+: set_match_saved_arm_type expression_depth 0xd0000 + cell-set ;
+: match_saved_arm_row expression_depth 0xe0000 + cell-get ;
+: set_match_saved_arm_row expression_depth 0xe0000 + cell-set ;
+: match_saved_match_row expression_depth 0xf0000 + cell-get ;
+: set_match_saved_match_row expression_depth 0xf0000 + cell-set ;
+: expected_high 0x30 cell-get ;
+: set_expected_high 0x30 cell-set ;
+: bytes_required 0x31 cell-get ;
+: set_bytes_required 0x31 cell-set ;
+: arithmetic_required 0x32 cell-get ;
+: set_arithmetic_required 0x32 cell-set ;
+: tail_changed 0x33 cell-get ;
+: set_tail_changed 0x33 cell-set ;
+
+: advance cursor + set_cursor ;
+: next jump skip ;
+: skip cursor input-length = branch no_token skip_byte ;
+: no_token 0x0 ;
+: skip_byte cursor input-get dup 0x3b = branch skip_comment skip_space_test ;
+: skip_space_test dup 0x21 < branch skip_space token_begin ;
+: skip_space drop 0x1 advance jump skip ;
+: skip_comment drop 0x1 advance jump comment_loop ;
+: comment_loop cursor input-length = branch no_token comment_byte ;
+: comment_byte cursor input-get dup 0xa = branch comment_end comment_cr ;
+: comment_cr 0xd = branch comment_end comment_advance ;
+: comment_end 0x1 advance jump skip ;
+: comment_advance 0x1 advance jump comment_loop ;
+: token_begin
+  cursor set_token_start cursor input-get dup 0x28 = branch punctuation punctuation_close
+;
+: punctuation_close 0x29 = branch punctuation token_loop_begin ;
+: punctuation drop 0x1 advance 0x1 set_token_length 0x1 ;
+: token_loop_begin drop jump token_loop ;
+: token_loop cursor input-length = branch token_done token_body ;
+: token_body cursor input-get dup 0x21 < branch token_done_drop token_semicolon ;
+: token_semicolon dup 0x3b = branch token_done_drop token_open ;
+: token_open dup 0x28 = branch token_done_drop token_close ;
+: token_close 0x29 = branch token_done token_advance ;
+: token_done_drop drop jump token_done ;
+: token_advance 0x1 advance jump token_loop ;
+: token_done cursor token_start - set_token_length 0x1 ;
+: need_token next 0x1 assert-equal ;
+
+: token_exact set_saved_length 0x0 set_expected_high set_saved_start
+  token_length saved_length = branch exact_begin exact_false
+;
+: token_exact_long set_saved_length set_expected_high set_saved_start
+  token_length saved_length = branch exact_begin exact_false
+;
+: exact_begin 0x0 set_compare_index jump exact_loop ;
+: exact_loop compare_index token_length = branch exact_true exact_byte ;
+: exact_byte compare_index 0x8 = branch exact_byte_high exact_byte_compare ;
+: exact_byte_high expected_high set_saved_start jump exact_byte_compare ;
+: exact_byte_compare
+  saved_start 0x100 % compare_index token_start + input-get =
+  branch exact_next exact_false
+;
+: exact_next saved_start 0x100 / set_saved_start
+  compare_index 0x1 + set_compare_index jump exact_loop
+;
+: exact_true 0x1 ;
+: exact_false 0x0 ;
+
+: is_open 0x28 0x1 token_exact ;
+: is_close 0x29 0x1 token_exact ;
+: is_def 0x666564 0x3 token_exact ;
+: is_data 0x61746164 0x4 token_exact ;
+: is_int 0x746e49 0x3 token_exact ;
+: is_bytes 0x7365747942 0x5 token_exact ;
+: is_if 0x6669 0x2 token_exact ;
+: is_let 0x74656c 0x3 token_exact ;
+: is_match 0x686374616d 0x5 token_exact ;
+: is_bytes_empty 0x6d655f7365747962 0x797470 0xb token_exact_long ;
+: is_bytes_single 0x69735f7365747962 0x656c676e 0xc token_exact_long ;
+: is_bytes_length 0x656c5f7365747962 0x6874676e 0xc token_exact_long ;
+: is_bytes_get 0x65675f7365747962 0x74 0x9 token_exact_long ;
+: is_bytes_concat 0x6f635f7365747962 0x7461636e 0xc token_exact_long ;
+: is_add 0x2b 0x1 token_exact ;
+: is_sub 0x2d 0x1 token_exact ;
+: is_mul 0x2a 0x1 token_exact ;
+: is_div 0x2f 0x1 token_exact ;
+: is_mod 0x25 0x1 token_exact ;
+: is_eq 0x7165 0x2 token_exact ;
+: is_lt 0x746c 0x2 token_exact ;
+: is_main 0x6e69616d 0x4 token_exact ;
+: expect_open need_token is_open 0x1 assert-equal ;
+: expect_close need_token is_close 0x1 assert-equal ;
+: expect_int need_token is_int 0x1 assert-equal ;
+
+: token_first_byte token_start input-get ;
+: token_is_upper token_first_byte dup set_token_first
+  token_first 0x41 < branch token_upper_false token_upper_high
+;
+: token_upper_high token_first 0x5b < branch token_upper_true token_upper_false ;
+: token_upper_true 0x1 ;
+: token_upper_false 0x0 ;
+: token_is_lower_or_underscore token_first_byte dup set_token_first
+  token_first 0x5f = branch token_lower_true token_lower_range
+;
+: token_lower_range token_first 0x61 < branch token_lower_false token_lower_high ;
+: token_lower_high token_first 0x7b < branch token_lower_true token_lower_false ;
+: token_lower_true 0x1 ;
+: token_lower_false 0x0 ;
+: int_type 0x7000 ;
+: bytes_type 0x7001 ;
+
+: token_is_integer
+  token_length 0x0 = branch integer_false integer_first
+;
+: integer_first token_start input-get dup 0x2d = branch integer_minus integer_digit ;
+: integer_minus drop token_length 0x1 = branch integer_false integer_true ;
+: integer_digit dup 0x30 < branch integer_false_drop integer_digit_high ;
+: integer_digit_high 0x3a < branch integer_true integer_false ;
+: integer_false_drop drop ;
+: integer_false 0x0 ;
+: integer_true 0x1 ;
+
+: parse_integer
+  0x0 set_number_negative 0x0 set_number_value 0x0 set_number_index
+  token_start input-get 0x2d = branch integer_mark_negative integer_loop
+;
+: integer_mark_negative 0x1 set_number_negative 0x1 set_number_index jump integer_loop ;
+: integer_loop number_index token_length = branch integer_done integer_parse_digit ;
+: integer_parse_digit
+  number_index token_start + input-get dup 0x30 < branch bad integer_digit_upper
+;
+: integer_digit_upper dup 0x3a < branch integer_accumulate bad ;
+: integer_accumulate 0x30 - number_value 0xa * + set_number_value
+  number_index 0x1 + set_number_index jump integer_loop
+;
+: integer_done number_negative 0x1 = branch integer_negate integer_positive ;
+: integer_negate 0x0 number_value - ;
+: integer_positive number_value ;
+
+: row_address 0x1 - 0x8 * 0x100 + ;
+: row_get swap row_address + cell-get ;
+: row_set swap row_address + cell-set ;
+: row_kind 0x0 row_get ;
+: row_owner 0x3 row_get ;
+: row_aux0 0x4 row_get ;
+: row_aux1 0x5 row_get ;
+: row_aux2 0x6 row_get ;
+: row_aux3 0x7 row_get ;
+: tail_address 0x100000 + ;
+: tail_flag tail_address cell-get ;
+: set_tail_flag tail_address cell-set ;
+
+: mark_tail dup tail_flag 0x0 = branch mark_tail_new mark_tail_known ;
+: mark_tail_new 0x1 swap set_tail_flag 0x1 set_tail_changed ;
+: mark_tail_known drop ;
+
+: mark_tails 0x1 set_tail_changed jump tail_pass ;
+: tail_pass tail_changed 0x0 = branch tail_done tail_pass_begin ;
+: tail_pass_begin 0x0 set_tail_changed 0x1 set_scan_index jump tail_scan ;
+: tail_scan row_count scan_index < branch tail_pass tail_scan_row ;
+: tail_scan_row scan_index row_kind 0x1 = branch tail_function tail_marked_test ;
+: tail_function scan_index row_aux1 mark_tail jump tail_scan_next ;
+: tail_marked_test scan_index tail_flag 0x1 = branch tail_marked_kind tail_arm_test ;
+: tail_marked_kind scan_index row_kind 0xc = branch tail_let tail_if_test ;
+: tail_let scan_index row_aux2 mark_tail jump tail_scan_next ;
+: tail_if_test scan_index row_kind 0xd = branch tail_if tail_scan_next ;
+: tail_if
+  scan_index row_aux1 mark_tail scan_index row_aux2 mark_tail
+  jump tail_scan_next
+;
+: tail_arm_test scan_index row_kind 0x5 = branch tail_arm tail_scan_next ;
+: tail_arm scan_index row_owner tail_flag 0x1 = branch tail_arm_mark tail_scan_next ;
+: tail_arm_mark scan_index row_aux1 mark_tail jump tail_scan_next ;
+: tail_scan_next scan_index 0x1 + set_scan_index jump tail_scan ;
+: tail_done ;
+
+: begin_row row_count 0x1 + dup 0x10000 < branch begin_row_ready bad ;
+: begin_row_ready dup set_new_row set_row_count ;
+: clear_pending
+  0x0 set_pending_aux0 0x0 set_pending_aux1
+  0x0 set_pending_aux2 0x0 set_pending_aux3
+;
+: add_row
+  begin_row
+  pending_kind new_row 0x0 row_set
+  saved_start new_row 0x1 row_set
+  saved_length new_row 0x2 row_set
+  current_function new_row 0x3 row_set
+  pending_aux0 new_row 0x4 row_set
+  pending_aux1 new_row 0x5 row_set
+  pending_aux2 new_row 0x6 row_set
+  pending_aux3 new_row 0x7 row_set
+  new_row
+;
+
+: add_row_for_owner
+  set_temp_one
+  current_function set_temp_two
+  temp_one set_current_function
+  add_row set_temp_three
+  temp_two set_current_function
+  temp_three
+;
+
+: scope_parent_address 0xa0000 + ;
+: set_scope_parent scope_parent_address cell-set ;
+: scope_parent scope_parent_address cell-get ;
+: pending_binding_address 0x90000 + ;
+: pending_binding_set swap pending_binding_address cell-set ;
+: pending_binding_get pending_binding_address cell-get ;
+
+: find_name set_lookup_owner 0x1 set_scan_index jump find_name_loop ;
+: find_name_loop row_count scan_index < branch find_absent find_name_row ;
+: find_name_row scan_index row_owner lookup_owner = branch find_name_length find_name_next ;
+: find_name_length scan_index 0x2 row_get token_length = branch find_name_compare_begin find_name_next ;
+: find_name_compare_begin 0x0 set_compare_index jump find_name_compare ;
+: find_name_compare compare_index token_length = branch find_present find_name_byte ;
+: find_name_byte
+  scan_index 0x1 row_get compare_index + input-get
+  token_start compare_index + input-get = branch find_name_compare_next find_name_next
+;
+: find_name_compare_next compare_index 0x1 + set_compare_index jump find_name_compare ;
+: find_name_next scan_index 0x1 + set_scan_index jump find_name_loop ;
+: find_present scan_index 0x1 ;
+: find_absent 0x0 0x0 ;
+: require_absent find_name 0x0 assert-equal drop ;
+: require_named find_name 0x1 assert-equal ;
+: require_function 0x0 require_named dup row_kind 0x1 assert-equal ;
+: find_variable_name
+  set_lookup_owner 0x1 set_scan_index jump find_variable_name_loop
+;
+: find_variable_name_loop
+  row_count scan_index < branch find_absent find_variable_name_row
+;
+: find_variable_name_row
+  scan_index row_kind 0x2 = branch find_variable_name_owner find_variable_name_next
+;
+: find_variable_name_owner
+  scan_index row_owner lookup_owner = branch find_variable_name_length find_variable_name_next
+;
+: find_variable_name_length
+  scan_index 0x2 row_get token_length = branch find_variable_name_compare_begin find_variable_name_next
+;
+: find_variable_name_compare_begin 0x0 set_compare_index jump find_variable_name_compare ;
+: find_variable_name_compare
+  compare_index token_length = branch find_present find_variable_name_byte
+;
+: find_variable_name_byte
+  scan_index 0x1 row_get compare_index + input-get
+  token_start compare_index + input-get = branch find_variable_name_compare_next find_variable_name_next
+;
+: find_variable_name_compare_next
+  compare_index 0x1 + set_compare_index jump find_variable_name_compare
+;
+: find_variable_name_next scan_index 0x1 + set_scan_index jump find_variable_name_loop ;
+: lookup_variable_scope
+  set_lookup_owner jump lookup_scope_loop
+;
+: lookup_scope_loop
+  lookup_owner 0x0 = branch lookup_scope_absent lookup_scope_try
+;
+: lookup_scope_try
+  lookup_owner find_variable_name
+  branch lookup_scope_present lookup_scope_next
+;
+: lookup_scope_next drop lookup_owner scope_parent set_lookup_owner jump lookup_scope_loop ;
+: lookup_scope_present 0x1 ;
+: lookup_scope_absent 0x0 0x0 ;
+: require_variable
+  current_scope lookup_variable_scope 0x1 assert-equal
+  dup row_kind 0x2 assert-equal
+;
+
+: require_scope_absent
+  set_lookup_owner jump scope_absent_loop
+;
+: scope_absent_loop
+  lookup_owner 0x0 = branch scope_absent_done scope_absent_try
+;
+: scope_absent_try
+  lookup_owner find_variable_name branch bad scope_absent_next
+;
+: scope_absent_next drop lookup_owner scope_parent set_lookup_owner jump scope_absent_loop ;
+: scope_absent_done ;
+
+: push_scope
+  scope_next 0x1 + dup set_scope_next
+  current_scope over set_scope_parent
+  set_current_scope
+;
+: pop_scope current_scope scope_parent set_current_scope ;
+
+: find_kind
+  set_pending_kind 0x1 set_scan_index jump find_kind_loop
+;
+: find_kind_loop row_count scan_index < branch find_kind_absent find_kind_row ;
+: find_kind_row scan_index row_kind pending_kind = branch find_kind_length find_kind_next ;
+: find_kind_length scan_index 0x2 row_get token_length = branch find_kind_compare_begin find_kind_next ;
+: find_kind_compare_begin 0x0 set_compare_index jump find_kind_compare ;
+: find_kind_compare compare_index token_length = branch find_kind_present find_kind_byte ;
+: find_kind_byte
+  scan_index 0x1 row_get compare_index + input-get
+  token_start compare_index + input-get = branch find_kind_compare_next find_kind_next
+;
+: find_kind_compare_next compare_index 0x1 + set_compare_index jump find_kind_compare ;
+: find_kind_next scan_index 0x1 + set_scan_index jump find_kind_loop ;
+: find_kind_present scan_index 0x1 ;
+: find_kind_absent 0x0 0x0 ;
+
+: require_type
+  is_int branch require_type_int require_type_bytes_test
+;
+: require_type_int int_type ;
+: require_type_bytes_test is_bytes branch require_type_bytes require_type_named ;
+: require_type_bytes bytes_type ;
+: require_type_named token_is_upper 0x1 assert-equal 0x6 find_kind 0x1 assert-equal
+  dup row_kind 0x6 assert-equal
+;
+
+: require_constructor
+  token_is_upper 0x1 assert-equal 0x7 find_kind 0x1 assert-equal
+  dup row_kind 0x7 assert-equal
+;
+
+: add_type
+  token_start set_saved_start token_length set_saved_length
+  0x6 find_kind 0x0 assert-equal drop
+  clear_pending 0x6 set_pending_kind
+  add_row
+;
+
+: add_constructor
+  token_start set_saved_start token_length set_saved_length
+  0x7 find_kind 0x0 assert-equal drop
+  clear_pending 0x7 set_pending_kind
+  current_type set_pending_aux0
+  constructor_tag_next set_pending_aux1
+  constructor_tag_next 0x1 + set_constructor_tag_next
+  add_row
+;
+
+: add_constructor_field
+  set_temp_three set_temp_two set_temp_one
+  clear_pending 0x8 set_pending_kind
+  temp_two set_pending_aux0
+  temp_three set_pending_aux1
+  0x0 set_saved_start 0x0 set_saved_length
+  temp_one add_row_for_owner drop
+;
+
+: add_unresolved_constructor_field
+  set_temp_two set_temp_one
+  clear_pending 0x8 set_pending_kind
+  temp_two set_pending_aux0 0x0 set_pending_aux1
+  token_start set_saved_start token_length set_saved_length
+  temp_one add_row_for_owner drop
+;
+
+: add_match_arm
+  clear_pending 0x5 set_pending_kind
+  pattern_ctor set_pending_aux0
+  0x0 set_pending_aux1
+  pattern_binders set_pending_aux2
+  0x0 set_saved_start 0x0 set_saved_length
+  match_row add_row_for_owner
+;
+
+: add_arm_binding
+  set_temp_three set_temp_two set_temp_one
+  clear_pending 0x9 set_pending_kind
+  temp_two set_pending_aux0
+  temp_three set_pending_aux1
+  0x0 set_saved_start 0x0 set_saved_length
+  temp_one add_row_for_owner drop
+;
+
+: find_constructor_field_type
+  set_pending_aux0 set_lookup_owner 0x1 set_scan_index jump find_ctor_field_loop
+;
+: find_ctor_field_loop row_count scan_index < branch bad find_ctor_field_row ;
+: find_ctor_field_row scan_index row_kind 0x8 = branch find_ctor_field_owner find_ctor_field_next ;
+: find_ctor_field_owner scan_index row_owner lookup_owner = branch find_ctor_field_index find_ctor_field_next ;
+: find_ctor_field_index scan_index row_aux0 pending_aux0 = branch find_ctor_field_found find_ctor_field_next ;
+: find_ctor_field_next scan_index 0x1 + set_scan_index jump find_ctor_field_loop ;
+: find_ctor_field_found scan_index row_aux1 ;
+
+: find_arm_binding
+  set_pending_aux0 set_lookup_owner 0x1 set_scan_index jump find_binding_loop
+;
+: find_binding_loop row_count scan_index < branch bad find_binding_row ;
+: find_binding_row scan_index row_kind 0x9 = branch find_binding_owner find_binding_next ;
+: find_binding_owner scan_index row_owner lookup_owner = branch find_binding_index find_binding_next ;
+: find_binding_index scan_index row_aux0 pending_aux0 = branch find_binding_found find_binding_next ;
+: find_binding_next scan_index 0x1 + set_scan_index jump find_binding_loop ;
+: find_binding_found scan_index row_aux1 ;
+
+: add_function
+  token_start set_saved_start token_length set_saved_length
+  0x0 require_absent clear_pending 0x1 set_pending_kind add_row
+;
+: add_variable
+  token_start set_saved_start token_length set_saved_length
+  current_scope require_scope_absent clear_pending
+  0x2 set_pending_kind variable_next set_pending_aux0 type_value set_pending_aux2
+  current_scope add_row_for_owner
+  variable_next 0x1 + set_variable_next
+;
+: add_parameter add_variable dup emit_index swap 0x5 row_set ;
+: add_expression add_row ;
+: set_expression_type 0x7 row_set ;
+: expression_type 0x7 row_get ;
+: find_variable current_scope lookup_variable_scope ;
+
+: enter_list
+  expression_depth 0x1 + dup 0x60 < branch enter_list_ready bad
+;
+: enter_list_ready
+  dup set_expression_depth drop
+  saved_start expression_context cell-set
+;
+: begin_list_expression
+  clear_pending set_pending_kind
+  expression_context_start set_saved_start 0x0 set_saved_length
+  add_expression dup expression_context 0x1 + cell-set drop
+;
+: finish_list
+  expect_close expression_context_row
+  expression_depth 0x1 - set_expression_depth
+;
+: finish_consumed
+  expression_context_row expression_depth 0x1 - set_expression_depth
+;
+
+: initialize
+  0x0 set_cursor 0x0 set_row_count 0x0 set_current_function
+  0x0 set_main_function 0x0 set_expression_depth
+  0x0 set_current_scope 0x10000 set_scope_next
+  0x0 set_seen_function 0x1 set_constructor_tag_next
+  0x0 set_current_type 0x0 set_heap_required 0x0 set_bytes_required
+  0x0 set_arithmetic_required
+;
+: parse_program initialize jump declaration_loop ;
+: declaration_loop next 0x0 = branch declarations_done declaration ;
+: declaration
+  is_open 0x1 assert-equal need_token is_data branch data_declaration function_declaration
+;
+: data_declaration
+  seen_function 0x0 assert-equal
+  need_token add_type set_current_type
+  0x0 set_arm_count jump data_constructor_loop
+;
+: data_constructor_loop
+  need_token is_close branch data_done data_constructor
+;
+: data_constructor
+  is_open 0x1 assert-equal
+  need_token add_constructor set_temp_one
+  0x0 set_emit_index
+  jump data_field_loop
+;
+: data_field_loop
+  need_token is_close branch data_constructor_done data_field
+;
+: data_field
+  is_int branch data_field_int data_field_bytes_test
+;
+: data_field_int int_type jump data_field_known ;
+: data_field_bytes_test is_bytes branch data_field_bytes data_field_named ;
+: data_field_bytes bytes_type jump data_field_known ;
+: data_field_known set_type_value temp_one emit_index type_value add_constructor_field jump data_field_done ;
+: data_field_named
+  token_is_upper 0x1 assert-equal
+  temp_one emit_index add_unresolved_constructor_field
+  jump data_field_done
+;
+: data_field_done
+  emit_index 0x1 + set_emit_index
+  jump data_field_loop
+;
+: data_constructor_done
+  emit_index temp_one 0x6 row_set
+  arm_count 0x1 + set_arm_count
+  jump data_constructor_loop
+;
+: data_done
+  arm_count 0x0 = branch bad declaration_loop
+;
+
+: function_declaration
+  is_def 0x1 assert-equal
+  0x1 set_seen_function
+  need_token add_function set_current_function
+  current_function set_current_scope
+  0x0 current_scope set_scope_parent
+  is_main branch mark_main parameters_begin
+;
+: mark_main current_function set_main_function jump parameters_begin ;
+: parameters_begin
+  0x1 set_variable_next 0x0 set_emit_index expect_open jump parameter_loop
+;
+: parameter_loop need_token is_close branch parameters_done parameter ;
+: parameter
+  is_open 0x1 assert-equal need_token
+  int_type set_type_value add_parameter set_temp_one
+  need_token require_type set_type_value
+  type_value temp_one 0x6 row_set
+  expect_close emit_index 0x1 + set_emit_index jump parameter_loop
+;
+: parameters_done
+  emit_index current_function 0x4 row_set
+  need_token require_type current_function 0x7 row_set
+  p1_expression current_function 0x5 row_set
+  variable_next current_function 0x6 row_set
+  expect_close
+  0x0 set_current_function 0x0 set_current_scope
+  jump declaration_loop
+;
+: declarations_done
+  main_function 0x0 = branch bad validate_main
+;
+: validate_main main_function row_aux0 0x0 assert-equal
+  main_function row_aux3 int_type assert-equal
+;
+
+: p1_expression
+  need_token token_start set_saved_start is_open branch p1_list_enter p1_atom
+;
+: p1_atom token_is_integer branch p1_literal p1_variable_or_constructor ;
+: p1_literal
+  parse_integer set_temp_one clear_pending 0xa set_pending_kind
+  temp_one set_pending_aux0 token_start set_saved_start token_length set_saved_length
+  add_expression dup int_type swap set_expression_type
+;
+: p1_variable_or_constructor find_variable branch p1_variable p1_ctor_atom_miss ;
+: p1_ctor_atom_miss drop jump p1_ctor_atom ;
+: p1_variable
+  set_temp_one clear_pending 0xb set_pending_kind
+  temp_one set_pending_aux0 token_start set_saved_start token_length set_saved_length
+  add_expression dup temp_one 0x6 row_get swap set_expression_type
+;
+: p1_ctor_atom
+  require_constructor set_temp_one
+  temp_one row_aux2 0x0 assert-equal
+  0x1 set_heap_required
+  clear_pending 0x16 set_pending_kind
+  temp_one set_pending_aux0 0x0 set_pending_aux1
+  token_start set_saved_start token_length set_saved_length
+  add_expression dup temp_one row_aux0 swap set_expression_type
+;
+: p1_list_enter enter_list need_token jump p1_list ;
+: p1_list
+  is_if branch p1_if p1_let_test
+;
+: p1_let_test is_let branch p1_let p1_add_test ;
+: p1_add_test is_add branch p1_add p1_sub_test ;
+: p1_sub_test is_sub branch p1_sub p1_mul_test ;
+: p1_mul_test is_mul branch p1_mul p1_div_test ;
+: p1_div_test is_div branch p1_div p1_mod_test ;
+: p1_mod_test is_mod branch p1_mod p1_eq_test ;
+: p1_eq_test is_eq branch p1_eq p1_lt_test ;
+: p1_lt_test is_lt branch p1_lt p1_match_test ;
+: p1_match_test is_match branch p1_match p1_bytes_empty_test ;
+: p1_bytes_empty_test is_bytes_empty branch p1_bytes_empty p1_bytes_single_test ;
+: p1_bytes_single_test is_bytes_single branch p1_bytes_single p1_bytes_length_test ;
+: p1_bytes_length_test is_bytes_length branch p1_bytes_length p1_bytes_get_test ;
+: p1_bytes_get_test is_bytes_get branch p1_bytes_get p1_bytes_concat_test ;
+: p1_bytes_concat_test is_bytes_concat branch p1_bytes_concat p1_apply ;
+
+: p1_if
+  0xd begin_list_expression
+  p1_expression expression_context_row 0x4 row_set
+  p1_expression expression_context_row 0x5 row_set
+  p1_expression expression_context_row 0x6 row_set
+  finish_list dup set_temp_one
+  temp_one row_aux1 expression_type temp_one set_expression_type
+;
+: p1_let
+  need_token 0x0 set_type_value push_scope add_variable set_temp_one pop_scope
+  need_token require_type temp_one 0x6 row_set
+  0xc begin_list_expression temp_one expression_context_row 0x4 row_set
+  p1_expression expression_context_row 0x5 row_set
+  expression_context_row row_aux0 row_owner set_current_scope
+  p1_expression expression_context_row 0x6 row_set
+  pop_scope
+  finish_list dup set_temp_one
+  temp_one row_aux2 expression_type temp_one set_expression_type
+;
+: p1_add 0x1 set_arithmetic_required 0xe jump p1_binary ;
+: p1_sub 0x1 set_arithmetic_required 0xf jump p1_binary ;
+: p1_mul 0x1 set_arithmetic_required 0x10 jump p1_binary ;
+: p1_div 0x11 jump p1_binary ;
+: p1_mod 0x12 jump p1_binary ;
+: p1_eq 0x13 jump p1_binary ;
+: p1_lt 0x14 jump p1_binary ;
+: p1_binary
+  begin_list_expression
+  p1_expression expression_context_row 0x4 row_set
+  p1_expression expression_context_row 0x5 row_set
+  finish_list dup set_temp_one
+  int_type temp_one set_expression_type
+;
+: p1_apply token_is_upper branch p1_ctor_call p1_call ;
+: p1_call
+  token_start set_temp_one token_length set_temp_two
+  0x15 begin_list_expression
+  temp_one expression_context_row 0x6 row_set
+  temp_two expression_context_row 0x7 row_set
+  jump p1_call_loop
+;
+: p1_call_loop next 0x1 assert-equal is_close branch p1_call_done p1_call_argument ;
+: p1_call_argument
+  token_start set_cursor p1_expression set_temp_one
+  clear_pending 0x4 set_pending_kind
+  expression_context_row set_current_function
+  expression_context_row row_aux0 set_pending_aux0
+  temp_one set_pending_aux1 0x0 set_saved_start 0x0 set_saved_length
+  add_row drop
+  expression_context_row row_aux0 0x1 + expression_context_row 0x4 row_set
+  expression_context_row row_owner set_current_function
+  jump p1_call_loop
+;
+: p1_call_done finish_consumed ;
+
+: p1_ctor_call
+  require_constructor set_binding_value
+  0x1 set_heap_required
+  0x16 begin_list_expression
+  binding_value expression_context_row 0x4 row_set
+  0x0 expression_context_row 0x5 row_set
+  jump p1_ctor_argument_loop
+;
+: p1_ctor_argument_loop
+  next 0x1 assert-equal is_close branch p1_ctor_done p1_ctor_argument
+;
+: p1_ctor_argument
+  token_start set_cursor p1_expression set_temp_one
+  clear_pending 0x4 set_pending_kind
+  expression_context_row set_current_function
+  expression_context_row row_aux1 set_pending_aux0
+  temp_one set_pending_aux1 0x0 set_saved_start 0x0 set_saved_length
+  add_row drop
+  expression_context_row row_aux1 0x1 + expression_context_row 0x5 row_set
+  expression_context_row row_owner set_current_function
+  jump p1_ctor_argument_loop
+;
+: p1_ctor_done
+  finish_consumed dup set_temp_two
+  temp_two row_aux0 set_binding_value
+  binding_value row_aux2 temp_two row_aux1 assert-equal
+  binding_value row_aux0 temp_two set_expression_type
+;
+
+: parse_pattern
+  need_token is_open branch parse_pattern_ctor_list parse_pattern_atom
+;
+: parse_pattern_atom jump parse_pattern_ctor_atom ;
+: parse_pattern_ctor_atom
+  require_constructor set_pattern_ctor
+  pattern_ctor row_aux2 0x0 assert-equal
+  0x0 set_pattern_binders
+;
+: parse_pattern_ctor_list
+  need_token require_constructor set_pattern_ctor
+  0x0 set_pattern_binders jump parse_pattern_binder_loop
+;
+: parse_pattern_binder_loop
+  need_token is_close branch parse_pattern_done parse_pattern_binder
+;
+: parse_pattern_binder
+  token_is_lower_or_underscore 0x1 assert-equal
+  pattern_ctor pattern_binders find_constructor_field_type set_type_value
+  add_variable set_temp_one
+  pattern_binders temp_one pending_binding_set
+  pattern_binders 0x1 + set_pattern_binders
+  jump parse_pattern_binder_loop
+;
+: parse_pattern_done
+  pattern_ctor row_aux2 pattern_binders assert-equal
+;
+
+: p1_match
+  0x17 begin_list_expression
+  expression_context_row dup set_match_row set_match_saved_match_row
+  p1_expression match_row 0x4 row_set
+  match_saved_match_row set_match_row
+  arm_count set_match_saved_arm_count
+  arm_type set_match_saved_arm_type
+  0x0 set_arm_count 0x0 set_arm_type
+  jump p1_match_arm_loop
+;
+: p1_match_arm_loop
+  next 0x1 assert-equal is_close branch p1_match_done p1_match_arm
+;
+: p1_match_arm
+  is_open 0x1 assert-equal
+  push_scope
+  parse_pattern
+  add_match_arm set_binding_value
+  0x0 set_check_index jump p1_match_bindings
+;
+: p1_match_bindings
+  check_index pattern_binders = branch p1_match_body p1_match_bind_one
+;
+: p1_match_bind_one
+  binding_value check_index check_index pending_binding_get add_arm_binding
+  check_index 0x1 + set_check_index
+  jump p1_match_bindings
+;
+: p1_match_body
+  binding_value set_match_saved_arm_row
+  p1_expression match_saved_arm_row 0x5 row_set
+  match_saved_match_row set_match_row
+  arm_count 0x0 = branch p1_first_arm_type p1_arm_finalize
+;
+: p1_first_arm_type
+  match_saved_arm_row match_saved_match_row 0x6 row_set
+  match_saved_arm_row row_aux1 expression_type set_arm_type jump p1_arm_finalize
+;
+: p1_arm_finalize
+  arm_count 0x1 + set_arm_count
+  pop_scope
+  expect_close
+  jump p1_match_arm_loop
+;
+: p1_match_done
+  expression_context_row set_temp_one
+  arm_count temp_one 0x5 row_set
+  arm_type temp_one set_expression_type
+  match_saved_arm_count set_arm_count
+  match_saved_arm_type set_arm_type
+  finish_consumed
+;
+
+: p1_bytes_empty
+  0x1 set_bytes_required
+  0x18 begin_list_expression finish_list dup bytes_type swap set_expression_type
+;
+: p1_bytes_single 0x19 bytes_type jump p1_bytes_unary ;
+: p1_bytes_length 0x1a int_type jump p1_bytes_unary ;
+: p1_bytes_unary
+  set_type_value 0x1 set_bytes_required
+  begin_list_expression
+  p1_expression expression_context_row 0x4 row_set
+  finish_list dup type_value swap set_expression_type
+;
+: p1_bytes_get 0x1b int_type jump p1_bytes_binary ;
+: p1_bytes_concat 0x1c bytes_type jump p1_bytes_binary ;
+: p1_bytes_binary
+  set_type_value 0x1 set_bytes_required
+  begin_list_expression
+  p1_expression expression_context_row 0x4 row_set
+  p1_expression expression_context_row 0x5 row_set
+  finish_list dup type_value swap set_expression_type
+;
+: resolve_calls 0x1 set_scan_index jump resolve_loop ;
+: resolve_loop row_count scan_index < branch resolve_done resolve_row ;
+: resolve_row scan_index row_kind 0x15 = branch resolve_call resolve_next ;
+: resolve_call
+  scan_index set_temp_two
+  temp_two 0x6 row_get set_token_start temp_two 0x7 row_get set_token_length
+  require_function set_temp_one
+  temp_one row_aux0 temp_two row_aux0 assert-equal
+  temp_one temp_two 0x5 row_set
+  temp_one row_aux3 temp_two set_expression_type
+  temp_two set_scan_index
+  jump resolve_next
+;
+: resolve_next scan_index 0x1 + set_scan_index jump resolve_loop ;
+: resolve_done ;
+
+: resolve_field_types 0x1 set_scan_index jump resolve_field_type_loop ;
+: resolve_field_type_loop
+  row_count scan_index < branch resolve_field_types_done resolve_field_type_row
+;
+: resolve_field_type_row
+  scan_index row_kind 0x8 = branch resolve_field_type_pending resolve_field_type_next
+;
+: resolve_field_type_pending
+  scan_index row_aux1 0x0 = branch resolve_field_type_named resolve_field_type_next
+;
+: resolve_field_type_named
+  scan_index set_check_index
+  scan_index 0x1 row_get set_token_start scan_index 0x2 row_get set_token_length
+  0x6 find_kind 0x1 assert-equal
+  check_index 0x5 row_set
+  jump resolve_field_type_restore
+;
+: resolve_field_type_restore
+  check_index set_scan_index
+  jump resolve_field_type_next
+;
+: resolve_field_type_next scan_index 0x1 + set_scan_index jump resolve_field_type_loop ;
+: resolve_field_types_done jump resolve_binding_types ;
+
+: resolve_binding_types 0x1 set_scan_index jump resolve_binding_type_loop ;
+: resolve_binding_type_loop
+  row_count scan_index < branch resolve_binding_types_done resolve_binding_type_row
+;
+: resolve_binding_type_row
+  scan_index row_kind 0x9 = branch resolve_binding_type resolve_binding_type_next
+;
+: resolve_binding_type
+  scan_index set_check_index
+  check_index row_owner row_aux0 check_index row_aux0 find_constructor_field_type
+  check_index row_aux1 0x6 row_set
+  check_index set_scan_index
+  jump resolve_binding_type_next
+;
+: resolve_binding_type_next scan_index 0x1 + set_scan_index jump resolve_binding_type_loop ;
+: resolve_binding_types_done ;
+
+: require_type_row
+  dup int_type = branch type_row_done type_row_bytes_test
+;
+: type_row_bytes_test dup bytes_type = branch type_row_done type_row_named ;
+: type_row_named row_kind 0x6 assert-equal ;
+: type_row_done ;
+
+: validate_call_type
+  scan_index set_temp_one
+  temp_one row_aux1 set_temp_two
+  temp_two row_kind 0x1 assert-equal
+  0x0 set_check_index jump validate_call_arguments
+;
+: validate_call_arguments
+  check_index temp_one row_aux0 = branch validate_call_done validate_call_argument
+;
+: validate_call_argument
+  temp_one check_index find_argument expression_type set_temp_three
+  temp_two check_index find_parameter row_aux2 temp_three assert-equal
+  check_index 0x1 + set_check_index jump validate_call_arguments
+;
+: validate_call_done
+  temp_two row_aux3 temp_one set_expression_type
+  temp_one set_scan_index
+  jump validate_expression_next
+;
+
+: validate_ctor_type
+  scan_index set_temp_one
+  temp_one row_aux0 set_temp_two
+  temp_two row_kind 0x7 assert-equal
+  temp_one row_aux1 set_emit_index
+  temp_two row_aux2 emit_index assert-equal
+  0x0 set_check_index jump validate_ctor_args
+;
+: validate_ctor_args
+  check_index emit_index = branch validate_ctor_done validate_ctor_arg
+;
+: validate_ctor_arg
+  temp_one check_index find_argument expression_type set_temp_three
+  temp_two check_index find_constructor_field_type set_binding_value
+  temp_three binding_value assert-equal
+  check_index 0x1 + set_check_index
+  jump validate_ctor_args
+;
+: validate_ctor_done
+  temp_two row_aux0 require_type_row
+  temp_two row_aux0 temp_one set_expression_type
+  temp_one set_scan_index
+  jump validate_expression_next
+;
+
+: validate_variable_type
+  scan_index set_temp_one
+  temp_one row_aux0 row_aux2 require_type_row
+  temp_one row_aux0 row_aux2 temp_one set_expression_type
+  jump validate_expression_next
+;
+
+: validate_literal_type
+  scan_index set_temp_one
+  int_type temp_one set_expression_type
+  jump validate_expression_next
+;
+
+: validate_let_type
+  scan_index set_temp_one
+  temp_one row_aux0 row_aux2 set_temp_two
+  temp_one row_aux1 expression_type temp_two assert-equal
+  temp_one row_aux2 expression_type temp_one set_expression_type
+  jump validate_expression_next
+;
+
+: validate_if_type
+  scan_index set_temp_one
+  temp_one row_aux0 expression_type int_type assert-equal
+  temp_one row_aux1 expression_type set_temp_two
+  temp_one row_aux2 expression_type temp_two assert-equal
+  temp_two temp_one set_expression_type
+  jump validate_expression_next
+;
+
+: validate_binary_type
+  scan_index set_temp_one
+  temp_one row_aux0 expression_type int_type assert-equal
+  temp_one row_aux1 expression_type int_type assert-equal
+  int_type temp_one set_expression_type
+  jump validate_expression_next
+;
+
+: match_has_constructor
+  set_pending_aux0 set_lookup_owner 0x1 set_scan_index jump match_has_ctor_loop
+;
+: match_has_ctor_loop row_count scan_index < branch match_ctor_absent match_has_ctor_row ;
+: match_has_ctor_row scan_index row_kind 0x5 = branch match_has_ctor_owner match_has_ctor_next ;
+: match_has_ctor_owner scan_index row_owner lookup_owner = branch match_has_ctor_cmp match_has_ctor_next ;
+: match_has_ctor_cmp scan_index row_aux0 pending_aux0 = branch match_ctor_present match_has_ctor_next ;
+: match_has_ctor_next scan_index 0x1 + set_scan_index jump match_has_ctor_loop ;
+: match_ctor_present 0x1 ;
+: match_ctor_absent 0x0 ;
+
+: validate_match_type
+  scan_index set_temp_one
+  temp_one row_aux0 expression_type set_temp_two
+  temp_two require_type_row
+  temp_two int_type = branch bad validate_match_bytes_test
+;
+: validate_match_bytes_test temp_two bytes_type = branch bad validate_match_arms_begin ;
+: validate_match_arms_begin
+  0x0 set_arm_count 0x0 set_arm_type
+  0x1 set_scan_index jump validate_match_arms
+;
+: validate_match_arms row_count scan_index < branch validate_match_exhaustive validate_match_arm_row ;
+: validate_match_arm_row scan_index row_kind 0x5 = branch validate_match_arm_owner validate_match_arms_next ;
+: validate_match_arm_owner scan_index row_owner temp_one = branch validate_match_arm validate_match_arms_next ;
+: validate_match_arm
+  scan_index row_aux0 set_temp_three
+  temp_three row_aux0 temp_two assert-equal
+  arm_count 0x0 = branch validate_match_arm_first validate_match_arm_duplicate
+;
+: validate_match_arm_first
+  scan_index row_aux1 expression_type set_arm_type
+  jump validate_match_arm_finish
+;
+: validate_match_arm_duplicate
+  scan_index set_check_index jump validate_match_duplicate_loop
+;
+: validate_match_duplicate_loop
+  check_index 0x1 = branch validate_match_dup_done validate_match_duplicate_row
+;
+: validate_match_duplicate_row
+  check_index 0x1 - set_check_index
+  check_index row_kind 0x5 = branch validate_match_dup_owner validate_match_duplicate_loop
+;
+: validate_match_dup_owner
+  check_index row_owner temp_one = branch validate_match_dup_ctor validate_match_duplicate_loop
+;
+: validate_match_dup_ctor
+  check_index row_aux0 temp_three = branch bad validate_match_duplicate_loop
+;
+: validate_match_dup_done
+  scan_index row_aux1 expression_type arm_type assert-equal
+  jump validate_match_arm_finish
+;
+: validate_match_arm_finish
+  arm_count 0x1 + set_arm_count
+  jump validate_match_arms_next
+;
+: validate_match_arms_next
+  scan_index 0x1 + set_scan_index jump validate_match_arms
+;
+
+: validate_match_exhaustive
+  arm_count 0x0 = branch bad validate_match_ctor_scan_begin
+;
+: validate_match_ctor_scan_begin 0x1 set_scan_index jump validate_match_ctor_scan ;
+: validate_match_ctor_scan row_count scan_index < branch validate_match_done validate_match_ctor_row ;
+: validate_match_ctor_row scan_index row_kind 0x7 = branch validate_match_ctor_type validate_match_ctor_next ;
+: validate_match_ctor_type scan_index row_aux0 temp_two = branch validate_match_ctor_present validate_match_ctor_next ;
+: validate_match_ctor_present
+  scan_index set_check_index
+  temp_one scan_index match_has_constructor 0x1 assert-equal
+  check_index set_scan_index jump validate_match_ctor_next
+;
+: validate_match_ctor_next scan_index 0x1 + set_scan_index jump validate_match_ctor_scan ;
+: validate_match_done
+  arm_type temp_one set_expression_type
+  temp_one set_scan_index
+  jump validate_expression_next
+;
+
+: validate_bytes_empty_type
+  scan_index set_temp_one bytes_type temp_one set_expression_type
+  jump validate_expression_next
+;
+: validate_bytes_single_type
+  scan_index set_temp_one
+  temp_one row_aux0 expression_type int_type assert-equal
+  bytes_type temp_one set_expression_type jump validate_expression_next
+;
+: validate_bytes_length_type
+  scan_index set_temp_one
+  temp_one row_aux0 expression_type bytes_type assert-equal
+  int_type temp_one set_expression_type jump validate_expression_next
+;
+: validate_bytes_get_type
+  scan_index set_temp_one
+  temp_one row_aux0 expression_type bytes_type assert-equal
+  temp_one row_aux1 expression_type int_type assert-equal
+  int_type temp_one set_expression_type jump validate_expression_next
+;
+: validate_bytes_concat_type
+  scan_index set_temp_one
+  temp_one row_aux0 expression_type bytes_type assert-equal
+  temp_one row_aux1 expression_type bytes_type assert-equal
+  bytes_type temp_one set_expression_type jump validate_expression_next
+;
+
+: validate_expressions row_count set_scan_index jump validate_expression_loop ;
+: validate_expression_loop
+  scan_index 0x0 = branch validate_expression_done validate_expression_row
+;
+: validate_expression_row
+  scan_index row_kind 0xa < branch validate_expression_next validate_expression_kind
+;
+: validate_expression_kind
+  scan_index row_kind 0xa = branch validate_literal_type validate_variable_kind
+;
+: validate_variable_kind scan_index row_kind 0xb = branch validate_variable_type validate_let_kind ;
+: validate_let_kind scan_index row_kind 0xc = branch validate_let_type validate_if_kind ;
+: validate_if_kind scan_index row_kind 0xd = branch validate_if_type validate_binary_kind ;
+: validate_binary_kind scan_index row_kind 0x15 < branch validate_binary_type validate_call_kind ;
+: validate_call_kind scan_index row_kind 0x15 = branch validate_call_type validate_ctor_test ;
+: validate_ctor_test scan_index row_kind 0x16 = branch validate_ctor_type validate_match_test ;
+: validate_match_test scan_index row_kind 0x17 = branch validate_match_type validate_bytes_empty_test ;
+: validate_bytes_empty_test scan_index row_kind 0x18 = branch validate_bytes_empty_type validate_bytes_single_test ;
+: validate_bytes_single_test scan_index row_kind 0x19 = branch validate_bytes_single_type validate_bytes_length_test ;
+: validate_bytes_length_test scan_index row_kind 0x1a = branch validate_bytes_length_type validate_bytes_get_test ;
+: validate_bytes_get_test scan_index row_kind 0x1b = branch validate_bytes_get_type validate_bytes_concat_test ;
+: validate_bytes_concat_test scan_index row_kind 0x1c = branch validate_bytes_concat_type validate_expression_next ;
+: validate_expression_next scan_index 0x1 - set_scan_index jump validate_expression_loop ;
+: validate_expression_done ;
+
+: find_parameter
+  set_pending_aux0 set_lookup_owner 0x1 set_scan_index jump parameter_find_loop
+;
+: parameter_find_loop row_count scan_index < branch bad parameter_find_row ;
+: parameter_find_row scan_index row_kind 0x2 = branch parameter_owner parameter_find_next ;
+: parameter_owner scan_index row_owner lookup_owner = branch parameter_index parameter_find_next ;
+: parameter_index scan_index row_aux1 pending_aux0 = branch parameter_found parameter_find_next ;
+: parameter_find_next scan_index 0x1 + set_scan_index jump parameter_find_loop ;
+: parameter_found scan_index ;
+: find_argument
+  set_pending_aux0 set_lookup_owner 0x1 set_scan_index jump argument_find_loop
+;
+: argument_find_loop row_count scan_index < branch bad argument_find_row ;
+: argument_find_row scan_index row_kind 0x4 = branch argument_owner argument_find_next ;
+: argument_owner scan_index row_owner lookup_owner = branch argument_index argument_find_next ;
+: argument_index scan_index row_aux0 pending_aux0 = branch argument_found argument_find_next ;
+: argument_find_next scan_index 0x1 + set_scan_index jump argument_find_loop ;
+: argument_found scan_index row_aux1 ;
+
+: find_match_arm
+  set_pending_aux0 set_lookup_owner 0x0 set_arm_count 0x1 set_scan_index jump find_match_arm_loop
+;
+: find_match_arm_loop row_count scan_index < branch bad find_match_arm_row ;
+: find_match_arm_row scan_index row_kind 0x5 = branch find_match_arm_owner find_match_arm_next ;
+: find_match_arm_owner scan_index row_owner lookup_owner = branch find_match_arm_count find_match_arm_next ;
+: find_match_arm_count arm_count pending_aux0 = branch find_match_arm_found find_match_arm_step ;
+: find_match_arm_step arm_count 0x1 + set_arm_count jump find_match_arm_next ;
+: find_match_arm_next scan_index 0x1 + set_scan_index jump find_match_arm_loop ;
+: find_match_arm_found scan_index ;
+
+: emit_space 0x20 output-byte ;
+: emit_end 0x20 output-byte 0x3b output-byte 0xa output-byte ;
+: emit_colon_space 0x3a output-byte emit_space ;
+: emit_hex_digit hex_digit 0xa < branch emit_hex_decimal emit_hex_alpha ;
+: emit_hex_decimal hex_digit 0x30 + output-byte jump emit_hex_next ;
+: emit_hex_alpha hex_digit 0x57 + output-byte jump emit_hex_next ;
+: emit_hex_next
+  hex_value hex_divisor % set_hex_value
+  hex_divisor 0x10 / set_hex_divisor
+  hex_count 0x1 - set_hex_count jump emit_hex_loop
+;
+: emit_hex_loop hex_count 0x0 = branch emit_hex_done emit_hex_body ;
+: emit_hex_body hex_value hex_divisor / set_hex_digit jump emit_hex_digit ;
+: emit_hex_done ;
+: emit_generated_name
+  set_hex_value output-byte 0x1000 set_hex_divisor 0x4 set_hex_count emit_hex_loop
+;
+: emit_f 0x66 swap emit_generated_name ;
+: emit_e 0x65 swap emit_generated_name ;
+: emit_x dup 0x10000 < branch emit_x_short emit_x_long ;
+: emit_x_short 0x78 swap emit_generated_name ;
+: emit_x_long
+  set_hex_value 0x78 output-byte
+  0x10000000 set_hex_divisor 0x8 set_hex_count emit_hex_loop
+;
+: emit_t 0x74 swap emit_generated_name ;
+: emit_jump
+  0x6a output-byte 0x75 output-byte 0x6d output-byte 0x70 output-byte emit_space
+;
+: emit_drop 0x64 output-byte 0x72 output-byte 0x6f output-byte 0x70 output-byte emit_space ;
+: emit_literal
+  set_hex_value 0x30 output-byte 0x78 output-byte
+  0x1000000000000000 set_hex_divisor 0x10 set_hex_count emit_hex_loop
+;
+
+: emit_prefix
+  0x696e6f6e61632023 output-word
+  0x6c616373206c6163 output-word
+  0x74636e7546207261 output-word
+  0x6544206c616e6f69 output-word
+  0x617078652061746c output-word
+  0x203a0a6e6f69736e output-word
+  0x783020656d617266 output-word
+  0x672d6c6c65632030 output-word
+  0x73203a0a3b207465 output-word
+  0x656d6172665f7465 output-word
+  0x6c65632030783020 output-word
+  0xa3b207465732d6c output-word
+  0x665f7478656e203a output-word
+  0x31783020656d6172 output-word
+  0x65672d6c6c656320 output-word
+  0x6573203a0a3b2074 output-word
+  0x665f7478656e5f74 output-word
+  0x31783020656d6172 output-word
+  0x65732d6c6c656320 output-word
+  0x74 output-byte 0x20 output-byte 0x3b output-byte 0xa output-byte
+;
+
+# Emitted Bytes runtime. Values are descriptor pointers. Descriptors are
+# immutable {kind, length, payload...} rows: 0 empty, 1 single, 3 concat. The
+# packed words below are this exact compact Gamma source:
+# : z0 0x3e0 cell-get ;
+# : z1 0x3e1 cell-get ;
+# : z2 0x3e2 cell-get ;
+# : zh 0x3f0 cell-get ;
+# : zt 0x0 0x1 assert-equal ;
+# : za 0x3e4 cell-set zh dup 0x3e4 cell-get + 0x3f0 cell-set ;
+# : ze 0x2 za dup 0x0 swap 0x0 + cell-set dup 0x0 swap 0x1 + cell-set ;
+# : zs dup 0x0 < branch zt zsu ;
+# : zsu dup 0x100 < branch zsa zt ;
+# : zsa 0x3e0 cell-set 0x3 za dup 0x1 swap 0x0 + cell-set dup 0x1 swap 0x1 + cell-set dup z0 swap 0x2 + cell-set ;
+# : zc 0x3e1 cell-set 0x3e0 cell-set z0 0x1 + cell-get z1 0x1 + cell-get + dup 0x0 < branch zt zca ;
+# : zca 0x3e2 cell-set 0x4 za dup 0x3 swap 0x0 + cell-set dup z2 swap 0x1 + cell-set dup z0 swap 0x2 + cell-set dup z1 swap 0x3 + cell-set ;
+# : zg 0x3e1 cell-set 0x3e0 cell-set z1 0x0 < branch zt zgu ;
+# : zgu z1 z0 0x1 + cell-get < branch zgl zt ;
+# : zgl z0 0x0 + cell-get 0x1 = branch zgs zgct ;
+# : zgs z0 0x2 + cell-get ;
+# : zgct z0 0x0 + cell-get 0x3 = branch zgc zt ;
+# : zgc z0 0x2 + cell-get 0x3e2 cell-set z1 z2 0x1 + cell-get < branch zgcl zgcr ;
+# : zgcl z2 0x3e0 cell-set jump zgl ;
+# : zgcr z1 z2 0x1 + cell-get - 0x3e1 cell-set z0 0x3 + cell-get 0x3e0 cell-set jump zgl ;
+: emit_bytes_runtime
+  0x33783020307a203a output-word
+  0x2d6c6c6563203065 output-word
+  0x203a0a3b20746567 output-word
+  0x316533783020317a output-word
+  0x65672d6c6c656320 output-word
+  0x327a203a0a3b2074 output-word
+  0x6320326533783020 output-word
+  0x207465672d6c6c65 output-word
+  0x3020687a203a0a3b output-word
+  0x6c65632030663378 output-word
+  0xa3b207465672d6c output-word
+  0x30783020747a203a output-word
+  0x7373612031783020 output-word
+  0x617571652d747265 output-word
+  0x617a203a0a3b206c output-word
+  0x6320346533783020 output-word
+  0x207465732d6c6c65 output-word
+  0x302070756420687a output-word
+  0x6c65632034653378 output-word
+  0x202b207465672d6c output-word
+  0x6563203066337830 output-word
+  0x3b207465732d6c6c output-word
+  0x783020657a203a0a output-word
+  0x70756420617a2032 output-word
+  0x6177732030783020 output-word
+  0x202b203078302070 output-word
+  0x7465732d6c6c6563 output-word
+  0x3078302070756420 output-word
+  0x7830207061777320 output-word
+  0x6c6c6563202b2031 output-word
+  0x3a0a3b207465732d output-word
+  0x2070756420737a20 output-word
+  0x7262203c20307830 output-word
+  0x20747a2068636e61 output-word
+  0x203a0a3b2075737a output-word
+  0x207075642075737a output-word
+  0x203c203030317830 output-word
+  0x7a2068636e617262 output-word
+  0xa3b20747a206173 output-word
+  0x78302061737a203a output-word
+  0x6c6c656320306533 output-word
+  0x337830207465732d output-word
+  0x2070756420617a20 output-word
+  0x7061777320317830 output-word
+  0x63202b2030783020 output-word
+  0x207465732d6c6c65 output-word
+  0x2031783020707564 output-word
+  0x3178302070617773 output-word
+  0x2d6c6c6563202b20 output-word
+  0x2070756420746573 output-word
+  0x207061777320307a output-word
+  0x6563202b20327830 output-word
+  0x3b207465732d6c6c output-word
+  0x783020637a203a0a output-word
+  0x6c6c656320316533 output-word
+  0x337830207465732d output-word
+  0x2d6c6c6563203065 output-word
+  0x3020307a20746573 output-word
+  0x6c6563202b203178 output-word
+  0x317a207465672d6c output-word
+  0x63202b2031783020 output-word
+  0x207465672d6c6c65 output-word
+  0x783020707564202b output-word
+  0x6e617262203c2030 output-word
+  0x637a20747a206863 output-word
+  0x637a203a0a3b2061 output-word
+  0x2032653378302061 output-word
+  0x7465732d6c6c6563 output-word
+  0x20617a2034783020 output-word
+  0x2033783020707564 output-word
+  0x3078302070617773 output-word
+  0x2d6c6c6563202b20 output-word
+  0x2070756420746573 output-word
+  0x207061777320327a output-word
+  0x6563202b20317830 output-word
+  0x64207465732d6c6c output-word
+  0x777320307a207075 output-word
+  0x2b20327830207061 output-word
+  0x65732d6c6c656320 output-word
+  0x317a207075642074 output-word
+  0x7830207061777320 output-word
+  0x6c6c6563202b2033 output-word
+  0x3a0a3b207465732d output-word
+  0x6533783020677a20 output-word
+  0x732d6c6c65632031 output-word
+  0x3065337830207465 output-word
+  0x65732d6c6c656320 output-word
+  0x30783020317a2074 output-word
+  0x636e617262203c20 output-word
+  0x75677a20747a2068 output-word
+  0x75677a203a0a3b20 output-word
+  0x3020307a20317a20 output-word
+  0x6c6563202b203178 output-word
+  0x203c207465672d6c output-word
+  0x7a2068636e617262 output-word
+  0xa3b20747a206c67 output-word
+  0x307a206c677a203a output-word
+  0x63202b2030783020 output-word
+  0x207465672d6c6c65 output-word
+  0x7262203d20317830 output-word
+  0x73677a2068636e61 output-word
+  0xa3b207463677a20 output-word
+  0x307a2073677a203a output-word
+  0x63202b2032783020 output-word
+  0x207465672d6c6c65 output-word
+  0x7463677a203a0a3b output-word
+  0x2030783020307a20 output-word
+  0x672d6c6c6563202b output-word
+  0x3d20337830207465 output-word
+  0x2068636e61726220 output-word
+  0x3b20747a2063677a output-word
+  0x7a2063677a203a0a output-word
+  0x202b203278302030 output-word
+  0x7465672d6c6c6563 output-word
+  0x6320326533783020 output-word
+  0x207465732d6c6c65 output-word
+  0x783020327a20317a output-word
+  0x6c6c6563202b2031 output-word
+  0x62203c207465672d output-word
+  0x677a2068636e6172 output-word
+  0x207263677a206c63 output-word
+  0x6c63677a203a0a3b output-word
+  0x6533783020327a20 output-word
+  0x732d6c6c65632030 output-word
+  0x20706d756a207465 output-word
+  0x203a0a3b206c677a output-word
+  0x20317a207263677a output-word
+  0x2b2031783020327a output-word
+  0x65672d6c6c656320 output-word
+  0x65337830202d2074 output-word
+  0x732d6c6c65632031 output-word
+  0x783020307a207465 output-word
+  0x6c6c6563202b2033 output-word
+  0x337830207465672d output-word
+  0x2d6c6c6563203065 output-word
+  0x706d756a20746573 output-word
+  0x20 output-byte 0x7a output-byte 0x67 output-byte 0x6c output-byte 0x20 output-byte 0x3b output-byte 0xa output-byte
+;
+
+# Checked Int runtime: ya/ys/ym consume two signed words and return the exact
+# result or authored-trap on overflow. Division and remainder trap in Alpha.
+: emit_checked_int_runtime
+  0x337830203079203a output-word 0x2d6c6c6563203064 output-word
+  0x203a0a3b20746567 output-word 0x3164337830203179 output-word
+  0x65672d6c6c656320 output-word 0x3279203a0a3b2074 output-word
+  0x6320326433783020 output-word 0x207465672d6c6c65 output-word
+  0x30207479203a0a3b output-word 0x6120317830203078 output-word
+  0x71652d7472657373 output-word 0x203a0a3b206c6175 output-word
+  0x3b203279206b6f79 output-word 0x7830206179203a0a output-word
+  0x6c6c656320316433 output-word 0x337830207465732d output-word
+  0x2d6c6c6563203064 output-word 0x7920307920746573 output-word
+  0x64337830202b2031 output-word 0x732d6c6c65632032 output-word
+  0x7830203179207465 output-word 0x6e617262203c2030 output-word
+  0x79206e6179206863 output-word 0x79203a0a3b207061 output-word
+  0x3079203279207061 output-word 0x636e617262203c20 output-word
+  0x6b6f792074792068 output-word 0x6e6179203a0a3b20 output-word
+  0x3c20327920307920 output-word 0x2068636e61726220 output-word
+  0x3b206b6f79207479 output-word 0x7830207379203a0a output-word
+  0x6c6c656320316433 output-word 0x337830207465732d output-word
+  0x2d6c6c6563203064 output-word 0x7920307920746573 output-word
+  0x64337830202d2031 output-word 0x732d6c6c65632032 output-word
+  0x7830203179207465 output-word 0x6e617262203c2030 output-word
+  0x79206e7379206863 output-word 0x79203a0a3b207073 output-word
+  0x3279203079207073 output-word 0x636e617262203c20 output-word
+  0x6b6f792074792068 output-word 0x6e7379203a0a3b20 output-word
+  0x3c20307920327920 output-word 0x2068636e61726220 output-word
+  0x3b206b6f79207479 output-word 0x7830206d79203a0a output-word
+  0x6c6c656320316433 output-word 0x337830207465732d output-word
+  0x2d6c6c6563203064 output-word 0x7920307920746573 output-word
+  0x64337830202a2031 output-word 0x732d6c6c65632032 output-word
+  0x7830203179207465 output-word 0x6e617262203d2030 output-word
+  0x79206b6f79206863 output-word 0x3a0a3b2067656e6d output-word
+  0x792067656e6d7920 output-word 0x6666666678302031 output-word
+  0x6666666666666666 output-word 0x62203d2066666666 output-word
+  0x6d792068636e6172 output-word 0x6d792073756e696d output-word
+  0xa3b206b63656863 output-word 0x756e696d6d79203a output-word
+  0x3878302030792073 output-word 0x3030303030303030 output-word
+  0x2030303030303030 output-word 0x68636e617262203d output-word
+  0x68636d7920747920 output-word 0x203a0a3b206b6365 output-word
+  0x206b636568636d79 output-word 0x202f203179203279 output-word
+  0x617262203d203079 output-word 0x206b6f792068636e output-word
+  0x79 output-byte 0x74 output-byte 0x20 output-byte 0x3b output-byte 0xa output-byte
+;
+: emit_frame
+  0x66 output-byte 0x72 output-byte 0x61 output-byte
+  0x6d output-byte 0x65 output-byte 0x20 output-byte
+;
+: emit_dup 0x64 output-byte 0x75 output-byte 0x70 output-byte emit_space ;
+: emit_swap 0x73 output-byte 0x77 output-byte 0x61 output-byte 0x70 output-byte emit_space ;
+: emit_restore_setup
+  0x6e20656d61726620 output-word
+  0x6d6172665f747865 output-word
+  0x72665f7465732065 output-word
+  0x6d61726620656d61 output-word
+  0x202b203078302065 output-word
+  0x7465732d6c6c6563 output-word
+  0x20 output-byte 0x66 output-byte 0x72 output-byte 0x61 output-byte
+  0x6d output-byte 0x65 output-byte 0x20 output-byte
+;
+: emit_next_frame_setup
+  0x6e5f746573202b20 output-word
+  0x6d6172665f747865 output-word
+  0x65 output-byte
+;
+: emit_cell_store
+  0x2d6c6c6563202b20 output-word
+  0x73 output-byte 0x65 output-byte 0x74 output-byte
+;
+: emit_cell_get
+  0x2d6c6c6563202b20 output-word
+  0x67 output-byte 0x65 output-byte 0x74 output-byte
+;
+: emit_restore
+  0x6420656d61726620 output-word
+  0x6e5f746573207075 output-word
+  0x6d6172665f747865 output-word
+  0x202b203078302065 output-word
+  0x7465672d6c6c6563 output-word
+  0x6172665f74657320 output-word
+  0x6d output-byte 0x65 output-byte
+;
+: emit_branch 0x2068636e61726220 output-word ;
+: emit_initial_frames
+  0x6172665f74657320 output-word
+  0x303030783020656d output-word
+  0x3030303030303030 output-word
+  0x6573203230303030 output-word
+  0x665f7478656e5f74 output-word
+  0x72 output-byte 0x61 output-byte 0x6d output-byte 0x65 output-byte 0x20 output-byte
+;
+: emit_main_tail
+  0x2520303031783020 output-word
+  0x2b20303031783020 output-word
+  0x2520303031783020 output-word
+  0x2d74757074756f20 output-word
+  0x62 output-byte 0x79 output-byte 0x74 output-byte 0x65 output-byte
+  0x20 output-byte 0x3b output-byte 0xa output-byte
+;
+
+: emit_heap_init
+  0x0000000000100000 emit_literal emit_space
+  0x00000000000003f0 emit_literal emit_space
+  0x0 emit_literal emit_cell_store emit_space
+;
+
+: emit_all emit_prefix arithmetic_required branch emit_all_arithmetic emit_all_bytes_test ;
+: emit_all_arithmetic emit_checked_int_runtime jump emit_all_bytes_test ;
+: emit_all_bytes_test bytes_required branch emit_all_bytes emit_all_rows ;
+: emit_all_bytes emit_bytes_runtime jump emit_all_rows ;
+: emit_all_rows 0x1 set_scan_index jump emit_row_loop ;
+: emit_row_loop row_count scan_index < branch emit_main emit_row ;
+: emit_row scan_index row_kind 0x1 = branch emit_function emit_expression_test ;
+: emit_expression_test scan_index row_kind 0xa < branch emit_next emit_expression ;
+: emit_next scan_index 0x1 + set_scan_index jump emit_row_loop ;
+
+: emit_function
+  scan_index set_temp_one emit_colon_space temp_one emit_f
+  emit_restore_setup emit_drop temp_one emit_t emit_restore emit_end
+  emit_colon_space temp_one emit_t emit_space emit_frame
+  temp_one row_aux2 emit_literal emit_next_frame_setup
+  temp_one row_aux0 set_emit_index jump emit_parameters
+;
+: emit_parameters emit_index 0x0 = branch emit_function_body emit_parameter ;
+: emit_parameter
+  emit_index 0x1 - set_emit_index
+  emit_space emit_frame temp_one emit_index find_parameter row_aux0 emit_literal emit_cell_store
+  jump emit_parameters
+;
+: emit_function_body
+  emit_space emit_jump temp_one row_aux1 emit_e emit_end
+  temp_one set_scan_index jump emit_next
+;
+
+: emit_expression
+  scan_index set_temp_one emit_colon_space temp_one emit_e emit_space
+  temp_one row_kind 0xa = branch emit_literal_expression emit_variable_test
+;
+: emit_literal_expression temp_one row_aux0 emit_literal jump emit_expression_done ;
+: emit_variable_test temp_one row_kind 0xb = branch emit_variable_expression emit_let_test ;
+: emit_variable_expression
+  emit_frame temp_one row_aux0 row_aux0 emit_literal emit_cell_get jump emit_expression_done
+;
+: emit_let_test temp_one row_kind 0xc = branch emit_let_expression emit_if_test ;
+: emit_let_expression
+  temp_one row_aux1 emit_e
+  emit_space emit_frame temp_one row_aux0 row_aux0 emit_literal emit_cell_store emit_space
+  temp_one tail_flag branch emit_let_tail emit_let_body
+;
+: emit_let_tail emit_jump jump emit_let_body ;
+: emit_let_body temp_one row_aux2 emit_e jump emit_expression_done ;
+: emit_if_test temp_one row_kind 0xd = branch emit_if_expression emit_binary_test ;
+: emit_if_expression
+  temp_one row_aux0 emit_e emit_branch temp_one row_aux1 emit_e emit_space
+  temp_one row_aux2 emit_e jump emit_expression_done
+;
+: emit_binary_test temp_one row_kind 0x15 < branch emit_binary_expression emit_call_test ;
+: emit_binary_expression
+  temp_one row_aux0 emit_e emit_space temp_one row_aux1 emit_e emit_space
+  temp_one row_kind 0xe = branch emit_add_operator emit_sub_operator_test
+;
+: emit_add_operator 0x79 output-byte 0x61 output-byte jump emit_expression_done ;
+: emit_sub_operator_test temp_one row_kind 0xf = branch emit_sub_operator emit_mul_operator_test ;
+: emit_sub_operator 0x79 output-byte 0x73 output-byte jump emit_expression_done ;
+: emit_mul_operator_test temp_one row_kind 0x10 = branch emit_mul_operator emit_div_operator_test ;
+: emit_mul_operator 0x79 output-byte 0x6d output-byte jump emit_expression_done ;
+: emit_div_operator_test temp_one row_kind 0x11 = branch emit_div_operator emit_mod_operator_test ;
+: emit_div_operator 0x2f output-byte jump emit_expression_done ;
+: emit_mod_operator_test temp_one row_kind 0x12 = branch emit_mod_operator emit_eq_operator_test ;
+: emit_mod_operator 0x25 output-byte jump emit_expression_done ;
+: emit_eq_operator_test temp_one row_kind 0x13 = branch emit_eq_operator emit_lt_operator ;
+: emit_eq_operator 0x3d output-byte jump emit_expression_done ;
+: emit_lt_operator 0x3c output-byte jump emit_expression_done ;
+: emit_call_test temp_one row_kind 0x15 = branch emit_call_expression emit_ctor_test ;
+: emit_call_expression
+  0x0 set_emit_index jump emit_call_arguments
+;
+: emit_call_arguments
+  emit_index temp_one row_aux0 = branch emit_call_target emit_call_argument
+;
+: emit_call_argument
+  temp_one emit_index find_argument emit_e emit_space
+  emit_index 0x1 + set_emit_index jump emit_call_arguments
+;
+: emit_call_target temp_one tail_flag branch emit_tail_call_target emit_normal_call_target ;
+: emit_tail_call_target emit_jump temp_one row_aux1 emit_t jump emit_expression_done ;
+: emit_normal_call_target temp_one row_aux1 emit_f jump emit_expression_done ;
+
+: emit_ctor_test temp_one row_kind 0x16 = branch emit_ctor_expression emit_match_test ;
+: emit_ctor_expression
+  0x00000000000003f0 emit_literal emit_space
+  0x0 emit_literal emit_cell_get emit_space
+  emit_dup
+  temp_one row_aux1 0x1 + emit_literal emit_space 0x2b output-byte emit_space
+  0x00000000000003f0 emit_literal emit_space
+  0x0 emit_literal emit_cell_store emit_space
+  emit_dup
+  temp_one row_aux0 row_aux1 emit_literal emit_space
+  emit_swap
+  0x0 emit_literal emit_cell_store emit_space
+  0x0 set_emit_index jump emit_ctor_fields
+;
+: emit_ctor_fields
+  emit_index temp_one row_aux1 = branch emit_ctor_done emit_ctor_field
+;
+: emit_ctor_field
+  emit_dup
+  temp_one emit_index find_argument emit_e emit_space
+  emit_swap
+  emit_index 0x1 + emit_literal emit_cell_store emit_space
+  emit_index 0x1 + set_emit_index jump emit_ctor_fields
+;
+: emit_ctor_done jump emit_expression_done ;
+
+: emit_match_label
+  temp_one 0x100 * emit_index 0x2 * + emit_x
+;
+: emit_match_arm_label
+  temp_one 0x100 * emit_index 0x2 * + 0x1 + emit_x
+;
+: emit_match_next_label
+  temp_one 0x100 * emit_index 0x2 * + 0x2 + emit_x
+;
+: emit_match_cell temp_one 0x3f2 + emit_literal ;
+
+: emit_match_store_binders
+  0x0 set_check_index jump emit_match_binder_loop
+;
+: emit_match_binder_loop
+  check_index temp_two row_aux2 = branch emit_match_binder_done emit_match_binder
+;
+: emit_match_binder
+  emit_match_cell emit_space
+  0x0 emit_literal emit_cell_get emit_space
+  check_index 0x1 + emit_literal emit_cell_get
+  emit_space emit_frame temp_two check_index find_arm_binding row_aux0 emit_literal emit_cell_store emit_space
+  check_index 0x1 + set_check_index jump emit_match_binder_loop
+;
+: emit_match_binder_done
+  temp_two row_aux1 tail_flag branch emit_match_tail_body emit_match_normal_body
+;
+: emit_match_tail_body emit_jump jump emit_match_normal_body ;
+: emit_match_normal_body temp_two row_aux1 emit_e ;
+
+: emit_match_expression
+  temp_one row_aux0 emit_e emit_space
+  emit_match_cell emit_space
+  0x0 emit_literal emit_cell_store emit_space
+  temp_one tail_flag branch emit_match_tail_dispatch emit_match_normal_dispatch
+;
+: emit_match_tail_dispatch emit_jump jump emit_match_normal_dispatch ;
+: emit_match_normal_dispatch
+  0x0 set_emit_index emit_match_label emit_end
+  0x0 set_emit_index jump emit_match_checks
+;
+: emit_match_checks
+  emit_index 0x1 + temp_one row_aux1 = branch emit_match_last emit_match_check
+;
+: emit_match_check
+  temp_one emit_index find_match_arm set_temp_two
+  emit_colon_space emit_match_label emit_space
+  emit_match_cell emit_space
+  0x0 emit_literal emit_cell_get emit_space
+  0x0 emit_literal emit_cell_get emit_space
+  temp_two row_aux0 row_aux1 emit_literal emit_space
+  0x3d output-byte emit_branch emit_match_arm_label emit_space emit_match_next_label emit_end
+  emit_colon_space emit_match_arm_label emit_space
+  emit_match_store_binders emit_end
+  emit_index 0x1 + set_emit_index jump emit_match_checks
+;
+: emit_match_last
+  emit_colon_space emit_match_label emit_space
+  temp_one emit_index find_match_arm set_temp_two
+  emit_match_store_binders emit_end
+  jump emit_match_finish
+;
+: emit_match_finish temp_one set_scan_index jump emit_next ;
+: emit_match_test temp_one row_kind 0x17 = branch emit_match_expression emit_bytes_empty_test ;
+: emit_bytes_empty_test temp_one row_kind 0x18 = branch emit_bytes_empty emit_bytes_single_test ;
+: emit_bytes_empty 0x7a output-byte 0x65 output-byte jump emit_expression_done ;
+: emit_bytes_single_test temp_one row_kind 0x19 = branch emit_bytes_single emit_bytes_length_test ;
+: emit_bytes_single temp_one row_aux0 emit_e emit_space 0x7a output-byte 0x73 output-byte jump emit_expression_done ;
+: emit_bytes_length_test temp_one row_kind 0x1a = branch emit_bytes_length emit_bytes_get_test ;
+: emit_bytes_length temp_one row_aux0 emit_e emit_space 0x1 emit_literal emit_space emit_cell_get jump emit_expression_done ;
+: emit_bytes_get_test temp_one row_kind 0x1b = branch emit_bytes_get emit_bytes_concat_test ;
+: emit_bytes_get
+  temp_one row_aux0 emit_e emit_space temp_one row_aux1 emit_e emit_space
+  0x7a output-byte 0x67 output-byte jump emit_expression_done
+;
+: emit_bytes_concat_test temp_one row_kind 0x1c = branch emit_bytes_concat emit_expression_done ;
+: emit_bytes_concat
+  temp_one row_aux0 emit_e emit_space temp_one row_aux1 emit_e emit_space
+  0x7a output-byte 0x63 output-byte jump emit_expression_done
+;
+: emit_expression_done emit_end temp_one set_scan_index jump emit_next ;
+
+: emit_main
+  emit_colon_space
+  0x6d output-byte 0x61 output-byte 0x69 output-byte 0x6e output-byte emit_space
+  0x1 emit_literal emit_initial_frames
+  heap_required bytes_required + 0x0 = branch emit_main_no_heap emit_main_heap
+;
+: emit_main_heap emit_heap_init main_function emit_f emit_main_tail ;
+: emit_main_no_heap main_function emit_f emit_main_tail ;
+
+: main
+  parse_program resolve_field_types resolve_calls validate_expressions mark_tails emit_all
+;
+: bad input-length input-get ;

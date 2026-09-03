@@ -627,8 +627,8 @@ named `f`: type, constructor, call-head, and value-atom positions already choose
 the relevant namespace. Delta has no function values. These permissions do not
 make declarations structurally interchangeable or merge their retained rows.
 
-Parameters, `let` binders, constructor-pattern binders, and catch-all patterns
-share the local-value namespace. A new binder may not duplicate any binding in
+Parameters, `let` binders, and constructor-pattern binders share the local-value
+namespace. A new binder may not duplicate any binding in
 its active lexical environment. Function parameters are mutually unique. A
 `let` initializer sees only the outer environment and its binder is active only
 in the body. Pattern binders are mutually unique, cannot duplicate an active
@@ -646,7 +646,8 @@ the source-to-resolved-identity joins in the Gamma-written Delta compiler.
 ## D21 — Every Delta Bytes value has an Int-representable logical length
 
 Every valid Delta `Bytes` has one exact logical length in `0..INT64_MAX`.
-`bytes_empty`, `bytes_single`, and `bytes_slice` preserve that invariant.
+`bytes_empty` and `bytes_single` establish that invariant; `bytes_concat`
+preserves it through the checked sum below. Delta has no slicing operation.
 Compiler-generated sealed-input adapters may construct `Bytes` only under a
 D19 profile whose exact maximum input extent lies in the same range; the
 compiler validates that profile metadata before emitting the adapter.
@@ -3768,3 +3769,160 @@ exact resource outcomes, and therefore cannot compile
 `epsilon_compiler.delta`. No `delta_compiler_bytecode.tape` is admitted yet.
 The former direct-to-Alpha Functional compiler and State Delta compiler remain
 test-owned comparisons; neither supplies selected authority.
+
+## D88 — Typed functional Gamma is evaluated directly by Beta
+
+D88 supersedes D67 through D70 and D87 as selected-topology decisions. The
+concatenative Gamma evaluator/compiler and its Gamma-written Delta compiler were
+functionally sufficient, but the Delta implementation made their audit cost
+visible: compiler state became manually numbered cells, source generation
+became packed ASCII words, and small Gamma words expanded into call-dominated
+Beta.
+
+The measured 666-line scalar/effect seed expanded to 3,230 Beta lines and 2,842
+Alpha instructions. Its 1,678 calls occupied 15,102 of 22,762 tape bytes. The
+same tokenizer required 168 generated instructions and 88 calls versus 38
+instructions and no calls when written directly in Beta. Counting the
+Beta-written evaluator, Gamma compiler, source-augmentation lowerer, and seed
+left 2,337 authored lines above the common Beta compiler.
+
+The challenger makes the typed scalar/effect language formerly called Delta0
+the Gamma rung. A 921-line addressed Beta evaluator implements its typed scalar
+functions, lexical `let`, conditionals, integer operators, forward calls,
+sealed input, indexed byte reads, and byte output in a 4,788-byte Alpha tape. It
+executes the unchanged 85-line source augmenter, produces its exact richer
+source receipt, and evaluates the expanded program to byte 42. Gamma is
+therefore evaluated rather than compiled at this boundary; Beta remains the
+only Alpha encoder.
+
+The direct evaluator is provisional, not admitted. Calls currently use bounded
+recursive contexts: depth 254 succeeds and depth 255 reports `Incomplete`.
+Unreachable bodies are not yet statically validated, and checked integer and
+complete resource outcomes remain open. These gaps must close without erasing
+the measured auditability advantage.
+
+Downgraded material remains beneath the language owners at
+`source/gamma/bootstrap/concatenative/` and
+`source/delta/bootstrap/concatenative-compiler/`. There is no generic
+`source/bootstrap` owner. The selected Delta compiler is open and must be built
+in auditable Gamma-authored stages; the downgraded compiler supplies evidence,
+not authority.
+
+## D89 — Delta begins with exact nullary algebraic lowering
+
+The first selected Delta compiler stage is 471 lines of typed scalar/effect
+Gamma at `source/delta/compiler/delta_compiler.gamma`. It accepts finite
+nullary algebraic declarations, erases nominal values to declaration-order
+integer tags, and lowers declaration-order exhaustive matches to one generated
+lexical binding plus nested scalar conditionals. The reserved `__m` prefix owns
+generated match binders. Payload constructors, recursive data, `Bytes`, and the
+complete Delta contract remain explicit later stages.
+
+The retained seven-line `Choice` fixture lowers to an exact 159-byte Gamma
+receipt and evaluates to byte 9 through the selected Beta-authored Gamma
+evaluator. Payload constructors, missing arms, and out-of-order arms reject in
+the stage. Ordinary scalar Gamma passes through structurally.
+
+This work exposed a selected-evaluator defect: nested lexical insertion saved a
+new value in `r6`, while active-environment duplicate lookup reused `r6` for
+name bytes. A second nested `let` therefore stored an identifier byte instead
+of its initializer. The evaluator now preserves that value in `r8`; its Beta
+source and Alpha tape identities changed while tape size remained 4,788 bytes.
+The selected reconstruction, scalar/effect, self-augmentation, and staged Delta
+gates all pass.
+
+Nullary sums are the largest algebraic feature that scalar Gamma can represent
+without a multiword value convention. The next stage must either establish an
+auditable payload representation in Gamma or demonstrate that one additional
+Gamma value primitive reduces total trusted complexity. It must not encode
+payloads through a lossy integer convention merely to claim feature progress.
+
+The next stage establishes that representation without changing Gamma. A
+nominal type whose constructors carry zero or one `Int` field flattens to two
+scalar slots `(tag, field0)`. Payload constructors supply both slots; nullary
+constructors in the same type supply tag plus zero padding. Function parameters
+flatten to corresponding `name__tag` and `name__field0` parameters. A match
+stores those slots in generated locals and binds a payload arm through an
+ordinary Gamma `let`. Thus `Some 9` is `(1, 9)` and `None` is `(0, 0)` without
+loss or a heap primitive.
+
+The selected compiler is now 731 Gamma lines / 28,323 bytes. Its exact payload
+fixture lowers to a 221-byte Gamma receipt; both `Some 9` and padded `None`
+execute through the selected evaluator and produce the expected match result.
+Constructors wider than one field and malformed payload patterns reject. The
+next representation boundary is nested nominal and recursive data, not basic
+payload transport.
+
+## D90 — One evaluated Gamma substrate carries staged recursive Delta
+
+D90 supersedes D89's temporary flattened payload representation. The new chain
+keeps one direct interpretation boundary at Gamma and returns to source
+transformation above it. The selected Gamma evaluator now validates every
+function body before execution, reuses activations for calls in inherited tail
+position, bounds successful output, and provides immutable pairs. Its 1,350-line
+addressed Beta source assembles to a 7,368-byte Alpha tape. A 100,000-step
+direct-tail witness completes with constant activation and nested-call storage;
+malformed unreachable names and arities reject before output.
+
+Immutable pairs cross Delta's recursive representation boundary without
+restoring source-visible cells or a general heap API. The selected 796-line
+Gamma-authored Delta stage lowers constructors with zero or one `Int` or nominal
+field. Payload-bearing values use `(pair tag field0)`; matches evaluate the pair
+once and project `first` and `second`. The exact `Option Int` receipt evaluates
+to 9, and the recursive unary `Nat` receipt represents three successors as
+nested pairs and evaluates to 3. Nullary-only sums retain their smaller direct-
+tag representation.
+
+The interpretation boundary scales independently of generated Alpha size. The
+selected Delta stage transforms 3,001 functions (66,266 source bytes) into a
+66,267-byte Gamma receipt; that exact size and result 199 are gated. Measured
+development-host timings were 2.21 seconds to transform and 0.13 seconds to
+execute and remain diagnostic only.
+
+`GammaComposedV1` fixes an executable Gamma artifact as the pair of exact
+evaluator-tape and exact Gamma-source identities. Invocation only constructs the
+already specified length-prefixed request, buffers stdout, and publishes it on
+status zero. A late-write-then-trap witness leaves an existing destination
+unchanged. This closes executable composition without reintroducing a
+Gamma-to-Alpha compiler.
+
+The result is favorable but not an admission. Gamma still needs a complete
+capacity proof. Delta still lacks wider constructors, `Bytes`, complete type and
+namespace checking, application profiles, and the full Epsilon customer. The
+next useful work is widening the pair product representation and adding
+immutable bytes in staged Delta, not adding another evaluator rung or returning
+to concatenative Gamma.
+
+## D91 — The direct-evaluator chain earns continuation through recursive products
+
+D91 completes the discriminator requested by D90 without claiming a complete
+Delta edge. Gamma character literals replace 148 fixed decimal byte writes in
+the selected Delta compiler with readable punctuation, whitespace, and letters.
+The evaluator grows from 1,350 to 1,472 Beta lines and from a 7,368-byte to an
+8,119-byte tape. The selected Delta compiler remains 852 lines; its source grows
+by 147 bytes to 34,043 bytes because visible `\s` and quoted punctuation are
+slightly longer than some decimal spellings. Only dynamic byte computations
+remain numeric.
+
+Delta constructor products are now finite and arbitrary-width: a value is
+`(pair tag product)`, and fields form right-nested immutable pairs. The retained
+two-field recursive List receipt evaluates to 9. A three-field recursive rope,
+written entirely as ordinary staged Delta rather than a Gamma primitive,
+supports empty, singleton, concatenation, length, and indexing; indexing the
+fixture returns `0x42`, while indexing empty traps. The existing nullary,
+payload, recursive Nat, malformed-source, atomic-publication, and 3,001-function
+witnesses continue to pass under one fixed 8,119-byte evaluator tape.
+
+This is enough signal to continue the selected architecture. One small direct
+evaluator carries increasingly rich source transformers without per-program
+Alpha expansion, while generated receipts remain short structural Gamma that a
+reviewer can execute independently. Recursive products and Bytes-shaped data do
+not require restoring a concatenative machine, mutable source memory, or a new
+trusted rung.
+
+This is not admission. The rope witnesses representation adequacy, not Delta's
+normative `Bytes` contract. Complete type and namespace checking, checked
+arithmetic, exact capacity outcomes, application profiles, a derivation checker,
+and the full Epsilon compiler customer remain open. Further Gamma growth must be
+justified by a concrete Delta auditability need; the next work belongs in the
+selected Delta compiler and its Epsilon customer.
