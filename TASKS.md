@@ -3698,15 +3698,17 @@ Remaining:
   relevant record fields before that sole mixed occurrence, with the same
   whole-root equality, inequality, Unit-call rebasing, codec, verifier, fuel,
   interpreter, and per-prefix mutation replay covering all thirteen ordered
-  field identities. Fourteen or more enclosing fields, case-payload or
-  mixed-under-mixed placement, two mixed sibling fields, direct projected mixed
-  comparisons,
-  recursive cycles, address and erased payload equality, and runtime sum layout
-  remain fenced.
-  Semantic codec format 33 / vocabulary
-  35, proof-bundle v19, and installation-record v40 retain the structural
-  shapes, case-payload paths, and proposition. Continue with those fenced
-  wider nested/projected mixed, recursive, and erased aggregate cases. Concrete
+  field identities. A fourteenth bounded rung now admits exactly fourteen
+  enclosing acyclic relevant record fields before that sole mixed occurrence,
+  with the same whole-root equality, inequality, Unit-call rebasing, codec,
+  verifier, fuel, interpreter, and per-prefix mutation replay covering all
+  fourteen ordered field identities. Fifteen or more enclosing fields,
+  case-payload or mixed-under-mixed placement, two mixed sibling fields, direct
+  projected mixed comparisons, recursive cycles, address and erased payload
+  equality, and runtime sum layout remain fenced. Semantic codec format 33 /
+  vocabulary 35, proof-bundle v19, and installation-record v40 retain the
+  structural shapes, case-payload paths, and proposition. Continue with those
+  fenced wider nested/projected mixed, recursive, and erased aggregate cases. Concrete
   machine/state contracts plus domain/data predicates and trait requirement signatures,
   machine-parameter requirements, and root/domain operator contracts now reject
   direct binary and named-float `Trapping` arithmetic plus direct Trapping
@@ -10338,11 +10340,23 @@ reach or trust, and private proof improvements do not change public identity.
   emission, object/image validation, and installation replay retain the common
   length-twenty-five root and exact twenty-four-operation/one-edge fuel
   ordinals. Missing, reordered, redirected-root, wrong-length, index,
-  cleanup-order, and artifact mutations reject; `[T; 26]` and wider prefixes
+  cleanup-order, and artifact mutations reject; other prefix drift remains fail
+  closed without runtime liveness state or a loop.
+
+  The next bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 26]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]`
+  and ordinary cleanup
+  `[24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
+  Checked production, Terminal verification, codec and interpretation, machine
+  emission, object/image validation, and installation replay retain the common
+  length-twenty-six root and exact twenty-five-operation/one-edge fuel
+  ordinals. Missing, reordered, redirected-root, wrong-length, index,
+  cleanup-order, and artifact mutations reject; `[T; 27]` and wider prefixes
   remain fail closed without runtime liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 15]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 25]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 26]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content

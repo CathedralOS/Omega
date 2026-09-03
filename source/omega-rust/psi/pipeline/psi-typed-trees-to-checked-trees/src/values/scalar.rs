@@ -952,6 +952,23 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             Some(())
         }
 
+        fn is_bounded_nested_mixed_field_path_pair(
+            left: &[CheckedStructuralPredicatePathSegment],
+            right: &[CheckedStructuralPredicatePathSegment],
+        ) -> bool {
+            const MAX_ENCLOSING_FIELDS: usize = 14;
+
+            !left.is_empty()
+                && left.len() == right.len()
+                && left.len() <= MAX_ENCLOSING_FIELDS
+                && left.iter().all(|segment| {
+                    matches!(segment, CheckedStructuralPredicatePathSegment::Field(_))
+                })
+                && right.iter().all(|segment| {
+                    matches!(segment, CheckedStructuralPredicatePathSegment::Field(_))
+                })
+        }
+
         fn append_acyclic_structural_equality(
             program: &TypedTrees,
             left_parameter: u32,
@@ -1109,261 +1126,14 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         Some(())
                     }
                     psi_typed_trees::data::DataShapeKind::Mixed => {
-                        // The bounded nested mixed-shape slice permits exactly
-                        // one, two, three, four, five, six, seven, eight, nine, ten,
-                        // eleven, twelve, or thirteen direct record fields before the
-                        // sole mixed occurrence.
-                        // Deeper records, case payloads, and two mixed siblings
-                        // retain their fail-closed fence until their independent
-                        // path and replay canaries land.
+                        // The bounded nested mixed-shape slice permits one through
+                        // fourteen direct record fields before the sole mixed occurrence.
+                        // Deeper records, case payloads, and two mixed siblings retain
+                        // their fail-closed fence until their independent path and replay
+                        // canaries land.
                         if !left_path.is_empty() || !right_path.is_empty() {
-                            if !matches!(
-                                (left_path, right_path),
-                                (
-                                    [CheckedStructuralPredicatePathSegment::Field(_)],
-                                    [CheckedStructuralPredicatePathSegment::Field(_)]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                ) | (
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ],
-                                    [
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_),
-                                        CheckedStructuralPredicatePathSegment::Field(_)
-                                    ]
-                                )
-                            ) || !allow_direct_nested_mixed
+                            if !is_bounded_nested_mixed_field_path_pair(left_path, right_path)
+                                || !allow_direct_nested_mixed
                                 || *nested_mixed_seen
                             {
                                 return None;

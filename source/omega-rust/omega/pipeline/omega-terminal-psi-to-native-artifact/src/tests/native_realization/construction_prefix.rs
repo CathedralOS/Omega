@@ -485,6 +485,39 @@ const TWENTY_FOURTH_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const TWENTY_FIFTH_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 26];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+        values[6] = Empty {};
+        values[7] = Empty {};
+        values[8] = Empty {};
+        values[9] = Empty {};
+        values[10] = Empty {};
+        values[11] = Empty {};
+        values[12] = Empty {};
+        values[13] = Empty {};
+        values[14] = Empty {};
+        values[15] = Empty {};
+        values[16] = Empty {};
+        values[17] = Empty {};
+        values[18] = Empty {};
+        values[19] = Empty {};
+        values[20] = Empty {};
+        values[21] = Empty {};
+        values[22] = Empty {};
+        values[23] = Empty {};
+        values[24] = Empty {};
+    }
+"#;
+
 #[test]
 fn construction_prefix_reaches_native_image_and_installation_custody() {
     for (source, prefix_length) in [
@@ -511,6 +544,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
         (TWENTY_SECOND_CONSTRUCTION_PREFIX_SOURCE, 22_usize),
         (TWENTY_THIRD_CONSTRUCTION_PREFIX_SOURCE, 23_usize),
         (TWENTY_FOURTH_CONSTRUCTION_PREFIX_SOURCE, 24_usize),
+        (TWENTY_FIFTH_CONSTRUCTION_PREFIX_SOURCE, 25_usize),
     ] {
         let checked = checked(source);
         let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(
@@ -608,7 +642,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
             *length = u64::try_from(prefix_length).expect("bounded prefix length");
             assert!(omega_machine_emission::emit_machine_code(&wrong_root_length).is_err());
 
-            if prefix_length == 24 {
+            if prefix_length == 25 {
                 let mut fenced_successor = assigned.clone();
                 let function = &mut fenced_successor.functions[0];
                 let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
@@ -636,8 +670,8 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                 else {
                     unreachable!()
                 };
-                *declaration_ordinal = 24;
-                construction.index = 24;
+                *declaration_ordinal = 25;
+                construction.index = 25;
                 let successor_operation_id = *psi_operation;
                 let successor_place = place.id;
                 body.operations.insert(prefix_length, successor_operation);
@@ -661,7 +695,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                 else {
                     unreachable!()
                 };
-                *length = 26;
+                *length = 27;
                 function.provenance.operations.push(successor_operation_id);
                 assert!(omega_machine_emission::emit_machine_code(&fenced_successor).is_err());
             }
@@ -699,7 +733,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
             );
             assert_eq!(function.semantic_code_attribution.len(), prefix_length + 1);
 
-            if prefix_length == 24 {
+            if prefix_length == 25 {
                 let mut fenced_successor = emitted.clone();
                 let function = &mut fenced_successor.functions[0];
                 let cleanup = function
@@ -723,8 +757,8 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                 else {
                     unreachable!()
                 };
-                *declaration_ordinal = 24;
-                construction.index = 24;
+                *declaration_ordinal = 25;
+                construction.index = 25;
                 let successor_operation = successor_local.0;
                 let successor_place = successor_local.1.id;
                 cleanup.locals.push(successor_local);
@@ -741,7 +775,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                 else {
                     unreachable!()
                 };
-                *length = 26;
+                *length = 27;
                 function.provenance.operations.push(successor_operation);
                 let mut successor_attribution =
                     function.semantic_code_attribution[prefix_length - 1];

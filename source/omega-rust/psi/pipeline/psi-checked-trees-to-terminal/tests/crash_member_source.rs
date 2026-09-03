@@ -1408,6 +1408,88 @@ const THIRTEEN_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     }
 "#;
 
+const FOURTEEN_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Message {
+        active: bool;
+        case Empty;
+        case Data(value: i32);
+    }
+    MessageEquatable: Message satisfies Equatable;
+
+    data Inner { message: Message; }
+    InnerEquatable: Inner satisfies Equatable;
+
+    data Middle { inner: Inner; }
+    MiddleEquatable: Middle satisfies Equatable;
+
+    data Envelope { middle: Middle; }
+    EnvelopeEquatable: Envelope satisfies Equatable;
+
+    data Exterior { envelope: Envelope; }
+    ExteriorEquatable: Exterior satisfies Equatable;
+
+    data Outside { exterior: Exterior; }
+    OutsideEquatable: Outside satisfies Equatable;
+
+    data Beyond { outside: Outside; }
+    BeyondEquatable: Beyond satisfies Equatable;
+
+    data Further { beyond: Beyond; }
+    FurtherEquatable: Further satisfies Equatable;
+
+    data Furthest { further: Further; }
+    FurthestEquatable: Furthest satisfies Equatable;
+
+    data Ultimate { furthest: Furthest; }
+    UltimateEquatable: Ultimate satisfies Equatable;
+
+    data Outermost { ultimate: Ultimate; }
+    OutermostEquatable: Outermost satisfies Equatable;
+
+    data Final { outermost: Outermost; }
+    FinalEquatable: Final satisfies Equatable;
+
+    data Absolute { final: Final; }
+    AbsoluteEquatable: Absolute satisfies Equatable;
+
+    data Supreme { absolute: Absolute; }
+    SupremeEquatable: Supreme satisfies Equatable;
+
+    data Transcendent { supreme: Supreme; }
+    TranscendentEquatable: Transcendent satisfies Equatable;
+
+    data Helper {}
+    machine Helper::inspect(left: Transcendent, right: Transcendent)
+    crashes Abort
+        left == right
+    {}
+
+    machine Helper::different(left: Transcendent, right: Transcendent)
+    crashes Abort
+        left != right
+    {}
+
+    data Root {}
+    machine Root::enter(left: Transcendent, right: Transcendent)
+    crashes Abort
+        left == right
+    {
+        Helper::inspect(left, right);
+    }
+
+    data Different {}
+    machine Different::enter(left: Transcendent, right: Transcendent)
+    crashes Abort
+        left != right
+    {
+        Helper::different(left, right);
+    }
+"#;
+
 const MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 3] = [
     r#"
         trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
@@ -1468,8 +1550,10 @@ const NESTED_MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 6] = [
         SupremeEquatable: Supreme satisfies Equatable;
         data Transcendent { supreme: Supreme; }
         TranscendentEquatable: Transcendent satisfies Equatable;
+        data Infinite { transcendent: Transcendent; }
+        InfiniteEquatable: Infinite satisfies Equatable;
         data Root {}
-        machine Root::enter(left: Transcendent, right: Transcendent)
+        machine Root::enter(left: Infinite, right: Infinite)
         crashes Abort left == right {}
     "#,
     r#"
@@ -6628,6 +6712,29 @@ fn thirteen_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() 
     assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(
         THIRTEEN_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE,
         &[
+            "absolute",
+            "final",
+            "outermost",
+            "ultimate",
+            "furthest",
+            "further",
+            "beyond",
+            "outside",
+            "exterior",
+            "envelope",
+            "middle",
+            "inner",
+            "message",
+        ],
+    );
+}
+
+#[test]
+fn fourteen_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
+    assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(
+        FOURTEEN_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE,
+        &[
+            "supreme",
             "absolute",
             "final",
             "outermost",

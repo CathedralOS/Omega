@@ -1671,7 +1671,19 @@ discards them as
 and the verifier, codec, interpreter, Omega lowering, native emission,
 object/image replay, and installation encoding retain the common root plus
 exact twenty-five fuel units. Missing/reordered operations or cleanup, changed
-indices/root length, and length-twenty-six or wider prefixes reject; no runtime
+indices/root length, and other prefix drift reject; no runtime
+liveness bitmap or cleanup loop is introduced.
+
+The next bounded carrier admits the same shape at length twenty-six with
+establishments
+`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]`.
+Terminal publishes twenty-five ordered zero-ABI local places, the Unit return
+discards them as
+`[24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`,
+and the verifier, codec, interpreter, Omega lowering, native emission,
+object/image replay, and installation encoding retain the common root plus
+exact twenty-six fuel units. Missing/reordered operations or cleanup, changed
+indices/root length, and length-twenty-seven or wider prefixes reject; no runtime
 liveness bitmap or cleanup loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
@@ -2922,15 +2934,18 @@ codecs, verification, fixed fuel, interpretation, and independent prefix
 mutation. A thirteenth bounded form admits exactly thirteen enclosing relevant
 record fields and replays the same complete ordered path through whole-root
 equality, inequality, Unit-call rebasing, codecs, verification, fixed fuel,
-interpretation, and independent prefix mutation. Fourteen or more enclosing
-fields, mixed values below case payloads or another mixed shape, two mixed
-sibling fields, direct projected mixed
-comparisons, recursive cycles, address and erased payload equality, written
-`equals` bodies, and runtime sum layout remain outside this bounded terminal
-slice. When an acyclic
-relevant record field reaches a payload-bearing sum, the same sum proposition
-is retained below that field path, and independent verification preserves the
-complete `Field -> Case -> Field` identity chain. Direct source-call rebasing
+interpretation, and independent prefix mutation. A fourteenth bounded form
+admits exactly fourteen enclosing relevant record fields and replays the same
+complete ordered path through whole-root equality, inequality, Unit-call
+rebasing, codecs, verification, fixed fuel, interpretation, and independent
+prefix mutation. Fifteen or more enclosing fields, mixed values below case
+payloads or another mixed shape, two mixed sibling fields, direct projected
+mixed comparisons, recursive cycles, address and erased payload equality,
+written `equals` bodies, and runtime sum layout remain outside this bounded
+terminal slice. When an acyclic relevant record field reaches a payload-bearing
+sum, the same sum proposition is retained below that field path, and independent
+verification preserves the complete `Field -> Case -> Field` identity chain.
+Direct source-call rebasing
 through a sum-bearing projection remains fenced with runtime sum projection and
 cleanup.
 Arithmetic over
