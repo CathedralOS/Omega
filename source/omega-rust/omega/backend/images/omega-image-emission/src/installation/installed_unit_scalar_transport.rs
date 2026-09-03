@@ -490,22 +490,83 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 .unit_parameter_homes
                 .get(parameter_index)
                 .ok_or_else(invalid)?;
-            let omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
-                defining_operation,
-                source_value,
-                scalar_type,
-                value,
-            } = store.source
-            else {
-                return Err(invalid());
+            let (source_is_exact, destination_scalar_type, width, bits) = match store.source {
+                omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
+                    defining_operation,
+                    source_value,
+                    scalar_type,
+                    value,
+                } => {
+                    let source_count = function
+                        .unit_integer_constants
+                        .iter()
+                        .filter(|constant| {
+                            constant.defining_operation == defining_operation
+                                && constant.source_value == source_value
+                                && constant.scalar_type == scalar_type
+                                && constant.value == value
+                                && constant.operation_ordinal < store.operation_ordinal
+                        })
+                        .count();
+                    let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
+                    (
+                        source_count == 1
+                            && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
+                            && !scalar_type.is_address()
+                            && scalar_type.admits(value),
+                        psi_core::ScalarType::Integer(scalar_type),
+                        width,
+                        crate::unit_structural_scalar_field_store::integer_bits(scalar_type, value)
+                            .ok_or_else(invalid)?,
+                    )
+                }
+                omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
+                    defining_operation,
+                    source_value,
+                    value,
+                    definition_ordinal,
+                } => {
+                    let definition_count = record
+                        .semantic_code_attribution
+                        .iter()
+                        .filter(|attribution| {
+                            attribution.machine == function.machine
+                                && attribution.attribution.site
+                                    == SemanticCodeSite::Operation(defining_operation)
+                                && attribution.attribution.operation_ordinal == definition_ordinal
+                                && attribution.attribution.code_offset <= store.code_offset
+                                && attribution.attribution.byte_count == 0
+                        })
+                        .count();
+                    (
+                        definition_ordinal < store.operation_ordinal
+                            && definition_count == 1
+                            && function.unit_integer_constants.iter().all(|constant| {
+                                constant.defining_operation != defining_operation
+                                    && constant.source_value != source_value
+                            })
+                            && function.unit_scalar_homes.iter().all(|home| {
+                                home.defining_operation != defining_operation
+                                    && home.source_value != source_value
+                            })
+                            && installed_boolean_store_source_is_consistent(
+                                function,
+                                defining_operation,
+                                source_value,
+                                value,
+                                definition_ordinal,
+                            ),
+                        psi_core::ScalarType::Boolean,
+                        1,
+                        u64::from(value),
+                    )
+                }
             };
-            let StructuralTypeShape::PrimitiveScalar(psi_core::ScalarType::Integer(
-                destination_scalar_type,
-            )) = store.destination_type.shape
-            else {
+            if store.destination_type.shape
+                != StructuralTypeShape::PrimitiveScalar(destination_scalar_type)
+            {
                 return Err(invalid());
-            };
-            let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
+            }
             let expected_shape = ValueShape::borrowed_reference(width, width.min(8));
             let [
                 ValueLocation::Indirect {
@@ -518,17 +579,6 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
             else {
                 return Err(invalid());
             };
-            let source_count = function
-                .unit_integer_constants
-                .iter()
-                .filter(|constant| {
-                    constant.defining_operation == defining_operation
-                        && constant.source_value == source_value
-                        && constant.scalar_type == scalar_type
-                        && constant.value == value
-                        && constant.operation_ordinal < store.operation_ordinal
-                })
-                .count();
             let destination_type_count = function
                 .unit_affine_cleanup
                 .as_ref()
@@ -537,8 +587,6 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 .iter()
                 .filter(|candidate| *candidate == &store.destination_type)
                 .count();
-            let bits = crate::unit_structural_scalar_field_store::integer_bits(scalar_type, value)
-                .ok_or_else(invalid)?;
             let expected_bytes = crate::unit_structural_scalar_field_store::expected_store_bytes(
                 record.target,
                 home,
@@ -564,12 +612,8 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 })
                 .count();
             if previous.is_some_and(|previous| previous >= key)
-                || source_count != 1
+                || !source_is_exact
                 || destination_type_count != 1
-                || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
-                || scalar_type.is_address()
-                || !scalar_type.admits(value)
-                || destination_scalar_type != scalar_type
                 || store.destination_type.identity.is_empty()
                 || store.destination_type.id != store.destination.structural_type
                 || store.destination.is_self
@@ -611,6 +655,32 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
         }
     }
     Ok(())
+}
+
+fn installed_boolean_store_source_is_consistent(
+    function: &InstalledFunction,
+    defining_operation: psi_core::OperationId,
+    source_value: psi_core::ValueId,
+    value: bool,
+    definition_ordinal: usize,
+) -> bool {
+    function
+        .unit_write_only_primitive_stores
+        .iter()
+        .all(|candidate| match candidate.source {
+            omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
+                defining_operation: candidate_operation,
+                source_value: candidate_value,
+                value: candidate_literal,
+                definition_ordinal: candidate_ordinal,
+            } if candidate_operation == defining_operation || candidate_value == source_value => {
+                candidate_operation == defining_operation
+                    && candidate_value == source_value
+                    && candidate_literal == value
+                    && candidate_ordinal == definition_ordinal
+            }
+            _ => true,
+        })
 }
 
 #[cfg(test)]

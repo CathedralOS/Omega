@@ -84,8 +84,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   referent shape; Booleans retain a distinct one-byte referent and preceding
   Boolean definition. Both select borrowed-reference placement and cross
   independent physical assignment. Boolean machine emission then rejoins the
-  definition and emits an exact one-byte store; object construction remains the
-  explicit downstream fence.
+  definition and emits an exact one-byte store. Object construction and
+  installation replay retain its exact definition ordinal, bytes, and
+  attribution.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider

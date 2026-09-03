@@ -699,25 +699,20 @@ not a requirement to discard readable authority. Reference execution keeps
 exact-typed primitive backing outside suspended call
 frames, so a callee replacement is caller-visible; fuel is consumed before the
 mutation and resumption cannot replay it. Broader projected/aggregate stores
-and opaque-provider realization remain gated. The current native fixed-integer
-sublane derives the exact primitive referent width/alignment and selects a
-borrowed-reference ABI on x86-64 and AArch64 while retaining the complete
-declaration, placement, immediate, and operation identity. Physical assignment
-independently replays that custody. The Boolean sibling now retains its exact
-preceding Boolean definition, one-byte primitive referent, borrowed-reference
-placement, and literal through target lowering and independent physical
-assignment on both native architectures rather than masquerading as an integer
-immediate. Machine emission independently rejoins that definition and emits an
-exact one-byte store with dedicated source and code-interval custody. Boolean
-object construction remains an explicit fence. Fixed-integer
-machine emission independently revalidates the destination, type, placement,
-immediate, and exact parameter home, emits
-the target store, and binds every fact to its exact code interval and bytes in
-a dedicated whole-root record. Object construction independently replays the
-declaration joins, borrowed-reference placement and home, literal source,
-architecture encoding, attribution, interval, and bytes. Installation format
-71 transports and revalidates the fixed-integer store custody without treating physical
-pointer-layout equivalence as permission equivalence.
+and opaque-provider realization remain gated. The current native whole-root
+lane selects a borrowed-reference ABI on x86-64 and AArch64. Fixed integers
+retain their exact referent width/alignment, declaration, placement, immediate,
+and operation identity. Booleans retain a distinct one-byte referent, preceding
+Boolean definition, and literal rather than masquerading as integers. Physical
+assignment independently replays both forms. Machine emission rejoins the
+destination, type, placement, source, and exact parameter home before emitting
+the target store; the Boolean source additionally retains its definition
+ordinal. Dedicated whole-root records bind these facts to exact code intervals
+and bytes. Object construction independently replays the declaration joins,
+borrowed-reference placement and home, literal source, architecture encoding,
+attribution, interval, and bytes. Installation format 72 transports and
+revalidates both store families without treating physical pointer-layout
+equivalence as permission equivalence.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

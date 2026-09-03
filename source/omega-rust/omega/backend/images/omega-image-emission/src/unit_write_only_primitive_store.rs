@@ -38,21 +38,79 @@ fn validate_store(
     let parameter_index = usize::try_from(store.destination.position).ok()?;
     let parameter = function.unit_parameters.get(parameter_index)?;
     let home = function.unit_parameter_homes.get(parameter_index)?;
-    let UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
-        defining_operation,
-        source_value,
-        scalar_type,
-        value,
-    } = store.source
-    else {
-        return None;
+    let (source_is_exact, destination_scalar_type, byte_size, bits) = match store.source {
+        UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => {
+            let source_count = function
+                .unit_integer_constants
+                .iter()
+                .filter(|constant| {
+                    constant.defining_operation == defining_operation
+                        && constant.source_value == source_value
+                        && constant.scalar_type == scalar_type
+                        && constant.value == value
+                        && constant.operation_ordinal < store.operation_ordinal
+                })
+                .count();
+            let byte_size = scalar_type.bits().checked_div(8)?;
+            (
+                source_count == 1
+                    && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
+                    && !scalar_type.is_address()
+                    && scalar_type.admits(value),
+                ScalarType::Integer(scalar_type),
+                byte_size,
+                integer_bits(scalar_type, value)?,
+            )
+        }
+        UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+            definition_ordinal,
+        } => (
+            definition_ordinal < store.operation_ordinal
+                && function
+                    .provenance
+                    .operations
+                    .iter()
+                    .filter(|operation| **operation == defining_operation)
+                    .count()
+                    == 1
+                && exact_zero_code_definition_count(
+                    function,
+                    defining_operation,
+                    definition_ordinal,
+                    store.code_offset,
+                ) == 1
+                && function.unit_integer_constants.iter().all(|constant| {
+                    constant.defining_operation != defining_operation
+                        && constant.source_value != source_value
+                })
+                && function.unit_scalar_homes.iter().all(|home| {
+                    home.defining_operation != defining_operation
+                        && home.source_value != source_value
+                })
+                && boolean_source_is_consistent(
+                    function,
+                    defining_operation,
+                    source_value,
+                    value,
+                    definition_ordinal,
+                ),
+            ScalarType::Boolean,
+            1,
+            u64::from(value),
+        ),
     };
-    let StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(destination_scalar_type)) =
-        store.destination_type.shape
-    else {
+    if store.destination_type.shape != StructuralTypeShape::PrimitiveScalar(destination_scalar_type)
+    {
         return None;
-    };
-    let byte_size = scalar_type.bits().checked_div(8)?;
+    }
     let expected_shape = ValueShape::borrowed_reference(byte_size, byte_size.min(8));
     let [
         ValueLocation::Indirect {
@@ -65,17 +123,6 @@ fn validate_store(
     else {
         return None;
     };
-    let source_count = function
-        .unit_integer_constants
-        .iter()
-        .filter(|constant| {
-            constant.defining_operation == defining_operation
-                && constant.source_value == source_value
-                && constant.scalar_type == scalar_type
-                && constant.value == value
-                && constant.operation_ordinal < store.operation_ordinal
-        })
-        .count();
     let destination_type_count = function
         .unit_affine_cleanup
         .as_ref()?
@@ -83,12 +130,8 @@ fn validate_store(
         .iter()
         .filter(|candidate| *candidate == &store.destination_type)
         .count();
-    if source_count != 1
+    if !source_is_exact
         || destination_type_count != 1
-        || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
-        || scalar_type.is_address()
-        || !scalar_type.admits(value)
-        || destination_scalar_type != scalar_type
         || store.destination_type.identity.is_empty()
         || store.destination_type.id != store.destination.structural_type
         || store.destination.is_self
@@ -126,7 +169,6 @@ fn validate_store(
     {
         return None;
     }
-    let bits = integer_bits(scalar_type, value)?;
     let expected = expected_store_bytes(target, home, 0, byte_size, bits)?;
     let end = store.code_offset.checked_add(store.byte_count)?;
     if store.byte_count == 0
@@ -137,6 +179,50 @@ fn validate_store(
         return None;
     }
     Some(())
+}
+
+fn boolean_source_is_consistent(
+    function: &MachineCodeFunction,
+    defining_operation: psi_core::OperationId,
+    source_value: psi_core::ValueId,
+    value: bool,
+    definition_ordinal: usize,
+) -> bool {
+    function
+        .unit_write_only_primitive_stores
+        .iter()
+        .all(|candidate| match candidate.source {
+            UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
+                defining_operation: candidate_operation,
+                source_value: candidate_value,
+                value: candidate_literal,
+                definition_ordinal: candidate_ordinal,
+            } if candidate_operation == defining_operation || candidate_value == source_value => {
+                candidate_operation == defining_operation
+                    && candidate_value == source_value
+                    && candidate_literal == value
+                    && candidate_ordinal == definition_ordinal
+            }
+            _ => true,
+        })
+}
+
+fn exact_zero_code_definition_count(
+    function: &MachineCodeFunction,
+    defining_operation: psi_core::OperationId,
+    definition_ordinal: usize,
+    latest_code_offset: usize,
+) -> usize {
+    function
+        .semantic_code_attribution
+        .iter()
+        .filter(|row| {
+            row.site == SemanticCodeSite::Operation(defining_operation)
+                && row.operation_ordinal == definition_ordinal
+                && row.code_offset <= latest_code_offset
+                && row.byte_count == 0
+        })
+        .count()
 }
 
 fn exact_attribution_count(

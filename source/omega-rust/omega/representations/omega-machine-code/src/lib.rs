@@ -1033,6 +1033,7 @@ pub enum UnitWriteOnlyPrimitiveStoreSourceRecord {
         defining_operation: OperationId,
         source_value: ValueId,
         value: bool,
+        definition_ordinal: usize,
     },
 }
 

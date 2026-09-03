@@ -129,12 +129,13 @@ and semantic operation. Its Boolean sibling retains an exact one-byte referent
 and preceding Boolean definition through target lowering and independent
 physical assignment without an integer surrogate. Machine emission rejoins
 those facts and emits an exact one-byte store with a dedicated source record;
-object construction remains the Boolean fence. Fixed-integer physical assignment and machine emission
-independently replay those joins before producing the non-observing store
-bytes. A dedicated custody row binds every fact to the exact code interval and
-bytes, which object construction replays independently and installation
-encoding transports canonically. Provider non-observation authority also
-remains absent.
+the record retains the definition ordinal needed for independent replay.
+Fixed-integer physical assignment and machine emission independently replay
+their joins before producing the non-observing store bytes. Dedicated custody
+rows bind every fact to exact code intervals and bytes, which object
+construction replays independently and installation format 72 transports
+canonically for both families. Provider non-observation authority remains
+absent.
 
 ## Consumers and cleanup
 

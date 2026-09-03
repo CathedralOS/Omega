@@ -379,12 +379,12 @@ The current bounded fixed-integer whole-root primitive-store carrier realizes
 the ordinary borrowed-reference ABI through target selection, physical
 assignment, and machine emission on x86-64 and AArch64. Object construction
 independently replays the exact parameter, primitive width, pointer home,
-literal source, target instruction bytes, and attribution; installation format
-71 transports and revalidates that custody canonically. Boolean stores retain
-an exact one-byte referent and Boolean immediate through target selection and
-independent assignment on both native architectures. Machine emission rejoins
-those facts and emits the exact one-byte store; object construction remains the
-downstream Boolean fence. Opaque provider non-observation authority remains
+literal source, target instruction bytes, and attribution. Boolean stores
+retain an exact one-byte referent and Boolean immediate through target selection
+and independent assignment on both native architectures. Machine emission
+rejoins those facts and emits the exact one-byte store. Object replay
+revalidates both primitive families, and installation format 72 transports
+their custody canonically. Opaque provider non-observation authority remains
 explicitly fenced.
 
 ### Geometry, demand, and supply

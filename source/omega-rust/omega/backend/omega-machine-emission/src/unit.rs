@@ -1052,7 +1052,7 @@ pub(super) fn emit_unit_body(
             } => {
                 operation_site = Some(*psi_operation);
                 if established_boolean_constants
-                    .insert(*result, (*psi_operation, *value))
+                    .insert(*result, (*psi_operation, *value, operation_ordinal))
                     .is_some()
                 {
                     return Err(EmissionError::InvalidUnitBooleanConstantCustody(

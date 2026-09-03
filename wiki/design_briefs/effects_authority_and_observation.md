@@ -99,11 +99,10 @@ event through target-neutral operations and optimization validation. Integer
 literals continue through physical assignment and native store emission;
 Boolean literals retain their exact Boolean definition, one-byte referent, and
 borrowed-reference placement through independent assignment and native store
-emission. Object construction independently replays the exact fixed-integer
-non-observing store custody and bytes but remains the explicit Boolean fence;
-installation transports
-that replay canonically. The classification prevents scalar
-dead-code reasoning from erasing the write; it does not claim a readable
+emission. Object construction independently replays both exact non-observing
+store families and their bytes; installation format 72 transports that replay
+canonically. The classification prevents scalar dead-code reasoning from
+erasing the write; it does not claim a readable
 observation of the prior referent or authorize an opaque provider.
 
 Frame size is compiler-derived and reported. Task activation capacity is

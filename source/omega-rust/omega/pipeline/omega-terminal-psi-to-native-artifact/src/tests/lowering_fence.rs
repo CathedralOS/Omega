@@ -201,7 +201,7 @@ fn verified_write_only_primitive_store_reaches_exact_machine_emission() {
 }
 
 #[test]
-fn verified_boolean_write_only_store_reaches_emission_then_stops_at_object() {
+fn verified_boolean_write_only_store_reaches_canonical_installation() {
     let checked = checked(
         r#"
             data Sink {}
@@ -406,7 +406,10 @@ fn verified_boolean_write_only_store_reaches_emission_then_stops_at_object() {
                 defining_operation: retained_operation,
                 source_value: retained_value,
                 value: true,
-            } if retained_operation == defining_operation && retained_value == source_value
+                definition_ordinal,
+            } if retained_operation == defining_operation
+                && retained_value == source_value
+                && definition_ordinal < store.operation_ordinal
         ));
         assert!(!store.bytes.is_empty());
         match native_target.architecture {
@@ -435,13 +438,96 @@ fn verified_boolean_write_only_store_reaches_emission_then_stops_at_object() {
                 .get(store.code_offset..store.code_offset + store.byte_count),
             Some(store.bytes.as_slice())
         );
+        let mut changed_definition_ordinal = emitted.clone();
+        let changed_store = &mut changed_definition_ordinal
+            .functions
+            .iter_mut()
+            .find(|candidate| candidate.machine == function.machine)
+            .unwrap()
+            .unit_write_only_primitive_stores[0];
+        let omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
+            definition_ordinal,
+            ..
+        } = &mut changed_store.source
+        else {
+            unreachable!()
+        };
+        *definition_ordinal = store.operation_ordinal;
         assert_eq!(
-            omega_image_emission::build_object_artifact(&emitted),
+            omega_image_emission::build_object_artifact(&changed_definition_ordinal),
             Err(
                 omega_image_emission::ObjectError::InvalidUnitWriteOnlyPrimitiveStoreEvidence(
                     function.machine
                 )
             )
         );
+        let mut changed_bytes = emitted.clone();
+        changed_bytes
+            .functions
+            .iter_mut()
+            .find(|candidate| candidate.machine == function.machine)
+            .unwrap()
+            .unit_write_only_primitive_stores[0]
+            .bytes[0] ^= 1;
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&changed_bytes),
+            Err(
+                omega_image_emission::ObjectError::InvalidUnitWriteOnlyPrimitiveStoreEvidence(
+                    function.machine
+                )
+            )
+        );
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object construction independently replays the Boolean store");
+        let object_function = object
+            .functions()
+            .iter()
+            .find(|candidate| candidate.machine == function.machine)
+            .expect("object retains the Boolean store-owning function");
+        assert_eq!(
+            object_function.unit_write_only_primitive_stores,
+            function.unit_write_only_primitive_stores
+        );
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("replayed Boolean store reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains the replayed Boolean store");
+        let installed_function = installation
+            .functions()
+            .iter()
+            .find(|candidate| candidate.machine == function.machine)
+            .expect("installation retains the Boolean store-owning function");
+        assert_eq!(
+            installed_function.unit_write_only_primitive_stores,
+            function.unit_write_only_primitive_stores
+        );
+        let installation_bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode installed Boolean store custody");
+        let decoded = omega_image_emission::decode_installation_record(&installation_bytes)
+            .expect("decode installed Boolean store custody");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("installed Boolean store rejoins the executable image");
+        let installed_store_bytes = installed_function.unit_write_only_primitive_stores[0]
+            .bytes
+            .clone();
+        let mut corrupted_installation = installation_bytes;
+        let encoded_store = corrupted_installation
+            .windows(installed_store_bytes.len())
+            .rposition(|window| window == installed_store_bytes)
+            .expect("Boolean store bytes occur in the canonical installation record");
+        corrupted_installation[encoded_store] ^= 1;
+        assert!(matches!(
+            omega_image_emission::decode_installation_record(&corrupted_installation),
+            Err(
+                omega_image_emission::InstallationError::InvalidUnitWriteOnlyPrimitiveStore(
+                    machine
+                )
+            ) if machine == function.machine
+        ));
     }
 }
