@@ -873,6 +873,10 @@ fn validate_forwarding_transfer_path(
     let [root] = roots.as_slice() else {
         return Ok(false);
     };
+    let [root_path] = root.source_paths.as_slice() else {
+        return Ok(false);
+    };
+    let mut expected_path = root_path.clone();
     let mut machine = root.target_machine;
     let mut state = root.target_state;
     let mut source_parameter = root.parameter;
@@ -891,9 +895,12 @@ fn validate_forwarding_transfer_path(
                 != (psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 })
-            || transfer.sole_selection() != Some(&plan.selection)
             || !validate_parameter_forwarding_call(checked, transfer)?
         {
+            return Ok(false);
+        }
+        expected_path.edges.push(transfer.edge());
+        if !transfer.source_paths.contains(&expected_path) {
             return Ok(false);
         }
         machine = transfer.target_machine;

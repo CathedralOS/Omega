@@ -1562,7 +1562,7 @@ fn descriptor_transfer_fences_join_with_an_unadmitted_third_predecessor() {
 }
 
 #[test]
-fn descriptor_transfer_fences_forwarding_after_the_first_join() {
+fn descriptor_transfer_fences_a_second_forwarding_hop_after_the_join() {
     let checked = check_dynamic_source(
         r#"
         trait Shape {

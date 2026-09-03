@@ -718,10 +718,13 @@ applications and realization machines. Verification, canonical encoding, and
 interpretation preserve the selected referent and private table on both
 branches. Target-neutral lowering and optimizer reconstruction retain that same
 conditional, both descriptor-bearing calls, their distinct selection sources,
-and the shared parameter dispatch without adding a joined table. Three-way
-joins, forwarding after a join, native source lowering, aggregate storage
-beyond the bounded single-field local form below, returns, and component
-crossings remain rejected.
+and the shared parameter dispatch without adding a joined table. One
+transparent parameter-to-parameter forwarding call may follow the join while
+retaining both complete predecessor paths; Terminal and native lowering express
+it as one additional ordinary helper before the final parameter dispatch.
+Three-way joins, a second post-join forwarding call, aggregate storage beyond
+the bounded single-field local form below, returns, and component crossings
+remain rejected.
 
 Only a closed conformance block licenses local dynamic dispatch. A bodyless
 whole-trait conformance remains useful for static checking, but has no complete
