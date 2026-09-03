@@ -162,10 +162,10 @@ Must own:
   array-of-record leaves remain fenced, as do sum arrays, case/payload
   projection, member observation, matching, take, swap, and read-modify-write.
   The executable whole-root primitive lane accepts direct integer, IEEE float,
-  and Boolean literals. It also retains one exact fixed-integer scalar
-  parameter as a runtime replacement when the structural destination and
-  scalar source are the machine's complete parameter partition and have the
-  same primitive type. Locals, computed replacements, Boolean/IEEE runtime
+  and Boolean literals. It also retains one exact native fixed-integer or
+  Boolean scalar parameter as a runtime replacement when the structural
+  destination and scalar source are the machine's complete parameter partition
+  and have the same primitive type. Locals, computed replacements, IEEE runtime
   parameters, and additional parameters remain fenced.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Bounded installation-row facts keyed by exact boundary-requirement path,

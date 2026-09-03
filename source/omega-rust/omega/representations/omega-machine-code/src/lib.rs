@@ -1026,7 +1026,7 @@ pub enum UnitWriteOnlyPrimitiveStoreSourceRecord {
     Parameter {
         parameter_index: u32,
         source_value: ValueId,
-        scalar_type: IntegerType,
+        scalar_type: ScalarType,
         location: UnitScalarParameterLocationRecord,
     },
     IntegerImmediate {
@@ -1076,9 +1076,8 @@ impl UnitWriteOnlyPrimitiveStoreSourceRecord {
 
     pub const fn scalar_type(&self) -> ScalarType {
         match self {
-            Self::Parameter { scalar_type, .. } | Self::IntegerImmediate { scalar_type, .. } => {
-                ScalarType::Integer(*scalar_type)
-            }
+            Self::Parameter { scalar_type, .. } => *scalar_type,
+            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(*scalar_type),
             Self::BooleanImmediate { .. } => ScalarType::Boolean,
             Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
         }

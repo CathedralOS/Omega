@@ -2361,10 +2361,19 @@ pub(super) fn lower_attached_unit_closure_including(
                                         psi_checked_trees::CheckedBooleanExpression::Constant(_)
                                     )
                             );
-                    let direct_parameter = matches!(
+                    let direct_parameter = (matches!(
                         value,
                         CheckedScalarExpression::Parameter { position: 0, .. }
-                    ) && scalar_parameters.len() == 1;
+                    ) || matches!(
+                        value,
+                        CheckedScalarExpression::Boolean(expression)
+                            if matches!(
+                                expression.as_ref(),
+                                psi_checked_trees::CheckedBooleanExpression::Parameter {
+                                    position: 0
+                                }
+                            )
+                    )) && scalar_parameters.len() == 1;
                     if !direct_literal && !direct_parameter {
                         return unsupported(
                             "write-only store value is outside the direct primitive-literal rung",

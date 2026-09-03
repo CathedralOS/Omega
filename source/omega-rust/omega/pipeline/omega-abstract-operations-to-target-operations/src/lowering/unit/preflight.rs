@@ -62,12 +62,15 @@ fn has_parameter_sourced_store_shape(function: &AbstractFunction) -> bool {
 }
 
 fn has_bounded_scalar_parameter_shape(function: &AbstractFunction) -> bool {
-    matches!(
-        function.parameters.as_slice(),
-        [AbstractParameter {
-            scalar_type: ScalarType::Integer(scalar_type),
-            ..
-        }] if scalar_type.carrier() == psi_core::IntegerCarrier::Fixed
-            && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
-    )
+    let [parameter] = function.parameters.as_slice() else {
+        return false;
+    };
+    match parameter.scalar_type {
+        ScalarType::Boolean => true,
+        ScalarType::Integer(scalar_type) => {
+            scalar_type.carrier() == psi_core::IntegerCarrier::Fixed
+                && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
+        }
+        ScalarType::IeeeFloat(_) => false,
+    }
 }

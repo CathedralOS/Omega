@@ -1862,17 +1862,24 @@ fn build_write_only_primitive_store(
                     psi_checked_trees::CheckedBooleanExpression::Constant(_)
                 )
         );
-    let direct_parameter = matches!(
-        (value, scalar_parameters),
-        (
-            CheckedScalarExpression::Parameter {
-                position: 0,
-                primitive_type,
-            },
-            [parameter],
-        ) if parameter.primitive_type == *primitive_type
-            && *primitive_type == *destination_type
-    );
+    let direct_parameter_type = match value {
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type,
+        } => Some(*primitive_type),
+        CheckedScalarExpression::Boolean(expression)
+            if matches!(
+                expression.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+            ) =>
+        {
+            Some(PrimitiveType::Bool)
+        }
+        _ => None,
+    };
+    let direct_parameter = matches!(scalar_parameters, [parameter]
+        if Some(parameter.primitive_type) == direct_parameter_type
+            && Some(*destination_type) == direct_parameter_type);
     if !(direct_literal && scalar_parameters.is_empty() || direct_parameter)
         || crate::values::scalar_expression_type(value) != Some(*destination_type)
     {

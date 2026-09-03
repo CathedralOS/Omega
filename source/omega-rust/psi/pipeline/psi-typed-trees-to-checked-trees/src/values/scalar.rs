@@ -251,6 +251,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                         if matches!(
                                             boolean.as_ref(),
                                             CheckedBooleanExpression::Constant(_)
+                                                | CheckedBooleanExpression::Parameter { .. }
                                         )
                                 )
                                 || matches!(expression, CheckedScalarExpression::Parameter { .. });

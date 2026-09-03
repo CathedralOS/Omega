@@ -31,6 +31,12 @@ pub(super) fn validate_installed_unit_dynamic_descriptor_joins(
             )
         });
         let joined_shape_hint = calls.len() == 2 && attributions.len() == 5;
+        let primitive_store_shape = function.unit_write_only_primitive_stores.len() == 1
+            && calls.is_empty()
+            && attributions.len() == 2;
+        if primitive_store_shape {
+            continue;
+        }
         if !boolean_parameter && !joined_shape_hint {
             continue;
         }

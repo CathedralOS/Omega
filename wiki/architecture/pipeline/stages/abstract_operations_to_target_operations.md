@@ -92,13 +92,14 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   installation replay retain every family's exact definition ordinal, bytes,
   and attribution.
   A separate runtime-source sublane carries one exact non-address native fixed
-  integer parameter (`i8`/`u8` through `i64`/`u64`) into the same whole-root
-  store. Target planning binds the dense scalar parameter to its source value,
-  sign, width, and primitive referent; physical assignment, machine emission,
-  object construction, and installation independently replay the function ABI,
-  incoming `RDI`/`X0` register, destination home, native store bytes, and source
-  record on both Linux targets. Additional parameters, computed sources,
-  Boolean/IEEE runtime sources, and non-native integer carriers remain fail
+  integer parameter (`i8`/`u8` through `i64`/`u64`) or Boolean parameter into
+  the same whole-root store. Target planning binds the dense scalar parameter
+  to its source value, exact scalar type, and primitive referent; physical
+  assignment, machine emission, object construction, and installation
+  independently replay the function ABI, incoming `RDI`/`X0` register,
+  destination home, native store bytes, and source record on both Linux
+  targets. Additional parameters, computed sources, IEEE runtime sources,
+  Boolean caller forwarding, and non-native integer carriers remain fail
   closed. Terminal and Abstract IR
   verify, canonically bind, and retain scalar arguments on ordinary `CallUnit`,
   including optimizer identity and dataflow. This stage now derives the exact

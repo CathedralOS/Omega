@@ -504,8 +504,17 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                         .parameters
                         .get(scalar_parameter_index)
                         .ok_or_else(invalid)?;
-                    let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
-                    let scalar_shape = ValueShape::integer(width, width.min(8));
+                    let (scalar_shape, width) = match scalar_type {
+                        psi_core::ScalarType::Boolean => (ValueShape::integer(1, 1), 1),
+                        psi_core::ScalarType::Integer(integer)
+                            if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+                        {
+                            let width = integer.bits().checked_div(8).ok_or_else(invalid)?;
+                            (ValueShape::integer(width, width.min(8)), width)
+                        }
+                        _ => return Err(invalid()),
+                    };
                     let [ValueLocation::Register {
                         register: expected_register,
                         value_byte_offset: 0,
@@ -523,14 +532,11 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     )
                     .map_err(|_| invalid())?;
                     (
-                        parameter_index == 0
+                            parameter_index == 0
                             && abi.parameters.len() == 1
                             && function.unit_parameters.len() == 1
-                            && scalar_type.carrier() == psi_core::IntegerCarrier::Fixed
-                            && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
                             && scalar_parameter.value == source_value
-                            && scalar_parameter.scalar_type
-                                == psi_core::ScalarType::Integer(scalar_type)
+                            && scalar_parameter.scalar_type == scalar_type
                             && scalar_parameter.placement.shape == scalar_shape
                             && *placed_byte_size == width
                             && location
@@ -541,7 +547,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                             && abi.call_plan.parameters.first()
                                 == Some(&scalar_parameter.placement)
                             && abi.call_plan.parameters.get(1) == Some(&home.source),
-                        psi_core::ScalarType::Integer(scalar_type),
+                        scalar_type,
                         width,
                         None,
                     )

@@ -52,8 +52,17 @@ fn validate_store(
             let abi = function.unit_scalar_abi.as_ref()?;
             let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
             let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
-            let byte_size = scalar_type.bits().checked_div(8)?;
-            let scalar_shape = ValueShape::integer(byte_size, byte_size.min(8));
+            let (scalar_shape, byte_size) = match scalar_type {
+                ScalarType::Boolean => (ValueShape::integer(1, 1), 1),
+                ScalarType::Integer(integer)
+                    if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                        && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+                {
+                    let byte_size = integer.bits().checked_div(8)?;
+                    (ValueShape::integer(byte_size, byte_size.min(8)), byte_size)
+                }
+                _ => return None,
+            };
             let [
                 ValueLocation::Register {
                     register: expected_register,
@@ -76,10 +85,8 @@ fn validate_store(
                 parameter_index == 0
                     && abi.parameters.len() == 1
                     && function.unit_parameters.len() == 1
-                    && scalar_type.carrier() == psi_core::IntegerCarrier::Fixed
-                    && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
                     && scalar_parameter.value == source_value
-                    && scalar_parameter.scalar_type == ScalarType::Integer(scalar_type)
+                    && scalar_parameter.scalar_type == scalar_type
                     && scalar_parameter.placement.shape == scalar_shape
                     && *placed_byte_size == byte_size
                     && location
@@ -89,7 +96,7 @@ fn validate_store(
                     && abi.call_plan == expected_plan
                     && abi.call_plan.parameters.first() == Some(&scalar_parameter.placement)
                     && abi.call_plan.parameters.get(1) == Some(&home.source),
-                ScalarType::Integer(scalar_type),
+                scalar_type,
                 byte_size,
                 None,
             )

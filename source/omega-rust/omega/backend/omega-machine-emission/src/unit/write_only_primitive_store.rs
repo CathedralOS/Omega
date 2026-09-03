@@ -63,8 +63,14 @@ pub(super) fn emit_write_only_primitive_store(
                 .scalar_parameters
                 .get(scalar_parameter_index)
                 .ok_or_else(invalid)?;
-            let byte_size = require_native_integer_width(source_value, scalar_type)? / 8;
-            let scalar_shape = ValueShape::integer(byte_size, byte_size.min(8));
+            let (scalar_shape, byte_size) = match scalar_type {
+                ScalarType::Boolean => (ValueShape::integer(1, 1), 1),
+                ScalarType::Integer(integer) => {
+                    let byte_size = require_native_integer_width(source_value, integer)? / 8;
+                    (ValueShape::integer(byte_size, byte_size.min(8)), byte_size)
+                }
+                ScalarType::IeeeFloat(_) => return Err(invalid()),
+            };
             let expected_plan = evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
@@ -89,9 +95,8 @@ pub(super) fn emit_write_only_primitive_store(
             if parameter_index != 0
                 || body.scalar_parameters.len() != 1
                 || body.parameters.len() != 1
-                || scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
                 || scalar_parameter.value != source_value
-                || scalar_parameter.scalar_type != ScalarType::Integer(scalar_type)
+                || scalar_parameter.scalar_type != scalar_type
                 || scalar_parameter.placement.shape != scalar_shape
                 || *placed_byte_size != byte_size
                 || location != AssignedScalarLocation::Register(*expected_register)
@@ -110,7 +115,7 @@ pub(super) fn emit_write_only_primitive_store(
                         *expected_register,
                     ),
                 },
-                ScalarType::Integer(scalar_type),
+                scalar_type,
                 byte_size,
                 None,
             )

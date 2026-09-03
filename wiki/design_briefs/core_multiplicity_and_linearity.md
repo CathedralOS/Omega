@@ -133,14 +133,15 @@ the record retains the definition ordinal needed for independent replay.
 Fixed-integer physical assignment and machine emission independently replay
 their joins before producing the non-observing store bytes. Dedicated custody
 rows bind every fact to exact code intervals and bytes, which object
-construction replays independently and installation format 75 transports
+construction replays independently and installation format 76 transports
 canonically for integer, Boolean, and raw-bit IEEE float literals. The runtime
 source sibling admits one exact non-address native fixed-integer parameter,
-including every signed and unsigned 8-, 16-, 32-, and 64-bit carrier. Its
-ordinary Unit caller may forward that same parameter into the store; both
-Linux ABIs, machine bytes, object replay, and installed custody rejoin the
-source type and location independently. Additional scalar parameters,
-computed runtime sources, and Boolean/IEEE runtime sources remain fenced.
+including every signed and unsigned 8-, 16-, 32-, and 64-bit carrier, or one
+Boolean parameter. Its ordinary Unit caller may forward the fixed-integer form
+into the store; both Linux ABIs, machine bytes, object replay, and installed
+custody rejoin the source type and location independently. Additional scalar
+parameters, computed runtime sources, Boolean caller forwarding, and IEEE
+runtime sources remain fenced.
 Provider non-observation authority remains absent.
 
 ## Consumers and cleanup

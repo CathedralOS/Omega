@@ -710,20 +710,20 @@ the target store; the Boolean source additionally retains its definition
 ordinal. Dedicated whole-root records bind these facts to exact code intervals
 and bytes. Object construction independently replays the declaration joins,
 borrowed-reference placement and home, literal source, architecture encoding,
-attribution, interval, and bytes. Installation format 75 transports and
+attribution, interval, and bytes. Installation format 76 transports and
 revalidates the integer, Boolean, and IEEE float store families without
 treating physical pointer-layout equivalence as permission equivalence. IEEE
 float stores retain their exact preceding definition, raw bits, referent shape,
 store-only source carrier, machine bytes, and attribution through both object
 and installation replay.
-The semantic store lane also admits one exact fixed-integer scalar parameter as
-the replacement source when it is the machine's sole scalar parameter and
-matches the primitive referent exactly. Checked planning retains the authored
+The semantic store lane also admits one exact scalar parameter as the
+replacement source when it is the machine's sole scalar parameter and matches
+the primitive referent exactly. Checked planning retains the authored
 structural/scalar parameter partition; Terminal verification and target-neutral
 abstract lowering preserve the runtime value identity without fabricating a
 constant. The native sublane admits every non-address fixed integer
-(`i8`/`u8` through `i64`/`u64`) and independently replays its exact width,
-sign, incoming `RDI`/`X0` placement, destination home, machine bytes, and
+(`i8`/`u8` through `i64`/`u64`) plus Boolean and independently replays its exact
+type, incoming `RDI`/`X0` placement, destination home, machine bytes, and
 installation source record on both Linux targets. Terminal format 77/vocabulary
 80 now retains an ordinary
 `CallUnit`'s scalar arguments independently from its structural arguments,
@@ -740,11 +740,11 @@ emits the structural suffix and call, and records the scalar source,
 destination, interval, and relocation custody. Object construction now
 independently rejoins the Unit callee ABI, caller parameter source, exact
 zero-byte same-register transfer, structural copy, stack evidence, and call
-bytes. Installation format 75 transports and replays the same custody on both
+bytes. Installation format 76 transports and replays the same custody on both
 Linux targets. This completes the one-parameter native-fixed-integer
 caller-to-write-only-store lane; additional scalar parameters, computed
-sources, Boolean/IEEE runtime sources, and non-native integer carriers remain
-fail closed.
+sources, Boolean caller forwarding, IEEE runtime sources, and non-native
+integer carriers remain fail closed.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan
@@ -839,7 +839,7 @@ Validation rejoins the complete application, Unit callable interface, selected
 row or parameter slot, operation, access, and source. Fixed fuel and reference
 execution resolve the same rows without allocating a value ID or result home.
 Format 71/vocabulary 74 added a distinct owner-local selection argument source,
-retained by current format 75/vocabulary 80 alongside rebound descriptors and
+retained by current format 76/vocabulary 80 alongside rebound descriptors and
 inbound parameters. Direct-selection
 Unit and scalar forwarding therefore cross the helper without relabeling their
 custody. The scalar form retains its exact result through the ordinary caller,
@@ -3982,7 +3982,7 @@ and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
 format substitution fail closed. Introduced in Terminal format 70 / vocabulary
-73 and retained by current format 75 / vocabulary 80, source tag 9 rejects
+73 and retained by current format 76 / vocabulary 80, source tag 9 rejects
 under legacy formats. Checked/source production now
 covers one nonempty field/case path below a direct structural parameter in the
 owning top-level machine contract. Checked custody retains exact owner symbol,

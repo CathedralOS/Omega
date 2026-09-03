@@ -67,7 +67,7 @@ pub(super) fn lower_write_only_primitive_store(
                 } => TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
                     parameter_index,
                     source_value: value.value,
-                    scalar_type,
+                    scalar_type: ScalarType::Integer(scalar_type),
                 },
                 KnownUnitInteger::Immediate {
                     defining_operation,
@@ -87,18 +87,30 @@ pub(super) fn lower_write_only_primitive_store(
             )
         }
         ScalarType::Boolean => {
-            let (defining_operation, immediate) = boolean_constants
-                .get(&value.value)
-                .copied()
-                .ok_or_else(invalid)?;
-            (
-                ValueShape::borrowed_reference(1, 1),
+            let source = if let Some((parameter_index, _)) = function
+                .parameters
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| {
+                    parameter.value == value.value && parameter.scalar_type == ScalarType::Boolean
+                }) {
+                TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
+                    parameter_index: u32::try_from(parameter_index).map_err(|_| invalid())?,
+                    source_value: value.value,
+                    scalar_type: ScalarType::Boolean,
+                }
+            } else {
+                let (defining_operation, immediate) = boolean_constants
+                    .get(&value.value)
+                    .copied()
+                    .ok_or_else(invalid)?;
                 TargetUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate {
                     defining_operation,
                     source_value: value.value,
                     value: immediate,
-                },
-            )
+                }
+            };
+            (ValueShape::borrowed_reference(1, 1), source)
         }
         ScalarType::IeeeFloat(format) => {
             let (defining_operation, immediate) = ieee_float_constants

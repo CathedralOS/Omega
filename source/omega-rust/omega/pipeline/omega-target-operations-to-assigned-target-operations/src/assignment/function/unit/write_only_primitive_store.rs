@@ -26,8 +26,23 @@ pub(super) fn assign(
     let parameter_index = usize::try_from(destination.position).map_err(|_| invalid())?;
     let parameter = body.parameters.get(parameter_index).ok_or_else(invalid)?;
     let (expected_scalar_type, expected_shape) = match source {
-        TargetUnitWriteOnlyPrimitiveStoreSource::Parameter { scalar_type, .. }
-        | TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate { scalar_type, .. } => {
+        TargetUnitWriteOnlyPrimitiveStoreSource::Parameter { scalar_type, .. } => {
+            let shape = match scalar_type {
+                ScalarType::Boolean => ValueShape::borrowed_reference(1, 1),
+                ScalarType::Integer(integer) => {
+                    let referent_shape =
+                        super::scalar_call::fixed_integer_shape(source.source_value(), integer)
+                            .map_err(|_| invalid())?;
+                    ValueShape::borrowed_reference(
+                        referent_shape.byte_size,
+                        referent_shape.alignment,
+                    )
+                }
+                ScalarType::IeeeFloat(_) => return Err(invalid()),
+            };
+            (scalar_type, shape)
+        }
+        TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate { scalar_type, .. } => {
             let referent_shape =
                 super::scalar_call::fixed_integer_shape(source.source_value(), scalar_type)
                     .map_err(|_| invalid())?;
@@ -152,8 +167,7 @@ pub(super) fn assign(
                 .scalar_parameters
                 .get(parameter_index_usize)
                 .filter(|parameter| {
-                    parameter.value == source_value
-                        && parameter.scalar_type == ScalarType::Integer(scalar_type)
+                    parameter.value == source_value && parameter.scalar_type == scalar_type
                 })
                 .ok_or_else(invalid)?;
             if body.call_plan.parameters.get(parameter_index_usize) != Some(&parameter.placement) {
