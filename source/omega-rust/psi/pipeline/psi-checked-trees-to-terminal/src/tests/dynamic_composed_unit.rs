@@ -343,6 +343,51 @@ const MULTI_HOP_DYNAMIC_INTEGER_SOURCE: &str = r#"
     }
 "#;
 
+const MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
+    boundary trait Console {
+        machine exit_process(return_code: i32) reaches Console;
+    }
+
+    trait Measure {
+        machine measure(&self) -> i32;
+    }
+
+    data Item [copy] { value: i32; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main {
+        console: Console;
+        selected: Item;
+    }
+
+    machine Main::run(&mut self) reaches Console {
+        let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
+        let result: i32 = forward(erased);
+        transition result == 0 {
+            true -> good()
+            _ -> bad()
+        }
+
+        state good(&mut self) { self.console.exit_process(70); }
+        state bad(&mut self) { self.console.exit_process(71); }
+    }
+
+    machine forward(erased: &dyn Measure) -> i32 {
+        let result: i32 = finish(erased);
+        transition { _ -> result }
+    }
+
+    machine finish(erased: &dyn Measure) -> i32 {
+        let result: i32 = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
 const DIRECT_DYNAMIC_UNIT_SOURCE: &str = r#"
     trait Touch {
         machine touch(&self);
@@ -833,6 +878,75 @@ fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
         decoded.dynamic_dispatch.arguments[1].source,
         psi_terminal::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
     );
+
+    let [plan] = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .direct_scalar_calls
+        .as_mut_slice()
+    else {
+        unreachable!("checked above")
+    };
+    plan.forwarding_transfers[0].coordinate.statement_index = 1;
+    assert_eq!(
+        unsupported_message(&checked),
+        "direct dynamic call drifted from checked flow custody"
+    );
+}
+
+#[test]
+fn retains_multi_hop_forwarded_scalar_result_control() {
+    let mut checked = checked_source(MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert_eq!(checked_catalog.transfers.len(), 2);
+    let [plan] = checked_catalog.direct_scalar_calls.as_slice() else {
+        panic!("one multi-hop checked continuation plan expected: {checked_catalog:#?}")
+    };
+    assert_eq!(plan.forwarding_transfers.len(), 1);
+    assert!(plan.unit_continuation.is_some());
+
+    let lowered = lower_machine(&checked, "Main::run")
+        .expect("the multi-hop scalar result continuation should lower");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("the multi-hop scalar result continuation should verify");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 1);
+    assert_eq!(catalog.parameters.len(), 2);
+    assert_eq!(catalog.arguments.len(), 2);
+    assert_eq!(catalog.parameter_dispatches.len(), 1);
+    assert_eq!(
+        catalog.arguments[0].source,
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
+    );
+    assert_eq!(
+        catalog.arguments[1].source,
+        psi_terminal::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
+    );
+    assert_eq!(catalog.arguments[1].owner, catalog.parameters[0].owner);
+    assert_eq!(
+        catalog.parameter_dispatches[0].owner,
+        catalog.parameters[1].owner
+    );
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("caller machine");
+    assert_eq!(caller.blocks.len(), 3);
+    assert!(matches!(
+        caller.blocks[0].terminator,
+        Terminator::Conditional { .. }
+    ));
+    assert_eq!(lowered.source_call_occurrences.len(), 5);
+
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("multi-hop scalar result control should encode canonically");
+    let decoded = psi_terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("multi-hop scalar result control should decode");
+    assert_eq!(decoded, lowered.semantic_module);
 
     let [plan] = checked
         .facts

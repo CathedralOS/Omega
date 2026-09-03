@@ -168,7 +168,7 @@ pub(super) fn lower(
     .chain(provider_places)
     .collect();
     let mut next_block = 4_u64;
-    let forwarded_helper = forwarded_helper_ids(
+    let forwarded_helpers = forwarded_helper_chain_ids(
         plan,
         &lowered_realizations,
         &mut next_block,
@@ -176,7 +176,7 @@ pub(super) fn lower(
         &mut next_value,
         &mut next_edge,
     )?;
-    let (dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
+    let (mut dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
         lane,
         &caller_self,
         plan,
@@ -190,8 +190,11 @@ pub(super) fn lower(
         &selected_row,
         callable_identity,
         realization_machine,
-        forwarded_helper,
+        forwarded_helpers.first().copied(),
     )?;
+    if forwarded_helpers.len() > 1 {
+        extend_parameter_forwarding_catalog(&mut dynamic_dispatch, &forwarded_helpers)?;
+    }
     let mut caller_operations = vec![Operation {
         id: call_operation,
         result: OperationResult::Scalar(call_result),
@@ -210,7 +213,7 @@ pub(super) fn lower(
     }];
     caller_blocks.extend(emitted_leaf_blocks);
     let mut source_call_occurrences =
-        dynamic_source_call_occurrences(plan, call_operation, forwarded_helper)?;
+        dynamic_source_call_occurrences_for_chain(plan, call_operation, &forwarded_helpers)?;
     source_call_occurrences.append(&mut leaf_source_call_occurrences);
     let realization_machines = materialize_dynamic_realizations(
         checked,
@@ -224,9 +227,13 @@ pub(super) fn lower(
         &mut next_value,
         &mut next_edge,
     )?;
-    let forwarded_helper_machine = forwarded_helper
-        .map(|ids| materialize_forwarded_helper(checked, plan, &application, &selected_row, ids))
-        .transpose()?;
+    let forwarded_helper_machines = materialize_forwarded_helper_chain(
+        checked,
+        plan,
+        &application,
+        &selected_row,
+        &forwarded_helpers,
+    )?;
 
     Ok(LoweredTerminalPsi {
         semantic_module: TerminalModule {
@@ -287,7 +294,7 @@ pub(super) fn lower(
                     contract: empty_terminal_contract(caller_machine.get()),
                 }];
                 machines.extend(realization_machines);
-                machines.extend(forwarded_helper_machine);
+                machines.extend(forwarded_helper_machines);
                 machines
             },
         },

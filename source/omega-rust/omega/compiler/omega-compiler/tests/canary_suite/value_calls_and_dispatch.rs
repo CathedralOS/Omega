@@ -1144,6 +1144,7 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
 
 fn assert_forwarded_dynamic_result_canary(
     fixture: &str,
+    expected_transfer_count: usize,
     description: &str,
     native_expectation: &str,
 ) {
@@ -1170,7 +1171,7 @@ fn assert_forwarded_dynamic_result_canary(
                 .dynamic_dispatch
                 .transfers
                 .len(),
-            1
+            expected_transfer_count
         );
         assert_eq!(
             checked
@@ -1303,6 +1304,38 @@ fn assert_forwarded_dynamic_result_canary(
                 ]
             );
             assert_eq!(store.field_byte_offset, 8);
+        } else if fixture == "traits/runtime_local_named_dyn_multi_hop_pass_through_exit" {
+            let object = report
+                .retained_native_artifact()
+                .expect("multi-hop forwarding keeps native custody")
+                .object();
+            assert_eq!(
+                object
+                    .functions()
+                    .iter()
+                    .flat_map(|function| &function.forwarded_dynamic_descriptor_calls)
+                    .count(),
+                1,
+                "{target} must retain the selection-sourced descriptor call"
+            );
+            assert_eq!(
+                object
+                    .functions()
+                    .iter()
+                    .flat_map(|function| &function.forwarded_dynamic_parameter_calls)
+                    .count(),
+                1,
+                "{target} must retain the intermediate parameter-forwarding direct call"
+            );
+            assert_eq!(
+                object
+                    .functions()
+                    .iter()
+                    .flat_map(|function| &function.dynamic_parameter_calls)
+                    .count(),
+                1,
+                "{target} must retain the final parameter-sourced indirect call"
+            );
         }
     }
     #[cfg(target_os = "linux")]
@@ -1402,6 +1435,7 @@ fn assert_boolean_forwarded_native_custody(report: &CompileReport, target: &str)
 fn runtime_local_named_dyn_mutable_pass_through_exit_canary_runs() {
     assert_forwarded_dynamic_result_canary(
         "traits/runtime_local_named_dyn_mutable_pass_through_exit",
+        1,
         "mutable forwarded named dynamic descriptor canary",
         "the indirect slot must preserve exclusive access and select the rebound Item instance",
     );
@@ -1411,6 +1445,7 @@ fn runtime_local_named_dyn_mutable_pass_through_exit_canary_runs() {
 fn runtime_local_named_dyn_boolean_pass_through_exit_canary_runs() {
     assert_forwarded_dynamic_result_canary(
         "traits/runtime_local_named_dyn_boolean_pass_through_exit",
+        1,
         "forwarded named dynamic Boolean result canary",
         "the indirect slot must preserve the selected true result through its durable Boolean home",
     );
@@ -1420,6 +1455,7 @@ fn runtime_local_named_dyn_boolean_pass_through_exit_canary_runs() {
 fn runtime_local_named_dyn_mutable_boolean_pass_through_exit_canary_runs() {
     assert_forwarded_dynamic_result_canary(
         "traits/runtime_local_named_dyn_mutable_boolean_pass_through_exit",
+        1,
         "mutable forwarded named dynamic Boolean descriptor canary",
         "the indirect slot must store true into the rebound Item before returning its independent code field",
     );
@@ -1429,8 +1465,19 @@ fn runtime_local_named_dyn_mutable_boolean_pass_through_exit_canary_runs() {
 fn runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit_canary_runs() {
     assert_forwarded_dynamic_result_canary(
         "traits/runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit",
+        1,
         "projected mutable forwarded named dynamic Boolean descriptor canary",
         "the indirect slot must store true through the nested Envelope/Flags path before returning the selected Item code",
+    );
+}
+
+#[test]
+fn runtime_local_named_dyn_multi_hop_pass_through_exit_canary_runs() {
+    assert_forwarded_dynamic_result_canary(
+        "traits/runtime_local_named_dyn_multi_hop_pass_through_exit",
+        2,
+        "multi-hop forwarded named dynamic descriptor canary",
+        "both unchanged descriptor handoffs must reach the selected Item and return 99 to the caller's exit diamond",
     );
 }
 

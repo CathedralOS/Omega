@@ -106,11 +106,6 @@ fn lower_dynamic_composed_unit_machine(
         }
     };
     if let Some(unit_continuation) = &plan.unit_continuation {
-        if !plan.forwarding_transfers.is_empty() {
-            return unsupported(
-                "multi-hop dynamic forwarding with a caller continuation is not yet supported",
-            );
-        }
         return continuation::lower(checked, plan, unit_continuation, caller, lane);
     }
     let (structural_types, type_ids) =
@@ -1220,41 +1215,6 @@ fn dynamic_parameter_interface(
     Ok((requirements, selected_slot))
 }
 
-fn forwarded_helper_ids(
-    plan: &CheckedDynamicScalarCallPlan,
-    realizations: &[LoweredDynamicRealization],
-    next_block: &mut u64,
-    next_operation: &mut u64,
-    next_value: &mut u64,
-    next_edge: &mut u64,
-) -> Result<Option<ForwardedHelperIds>, LoweringError> {
-    if !matches!(
-        plan.origin,
-        psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
-    ) {
-        return Ok(None);
-    }
-    let machine = realizations
-        .iter()
-        .map(|realization| realization.machine.get())
-        .max()
-        .ok_or(LoweringError::Unsupported(
-            "forwarded dynamic dispatch has no realization machine",
-        ))?
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "forwarded dynamic helper machine identity overflowed",
-        ))?;
-    Ok(Some(ForwardedHelperIds {
-        machine: machine_id(machine),
-        block: block_id(allocate_dense(next_block)?),
-        operation: operation_id(allocate_dense(next_operation)?),
-        operation_value: value_id(allocate_dense(next_value)?),
-        result_value: value_id(allocate_dense(next_value)?),
-        edge: edge_id(allocate_dense(next_edge)?),
-    }))
-}
-
 fn forwarded_helper_chain_ids(
     plan: &CheckedDynamicScalarCallPlan,
     realizations: &[LoweredDynamicRealization],
@@ -1334,31 +1294,6 @@ fn extend_parameter_forwarding_catalog(
     dispatch.owner = final_helper.machine;
     dispatch.operation = final_helper.operation;
     Ok(())
-}
-
-fn materialize_forwarded_helper(
-    checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
-    application: &ClosedConformanceApplication,
-    selected_row: &ClosedConformanceRow,
-    ids: ForwardedHelperIds,
-) -> Result<TerminalMachine, LoweringError> {
-    let psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
-        machine: source_machine,
-        ..
-    } = plan.origin
-    else {
-        return unsupported("forwarded helper identities require a forwarded checked origin");
-    };
-    materialize_forwarded_helper_for_source(
-        checked,
-        plan,
-        application,
-        selected_row,
-        ids,
-        source_machine,
-        None,
-    )
 }
 
 #[allow(clippy::too_many_arguments)]

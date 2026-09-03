@@ -1,0 +1,14 @@
+// Deployable native canary: every hosted target selects its exact entry.
+target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+
+machine build(builder: &mut Build) {
+    builder.application("runtime-local-named-dyn-multi-hop-pass-through-exit");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
