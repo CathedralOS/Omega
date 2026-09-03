@@ -472,14 +472,17 @@ exact binder symbol/name and matching template carrier. Ordinary `Type`
 binders retain their complete authored multiplicity and four-axis carry-
 property bounds. The first static-machine cohorts retain an exact machine-
 parented binder and body calls targeting it. The structural form owns one flat
-parameter/result signature over the same supported type surface. The first
-nominal form instead retains one exact authored-base, ordinary nongeneric trait
-and requirement pair whose requirement supplies that same flat signature.
-Requirement path and symbol custody remain exact through seeded typing.
-Extension-owned or boundary traits, nested and operational contracts,
-declaration-identity and proposition binders, generated-machine `satisfies`,
-conformance bounds, and broader supply forms remain outside these first generic
-cohorts. Satisfied-declaration
+parameter/result signature over the same supported type surface. The nominal
+form retains one exact ordinary nongeneric trait and requirement pair from
+either the authored base or the current generated extension. An
+extension-owned trait must be non-boundary, nongeneric, nonempty, and composed
+only of flat bodyless requirements over the same supported type surface; the
+trait and every requirement retain their exact new symbols, and a nominal
+machine binder rejoins that pair by its authored path. Boundary traits, nested
+and operational contracts, default bodies, declaration-identity and
+proposition binders, generated-machine `satisfies`, conformance bounds, and
+broader supply forms remain outside these first generic cohorts.
+Satisfied-declaration
 settlement, domain constraints, qualification casts, fixed-byte literal
 landing, and wire-plan publication are frontier-aware. After post-typing
 evaluation, a structural
