@@ -17,7 +17,8 @@ use super::{
     push_u32, push_u64,
     structural_scalar_codec::{decode_identity, encode_identity},
     unit_scalar_codec::{
-        decode_integer_type, decode_integer_value, encode_integer_type, encode_integer_value,
+        decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
+        encode_integer_value, encode_scalar_type,
     },
     unit_structural_scalar_field_store_codec::{decode_destination, encode_destination},
     value_placement_codec::{
@@ -132,7 +133,7 @@ fn encode_source(
             bytes.extend_from_slice(&[4, 0, 0, 0]);
             push_u32(bytes, parameter_index);
             push_u64(bytes, source_value.get());
-            encode_integer_type(bytes, scalar_type)?;
+            encode_scalar_type(bytes, scalar_type)?;
             match location {
                 UnitScalarParameterLocationRecord::Register(register) => {
                     bytes.push(0);
@@ -257,7 +258,7 @@ fn decode_source(
             let parameter_index = reader.u32()?;
             let source_value = ValueId::new(reader.u64()?)
                 .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
-            let scalar_type = decode_integer_type(reader)?;
+            let scalar_type = decode_scalar_type(reader)?;
             let location_tag = reader.u8()?;
             let register_tag_byte = reader.u8()?;
             if reader.take(2)? != [0; 2] {

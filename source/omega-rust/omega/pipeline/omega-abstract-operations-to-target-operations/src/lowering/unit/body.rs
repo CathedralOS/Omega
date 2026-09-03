@@ -64,21 +64,24 @@ pub(super) fn lower_unit_body(
     let mut scalar_values = scalar_parameters
         .iter()
         .enumerate()
-        .map(|(parameter_index, parameter)| {
-            let ScalarType::Integer(scalar_type) = parameter.scalar_type else {
-                return Err(LoweringError::UnitFunctionHasScalarParameters(
-                    function.machine,
-                ));
-            };
-            Ok((
-                parameter.value,
-                KnownUnitInteger::Parameter {
-                    parameter_index: u32::try_from(parameter_index).map_err(|_| {
-                        LoweringError::UnitFunctionHasScalarParameters(function.machine)
-                    })?,
-                    scalar_type,
-                },
-            ))
+        .filter_map(|(parameter_index, parameter)| match parameter.scalar_type {
+            ScalarType::Boolean => None,
+            ScalarType::Integer(scalar_type) => Some(
+                u32::try_from(parameter_index)
+                    .map(|parameter_index| {
+                        (
+                            parameter.value,
+                            KnownUnitInteger::Parameter {
+                                parameter_index,
+                                scalar_type,
+                            },
+                        )
+                    })
+                    .map_err(|_| LoweringError::UnitFunctionHasScalarParameters(function.machine)),
+            ),
+            ScalarType::IeeeFloat(_) => Some(Err(LoweringError::UnitFunctionHasScalarParameters(
+                function.machine,
+            ))),
         })
         .collect::<Result<BTreeMap<ValueId, KnownUnitInteger>, LoweringError>>()?;
     let mut nonreturning_boundary = false;

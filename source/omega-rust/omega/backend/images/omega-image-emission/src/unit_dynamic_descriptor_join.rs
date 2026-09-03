@@ -22,6 +22,14 @@ pub(super) fn validate_unit_dynamic_descriptor_join(
     let joined_shape_hint = function.forwarded_dynamic_descriptor_calls.len() == 2
         && function.semantic_code_attribution.len() == 5
         && function.provenance.edges.len() == 4;
+    let primitive_store_shape = function.unit_write_only_primitive_stores.len() == 1
+        && function.forwarded_dynamic_descriptor_calls.is_empty()
+        && function.semantic_code_attribution.len() == 2
+        && function.provenance.operations.len() == 1
+        && function.provenance.edges.len() == 1;
+    if primitive_store_shape {
+        return Ok(());
+    }
     if !boolean_parameter && !joined_shape_hint {
         return Ok(());
     }
