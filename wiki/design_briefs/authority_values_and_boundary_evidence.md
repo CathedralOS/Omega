@@ -613,9 +613,17 @@ itself an `Extent`. The physical-input ledger may retain an opaque non-null
 image-handle value only beneath its invocation provenance. The selected
 `HandleProtocol` provider binds that value, its private service address, the
 native-layout protocol GUID, and a fresh borrowed interface-output slot to the
-exact target calling plan; outcome admission must replay the same slot. None of
-those operands has a public raw-address projection or establishes content.
-Slot selection and raw geometry authorize no claim. The
+exact target calling plan. One target-runtime-only unsafe edge consumes those
+non-clone operands and invokes exactly the retained service through the UEFI
+ABI. Its sealed receipt retains the returned status and exact output value;
+callers cannot author either. Only the target table's Success code and an
+unchanged, non-null output may reach correspondence admission. That admission
+decodes revision, ImageBase, and ImageSize through the exact target-owned
+96-byte `EFI_LOADED_IMAGE_PROTOCOL` layout (ImageBase at byte 64 and ImageSize
+at byte 72) and rejects null, empty, wrapping, or layout-drifted geometry while
+retaining complete executed custody for release. None of these carriers has a
+public raw-address projection or establishes an `Extent` or semantic root.
+Slot selection and decoded geometry alone authorize no claim. The
 domain owner's route authorizes what the semantic installation edge may
 introduce, while the physical invocation, provider evidence, selected slot,
 bridge, and installation receipt identify the concrete occurrence.

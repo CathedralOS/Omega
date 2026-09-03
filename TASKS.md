@@ -1475,8 +1475,9 @@ Remaining:
   admitting non-null, nonempty, non-wrapping geometry for the same opaque
   image-handle occurrence. Layout rejection also retains the exact execution
   receipt; an executed call is never replayed as a retry.
-  This is not an `Extent`, a `Granted` root, a physical shell, the target
-  adapter, semantic installation, or native execution.
+  This is bounded provider execution, not an `Extent`, a `Granted` root, a
+  physical shell, the complete target adapter, semantic installation, or
+  physical-entry/native-adapter execution.
 
   That lifecycle provider can now move into one exact address-free
   `HandleProtocol` invocation-plan carrier before any outcome is admitted. The
@@ -1555,7 +1556,8 @@ Remaining:
   authority. Exact producer evidence for the remaining three WCSU coordinates,
   generated physical shell and the broader checked-adapter realization,
   provider-to-root establishment beyond the bounded Loaded Image call,
-  semantic installation, invocation, and status mapping remain open.
+  semantic installation, semantic-adapter invocation, and physical-entry
+  status mapping remain open.
 
   The next provider/adapter composition edge is design-settled. Implement one
   exact target-runtime bootstrap adapter satisfying

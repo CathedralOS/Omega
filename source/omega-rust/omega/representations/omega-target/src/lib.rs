@@ -5,6 +5,8 @@ mod foreign_locator;
 mod target_semantics;
 mod uefi_boot_services;
 mod uefi_boot_services_occurrence;
+mod uefi_loaded_image;
+mod uefi_loaded_image_occurrence;
 mod uefi_system_table;
 mod uefi_system_table_occurrence;
 mod x86_features;
@@ -28,6 +30,15 @@ pub use uefi_boot_services::{
 pub use uefi_boot_services_occurrence::{
     UEFI_BOOT_SERVICES_SIGNATURE, UefiBootServicesOccurrenceValidationError,
     ValidatedUefiBootServicesHeaderIntegrity, validate_uefi_boot_services_occurrence,
+};
+pub use uefi_loaded_image::{
+    UefiLoadedImageNativeField, UefiLoadedImageNativeFieldKind, UefiLoadedImageNativeFieldLayout,
+    UefiLoadedImageNativeLayoutError, ValidatedUefiLoadedImageNativeLayout,
+    plan_uefi_loaded_image_native_layout,
+};
+pub use uefi_loaded_image_occurrence::{
+    UEFI_LOADED_IMAGE_PROTOCOL_REVISION, UefiLoadedImageOccurrenceValidationError,
+    ValidatedUefiLoadedImageGeometry, validate_uefi_loaded_image_occurrence,
 };
 pub use uefi_system_table::{
     UefiSystemTableNativeField, UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,
