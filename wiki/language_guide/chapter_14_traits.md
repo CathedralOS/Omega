@@ -824,7 +824,7 @@ the erased-data adapter rejoins the structural-only scalar-result ABI, and
 machine/object/image evidence replays the exact store/read/return bytes on
 x86-64 and AArch64. Store path, accumulated byte offset, and return field are
 identified independently; assignment rejects disagreement between path, offset,
-or order. Canonical installation format 66 retains the ordered store vector. The
+or order. Canonical installation format 67 retains the ordered store vector. The
 first Boolean store returns an independent `i32` field through the existing
 fixed-integer result-home lane. A Boolean-returning forwarded call instead
 uses an exact one-byte Boolean home and branches directly on that value after
@@ -1092,7 +1092,7 @@ the parameter origin, unchanged registers, relocation, call-stack facts, and
 return attribution in a separate evidence row. Object and final-image replay
 independently rederive the helper chain, interface and call-plan custody,
 unchanged register handoff, direct-call relocation and opcode shape, and
-semantic attribution. Installation format 66 retains the compact source,
+semantic attribution. Installation format 67 retains the compact source,
 callee, scalar, parameter-ordinal, and exact text-span projection and rejects
 codec or projection drift. Unit results, continuation-bearing callers, and
 native process observation are not yet in this native lane. Result-less Unit
@@ -1102,7 +1102,9 @@ dispatches through the requirement slot, and no helper acquires a scalar result
 or value identity. Target and assigned forms now retain a distinct
 result-neutral helper call, exact source/target interfaces, both no-result
 two-word call plans, and an unchanged descriptor-register handoff. Machine
-emission remains fail-closed on that carrier.
+emission uses an explicit Unit stack/link carrier; object, final-image, and
+format-67 installation replay preserve the helper chain while requiring source
+value and scalar type to remain jointly absent.
 
 Code that wants a local dynamic interface over a component owns a local proxy:
 

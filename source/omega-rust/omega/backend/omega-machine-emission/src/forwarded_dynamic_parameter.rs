@@ -3,8 +3,9 @@
 use omega_assigned_target_operations::{AssignedFunction, AssignedOperation};
 use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape};
 use omega_machine_code::{
-    Aarch64ReturnLinkEvidence, ForwardedDynamicParameterCallRecord, InternalCallRelocation,
-    ScalarCallStackEvidence,
+    Aarch64ReturnLinkEvidence, ForwardedDynamicParameterCallRecord,
+    ForwardedDynamicParameterCallStackEvidence, InternalCallRelocation, ScalarCallStackEvidence,
+    UnitCallStackEvidence, UnitStackEvidence,
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::CallSiteOwner;
@@ -19,6 +20,8 @@ pub(super) struct EmittedForwardedDynamicParameterCall {
     pub bytes: Vec<u8>,
     pub record: ForwardedDynamicParameterCallRecord,
     pub relocation: InternalCallRelocation,
+    pub unit_stack: Option<UnitStackEvidence>,
+    pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
     pub return_offset: usize,
     pub return_byte_count: usize,
 }
@@ -28,11 +31,10 @@ pub(super) fn emit(
     target: NativeTarget,
     functions: &[AssignedFunction],
 ) -> Result<EmittedForwardedDynamicParameterCall, EmissionError> {
-    let AssignedOperation::ReturnForwardedDynamicParameterScalarCall {
+    let (
         psi_edge,
         psi_operation,
-        source_value,
-        scalar_type,
+        scalar_result,
         callee,
         argument,
         parameter_abi,
@@ -43,29 +45,102 @@ pub(super) fn emit(
         claim_transfers,
         requirement_obligations,
         crash_continuations,
-    } = &function.operation
-    else {
-        unreachable!("forwarded dynamic-parameter emitter receives its exact role")
+    ) = match &function.operation {
+        AssignedOperation::ReturnForwardedDynamicParameterScalarCall {
+            psi_edge,
+            psi_operation,
+            source_value,
+            scalar_type,
+            callee,
+            argument,
+            parameter_abi,
+            instance_destination,
+            table_destination,
+            function_call_plan,
+            callee_call_plan,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => (
+            *psi_edge,
+            *psi_operation,
+            Some((*source_value, *scalar_type)),
+            *callee,
+            argument,
+            parameter_abi,
+            *instance_destination,
+            *table_destination,
+            function_call_plan,
+            callee_call_plan,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        ),
+        AssignedOperation::ForwardDynamicParameterUnitCall {
+            psi_edge,
+            psi_operation,
+            callee,
+            argument,
+            parameter_abi,
+            instance_destination,
+            table_destination,
+            function_call_plan,
+            callee_call_plan,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => (
+            *psi_edge,
+            *psi_operation,
+            None,
+            *callee,
+            argument,
+            parameter_abi,
+            *instance_destination,
+            *table_destination,
+            function_call_plan,
+            callee_call_plan,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        ),
+        _ => unreachable!("forwarded dynamic-parameter emitter receives its exact role"),
     };
-    let invalid = || EmissionError::InvalidDynamicDescriptorCallCustody(*psi_operation);
+    let invalid = || EmissionError::InvalidDynamicDescriptorCallCustody(psi_operation);
     let helper = functions
         .iter()
-        .find(|candidate| candidate.machine == *callee)
+        .find(|candidate| candidate.machine == callee)
         .ok_or_else(invalid)?;
-    let (helper_parameter, helper_call_plan) = match &helper.operation {
+    let (helper_parameter, helper_call_plan, helper_scalar_type) = match &helper.operation {
         AssignedOperation::ReturnForwardedDynamicParameterScalarCall {
             parameter_abi,
             function_call_plan,
+            scalar_type,
             ..
         }
         | AssignedOperation::ReturnDynamicParameterScalarCall {
             parameter_abi,
             function_call_plan,
+            scalar_type,
             ..
-        } => (&parameter_abi.parameter, function_call_plan),
+        } => (
+            &parameter_abi.parameter,
+            function_call_plan,
+            Some(*scalar_type),
+        ),
+        AssignedOperation::ForwardDynamicParameterUnitCall {
+            parameter_abi,
+            function_call_plan,
+            ..
+        }
+        | AssignedOperation::DynamicParameterUnitCall {
+            parameter_abi,
+            function_call_plan,
+            ..
+        } => (&parameter_abi.parameter, function_call_plan, None),
         _ => return Err(invalid()),
     };
-    let result_shape = match scalar_type {
+    let result_shape = scalar_result.map(|(_, scalar_type)| match scalar_type {
         psi_core::ScalarType::Boolean => ValueShape::integer(1, 1),
         psi_core::ScalarType::Integer(integer) => ValueShape::integer(
             integer.bits().div_ceil(8),
@@ -77,7 +152,7 @@ pub(super) fn emit(
         psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => {
             ValueShape::float(8)
         }
-    };
+    });
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let signature = CallSignature {
@@ -85,12 +160,13 @@ pub(super) fn emit(
             ValueShape::integer(pointer_size, pointer_alignment),
             ValueShape::integer(pointer_size, pointer_alignment),
         ],
-        result: Some(result_shape),
+        result: result_shape,
     };
     if helper.attachment.is_some()
         || helper_parameter != &argument.target
         || helper_call_plan != callee_call_plan
-        || !argument.has_complete_custody(function.machine, *psi_operation, *callee)
+        || helper_scalar_type != scalar_result.map(|(_, scalar_type)| scalar_type)
+        || !argument.has_complete_custody(function.machine, psi_operation, callee)
         || !matches!(
             &argument.source,
             omega_target_operations::AbstractDynamicDescriptorSource::Parameter(source)
@@ -101,8 +177,8 @@ pub(super) fn emit(
         || omega_calling_conventions::validate_call_plan(function_call_plan, &signature).is_err()
         || omega_calling_conventions::validate_call_plan(callee_call_plan, &signature).is_err()
         || function_call_plan != callee_call_plan
-        || parameter_abi.instance != *instance_destination
-        || parameter_abi.table != *table_destination
+        || parameter_abi.instance != instance_destination
+        || parameter_abi.table != table_destination
         || parameter_abi.instance == parameter_abi.table
         || !claim_transfers.is_empty()
         || !requirement_obligations.is_empty()
@@ -111,30 +187,71 @@ pub(super) fn emit(
         return Err(invalid());
     }
 
-    let (bytes, relocation, call_start, call_count, call_stack, return_offset, return_count) =
+    let (bytes, mut relocation, call_start, call_count, raw_stack, return_offset, return_count) =
         match target.architecture {
             Architecture::X86_64 => emit_x86_64(
-                *psi_operation,
-                *callee,
+                psi_operation,
+                callee,
                 u32::from(callee_call_plan.shadow_bytes),
             )?,
-            Architecture::Aarch64 => emit_aarch64(*psi_operation, *callee)?,
+            Architecture::Aarch64 => emit_aarch64(psi_operation, callee)?,
         };
+    let (call_stack, unit_stack) = if scalar_result.is_some() {
+        (
+            ForwardedDynamicParameterCallStackEvidence::Scalar(raw_stack),
+            None,
+        )
+    } else {
+        let (call_stack, unit_stack) = match target.architecture {
+            Architecture::X86_64 => (
+                UnitCallStackEvidence {
+                    outbound: raw_stack.outbound,
+                },
+                UnitStackEvidence {
+                    frame: None,
+                    aarch64_return_link: None,
+                    stack_alignment: 16,
+                },
+            ),
+            Architecture::Aarch64 => (
+                UnitCallStackEvidence { outbound: None },
+                UnitStackEvidence {
+                    frame: raw_stack.outbound,
+                    aarch64_return_link: raw_stack.aarch64_return_link,
+                    stack_alignment: 16,
+                },
+            ),
+        };
+        relocation.scalar_stack = None;
+        relocation.unit_stack = Some(call_stack);
+        (
+            ForwardedDynamicParameterCallStackEvidence::Unit(call_stack),
+            Some(unit_stack),
+        )
+    };
     Ok(EmittedForwardedDynamicParameterCall {
+        unit_affine_cleanup: unit_stack.map(|_| omega_machine_code::UnitAffineCleanupRecord {
+            psi_edge,
+            structural_types: Vec::new(),
+            locals: Vec::new(),
+            actions: Vec::new(),
+            code_offset: return_offset,
+            byte_count: return_count,
+        }),
         record: ForwardedDynamicParameterCallRecord {
-            psi_edge: *psi_edge,
-            psi_operation: *psi_operation,
-            source_value: *source_value,
-            scalar_type: *scalar_type,
-            callee: *callee,
+            psi_edge,
+            psi_operation,
+            source_value: scalar_result.map(|(source_value, _)| source_value),
+            scalar_type: scalar_result.map(|(_, scalar_type)| scalar_type),
+            callee,
             argument: argument.clone(),
             parameter: parameter_abi.parameter.clone(),
             function_call_plan: function_call_plan.clone(),
             callee_call_plan: callee_call_plan.clone(),
             instance: parameter_abi.instance,
             table: parameter_abi.table,
-            instance_destination: *instance_destination,
-            table_destination: *table_destination,
+            instance_destination,
+            table_destination,
             direct_call_offset: call_start,
             direct_call_byte_count: call_count,
             call_stack,
@@ -144,6 +261,7 @@ pub(super) fn emit(
         },
         bytes,
         relocation,
+        unit_stack,
         return_offset,
         return_byte_count: return_count,
     })

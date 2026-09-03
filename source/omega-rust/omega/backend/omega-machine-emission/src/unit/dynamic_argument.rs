@@ -114,6 +114,11 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
             parameter_abi,
             function_call_plan,
             ..
+        }
+        | AssignedOperation::ForwardDynamicParameterUnitCall {
+            parameter_abi,
+            function_call_plan,
+            ..
         } => (None, parameter_abi, function_call_plan),
         _ => return Err(invalid()),
     };

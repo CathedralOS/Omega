@@ -1149,6 +1149,20 @@ fn build_object_artifact_with_x86_feature_profile(
             .checked_add(function.internal_unit_scalar_calls.len())
             .and_then(|count| count.checked_add(function.forwarded_dynamic_descriptor_calls.len()))
             .and_then(|count| {
+                count.checked_add(
+                    function
+                        .forwarded_dynamic_parameter_calls
+                        .iter()
+                        .filter(|call| {
+                            matches!(
+                                call.call_stack,
+                                omega_machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
+                            )
+                        })
+                        .count(),
+                )
+            })
+            .and_then(|count| {
                 count.checked_add(function.installed_provider_unit_scalar_calls.len())
             })
             .ok_or(ObjectError::InvalidInternalUnitCallEvidence(
@@ -1186,6 +1200,18 @@ fn build_object_artifact_with_x86_feature_profile(
                     .forwarded_dynamic_descriptor_calls
                     .iter()
                     .map(|call| (CallSiteOwner::Operation(call.psi_operation), call.callee)),
+            )
+            .chain(
+                function
+                    .forwarded_dynamic_parameter_calls
+                    .iter()
+                    .filter_map(|call| {
+                        matches!(
+                            call.call_stack,
+                            omega_machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
+                        )
+                        .then_some((CallSiteOwner::Operation(call.psi_operation), call.callee))
+                    }),
             )
             .chain(
                 function

@@ -90,7 +90,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 66;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 67;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -448,8 +448,8 @@ pub struct InstalledForwardedDynamicParameterCall {
     pub machine: MachineId,
     pub operation: OperationId,
     pub callee: MachineId,
-    pub source_value: ValueId,
-    pub scalar_type: psi_core::ScalarType,
+    pub source_value: Option<ValueId>,
+    pub scalar_type: Option<psi_core::ScalarType>,
     pub source_parameter_ordinal: u32,
     pub target_parameter_ordinal: u32,
     pub text_offset: usize,
@@ -3608,8 +3608,12 @@ fn validate_installed_dynamic_conformance(
             || (!forwarded_parameter_machines.contains(&call.callee)
                 && !dynamic_parameter_machines.contains(&call.callee))
             || !matches!(
-                call.scalar_type,
-                psi_core::ScalarType::Boolean | psi_core::ScalarType::Integer(_)
+                (call.source_value, call.scalar_type),
+                (None, None)
+                    | (
+                        Some(_),
+                        Some(psi_core::ScalarType::Boolean | psi_core::ScalarType::Integer(_))
+                    )
             )
             || !forwarded_parameter_sites.insert((call.machine, call.operation))
         {

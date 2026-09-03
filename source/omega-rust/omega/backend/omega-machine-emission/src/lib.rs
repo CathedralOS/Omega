@@ -464,9 +464,12 @@ fn emit_function(
             unit_affine_cleanup = emitted.affine_cleanup;
             emitted.bytes
         }
-        AssignedOperation::ReturnForwardedDynamicParameterScalarCall { .. } => {
+        AssignedOperation::ReturnForwardedDynamicParameterScalarCall { .. }
+        | AssignedOperation::ForwardDynamicParameterUnitCall { .. } => {
             let emitted = forwarded_dynamic_parameter::emit(function, target, functions)?;
-            scalar_stack_eligible = true;
+            scalar_stack_eligible = emitted.record.scalar_type.is_some();
+            unit_stack = emitted.unit_stack;
+            unit_affine_cleanup = emitted.unit_affine_cleanup;
             semantic_code_attribution.push(SemanticCodeAttribution {
                 site: SemanticCodeSite::Operation(emitted.record.psi_operation),
                 operation_ordinal: emitted.record.operation_ordinal,
@@ -482,11 +485,6 @@ fn emit_function(
             internal_calls.push(emitted.relocation);
             forwarded_dynamic_parameter_calls.push(emitted.record);
             emitted.bytes
-        }
-        AssignedOperation::ForwardDynamicParameterUnitCall { psi_operation, .. } => {
-            return Err(EmissionError::InvalidDynamicDescriptorCallCustody(
-                *psi_operation,
-            ));
         }
         AssignedOperation::ReturnDynamicParameterScalarCall { .. }
         | AssignedOperation::DynamicParameterUnitCall { .. } => {

@@ -102,6 +102,26 @@ fn assigned_multi_hop_plan(
     )
 }
 
+fn assigned_multi_hop_unit_plan(
+    target: NativeTarget,
+) -> omega_assigned_target_operations::AssignedOperationPlan {
+    assigned_unit_plan_from_source(
+        target,
+        r#"
+        trait Touch { machine touch(&self); }
+        data Item { value: i32; }
+        Primary: Item satisfies Touch { machine touch(&self) {} }
+        data Main { selected: Item; }
+        machine Main::run(&self) {
+            let erased: &dyn Touch = &self.selected as &dyn Item::Primary;
+            forward(erased);
+        }
+        machine forward(erased: &dyn Touch) { finish(erased); }
+        machine finish(erased: &dyn Touch) { erased.touch(); }
+    "#,
+    )
+}
+
 fn assigned_scalar_plan_from_source(
     target: NativeTarget,
     source: &str,
@@ -273,13 +293,17 @@ fn emits_parameter_sourced_forwarding_as_a_direct_helper_call() {
         assert_eq!(call.table, call.table_destination);
         assert_eq!(call.operation_ordinal, 0);
         assert_eq!(call.code_offset, 0);
+        let omega_machine_code::ForwardedDynamicParameterCallStackEvidence::Scalar(call_stack) =
+            &call.call_stack
+        else {
+            panic!("scalar forwarding requires scalar call-stack custody")
+        };
         assert_eq!(
             call.byte_count,
             call.direct_call_offset
                 + call.direct_call_byte_count
                 + match target.architecture {
-                    Architecture::X86_64 => call
-                        .call_stack
+                    Architecture::X86_64 => call_stack
                         .outbound
                         .map_or(0, |stack| stack.release_byte_count),
                     Architecture::Aarch64 => 8,
@@ -290,7 +314,7 @@ fn emits_parameter_sourced_forwarding_as_a_direct_helper_call() {
             panic!("one direct helper relocation expected")
         };
         assert_eq!(relocation.target, call.callee);
-        assert_eq!(relocation.scalar_stack.as_ref(), Some(&call.call_stack));
+        assert_eq!(relocation.scalar_stack.as_ref(), Some(call_stack));
         assert_eq!(
             relocation.offset,
             match target.architecture {
@@ -304,6 +328,60 @@ fn emits_parameter_sourced_forwarding_as_a_direct_helper_call() {
             .find(|function| function.machine == call.callee)
             .expect("final dynamic dispatch helper");
         assert_eq!(final_helper.dynamic_parameter_calls.len(), 1);
+    }
+}
+
+#[test]
+fn emits_parameter_sourced_unit_forwarding_as_a_result_less_direct_call() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let assigned = assigned_multi_hop_unit_plan(target);
+        let emitted = crate::emit_machine_code(&assigned)
+            .expect("emit parameter-sourced Unit descriptor helper chain");
+        let helpers = emitted
+            .functions
+            .iter()
+            .filter(|function| !function.forwarded_dynamic_parameter_calls.is_empty())
+            .collect::<Vec<_>>();
+        let [helper] = helpers.as_slice() else {
+            panic!("one Unit parameter-forwarding helper expected: {emitted:#?}")
+        };
+        let [call] = helper.forwarded_dynamic_parameter_calls.as_slice() else {
+            unreachable!()
+        };
+        assert!(call.source_value.is_none());
+        assert!(call.scalar_type.is_none());
+        assert!(matches!(
+            &call.argument.source,
+            omega_target_operations::AbstractDynamicDescriptorSource::Parameter(source)
+                if source == &call.parameter
+        ));
+        assert_eq!(call.function_call_plan, call.callee_call_plan);
+        assert!(call.function_call_plan.result.is_none());
+        assert_eq!(call.instance, call.instance_destination);
+        assert_eq!(call.table, call.table_destination);
+        let omega_machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(call_stack) =
+            &call.call_stack
+        else {
+            panic!("Unit forwarding requires Unit call-stack custody")
+        };
+        assert!(helper.scalar_stack.is_none());
+        assert!(helper.unit_stack.is_some());
+        let [relocation] = helper.internal_calls.as_slice() else {
+            panic!("one direct Unit helper relocation expected")
+        };
+        assert_eq!(relocation.target, call.callee);
+        assert_eq!(relocation.unit_stack.as_ref(), Some(call_stack));
+        assert!(relocation.scalar_stack.is_none());
+        let final_helper = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == call.callee)
+            .expect("final Unit dynamic dispatch helper");
+        let [dispatch] = final_helper.dynamic_parameter_calls.as_slice() else {
+            panic!("one final Unit parameter-slot dispatch expected")
+        };
+        assert!(dispatch.source_value.is_none());
+        assert!(dispatch.scalar_type.is_none());
     }
 }
 
@@ -327,6 +405,34 @@ fn rejects_parameter_sourced_forwarding_register_drift_before_emission() {
             Some(*psi_operation)
         })
         .expect("parameter-sourced forwarding helper");
+    assert_eq!(
+        crate::emit_machine_code(&assigned),
+        Err(crate::EmissionError::InvalidDynamicDescriptorCallCustody(
+            rejected
+        ))
+    );
+}
+
+#[test]
+fn rejects_parameter_sourced_unit_forwarding_register_drift_before_emission() {
+    let mut assigned = assigned_multi_hop_unit_plan(NativeTarget::linux_x64());
+    let rejected = assigned
+        .functions
+        .iter_mut()
+        .find_map(|function| {
+            let omega_assigned_target_operations::AssignedOperation::ForwardDynamicParameterUnitCall {
+                psi_operation,
+                instance_destination,
+                table_destination,
+                ..
+            } = &mut function.operation
+            else {
+                return None;
+            };
+            *table_destination = *instance_destination;
+            Some(*psi_operation)
+        })
+        .expect("parameter-sourced Unit forwarding helper");
     assert_eq!(
         crate::emit_machine_code(&assigned),
         Err(crate::EmissionError::InvalidDynamicDescriptorCallCustody(

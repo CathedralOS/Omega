@@ -112,6 +112,24 @@ fn multi_hop_scalar_machine_plan(target: NativeTarget) -> omega_machine_code::Ma
     )
 }
 
+fn multi_hop_unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    machine_plan_from_source(
+        r#"
+            trait Touch { machine touch(&self); }
+            data Item { value: i32; }
+            Primary: Item satisfies Touch { machine touch(&self) {} }
+            data Main { selected: Item; }
+            machine Main::run(&self) {
+                let erased: &dyn Touch = &self.selected as &dyn Item::Primary;
+                forward(erased);
+            }
+            machine forward(erased: &dyn Touch) { finish(erased); }
+            machine finish(erased: &dyn Touch) { erased.touch(); }
+        "#,
+        target,
+    )
+}
+
 fn unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     machine_plan_from_source(
         r#"
@@ -301,6 +319,60 @@ fn object_replay_rejects_parameter_sourced_forwarding_custody_drift() {
             Some((function.machine, call.psi_operation))
         })
         .expect("parameter-forwarding machine row");
+    assert_eq!(
+        build_object_artifact(&plan),
+        Err(ObjectError::InvalidForwardedDynamicParameterCallEvidence { caller, operation })
+    );
+}
+
+#[test]
+fn object_image_and_installation_replay_result_less_parameter_forwarding() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = multi_hop_unit_machine_plan(target);
+        let object = build_object_artifact(&plan)
+            .expect("replay result-less parameter-forwarding object evidence");
+        let call = object
+            .functions()
+            .iter()
+            .find_map(|function| function.forwarded_dynamic_parameter_calls.first())
+            .expect("object result-less parameter-forwarding call");
+        assert!(call.source_value.is_none());
+        assert!(call.scalar_type.is_none());
+        assert!(matches!(
+            call.call_stack,
+            omega_machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
+        ));
+        let image =
+            emit_executable_image(&object, 3).expect("link result-less parameter-forwarding image");
+        validate_executable_image(&object, &image)
+            .expect("replay result-less parameter-forwarding linked image");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("build result-less parameter-forwarding installation");
+        let [installed_call] = installation.forwarded_dynamic_parameter_calls() else {
+            panic!("one installed result-less parameter-forwarding call expected")
+        };
+        assert!(installed_call.source_value.is_none());
+        assert!(installed_call.scalar_type.is_none());
+        validate_installation_record(&installation, &image)
+            .expect("replay result-less parameter-forwarding installation");
+        let encoded = encode_installation_record(&installation).expect("encode installation");
+        assert_eq!(decode_installation_record(&encoded), Ok(installation));
+    }
+}
+
+#[test]
+fn object_replay_rejects_result_less_parameter_forwarding_result_drift() {
+    let mut plan = multi_hop_unit_machine_plan(NativeTarget::linux_x64());
+    let (caller, operation) = plan
+        .functions
+        .iter_mut()
+        .find_map(|function| {
+            let call = function.forwarded_dynamic_parameter_calls.first_mut()?;
+            call.scalar_type = Some(psi_core::ScalarType::Boolean);
+            Some((function.machine, call.psi_operation))
+        })
+        .expect("result-less parameter-forwarding machine row");
     assert_eq!(
         build_object_artifact(&plan),
         Err(ObjectError::InvalidForwardedDynamicParameterCallEvidence { caller, operation })
