@@ -206,13 +206,14 @@ otherwise conserved custody. Whole-value replacement is validity-safe when the
 incoming value is already a `T`, subject to that displacement rule.
 
 The current bounded native compiler path carries one unrestricted whole-root
-fixed-integer replacement from verified Terminal form through target-neutral abstract
-operations, optimization validation, target selection, physical assignment,
-and machine emission on x86-64 and AArch64. Object construction independently
-replays its exact parameter identity, access, primitive type, borrowed-reference
-placement and home, preceding typed scalar definition, target store bytes, and
-semantic attribution. Boolean native lowering, installation transport, and
-opaque-provider non-observation guarantees remain fail closed.
+fixed-integer replacement from verified Terminal form through target-neutral
+abstract operations, optimization validation, target selection, physical
+assignment, and machine emission on x86-64 and AArch64. Object construction
+independently replays its exact parameter identity, access, primitive type,
+borrowed-reference placement and home, preceding typed scalar definition,
+target store bytes, and semantic attribution. Installation format 71 transports
+that custody canonically. Boolean native lowering and opaque-provider
+non-observation guarantees remain fail closed.
 
 A partial write must leave `T` valid at the ordinary invariant-window
 consumption points. The checker may prove that from the written inputs, static

@@ -39,6 +39,9 @@ use super::{
     unit_structural_scalar_field_store_codec::{
         decode_unit_structural_scalar_field_stores, encode_unit_structural_scalar_field_stores,
     },
+    unit_write_only_primitive_store_codec::{
+        decode_unit_write_only_primitive_stores, encode_unit_write_only_primitive_stores,
+    },
 };
 
 pub(super) fn encode_functions(
@@ -94,6 +97,7 @@ pub(super) fn encode_functions(
             bytes,
             &function.unit_structural_scalar_field_stores,
         )?;
+        encode_unit_write_only_primitive_stores(bytes, &function.unit_write_only_primitive_stores)?;
         encode_scalar_structural_scalar_field_stores(
             bytes,
             &function.scalar_structural_scalar_field_stores,
@@ -206,6 +210,7 @@ pub(super) fn decode_functions(
         let unit_affine_scalar_records = decode_unit_affine_scalar_records(reader)?;
         let unit_structural_scalar_field_stores =
             decode_unit_structural_scalar_field_stores(reader)?;
+        let unit_write_only_primitive_stores = decode_unit_write_only_primitive_stores(reader)?;
         let scalar_structural_scalar_field_stores =
             decode_scalar_structural_scalar_field_stores(reader)?;
         functions.push(InstalledFunction {
@@ -230,6 +235,7 @@ pub(super) fn decode_functions(
             unit_integer_constants,
             unit_affine_scalar_records,
             unit_structural_scalar_field_stores,
+            unit_write_only_primitive_stores,
             scalar_structural_scalar_field_stores,
             unit_affine_cleanup: match reader.u8()? {
                 0 => {

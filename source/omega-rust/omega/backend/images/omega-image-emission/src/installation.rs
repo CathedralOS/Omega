@@ -56,6 +56,7 @@ mod unit_dynamic_descriptor_join;
 mod unit_scalar_abi_codec;
 mod unit_scalar_codec;
 mod unit_structural_scalar_field_store_codec;
+mod unit_write_only_primitive_store_codec;
 mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
@@ -73,6 +74,7 @@ use installed_unit_scalar_transport::{
     installed_forwarded_dynamic_scalar_result_is_canonical,
     installed_function_scalar_transport_is_canonical, validate_installed_unit_scalar_calls,
     validate_installed_unit_structural_scalar_field_stores,
+    validate_installed_unit_write_only_primitive_stores,
 };
 use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls};
 use internal_unit_scalar_call_codec::{
@@ -93,7 +95,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 70;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 71;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -518,6 +520,8 @@ pub struct InstalledFunction {
         Vec<omega_machine_code::UnitAffineScalarRecordEstablishmentRecord>,
     pub unit_structural_scalar_field_stores:
         Vec<omega_machine_code::UnitStructuralScalarFieldStoreRecord>,
+    pub unit_write_only_primitive_stores:
+        Vec<omega_machine_code::UnitWriteOnlyPrimitiveStoreRecord>,
     pub scalar_structural_scalar_field_stores:
         Vec<omega_machine_code::ScalarStructuralScalarFieldStoreRecord>,
     pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
@@ -660,15 +664,6 @@ pub fn build_installation_record_with_selected_provider_plans_and_evidence<'exec
 where
     Execution: omega_installation_evidence::ProviderExecutionEvidence + ?Sized + 'execution,
 {
-    if let Some(function) = image
-        .functions()
-        .iter()
-        .find(|function| !function.unit_write_only_primitive_stores.is_empty())
-    {
-        return Err(InstallationError::UnsupportedUnitWriteOnlyPrimitiveStore(
-            function.machine,
-        ));
-    }
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -775,6 +770,7 @@ where
                 unit_structural_scalar_field_stores: function
                     .unit_structural_scalar_field_stores
                     .clone(),
+                unit_write_only_primitive_stores: function.unit_write_only_primitive_stores.clone(),
                 scalar_structural_scalar_field_stores: function
                     .scalar_structural_scalar_field_stores
                     .clone(),
@@ -1271,6 +1267,8 @@ pub fn validate_installation_record(
                     || installed.unit_affine_scalar_records != emitted.unit_affine_scalar_records
                     || installed.unit_structural_scalar_field_stores
                         != emitted.unit_structural_scalar_field_stores
+                    || installed.unit_write_only_primitive_stores
+                        != emitted.unit_write_only_primitive_stores
                     || installed.scalar_structural_scalar_field_stores
                         != emitted.scalar_structural_scalar_field_stores
                     || installed.unit_affine_cleanup != emitted.unit_affine_cleanup
@@ -1843,6 +1841,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && function.unit_scalar_homes.is_empty()
                 && function.unit_integer_constants.is_empty()
                 && function.unit_structural_scalar_field_stores.is_empty()
+                && function.unit_write_only_primitive_stores.is_empty()
                 && function.scalar_structural_scalar_field_stores.is_empty()
                 && record.structural_returns.is_empty()
                 && record.internal_unit_calls.is_empty()
@@ -2459,6 +2458,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         .collect::<std::collections::BTreeMap<_, _>>();
     validate_installed_unit_scalar_calls(record, &function_by_machine)?;
     validate_installed_unit_structural_scalar_field_stores(record, &function_by_machine)?;
+    validate_installed_unit_write_only_primitive_stores(record, &function_by_machine)?;
     let mut previous_return = None;
     for installed in &record.structural_returns {
         let function = function_by_machine.get(&installed.machine).ok_or(
@@ -4247,10 +4247,12 @@ fn encode_structural_types(
         push_u64(bytes, declaration.id.get());
         encode_identity(bytes, &declaration.identity)?;
         match &declaration.shape {
-            psi_terminal::StructuralTypeShape::PrimitiveScalar(_) => {
-                return Err(InstallationError::UnsupportedStructuralPrimitiveScalar(
-                    declaration.id,
-                ));
+            psi_terminal::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
+                bytes.extend_from_slice(&[6, 0, 0, 0]);
+                boundary_result_scalar_codec::encode_boundary_result_scalar_type(
+                    bytes,
+                    *scalar_type,
+                );
             }
             psi_terminal::StructuralTypeShape::ByteSequence(carrier) => {
                 bytes.extend_from_slice(&[4, 0, 0, 0]);
@@ -4337,6 +4339,9 @@ fn decode_structural_types(
                 fields: decode_structural_fields(reader)?,
                 cases: decode_structural_cases(reader)?,
             },
+            6 => psi_terminal::StructuralTypeShape::PrimitiveScalar(
+                boundary_result_scalar_codec::decode_boundary_result_scalar_type(reader)?,
+            ),
             tag => {
                 return Err(InstallationError::InvalidStructuralTypeShapeTag(tag));
             }
@@ -4404,13 +4409,14 @@ pub enum InstallationError {
     TooManyUnitAffineScalarRecords,
     InvalidUnitAffineScalarRecord,
     TooManyUnitStructuralScalarFieldStores,
+    TooManyUnitWriteOnlyPrimitiveStores,
     TooManyScalarStructuralScalarFieldStores,
     TooManyUnitStructuralScalarFieldStoreBytes,
+    TooManyUnitWriteOnlyPrimitiveStoreBytes,
     TooManyStructuralReturnParameters,
     TooManyStructuralReturnClaims,
     TooManyStructuralReturnCleanups,
     TooManyStructuralTypes,
-    UnsupportedStructuralPrimitiveScalar(StructuralTypeId),
     TooManyStructuralFields,
     TooManyStructuralCases,
     TooManyStructuralQualifications,
@@ -4493,7 +4499,7 @@ pub enum InstallationError {
     InvalidUnitDynamicDescriptorJoin(MachineId),
     InvalidDynamicParameterCall(MachineId),
     InvalidForwardedDynamicParameterCall(MachineId),
-    UnsupportedUnitWriteOnlyPrimitiveStore(MachineId),
+    InvalidUnitWriteOnlyPrimitiveStore(MachineId),
     InvalidUnitStructuralScalarFieldStore(MachineId),
     InvalidUnitAffineCleanup(MachineId),
     InvalidScalarControlAffineCleanupCount(usize),
@@ -4622,6 +4628,7 @@ mod resource_tests {
             unit_integer_constants: Vec::new(),
             unit_affine_scalar_records: Vec::new(),
             unit_structural_scalar_field_stores: Vec::new(),
+            unit_write_only_primitive_stores: Vec::new(),
             scalar_structural_scalar_field_stores: Vec::new(),
             unit_affine_cleanup: None,
             scalar_affine_cleanup: None,

@@ -709,8 +709,9 @@ the target store, and binds every fact to its exact code interval and bytes in
 a dedicated whole-root record. Object construction independently replays the
 declaration joins, borrowed-reference placement and home, literal source,
 architecture encoding, attribution, interval, and bytes. Boolean native
-lowering and installation transport remain explicit fences; physical
-pointer-layout equivalence is not permission equivalence.
+lowering remains an explicit fence. Installation format 71 transports and
+revalidates the fixed-integer store custody without treating physical
+pointer-layout equivalence as permission equivalence.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan
