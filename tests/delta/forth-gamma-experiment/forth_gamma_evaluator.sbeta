@@ -1,0 +1,890 @@
+; Concatenative Gamma evaluator. Request is u32 source length, source, input.
+; Source is textual ASCII. Words are `: name body ;`; values are `value name`.
+; Hex words push values. Builtins and user words operate on one checked stack.
+; `jump name` and `branch true-name false-name` are tail CFG transfers.
+;
+; Persistent registers:
+; r80 source start, r81 source end, r82 cursor, r83 token start, r84 token len
+; r85 definition end, r86 current scan/word end, r87 data stack cursor
+; r88 return stack cursor, r89 request end, r8a input start, r8b input length
+; r8c output position, r8f value count, r90 zero, r91 one.
+
+        imm r90, 0x0
+        imm r91, 0x1
+        imm re, 0x100000
+read_loop:
+        imm r0, 0x900000
+        jeq re, r0, @read_probe
+        read r1
+        jlt r1, r90, @read_done
+        storeb re, r1
+        add re, r91
+        jmp @read_loop
+read_probe:
+        read r1
+        jlt r1, r90, @read_done
+        jmp @incomplete
+read_done:
+        mov r89, re
+        imm r0, 0x100004
+        jlt r89, r0, @invalid
+        imm r0, 0x100000
+        call @read_u32
+        mov r1, r0
+        imm r80, 0x100004
+        mov r81, r80
+        add r81, r1
+        jlt r81, r80, @invalid
+        jlt r89, r81, @invalid
+        mov r8a, r81
+        mov r8b, r89
+        sub r8b, r8a
+        call @validate_source
+
+        imm r85, 0x900000
+        mov r8f, r90
+        mov r82, r80
+        mov r86, r81
+        call @parse_definitions
+
+        imm r0, @main_name
+        imm r1, 0x4
+        call @find_word
+        jz r0, @invalid
+        mov r4, r0
+        imm r1, 0x10
+        add r4, r1
+        load r82, r4
+        jz r82, @invalid
+        imm r1, 0x8
+        add r4, r1
+        load r86, r4
+        imm r87, 0x1100000
+        imm r88, 0xc000000
+        imm r8c, 0x0
+        jmp @execute_loop
+
+; r0 points to four little-endian bytes.
+read_u32:
+        loadb r1, r0
+        mov r2, r0
+        add r2, r91
+        loadb r3, r2
+        imm r4, 0x100
+        mul r3, r4
+        add r1, r3
+        add r2, r91
+        loadb r3, r2
+        imm r4, 0x10000
+        mul r3, r4
+        add r1, r3
+        add r2, r91
+        loadb r3, r2
+        imm r4, 0x1000000
+        mul r3, r4
+        add r1, r3
+        mov r0, r1
+        ret
+
+validate_source:
+        mov r4, r80
+validate_source_loop:
+        jlt r4, r81, @validate_source_byte
+        ret
+validate_source_byte:
+        loadb r5, r4
+        imm r6, 0x9
+        jeq r5, r6, @validate_source_next
+        imm r6, 0xa
+        jeq r5, r6, @validate_source_next
+        imm r6, 0xd
+        jeq r5, r6, @validate_source_next
+        imm r6, 0x20
+        jlt r5, r6, @invalid
+        imm r6, 0x7f
+        jlt r5, r6, @validate_source_next
+        jmp @invalid
+validate_source_next:
+        add r4, r91
+        jmp @validate_source_loop
+
+; Collect exact 32-byte rows: name start/len, body start/end or zero/cell.
+parse_definitions:
+parse_definition_loop:
+        call @next_token
+        jlt r0, r90, @parse_definitions_done
+        imm r0, @colon_token
+        imm r1, 0x1
+        call @token_equals
+        jnz r0, @parse_word_definition
+        imm r0, @value_token
+        imm r1, 0x5
+        call @token_equals
+        jnz r0, @parse_value_definition
+        jmp @invalid
+parse_word_definition:
+        call @next_token
+        jlt r0, r90, @invalid
+        call @require_name
+        mov r8d, r83
+        mov r8e, r84
+        mov r0, r8d
+        mov r1, r8e
+        call @find_word
+        jnz r0, @invalid
+        call @parse_builtin
+        jnz r0, @invalid
+        mov rb, r82
+parse_definition_body:
+        call @next_token
+        jlt r0, r90, @invalid
+        imm r0, @semicolon_token
+        imm r1, 0x1
+        call @token_equals
+        jz r0, @parse_definition_body
+        mov rc, r83
+        mov r4, r85
+        imm r5, 0x20
+        add r5, r4
+        imm r6, 0x1100000
+        jlt r6, r5, @incomplete
+        store r4, r8d
+        imm r6, 0x8
+        add r4, r6
+        store r4, r8e
+        add r4, r6
+        store r4, rb
+        add r4, r6
+        store r4, rc
+        mov r85, r5
+        jmp @parse_definition_loop
+parse_value_definition:
+        call @next_token
+        jlt r0, r90, @invalid
+        call @require_name
+        mov r8d, r83
+        mov r8e, r84
+        mov r0, r8d
+        mov r1, r8e
+        call @find_word
+        jnz r0, @invalid
+        call @parse_builtin
+        jnz r0, @invalid
+        mov r4, r85
+        imm r5, 0x20
+        add r5, r4
+        imm r6, 0x1100000
+        jlt r6, r5, @incomplete
+        store r4, r8d
+        imm r6, 0x8
+        add r4, r6
+        store r4, r8e
+        add r4, r6
+        store r4, r90
+        add r4, r6
+        store r4, r8f
+        add r8f, r91
+        imm r6, 0x13e0000
+        jlt r8f, r6, @parse_value_ready
+        jmp @incomplete
+parse_value_ready:
+        mov r85, r5
+        jmp @parse_definition_loop
+parse_definitions_done:
+        ret
+
+execute_loop:
+        call @next_token
+        jlt r0, r90, @execute_return
+        call @parse_builtin
+        jz r0, @execute_literal_or_call
+        imm r1, 0x1
+        jeq r0, r1, @op_input_length
+        imm r1, 0x2
+        jeq r0, r1, @op_input_get
+        imm r1, 0x3
+        jeq r0, r1, @op_output_byte
+        imm r1, 0x4
+        jeq r0, r1, @op_output_word
+        imm r1, 0x5
+        jeq r0, r1, @op_output_position
+        imm r1, 0x6
+        jeq r0, r1, @op_assert_equal
+        imm r1, 0x7
+        jeq r0, r1, @op_cell_get
+        imm r1, 0x8
+        jeq r0, r1, @op_cell_set
+        imm r1, 0x9
+        jeq r0, r1, @op_dup
+        imm r1, 0xa
+        jeq r0, r1, @op_swap
+        imm r1, 0xb
+        jeq r0, r1, @op_over
+        imm r1, 0xc
+        jeq r0, r1, @op_drop
+        imm r1, 0xd
+        jeq r0, r1, @op_add
+        imm r1, 0xe
+        jeq r0, r1, @op_sub
+        imm r1, 0xf
+        jeq r0, r1, @op_mul
+        imm r1, 0x10
+        jeq r0, r1, @op_div
+        imm r1, 0x11
+        jeq r0, r1, @op_mod
+        imm r1, 0x12
+        jeq r0, r1, @op_less
+        imm r1, 0x13
+        jeq r0, r1, @op_equal
+        imm r1, 0x14
+        jeq r0, r1, @op_jump
+        imm r1, 0x15
+        jeq r0, r1, @op_branch
+        imm r1, 0x16
+        jeq r0, r1, @op_to
+        imm r1, 0x17
+        jeq r0, r1, @op_text
+        jmp @internal
+
+execute_literal_or_call:
+        mov r0, r83
+        mov r1, r84
+        call @parse_hex
+        jnz r1, @execute_push_literal
+        mov r0, r83
+        mov r1, r84
+        call @find_word
+        jz r0, @authored_trap
+        mov r4, r0
+        imm r1, 0x10
+        add r4, r1
+        load r5, r4
+        jz r5, @execute_value
+        call @enter_word
+        jmp @execute_loop
+execute_value:
+        imm r1, 0x8
+        add r4, r1
+        load r0, r4
+        call @push
+        call @checked_cell_address
+        load r0, r0
+        call @push
+        jmp @execute_loop
+execute_push_literal:
+        call @push
+        jmp @execute_loop
+
+execute_return:
+        imm r0, 0xc000000
+        jeq r88, r0, @complete
+        imm r0, 0x10
+        sub r88, r0
+        load r82, r88
+        mov r4, r88
+        imm r0, 0x8
+        add r4, r0
+        load r86, r4
+        jmp @execute_loop
+
+; r0 definition row. Save continuation and enter body.
+enter_word:
+        mov r4, r88
+        imm r5, 0x10
+        add r5, r4
+        imm r6, 0xd000000
+        jlt r6, r5, @incomplete
+        store r4, r82
+        imm r6, 0x8
+        add r4, r6
+        store r4, r86
+        mov r88, r5
+enter_word_tail:
+        mov r4, r0
+        imm r5, 0x10
+        add r4, r5
+        load r82, r4
+        imm r5, 0x8
+        add r4, r5
+        load r86, r4
+        ret
+
+op_input_length:
+        mov r0, r8b
+        call @push
+        jmp @execute_loop
+op_input_get:
+        call @pop
+        jlt r0, r90, @authored_trap
+        jlt r0, r8b, @op_input_get_ok
+        jmp @authored_trap
+op_input_get_ok:
+        add r0, r8a
+        loadb r0, r0
+        call @push
+        jmp @execute_loop
+op_output_byte:
+        call @pop
+        jlt r0, r90, @authored_trap
+        imm r1, 0x100
+        jlt r0, r1, @op_output_byte_ok
+        jmp @authored_trap
+op_output_byte_ok:
+        imm r1, 0x4000000
+        jeq r8c, r1, @incomplete
+        write r0
+        add r8c, r91
+        jmp @execute_loop
+op_output_word:
+        call @pop
+        mov r5, r8c
+        imm r6, 0x8
+        add r5, r6
+        imm r7, 0x4000000
+        jlt r7, r5, @incomplete
+        imm r4, 0xd000000
+        store r4, r0
+op_output_word_loop:
+        loadb r0, r4
+        write r0
+        add r4, r91
+        add r8c, r91
+        sub r6, r91
+        jnz r6, @op_output_word_loop
+        jmp @execute_loop
+op_output_position:
+        mov r0, r8c
+        call @push
+        jmp @execute_loop
+op_assert_equal:
+        call @pop
+        mov r4, r0
+        call @pop
+        jeq r0, r4, @execute_loop
+        jmp @authored_trap
+op_cell_get:
+        call @checked_cell_address
+        load r0, r0
+        call @push
+        jmp @execute_loop
+op_cell_set:
+        call @checked_cell_address
+        mov r4, r0
+        call @pop
+        store r4, r0
+        jmp @execute_loop
+op_dup:
+        call @pop
+        mov r4, r0
+        call @push
+        mov r0, r4
+        call @push
+        jmp @execute_loop
+op_swap:
+        call @pop
+        mov r4, r0
+        call @pop
+        mov r5, r0
+        mov r0, r4
+        call @push
+        mov r0, r5
+        call @push
+        jmp @execute_loop
+op_over:
+        call @pop
+        mov r4, r0
+        call @pop
+        mov r5, r0
+        call @push
+        mov r0, r4
+        call @push
+        mov r0, r5
+        call @push
+        jmp @execute_loop
+op_drop:
+        call @pop
+        jmp @execute_loop
+op_add:
+        call @binary
+        add r8, r9
+        mov r0, r8
+        call @push
+        jmp @execute_loop
+op_sub:
+        call @binary
+        sub r8, r9
+        mov r0, r8
+        call @push
+        jmp @execute_loop
+op_mul:
+        call @binary
+        mul r8, r9
+        mov r0, r8
+        call @push
+        jmp @execute_loop
+op_div:
+        call @binary
+        call @reject_invalid_division
+        div r8, r9
+        mov r0, r8
+        call @push
+        jmp @execute_loop
+op_mod:
+        call @binary
+        call @reject_invalid_division
+        mod r8, r9
+        mov r0, r8
+        call @push
+        jmp @execute_loop
+op_less:
+        call @binary
+        jlt r8, r9, @op_true
+        mov r0, r90
+        call @push
+        jmp @execute_loop
+op_equal:
+        call @binary
+        jeq r8, r9, @op_true
+        mov r0, r90
+        call @push
+        jmp @execute_loop
+op_true:
+        mov r0, r91
+        call @push
+        jmp @execute_loop
+
+op_jump:
+        call @next_token
+        jlt r0, r90, @invalid
+        mov r0, r83
+        mov r1, r84
+        call @find_word
+        jz r0, @authored_trap
+        call @enter_word_tail
+        jmp @execute_loop
+op_branch:
+        call @pop
+        mov rd, r0
+        call @next_token
+        jlt r0, r90, @invalid
+        mov r0, r83
+        mov r1, r84
+        call @find_word
+        jz r0, @authored_trap
+        mov r8d, r0
+        call @next_token
+        jlt r0, r90, @invalid
+        jnz rd, @op_branch_selected
+        mov r0, r83
+        mov r1, r84
+        call @find_word
+        jz r0, @authored_trap
+        mov r8d, r0
+op_branch_selected:
+        mov r0, r8d
+        call @enter_word_tail
+        jmp @execute_loop
+
+op_to:
+        call @next_token
+        jlt r0, r90, @invalid
+        mov r0, r83
+        mov r1, r84
+        call @find_word
+        jz r0, @authored_trap
+        mov r4, r0
+        imm r1, 0x10
+        add r4, r1
+        load r5, r4
+        jnz r5, @authored_trap
+        imm r1, 0x8
+        add r4, r1
+        load r0, r4
+        call @push
+        call @checked_cell_address
+        mov r4, r0
+        call @pop
+        store r4, r0
+        jmp @execute_loop
+
+; Copy one following quoted token to output; \n is the only escape.
+op_text:
+        call @next_token
+        jlt r0, r90, @invalid
+        imm r0, 0x2
+        jlt r84, r0, @authored_trap
+        loadb r0, r83
+        imm r1, 0x22
+        jeq r0, r1, @op_text_begin
+        jmp @authored_trap
+op_text_begin:
+        mov r4, r91
+        mov r5, r84
+        sub r5, r91
+op_text_loop:
+        jeq r4, r5, @execute_loop
+        mov r6, r83
+        add r6, r4
+        loadb r0, r6
+        imm r1, 0x5c
+        jeq r0, r1, @op_text_escape
+op_text_write:
+        imm r1, 0x4000000
+        jeq r8c, r1, @incomplete
+        write r0
+        add r8c, r91
+        add r4, r91
+        jmp @op_text_loop
+op_text_escape:
+        add r4, r91
+        jeq r4, r5, @authored_trap
+        mov r6, r83
+        add r6, r4
+        loadb r0, r6
+        imm r1, 0x6e
+        jeq r0, r1, @op_text_newline
+        jmp @authored_trap
+op_text_newline:
+        imm r0, 0xa
+        jmp @op_text_write
+
+binary:
+        call @pop
+        mov r9, r0
+        call @pop
+        mov r8, r0
+        ret
+
+reject_invalid_division:
+        jz r9, @authored_trap
+        imm r0, 0x8000000000000000
+        jeq r8, r0, @reject_division_min
+        ret
+reject_division_min:
+        imm r0, 0xffffffffffffffff
+        jeq r9, r0, @authored_trap
+        ret
+
+checked_cell_address:
+        call @pop
+        jlt r0, r90, @authored_trap
+        imm r1, 0x13e0000
+        jlt r0, r1, @checked_cell_index
+        jmp @authored_trap
+checked_cell_index:
+        imm r1, 0x8
+        mul r0, r1
+        imm r1, 0x2100000
+        add r0, r1
+        ret
+
+push:
+        imm r1, 0x2100000
+        jeq r87, r1, @incomplete
+        store r87, r0
+        imm r1, 0x8
+        add r87, r1
+        ret
+pop:
+        imm r1, 0x1100000
+        jeq r87, r1, @authored_trap
+        imm r1, 0x8
+        sub r87, r1
+        load r0, r87
+        ret
+
+; Tokenizer bounded by r86. Whitespace and `#` line comments are skipped.
+next_token:
+        mov r4, r82
+next_token_skip:
+        jlt r4, r86, @next_token_have
+        mov r82, r4
+        imm r0, 0xffffffffffffffff
+        ret
+next_token_have:
+        loadb r5, r4
+        imm r6, 0x21
+        jlt r5, r6, @next_token_advance
+        imm r6, 0x23
+        jeq r5, r6, @next_token_comment
+        jmp @next_token_start
+next_token_advance:
+        add r4, r91
+        jmp @next_token_skip
+next_token_comment:
+        add r4, r91
+next_token_comment_loop:
+        jlt r4, r86, @next_token_comment_byte
+        jmp @next_token_skip
+next_token_comment_byte:
+        loadb r5, r4
+        add r4, r91
+        imm r6, 0xa
+        jeq r5, r6, @next_token_skip
+        imm r6, 0xd
+        jeq r5, r6, @next_token_skip
+        jmp @next_token_comment_loop
+next_token_start:
+        mov r83, r4
+        imm r6, 0x22
+        jeq r5, r6, @next_token_quoted
+next_token_body:
+        jlt r4, r86, @next_token_body_byte
+        jmp @next_token_finish
+next_token_body_byte:
+        loadb r5, r4
+        imm r6, 0x21
+        jlt r5, r6, @next_token_finish
+        imm r6, 0x23
+        jeq r5, r6, @next_token_finish
+        add r4, r91
+        jmp @next_token_body
+next_token_quoted:
+        add r4, r91
+next_token_quoted_loop:
+        jlt r4, r86, @next_token_quoted_byte
+        jmp @invalid
+next_token_quoted_byte:
+        loadb r5, r4
+        add r4, r91
+        imm r6, 0x22
+        jeq r5, r6, @next_token_finish
+        jmp @next_token_quoted_loop
+next_token_finish:
+        mov r84, r4
+        sub r84, r83
+        mov r82, r4
+        mov r0, r90
+        ret
+
+require_name:
+        jz r84, @invalid
+        loadb r4, r83
+        imm r5, 0x5f
+        jeq r4, r5, @require_name_rest
+        imm r5, 0x61
+        jlt r4, r5, @invalid
+        imm r5, 0x7b
+        jlt r4, r5, @require_name_rest
+        jmp @invalid
+require_name_rest:
+        imm r4, 0x1
+require_name_loop:
+        jlt r4, r84, @require_name_byte
+        ret
+require_name_byte:
+        mov r5, r83
+        add r5, r4
+        loadb r6, r5
+        imm r7, 0x5f
+        jeq r6, r7, @require_name_next
+        imm r7, 0x30
+        jlt r6, r7, @invalid
+        imm r7, 0x3a
+        jlt r6, r7, @require_name_next
+        imm r7, 0x61
+        jlt r6, r7, @invalid
+        imm r7, 0x7b
+        jlt r6, r7, @require_name_next
+        jmp @invalid
+require_name_next:
+        add r4, r91
+        jmp @require_name_loop
+
+; r0/r1 span. Returns definition row or zero.
+find_word:
+        mov r8, r0
+        mov r9, r1
+        imm ra, 0x900000
+find_word_loop:
+        jlt ra, r85, @find_word_row
+        mov r0, r90
+        ret
+find_word_row:
+        load r2, ra
+        mov r3, ra
+        imm r4, 0x8
+        add r3, r4
+        load r3, r3
+        mov r0, r8
+        mov r1, r9
+        call @spans_equal
+        jnz r0, @find_word_found
+        imm r4, 0x20
+        add ra, r4
+        jmp @find_word_loop
+find_word_found:
+        mov r0, ra
+        ret
+
+; Current token against r0/r1.
+token_equals:
+        mov r2, r83
+        mov r3, r84
+spans_equal:
+        jeq r1, r3, @spans_equal_length
+        mov r0, r90
+        ret
+spans_equal_length:
+        imm r4, 0x0
+spans_equal_loop:
+        jlt r4, r1, @spans_equal_byte
+        mov r0, r91
+        ret
+spans_equal_byte:
+        mov r5, r0
+        add r5, r4
+        loadb r6, r5
+        mov r5, r2
+        add r5, r4
+        loadb r7, r5
+        jeq r6, r7, @spans_equal_next
+        mov r0, r90
+        ret
+spans_equal_next:
+        add r4, r91
+        jmp @spans_equal_loop
+
+; r0/r1 span. Returns word in r0 and success in r1.
+parse_hex:
+        mov r4, r0
+        mov r5, r1
+        imm r1, 0x3
+        jlt r5, r1, @parse_hex_fail
+        imm r1, 0x13
+        jlt r5, r1, @parse_hex_width_ok
+        jmp @parse_hex_fail
+parse_hex_width_ok:
+        loadb r6, r4
+        imm r7, 0x30
+        jeq r6, r7, @parse_hex_x
+        jmp @parse_hex_fail
+parse_hex_x:
+        add r4, r91
+        loadb r6, r4
+        imm r7, 0x78
+        jeq r6, r7, @parse_hex_digits
+        jmp @parse_hex_fail
+parse_hex_digits:
+        add r4, r91
+        imm r6, 0x2
+        imm r8, 0x0
+parse_hex_loop:
+        jlt r6, r5, @parse_hex_digit
+        mov r0, r8
+        mov r1, r91
+        ret
+parse_hex_digit:
+        loadb r7, r4
+        imm r9, 0x30
+        jlt r7, r9, @parse_hex_fail
+        imm ra, 0x3a
+        jlt r7, ra, @parse_hex_decimal
+        imm r9, 0x61
+        jlt r7, r9, @parse_hex_fail
+        imm ra, 0x67
+        jlt r7, ra, @parse_hex_alpha
+        jmp @parse_hex_fail
+parse_hex_decimal:
+        sub r7, r9
+        jmp @parse_hex_accumulate
+parse_hex_alpha:
+        imm r9, 0x57
+        sub r7, r9
+parse_hex_accumulate:
+        imm r9, 0x10
+        mul r8, r9
+        add r8, r7
+        add r4, r91
+        add r6, r91
+        jmp @parse_hex_loop
+parse_hex_fail:
+        mov r1, r90
+        ret
+
+; Returns one-based builtin ordinal or zero.
+parse_builtin:
+        imm r8, @builtin_table
+        imm r9, 0x1
+parse_builtin_row:
+        loadb r0, r8
+        jnz r0, @parse_builtin_compare_start
+        mov r0, r90
+        ret
+parse_builtin_compare_start:
+        imm r6, 0x0
+parse_builtin_compare:
+        loadb r0, r8
+        jz r0, @parse_builtin_row_end
+        jlt r6, r84, @parse_builtin_compare_byte
+        jmp @parse_builtin_skip
+parse_builtin_compare_byte:
+        mov rd, r83
+        add rd, r6
+        loadb r1, rd
+        jeq r0, r1, @parse_builtin_next
+        jmp @parse_builtin_skip
+parse_builtin_next:
+        add r8, r91
+        add r6, r91
+        jmp @parse_builtin_compare
+parse_builtin_row_end:
+        jeq r6, r84, @parse_builtin_found
+parse_builtin_skip:
+        loadb r0, r8
+        jz r0, @parse_builtin_advance
+        add r8, r91
+        jmp @parse_builtin_skip
+parse_builtin_advance:
+        add r8, r91
+        add r9, r91
+        jmp @parse_builtin_row
+parse_builtin_found:
+        mov r0, r9
+        ret
+
+complete:
+        imm r0, 0x0
+        halt r0
+invalid:
+        imm r0, 0x1
+        halt r0
+authored_trap:
+        imm r0, 0x2
+        halt r0
+incomplete:
+        imm r0, 0x3
+        halt r0
+internal:
+        imm r0, 0x4
+        halt r0
+
+main_name:
+        dw 0x000000006e69616d ; main....
+colon_token:
+        dw 0x000000000000003a ; :.......
+semicolon_token:
+        dw 0x000000000000003b ; ;.......
+value_token:
+        dw 0x00000065756c6176 ; value...
+builtin_table:
+        dw 0x656c2d7475706e69 ; input-le
+        dw 0x706e69006874676e ; ngth.inp
+        dw 0x6f007465672d7475 ; ut-get.o
+        dw 0x79622d7475707475 ; utput-by
+        dw 0x757074756f006574 ; te.outpu
+        dw 0x6f0064726f772d74 ; t-word.o
+        dw 0x6f702d7475707475 ; utput-po
+        dw 0x61006e6f69746973 ; sition.a
+        dw 0x71652d7472657373 ; ssert-eq
+        dw 0x6c6c6563006c6175 ; ual.cell
+        dw 0x6c6563007465672d ; -get.cel
+        dw 0x7564007465732d6c ; l-set.du
+        dw 0x6f00706177730070 ; p.swap.o
+        dw 0x706f726400726576 ; ver.drop
+        dw 0x2f002a002d002b00 ; .+.-.*./
+        dw 0x6a003d003c002500 ; .%.<.=.j
+        dw 0x6e61726200706d75 ; ump.bran
+        dw 0x6574006f74006863 ; ch.to.te
+        dw 0x0000000000007478 ; xt......
+builtin_table_storage_end: ; ; logical end is 0x10d3

@@ -3966,3 +3966,57 @@ comfortable auditability and should receive further conservative simplification,
 but direct Delta is not a trust reduction at matched evidence. The next semantic
 work remains in the Gamma-authored Delta compiler and its concrete Epsilon
 customer; no additional Gamma primitive is justified by this experiment.
+
+## D93 — Interpreted Forth fixes expansion but not total audit cost
+
+D93 revisits concatenative Gamma without its former source-to-Beta compiler.
+One fixed Beta interpreter executes both the Forth-Gamma-authored Delta compiler
+and each emitted Forth-Gamma receipt. The experiment reconstructs its symbolic
+source from the retained 753-line evaluator and first reproduces the exact
+4,312-byte historical tape, so the comparison starts from known behavior rather
+than a new interpreter design.
+
+Two customer-driven forms remove the former compiler's worst incidental
+opacity. `value name` and `to name` replace 49 pairs of numeric fixed-cell
+accessors. `text "..."` emits bounded literal source, replacing 356 packed
+`output-word` and `output-byte` operations while introducing no string value or
+heap. These additions grow the interpreter to 890 Beta lines and a 5,145-byte
+tape. The rewritten Delta compiler is 1,451 Forth-Gamma lines.
+
+The matched static measurements are:
+
+```text
+                              Lines  Instructions  Labels  Control  Tape bytes
+functional Gamma evaluator    1,410         1,151     181      582       7,690
+Forth-Gamma interpreter          890           723     122      312       5,145
+
+functional Delta compiler        852 lines, 80 definitions
+Forth-Gamma Delta compiler      1,451 lines, 555 definitions
+```
+
+The total authored route is 2,341 Forth lines versus 2,262 functional lines.
+The Forth compiler still contains 204 explicit branches, 171 jumps, 77 stack
+shuffles, and 20 dynamic cell operations. The trusted root is materially
+smaller, but the next-rung implementation remains more fragmented and requires
+manual reconstruction of implicit stack effects.
+
+Pure interpretation passes recursive Nat and List, a profile-adapted
+three-field rope, the staged malformed cases, empty-rope trapping, and a
+100,000-node proper-tail construction/traversal. The rope adaptation renames
+helpers reserved by the older compiler and replaces one unreachable Gamma I/O
+trap with pure Delta division by zero; it answers representation adequacy, not
+exact-source equivalence.
+
+Scale and static assurance remain decisive deficits. Measured interpreted
+compilation takes 2.38 seconds for 101 functions, 11.98 seconds for 301, and
+119.29 seconds for 1,001; the selected 3,001-function source exceeds a 600-second
+timeout. More importantly, the interpreter does not validate unreachable word
+names or declared stack effects before execution. Adding indexed declaration
+lookup and a whole-program stack-effect contract is the remaining earned-rung
+test and will increase the trusted interpreter.
+
+The experiment is retained but does not displace functional Gamma. It proves
+that interpretation solves the old generated-Beta pathology and makes a
+Forth-like rung plausible; it does not yet make the complete chain easier to
+audit. Selection remains unchanged until static assurance and scale are solved
+without erasing the interpreter's root-size advantage.
