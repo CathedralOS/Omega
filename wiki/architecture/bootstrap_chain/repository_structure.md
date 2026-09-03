@@ -17,6 +17,8 @@ source/
       gamma_compiler.beta        canonical self-expansion receipt
       gamma_compiler_bytecode.tape composed native compiler
   delta/                         typed pure functional language
+    compiler/
+      delta_compiler.gamma       selected in-progress Delta-to-Gamma compiler
   epsilon/                       fixed-storage compiler-host language
     compiler/
       epsilon_compiler.delta     incomplete Delta-written Epsilon compiler
@@ -42,9 +44,9 @@ tests/
 ```
 
 The Gamma evaluator belongs under `source/gamma/evaluator/` because it
-implements Gamma meaning and is written in Beta. The future Delta compiler
-belongs under `source/delta/compiler/`. Empty directories are not retained
-merely to reserve those paths.
+implements Gamma meaning and is written in Beta. The selected in-progress Delta
+compiler belongs under `source/delta/compiler/`; comparison implementations
+remain test-owned.
 
 ## Naming
 
@@ -54,7 +56,7 @@ languages. `.tape` identifies canonical Alpha bytecode.
 A compiler owner is named by the language it accepts; its source suffix names
 the language implementing it:
 
-| Owner | Future/current source |
+| Owner | Current source |
 | --- | --- |
 | Beta compiler | `source/beta/compiler/beta_compiler.beta` |
 | Gamma evaluator | `source/gamma/evaluator/gamma_evaluator.beta` |

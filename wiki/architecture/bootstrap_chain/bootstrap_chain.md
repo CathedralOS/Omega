@@ -59,8 +59,9 @@ their tapes through the immediately preceding trusted language.
 
 Alpha conformance, trusted Beta compiler reconstruction, and selected
 Gamma-to-Beta compiler reconstruction are executable. The Beta-written Gamma
-evaluator has a passing development slice but no admitted tape. The full
-Gamma-written Delta compiler is absent. The Delta-written Epsilon
+evaluator has a passing development slice but no admitted tape. The selected
+Gamma-written Delta compiler has a composed scalar slice, but its full-language
+implementation and admitted tape remain absent. The Delta-written Epsilon
 compiler and Epsilon-written Omega `D` are incomplete and have no canonical
 tapes. Omega-written `C` is also incomplete. No compatibility route fills these
 gaps.

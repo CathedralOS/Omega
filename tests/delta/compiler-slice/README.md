@@ -1,9 +1,9 @@
-# Delta-to-Gamma macro-extension experiment
+# Delta compiler scalar slice
 
-This gate preserves the original `schema_elaborator.gamma` proof and separately
-tests the `scalar_elaborator.gamma` Functional Delta elaborator. It asks whether
-the higher rung can emit canonical Gamma source instead of owning a direct
-Alpha backend.
+This gate exercises the selected in-progress
+`source/delta/compiler/delta_compiler.gamma` and preserves the earlier
+`schema_elaborator.gamma` proof as supporting evidence. The selected compiler
+emits canonical Gamma source instead of owning a direct Alpha backend.
 
 The 239-line Gamma elaborator validates one typed accumulator-recursion schema
 with arbitrary binder spellings and emits `scalar_recursive.gamma` byte for
@@ -39,7 +39,7 @@ Malformed definitions, names, types, calls, arities, and expressions must reject
 with no output.
 
 ```text
-548-line / 21,180-byte generalized elaborator
+550-line / 21,336-byte selected compiler
 	-> 19,238-byte elaborator tape
 
 9-line / 198-byte recursive Delta
@@ -51,7 +51,8 @@ with no output.
 	-> 5,884-byte Alpha tape -> byte 21
 ```
 
-The schema proof and its measurements remain independent evidence. The
-generalized result is still experimental and does not authorize a selected-chain
-change; its exact remaining acceptance difference is the aggregate 15-level
-list-expression nesting bound documented beside the elaborator.
+The schema proof and its measurements remain independent evidence. The selected
+compiler is not yet admissible as the complete Delta edge. Its current
+acceptance limit includes one aggregate 15-level list-expression bound, and it
+still lacks nominal data, exhaustive `match`, `Bytes`, complete checking,
+proper tail calls, application profiles, and exact resource outcomes.

@@ -3706,3 +3706,21 @@ passes. The test-owned Gamma reconstructor simultaneously falls from 213 to 186
 lines and reproduces the exact 4,312-byte evaluator tape. This accepts trivial
 table verbosity and 23 inert bytes in exchange for deleting a distinct trusted
 string language and parser.
+
+## D87 — The scalar Delta-to-Gamma compiler becomes the selected foundation
+
+D87 promotes the 550-line Gamma source at
+`source/delta/compiler/delta_compiler.gamma` from experiment ownership to the
+selected Delta compiler owner. It validates and elaborates the executable
+scalar Functional Delta slice to canonical Gamma; the selected Gamma and Beta
+compilers then compose that receipt to Alpha. Interpreted and native compiler
+execution reproduce the retained scalar receipts, and the resulting programs
+execute with the expected observations.
+
+This is an implementation promotion, not admission of the complete Delta edge.
+The source still lacks nominal algebraic data, exhaustive `match`, immutable
+`Bytes`, complete static checking, proper tail calls, application profiles, and
+exact resource outcomes, and therefore cannot compile
+`epsilon_compiler.delta`. No `delta_compiler_bytecode.tape` is admitted yet.
+The former direct-to-Alpha Functional compiler and State Delta compiler remain
+test-owned comparisons; neither supplies selected authority.

@@ -1,4 +1,6 @@
-# General scalar Functional Delta-to-Gamma elaborator.
+# Selected in-progress Functional Delta-to-Gamma compiler.
+# This executable slice covers Int definitions and expressions; nominal data,
+# match, Bytes, profiles, and proper tail calls remain to be implemented.
 # Rows: kind start length owner aux0 aux1 aux2 aux3.
 
 : cursor 0x0 cell-get ;

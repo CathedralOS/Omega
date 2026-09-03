@@ -12,12 +12,11 @@ delta_compiler.gamma -> canonical Gamma -> canonical Beta
 	-> delta_compiler_bytecode.tape
 ```
 
-The canonical Gamma-written compiler source and composed Alpha tape do not exist
-yet. Noncanonical implementation evidence is owned by `tests/delta/`, outside
-the source spine. The former imperative Gamma compiler and the incomplete
-compiler previously written in that language were deleted rather than preserved
-as alternate authority. No old interpreter or differential oracle stands in for
-the selected edge.
+The selected Gamma-written compiler source now exists as an in-progress scalar
+slice under `compiler/`; its composed scalar gate passes, but the full-language
+compiler and admitted Alpha tape remain open. Noncanonical comparison evidence
+is owned by `tests/delta/`, outside the source spine. No old interpreter or
+differential oracle stands in for the selected edge.
 
 The Delta compiler may know only Gamma, Delta, and the exact Epsilon compiler
 application profile. It may not encode Alpha, parse Epsilon source itself,
@@ -29,4 +28,4 @@ general-purpose runtime facilities.
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `LANGUAGE.md` | Normative Delta source and execution contract. | Replace only with a versioned contract and synchronized compiler/customer gates. |
-| `compiler/` | Selected Delta compiler owner; currently records the missing-edge requirements. | Populate only with the canonical Gamma source and reconstructed artifacts. |
+| `compiler/` | Selected in-progress Gamma-written compiler source and its missing-edge requirements. | Admit artifacts only after the source implements the complete Delta contract. |
