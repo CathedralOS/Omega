@@ -29,11 +29,6 @@ struct SourceFileException {
 /// production/test ceiling. New files and unlisted growth still fail closed.
 const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[
     SourceFileException {
-        path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/tests/dynamic_dispatch.rs",
-        ceiling: 954,
-        semantic_reason: "the dynamic-dispatch custody scenarios still share one test fixture",
-    },
-    SourceFileException {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/tests/dynamic_dispatch.rs",
         ceiling: 919,
         semantic_reason: "the assignment dynamic-dispatch scenarios still share one test fixture",
