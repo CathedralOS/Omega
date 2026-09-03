@@ -8,38 +8,24 @@ use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{DataSupplyMode, Multiplicity};
 use psi_layout_plans::{
-    ConventionalDepthEightRecordSumOccurrenceLayoutReport,
     ConventionalDepthEightRecordSumPathsLayoutReport,
-    ConventionalDepthElevenRecordSumOccurrenceLayoutReport,
     ConventionalDepthElevenRecordSumPathsLayoutReport,
-    ConventionalDepthFifteenRecordSumOccurrenceLayoutReport,
     ConventionalDepthFifteenRecordSumPathsLayoutReport,
-    ConventionalDepthFiveRecordSumOccurrenceLayoutReport,
     ConventionalDepthFiveRecordSumPathsLayoutReport,
-    ConventionalDepthFourRecordSumOccurrenceLayoutReport,
     ConventionalDepthFourRecordSumPathsLayoutReport,
-    ConventionalDepthFourteenRecordSumOccurrenceLayoutReport,
     ConventionalDepthFourteenRecordSumPathsLayoutReport,
-    ConventionalDepthNineRecordSumOccurrenceLayoutReport,
     ConventionalDepthNineRecordSumPathsLayoutReport,
-    ConventionalDepthSevenRecordSumOccurrenceLayoutReport,
     ConventionalDepthSevenRecordSumPathsLayoutReport,
-    ConventionalDepthSixRecordSumOccurrenceLayoutReport,
-    ConventionalDepthSixRecordSumPathsLayoutReport,
-    ConventionalDepthTenRecordSumOccurrenceLayoutReport,
-    ConventionalDepthTenRecordSumPathsLayoutReport,
-    ConventionalDepthThirteenRecordSumOccurrenceLayoutReport,
+    ConventionalDepthSixRecordSumPathsLayoutReport, ConventionalDepthTenRecordSumPathsLayoutReport,
     ConventionalDepthThirteenRecordSumPathsLayoutReport,
-    ConventionalDepthThreeRecordSumOccurrenceLayoutReport,
     ConventionalDepthThreeRecordSumPathLayoutReport,
     ConventionalDepthThreeRecordSumPathsLayoutReport,
-    ConventionalDepthTwelveRecordSumOccurrenceLayoutReport,
     ConventionalDepthTwelveRecordSumPathsLayoutReport,
-    ConventionalDepthTwoRecordSumOccurrenceLayoutReport,
     ConventionalDepthTwoRecordSumPathLayoutReport, ConventionalDepthTwoRecordSumPathsLayoutReport,
     ConventionalNestedRecordSumOccurrenceLayoutReport, ConventionalNestedRecordSumPathLayoutReport,
-    ConventionalNestedRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
-    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
+    ConventionalNestedRecordSumPathsLayoutReport, ConventionalRecordSumPathsLayoutReport,
+    ConventionalSumArrayFieldLayoutReport, ConventionalSumCaseLayoutReport,
+    ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport,
     LayoutPlanReport,
 };
@@ -49,23 +35,23 @@ use psi_typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
 use crate::{DataShape, ENUM_TAG_BYTES, LayoutPlan, TypeLayoutDescriptor};
 
-mod depth_sixteen;
-mod depth_seventeen;
 mod depth_eighteen;
 mod depth_nineteen;
+mod depth_seventeen;
+mod depth_sixteen;
 mod depth_twenty;
 mod depth_twenty_one;
-mod depth_twenty_two;
 mod depth_twenty_three;
+mod depth_twenty_two;
 
-pub use depth_sixteen::project_conventional_record_with_depth_sixteen_nested_sums_materialization_layout;
-pub use depth_seventeen::project_conventional_record_with_depth_seventeen_nested_sums_materialization_layout;
 pub use depth_eighteen::project_conventional_record_with_depth_eighteen_nested_sums_materialization_layout;
 pub use depth_nineteen::project_conventional_record_with_depth_nineteen_nested_sums_materialization_layout;
+pub use depth_seventeen::project_conventional_record_with_depth_seventeen_nested_sums_materialization_layout;
+pub use depth_sixteen::project_conventional_record_with_depth_sixteen_nested_sums_materialization_layout;
 pub use depth_twenty::project_conventional_record_with_depth_twenty_nested_sums_materialization_layout;
 pub use depth_twenty_one::project_conventional_record_with_depth_twenty_one_nested_sums_materialization_layout;
-pub use depth_twenty_two::project_conventional_record_with_depth_twenty_two_nested_sums_materialization_layout;
 pub use depth_twenty_three::project_conventional_record_with_depth_twenty_three_nested_sums_materialization_layout;
+pub use depth_twenty_two::project_conventional_record_with_depth_twenty_two_nested_sums_materialization_layout;
 
 /// Project the bounded nested-sum materialization set from the exact target
 /// runtime layout: one closed `[copy]` record with one or more direct,
@@ -822,178 +808,16 @@ fn project_conventional_record_with_depth_three_nested_sums_materialization_layo
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthThreeRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-three sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-three sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-three sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-three sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-three sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-three sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-three sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-three sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-three sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-three sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-three sum outer field `{}` does not name the required first record",
-                    declared.name
-                )));
-            }
-            let depth_two_paths = project_conventional_record_with_depth_two_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared first record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its first record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-three first-record extent")?
-                != depth_two_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-two projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-three first-record alignment")?
-                    != depth_two_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact first-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for occurrence in &depth_two_paths.paths {
-                total_leaf_paths = total_leaf_paths
-                    .checked_add(occurrence.inner.paths.len())
-                    .ok_or_else(|| {
-                        Diagnostic::error("plural depth-three leaf-path count overflows")
-                    })?;
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-three paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthThreeRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_two_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-three outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-three sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthThreeRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-three outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-three outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-three",
+        "first",
+        "depth-two",
+        project_conventional_record_with_depth_two_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-four
@@ -1022,180 +846,16 @@ fn project_conventional_record_with_depth_four_nested_sums_materialization_layou
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthFourRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-four sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-four sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-four sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-four sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-four sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-four sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-four sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-four sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-four sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-four sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-four sum outer field `{}` does not name the required second record",
-                    declared.name
-                )));
-            }
-            let depth_three_paths = project_conventional_record_with_depth_three_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared second record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its second record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-four second-record extent")?
-                != depth_three_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-three projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-four second-record alignment")?
-                    != depth_three_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact second-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for second_occurrence in &depth_three_paths.paths {
-                for first_occurrence in &second_occurrence.inner.paths {
-                    total_leaf_paths = total_leaf_paths
-                        .checked_add(first_occurrence.inner.paths.len())
-                        .ok_or_else(|| {
-                            Diagnostic::error("plural depth-four leaf-path count overflows")
-                        })?;
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-four paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthFourRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_three_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-four outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-four sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthFourRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-four outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-four outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-four",
+        "second",
+        "depth-three",
+        project_conventional_record_with_depth_three_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-five
@@ -1225,182 +885,16 @@ fn project_conventional_record_with_depth_five_nested_sums_materialization_layou
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthFiveRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-five sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-five sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-five sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-five sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-five sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-five sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-five sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-five sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-five sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-five sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-five sum outer field `{}` does not name the required third record",
-                    declared.name
-                )));
-            }
-            let depth_four_paths = project_conventional_record_with_depth_four_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared third record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its third record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-five third-record extent")?
-                != depth_four_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-four projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-five third-record alignment")?
-                    != depth_four_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact third-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for third_occurrence in &depth_four_paths.paths {
-                for second_occurrence in &third_occurrence.inner.paths {
-                    for first_occurrence in &second_occurrence.inner.paths {
-                        total_leaf_paths = total_leaf_paths
-                            .checked_add(first_occurrence.inner.paths.len())
-                            .ok_or_else(|| {
-                                Diagnostic::error("plural depth-five leaf-path count overflows")
-                            })?;
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-five paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthFiveRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_four_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-five outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-five sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthFiveRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-five outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-five outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-five",
+        "third",
+        "depth-four",
+        project_conventional_record_with_depth_four_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-six
@@ -1430,184 +924,16 @@ fn project_conventional_record_with_depth_six_nested_sums_materialization_layout
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthSixRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-six sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-six sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-six sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-six sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-six sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-six sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-six sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-six sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-six sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-six sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-six sum outer field `{}` does not name the required fourth record",
-                    declared.name
-                )));
-            }
-            let depth_five_paths = project_conventional_record_with_depth_five_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared fourth record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its fourth record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-six fourth-record extent")?
-                != depth_five_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-five projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-six fourth-record alignment")?
-                    != depth_five_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact fourth-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for fourth_occurrence in &depth_five_paths.paths {
-                for third_occurrence in &fourth_occurrence.inner.paths {
-                    for second_occurrence in &third_occurrence.inner.paths {
-                        for first_occurrence in &second_occurrence.inner.paths {
-                            total_leaf_paths = total_leaf_paths
-                                .checked_add(first_occurrence.inner.paths.len())
-                                .ok_or_else(|| {
-                                    Diagnostic::error("plural depth-six leaf-path count overflows")
-                                })?;
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-six paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthSixRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_five_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-six outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-six sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthSixRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-six outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-six outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-six",
+        "fourth",
+        "depth-five",
+        project_conventional_record_with_depth_five_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-seven
@@ -1637,188 +963,16 @@ fn project_conventional_record_with_depth_seven_nested_sums_materialization_layo
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthSevenRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-seven sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-seven sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-seven sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-seven sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-seven sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-seven sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-seven sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-seven sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-seven sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-seven sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-seven sum outer field `{}` does not name the required fifth record",
-                    declared.name
-                )));
-            }
-            let depth_six_paths = project_conventional_record_with_depth_six_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared fifth record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its fifth record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-seven fifth-record extent")?
-                != depth_six_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-six projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-seven fifth-record alignment")?
-                    != depth_six_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact fifth-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for sixth_occurrence in &depth_six_paths.paths {
-                for fifth_occurrence in &sixth_occurrence.inner.paths {
-                    for fourth_occurrence in &fifth_occurrence.inner.paths {
-                        for third_occurrence in &fourth_occurrence.inner.paths {
-                            for second_occurrence in &third_occurrence.inner.paths {
-                                total_leaf_paths = total_leaf_paths
-                                    .checked_add(second_occurrence.inner.paths.len())
-                                    .ok_or_else(|| {
-                                        Diagnostic::error(
-                                            "plural depth-seven leaf-path count overflows",
-                                        )
-                                    })?;
-                            }
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-seven paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthSevenRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_six_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-seven outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-seven sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthSevenRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-seven outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-seven outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-seven",
+        "fifth",
+        "depth-six",
+        project_conventional_record_with_depth_six_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-eight
@@ -1848,190 +1002,16 @@ fn project_conventional_record_with_depth_eight_nested_sums_materialization_layo
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthEightRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-eight sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-eight sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-eight sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-eight sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-eight sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-eight sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-eight sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-eight sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-eight sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-eight sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-eight sum outer field `{}` does not name the required sixth record",
-                    declared.name
-                )));
-            }
-            let depth_seven_paths = project_conventional_record_with_depth_seven_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared sixth record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its sixth record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-eight sixth-record extent")?
-                != depth_seven_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-seven projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-eight sixth-record alignment")?
-                    != depth_seven_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact sixth-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for seventh_occurrence in &depth_seven_paths.paths {
-                for sixth_occurrence in &seventh_occurrence.inner.paths {
-                    for fifth_occurrence in &sixth_occurrence.inner.paths {
-                        for fourth_occurrence in &fifth_occurrence.inner.paths {
-                            for third_occurrence in &fourth_occurrence.inner.paths {
-                                for second_occurrence in &third_occurrence.inner.paths {
-                                    total_leaf_paths = total_leaf_paths
-                                        .checked_add(second_occurrence.inner.paths.len())
-                                        .ok_or_else(|| {
-                                            Diagnostic::error(
-                                                "plural depth-eight leaf-path count overflows",
-                                            )
-                                        })?;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-eight paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthEightRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_seven_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-eight outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-eight sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthEightRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-eight outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-eight outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-eight",
+        "sixth",
+        "depth-seven",
+        project_conventional_record_with_depth_seven_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-nine
@@ -2061,193 +1041,16 @@ fn project_conventional_record_with_depth_nine_nested_sums_materialization_layou
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthNineRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-nine sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-nine sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-nine sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-nine sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-nine sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-nine sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-nine sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-nine sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-nine sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-nine sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-nine sum outer field `{}` does not name the required seventh record",
-                    declared.name
-                )));
-            }
-            let depth_eight_paths = project_conventional_record_with_depth_eight_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared seventh record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its seventh record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-nine seventh-record extent")?
-                != depth_eight_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-eight projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-nine seventh-record alignment")?
-                    != depth_eight_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact seventh-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for eighth_occurrence in &depth_eight_paths.paths {
-                for seventh_occurrence in &eighth_occurrence.inner.paths {
-                    for sixth_occurrence in &seventh_occurrence.inner.paths {
-                        for fifth_occurrence in &sixth_occurrence.inner.paths {
-                            for fourth_occurrence in &fifth_occurrence.inner.paths {
-                                for third_occurrence in &fourth_occurrence.inner.paths {
-                                    for second_occurrence in &third_occurrence.inner.paths
-                                    {
-                                        total_leaf_paths = total_leaf_paths
-                                            .checked_add(second_occurrence.inner.paths.len())
-                                            .ok_or_else(|| {
-                                                Diagnostic::error(
-                                                    "plural depth-nine leaf-path count overflows",
-                                                )
-                                            })?;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-nine paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthNineRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_eight_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-nine outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-nine sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthNineRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-nine outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-nine outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-nine",
+        "seventh",
+        "depth-eight",
+        project_conventional_record_with_depth_eight_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-ten record
@@ -2277,200 +1080,16 @@ fn project_conventional_record_with_depth_ten_nested_sums_materialization_layout
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthTenRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-ten sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-ten sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-ten sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-ten sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-ten sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-ten sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-ten sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-ten sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-ten sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-ten sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-ten sum outer field `{}` does not name the required eighth record",
-                    declared.name
-                )));
-            }
-            let depth_nine_paths = project_conventional_record_with_depth_nine_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared eighth record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its eighth record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-ten eighth-record extent")?
-                != depth_nine_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-nine projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-ten eighth-record alignment")?
-                    != depth_nine_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact eighth-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for ninth_occurrence in &depth_nine_paths.paths {
-                for eighth_occurrence in &ninth_occurrence.inner.paths {
-                    for seventh_occurrence in &eighth_occurrence.inner.paths {
-                        for sixth_occurrence in &seventh_occurrence.inner.paths {
-                            for fifth_occurrence in &sixth_occurrence.inner.paths {
-                                for fourth_occurrence in &fifth_occurrence.inner.paths {
-                                    for third_occurrence in
-                                        &fourth_occurrence.inner.paths
-                                    {
-                                        for second_occurrence in
-                                            &third_occurrence.inner.paths
-                                        {
-                                            total_leaf_paths = total_leaf_paths
-                                                .checked_add(
-                                                    second_occurrence.inner.paths.len(),
-                                                )
-                                                .ok_or_else(|| {
-                                                    Diagnostic::error(
-                                                        "plural depth-ten leaf-path count overflows",
-                                                    )
-                                                })?;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-ten paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthTenRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_nine_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-ten outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-ten sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthTenRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-ten outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-ten outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-ten",
+        "eighth",
+        "depth-nine",
+        project_conventional_record_with_depth_nine_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-eleven
@@ -2500,204 +1119,16 @@ fn project_conventional_record_with_depth_eleven_nested_sums_materialization_lay
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthElevenRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-eleven sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-eleven sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-eleven sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-eleven sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-eleven sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-eleven sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-eleven sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-eleven sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-eleven sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-eleven sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-eleven sum outer field `{}` does not name the required ninth record",
-                    declared.name
-                )));
-            }
-            let depth_ten_paths = project_conventional_record_with_depth_ten_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared ninth record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its ninth record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-eleven ninth-record extent")?
-                != depth_ten_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-ten projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-eleven ninth-record alignment")?
-                    != depth_ten_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact ninth-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for tenth_occurrence in &depth_ten_paths.paths {
-                for ninth_occurrence in &tenth_occurrence.inner.paths {
-                    for eighth_occurrence in &ninth_occurrence.inner.paths {
-                        for seventh_occurrence in &eighth_occurrence.inner.paths {
-                            for sixth_occurrence in &seventh_occurrence.inner.paths {
-                                for fifth_occurrence in &sixth_occurrence.inner.paths {
-                                    for fourth_occurrence in
-                                        &fifth_occurrence.inner.paths
-                                    {
-                                        for third_occurrence in
-                                            &fourth_occurrence.inner.paths
-                                        {
-                                            for second_occurrence in
-                                                &third_occurrence.inner.paths
-                                            {
-                                                total_leaf_paths = total_leaf_paths
-                                                    .checked_add(
-                                                        second_occurrence.inner.paths.len(),
-                                                    )
-                                                    .ok_or_else(|| {
-                                                        Diagnostic::error(
-                                                            "plural depth-eleven leaf-path count overflows",
-                                                        )
-                                                    })?;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-eleven paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthElevenRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_ten_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-eleven outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-eleven sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthElevenRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-eleven outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-eleven outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-eleven",
+        "ninth",
+        "depth-ten",
+        project_conventional_record_with_depth_ten_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-thirteen
@@ -2727,219 +1158,16 @@ fn project_conventional_record_with_depth_thirteen_nested_sums_materialization_l
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthThirteenRecordSumPathsLayoutReport, Diagnostic> {
-    let definition =
-        unique_data_definition(program, data_symbol, "plural depth-thirteen sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-thirteen sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-thirteen sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-thirteen sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-thirteen sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-thirteen sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-thirteen sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-thirteen sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-thirteen sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-thirteen sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-thirteen sum outer field `{}` does not name the required eleventh record",
-                    declared.name
-                )));
-            }
-            let depth_twelve_paths = project_conventional_record_with_depth_twelve_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared eleventh record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its eleventh record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-thirteen eleventh-record extent")?
-                != depth_twelve_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-twelve projection has fixed extent")
-                || usize_to_u64(
-                    laid.layout.alignment,
-                    "depth-thirteen eleventh-record alignment",
-                )? != depth_twelve_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact eleventh-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for twelfth_occurrence in &depth_twelve_paths.paths {
-                for eleventh_occurrence in &twelfth_occurrence.inner.paths {
-                    for tenth_occurrence in &eleventh_occurrence.inner.paths {
-                        for ninth_occurrence in &tenth_occurrence.inner.paths {
-                            for eighth_occurrence in &ninth_occurrence.inner.paths {
-                                for seventh_occurrence in &eighth_occurrence.inner.paths
-                                {
-                                    for sixth_occurrence in
-                                        &seventh_occurrence.inner.paths
-                                    {
-                                        for fifth_occurrence in
-                                            &sixth_occurrence.inner.paths
-                                        {
-                                            for fourth_occurrence in
-                                                &fifth_occurrence.inner.paths
-                                            {
-                                                for third_occurrence in
-                                                    &fourth_occurrence.inner.paths
-                                                {
-                                                    for second_occurrence in
-                                                        &third_occurrence.inner.paths
-                                                    {
-                                                        total_leaf_paths = total_leaf_paths
-                                                        .checked_add(
-                                                            second_occurrence
-                                                                .inner
-                                                                .paths
-                                                                .len(),
-                                                        )
-                                                        .ok_or_else(|| {
-                                                            Diagnostic::error(
-                                                                "plural depth-thirteen leaf-path count overflows",
-                                                            )
-                                                        })?;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-thirteen paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthThirteenRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_twelve_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-thirteen outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-thirteen sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthThirteenRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-thirteen outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-thirteen outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-thirteen",
+        "eleventh",
+        "depth-twelve",
+        project_conventional_record_with_depth_twelve_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-fourteen
@@ -2969,222 +1197,16 @@ fn project_conventional_record_with_depth_fourteen_nested_sums_materialization_l
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthFourteenRecordSumPathsLayoutReport, Diagnostic> {
-    let definition =
-        unique_data_definition(program, data_symbol, "plural depth-fourteen sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-fourteen sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-fourteen sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-fourteen sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-fourteen sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-fourteen sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-fourteen sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-fourteen sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-fourteen sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-fourteen sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-fourteen sum outer field `{}` does not name the required twelfth record",
-                    declared.name
-                )));
-            }
-            let depth_thirteen_paths = project_conventional_record_with_depth_thirteen_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared twelfth record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its twelfth record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-fourteen twelfth-record extent")?
-                != depth_thirteen_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-thirteen projection has fixed extent")
-                || usize_to_u64(
-                    laid.layout.alignment,
-                    "depth-fourteen twelfth-record alignment",
-                )? != depth_thirteen_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact twelfth-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for thirteenth_occurrence in &depth_thirteen_paths.paths {
-                for twelfth_occurrence in &thirteenth_occurrence.inner.paths {
-                    for eleventh_occurrence in &twelfth_occurrence.inner.paths {
-                        for tenth_occurrence in &eleventh_occurrence.inner.paths {
-                            for ninth_occurrence in &tenth_occurrence.inner.paths {
-                                for eighth_occurrence in &ninth_occurrence.inner.paths {
-                                    for seventh_occurrence in
-                                        &eighth_occurrence.inner.paths
-                                    {
-                                        for sixth_occurrence in
-                                            &seventh_occurrence.inner.paths
-                                        {
-                                            for fifth_occurrence in
-                                                &sixth_occurrence.inner.paths
-                                            {
-                                                for fourth_occurrence in
-                                                    &fifth_occurrence.inner.paths
-                                                {
-                                                    for third_occurrence in
-                                                        &fourth_occurrence.inner.paths
-                                                    {
-                                                        for second_occurrence in
-                                                            &third_occurrence.inner.paths
-                                                        {
-                                                            total_leaf_paths = total_leaf_paths
-                                                        .checked_add(
-                                                            second_occurrence
-                                                                .inner
-                                                                .paths
-                                                                .len(),
-                                                        )
-                                                        .ok_or_else(|| {
-                                                            Diagnostic::error(
-                                                                "plural depth-fourteen leaf-path count overflows",
-                                                            )
-                                                        })?;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-fourteen paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthFourteenRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_thirteen_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-fourteen outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-fourteen sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthFourteenRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-fourteen outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-fourteen outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-fourteen",
+        "twelfth",
+        "depth-thirteen",
+        project_conventional_record_with_depth_thirteen_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-fifteen
@@ -3214,229 +1236,16 @@ fn project_conventional_record_with_depth_fifteen_nested_sums_materialization_la
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthFifteenRecordSumPathsLayoutReport, Diagnostic> {
-    let definition =
-        unique_data_definition(program, data_symbol, "plural depth-fifteen sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-fifteen sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-fifteen sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-fifteen sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-fifteen sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-fifteen sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-fifteen sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-fifteen sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-fifteen sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-fifteen sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-fifteen sum outer field `{}` does not name the required thirteenth record",
-                    declared.name
-                )));
-            }
-            let depth_fourteen_paths = project_conventional_record_with_depth_fourteen_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared thirteenth record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its thirteenth record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-fifteen thirteenth-record extent")?
-                != depth_fourteen_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-fourteen projection has fixed extent")
-                || usize_to_u64(
-                    laid.layout.alignment,
-                    "depth-fifteen thirteenth-record alignment",
-                )? != depth_fourteen_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact thirteenth-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for fourteenth_occurrence in &depth_fourteen_paths.paths {
-                for thirteenth_occurrence in &fourteenth_occurrence.inner.paths {
-                    for twelfth_occurrence in &thirteenth_occurrence.inner.paths {
-                        for eleventh_occurrence in &twelfth_occurrence.inner.paths {
-                            for tenth_occurrence in &eleventh_occurrence.inner.paths {
-                                for ninth_occurrence in &tenth_occurrence.inner.paths {
-                                    for eighth_occurrence in
-                                        &ninth_occurrence.inner.paths
-                                    {
-                                        for seventh_occurrence in
-                                            &eighth_occurrence.inner.paths
-                                        {
-                                            for sixth_occurrence in
-                                                &seventh_occurrence.inner.paths
-                                            {
-                                                for fifth_occurrence in
-                                                    &sixth_occurrence.inner.paths
-                                                {
-                                                    for fourth_occurrence in
-                                                        &fifth_occurrence.inner.paths
-                                                    {
-                                                        for third_occurrence in &fourth_occurrence
-                                                            .inner
-                                                            .paths
-                                                        {
-                                                            for second_occurrence in
-                                                                &third_occurrence
-                                                                    .inner
-                                                                    .paths
-                                                            {
-                                                                total_leaf_paths = total_leaf_paths
-                                                        .checked_add(
-                                                            second_occurrence
-                                                                .inner
-                                                                .paths
-                                                                .len(),
-                                                        )
-                                                        .ok_or_else(|| {
-                                                            Diagnostic::error(
-                                                                "plural depth-fifteen leaf-path count overflows",
-                                                            )
-                                                        })?;
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-fifteen paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthFifteenRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_fourteen_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-fifteen outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-fifteen sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthFifteenRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-fifteen outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-fifteen outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-fifteen",
+        "thirteenth",
+        "depth-fourteen",
+        project_conventional_record_with_depth_fourteen_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact depth-twelve
@@ -3466,210 +1275,16 @@ fn project_conventional_record_with_depth_twelve_nested_sums_materialization_lay
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthTwelveRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "plural depth-twelve sum owner")?;
-    validate_closed_copy_record(program, definition, "plural depth-twelve sum owner")?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for plural depth-twelve sum owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for plural depth-twelve sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-twelve sum outer report exceeds compiler resources")
-        })?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-twelve sum outer offsets exceed compiler resources")
-        })?;
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("plural depth-twelve sum path report exceeds compiler resources")
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "plural depth-twelve sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-twelve sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural depth-twelve sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural depth-twelve sum outer field `{}` does not name the required tenth record",
-                    declared.name
-                )));
-            }
-            let depth_eleven_paths = project_conventional_record_with_depth_eleven_nested_sums_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared tenth record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its tenth record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "depth-twelve tenth-record extent")?
-                != depth_eleven_paths
-                    .outer_layout
-                    .size
-                    .expect("plural depth-eleven projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "depth-twelve tenth-record alignment")?
-                    != depth_eleven_paths.outer_layout.align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact tenth-record extent/alignment",
-                    declared.name
-                )));
-            }
-            for eleventh_occurrence in &depth_eleven_paths.paths {
-                for tenth_occurrence in &eleventh_occurrence.inner.paths {
-                    for ninth_occurrence in &tenth_occurrence.inner.paths {
-                        for eighth_occurrence in &ninth_occurrence.inner.paths {
-                            for seventh_occurrence in &eighth_occurrence.inner.paths {
-                                for sixth_occurrence in &seventh_occurrence.inner.paths {
-                                    for fifth_occurrence in &sixth_occurrence.inner.paths
-                                    {
-                                        for fourth_occurrence in
-                                            &fifth_occurrence.inner.paths
-                                        {
-                                            for third_occurrence in
-                                                &fourth_occurrence.inner.paths
-                                            {
-                                                for second_occurrence in
-                                                    &third_occurrence.inner.paths
-                                                {
-                                                    total_leaf_paths = total_leaf_paths
-                                                        .checked_add(
-                                                            second_occurrence
-                                                                .inner
-                                                                .paths
-                                                                .len(),
-                                                        )
-                                                        .ok_or_else(|| {
-                                                            Diagnostic::error(
-                                                                "plural depth-twelve leaf-path count overflows",
-                                                            )
-                                                        })?;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural depth-twelve paths exceed bounded total leaf occurrences",
-                ));
-            }
-            paths.push(ConventionalDepthTwelveRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: depth_eleven_paths,
-            });
-        }
-
-        let offset = usize_to_u64(laid.offset, "plural depth-twelve outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
-    }
-    if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "plural depth-twelve sum projection requires a nonempty qualifying record-chain set",
-        ));
-    }
-    Ok(ConventionalDepthTwelveRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint:
-                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural depth-twelve outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural depth-twelve outer record alignment",
-            )?,
-        },
-        paths,
-    })
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-twelve",
+        "tenth",
+        "depth-eleven",
+        project_conventional_record_with_depth_eleven_nested_sums_materialization_layout_with_reachability,
+    )
 }
 
 /// Project the complete nonempty authored-order set of exact fixed-depth
@@ -3699,15 +1314,77 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
 ) -> Result<ConventionalDepthTwoRecordSumPathsLayoutReport, Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "depth-two sum owner")?;
-    validate_closed_copy_record(program, definition, "depth-two sum owner")?;
+    project_recursive_record_sum_paths_layout(
+        program,
+        plan,
+        data_symbol,
+        reachability,
+        "depth-two",
+        "middle",
+        "one-level",
+        project_conventional_record_with_nested_sum_records_materialization_layout_with_reachability,
+    )
+}
+
+trait RecursiveRecordSumPathsLayout {
+    fn outer_layout(&self) -> &LayoutPlanReport;
+
+    fn leaf_occurrence_count(&self) -> Option<usize>;
+}
+
+impl RecursiveRecordSumPathsLayout for ConventionalNestedRecordSumPathsLayoutReport {
+    fn outer_layout(&self) -> &LayoutPlanReport {
+        &self.outer_layout
+    }
+
+    fn leaf_occurrence_count(&self) -> Option<usize> {
+        Some(self.paths.len())
+    }
+}
+
+impl<InnerPaths: RecursiveRecordSumPathsLayout> RecursiveRecordSumPathsLayout
+    for ConventionalRecordSumPathsLayoutReport<InnerPaths>
+{
+    fn outer_layout(&self) -> &LayoutPlanReport {
+        &self.outer_layout
+    }
+
+    fn leaf_occurrence_count(&self) -> Option<usize> {
+        self.paths.iter().try_fold(0usize, |total, path| {
+            total.checked_add(path.inner.leaf_occurrence_count()?)
+        })
+    }
+}
+
+fn project_recursive_record_sum_paths_layout<InnerPaths, ProjectInner>(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+    reachability: &mut SumReachability<'_>,
+    depth_label: &str,
+    inner_record_label: &str,
+    prior_depth_label: &str,
+    mut project_inner: ProjectInner,
+) -> Result<ConventionalRecordSumPathsLayoutReport<InnerPaths>, Diagnostic>
+where
+    InnerPaths: RecursiveRecordSumPathsLayout,
+    ProjectInner: FnMut(
+        &CheckedTrees,
+        &LayoutPlan,
+        SymbolHandle,
+        &mut SumReachability<'_>,
+    ) -> Result<InnerPaths, Diagnostic>,
+{
+    let owner = format!("plural {depth_label} sum owner");
+    let definition = unique_data_definition(program, data_symbol, &owner)?;
+    validate_closed_copy_record(program, definition, &owner)?;
     let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
     let DataShape::Record {
         fields: laid_fields,
     } = data_layout.shape
     else {
         return Err(Diagnostic::error(format!(
-            "target runtime layout row for depth-two sum owner `{}` is not a record",
+            "target runtime layout row for {owner} `{}` is not a record",
             definition.name
         )));
     };
@@ -3715,7 +1392,7 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
     let laid_fields = plan.fields.span_or_empty(laid_fields);
     if declared_fields.len() != laid_fields.len() {
         return Err(Diagnostic::error(format!(
-            "target runtime layout for depth-two sum owner `{}` has {} fields; checked schema has {} relevant fields",
+            "target runtime layout for {owner} `{}` has {} fields; checked schema has {} relevant fields",
             definition.name,
             laid_fields.len(),
             declared_fields.len()
@@ -3725,16 +1402,18 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
     let mut entries = Vec::new();
     entries
         .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error("depth-two sum outer report exceeds compiler resources"))?;
+        .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
     let mut offsets = Vec::new();
     offsets
         .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error("depth-two sum outer offsets exceed compiler resources"))?;
+        .map_err(|_| Diagnostic::error(format!("{owner} offsets exceed compiler resources")))?;
     let mut paths = Vec::new();
     paths
         .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error("depth-two sum path report exceeds compiler resources"))?;
-    let mut total_middle_paths = 0usize;
+        .map_err(|_| {
+            Diagnostic::error(format!("{owner} path report exceeds compiler resources"))
+        })?;
+    let mut total_leaf_paths = 0usize;
     for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
         if declared.symbol != laid.symbol || declared.name != laid.name {
             return Err(Diagnostic::error(format!(
@@ -3747,7 +1426,7 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
             || plan.repeated_field(declared.symbol).is_some()
         {
             return Err(Diagnostic::error(format!(
-                "depth-two sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
+                "plural {depth_label} sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
                 declared.name
             )));
         }
@@ -3760,13 +1439,13 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
                 TypeReferenceNode::FixedArray { .. }
             ) {
                 return Err(Diagnostic::error(format!(
-                    "depth-two sum outer field `{}` reaches a sum through an array",
+                    "plural {depth_label} sum outer field `{}` reaches a sum through an array",
                     declared.name
                 )));
             }
             let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
                 Diagnostic::error(format!(
-                    "depth-two sum outer field `{}` lacks one exact record identity",
+                    "plural {depth_label} sum outer field `{}` lacks one exact record identity",
                     declared.name
                 ))
             })?;
@@ -3774,23 +1453,18 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
                 != DataShapeKind::Record
             {
                 return Err(Diagnostic::error(format!(
-                    "depth-two sum outer field `{}` does not name the required middle record",
+                    "plural {depth_label} sum outer field `{}` does not name the required {inner_record_label} record",
                     declared.name
                 )));
             }
-            let middle_paths = project_conventional_record_with_nested_sum_records_materialization_layout_with_reachability(
-                program,
-                plan,
-                named.symbol,
-                reachability,
-            )?;
+            let inner = project_inner(program, plan, named.symbol, reachability)?;
             let TypeLayoutDescriptor::Named {
                 symbol: laid_symbol,
                 name: laid_name,
             } = &laid.type_descriptor
             else {
                 return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared middle record",
+                    "target runtime layout field `{}` is not the exact declared {inner_record_label} record",
                     declared.name
                 )));
             };
@@ -3799,41 +1473,52 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
                 || laid_name.as_str() != named.name.as_str()
             {
                 return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its middle record type",
+                    "target runtime layout field `{}` substitutes its {inner_record_label} record type",
                     declared.name
                 )));
             }
-            if usize_to_u64(laid.layout.size, "middle record extent")?
-                != middle_paths
-                    .outer_layout
-                    .size
-                    .expect("middle projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "middle record alignment")?
-                    != middle_paths.outer_layout.align
+            if usize_to_u64(
+                laid.layout.size,
+                &format!("{depth_label} {inner_record_label}-record extent"),
+            )? != inner
+                .outer_layout()
+                .size
+                .expect("recursive inner projection has fixed extent")
+                || usize_to_u64(
+                    laid.layout.alignment,
+                    &format!("{depth_label} {inner_record_label}-record alignment"),
+                )? != inner.outer_layout().align
             {
                 return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact middle record extent/alignment",
+                    "target runtime layout field `{}` does not retain the exact {inner_record_label}-record extent/alignment from {prior_depth_label}",
                     declared.name
                 )));
             }
-            total_middle_paths = total_middle_paths
-                .checked_add(middle_paths.paths.len())
+            total_leaf_paths = total_leaf_paths
+                .checked_add(inner.leaf_occurrence_count().ok_or_else(|| {
+                    Diagnostic::error(format!("plural {depth_label} leaf-path count overflows"))
+                })?)
                 .ok_or_else(|| {
-                    Diagnostic::error("depth-two sum path occurrence count overflows")
+                    Diagnostic::error(format!("plural {depth_label} leaf-path count overflows"))
                 })?;
-            if total_middle_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "depth-two sum paths exceed bounded total middle-to-leaf occurrences",
-                ));
+            if total_leaf_paths > SumReachability::MAX_EDGES {
+                return Err(Diagnostic::error(format!(
+                    "plural {depth_label} paths exceed bounded total leaf occurrences"
+                )));
             }
-            paths.push(ConventionalDepthTwoRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner: middle_paths,
-            });
+            paths.push(
+                psi_layout_plans::ConventionalRecordSumOccurrenceLayoutReport {
+                    outer_field: declared.name.to_string(),
+                    outer_member_identity: declared.identity,
+                    inner,
+                },
+            );
         }
 
-        let offset = usize_to_u64(laid.offset, "depth-two outer field offset")?;
+        let offset = usize_to_u64(
+            laid.offset,
+            &format!("plural {depth_label} outer field offset"),
+        )?;
         entries.push(LayoutFieldEntryReport {
             field: declared.name.to_string(),
             member_identity: declared.identity,
@@ -3842,11 +1527,11 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
         offsets.push(offset);
     }
     if paths.is_empty() {
-        return Err(Diagnostic::error(
-            "depth-two sum projection requires a nonempty qualifying record-chain set",
-        ));
+        return Err(Diagnostic::error(format!(
+            "plural {depth_label} sum projection requires a nonempty qualifying record-chain set"
+        )));
     }
-    Ok(ConventionalDepthTwoRecordSumPathsLayoutReport {
+    Ok(ConventionalRecordSumPathsLayoutReport {
         outer_layout: LayoutPlanReport {
             schema_report_fingerprint:
                 psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
@@ -3854,11 +1539,11 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
             offsets: Some(offsets),
             size: Some(usize_to_u64(
                 data_layout.layout.size,
-                "depth-two outer record extent",
+                &format!("plural {depth_label} outer record extent"),
             )?),
             align: usize_to_u64(
                 data_layout.layout.alignment,
-                "depth-two outer record alignment",
+                &format!("plural {depth_label} outer record alignment"),
             )?,
         },
         paths,
