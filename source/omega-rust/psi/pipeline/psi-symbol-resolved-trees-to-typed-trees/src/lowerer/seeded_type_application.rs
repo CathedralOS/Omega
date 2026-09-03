@@ -49,9 +49,29 @@ pub(super) fn is_supported(
     let parameters = source.data_type_parameters(definition.type_parameters);
     let arguments = source.child_type_references(application.arguments);
     if definition_index >= data_frontier {
-        return parameters.is_empty()
-            && !definition.lifetime_parameters.is_empty()
-            && arguments.is_empty();
+        if parameters.is_empty() {
+            return !definition.lifetime_parameters.is_empty() && arguments.is_empty();
+        }
+        return parameters.len() == arguments.len()
+            && parameters.iter().all(|parameter| {
+                super::seeded_local_instances::structured_const_parameter_is_supported(
+                    source,
+                    definition.symbol,
+                    parameter,
+                )
+            })
+            && parameters
+                .iter()
+                .zip(arguments)
+                .all(|(parameter, argument)| {
+                    super::seeded_local_instances::template_argument_is_supported(
+                        source,
+                        owner,
+                        owner_type_parameters,
+                        parameter,
+                        argument,
+                    )
+                });
     }
     parameters.len() == arguments.len()
         && parameters
@@ -63,18 +83,35 @@ pub(super) fn is_supported(
                         == psi_symbols::SymbolKind::TypeParameter
                     && source.symbols.get(parameter.symbol).parent == definition.symbol
                     && source.symbols.name(parameter.symbol) == parameter.name.as_str()
-                    && matches!(
-                        parameter.kind,
-                        psi_symbol_resolved_trees::data::TypeParameterKind::Type
-                    )
-                    && plain_type_is_supported(
-                        source,
-                        data_frontier,
-                        local_instances,
-                        owner,
-                        owner_lifetimes,
-                        owner_type_parameters,
-                        argument,
-                    )
+                    && match parameter.kind {
+                        psi_symbol_resolved_trees::data::TypeParameterKind::Type => {
+                            plain_type_is_supported(
+                                source,
+                                data_frontier,
+                                local_instances,
+                                owner,
+                                owner_lifetimes,
+                                owner_type_parameters,
+                                argument,
+                            )
+                        }
+                        psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
+                            super::seeded_local_instances::structured_const_parameter_is_supported(
+                                source,
+                                definition.symbol,
+                                parameter,
+                            ) && super::seeded_local_instances::template_argument_is_supported(
+                                source,
+                                owner,
+                                owner_type_parameters,
+                                parameter,
+                                argument,
+                            )
+                        }
+                        psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                        | psi_symbol_resolved_trees::data::TypeParameterKind::Proposition {
+                            ..
+                        } => false,
+                    }
             })
 }

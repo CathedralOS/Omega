@@ -462,7 +462,9 @@ fn seeded_extension_shape_is_supported(
             .machines
             .iter()
             .skip(machine_frontier)
-            .all(|machine| exact_extension_machine_symbol(source, machine))
+            .all(|machine| {
+                exact_extension_machine_symbol(source, data_frontier, &local_instances, machine)
+            })
 }
 
 #[cfg(test)]
@@ -475,6 +477,8 @@ fn plain_data_extension_shape_is_supported(
 
 fn exact_extension_machine_symbol(
     source: &SymbolResolvedTrees,
+    data_frontier: usize,
+    local_instances: &[psi_symbols::SymbolHandle],
     machine: &psi_symbol_resolved_trees::machine::Machine,
 ) -> bool {
     let type_parameters = source.data_type_parameters(machine.type_parameters);
@@ -493,7 +497,7 @@ fn exact_extension_machine_symbol(
                         )
                 }
                 psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
-                    seeded_local_instances::scalar_const_parameter_is_supported(
+                    seeded_local_instances::const_parameter_is_supported(
                         source,
                         machine.symbol,
                         parameter,
@@ -513,6 +517,46 @@ fn exact_extension_machine_symbol(
         || machine.blocks
         || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present
+    {
+        return false;
+    }
+    if type_parameters.iter().any(|parameter| {
+        seeded_local_instances::structured_const_parameter_is_supported(
+            source,
+            machine.symbol,
+            parameter,
+        )
+    }) && !source
+        .machine_state_handles(machine.states)
+        .iter()
+        .all(|state| {
+            let state = source.machine_state(*state);
+            source
+                .state_parameters(state.parameters)
+                .iter()
+                .all(|parameter| {
+                    plain_type_is_supported(
+                        source,
+                        data_frontier,
+                        local_instances,
+                        machine.symbol,
+                        &machine.lifetime_parameters,
+                        type_parameters,
+                        &parameter.type_reference,
+                    )
+                })
+                && state.return_type.as_ref().is_none_or(|return_type| {
+                    plain_type_is_supported(
+                        source,
+                        data_frontier,
+                        local_instances,
+                        machine.symbol,
+                        &machine.lifetime_parameters,
+                        type_parameters,
+                        return_type,
+                    )
+                })
+        })
     {
         return false;
     }
