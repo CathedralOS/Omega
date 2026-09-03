@@ -619,8 +619,8 @@ fn joined_dynamic_branches_match(
         || when_true.result.primitive_type != when_false.result.primitive_type
         || when_true.checked_call_service_reach != when_false.checked_call_service_reach
         || when_true.origin != when_false.origin
-        || when_true.forwarding_transfers.len() != 0
-        || when_false.forwarding_transfers.len() != 0
+        || when_true.forwarding_transfers.len() > 1
+        || when_true.forwarding_transfers != when_false.forwarding_transfers
         || when_true.caller_structural_scalar_field_store.is_some()
         || when_false.caller_structural_scalar_field_store.is_some()
         || when_true.unit_continuation.is_some()
@@ -634,13 +634,36 @@ fn joined_dynamic_branches_match(
         return false;
     }
     let psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
-        machine: target_machine,
-        state: target_state,
-        parameter,
+        machine: dispatch_machine,
+        state: dispatch_state,
+        parameter: dispatch_parameter,
         ..
     } = when_true.origin
     else {
         return false;
+    };
+    let (target_machine, target_state, parameter) = match when_true.forwarding_transfers.as_slice()
+    {
+        [] => (dispatch_machine, dispatch_state, dispatch_parameter),
+        [forwarding]
+            if forwarding.source
+                == psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                    parameter_position: 0,
+                }
+                && forwarding.source_predecessor_count == 2
+                && forwarding.source_paths.len() == 2
+                && forwarding.target_machine == dispatch_machine
+                && forwarding.target_state == dispatch_state
+                && forwarding.parameter == dispatch_parameter
+                && forwarding.has_complete_source_custody(transfers) =>
+        {
+            (
+                forwarding.caller_machine,
+                forwarding.caller_state,
+                forwarding.source_binding,
+            )
+        }
+        _ => return false,
     };
     if inbound_counts.get(&(target_state.arena_index(), target_state.generation())) != Some(&2) {
         return false;
@@ -839,6 +862,10 @@ fn forwarded_transfer_path_is_exact(forwarded: &ForwardedDynamicCall<'_, '_>) ->
     {
         return false;
     }
+    let [root_path] = forwarded.transfer.source_paths.as_slice() else {
+        return false;
+    };
+    let mut expected_path = root_path.clone();
     let mut machine = forwarded.transfer.target_machine;
     let mut state = forwarded.transfer.target_state;
     for transfer in &forwarded.prior_transfers {
@@ -848,8 +875,11 @@ fn forwarded_transfer_path_is_exact(forwarded: &ForwardedDynamicCall<'_, '_>) ->
                 != (psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 })
-            || transfer.sole_selection() != forwarded.transfer.sole_selection()
         {
+            return false;
+        }
+        expected_path.edges.push(transfer.edge());
+        if !transfer.source_paths.contains(&expected_path) {
             return false;
         }
         machine = transfer.target_machine;

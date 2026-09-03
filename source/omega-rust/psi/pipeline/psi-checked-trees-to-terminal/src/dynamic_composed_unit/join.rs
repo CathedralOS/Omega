@@ -81,34 +81,20 @@ pub(super) fn lower(
         return unsupported("joined dynamic conformances do not expose one exact interface");
     }
 
-    let helper_machine = machine_id(
-        u64::try_from(lowered_realizations.len())
-            .map_err(|_| LoweringError::Unsupported("joined realization count exceeds u64"))?
-            .checked_add(2)
-            .ok_or(LoweringError::Unsupported(
-                "joined helper identity overflowed",
-            ))?,
-    );
-    let helper_ids = ForwardedHelperIds {
-        machine: helper_machine,
-        block: block_id(4),
-        operation: operation_id(3),
-        operation_value: value_id(5),
-        result_value: value_id(4),
-        edge: edge_id(5),
-    };
-    let helper = materialize_forwarded_helper_for_source(
+    let helper_ids = joined_helper_chain_ids(first, &lowered_realizations)?;
+    let first_helper = *helper_ids.first().ok_or(LoweringError::Unsupported(
+        "joined dynamic control has no forwarded helper",
+    ))?;
+    let helpers = materialize_forwarded_helper_chain(
         checked,
         first,
         &first_application,
         &first_row,
-        helper_ids,
-        forwarded_source_machine(first)?,
-        None,
+        &helper_ids,
     )?;
     let result_type = terminal_scalar_type(first.result.primitive_type)?;
     let call_kind = || OperationKind::CallStructuralScalar {
-        callee: helper_machine,
+        callee: first_helper.machine,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
@@ -154,11 +140,35 @@ pub(super) fn lower(
         ),
     ];
 
-    let mut next_block = 5_u64;
+    let helper_count = u64::try_from(helper_ids.len())
+        .map_err(|_| LoweringError::Unsupported("joined helper count exceeds u64"))?;
+    let mut next_block = 4_u64
+        .checked_add(helper_count)
+        .ok_or(LoweringError::Unsupported(
+            "joined block identity overflowed",
+        ))?;
     let mut next_place = 2_u64;
-    let mut next_operation = 4_u64;
-    let mut next_value = 6_u64;
-    let mut next_edge = 6_u64;
+    let mut next_operation = 3_u64
+        .checked_add(helper_count)
+        .ok_or(LoweringError::Unsupported(
+            "joined operation identity overflowed",
+        ))?;
+    let mut next_value = 4_u64
+        .checked_add(
+            helper_count
+                .checked_mul(2)
+                .ok_or(LoweringError::Unsupported(
+                    "joined value identity overflowed",
+                ))?,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "joined value identity overflowed",
+        ))?;
+    let mut next_edge = 5_u64
+        .checked_add(helper_count)
+        .ok_or(LoweringError::Unsupported(
+            "joined edge identity overflowed",
+        ))?;
     let mut realization_machines = Vec::new();
     for realization in &lowered_realizations {
         let owner = branches
@@ -198,9 +208,9 @@ pub(super) fn lower(
             conformance_application_commitment: second_application.commitment,
         },
     ];
-    let dynamic_dispatch = TerminalDynamicDispatchCatalog {
+    let mut dynamic_dispatch = TerminalDynamicDispatchCatalog {
         parameters: vec![TerminalDynamicDescriptorParameter {
-            owner: helper_machine,
+            owner: first_helper.machine,
             ordinal: 0,
             source_position: 0,
             trait_identity: first_application.trait_identity.clone(),
@@ -228,12 +238,13 @@ pub(super) fn lower(
         indirect_dispatches: Vec::new(),
         stored_dispatches: Vec::new(),
         parameter_dispatches: vec![TerminalParameterDynamicDispatch {
-            owner: helper_machine,
-            operation: helper_ids.operation,
+            owner: first_helper.machine,
+            operation: first_helper.operation,
             parameter_ordinal: 0,
             requirement_slot,
         }],
     };
+    extend_parameter_forwarding_catalog(&mut dynamic_dispatch, &helper_ids)?;
     let mut applications = vec![first_application, second_application];
     applications.sort_by(|left, right| {
         (
@@ -290,7 +301,7 @@ pub(super) fn lower(
         contract: empty_terminal_contract(caller_machine.get()),
     }];
     machines.extend(realization_machines);
-    machines.push(helper);
+    machines.extend(helpers);
     machines.sort_by_key(|machine| machine.id);
 
     Ok(LoweredTerminalPsi {
@@ -328,9 +339,61 @@ pub(super) fn lower(
             evidence: Vec::new(),
         },
         debug_map: None,
-        source_call_occurrences: joined_source_call_occurrences(plan, helper_ids.operation)?,
+        source_call_occurrences: joined_source_call_occurrences(plan, &helper_ids)?,
         selected_ieee_float_fma_occurrences: Vec::new(),
     })
+}
+
+fn joined_helper_chain_ids(
+    plan: &psi_checked_trees::CheckedDynamicScalarCallPlan,
+    realizations: &[LoweredDynamicRealization],
+) -> Result<Vec<ForwardedHelperIds>, LoweringError> {
+    if plan.forwarding_transfers.len() > 1 {
+        return unsupported("joined dynamic control forwards beyond one shared helper");
+    }
+    let first_machine = u64::try_from(realizations.len())
+        .map_err(|_| LoweringError::Unsupported("joined realization count exceeds u64"))?
+        .checked_add(2)
+        .ok_or(LoweringError::Unsupported(
+            "joined helper identity overflowed",
+        ))?;
+    (0..=plan.forwarding_transfers.len())
+        .map(|ordinal| {
+            let ordinal = u64::try_from(ordinal)
+                .map_err(|_| LoweringError::Unsupported("joined helper count exceeds u64"))?;
+            let doubled = ordinal.checked_mul(2).ok_or(LoweringError::Unsupported(
+                "joined helper value identity overflowed",
+            ))?;
+            Ok(ForwardedHelperIds {
+                machine: machine_id(first_machine.checked_add(ordinal).ok_or(
+                    LoweringError::Unsupported("joined helper identity overflowed"),
+                )?),
+                block: block_id(
+                    4_u64
+                        .checked_add(ordinal)
+                        .ok_or(LoweringError::Unsupported(
+                            "joined helper block identity overflowed",
+                        ))?,
+                ),
+                operation: operation_id(3_u64.checked_add(ordinal).ok_or(
+                    LoweringError::Unsupported("joined helper operation identity overflowed"),
+                )?),
+                operation_value: value_id(5_u64.checked_add(doubled).ok_or(
+                    LoweringError::Unsupported("joined helper value identity overflowed"),
+                )?),
+                result_value: value_id(4_u64.checked_add(doubled).ok_or(
+                    LoweringError::Unsupported("joined helper value identity overflowed"),
+                )?),
+                edge: edge_id(
+                    5_u64
+                        .checked_add(ordinal)
+                        .ok_or(LoweringError::Unsupported(
+                            "joined helper edge identity overflowed",
+                        ))?,
+                ),
+            })
+        })
+        .collect()
 }
 
 fn validate_join_plan(
@@ -474,16 +537,6 @@ fn plan_contains_realization(
     })
 }
 
-fn forwarded_source_machine(
-    plan: &CheckedDynamicScalarCallPlan,
-) -> Result<psi_symbols::SymbolHandle, LoweringError> {
-    let psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { machine, .. } = plan.origin
-    else {
-        return unsupported("joined branch is not a forwarded dynamic call");
-    };
-    Ok(machine)
-}
-
 fn branch_block(
     block: psi_core::BlockId,
     operation: psi_core::OperationId,
@@ -512,8 +565,19 @@ fn branch_block(
 
 fn joined_source_call_occurrences(
     plan: &psi_checked_trees::CheckedJoinedDynamicScalarCallPlan,
-    helper_operation: psi_core::OperationId,
+    helpers: &[ForwardedHelperIds],
 ) -> Result<Vec<LoweredSourceCallOccurrence>, LoweringError> {
+    if helpers.len() != plan.when_true.call.forwarding_transfers.len() + 1
+        || plan.when_true.call.forwarding_transfers != plan.when_false.call.forwarding_transfers
+    {
+        return unsupported("joined source-call helper chain drifted from checked custody");
+    }
+    let join_state = plan
+        .when_true
+        .call
+        .forwarding_transfers
+        .first()
+        .map(|transfer| transfer.caller_state);
     let branches = [
         (&plan.when_true.call, operation_id(1)),
         (&plan.when_false.call, operation_id(2)),
@@ -535,11 +599,26 @@ fn joined_source_call_occurrences(
                 call_ordinal: usize::try_from(branch.coordinate.call_ordinal)
                     .map_err(|_| LoweringError::Unsupported("joined call ordinal exceeds usize"))?,
                 terminal_operation: operation,
-                source_target: state,
+                source_target: join_state.unwrap_or(state),
                 source_values_before_call: Vec::new(),
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    for (transfer, helper) in plan.when_true.call.forwarding_transfers.iter().zip(helpers) {
+        occurrences.push(LoweredSourceCallOccurrence {
+            source_site: None,
+            source_state: transfer.caller_state,
+            statement_index: usize::try_from(transfer.coordinate.statement_index).map_err(
+                |_| LoweringError::Unsupported("joined forwarding statement exceeds usize"),
+            )?,
+            call_ordinal: usize::try_from(transfer.coordinate.call_ordinal).map_err(|_| {
+                LoweringError::Unsupported("joined forwarding call ordinal exceeds usize")
+            })?,
+            terminal_operation: helper.operation,
+            source_target: transfer.target_state,
+            source_values_before_call: Vec::new(),
+        });
+    }
     let psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
         state, coordinate, ..
     } = plan.when_true.call.origin
@@ -553,7 +632,12 @@ fn joined_source_call_occurrences(
             .map_err(|_| LoweringError::Unsupported("joined dispatch statement exceeds usize"))?,
         call_ordinal: usize::try_from(coordinate.call_ordinal)
             .map_err(|_| LoweringError::Unsupported("joined dispatch ordinal exceeds usize"))?,
-        terminal_operation: helper_operation,
+        terminal_operation: helpers
+            .last()
+            .ok_or(LoweringError::Unsupported(
+                "joined source-call chain has no final helper",
+            ))?
+            .operation,
         source_target: plan.when_true.call.requirement,
         source_values_before_call: Vec::new(),
     });

@@ -33,12 +33,16 @@ const SOURCE: &str = r#"
         }
         state take_first(&self) {
             let selected: &dyn Measure = &self.first as &dyn Item::Primary;
-            let result: bool = finish(selected);
+            let result: bool = forward(selected);
         }
         state take_second(&self) {
             let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
-            let result: bool = finish(selected);
+            let result: bool = forward(selected);
         }
+    }
+    machine forward(erased: &dyn Measure) -> bool {
+        let result: bool = finish(erased);
+        transition { _ -> result }
     }
     machine finish(erased: &dyn Measure) -> bool {
         let result: bool = erased.measure();
