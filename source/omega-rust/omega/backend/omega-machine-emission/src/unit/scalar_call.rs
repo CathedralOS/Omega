@@ -321,9 +321,8 @@ pub(super) fn validate_unit_scalar_argument(
             _ => return Err(EmissionError::InvalidUnitScalarCallCustody(operation)),
         };
         if parameter.value != source_value
-            || parameter.scalar_type != psi_core::ScalarType::Integer(scalar_type)
-            || parameter.placement.shape
-                != unit_scalar_shape(source_value, psi_core::ScalarType::Integer(scalar_type))?
+            || parameter.scalar_type != scalar_type
+            || parameter.placement.shape != unit_scalar_shape(source_value, scalar_type)?
             || location != expected_location
         {
             return Err(EmissionError::InvalidUnitScalarCallCustody(operation));

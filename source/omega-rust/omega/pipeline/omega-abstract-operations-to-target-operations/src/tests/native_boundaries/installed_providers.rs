@@ -397,7 +397,9 @@ fn admitted_i32_provider_retains_exact_incoming_and_outgoing_abi() {
                                     source_value,
                                     scalar_type,
                                 } if source_value == caller_value
-                                    && scalar_type == IntegerType::new(IntegerSign::Signed, 32).unwrap()))
+                                    && scalar_type == ScalarType::Integer(
+                                        IntegerType::new(IntegerSign::Signed, 32).unwrap()
+                                    )))
         ));
         let TargetOperation::UnitBody(candidate) = &lowered.functions[1].operation else {
             panic!("provider candidate remains a Unit body")

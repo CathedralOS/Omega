@@ -487,7 +487,7 @@ pub(super) fn validate_source(
                 _ => return Err(invalid()),
             };
             if parameter.value != source_value
-                || parameter.scalar_type != psi_core::ScalarType::Integer(scalar_type)
+                || parameter.scalar_type != scalar_type
                 || location != expected_location
             {
                 return Err(invalid());

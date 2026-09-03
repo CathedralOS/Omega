@@ -91,7 +91,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
                                 source: TargetUnitScalarArgumentSource::Parameter {
                                     parameter_index: 0,
                                     source_value,
-                                    scalar_type,
+                                    scalar_type: ScalarType::Integer(scalar_type),
                                 },
                                 placement: call_plan.parameters[0].clone(),
                             }],
@@ -154,7 +154,9 @@ fn exact_i32_installed_provider_keeps_parameter_and_provider_custody() {
                                 scalar_type,
                                 location: AssignedScalarLocation::Register(_),
                             } if source_value == ValueId::new(970).unwrap()
-                                && scalar_type == IntegerType::new(IntegerSign::Signed, 32).unwrap()))
+                                && scalar_type == ScalarType::Integer(
+                                    IntegerType::new(IntegerSign::Signed, 32).unwrap()
+                                )))
         ));
     }
 }

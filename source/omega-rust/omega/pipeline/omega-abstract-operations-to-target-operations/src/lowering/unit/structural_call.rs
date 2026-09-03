@@ -65,12 +65,11 @@ pub(super) fn lower_structural_unit_call(
     let scalar_shapes = callee_function
         .parameters
         .iter()
-        .map(|parameter| {
-            let ScalarType::Integer(integer_type) = parameter.scalar_type else {
-                return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
-            };
-            fixed_native_integer_shape(integer_type)
-                .ok_or(LoweringError::UnitCallTargetKindMismatch(*callee))
+        .map(|parameter| match parameter.scalar_type {
+            ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
+            ScalarType::Integer(integer_type) => fixed_native_integer_shape(integer_type)
+                .ok_or(LoweringError::UnitCallTargetKindMismatch(*callee)),
+            ScalarType::IeeeFloat(_) => Err(LoweringError::UnitCallTargetKindMismatch(*callee)),
         })
         .collect::<Result<Vec<_>, _>>()?;
     let callee_shapes = callee_function
@@ -106,14 +105,44 @@ pub(super) fn lower_structural_unit_call(
         .enumerate()
         .map(
             |(parameter_index, (((source_value, parameter), expected_shape), placement))| {
-                let known = scalar_values
-                    .get(source_value)
-                    .copied()
-                    .ok_or(LoweringError::UnknownValue(*source_value))?;
-                let ScalarType::Integer(parameter_type) = parameter.scalar_type else {
-                    return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
+                let source = match parameter.scalar_type {
+                    ScalarType::Boolean => {
+                        let (caller_parameter_index, _) = function
+                            .parameters
+                            .iter()
+                            .enumerate()
+                            .find(|(_, caller_parameter)| {
+                                caller_parameter.value == *source_value
+                                    && caller_parameter.scalar_type == ScalarType::Boolean
+                            })
+                            .ok_or(LoweringError::UnknownValue(*source_value))?;
+                        TargetUnitScalarArgumentSource::Parameter {
+                            parameter_index: u32::try_from(caller_parameter_index)
+                                .map_err(|_| LoweringError::UnitCallTargetKindMismatch(*callee))?,
+                            source_value: *source_value,
+                            scalar_type: ScalarType::Boolean,
+                        }
+                    }
+                    ScalarType::Integer(parameter_type) => {
+                        let known = scalar_values
+                            .get(source_value)
+                            .copied()
+                            .ok_or(LoweringError::UnknownValue(*source_value))?;
+                        if known.scalar_type() != parameter_type {
+                            return Err(LoweringError::CallArgumentTypeMismatch {
+                                callee: *callee,
+                                argument: *source_value,
+                            });
+                        }
+                        known.into_target_source(*source_value)
+                    }
+                    ScalarType::IeeeFloat(_) => {
+                        return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
+                    }
                 };
-                if known.scalar_type() != parameter_type || placement.shape != *expected_shape {
+                if source.scalar_type() != parameter.scalar_type
+                    || placement.shape != *expected_shape
+                {
                     return Err(LoweringError::CallArgumentTypeMismatch {
                         callee: *callee,
                         argument: *source_value,
@@ -122,7 +151,7 @@ pub(super) fn lower_structural_unit_call(
                 Ok(TargetUnitScalarCallArgument {
                     parameter_index: u32::try_from(parameter_index)
                         .map_err(|_| LoweringError::UnitCallTargetKindMismatch(*callee))?,
-                    source: known.into_target_source(*source_value),
+                    source,
                     placement: placement.clone(),
                 })
             },

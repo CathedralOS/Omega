@@ -91,7 +91,7 @@ fn encode_argument_source(
             bytes.push(2);
             bytes.extend_from_slice(&parameter_index.to_le_bytes());
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
-            encode_integer_type(bytes, scalar_type);
+            encode_scalar_type(bytes, scalar_type);
         }
         omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
             defining_operation,

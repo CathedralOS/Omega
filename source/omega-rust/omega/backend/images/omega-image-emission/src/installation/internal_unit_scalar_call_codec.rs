@@ -1,4 +1,4 @@
-//! Canonical installation transport for attached-Unit fixed-integer calls.
+//! Canonical installation transport for attached-Unit scalar calls.
 //!
 //! These rows contain semantic identities, physical placements, and code
 //! intervals only. Expected instruction bytes are deliberately not accepted
@@ -16,8 +16,8 @@ use super::{
     push_u32, push_u64,
     scalar_call_plan_codec::{decode_scalar_call_plan, encode_scalar_call_plan},
     unit_scalar_codec::{
-        decode_integer_type, decode_integer_value, decode_unit_scalar_home, encode_integer_type,
-        encode_integer_value, encode_unit_scalar_home,
+        decode_integer_type, decode_integer_value, decode_scalar_type, decode_unit_scalar_home,
+        encode_integer_type, encode_integer_value, encode_scalar_type, encode_unit_scalar_home,
     },
     value_placement_codec::{decode_direct_placement, encode_direct_placement},
     value_placement_codec::{decode_register, register_tag},
@@ -138,7 +138,7 @@ pub(super) fn encode_argument_source(
             bytes.extend_from_slice(&[3, 0, 0, 0]);
             push_u32(bytes, parameter_index);
             push_u64(bytes, source_value.get());
-            encode_integer_type(bytes, scalar_type)?;
+            encode_scalar_type(bytes, scalar_type)?;
             match location {
                 omega_machine_code::UnitScalarParameterLocationRecord::Register(register) => {
                     bytes.push(0);
@@ -197,7 +197,7 @@ pub(super) fn decode_argument_source(
             let parameter_index = reader.u32()?;
             let source_value = ValueId::new(reader.u64()?)
                 .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
-            let scalar_type = decode_integer_type(reader)?;
+            let scalar_type = decode_scalar_type(reader)?;
             let location_tag = reader.u8()?;
             let register_tag_byte = reader.u8()?;
             if reader.take(2)? != [0; 2] {
@@ -251,18 +251,23 @@ mod tests {
     use super::*;
     use omega_machine_code::UnitScalarParameterLocationRecord;
     use omega_target_operations::MachineRegister;
-    use psi_core::{IntegerSign, IntegerType};
+    use psi_core::{IntegerSign, IntegerType, ScalarType};
 
     #[test]
     fn ordinary_installation_codec_round_trips_parameter_sources() {
-        let mut bytes = Vec::new();
-        let source = InternalUnitScalarArgumentSourceRecord::Parameter {
-            parameter_index: 0,
-            source_value: ValueId::new(1).unwrap(),
-            scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-            location: UnitScalarParameterLocationRecord::Register(MachineRegister::X86Rdi),
-        };
-        encode_argument_source(&mut bytes, source).expect("encode parameter source");
-        assert_eq!(decode_argument_source(&mut Reader::new(&bytes)), Ok(source));
+        for scalar_type in [
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+            ScalarType::Boolean,
+        ] {
+            let mut bytes = Vec::new();
+            let source = InternalUnitScalarArgumentSourceRecord::Parameter {
+                parameter_index: 0,
+                source_value: ValueId::new(1).unwrap(),
+                scalar_type,
+                location: UnitScalarParameterLocationRecord::Register(MachineRegister::X86Rdi),
+            };
+            encode_argument_source(&mut bytes, source).expect("encode parameter source");
+            assert_eq!(decode_argument_source(&mut Reader::new(&bytes)), Ok(source));
+        }
     }
 }

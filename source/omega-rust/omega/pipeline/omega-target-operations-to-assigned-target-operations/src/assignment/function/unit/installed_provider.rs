@@ -59,7 +59,10 @@ pub(super) fn assign(
     else {
         return Err(invalid());
     };
-    let shape = super::scalar_call::fixed_integer_shape(source_value, scalar_type)
+    let psi_core::ScalarType::Integer(integer_type) = scalar_type else {
+        return Err(invalid());
+    };
+    let shape = super::scalar_call::fixed_integer_shape(source_value, integer_type)
         .map_err(|_| invalid())?;
     let expected_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
@@ -74,13 +77,13 @@ pub(super) fn assign(
         || parameter_index != 0
         || argument.parameter_index != 0
         || parameter.value != source_value
-        || parameter.scalar_type != psi_core::ScalarType::Integer(scalar_type)
+        || parameter.scalar_type != scalar_type
         || parameter.placement != *body_parameter_placement
         || argument.placement != *call_parameter_placement
         || argument.placement.shape != shape
-        || scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
-        || scalar_type.sign() != psi_core::IntegerSign::Signed
-        || scalar_type.bits() != 32
+        || integer_type.carrier() != psi_core::IntegerCarrier::Fixed
+        || integer_type.sign() != psi_core::IntegerSign::Signed
+        || integer_type.bits() != 32
         || call_plan != &expected_plan
         || call_plan.result.is_some()
         || !source_arguments.is_empty()

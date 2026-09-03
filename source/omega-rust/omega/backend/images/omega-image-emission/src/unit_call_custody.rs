@@ -192,6 +192,14 @@ fn fixed_integer_shape(integer: psi_core::IntegerType) -> Option<ValueShape> {
     Some(ValueShape::integer(bytes, bytes))
 }
 
+pub(super) fn unit_scalar_shape(scalar_type: psi_core::ScalarType) -> Option<ValueShape> {
+    match scalar_type {
+        psi_core::ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        psi_core::ScalarType::Integer(integer) => fixed_integer_shape(integer),
+        psi_core::ScalarType::IeeeFloat(_) => None,
+    }
+}
+
 pub(super) fn structural_result_matches_return(
     result: &omega_machine_code::InternalStructuralCallResult,
     returned: &StructuralReturnRecord,
@@ -380,12 +388,7 @@ pub(super) fn validate_internal_unit_call_custody(
             parameters: if let Some(abi) = callee_unit_scalar_abi {
                 abi.parameters
                     .iter()
-                    .map(|parameter| {
-                        let psi_core::ScalarType::Integer(integer) = parameter.scalar_type else {
-                            return Err(invalid());
-                        };
-                        fixed_integer_shape(integer).ok_or_else(invalid)
-                    })
+                    .map(|parameter| unit_scalar_shape(parameter.scalar_type).ok_or_else(invalid))
                     .chain(
                         callee_unit_parameters
                             .iter()

@@ -182,12 +182,16 @@ pub(super) fn assign(
                                 body.scalar_parameters.get(index).ok_or_else(invalid)?;
                             let source_placement =
                                 body.call_plan.parameters.get(index).ok_or_else(invalid)?;
-                            let shape =
-                                super::scalar_call::fixed_integer_shape(source_value, scalar_type)
-                                    .map_err(|_| invalid())?;
+                            let shape = match scalar_type {
+                                psi_core::ScalarType::Boolean => ValueShape::integer(1, 1),
+                                psi_core::ScalarType::Integer(integer) => {
+                                    super::scalar_call::fixed_integer_shape(source_value, integer)
+                                        .map_err(|_| invalid())?
+                                }
+                                psi_core::ScalarType::IeeeFloat(_) => return Err(invalid()),
+                            };
                             if parameter.value != source_value
-                                || parameter.scalar_type
-                                    != psi_core::ScalarType::Integer(scalar_type)
+                                || parameter.scalar_type != scalar_type
                                 || parameter.placement != *source_placement
                                 || source_placement.shape != shape
                                 || argument.placement.shape != shape
