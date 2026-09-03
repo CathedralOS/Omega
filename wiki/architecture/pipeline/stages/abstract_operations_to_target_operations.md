@@ -101,8 +101,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   verify, canonically bind, and retain scalar arguments on ordinary `CallUnit`,
   including optimizer identity and dataflow. This stage now derives the exact
   target call plan, retaining scalar arguments as its prefix and structural
-  arguments as its suffix. Physical assignment remains explicitly fenced until
-  it can preserve the scalar source.
+  arguments as its suffix. Physical assignment independently replays that plan
+  and preserves the caller parameter's incoming location; machine emission
+  remains explicitly fenced until it emits the scalar transfer.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider
