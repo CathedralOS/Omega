@@ -45,16 +45,24 @@ fn build_checked_dynamic_scalar_call_transaction(
                     flow_call.statement_index,
                     flow_call.call_ordinal,
                 )?;
-                let Some(receiver_symbol) = local_receiver_symbol(program, &call_site) else {
-                    continue;
-                };
-                let is_dynamic_receiver = binding_facts.selections.iter().any(|selection| {
-                    selection.machine == machine.symbol
-                        && selection.state == state.symbol
-                        && selection.statement_index < flow_call.statement_index
-                        && selection.binding == receiver_symbol
+                let receiver_symbol = local_receiver_symbol(program, &call_site);
+                let stored_receiver = stored_dynamic_receiver(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    flow_call.statement_index,
+                    &call_site,
+                );
+                let is_direct_dynamic_receiver = receiver_symbol.is_some_and(|receiver_symbol| {
+                    binding_facts.selections.iter().any(|selection| {
+                        selection.machine == machine.symbol
+                            && selection.state == state.symbol
+                            && selection.statement_index < flow_call.statement_index
+                            && selection.binding == receiver_symbol
+                    })
                 });
-                if !is_dynamic_receiver {
+                if !is_direct_dynamic_receiver && stored_receiver.is_none() {
                     continue;
                 }
 
@@ -90,12 +98,16 @@ fn build_checked_dynamic_scalar_call_transaction(
                         shapes,
                         boundaries,
                         None,
+                        stored_receiver,
                     )? {
                         CheckedDynamicScalarCall::Direct(plan) => {
                             plans.direct_scalar_calls.push(plan);
                         }
                         CheckedDynamicScalarCall::Rebound(plan) => {
                             plans.rebound_scalar_calls.push(plan);
+                        }
+                        CheckedDynamicScalarCall::Stored(plan) => {
+                            plans.stored_scalar_calls.push(plan);
                         }
                     },
                 }
@@ -444,6 +456,7 @@ fn build_checked_forwarded_dynamic_scalar_calls(
                     shapes,
                     boundaries,
                     Some(forwarded),
+                    None,
                 ) else {
                     continue;
                 };
@@ -453,6 +466,9 @@ fn build_checked_forwarded_dynamic_scalar_calls(
                     }
                     CheckedDynamicScalarCall::Rebound(plan) => {
                         plans.rebound_scalar_calls.push(plan);
+                    }
+                    CheckedDynamicScalarCall::Stored(plan) => {
+                        plans.stored_scalar_calls.push(plan);
                     }
                 }
             }
@@ -643,6 +659,67 @@ fn forwarded_transfer_path_is_exact(forwarded: &ForwardedDynamicCall<'_, '_>) ->
 enum CheckedDynamicScalarCall {
     Direct(psi_checked_trees::CheckedDynamicScalarCallPlan),
     Rebound(psi_checked_trees::CheckedReboundDynamicScalarCallPlan),
+    Stored(psi_checked_trees::CheckedStoredDynamicScalarCallPlan),
+}
+
+struct DynamicReceiverPlace {
+    root: SymbolHandle,
+    leaf: SymbolHandle,
+    path: Vec<Identifier>,
+}
+
+fn dynamic_receiver_place(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<DynamicReceiverPlace> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(name) => {
+            let path = program
+                .expression_table
+                .name_path_members(name.members)
+                .to_vec();
+            if path.is_empty() {
+                return None;
+            }
+            Some(DynamicReceiverPlace {
+                root: if name.head_symbol.is_valid() {
+                    name.head_symbol
+                } else {
+                    name.symbol
+                },
+                leaf: name.symbol,
+                path,
+            })
+        }
+        ExpressionNode::Member(member) => {
+            let mut place = dynamic_receiver_place(program, member.receiver)?;
+            place.leaf = member.member_symbol;
+            place.path.push(member.member.clone());
+            Some(place)
+        }
+        _ => None,
+    }
+}
+
+fn stored_dynamic_receiver<'facts>(
+    program: &TypedTrees,
+    facts: &'facts CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    call_site: &crate::CallSite<'_>,
+) -> Option<&'facts psi_checked_trees::DynamicDescriptorStorageFact> {
+    let crate::CallSite::Expression { call, .. } = call_site else {
+        return None;
+    };
+    let place = dynamic_receiver_place(program, call.receiver)?;
+    facts.dynamic_conformances.stored_receiver(
+        machine,
+        state,
+        place.root,
+        &place.path,
+        statement_index,
+    )
 }
 
 fn local_receiver_symbol(
@@ -682,6 +759,7 @@ fn build_checked_dynamic_scalar_call(
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
     forwarded: Option<ForwardedDynamicCall<'_, '_>>,
+    stored: Option<&psi_checked_trees::DynamicDescriptorStorageFact>,
 ) -> Option<CheckedDynamicScalarCall> {
     let crate::CallSite::Expression {
         expression: caller_expression,
@@ -710,6 +788,9 @@ fn build_checked_dynamic_scalar_call(
         origin,
     ) = match forwarded {
         Some(forwarded) => {
+            if stored.is_some() {
+                return None;
+            }
             let crate::CallSite::Expression { call, .. } = forwarded.call_site else {
                 return None;
             };
@@ -733,14 +814,24 @@ fn build_checked_dynamic_scalar_call(
                 },
             )
         }
-        None => (
-            state,
-            flow_call,
-            caller_call,
-            flow_call.receiver_symbol,
-            Identifier::default(),
-            psi_checked_trees::CheckedDynamicScalarCallOrigin::Local,
-        ),
+        None => {
+            let (selection_binding, selection_name) = stored
+                .map(|storage| {
+                    (
+                        storage.selection.binding,
+                        storage.selection.binding_name.clone(),
+                    )
+                })
+                .unwrap_or((flow_call.receiver_symbol, Identifier::default()));
+            (
+                state,
+                flow_call,
+                caller_call,
+                selection_binding,
+                selection_name,
+                psi_checked_trees::CheckedDynamicScalarCallOrigin::Local,
+            )
+        }
     };
     if coordinate.call_ordinal != 0
         || !dispatch_flow_call.has_receiver
@@ -759,31 +850,33 @@ fn build_checked_dynamic_scalar_call(
         return None;
     }
 
-    let ExpressionNode::Name(receiver_path) =
-        program.expression_table.expression(dispatch_call.receiver)
-    else {
-        return None;
-    };
-    let [receiver_name] = program
-        .expression_table
-        .name_path_members(receiver_path.members)
-    else {
-        return None;
-    };
+    let receiver_place = dynamic_receiver_place(program, dispatch_call.receiver)?;
+    let receiver_name = receiver_place.path.last()?;
     let expected_selection_name = if selection_name.as_str().is_empty() {
         receiver_name
     } else {
         &selection_name
     };
-    if !receiver_path.symbol.is_valid()
-        || receiver_path.symbol != dispatch_flow_call.receiver_symbol
-        || program
-            .expression_table
-            .name_path_member_symbols(receiver_path.member_symbols)
-            .iter()
-            .any(|symbol| *symbol != receiver_path.symbol)
-    {
-        return None;
+    match stored {
+        Some(storage) => {
+            if receiver_place.root != storage.destination_binding
+                || (receiver_place.leaf.is_valid()
+                    && receiver_place.leaf != storage.destination_field)
+                || receiver_place.path != storage.destination_path
+                || storage.destination_field != dispatch_flow_call.receiver_symbol
+                || storage.selection.binding != selection_binding
+            {
+                return None;
+            }
+        }
+        None => {
+            if receiver_place.path.len() != 1
+                || receiver_place.leaf != dispatch_flow_call.receiver_symbol
+                || receiver_place.root != receiver_place.leaf
+            {
+                return None;
+            }
+        }
     }
 
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -1114,6 +1207,17 @@ fn build_checked_dynamic_scalar_call(
             != retained_statement_count
     {
         return None;
+    }
+    if let Some(storage) = stored {
+        if rebound_from.is_some() || storage.selection != plan.selection {
+            return None;
+        }
+        return Some(CheckedDynamicScalarCall::Stored(
+            psi_checked_trees::CheckedStoredDynamicScalarCallPlan {
+                storage: storage.clone(),
+                call: plan,
+            },
+        ));
     }
     Some(match rebound_from {
         Some(initial) => CheckedDynamicScalarCall::Rebound(

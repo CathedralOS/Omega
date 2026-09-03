@@ -12472,8 +12472,14 @@ checked-result arithmetic decision listed below.
     observable through the native exit canary. Frontend place validation now
     resolves a dynamic member call through a lifetime-applied borrow-carrying
     local record instead of falsely classifying that member as an unknown
-    callable; checked descriptor storage custody and materialization remain to
-    be added. Do not extend local
+    callable. The first bounded storage shape now has checked custody: an
+    immutable local record literal stores an earlier exact `&dyn` selection in
+    one dynamic field, and the checked artifact retains the source binding,
+    original selected row map, exact destination local/field/path, statement
+    coordinate, and complete scalar call plan in a separate stored-dispatch
+    catalog. It is not represented as either a fresh selection or direct
+    devirtualization. Terminal two-word aggregate materialization, field reload,
+    verification, and native replay remain to be added. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a

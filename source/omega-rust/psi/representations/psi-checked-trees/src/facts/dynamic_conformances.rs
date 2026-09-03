@@ -74,6 +74,26 @@ pub enum DynamicConformanceRowSource {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DynamicConformanceFacts {
     pub selections: Vec<DynamicConformanceSelectionFact>,
+    pub storages: Vec<DynamicDescriptorStorageFact>,
+}
+
+/// Checked lineage for one borrowed dynamic descriptor stored in an exact
+/// field of a local record. The embedded selection remains the authority for
+/// conformance rows; storage contributes only the destination custody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicDescriptorStorageFact {
+    pub occurrence: ExpressionHandle,
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_index: usize,
+    pub destination_binding: SymbolHandle,
+    pub destination_name: Identifier,
+    pub destination_field: SymbolHandle,
+    pub destination_path: Vec<Identifier>,
+    pub source_binding: SymbolHandle,
+    pub source_name: Identifier,
+    pub source_path: Vec<Identifier>,
+    pub selection: DynamicConformanceBindingFact,
 }
 
 /// Handle-free selection identity suitable for state-graph and control-flow
@@ -141,6 +161,26 @@ impl DynamicConformanceFacts {
                 })
                 .collect(),
         }
+    }
+
+    pub fn stored_receiver(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        binding: SymbolHandle,
+        path: &[Identifier],
+        use_statement_index: usize,
+    ) -> Option<&DynamicDescriptorStorageFact> {
+        self.storages
+            .iter()
+            .filter(|storage| {
+                storage.machine == machine
+                    && storage.state == state
+                    && storage.statement_index < use_statement_index
+                    && storage.destination_binding == binding
+                    && storage.destination_path == path
+            })
+            .max_by_key(|storage| storage.statement_index)
     }
 }
 

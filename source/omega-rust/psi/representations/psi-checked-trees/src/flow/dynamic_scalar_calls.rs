@@ -21,11 +21,23 @@ pub struct CheckedDynamicDispatchPlans {
     pub transfers: Vec<CheckedDynamicDescriptorTransferPlan>,
     pub direct_scalar_calls: Vec<CheckedDynamicScalarCallPlan>,
     pub rebound_scalar_calls: Vec<CheckedReboundDynamicScalarCallPlan>,
+    /// Calls through descriptors stored in local aggregate fields. These stay
+    /// separate from direct devirtualization until Terminal Psi explicitly
+    /// materializes and reloads the two-word field representation.
+    pub stored_scalar_calls: Vec<CheckedStoredDynamicScalarCallPlan>,
     /// Exact terminal Unit-returning calls through a local descriptor. These
     /// remain distinct from scalar-result calls: no result binding, ABI home,
     /// or continuation may be inferred for this lane.
     pub direct_unit_calls: Vec<CheckedDynamicUnitCallPlan>,
     pub rebound_unit_calls: Vec<CheckedReboundDynamicUnitCallPlan>,
+}
+
+/// One complete checked scalar call whose descriptor reaches the receiver
+/// through an exact local aggregate field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStoredDynamicScalarCallPlan {
+    pub storage: crate::DynamicDescriptorStorageFact,
+    pub call: CheckedDynamicScalarCallPlan,
 }
 
 /// Checked custody for one terminal Unit-returning call through a local named
@@ -142,10 +154,8 @@ pub enum CheckedDynamicDescriptorTransferSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedDynamicScalarCallPlan {
     /// Exact authored route by which the selected descriptor reaches this
-    /// scalar dispatch. A forwarded route is admitted only for one transparent
-    /// scalar helper whose dynamic parameter is returned directly; Terminal
-    /// lowering may then compose that internal call without inventing
-    /// descriptor custody.
+    /// scalar dispatch. The surrounding stored-call wrapper owns aggregate
+    /// lineage; forwarded routes retain every transparent parameter transfer.
     pub origin: CheckedDynamicScalarCallOrigin,
     /// Exact parameter-sourced transfers before the final dispatching helper,
     /// ordered from the root caller toward that helper. Empty for local and

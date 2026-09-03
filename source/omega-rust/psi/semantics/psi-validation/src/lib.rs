@@ -138,8 +138,9 @@ pub use recasts::{
 };
 pub use result_overloads::resolve_named_result_overloads;
 pub use traits::{
-    DynamicConformanceSelection, collect_dynamic_conformance_selections,
-    resolve_dynamic_call_targets, revalidate_top_level_requirement_realization,
+    DynamicConformanceSelection, DynamicDescriptorStorage, collect_dynamic_conformance_selections,
+    collect_dynamic_descriptor_storages, resolve_dynamic_call_targets,
+    revalidate_top_level_requirement_realization,
 };
 pub use type_references::normalize_open_index_expressions;
 

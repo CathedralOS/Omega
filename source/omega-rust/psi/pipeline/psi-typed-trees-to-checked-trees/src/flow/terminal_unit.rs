@@ -333,6 +333,17 @@ pub(crate) fn build_checked_unit_effect_plans(
                     ]
                 }),
         )
+        .chain(
+            dynamic_dispatch
+                .stored_scalar_calls
+                .iter()
+                .flat_map(|plan| {
+                    [
+                        plan.call.caller_attachment_type_identity.as_str(),
+                        plan.call.source_type_identity.as_str(),
+                    ]
+                }),
+        )
         .chain(dynamic_dispatch.direct_unit_calls.iter().flat_map(|plan| {
             [
                 plan.caller_attachment_type_identity.as_str(),
