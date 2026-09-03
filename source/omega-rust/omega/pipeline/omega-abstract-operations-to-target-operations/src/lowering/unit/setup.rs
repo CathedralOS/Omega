@@ -34,12 +34,19 @@ pub(super) fn prepare_unit_function(
     let parameter_shapes = function
         .structural_parameters
         .iter()
-        .map(|parameter| {
-            structural_shape(
+        .map(|parameter| -> Result<ValueShape, LoweringError> {
+            let shape = structural_shape(
                 parameter.structural_type,
                 structural_types,
                 &mut shape_cache,
                 &mut active,
+            )?;
+            Ok(
+                if parameter.access == psi_terminal::StructuralAccess::MutableBorrow {
+                    ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
+                } else {
+                    shape
+                },
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
