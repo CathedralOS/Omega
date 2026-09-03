@@ -1086,11 +1086,46 @@ pub(super) fn lower_attached_unit_closure_including(
                     coordinate,
                     target_machine,
                     target_state,
+                    scalar_arguments,
                     structural_arguments,
                     claim_transfers,
                     ..
                 } => {
                     let target = unique_unit_machine(plans, *target_machine)?;
+                    if scalar_arguments.len() != target.scalar_parameters.len() {
+                        return unsupported(
+                            "Unit call scalar argument count disagrees with its target",
+                        );
+                    }
+                    let source_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
+                    let terminal_scalar_arguments = scalar_arguments
+                        .iter()
+                        .zip(&target.scalar_parameters)
+                        .map(|(argument, target)| {
+                            let argument = lower_checked_scalar_expression(argument)?;
+                            if direct_expression_contains_short_circuit(&argument) {
+                                return unsupported(
+                                    "Unit call arguments do not yet admit short-circuit control",
+                                );
+                            }
+                            let target_type = terminal_scalar_type(target.primitive_type)?;
+                            if argument.scalar_type() != target_type {
+                                return unsupported(
+                                    "Unit call scalar argument type disagrees with its target",
+                                );
+                            }
+                            validate_direct_parameter_types(&argument, &source_types)?;
+                            Ok(emit_direct_expression(
+                                &argument,
+                                &scalar_result_values,
+                                &mut next_value_identity,
+                                &mut operations,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
                     validate_transfer_shape(
                         structural_arguments,
                         claim_transfers,
@@ -1202,6 +1237,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     OperationKind::CallUnit {
                         callee: lookup_machine_id(&machine_ids, *target_machine)?,
+                        arguments: terminal_scalar_arguments,
                         structural_arguments: terminal_arguments,
                         claim_transfers: claim_transfers
                             .iter()

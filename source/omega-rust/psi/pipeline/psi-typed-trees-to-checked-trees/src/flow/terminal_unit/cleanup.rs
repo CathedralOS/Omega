@@ -241,6 +241,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
                 target_state,
                 target_contract_report_fingerprint,
                 service_reach,
+                scalar_arguments,
                 structural_arguments,
                 claim_transfers,
             } = operation
@@ -254,6 +255,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
                     .iter()
                     .any(|(helper, _, _)| helper == target_machine)
                 || !service_reach_is_empty(facts, *service_reach)
+                || !scalar_arguments.is_empty()
                 || !structural_arguments.is_empty()
                 || !claim_transfers.is_empty()
             {

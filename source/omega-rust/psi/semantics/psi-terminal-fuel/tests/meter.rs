@@ -85,6 +85,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
             value: value_id(1),
         },
         OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: MachineId::new(1).unwrap(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),

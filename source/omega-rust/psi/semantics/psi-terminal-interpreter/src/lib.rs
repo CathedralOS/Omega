@@ -1041,6 +1041,7 @@ impl TerminalExecution {
     fn begin_unit_call(
         &mut self,
         callee_id: MachineId,
+        scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[StructuralArgument],
         resolved_arguments: &[TerminalStructuralValue],
         claim_transfers: &[ClaimTransfer],
@@ -1051,9 +1052,10 @@ impl TerminalExecution {
             .get(&callee_id)
             .cloned()
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
-        if callee.result != TerminalMachineResult::Unit || !callee.parameters.is_empty() {
+        if callee.result != TerminalMachineResult::Unit {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
+        let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let structural_values =
             bind_structural_arguments(&callee.structural_parameters, resolved_arguments)?;
         let callee_affine_frontier =
@@ -1115,7 +1117,7 @@ impl TerminalExecution {
             result: SuspendedCallResult::Unit,
         });
         self.blocks = callee.blocks;
-        self.values = BTreeMap::new();
+        self.values = values;
         self.structural_values = structural_values;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
@@ -1633,6 +1635,7 @@ impl TerminalExecution {
                     }
                     OperationKind::CallUnit {
                         callee,
+                        arguments: scalar_argument_ids,
                         structural_arguments,
                         claim_transfers,
                         ..
@@ -1645,10 +1648,20 @@ impl TerminalExecution {
                             &self.structural_values,
                             &structural_arguments,
                         )?;
+                        let scalar_arguments = scalar_argument_ids
+                            .iter()
+                            .map(|argument| {
+                                self.values
+                                    .get(argument)
+                                    .copied()
+                                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
                         let dynamic_parameters =
                             self.resolve_dynamic_call_arguments(operation.id)?;
                         self.begin_unit_call(
                             callee,
+                            &scalar_arguments,
                             &structural_arguments,
                             &arguments,
                             &claim_transfers,
@@ -1886,6 +1899,7 @@ impl TerminalExecution {
                                 .collect::<Vec<_>>();
                             self.begin_unit_call(
                                 callee_id,
+                                &[],
                                 &structural_arguments,
                                 &arguments,
                                 &claim_transfers,

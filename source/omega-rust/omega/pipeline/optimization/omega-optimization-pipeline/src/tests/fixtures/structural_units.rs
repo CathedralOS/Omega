@@ -114,6 +114,7 @@ pub(crate) fn unit_call_return_artifact() -> (Vec<u8>, Vec<u8>) {
         id: OperationId::new(3_511).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -539,6 +540,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                         id: OperationId::new(3_611).unwrap(),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
+                            arguments: Vec::new(),
                             callee,
                             structural_arguments: caller_places
                                 .into_iter()

@@ -842,6 +842,7 @@ fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
     let helper_callees =
         [first_helper_call, second_helper_call, third_helper_call].map(|operation| {
             let OperationKind::CallUnit {
+                arguments,
                 callee,
                 structural_arguments,
                 claim_transfers,
@@ -851,6 +852,7 @@ fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
             else {
                 panic!("cleanup helper operation remains an ordinary Unit call")
             };
+            assert!(arguments.is_empty());
             assert!(structural_arguments.is_empty());
             assert!(claim_transfers.is_empty());
             assert!(requirement_obligations.is_empty());
@@ -1201,6 +1203,7 @@ fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     };
     assert_eq!(call.result, OperationResult::Unit);
     let OperationKind::CallUnit {
+        arguments,
         callee,
         structural_arguments,
         claim_transfers,
@@ -1210,6 +1213,7 @@ fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     else {
         panic!("cleanup operation must be an ordinary Unit call")
     };
+    assert!(arguments.is_empty());
     assert!(structural_arguments.is_empty());
     assert!(claim_transfers.is_empty());
     assert!(requirement_obligations.is_empty());
@@ -1278,6 +1282,7 @@ fn two_call_nominal_cleanup_preserves_source_order_through_codec_and_verifier() 
     let callees = [first_call, second_call].map(|operation| {
         assert_eq!(operation.result, OperationResult::Unit);
         let OperationKind::CallUnit {
+            arguments,
             callee,
             structural_arguments,
             claim_transfers,
@@ -1287,6 +1292,7 @@ fn two_call_nominal_cleanup_preserves_source_order_through_codec_and_verifier() 
         else {
             panic!("cleanup operation must be an ordinary Unit call")
         };
+        assert!(arguments.is_empty());
         assert!(structural_arguments.is_empty());
         assert!(claim_transfers.is_empty());
         assert!(requirement_obligations.is_empty());

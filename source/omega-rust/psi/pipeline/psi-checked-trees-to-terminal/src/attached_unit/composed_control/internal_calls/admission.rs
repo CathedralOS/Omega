@@ -16,13 +16,17 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
         target_state,
         target_contract_report_fingerprint,
         service_reach,
+        scalar_arguments,
         structural_arguments,
         claim_transfers,
     } = operation
     else {
         unreachable!("internal leaf shape was validated")
     };
-    if !structural_arguments.is_empty() || !claim_transfers.is_empty() {
+    if !scalar_arguments.is_empty()
+        || !structural_arguments.is_empty()
+        || !claim_transfers.is_empty()
+    {
         return unsupported("composed internal Unit call is not parameterless");
     }
     super::super::admission::retain_exact_flow_call(
@@ -71,13 +75,17 @@ fn retain_target_closure<'a>(
         target_state,
         target_contract_report_fingerprint,
         service_reach,
+        scalar_arguments,
         structural_arguments,
         claim_transfers,
     }) = nested_call
     else {
         return Ok(());
     };
-    if !structural_arguments.is_empty() || !claim_transfers.is_empty() {
+    if !scalar_arguments.is_empty()
+        || !structural_arguments.is_empty()
+        || !claim_transfers.is_empty()
+    {
         return unsupported("composed internal Unit transitive call is not parameterless");
     }
     super::super::admission::retain_exact_flow_call(

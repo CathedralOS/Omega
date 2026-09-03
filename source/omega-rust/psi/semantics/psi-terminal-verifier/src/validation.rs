@@ -674,6 +674,7 @@ fn exact_shared_cohort_observation(
     let observation = &block.operations[observation_index];
     let OperationKind::CallUnit {
         callee,
+        arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -682,7 +683,7 @@ fn exact_shared_cohort_observation(
     else {
         return false;
     };
-    if !matches!(structural_arguments.len(), 2 | 3) {
+    if !arguments.is_empty() || !matches!(structural_arguments.len(), 2 | 3) {
         return false;
     }
     let Some(observer) = machines.get(callee) else {

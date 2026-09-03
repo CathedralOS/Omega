@@ -2449,6 +2449,7 @@ pub(super) fn is_bounded_scalar_nominal_cleanup_target(
             target_state,
             target_contract_report_fingerprint,
             service_reach,
+            scalar_arguments,
             structural_arguments,
             claim_transfers,
         } = operation
@@ -2462,6 +2463,7 @@ pub(super) fn is_bounded_scalar_nominal_cleanup_target(
                 .iter()
                 .any(|(helper, _, _)| helper == target_machine)
             || !service_reach_is_empty(facts, *service_reach)
+            || !scalar_arguments.is_empty()
             || !structural_arguments.is_empty()
             || !claim_transfers.is_empty()
         {

@@ -21,6 +21,9 @@ pub enum LoweringError {
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// shared parameter root, integer field, and typed scalar result.
     InvalidIntegerStructuralField(psi_core::OperationId),
+    /// Terminal retains scalar inputs to a Unit-returning internal call, but
+    /// target-neutral Omega has not yet admitted that call carrier.
+    UnsupportedUnitCallScalarArguments(psi_core::OperationId),
     ScalarReturnFromUnitMachine(MachineId),
     UnitReturnFromScalarMachine(MachineId),
     /// The verified structural-result machine is wider than the exact

@@ -141,6 +141,7 @@ fn restored_call_use_module() -> TerminalModule {
                         id: operation,
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
+                            arguments: Vec::new(),
                             callee,
                             structural_arguments: vec![StructuralArgument {
                                 place: caller_place,
@@ -267,6 +268,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
             id: id(2, OperationId::new),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                arguments: Vec::new(),
                 callee: observer,
                 structural_arguments: vec![
                     StructuralArgument {

@@ -97,7 +97,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   machine emission, object construction, and installation independently replay
   the function ABI, incoming `RDI`/`X0` register, destination home, native store
   bytes, and source record on both Linux targets. Other parameter types and
-  general scalar-call transport remain fail closed.
+  general scalar-call transport remain fail closed. The Terminal predecessor
+  can now verify, canonically encode, and reference-execute scalar arguments on
+  ordinary `CallUnit`; this stage deliberately rejects that operation shape
+  until a target-neutral caller carrier preserves the argument identity.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider

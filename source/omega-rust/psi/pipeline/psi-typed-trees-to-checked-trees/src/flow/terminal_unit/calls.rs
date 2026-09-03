@@ -912,11 +912,12 @@ pub(super) fn build_call_operation(
             target_state: signature.symbol,
             target_contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
             service_reach: call.service_reach,
-            scalar_arguments: checked_boundary_scalar_arguments(
+            scalar_arguments: checked_call_scalar_arguments(
                 facts,
                 state.symbol,
                 coordinate,
                 &scalar_parameters,
+                true,
             )?,
             structural_arguments,
             completion_receipts,
@@ -987,9 +988,9 @@ pub(super) fn build_call_operation(
         })
         .collect::<Option<Vec<_>>>()?;
     let scalar_arguments = if boundary {
-        checked_boundary_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters)?
+        checked_call_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters, true)?
     } else {
-        Vec::new()
+        checked_call_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters, false)?
     };
     if !boundary {
         let carries_routed_service = caller_parameters
@@ -1068,6 +1069,7 @@ pub(super) fn build_call_operation(
             target_state: target_state.symbol,
             target_contract_report_fingerprint: target_contract.report_fingerprint,
             service_reach: call.service_reach,
+            scalar_arguments,
             structural_arguments,
             claim_transfers: transfers,
         })
@@ -1139,21 +1141,30 @@ pub(super) fn provider_attachment_receiver_matches(
     })
 }
 
-fn checked_boundary_scalar_arguments(
+fn checked_call_scalar_arguments(
     facts: &CheckFacts,
     caller_state: SymbolHandle,
     coordinate: CheckedUnitCallCoordinate,
     parameters: &[CheckedStructuralScalarParameterPlan],
+    boundary: bool,
 ) -> Option<Vec<CheckedScalarExpression>> {
     parameters
         .iter()
-        .map(|parameter| {
+        .enumerate()
+        .map(|(argument_ordinal, parameter)| {
             let expression = facts.values.scalar_expressions.expression_at(
                 caller_state,
                 coordinate.statement_index,
-                CheckedScalarExpressionRole::BoundaryCallArgument {
-                    call_ordinal: coordinate.call_ordinal,
-                    argument_ordinal: parameter.source_position,
+                if boundary {
+                    CheckedScalarExpressionRole::BoundaryCallArgument {
+                        call_ordinal: coordinate.call_ordinal,
+                        argument_ordinal: u32::try_from(argument_ordinal).ok()?,
+                    }
+                } else {
+                    CheckedScalarExpressionRole::UnitCallArgument {
+                        call_ordinal: coordinate.call_ordinal,
+                        argument_ordinal: u32::try_from(argument_ordinal).ok()?,
+                    }
                 },
             )?;
             (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)

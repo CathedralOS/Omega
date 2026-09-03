@@ -1258,6 +1258,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
             id: operation_id(950 + index),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
+                arguments: Vec::new(),
                 callee: machine_id(701),
                 structural_arguments: vec![StructuralArgument {
                     access: StructuralAccess::Owned,
@@ -1803,6 +1804,7 @@ fn ordered_one_executable_nominal_affine_fixture() -> TerminalModule {
         id: operation_id(903),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -1836,6 +1838,7 @@ fn ordered_two_distinct_executable_nominal_affine_fixture() -> TerminalModule {
         id: operation_id(904),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -1869,6 +1872,7 @@ fn ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
         id: operation_id(902),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -2043,6 +2047,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
                 id: operation_id(901),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
+                    arguments: Vec::new(),
                     callee: machine_id(902),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
@@ -2097,6 +2102,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
         id: operation_id(902),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: machine_id(903),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -2150,6 +2156,7 @@ fn three_helper_nominal_affine_fixture() -> TerminalModule {
         id: operation_id(903),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: machine_id(904),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -2240,6 +2247,7 @@ fn unit_effect_fixture() -> TerminalModule {
                             id: operation_id(700),
                             result: OperationResult::Unit,
                             kind: OperationKind::CallUnit {
+                                arguments: Vec::new(),
                                 callee: machine_id(701),
                                 structural_arguments: Vec::new(),
                                 claim_transfers: Vec::new(),
@@ -2355,6 +2363,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
         id: operation_id(700),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: machine_id(701),
             structural_arguments: vec![StructuralArgument {
                 place: caller_place,

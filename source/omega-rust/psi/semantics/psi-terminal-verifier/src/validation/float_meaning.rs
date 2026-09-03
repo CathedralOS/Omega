@@ -1075,6 +1075,7 @@ mod tests {
 
         let mut unit_call = module.clone();
         unit_call.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
+            arguments: Vec::new(),
             callee: unit_call.entry,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),

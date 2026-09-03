@@ -710,7 +710,7 @@ the target store; the Boolean source additionally retains its definition
 ordinal. Dedicated whole-root records bind these facts to exact code intervals
 and bytes. Object construction independently replays the declaration joins,
 borrowed-reference placement and home, literal source, architecture encoding,
-attribution, interval, and bytes. Installation format 73 transports and
+attribution, interval, and bytes. Installation format 74 transports and
 revalidates the integer, Boolean, and IEEE float store families without
 treating physical pointer-layout equivalence as permission equivalence. IEEE
 float stores retain their exact preceding definition, raw bits, referent shape,
@@ -723,8 +723,15 @@ structural/scalar parameter partition; Terminal verification and target-neutral
 abstract lowering preserve the runtime value identity without fabricating a
 constant. The first physical sublane admits exact signed `i32` and independently
 replays its incoming `RDI`/`X0` placement, destination home, machine bytes, and
-installation source record on both Linux targets. Other fixed widths, generic
-parameter forwarding, and an exercising caller remain fail closed.
+installation source record on both Linux targets. Other fixed widths remain
+fail closed. Terminal format 77/vocabulary 80 now retains an ordinary
+`CallUnit`'s scalar arguments independently from its structural arguments,
+verifies their exact arity and types against the callee, transports them through
+canonical bytes, and binds them in reference execution. This admits a semantic
+caller that forwards one scalar parameter into the write-only-store callee.
+Target-neutral abstract lowering still rejects scalar-bearing `CallUnit`
+explicitly, so native caller transport and general parameter forwarding remain
+open rather than being silently erased.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan
@@ -5074,8 +5081,8 @@ ledger and therefore supplies no reconstruction assurance.
 ## Canonical semantic bytes
 
 `psi-terminal-codec` owns one canonical encoding of the supported in-memory
-vocabulary. `PSITERM\0` bytes carry a format marker and the one current-vocabulary
-marker. They use fixed-width little-endian counts, stable nonzero identities,
+vocabulary. `PSITERM\0` bytes currently carry format marker 77 and vocabulary
+marker 80. They use fixed-width little-endian counts, stable nonzero identities,
 full-width integer payloads, and closed sum tags. The format favors auditability
 over density.
 

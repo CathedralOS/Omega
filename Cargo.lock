@@ -1580,6 +1580,8 @@ dependencies = [
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal",
  "psi-terminal-codec",
+ "psi-terminal-interpreter",
+ "psi-terminal-verifier",
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees-to-checked-trees",
  "sha2",

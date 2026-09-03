@@ -1378,6 +1378,7 @@ pub enum CheckedUnitEffectOperationPlan {
         target_state: SymbolHandle,
         target_contract_report_fingerprint: u64,
         service_reach: ServiceReachSummary,
+        scalar_arguments: Vec<CheckedScalarExpression>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },

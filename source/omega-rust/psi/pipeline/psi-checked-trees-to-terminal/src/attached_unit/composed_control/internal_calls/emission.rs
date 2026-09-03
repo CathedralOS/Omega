@@ -127,6 +127,7 @@ fn emit_call(operations: &mut OperationBuffer, callee: MachineId) {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             callee,
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),

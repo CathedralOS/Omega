@@ -190,6 +190,7 @@ pub(super) fn validate_dynamic_dispatches(
             (
                 OperationKind::CallUnit {
                     callee,
+                    arguments,
                     structural_arguments,
                     claim_transfers,
                     requirement_obligations,
@@ -198,6 +199,7 @@ pub(super) fn validate_dynamic_dispatches(
                 OperationResult::Unit,
                 TerminalMachineResult::Unit,
             ) if *callee == dispatch.realization
+                && arguments.is_empty()
                 && structural_arguments.as_slice() == std::slice::from_ref(&selection.source)
                 && claim_transfers.is_empty()
                 && requirement_obligations.is_empty()
