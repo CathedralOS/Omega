@@ -3,9 +3,12 @@
 use std::collections::BTreeMap;
 
 use omega_assigned_target_operations::{
-    AssignedUnitBody, AssignedUnitOperation, AssignedUnitWriteOnlyPrimitiveStoreSource,
+    AssignedScalarLocation, AssignedUnitBody, AssignedUnitOperation,
+    AssignedUnitWriteOnlyPrimitiveStoreSource,
 };
-use omega_calling_conventions::ValueShape;
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+};
 use omega_machine_code::{
     UnitWriteOnlyPrimitiveStoreRecord, UnitWriteOnlyPrimitiveStoreSourceRecord,
 };
@@ -14,7 +17,8 @@ use psi_core::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 use super::structural_scalar::{
-    emit_aarch64_unit_store_immediate, emit_x86_64_unit_store_immediate,
+    emit_aarch64_unit_store_immediate, emit_aarch64_unit_store_register,
+    emit_x86_64_unit_store_immediate, emit_x86_64_unit_store_register,
 };
 use super::{Aarch64UnitParameterHome, X86UnitParameterHome};
 use crate::{EmissionError, integer_bits, require_native_integer_width};
@@ -47,8 +51,67 @@ pub(super) fn emit_write_only_primitive_store(
         unreachable!("whole-root store router supplied another operation")
     };
     let invalid = || EmissionError::InvalidWriteOnlyPrimitiveStoreCustody(*psi_operation);
-    let (source_record, destination_scalar_type, byte_size, bits) = match *source {
-        AssignedUnitWriteOnlyPrimitiveStoreSource::Parameter { .. } => return Err(invalid()),
+    let (source_record, destination_scalar_type, byte_size, immediate_bits) = match *source {
+        AssignedUnitWriteOnlyPrimitiveStoreSource::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } => {
+            let scalar_parameter_index = usize::try_from(parameter_index).map_err(|_| invalid())?;
+            let scalar_parameter = body
+                .scalar_parameters
+                .get(scalar_parameter_index)
+                .ok_or_else(invalid)?;
+            let scalar_shape = ValueShape::integer(4, 4);
+            let expected_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![scalar_shape, ValueShape::borrowed_reference(4, 4)],
+                    result: None,
+                },
+            )
+            .map_err(|_| invalid())?;
+            let expected_register = match target.architecture {
+                Architecture::X86_64 => omega_target_operations::MachineRegister::X86Rdi,
+                Architecture::Aarch64 => omega_target_operations::MachineRegister::Aarch64X(0),
+            };
+            if parameter_index != 0
+                || body.scalar_parameters.len() != 1
+                || body.parameters.len() != 1
+                || scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
+                || scalar_type.sign() != psi_core::IntegerSign::Signed
+                || scalar_type.bits() != 32
+                || scalar_parameter.value != source_value
+                || scalar_parameter.scalar_type != ScalarType::Integer(scalar_type)
+                || scalar_parameter.placement.shape != scalar_shape
+                || scalar_parameter.placement.locations.as_slice()
+                    != [ValueLocation::Register {
+                        register: expected_register,
+                        value_byte_offset: 0,
+                        byte_size: 4,
+                    }]
+                || location != AssignedScalarLocation::Register(expected_register)
+                || body.call_plan != expected_plan
+                || body.call_plan.parameters.first() != Some(&scalar_parameter.placement)
+                || body.call_plan.parameters.get(1) != Some(destination_placement)
+            {
+                return Err(invalid());
+            }
+            (
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                    parameter_index,
+                    source_value,
+                    scalar_type,
+                    location: omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                        expected_register,
+                    ),
+                },
+                ScalarType::Integer(scalar_type),
+                4,
+                None,
+            )
+        }
         AssignedUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
             defining_operation,
             source_value,
@@ -70,7 +133,7 @@ pub(super) fn emit_write_only_primitive_store(
                 },
                 ScalarType::Integer(scalar_type),
                 byte_size,
-                integer_bits(source_value, scalar_type, value)?,
+                Some(integer_bits(source_value, scalar_type, value)?),
             )
         }
         AssignedUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate {
@@ -95,7 +158,7 @@ pub(super) fn emit_write_only_primitive_store(
                 },
                 ScalarType::Boolean,
                 1,
-                u64::from(value),
+                Some(u64::from(value)),
             )
         }
         AssignedUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate {
@@ -124,7 +187,7 @@ pub(super) fn emit_write_only_primitive_store(
                 },
                 ScalarType::IeeeFloat(value.format()),
                 byte_size,
-                bits,
+                Some(bits),
             )
         }
     };
@@ -164,7 +227,21 @@ pub(super) fn emit_write_only_primitive_store(
             if home.source != *destination_placement || home.shape != parameter.shape {
                 return Err(EmissionError::UnitParameterHomeMismatch(destination.place));
             }
-            emit_x86_64_unit_store_immediate(bytes, home, 0, byte_size, bits)?;
+            match source_record {
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+                    ..
+                } => emit_x86_64_unit_store_register(bytes, home, 0, byte_size, register)?,
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter { .. } => return Err(invalid()),
+                _ => emit_x86_64_unit_store_immediate(
+                    bytes,
+                    home,
+                    0,
+                    byte_size,
+                    immediate_bits.ok_or_else(invalid)?,
+                )?,
+            }
             (home.byte_offset, home.indirect)
         }
         Architecture::Aarch64 => {
@@ -175,7 +252,21 @@ pub(super) fn emit_write_only_primitive_store(
             if home.source != *destination_placement || home.shape != parameter.shape {
                 return Err(EmissionError::UnitParameterHomeMismatch(destination.place));
             }
-            emit_aarch64_unit_store_immediate(bytes, home, 0, byte_size, bits)?;
+            match source_record {
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+                    ..
+                } => emit_aarch64_unit_store_register(bytes, home, 0, byte_size, register)?,
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter { .. } => return Err(invalid()),
+                _ => emit_aarch64_unit_store_immediate(
+                    bytes,
+                    home,
+                    0,
+                    byte_size,
+                    immediate_bits.ok_or_else(invalid)?,
+                )?,
+            }
             (home.byte_offset, home.indirect)
         }
     };
