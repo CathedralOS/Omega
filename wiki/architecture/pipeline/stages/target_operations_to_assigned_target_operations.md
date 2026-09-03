@@ -52,7 +52,11 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   indirect call must rejoin the same target-neutral custody, source projection,
   descriptor ABI, and byte offset from the unique preceding assigned store.
   Only after that join does assignment allocate the distinct scalar result
-  home. Machine encoding remains the next explicit fence.
+  home. Machine emission consumes this split literally: establishment writes
+  the instance and private-table address into the shared home, while the later
+  operation reloads the same two words for indirect dispatch and records the
+  exact target bytes, relocation fields, selected slot, and scalar result.
+  Object replay is the next explicit fence.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is

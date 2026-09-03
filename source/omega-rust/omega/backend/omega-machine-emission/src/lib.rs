@@ -373,6 +373,7 @@ fn emit_function(
     let mut internal_unit_scalar_calls = Vec::new();
     let mut installed_provider_unit_scalar_calls = Vec::new();
     let mut dynamic_calls = Vec::new();
+    let mut stored_dynamic_calls = Vec::new();
     let mut dynamic_parameter_calls = Vec::new();
     let mut forwarded_dynamic_parameter_calls = Vec::new();
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
@@ -450,6 +451,7 @@ fn emit_function(
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             installed_provider_unit_scalar_calls = emitted.installed_provider_unit_scalar_calls;
             dynamic_calls = emitted.dynamic_calls;
+            stored_dynamic_calls = emitted.stored_dynamic_calls;
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
@@ -513,6 +515,7 @@ fn emit_function(
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             installed_provider_unit_scalar_calls = emitted.installed_provider_unit_scalar_calls;
             dynamic_calls = emitted.dynamic_calls;
+            stored_dynamic_calls = emitted.stored_dynamic_calls;
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
@@ -724,6 +727,7 @@ fn emit_function(
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             installed_provider_unit_scalar_calls = emitted.installed_provider_unit_scalar_calls;
             dynamic_calls = emitted.dynamic_calls;
+            stored_dynamic_calls = emitted.stored_dynamic_calls;
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
@@ -1188,6 +1192,7 @@ fn emit_function(
         internal_unit_scalar_calls,
         installed_provider_unit_scalar_calls,
         dynamic_calls,
+        stored_dynamic_calls,
         dynamic_parameter_calls,
         forwarded_dynamic_parameter_calls,
         forwarded_dynamic_descriptor_calls,
@@ -1436,9 +1441,8 @@ pub enum EmissionError {
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
     InvalidMixedStructuralScalarFunctionAbi(MachineId),
     InvalidDynamicDescriptorCallCustody(psi_core::OperationId),
-    /// Physical assignment retains one shared stored-descriptor home, but
-    /// machine emission does not yet encode the split establishment/reload.
-    UnsupportedStoredDynamicDescriptor(psi_core::OperationId),
+    InvalidStoredDynamicDescriptorCustody(psi_core::OperationId),
+    InvalidStoredDynamicCallCustody(psi_core::OperationId),
     InvalidDynamicCallCustody(psi_core::OperationId),
     InvalidDynamicParameterCallCustody(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),

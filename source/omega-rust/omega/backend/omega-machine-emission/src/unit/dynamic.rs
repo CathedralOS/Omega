@@ -6,7 +6,8 @@ use omega_assigned_target_operations::{
 use omega_machine_code::{
     DynamicCallRecord, DynamicInstanceMaterializationRecord, DynamicTableAddressEncoding,
     DynamicTableAddressMaterialization, DynamicTraitDescriptorAbiRecord,
-    InternalUnitCallArgumentRecord, UnitCallStackEvidence,
+    InternalUnitCallArgumentRecord, StoredDynamicCallRecord,
+    StoredDynamicDescriptorMaterializationRecord, UnitCallStackEvidence,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -22,6 +23,302 @@ use crate::{
     emit_aarch64_sp_address, emit_x86_64_adjust_sp, emit_x86_64_memory_load_width,
     emit_x86_64_stack_load_width, emit_x86_64_stack_store_width, stack_adjustment_pair,
 };
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_stored_descriptor(
+    operation: &AssignedUnitOperation,
+    owner: psi_core::MachineId,
+    target: NativeTarget,
+    functions: &[AssignedFunction],
+    x86_homes: &[X86UnitParameterHome],
+    aarch64_homes: &[Aarch64UnitParameterHome],
+    bytes: &mut Vec<u8>,
+    operation_ordinal: usize,
+    code_offset: usize,
+) -> Result<StoredDynamicDescriptorMaterializationRecord, EmissionError> {
+    let AssignedUnitOperation::StoreDynamicDescriptor {
+        psi_operation,
+        stored,
+        descriptor_abi,
+        descriptor_home_byte_offset,
+        source_copy,
+    } = operation
+    else {
+        unreachable!("stored-descriptor router supplied another operation")
+    };
+    let invalid = || EmissionError::InvalidStoredDynamicDescriptorCustody(*psi_operation);
+    if !stored.has_complete_custody(owner, *psi_operation)
+        || source_copy.access == psi_terminal::StructuralAccess::Owned
+        || !copy_matches_selection(source_copy, &stored.selection)
+        || stored
+            .application
+            .realization_callables
+            .iter()
+            .any(|callable| {
+                functions
+                    .iter()
+                    .filter(|function| function.machine == callable.machine)
+                    .count()
+                    != 1
+            })
+    {
+        return Err(invalid());
+    }
+    let descriptor = descriptor_record(*descriptor_abi, target, &invalid)?;
+    let descriptor_word_byte_size =
+        u16::try_from(descriptor.word_byte_size).map_err(|_| invalid())?;
+    let (instance, table_address) = match target.architecture {
+        Architecture::X86_64 => {
+            let instance = emit_x86_64_instance(
+                bytes,
+                *descriptor_home_byte_offset,
+                source_copy,
+                x86_homes,
+                stored.selection.ordinal,
+            )?;
+            let table_offset = bytes.len();
+            bytes.extend_from_slice(&[0x4c, 0x8d, 0x15]);
+            let relocation_offset = bytes.len();
+            bytes.extend_from_slice(&0_i32.to_le_bytes());
+            emit_x86_64_stack_store_width(
+                bytes,
+                10,
+                descriptor_home_byte_offset
+                    .checked_add(descriptor.table_byte_offset)
+                    .ok_or_else(invalid)?,
+                descriptor_word_byte_size,
+            )?;
+            (
+                instance,
+                DynamicTableAddressMaterialization {
+                    code_offset: table_offset,
+                    byte_count: bytes.len() - table_offset,
+                    encoding: DynamicTableAddressEncoding::X86_64Relative32 { relocation_offset },
+                },
+            )
+        }
+        Architecture::Aarch64 => {
+            let instance = emit_aarch64_instance(
+                bytes,
+                *descriptor_home_byte_offset,
+                source_copy,
+                aarch64_homes,
+                stored.selection.ordinal,
+            )?;
+            let table_offset = bytes.len();
+            let page_relocation_offset = bytes.len();
+            bytes.extend_from_slice(&(0x9000_0000 | 10_u32).to_le_bytes());
+            let page_offset_relocation_offset = bytes.len();
+            bytes.extend_from_slice(&(0x9100_0000 | (10_u32 << 5) | 10_u32).to_le_bytes());
+            bytes.extend_from_slice(
+                &aarch64_unit_stack_access(
+                    aarch64_store_base(descriptor_word_byte_size)?,
+                    10,
+                    descriptor_home_byte_offset
+                        .checked_add(descriptor.table_byte_offset)
+                        .ok_or_else(invalid)?,
+                    descriptor_word_byte_size,
+                )?
+                .to_le_bytes(),
+            );
+            (
+                instance,
+                DynamicTableAddressMaterialization {
+                    code_offset: table_offset,
+                    byte_count: bytes.len() - table_offset,
+                    encoding: DynamicTableAddressEncoding::Aarch64PageAddress {
+                        page_relocation_offset,
+                        page_offset_relocation_offset,
+                    },
+                },
+            )
+        }
+    };
+    Ok(StoredDynamicDescriptorMaterializationRecord {
+        psi_operation: *psi_operation,
+        stored: stored.clone(),
+        descriptor_abi: descriptor,
+        descriptor_home_byte_offset: *descriptor_home_byte_offset,
+        instance,
+        table_address,
+        operation_ordinal,
+        code_offset,
+        byte_count: bytes.len() - code_offset,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_stored_dynamic_call(
+    operation: &AssignedUnitOperation,
+    owner: psi_core::MachineId,
+    target: NativeTarget,
+    functions: &[AssignedFunction],
+    bytes: &mut Vec<u8>,
+    establishments: &[StoredDynamicDescriptorMaterializationRecord],
+    operation_ordinal: usize,
+    code_offset: usize,
+) -> Result<StoredDynamicCallRecord, EmissionError> {
+    let AssignedUnitOperation::StoredDynamicScalarCall {
+        psi_operation,
+        result,
+        dynamic_dispatch,
+        call_plan,
+        result_home,
+        descriptor_abi,
+        descriptor_home_byte_offset,
+        source_copy,
+        ..
+    } = operation
+    else {
+        unreachable!("stored-call router supplied another operation")
+    };
+    let invalid = || EmissionError::InvalidStoredDynamicCallCustody(*psi_operation);
+    let descriptor = descriptor_record(*descriptor_abi, target, &invalid)?;
+    let matching = establishments
+        .iter()
+        .filter(|establishment| {
+            establishment.stored == dynamic_dispatch.stored
+                && establishment.descriptor_abi == descriptor
+                && establishment.descriptor_home_byte_offset == *descriptor_home_byte_offset
+                && establishment.instance.source == target_argument(source_copy)
+                && establishment.operation_ordinal < operation_ordinal
+        })
+        .collect::<Vec<_>>();
+    let [establishment] = matching.as_slice() else {
+        return Err(invalid());
+    };
+    if result.value != result_home.source_value
+        || result.scalar_type != result_home.scalar_type
+        || result_home.defining_operation != *psi_operation
+        || !dynamic_dispatch.has_complete_custody(owner, *psi_operation)
+        || call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_home.shape)
+        || call_plan.parameters.as_slice() != std::slice::from_ref(&source_copy.destination)
+        || source_copy.access == psi_terminal::StructuralAccess::Owned
+        || !copy_matches_selection(source_copy, &dynamic_dispatch.stored.selection)
+        || functions
+            .iter()
+            .filter(|function| function.machine == dynamic_dispatch.dispatch.realization)
+            .count()
+            != 1
+    {
+        return Err(invalid());
+    }
+    let selected_row = dynamic_dispatch
+        .stored
+        .application
+        .rows
+        .iter()
+        .position(|row| {
+            row.declaring_trait_identity == dynamic_dispatch.dispatch.declaring_trait_identity
+                && row.public_requirement_identity
+                    == dynamic_dispatch.dispatch.public_requirement_identity
+                && row.requirement_identity == dynamic_dispatch.dispatch.requirement_identity
+                && row.realization_identity == dynamic_dispatch.dispatch.realization_identity
+                && row.realization_callable_identity.as_deref()
+                    == Some(
+                        dynamic_dispatch
+                            .dispatch
+                            .realization_callable_identity
+                            .as_str(),
+                    )
+        })
+        .ok_or_else(invalid)?;
+    let callable = dynamic_dispatch
+        .stored
+        .application
+        .realization_callables
+        .iter()
+        .find(|callable| {
+            callable.machine == dynamic_dispatch.dispatch.realization
+                && callable.source_callable_identity
+                    == dynamic_dispatch.dispatch.realization_callable_identity
+        })
+        .ok_or_else(invalid)?;
+    let callable_result_matches = match (callable.result, result.scalar_type) {
+        (psi_terminal::ClosedConformanceCallableResult::Bool, psi_core::ScalarType::Boolean) => {
+            true
+        }
+        (
+            psi_terminal::ClosedConformanceCallableResult::I32,
+            psi_core::ScalarType::Integer(integer),
+        ) => psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+            .is_ok_and(|expected| integer == expected),
+        _ => false,
+    };
+    if !callable_result_matches {
+        return Err(invalid());
+    }
+    let selected_table_byte_offset = u32::try_from(selected_row)
+        .ok()
+        .and_then(|slot| slot.checked_mul(descriptor.word_byte_size))
+        .ok_or_else(invalid)?;
+    let (argument, call_offset, call_width, stack) = match target.architecture {
+        Architecture::X86_64 => emit_x86_64_stored_call(
+            bytes,
+            target,
+            *psi_operation,
+            *descriptor_home_byte_offset,
+            source_copy,
+            call_plan,
+            selected_table_byte_offset,
+        )?,
+        Architecture::Aarch64 => emit_aarch64_stored_call(
+            bytes,
+            *psi_operation,
+            *descriptor_home_byte_offset,
+            source_copy,
+            call_plan,
+            selected_table_byte_offset,
+        )?,
+    };
+    let result_record = emit_unit_scalar_result(
+        bytes,
+        target.architecture,
+        *psi_operation,
+        call_plan,
+        *result_home,
+    )?;
+    Ok(StoredDynamicCallRecord {
+        establishment: (*establishment).clone(),
+        psi_operation: *psi_operation,
+        dynamic_dispatch: dynamic_dispatch.clone(),
+        call_plan: call_plan.clone(),
+        result: result_record,
+        argument,
+        selected_table_byte_offset,
+        indirect_call_offset: call_offset,
+        indirect_call_byte_count: call_width,
+        unit_stack: stack,
+        operation_ordinal,
+        code_offset,
+        byte_count: bytes.len() - code_offset,
+    })
+}
+
+fn descriptor_record(
+    descriptor_abi: omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi,
+    target: NativeTarget,
+    invalid: &impl Fn() -> EmissionError,
+) -> Result<DynamicTraitDescriptorAbiRecord, EmissionError> {
+    let descriptor = DynamicTraitDescriptorAbiRecord {
+        instance_byte_offset: descriptor_abi.instance_offset(),
+        table_byte_offset: descriptor_abi.table_offset(),
+        word_byte_size: descriptor_abi.word_size(),
+        total_byte_size: descriptor_abi.total_size(),
+        byte_alignment: descriptor_abi.align(),
+    };
+    let pointer_size = u32::try_from(target.pointer_size).map_err(|_| invalid())?;
+    let pointer_alignment = u32::try_from(target.pointer_alignment).map_err(|_| invalid())?;
+    if descriptor.instance_byte_offset != 0
+        || descriptor.table_byte_offset != pointer_size
+        || descriptor.word_byte_size != pointer_size
+        || descriptor.total_byte_size != pointer_size.checked_mul(2).ok_or_else(invalid)?
+        || descriptor.byte_alignment != pointer_alignment
+    {
+        return Err(invalid());
+    }
+    Ok(descriptor)
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_dynamic_call(
@@ -384,6 +681,85 @@ fn emit_x86_64_dynamic_call(
     ))
 }
 
+fn emit_x86_64_stored_call(
+    bytes: &mut Vec<u8>,
+    target: NativeTarget,
+    operation: psi_core::OperationId,
+    descriptor_offset: u32,
+    source: &AssignedAggregateCopy,
+    call_plan: &omega_calling_conventions::CallPlan,
+    selected_table_byte_offset: u32,
+) -> Result<
+    (
+        InternalUnitCallArgumentRecord,
+        usize,
+        usize,
+        UnitCallStackEvidence,
+    ),
+    EmissionError,
+> {
+    let outgoing_bytes = outgoing_placement_extent(&source.destination)?.max(
+        if target.object_format == ObjectFormat::Coff {
+            32
+        } else {
+            0
+        },
+    );
+    let padding = (8 + 16 - (outgoing_bytes % 16)) % 16;
+    let call_stack_bytes = outgoing_bytes
+        .checked_add(padding)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    let allocation = if call_stack_bytes == 0 {
+        None
+    } else {
+        let offset = bytes.len();
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, false);
+        Some((offset, bytes.len() - offset))
+    };
+    let argument_offset = bytes.len();
+    let descriptor_home = X86UnitParameterHome {
+        place: source.place,
+        shape: source.shape,
+        source: source.source.clone(),
+        byte_offset: descriptor_offset,
+        indirect: true,
+    };
+    emit_x86_64_descriptor_argument(bytes, source, &descriptor_home, call_stack_bytes)?;
+    let argument = argument_record(
+        source,
+        descriptor_offset,
+        call_stack_bytes,
+        argument_offset,
+        bytes,
+    );
+    let table_home = call_stack_bytes
+        .checked_add(descriptor_offset)
+        .and_then(|offset| offset.checked_add(8))
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    emit_x86_64_stack_load_width(bytes, 11, table_home, 8)?;
+    emit_x86_64_memory_load_width(bytes, 11, 11, selected_table_byte_offset, 8)?;
+    let call_offset = bytes.len();
+    bytes.extend_from_slice(&[0x41, 0xff, 0xd3]);
+    let release = if call_stack_bytes == 0 {
+        None
+    } else {
+        let offset = bytes.len();
+        emit_x86_64_adjust_sp(bytes, call_stack_bytes, true);
+        Some((offset, bytes.len() - offset))
+    };
+    if call_plan.parameters.as_slice() != std::slice::from_ref(&source.destination) {
+        return Err(EmissionError::InvalidStoredDynamicCallCustody(operation));
+    }
+    Ok((
+        argument,
+        call_offset,
+        3,
+        UnitCallStackEvidence {
+            outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
+        },
+    ))
+}
+
 fn emit_x86_64_instance(
     bytes: &mut Vec<u8>,
     descriptor_offset: u32,
@@ -544,6 +920,90 @@ fn emit_aarch64_dynamic_call(
         initial_instance,
         table_address,
         rebound_instance,
+        argument,
+        call_offset,
+        4,
+        UnitCallStackEvidence {
+            outbound: stack_adjustment_pair(call_stack_bytes, allocation, release),
+        },
+    ))
+}
+
+fn emit_aarch64_stored_call(
+    bytes: &mut Vec<u8>,
+    operation: psi_core::OperationId,
+    descriptor_offset: u32,
+    source: &AssignedAggregateCopy,
+    call_plan: &omega_calling_conventions::CallPlan,
+    selected_table_byte_offset: u32,
+) -> Result<
+    (
+        InternalUnitCallArgumentRecord,
+        usize,
+        usize,
+        UnitCallStackEvidence,
+    ),
+    EmissionError,
+> {
+    let call_stack_bytes = align_u32(aarch64_outgoing_placement_extent(&source.destination)?, 16)?;
+    let allocation = if call_stack_bytes == 0 {
+        None
+    } else {
+        let mut instructions = Vec::new();
+        let offset = bytes.len();
+        emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, false)?;
+        append_aarch64_instructions(bytes, instructions);
+        Some((offset, 4))
+    };
+    let argument_offset = bytes.len();
+    let descriptor_home = Aarch64UnitParameterHome {
+        place: source.place,
+        shape: source.shape,
+        source: source.source.clone(),
+        byte_offset: descriptor_offset,
+        indirect: true,
+    };
+    let mut instructions = Vec::new();
+    emit_aarch64_descriptor_argument(
+        &mut instructions,
+        source,
+        &descriptor_home,
+        call_stack_bytes,
+    )?;
+    append_aarch64_instructions(bytes, instructions);
+    let argument = argument_record(
+        source,
+        descriptor_offset,
+        call_stack_bytes,
+        argument_offset,
+        bytes,
+    );
+    let table_home = call_stack_bytes
+        .checked_add(descriptor_offset)
+        .and_then(|offset| offset.checked_add(8))
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    bytes.extend_from_slice(
+        &aarch64_unit_stack_access(aarch64_load_base(8)?, 9, table_home, 8)?.to_le_bytes(),
+    );
+    bytes.extend_from_slice(
+        &aarch64_unit_memory_access(aarch64_load_base(8)?, 9, 9, selected_table_byte_offset, 8)?
+            .to_le_bytes(),
+    );
+    let call_offset = bytes.len();
+    bytes.extend_from_slice(&(0xd63f_0000 | (9_u32 << 5)).to_le_bytes());
+    let release = if call_stack_bytes == 0 {
+        None
+    } else {
+        let mut instructions = Vec::new();
+        let offset = bytes.len();
+        emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, true)?;
+        append_aarch64_instructions(bytes, instructions);
+        Some((offset, 4))
+    };
+    if call_plan.parameters.as_slice() != std::slice::from_ref(&source.destination) {
+        return Err(EmissionError::InvalidStoredDynamicCallCustody(operation));
+    }
+    Ok((
         argument,
         call_offset,
         4,

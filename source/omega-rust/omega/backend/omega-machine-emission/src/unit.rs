@@ -28,7 +28,7 @@ mod installed_provider;
 mod scalar_call;
 pub(crate) mod structural_scalar;
 
-use dynamic::emit_dynamic_call;
+use dynamic::{emit_dynamic_call, emit_stored_descriptor, emit_stored_dynamic_call};
 use dynamic_argument::emit_forwarded_dynamic_descriptor_call;
 use installed_provider::emit_installed_provider_scalar_call;
 use scalar_call::emit_unit_scalar_call;
@@ -65,6 +65,7 @@ pub(super) struct UnitEmission {
     pub(super) installed_provider_unit_scalar_calls:
         Vec<omega_machine_code::InstalledProviderUnitScalarCallRecord>,
     pub(super) dynamic_calls: Vec<omega_machine_code::DynamicCallRecord>,
+    pub(super) stored_dynamic_calls: Vec<omega_machine_code::StoredDynamicCallRecord>,
     pub(super) forwarded_dynamic_descriptor_calls:
         Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub(super) scalar_homes: Vec<UnitScalarHomeRecord>,
@@ -741,6 +742,8 @@ pub(super) fn emit_unit_body(
     let mut internal_unit_scalar_calls = Vec::new();
     let mut installed_provider_unit_scalar_calls = Vec::new();
     let mut dynamic_calls = Vec::new();
+    let mut stored_dynamic_materializations = Vec::new();
+    let mut stored_dynamic_calls = Vec::new();
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_integer_constants = Vec::new();
     let mut unit_affine_scalar_records = Vec::new();
@@ -1340,11 +1343,36 @@ pub(super) fn emit_unit_body(
                     code_offset,
                 )?);
             }
-            AssignedUnitOperation::StoreDynamicDescriptor { psi_operation, .. }
-            | AssignedUnitOperation::StoredDynamicScalarCall { psi_operation, .. } => {
-                return Err(EmissionError::UnsupportedStoredDynamicDescriptor(
-                    *psi_operation,
-                ));
+            AssignedUnitOperation::StoreDynamicDescriptor { psi_operation, .. } => {
+                operation_site = Some(*psi_operation);
+                stored_dynamic_materializations.push(emit_stored_descriptor(
+                    operation,
+                    owner.ok_or(EmissionError::InvalidStoredDynamicDescriptorCustody(
+                        *psi_operation,
+                    ))?,
+                    target,
+                    functions,
+                    &x86_homes,
+                    &aarch64_homes,
+                    &mut bytes,
+                    operation_ordinal,
+                    code_offset,
+                )?);
+            }
+            AssignedUnitOperation::StoredDynamicScalarCall { psi_operation, .. } => {
+                operation_site = Some(*psi_operation);
+                stored_dynamic_calls.push(emit_stored_dynamic_call(
+                    operation,
+                    owner.ok_or(EmissionError::InvalidStoredDynamicCallCustody(
+                        *psi_operation,
+                    ))?,
+                    target,
+                    functions,
+                    &mut bytes,
+                    &stored_dynamic_materializations,
+                    operation_ordinal,
+                    code_offset,
+                )?);
             }
             AssignedUnitOperation::ConditionalIntegerEqual {
                 psi_operation,
@@ -1397,6 +1425,9 @@ pub(super) fn emit_unit_body(
                         .any(|producer| match producer {
                             AssignedUnitOperation::ScalarCall { result_home, .. }
                             | AssignedUnitOperation::DynamicScalarCall { result_home, .. }
+                            | AssignedUnitOperation::StoredDynamicScalarCall {
+                                result_home, ..
+                            }
                             | AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
                                 result_home,
                                 ..
@@ -2352,6 +2383,7 @@ pub(super) fn emit_unit_body(
         internal_unit_scalar_calls,
         installed_provider_unit_scalar_calls,
         dynamic_calls,
+        stored_dynamic_calls,
         forwarded_dynamic_descriptor_calls,
         scalar_homes,
         integer_constants: unit_integer_constants,
@@ -2877,6 +2909,11 @@ fn assigned_unit_scalar_homes(
                 result_home,
                 ..
             } => Some((*psi_operation, *result_home)),
+            AssignedUnitOperation::StoredDynamicScalarCall {
+                psi_operation,
+                result_home,
+                ..
+            } => Some((*psi_operation, *result_home)),
             AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
                 psi_operation,
                 result_home,
@@ -2919,6 +2956,7 @@ fn validate_assigned_unit_frame(
     body: &AssignedUnitBody,
     target: NativeTarget,
 ) -> Result<(), EmissionError> {
+    let mut stored_descriptors = Vec::new();
     for operation in &body.operations {
         let home = match operation {
             AssignedUnitOperation::ScalarCall { result_home, .. }
@@ -2960,6 +2998,75 @@ fn validate_assigned_unit_frame(
                     None,
                     target,
                 )?;
+                None
+            }
+            AssignedUnitOperation::StoreDynamicDescriptor {
+                psi_operation,
+                stored,
+                descriptor_abi,
+                descriptor_home_byte_offset,
+                ..
+            } => {
+                validate_dynamic_frame_region(
+                    cursor,
+                    *psi_operation,
+                    *descriptor_abi,
+                    *descriptor_home_byte_offset,
+                    None,
+                    target,
+                )
+                .map_err(|error| match error {
+                    EmissionError::UnitCallStackAreaNotEncodable => error,
+                    _ => EmissionError::InvalidStoredDynamicDescriptorCustody(*psi_operation),
+                })?;
+                if stored_descriptors
+                    .iter()
+                    .any(|(earlier, _, _)| earlier == stored)
+                {
+                    return Err(EmissionError::InvalidStoredDynamicDescriptorCustody(
+                        *psi_operation,
+                    ));
+                }
+                stored_descriptors.push((
+                    stored.clone(),
+                    *descriptor_abi,
+                    *descriptor_home_byte_offset,
+                ));
+                None
+            }
+            AssignedUnitOperation::StoredDynamicScalarCall {
+                psi_operation,
+                dynamic_dispatch,
+                result_home,
+                descriptor_abi,
+                descriptor_home_byte_offset,
+                ..
+            } => {
+                if stored_descriptors
+                    .iter()
+                    .filter(|(stored, abi, offset)| {
+                        stored == &dynamic_dispatch.stored
+                            && abi == descriptor_abi
+                            && offset == descriptor_home_byte_offset
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(EmissionError::InvalidStoredDynamicCallCustody(
+                        *psi_operation,
+                    ));
+                }
+                *cursor = align_u32(*cursor, 8)?;
+                if result_home.defining_operation != *psi_operation
+                    || result_home.byte_offset != *cursor
+                {
+                    return Err(EmissionError::InvalidStoredDynamicCallCustody(
+                        *psi_operation,
+                    ));
+                }
+                *cursor = cursor
+                    .checked_add(8)
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
                 None
             }
             _ => None,
