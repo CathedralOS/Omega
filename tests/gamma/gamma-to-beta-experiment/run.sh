@@ -15,7 +15,7 @@ command -v python3 >/dev/null 2>&1 || {
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
-ELABORATOR_SOURCE="$OMEGA_PATH_GAMMA_COMPILER_SOURCE"
+ELABORATOR_SOURCE="$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_SOURCE"
 DIRECT_COMPILER_SOURCE="$GATE_DIR/direct_compiler.gamma"
 SURFACE_SOURCE="$GATE_DIR/../fixtures/gamma_to_beta_surface.gamma"
 SURFACE_RECEIPT="$GATE_DIR/../fixtures/gamma_to_beta_surface.beta"
@@ -25,11 +25,11 @@ DELTA0_SOURCE="$GATE_DIR/../fixtures/delta0_compiler.gamma"
 GAMMA_COMPILER_SOURCE="$DIRECT_COMPILER_SOURCE"
 
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
-"$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
+"$TMP/beta-compiler" < "$OMEGA_PATH_CONCATENATIVE_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
 stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/evaluator" >/dev/null
 materialize_gamma_compiler "$TMP/elaborator" >/dev/null
-cp "$OMEGA_PATH_GAMMA_COMPILER_TAPE" "$TMP/elaborator.tape"
+cp "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_TAPE" "$TMP/elaborator.tape"
 compile_gamma_source_to_tape "$TMP/elaborator" "$TMP/beta-compiler" \
     "$DIRECT_COMPILER_SOURCE" "$TMP/direct-compiler.tape"
 stamp_seed "$TMP/direct-compiler.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
@@ -64,12 +64,12 @@ elaborator_tape = Path(os.environ["ELABORATOR_TAPE"]).read_bytes()
 require_identity(
     "elaborator source",
     elaborator_source,
-    (725, 23133, "08eb29ffabc4a3b27d430cd1431f45245ec31b02390ed8c32632bb173e447afc"),
+    (725, 23135, "60cf3a75c30cbd8731f8e2b53f58d082dc813ce8ad01031a503de4471b59020e"),
 )
 if len(elaborator_tape) != 26674:
     raise SystemExit(f"elaborator tape is {len(elaborator_tape)} bytes")
 if hashlib.sha256(elaborator_tape).hexdigest() != (
-    "4284b2dfe5496c59d42fab8f61a7924668847bf2ea25a790b02efffd012b3db1"
+    "96563e9422a4298fa117fad6613765d7d8d90ea81b55e9528ddf6a40d635bab4"
 ):
     raise SystemExit("elaborator tape identity changed")
 
@@ -103,32 +103,32 @@ subjects = {
     "surface": (
         os.environ["SURFACE_SOURCE"],
         (23, 702, "4d91b0e26eb941b80a4516f5fa5a063a3c8f905f5bc19f001c22bc910a50b8f4"),
-        (343, 7244, "b2164dc17068ee2cff864415125e2186337d2d8b927d82c5dc2166f05f0d37e9"),
-        (2087, "a70113e09f6deaff8b89680a3656d92fbe8e527abb82cbb175dadf53bd8ca59f"),
+        (343, 7244, "a2483b9e0743a117f2309364514aa5d8f458fb5e0aa03140344bec0afcf34974"),
+        (2087, "776dd3e2561446072c99ee88f81fb3ac77b13988c7cb8a3b51b654e08d5ff237"),
     ),
     "delta-recursive": (
         os.environ["DELTA_RECURSIVE"],
-        (25, 1267, "32e4b0b520e8b2363dfbd4c86f37238155dd4474284fe72027f8deea47a3b688"),
-        (419, 8995, "f03d5f273775cc4449c11bb85628192cfe93cb9257a53e0a8702966aa4412285"),
-        (2498, "2915365fb80951fdb5159b7980d9ff44857f32499e0a79a1f56655aa787754ec"),
+        (42, 1977, "79b809b2f90fde47af1d73d461802e07f6b4e6aafe6ff2742b9dd6b3a9875aef"),
+        (577, 12718, "eee7af8e67234266fe04b53c3d07908c2bf6bfe382b24c790e0902c379409dc3"),
+        (3660, "6ac7cf77a11344e159c9166ed641a64c5b0d72a4b76807c4c64a86c6b5b8cff6"),
     ),
     "delta-surface": (
         os.environ["DELTA_SURFACE"],
-        (77, 4324, "9af21390cf43bd907e0dc29bc3f27e949d8b203b3df5a408d2ca1d2e70975895"),
-        (886, 20076, "3420b7473a0f6ec734a717a5b75c5d564449897c8e8cf32d4784590e4a575b03"),
-        (5884, "eaff42fea4d6a4316c43ad65764cbd70b6c6406fcc026ad4a9fe92c330bb11c3"),
+        (100, 5232, "30d17b2521d94eec84ff4282486981e81f5ed2a6699ab61b31a9d30743269a74"),
+        (1074, 24483, "2186c4e8c7fee774aa76b15790d058a91121792f6ff123327c0ba3ea99f955e3"),
+        (7214, "41f55e8cb4999a9ad40d49e23e2d4e39f9368ec3dd875b3b444ecf50548c14da"),
     ),
     "delta0": (
         os.environ["DELTA0_SOURCE"],
         (82, 1913, "cef1311f4439da085db429f1334595a6d0bb73fcf856853c26e9fc76f6c6f2fd"),
-        (520, 11477, "2034babd497e166ec45505078c30f4410a041673217a43bbf06b1c4486e0c3ed"),
-        (3399, "5212d58fe654fdfc25461a4ccdb56214600f96bf66d350b045f3dce792346cf6"),
+        (520, 11477, "3d45fc54b5ac04a4bd66776e80a1768bf3bccb4ded68501bae6cd1a82f29af2b"),
+        (3399, "d17a36f5fa1960f173cf4153fd5fdd9e6816e7d556403e2245db08e15a5af54a"),
     ),
     "gamma-compiler": (
         os.environ["GAMMA_COMPILER_SOURCE"],
-        (533, 18704, "6012d60377ddd2220a6afec27c8f247ff2d4bea16c44b43a4bd2f3c96c0ae696"),
-        (2628, 63396, "1f9938f5bf88fca95e27b146f749e23d9bdc42a71bbb9babc251ecd0a5ce7bc5"),
-        (19756, "ada3f6822c9e1123f82adb239deb828b437cdb4f0df5c34a5f66406a4111491e"),
+        (533, 18707, "6929624469a2ed690b501ab92fd6994960800aab7a26f946561fae323b5c5bd3"),
+        (2628, 63396, "1793ca2b2db9ac85c218aa4356749b0b208fa5761d4f0dcbbeeb3671130e00a8"),
+        (19756, "d25f94d90addf682b7556bed67021c27bf027f69cfc9ca6ae29560c9b93bf528"),
     ),
 }
 
@@ -146,7 +146,7 @@ for name, (source_path, source_id, expansion_id, tape_id) in subjects.items():
     if left.stdout != right.stdout:
         raise SystemExit(f"{name} interpreted/native elaboration disagrees")
     require_identity(f"{name} expansion", right.stdout, expansion_id)
-    if len(right.stdout) > 0x1000000:
+    if len(right.stdout) > 0x4000000:
         raise SystemExit(f"{name} expansion exceeds Beta source capacity")
     if any(line.lstrip().startswith(b"dw ") for line in right.stdout.splitlines()):
         raise SystemExit(f"{name} expansion contains dw")
@@ -186,16 +186,16 @@ for name, subject in malformed.items():
     if left.stdout or right.stdout:
         raise SystemExit(f"{name} published output before rejection")
 
-capacity_source = b": main " + (b"0x0 drop " * 37408) + b";\n"
-if len(capacity_source) != 336681:
+capacity_source = b": main " + (b"0x0 drop " * 599146) + b";\n"
+if len(capacity_source) != 5392323:
     raise SystemExit("capacity witness source identity changed")
 direct = compile_gamma(capacity_source)
 expanded = native(capacity_source)
-if direct.returncode != 0 or len(direct.stdout) != 1048547:
+if direct.returncode != 0 or len(direct.stdout) != 16777211:
     raise SystemExit(
         f"capacity witness direct result {direct.returncode}/{len(direct.stdout)}"
     )
-if expanded.returncode != 0 or len(expanded.stdout) != 2772595:
+if expanded.returncode != 0 or len(expanded.stdout) != 44341207:
     raise SystemExit(
         f"capacity witness elaboration result "
         f"{expanded.returncode}/{len(expanded.stdout)}"
@@ -207,7 +207,7 @@ if assembled.returncode != 0 or assembled.stdout != direct.stdout:
         f"{assembled.returncode}/{len(assembled.stdout)}"
     )
 
-oversized_source = b": main " + (b"0x0 drop " * 37409) + b";\n"
+oversized_source = b": main " + (b"0x0 drop " * 599147) + b";\n"
 direct = compile_gamma(oversized_source)
 expanded = native(oversized_source)
 if direct.returncode != 2 or direct.stdout:
@@ -231,4 +231,4 @@ stamp_seed "$TMP/delta-surface.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
 DELTA_SURFACE_OUTPUT=$("$TMP/delta-surface" < /dev/null | od -An -tx1 | tr -d ' \n')
 [ "$DELTA_SURFACE_OUTPUT" = "15" ]
 
-echo "Gamma-to-Beta experiment: 5 exact receipts and 2,772,595-byte near-limit Beta expansion passed; adjacent oversized output rejected before publication"
+echo "Gamma-to-Beta experiment: 5 exact receipts and 44,341,207-byte near-limit Beta expansion passed; adjacent oversized output rejected before publication"

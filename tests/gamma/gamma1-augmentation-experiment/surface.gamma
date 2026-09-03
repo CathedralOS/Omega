@@ -1,0 +1,13 @@
+# Gamma1 directive surface.
+: cursor 0x00 cell-get ;
+: set_cursor 0x00 cell-set ;
+: count 0x01 cell-get ;
+: set_count 0x01 cell-set ;
+: limit 0x10 ;
+: emit_name 0x66 output-byte 0x72 output-byte 0x61 output-byte 0x6d output-byte 0x65 output-byte  ;
+
+: main
+  cursor drop 0x7 set_cursor
+  count drop 0x9 set_count
+  limit drop emit_name
+;

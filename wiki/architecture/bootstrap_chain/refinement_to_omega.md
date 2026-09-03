@@ -9,8 +9,7 @@ its canonical prior-rung receipt and the composed Alpha tape that executes it:
 ```text
 Beta self-reconstruction       -> beta_compiler_bytecode.tape
 Beta-written Gamma evaluator   -> gamma_evaluator_bytecode.tape
-Gamma compiler                 -> canonical Beta -> gamma_compiler_bytecode.tape
-Gamma-written Delta compiler   -> canonical Gamma -> ... -> delta_compiler_bytecode.tape
+Gamma-authored Delta compiler  -> canonical Gamma -> evaluator behavior
 Delta-written Epsilon compiler -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
 Epsilon-written Omega D        -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
 Omega-written Omega C          -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape

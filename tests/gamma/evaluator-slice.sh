@@ -14,7 +14,7 @@ command -v python3 >/dev/null 2>&1 || {
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
-"$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
+"$TMP/beta-compiler" < "$OMEGA_PATH_CONCATENATIVE_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
 stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/evaluator" >/dev/null
 
 assert_case() {
@@ -93,4 +93,4 @@ set -e
 [ "$STATUS" -eq 1 ] && [ ! -s "$TMP/output" ]
 echo "ok - invalid-source-length"
 
-echo "Gamma evaluator: 29/29 cases passed ($(wc -l < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" | tr -d ' ') lines, $(wc -c < "$TMP/evaluator.tape" | tr -d ' ') tape bytes)"
+echo "Concatenative Gamma evaluator: 29/29 legacy cases passed ($(wc -l < "$OMEGA_PATH_CONCATENATIVE_GAMMA_EVALUATOR_SOURCE" | tr -d ' ') lines, $(wc -c < "$TMP/evaluator.tape" | tr -d ' ') tape bytes)"

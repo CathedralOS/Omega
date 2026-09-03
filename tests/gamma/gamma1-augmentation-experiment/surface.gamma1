@@ -1,0 +1,11 @@
+# Gamma1 directive surface.
+cell cursor
+cell count
+const limit 0x10
+text emit_name frame
+
+: main
+  cursor drop 0x7 set_cursor
+  count drop 0x9 set_count
+  limit drop emit_name
+;

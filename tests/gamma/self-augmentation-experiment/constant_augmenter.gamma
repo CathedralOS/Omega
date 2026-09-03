@@ -1,0 +1,85 @@
+; Gamma source augmenter for one provisional richer declaration:
+;   const NAME INTEGER
+; becomes:
+;   (def NAME () Int INTEGER)
+; Other lines are copied exactly. Returning 10 from main publishes one final
+; newline through the Gamma evaluator profile.
+
+(def is_const_line ((index Int)) Int
+  (if (lt (+ index 5) (input))
+    (if (eq (read index) 99)
+      (if (eq (read (+ index 1)) 111)
+        (if (eq (read (+ index 2)) 110)
+          (if (eq (read (+ index 3)) 115)
+            (if (eq (read (+ index 4)) 116)
+              (eq (read (+ index 5)) 32)
+              0)
+            0)
+          0)
+        0)
+      0)
+    0))
+
+; Emit "(def ".
+(def emit_definition_prefix () Int
+  (let ignored0 Int (write 40)
+    (let ignored1 Int (write 100)
+      (let ignored2 Int (write 101)
+        (let ignored3 Int (write 102)
+          (write 32))))))
+
+; Emit " () Int ".
+(def emit_definition_middle () Int
+  (let ignored0 Int (write 32)
+    (let ignored1 Int (write 40)
+      (let ignored2 Int (write 41)
+        (let ignored3 Int (write 32)
+          (let ignored4 Int (write 73)
+            (let ignored5 Int (write 110)
+              (let ignored6 Int (write 116)
+                (write 32)))))))))
+
+; Emit ")\n".
+(def emit_definition_suffix () Int
+  (let ignored Int (write 41)
+    (write 10)))
+
+(def copy_name ((index Int)) Int
+  (let byte Int (read index)
+    (if (eq byte 32)
+      (+ index 1)
+      (let ignored Int (write byte)
+        (copy_name (+ index 1))))))
+
+(def copy_value ((index Int)) Int
+  (let byte Int (read index)
+    (if (eq byte 10)
+      (+ index 1)
+      (let ignored Int (write byte)
+        (copy_value (+ index 1))))))
+
+(def process ((index Int)) Int
+  (if (eq index (input))
+    10
+    (if (is_const_line index)
+      (let ignored0 Int (emit_definition_prefix)
+        (let value_start Int (copy_name (+ index 6))
+          (let ignored1 Int (emit_definition_middle)
+            (let next Int (copy_value value_start)
+              (let ignored2 Int (emit_definition_suffix)
+                (process next))))))
+      (let byte Int (read index)
+        (let ignored Int (write byte)
+          (if (eq byte 10)
+            (process (+ index 1))
+            (copy_line (+ index 1))))))))
+
+(def copy_line ((index Int)) Int
+  (let byte Int (read index)
+    (let ignored Int (write byte)
+      (if (eq byte 10)
+        (process (+ index 1))
+        (copy_line (+ index 1))))))
+
+(def main () Int
+  (process 0))

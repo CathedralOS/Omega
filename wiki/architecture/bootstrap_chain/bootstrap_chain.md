@@ -7,18 +7,17 @@ The trust-minimizing lattice is:
 ```text
 audited Alpha VM + admitted Beta compiler tape
   -> Beta-written Gamma evaluator -> gamma_evaluator_bytecode.tape
-  -> Gamma compiler -> canonical Beta -> gamma_compiler_bytecode.tape
-  -> Delta compiler -> canonical Gamma -> canonical Beta -> delta_compiler_bytecode.tape
+  -> Gamma-authored staged source transformers
+  -> Delta compiler -> canonical Gamma source
   -> Epsilon compiler -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
   -> Omega compiler D -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
   -> Omega compiler C -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
 ```
 
 Alpha is unchanged. Beta is the trusted imperative tape-assembly language whose
-self-reconstructing compiler has an admitted Alpha tape. Gamma is the bounded
-concatenative compiler machine above it. Delta is the former Gamma typed
-functional language, and Epsilon is the former Delta fixed-storage compiler
-host.
+self-reconstructing compiler has an admitted Alpha tape. Gamma is a typed
+scalar/effect functional language evaluated directly by Beta. Delta is the
+richer typed functional language required by Epsilon.
 
 ## Purpose
 
@@ -36,9 +35,10 @@ production Omega-written compiler closure `C`.
 
 ## Edge discipline
 
-Beta alone encodes Alpha. Each higher compiler accepts exactly one source
-language and emits canonical source in the immediately prior rung. A lower rung
-may not parse its successor's successor. Host scripts may invoke, stamp, compare, and report; they may not
+Beta alone encodes Alpha. Gamma is directly evaluated by a Beta artifact; each
+higher source transformer accepts exactly one source language and emits
+canonical immediately-lower source. A lower rung may not parse its successor's
+successor. Host scripts may invoke, stamp, compare, and report; they may not
 parse source, lower programs, manufacture semantic evidence, or decide trust.
 
 Every accepted edge binds:
@@ -57,14 +57,18 @@ their tapes through the immediately preceding trusted language.
 
 ## Current state
 
-Alpha conformance, trusted Beta compiler reconstruction, and selected
-Gamma-to-Beta compiler reconstruction are executable. The Beta-written Gamma
-evaluator has a passing development slice but no admitted tape. The selected
-Gamma-written Delta compiler has a composed scalar slice, but its full-language
-implementation and admitted tape remain absent. The Delta-written Epsilon
+Alpha conformance and trusted Beta compiler reconstruction are executable. The
+provisional 1,472-line Beta-written Gamma evaluator and its 8,119-byte tape run
+the typed scalar/effect and self-augmentation gates. Proper tail execution,
+static validation, immutable pairs, and bounded output are implemented; complete
+profile outcomes remain. The selected Gamma-authored Delta compiler has a
+passing stage for finite arbitrary-field recursive ADTs plus exhaustive matches,
+including two-field List and three-field Bytes-rope witnesses; the
+complete edge remains open. The Delta-written Epsilon
 compiler and Epsilon-written Omega `D` are incomplete and have no canonical
 tapes. Omega-written `C` is also incomplete. No compatibility route fills these
-gaps.
+gaps. The former concatenative Gamma implementation and its Delta compiler are
+nested bootstrap evidence under their language owners, not selected edges.
 
 See the [manifest](chain_manifest.md), [repository map](repository_structure.md),
 and [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).

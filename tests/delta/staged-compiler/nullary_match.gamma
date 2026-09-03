@@ -1,0 +1,3 @@
+(def choose ((value Int) (when_left Int) (when_right Int)) Int (let __m97 Int value (if (eq __m97 0) when_left when_right)))
+(def main () Int (choose 1 7 9))
+

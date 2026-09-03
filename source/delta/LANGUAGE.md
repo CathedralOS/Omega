@@ -1,10 +1,9 @@
 # Delta language
 
 Delta is the small, typed, pure definitional language used to implement the
-Epsilon compiler. A canonical Gamma-written compiler accepts this language and
-emits canonical Gamma source for the selected lower compilers. The older
-interpreter and type checker are bounded oracles and implementation material;
-neither defines a second Delta language.
+Epsilon compiler. Its selected Gamma-authored implementation edge is currently
+open. The downgraded concatenative compiler and older bounded oracles are
+implementation evidence; none defines a second Delta language.
 
 ## Source envelope
 
@@ -36,7 +35,7 @@ function     := (def NAME ((NAME TYPE)*) TYPE expression)
 type         := Int | Bytes | TYPE
 expression   := INTEGER | NAME
               | (if expression expression expression)
-              | (let NAME expression expression)
+              | (let NAME TYPE expression expression)
               | (+ expression expression) | (- expression expression)
               | (* expression expression) | (/ expression expression)
               | (% expression expression) | (eq expression expression)
@@ -47,14 +46,14 @@ expression   := INTEGER | NAME
               | (bytes_empty) | (bytes_single expression)
               | (bytes_length expression)
               | (bytes_get expression expression)
-              | (bytes_slice expression expression expression)
               | (bytes_concat expression expression)
-pattern      := NAME | CONSTRUCTOR | (CONSTRUCTOR NAME*)
+pattern      := CONSTRUCTOR | (CONSTRUCTOR NAME*)
 ```
 
 The final source item is a declaration, not an untyped trailing expression.
 Declarations are mutually visible, so forward and mutual recursion are legal.
-Delta is monomorphic and fully annotated. It has no closures, higher-order
+Delta is monomorphic and fully annotated, including every `let` binder. It has
+no closures, higher-order
 functions, mutation, effects, subtyping, or implicit conversion. Algebraic data
 is immutable and nominal.
 
@@ -72,14 +71,15 @@ which namespace each occurrence consults. For example, `(data Token (Token
 Int))` is well formed, and in `(f f)` the list head denotes the global function
 while the argument atom may denote a local `f`. Delta has no function values.
 
-Parameters, `let` binders, constructor-pattern binders, and catch-all pattern
-binders inhabit the local-value namespace. No new binder may duplicate a name
+Parameters, `let` binders, and constructor-pattern binders inhabit the
+local-value namespace. No new binder may duplicate a name
 in its active lexical environment. Parameters of one function are mutually
-unique. A `let` initializer is checked in the outer environment; its binder is
-active only in the body and may not duplicate an active parameter, `let`, or
+unique. A `let` initializer is checked against the binder's declared type in
+the outer environment; its binder is active only in the body and may not
+duplicate an active parameter, `let`, or
 pattern binder. Pattern binders are mutually unique, may not duplicate an
-active outer local, and are active only in their match arm. A catch-all name is
-an ordinary arm-local binder. Disjoint arms, branches, and sibling scopes may
+active outer local, and are active only in their match arm. Disjoint arms,
+branches, and sibling scopes may
 reuse a spelling because their environments are never active together.
 Duplicate pattern names reject; they never express an equality constraint.
 
@@ -96,9 +96,8 @@ against its declaration. It checks parameter, function, and constructor arity;
 operator operands; call arguments; declared result types; match scrutinees;
 pattern constructors and bindings; and agreement among every match arm.
 
-Every match over an algebraic type is exhaustive. Constructors may be covered
-directly or by one final catch-all binding. Duplicate constructor arms, an arm
-after a catch-all, a constructor from another type, and a missing constructor
+Every match over an algebraic type is exhaustive. Duplicate constructor arms,
+a constructor from another type, and a missing constructor
 reject the program. A checked Delta program therefore has no dynamic
 "no arm matched" value.
 
@@ -122,12 +121,12 @@ also depend on an implementation return-stack ceiling.
 or `1`; `if` treats zero as false and every other integer as true.
 
 `Bytes` is an immutable finite byte sequence, not an algebraic list and not a
-raw-memory address. The six `bytes_*` forms above are closed built-ins:
+raw-memory address. The five `bytes_*` forms above are closed built-ins:
 `bytes_empty` and `bytes_single` construct; `bytes_length` returns `Int`;
-`bytes_get` returns the selected byte as `Int`; `bytes_slice` takes start and
-length; and `bytes_concat` joins two sequences. Every valid `Bytes` has an exact
+`bytes_get` returns the selected byte as `Int`; and `bytes_concat` joins two
+sequences. Every valid `Bytes` has an exact
 logical length representable as a nonnegative `Int`. `bytes_empty`,
-`bytes_single`, and `bytes_slice` preserve that invariant. `bytes_concat` loads
+`bytes_single` preserves that invariant. `bytes_concat` loads
 the operands' logical lengths and traps before allocation when their exact
 mathematical sum exceeds `INT64_MAX`; otherwise its result stores that exact
 sum. `bytes_length` is therefore total over every valid `Bytes`. The compiler
@@ -142,8 +141,6 @@ The authored runtime trap conditions are closed:
   overflow pair `INT64_MIN` and `-1`;
 - `bytes_single` receives a value outside `0..255`;
 - `bytes_get` receives a negative or out-of-range index;
-- `bytes_slice` receives a negative start or length, or a range not contained
-  in its input; or
 - `bytes_concat` would produce a logical length greater than `INT64_MAX`.
 
 Out-of-range integer literals are static rejection rather than runtime traps.
@@ -190,12 +187,12 @@ source, filenames, or ambient invocation state.
 Each profile declares one exact maximum sealed-input extent satisfying
 `0 <= maximum <= INT64_MAX`. Both version-1 profiles select 4,194,304 bytes.
 `ConformanceBytesV1` also selects a 4,194,304-byte maximum successful output;
-`EpsilonCompilerV1` selects AlphaBootstrapV2's 1,048,572-byte raw-tape maximum.
+`EpsilonCompilerV1` selects AlphaBootstrapV2's 16,777,212-byte raw-tape maximum.
 The compiler validates those facts before adapter emission; an admitted input
 can therefore always become a valid Delta `Bytes`. An input or output exceeding
 the selected maximum is profile-owned `Incomplete`, not a Delta trap. These
-application limits are distinct from the Gamma-written compiler's own 4-MiB
-Delta-source resource even where their numeric values coincide.
+application limits are distinct from the implementing Gamma evaluator's source
+and sealed-input resources even where numeric values coincide.
 
 The two profiles are:
 
@@ -338,15 +335,17 @@ runtime input or semantic authority. Generated-program statuses 248 through
 
 ## Compilation requirements
 
-The Gamma-written Delta compiler must type-check before emission, erase types
+The Gamma-authored Delta compiler must type-check before emission, erase types
 into a defined runtime representation, and emit canonical Gamma source. The
-selected Gamma compiler lowers that receipt to canonical Beta, and Beta alone
-encodes the final Alpha tape. Generated Gamma must support arbitrary function
-and constructor arity and preserve proper tail calls. The Delta compiler may
-not publish an interpreter plus serialized syntax, invoke an external evaluator,
-add Delta operations to Gamma or Alpha, interleave direct Alpha emission with
-Delta checking, or make a private capacity into Delta semantics.
+selected Beta-authored Gamma evaluator executes that receipt under the required
+application profile; Beta alone encodes Alpha. Generated Gamma must support
+arbitrary function and constructor arity and preserve proper tail calls. The
+Delta compiler may not invoke an external evaluator, add Delta operations to
+Gamma or Alpha, interleave direct Alpha emission with Delta checking, or make a
+private capacity into Delta semantics.
 
-The compiler source and tape are currently absent. The former imperative-Gamma
-implementation and its oracles were deleted rather than retained as a second
-route.
+The selected compiler source has a staged implementation for finite ADTs whose
+constructors carry zero or one `Int` or nominal field, including recursive unary
+data, plus exhaustive matches; the
+complete compiler and tape remain absent. The former concatenative-Gamma implementation is retained only under
+Delta-owned bootstrap material and does not define a second route.

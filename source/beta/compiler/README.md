@@ -25,8 +25,8 @@ absolute bounded pointers, shares one hexadecimal parser, checks every authored
 address assertion against the running output cursor, and drives operands from
 visible NUL-terminated width lists beside each mnemonic. Alpha's specified
 zero-initialized register file supplies named persistent state and constants.
-The source transport admits 16 MiB so readable prior-rung expansions can pass
-through Beta; emitted Alpha remains capped by the exact 1,048,572-byte seed hole.
+The source transport admits 64 MiB so readable prior-rung expansions can pass
+through Beta; emitted Alpha remains capped by the exact 16,777,212-byte seed hole.
 There is no symbol table, label identity, relocation pass, hash, fixup chain, or
 compressed name. Comma removal and new Alpha opcodes remain rejected because
 their additional trust cost outweighs the remaining byte savings.

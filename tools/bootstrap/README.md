@@ -29,7 +29,7 @@ admission.
 
 The component directories hold sourceable materializers or deliberate artifact
 construction commands. Tests consume them from `tests/`; canonical artifacts
-remain under `source/<language>/compiler/`.
+remain under their language owner.
 
 ## Retention and deletion
 
@@ -39,8 +39,9 @@ remain under `source/<language>/compiler/`.
 | `check-chain-hygiene.sh` | Repository checks for direct-chain ownership, source purity, and retention | Replace it only with one canonical gate enforcing the same positive inventory and immediate-successor boundary more economically. |
 | `alpha/` | Alpha seed selection and tape stamping used by current tests and tools. | Delete only when every caller has an equally direct canonical invocation. |
 | `beta/` | Trusted Beta compiler materialization and disposable program builds. | Delete only when every caller has an equally direct canonical invocation. |
-| `gamma/` | Selected Gamma-to-Beta compiler materialization and Gamma→Beta→Alpha composition used by downstream gates. | Delete only when every caller has an equally direct canonical invocation. |
-| `delta/` | Source-derived selected Delta compiler materialization and Delta→Gamma→Beta→Alpha composition for the implemented compiler slice. | Replace when the complete admitted Delta compiler artifact owns this invocation directly. |
+| `gamma/evaluator_env.sh` | Selected Beta-authored functional Gamma evaluator materialization. | Delete only when every caller has an equally direct canonical invocation. |
+| `gamma/artifact_env.sh` | Downgraded concatenative Gamma compiler materialization for retained comparison gates. | Delete with the nested concatenative bootstrap evidence. |
+| `delta/` | Downgraded concatenative-Gamma-written Delta compiler composition for retained comparison gates. | Delete with the nested Delta bootstrap compiler. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,
 future-artifact locators, root compiler cache, and receipt profiles had no

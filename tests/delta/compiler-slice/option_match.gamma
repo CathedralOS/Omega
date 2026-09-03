@@ -1,0 +1,21 @@
+# canonical scalar Functional Delta expansion
+: frame 0x0 cell-get ;
+: set_frame 0x0 cell-set ;
+: next_frame 0x1 cell-get ;
+: set_next_frame 0x1 cell-set ;
+: f0005 frame next_frame set_frame frame 0x0 + cell-set frame drop t0005 frame dup set_next_frame 0x0 + cell-get set_frame ;
+: t0005 frame 0x0000000000000004 + set_next_frame frame 0x0000000000000002 + cell-set frame 0x0000000000000001 + cell-set jump e0008 ;
+: e0008 e0009 0x00000000000003fa 0x0000000000000000 + cell-set jump x0800 ;
+: x0800 0x00000000000003fa 0x0000000000000000 + cell-get 0x0000000000000000 + cell-get 0x0000000000000001 = branch x0801 x0802 ;
+: x0801 jump e000b ;
+: x0802 0x00000000000003fa 0x0000000000000000 + cell-get 0x0000000000000001 + cell-get frame 0x0000000000000003 + cell-set jump e000f ;
+: e0009 frame 0x0000000000000001 + cell-get ;
+: e000b frame 0x0000000000000002 + cell-get ;
+: e000f frame 0x0000000000000003 + cell-get ;
+: f0010 frame next_frame set_frame frame 0x0 + cell-set frame drop t0010 frame dup set_next_frame 0x0 + cell-get set_frame ;
+: t0010 frame 0x0000000000000001 + set_next_frame jump e0011 ;
+: e0011 e0012 e0016 jump t0005 ;
+: e0012 0x00000000000003f0 0x0000000000000000 + cell-get dup 0x0000000000000002 + 0x00000000000003f0 0x0000000000000000 + cell-set dup 0x0000000000000002 swap 0x0000000000000000 + cell-set dup e0013 swap 0x0000000000000001 + cell-set  ;
+: e0013 0x0000000000000009 ;
+: e0016 0x0000000000000007 ;
+: main 0x0000000000000001 set_frame 0x0000000000000002 set_next_frame 0x0000000000100000 0x00000000000003f0 0x0000000000000000 + cell-set f0010 0x100 % 0x100 + 0x100 % output-byte ;

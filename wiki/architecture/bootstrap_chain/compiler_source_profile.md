@@ -32,13 +32,12 @@ requirement are fixed by [D15](decisions.md#d15--bootstrap-implementation-source
 ## Required artifacts
 
 ```text
-Gamma compiler source
-  + Gamma evaluator -> canonical Beta receipt
-  + Beta compiler -> gamma_compiler_bytecode.tape
+Beta-written Gamma evaluator source
+  + Beta compiler -> gamma_evaluator_bytecode.tape
 
-Gamma-written Delta compiler source
-  + Gamma compiler -> canonical Gamma receipt
-  + selected lower compilers -> delta_compiler_bytecode.tape
+Gamma-authored staged Delta compiler source
+  + Gamma evaluator -> canonical Gamma receipt
+  + selected lower execution -> Delta compiler behavior
 
 Delta-written Epsilon compiler source
   + Delta compiler + sealed EpsilonCompilerV1 -> canonical Delta receipt
@@ -51,7 +50,7 @@ Omega-written Omega source C
   └─ omega0_compiler_bytecode.tape ─▶ canonical Epsilon ─▶ omega_compiler_bytecode.tape
 ```
 
-Every final bytecode output above is canonical Alpha tape, and every intermediate
+Every named bytecode output above is canonical Alpha tape, and every intermediate
 source output is a retained canonical receipt in its named language. A
 host-specific VM seed may execute or package the tape, but native container
 bytes do not replace either identity.

@@ -1,0 +1,666 @@
+# Three-scan Functional Delta scalar compiler experiment.
+#
+# Pass 1 retains only function declarations. Pass 2 validates bodies and
+# computes frame widths. Pass 3 reparses bodies and emits Gamma immediately.
+# Expression trees and tail flags are never retained between passes.
+#
+# Function row: name-start name-length arity frame-width.
+# Variable row: name-start name-length frame-slot.
+# Expression context: saved0 saved1 saved2 saved3 saved4.
+
+# Gamma1 allocates consecutive cells and generates each set_NAME companion.
+# Lexer state.
+cell cursor
+cell token_start
+cell token_length
+cell compare_index
+cell saved_start
+cell saved_length
+cell number_index
+cell number_value
+cell number_negative
+
+# Declaration and local-environment state.
+cell function_count
+cell main_function
+cell current_function
+cell scan_index
+cell variable_count
+cell variable_next
+cell frame_width
+cell skip_depth
+
+# Bounded recursive-expression state and emission state.
+cell expression_depth
+cell emit_id
+cell hex_value
+cell hex_divisor
+cell hex_count
+cell hex_digit
+
+# Persistent and temporary table layouts.
+const function_row_width 0x4
+const function_table_base 0x100
+const variable_row_width 0x3
+const variable_table_base 0x10000
+const expression_context_width 0x5
+const expression_context_base 0x20000
+const argument_context_width 0x10
+const argument_context_base 0x30000
+
+: advance cursor + set_cursor ;
+: next jump skip ;
+: skip cursor input-length = branch no_token skip_byte ;
+: no_token 0x0 ;
+: skip_byte cursor input-get dup 0x3b = branch skip_comment skip_space_test ;
+: skip_space_test dup 0x21 < branch skip_space token_begin ;
+: skip_space drop 0x1 advance jump skip ;
+: skip_comment drop 0x1 advance jump comment_loop ;
+: comment_loop cursor input-length = branch no_token comment_byte ;
+: comment_byte cursor input-get dup 0xa = branch comment_end comment_cr ;
+: comment_cr 0xd = branch comment_end comment_advance ;
+: comment_end 0x1 advance jump skip ;
+: comment_advance 0x1 advance jump comment_loop ;
+: token_begin
+  cursor set_token_start cursor input-get dup 0x28 = branch punctuation punctuation_close
+;
+: punctuation_close 0x29 = branch punctuation token_loop_begin ;
+: punctuation drop 0x1 advance 0x1 set_token_length 0x1 ;
+: token_loop_begin drop jump token_loop ;
+: token_loop cursor input-length = branch token_done token_body ;
+: token_body cursor input-get dup 0x21 < branch token_done_drop token_semicolon ;
+: token_semicolon dup 0x3b = branch token_done_drop token_open ;
+: token_open dup 0x28 = branch token_done_drop token_close ;
+: token_close 0x29 = branch token_done token_advance ;
+: token_done_drop drop jump token_done ;
+: token_advance 0x1 advance jump token_loop ;
+: token_done cursor token_start - set_token_length 0x1 ;
+: need_token next 0x1 assert-equal ;
+
+: token_exact set_saved_length set_saved_start
+  token_length saved_length = branch exact_begin exact_false
+;
+: exact_begin 0x0 set_compare_index jump exact_loop ;
+: exact_loop compare_index token_length = branch exact_true exact_byte ;
+: exact_byte
+  saved_start 0x100 % compare_index token_start + input-get
+  = branch exact_next exact_false
+;
+: exact_next
+  saved_start 0x100 / set_saved_start
+  compare_index 0x1 + set_compare_index jump exact_loop
+;
+: exact_true 0x1 ;
+: exact_false 0x0 ;
+
+: is_open 0x28 0x1 token_exact ;
+: is_close 0x29 0x1 token_exact ;
+: is_def 0x666564 0x3 token_exact ;
+: is_int 0x746e49 0x3 token_exact ;
+: is_if 0x6669 0x2 token_exact ;
+: is_let 0x74656c 0x3 token_exact ;
+: is_add 0x2b 0x1 token_exact ;
+: is_sub 0x2d 0x1 token_exact ;
+: is_mul 0x2a 0x1 token_exact ;
+: is_div 0x2f 0x1 token_exact ;
+: is_mod 0x25 0x1 token_exact ;
+: is_eq 0x7165 0x2 token_exact ;
+: is_lt 0x746c 0x2 token_exact ;
+: is_input 0x7475706e69 0x5 token_exact ;
+: is_read 0x64616572 0x4 token_exact ;
+: is_write 0x6574697277 0x5 token_exact ;
+: is_main 0x6e69616d 0x4 token_exact ;
+: expect_open need_token is_open 0x1 assert-equal ;
+: expect_close need_token is_close 0x1 assert-equal ;
+: expect_int need_token is_int 0x1 assert-equal ;
+
+: token_is_integer token_length 0x0 = branch integer_false integer_first ;
+: integer_first token_start input-get dup 0x2d = branch integer_minus integer_digit ;
+: integer_minus drop token_length 0x1 = branch integer_false integer_true ;
+: integer_digit dup 0x30 < branch integer_false_drop integer_digit_high ;
+: integer_digit_high 0x3a < branch integer_true integer_false ;
+: integer_false_drop drop ;
+: integer_false 0x0 ;
+: integer_true 0x1 ;
+
+: parse_integer
+  0x0 set_number_negative 0x0 set_number_value 0x0 set_number_index
+  token_start input-get 0x2d = branch integer_mark_negative integer_loop
+;
+: integer_mark_negative 0x1 set_number_negative 0x1 set_number_index jump integer_loop ;
+: integer_loop number_index token_length = branch integer_done integer_parse_digit ;
+: integer_parse_digit
+  number_index token_start + input-get dup 0x30 < branch bad integer_digit_upper
+;
+: integer_digit_upper dup 0x3a < branch integer_accumulate bad ;
+: integer_accumulate
+  0x30 - number_value 0xa * + set_number_value
+  number_index 0x1 + set_number_index jump integer_loop
+;
+: integer_done number_negative 0x1 = branch integer_negate integer_positive ;
+: integer_negate 0x0 number_value - ;
+: integer_positive number_value ;
+
+# Persistent declaration table.
+: function_address 0x1 - function_row_width * function_table_base + ;
+: function_get swap function_address + cell-get ;
+: function_set swap function_address + cell-set ;
+: function_name_start 0x0 function_get ;
+: function_name_length 0x1 function_get ;
+: function_arity 0x2 function_get ;
+: function_width 0x3 function_get ;
+
+: token_matches_function
+  token_length over function_name_length = branch function_compare_begin function_compare_false
+;
+: function_compare_begin 0x0 set_compare_index jump function_compare_loop ;
+: function_compare_loop
+  compare_index token_length = branch function_compare_true function_compare_byte
+;
+: function_compare_byte
+  dup function_name_start compare_index + input-get
+  token_start compare_index + input-get = branch function_compare_next function_compare_false
+;
+: function_compare_next
+  compare_index 0x1 + set_compare_index jump function_compare_loop
+;
+: function_compare_true drop 0x1 ;
+: function_compare_false drop 0x0 ;
+
+: find_function 0x1 set_scan_index jump find_function_loop ;
+: find_function_loop
+  function_count scan_index < branch find_function_absent find_function_test
+;
+: find_function_test
+  scan_index token_matches_function branch find_function_present find_function_next
+;
+: find_function_next scan_index 0x1 + set_scan_index jump find_function_loop ;
+: find_function_present scan_index 0x1 ;
+: find_function_absent 0x0 0x0 ;
+: require_function find_function 0x1 assert-equal ;
+
+: add_function
+  find_function 0x0 assert-equal drop
+  function_count 0x1 + dup 0x1000 < branch add_function_ready bad
+;
+: add_function_ready
+  dup set_function_count
+  token_start over 0x0 function_set
+  token_length over 0x1 function_set
+  0x0 over 0x2 function_set
+  0x0 over 0x3 function_set
+;
+
+# Active lexical environment. Rows are discarded when scopes close.
+: variable_address 0x1 - variable_row_width * variable_table_base + ;
+: variable_get swap variable_address + cell-get ;
+: variable_set swap variable_address + cell-set ;
+: variable_name_start 0x0 variable_get ;
+: variable_name_length 0x1 variable_get ;
+: variable_slot 0x2 variable_get ;
+
+: token_matches_variable
+  token_length over variable_name_length = branch variable_compare_begin variable_compare_false
+;
+: variable_compare_begin 0x0 set_compare_index jump variable_compare_loop ;
+: variable_compare_loop
+  compare_index token_length = branch variable_compare_true variable_compare_byte
+;
+: variable_compare_byte
+  dup variable_name_start compare_index + input-get
+  token_start compare_index + input-get = branch variable_compare_next variable_compare_false
+;
+: variable_compare_next
+  compare_index 0x1 + set_compare_index jump variable_compare_loop
+;
+: variable_compare_true drop 0x1 ;
+: variable_compare_false drop 0x0 ;
+
+: find_variable variable_count set_scan_index jump find_variable_loop ;
+: find_variable_loop scan_index 0x0 = branch find_variable_absent find_variable_test ;
+: find_variable_test
+  scan_index token_matches_variable branch find_variable_present find_variable_previous
+;
+: find_variable_previous scan_index 0x1 - set_scan_index jump find_variable_loop ;
+: find_variable_present scan_index 0x1 ;
+: find_variable_absent 0x0 0x0 ;
+: require_variable find_variable 0x1 assert-equal ;
+
+: add_variable
+  find_variable 0x0 assert-equal drop
+  variable_count 0x1 + dup set_variable_count
+  token_start over 0x0 variable_set
+  token_length over 0x1 variable_set
+  variable_next dup 0x1 + set_variable_next
+  over 0x2 variable_set
+  variable_next frame_width < branch add_variable_done add_variable_widen
+;
+: add_variable_widen variable_next set_frame_width ;
+: add_variable_done ;
+
+# Per-recursion context. This is temporary parser state, not an expression IR.
+: expression_context expression_depth expression_context_width * expression_context_base + ;
+: expression_saved0 expression_context cell-get ;
+: set_expression_saved0 expression_context cell-set ;
+: expression_saved1 expression_context 0x1 + cell-get ;
+: set_expression_saved1 expression_context 0x1 + cell-set ;
+: expression_saved2 expression_context 0x2 + cell-get ;
+: set_expression_saved2 expression_context 0x2 + cell-set ;
+: expression_saved3 expression_context 0x3 + cell-get ;
+: set_expression_saved3 expression_context 0x3 + cell-set ;
+: expression_saved4 expression_context 0x4 + cell-get ;
+: set_expression_saved4 expression_context 0x4 + cell-set ;
+: enter_expression
+  expression_depth 0x1 + dup 0x100 < branch enter_expression_ready bad
+;
+: enter_expression_ready set_expression_depth ;
+: leave_expression expression_depth 0x1 - set_expression_depth ;
+: argument_address
+  expression_depth argument_context_width * + argument_context_base +
+;
+: set_argument_id argument_address cell-set ;
+: argument_id argument_address cell-get ;
+
+# Pass 1: retain declarations and skip bodies structurally.
+: collect_program
+  0x0 set_cursor 0x0 set_function_count 0x0 set_main_function
+  jump collect_loop
+;
+: collect_loop next 0x0 = branch collect_done collect_declaration ;
+: collect_declaration
+  is_open 0x1 assert-equal need_token is_def 0x1 assert-equal
+  need_token add_function set_current_function
+  is_main branch collect_mark_main collect_parameters_begin
+;
+: collect_mark_main
+  main_function 0x0 assert-equal current_function set_main_function
+  jump collect_parameters_begin
+;
+: collect_parameters_begin 0x0 set_scan_index expect_open jump collect_parameters ;
+: collect_parameters
+  need_token is_close branch collect_parameters_done collect_parameter
+;
+: collect_parameter
+  is_open 0x1 assert-equal need_token expect_int expect_close
+  scan_index 0x1 + set_scan_index jump collect_parameters
+;
+: collect_parameters_done
+  scan_index current_function 0x2 function_set
+  expect_int skip_expression expect_close jump collect_loop
+;
+: skip_expression
+  need_token is_open branch skip_list skip_atom
+;
+: skip_atom ;
+: skip_list 0x1 set_skip_depth jump skip_list_loop ;
+: skip_list_loop
+  need_token is_open branch skip_list_open skip_list_close_test
+;
+: skip_list_open skip_depth 0x1 + set_skip_depth jump skip_list_loop ;
+: skip_list_close_test is_close branch skip_list_close skip_list_loop ;
+: skip_list_close
+  skip_depth 0x1 - dup set_skip_depth 0x0 = branch skip_list_done skip_list_loop
+;
+: skip_list_done ;
+: collect_done
+  main_function 0x0 = branch bad collect_validate_main
+;
+: collect_validate_main main_function function_arity 0x0 assert-equal ;
+
+# Pass 2: validate by reparsing. Every expression has scalar Int type.
+: validate_program
+  0x0 set_cursor 0x0 set_expression_depth jump validate_declaration_loop
+;
+: validate_declaration_loop next 0x0 = branch validate_program_done validate_declaration ;
+: validate_declaration
+  is_open 0x1 assert-equal need_token is_def 0x1 assert-equal
+  need_token require_function set_current_function
+  0x0 set_variable_count 0x1 set_variable_next 0x1 set_frame_width
+  expect_open jump validate_parameters
+;
+: validate_parameters
+  need_token is_close branch validate_parameters_done validate_parameter
+;
+: validate_parameter
+  is_open 0x1 assert-equal need_token add_variable expect_int expect_close
+  jump validate_parameters
+;
+: validate_parameters_done
+  variable_count current_function function_arity assert-equal
+  expect_int validate_expression expect_close
+  frame_width current_function 0x3 function_set
+  jump validate_declaration_loop
+;
+: validate_program_done ;
+
+: validate_expression enter_expression need_token is_open branch validate_list validate_atom ;
+: validate_atom
+  token_is_integer branch validate_literal validate_variable
+;
+: validate_literal parse_integer drop jump validate_expression_done ;
+: validate_variable require_variable drop jump validate_expression_done ;
+: validate_list need_token is_if branch validate_if validate_let_test ;
+: validate_let_test is_let branch validate_let validate_add_test ;
+: validate_add_test is_add branch validate_binary validate_sub_test ;
+: validate_sub_test is_sub branch validate_binary validate_mul_test ;
+: validate_mul_test is_mul branch validate_binary validate_div_test ;
+: validate_div_test is_div branch validate_binary validate_mod_test ;
+: validate_mod_test is_mod branch validate_binary validate_eq_test ;
+: validate_eq_test is_eq branch validate_binary validate_lt_test ;
+: validate_lt_test is_lt branch validate_binary validate_input_test ;
+: validate_input_test is_input branch validate_input validate_read_test ;
+: validate_read_test is_read branch validate_unary validate_write_test ;
+: validate_write_test is_write branch validate_unary validate_call ;
+: validate_input expect_close jump validate_expression_done ;
+: validate_unary validate_expression expect_close jump validate_expression_done ;
+: validate_if
+  validate_expression validate_expression validate_expression expect_close
+  jump validate_expression_done
+;
+: validate_binary
+  validate_expression validate_expression expect_close jump validate_expression_done
+;
+: validate_let
+  need_token token_start set_expression_saved0 token_length set_expression_saved1
+  expect_int validate_expression
+  variable_count set_expression_saved2
+  expression_saved0 set_token_start expression_saved1 set_token_length
+  add_variable
+  validate_expression
+  expression_saved2 set_variable_count
+  expect_close jump validate_expression_done
+;
+: validate_call
+  require_function set_expression_saved0
+  0x0 set_expression_saved1 jump validate_call_arguments
+;
+: validate_call_arguments
+  next 0x1 assert-equal is_close branch validate_call_done validate_call_argument
+;
+: validate_call_argument
+  token_start set_cursor validate_expression
+  expression_saved1 0x1 + set_expression_saved1
+  jump validate_call_arguments
+;
+: validate_call_done
+  expression_saved1 expression_saved0 function_arity assert-equal
+  jump validate_expression_done
+;
+: validate_expression_done leave_expression ;
+
+# Readable token-level Gamma emission. Encoded constants are confined to one
+# short definition per fixed token; generated program structure remains visible.
+: emit_space 0x20 output-byte ;
+: emit_end 0x20 output-byte 0x3b output-byte 0xa output-byte ;
+: emit_colon 0x3a output-byte emit_space ;
+text emit_frame frame
+text emit_set_frame set_frame
+text emit_next_frame next_frame
+text emit_set_next_frame set_next_frame
+text emit_cell_get cell-get
+text emit_cell_set cell-set
+text emit_dup dup
+text emit_drop drop
+text emit_jump jump
+text emit_branch branch
+text emit_output_byte output-byte
+text emit_input_length input-length
+text emit_input_get input-get
+text emit_plus +
+text emit_minus -
+text emit_star *
+text emit_slash /
+text emit_percent %
+text emit_equal =
+text emit_less <
+
+: emit_hex_digit hex_digit 0xa < branch emit_hex_decimal emit_hex_alpha ;
+: emit_hex_decimal hex_digit 0x30 + output-byte jump emit_hex_next ;
+: emit_hex_alpha hex_digit 0x57 + output-byte jump emit_hex_next ;
+: emit_hex_next
+  hex_value hex_divisor % set_hex_value
+  hex_divisor 0x10 / set_hex_divisor
+  hex_count 0x1 - set_hex_count jump emit_hex_loop
+;
+: emit_hex_loop hex_count 0x0 = branch emit_hex_done emit_hex_body ;
+: emit_hex_body hex_value hex_divisor / set_hex_digit jump emit_hex_digit ;
+: emit_hex_done ;
+: emit_generated_name
+  set_hex_value output-byte 0x1000 set_hex_divisor 0x4 set_hex_count emit_hex_loop
+;
+: emit_e 0x65 swap emit_generated_name ;
+: emit_f 0x66 swap emit_generated_name ;
+: emit_t 0x74 swap emit_generated_name ;
+: emit_literal
+  set_hex_value 0x30 output-byte 0x78 output-byte
+  0x1000000000000000 set_hex_divisor 0x10 set_hex_count emit_hex_loop
+;
+: next_emit_id
+  emit_id 0x1 + dup 0x10000 < branch next_emit_id_ready bad
+;
+: next_emit_id_ready dup set_emit_id ;
+: emit_expression_begin emit_colon emit_e emit_space ;
+: emit_expression_name emit_e ;
+
+: emit_prefix
+  emit_colon emit_frame emit_space 0x0 emit_literal emit_space emit_cell_get emit_end
+  emit_colon emit_set_frame emit_space 0x0 emit_literal emit_space emit_cell_set emit_end
+  emit_colon emit_next_frame emit_space 0x1 emit_literal emit_space emit_cell_get emit_end
+  emit_colon emit_set_next_frame emit_space 0x1 emit_literal emit_space emit_cell_set emit_end
+;
+
+# Pass 3: reparse and emit bottom-up expression words.
+: emit_program
+  0x0 set_cursor 0x0 set_expression_depth 0x0 set_emit_id
+  emit_prefix jump emit_declaration_loop
+;
+: emit_declaration_loop next 0x0 = branch emit_program_done emit_declaration ;
+: emit_declaration
+  is_open 0x1 assert-equal need_token is_def 0x1 assert-equal
+  need_token require_function set_current_function
+  0x0 set_variable_count 0x1 set_variable_next
+  expect_open jump emit_parameters
+;
+: emit_parameters
+  need_token is_close branch emit_parameters_done emit_parameter
+;
+: emit_parameter
+  is_open 0x1 assert-equal need_token add_variable expect_int expect_close
+  jump emit_parameters
+;
+: emit_parameters_done
+  expect_int 0x1 emit_expression set_expression_saved0 expect_close
+  current_function expression_saved0 emit_function
+  jump emit_declaration_loop
+;
+: emit_program_done emit_main ;
+
+# Stack effect: tail-flag -- expression-id.
+: emit_expression
+  enter_expression set_expression_saved3
+  need_token is_open branch emit_list_expression emit_atom_expression
+;
+: emit_atom_expression
+  token_is_integer branch emit_literal_expression emit_variable_expression
+;
+: emit_literal_expression
+  parse_integer set_expression_saved0 next_emit_id set_expression_saved1
+  expression_saved1 emit_expression_begin
+  expression_saved0 emit_literal emit_end
+  expression_saved1 jump emit_expression_done
+;
+: emit_variable_expression
+  require_variable variable_slot set_expression_saved0
+  next_emit_id set_expression_saved1
+  expression_saved1 emit_expression_begin
+  emit_frame emit_space expression_saved0 emit_literal emit_space
+  emit_plus emit_space emit_cell_get emit_end
+  expression_saved1 jump emit_expression_done
+;
+: emit_list_expression need_token is_if branch emit_if_expression emit_let_expression_test ;
+: emit_let_expression_test is_let branch emit_let_expression emit_add_expression_test ;
+: emit_add_expression_test is_add branch emit_add_expression emit_sub_expression_test ;
+: emit_sub_expression_test is_sub branch emit_sub_expression emit_mul_expression_test ;
+: emit_mul_expression_test is_mul branch emit_mul_expression emit_div_expression_test ;
+: emit_div_expression_test is_div branch emit_div_expression emit_mod_expression_test ;
+: emit_mod_expression_test is_mod branch emit_mod_expression emit_eq_expression_test ;
+: emit_eq_expression_test is_eq branch emit_eq_expression emit_lt_expression_test ;
+: emit_lt_expression_test is_lt branch emit_lt_expression emit_input_expression_test ;
+: emit_input_expression_test is_input branch emit_input_expression emit_read_expression_test ;
+: emit_read_expression_test is_read branch emit_read_expression emit_write_expression_test ;
+: emit_write_expression_test is_write branch emit_write_expression emit_call_expression ;
+
+: emit_if_expression
+  0x0 emit_expression set_expression_saved0
+  expression_saved3 emit_expression set_expression_saved1
+  expression_saved3 emit_expression set_expression_saved2
+  expect_close next_emit_id set_expression_saved3
+  expression_saved3 emit_expression_begin
+  expression_saved0 emit_expression_name emit_space emit_branch emit_space
+  expression_saved1 emit_expression_name emit_space
+  expression_saved2 emit_expression_name emit_end
+  expression_saved3 jump emit_expression_done
+;
+
+: emit_add_expression 0x0 set_expression_saved2 jump emit_binary_expression ;
+: emit_sub_expression 0x1 set_expression_saved2 jump emit_binary_expression ;
+: emit_mul_expression 0x2 set_expression_saved2 jump emit_binary_expression ;
+: emit_div_expression 0x3 set_expression_saved2 jump emit_binary_expression ;
+: emit_mod_expression 0x4 set_expression_saved2 jump emit_binary_expression ;
+: emit_eq_expression 0x5 set_expression_saved2 jump emit_binary_expression ;
+: emit_lt_expression 0x6 set_expression_saved2 jump emit_binary_expression ;
+: emit_binary_expression
+  0x0 emit_expression set_expression_saved0
+  0x0 emit_expression set_expression_saved1
+  expect_close next_emit_id set_expression_saved3
+  expression_saved3 emit_expression_begin
+  expression_saved0 emit_expression_name emit_space
+  expression_saved1 emit_expression_name emit_space
+  expression_saved2 0x0 = branch emit_binary_add emit_binary_sub_test
+;
+: emit_binary_add emit_plus jump emit_binary_done ;
+: emit_binary_sub_test expression_saved2 0x1 = branch emit_binary_sub emit_binary_mul_test ;
+: emit_binary_sub emit_minus jump emit_binary_done ;
+: emit_binary_mul_test expression_saved2 0x2 = branch emit_binary_mul emit_binary_div_test ;
+: emit_binary_mul emit_star jump emit_binary_done ;
+: emit_binary_div_test expression_saved2 0x3 = branch emit_binary_div emit_binary_mod_test ;
+: emit_binary_div emit_slash jump emit_binary_done ;
+: emit_binary_mod_test expression_saved2 0x4 = branch emit_binary_mod emit_binary_eq_test ;
+: emit_binary_mod emit_percent jump emit_binary_done ;
+: emit_binary_eq_test expression_saved2 0x5 = branch emit_binary_eq emit_binary_lt ;
+: emit_binary_eq emit_equal jump emit_binary_done ;
+: emit_binary_lt emit_less jump emit_binary_done ;
+: emit_binary_done emit_end expression_saved3 jump emit_expression_done ;
+
+: emit_input_expression
+  expect_close next_emit_id set_expression_saved0
+  expression_saved0 emit_expression_begin emit_input_length emit_end
+  expression_saved0 jump emit_expression_done
+;
+: emit_read_expression
+  0x0 emit_expression set_expression_saved0
+  expect_close next_emit_id set_expression_saved1
+  expression_saved1 emit_expression_begin
+  expression_saved0 emit_expression_name emit_space emit_input_get emit_end
+  expression_saved1 jump emit_expression_done
+;
+: emit_write_expression
+  0x0 emit_expression set_expression_saved0
+  expect_close next_emit_id set_expression_saved1
+  expression_saved1 emit_expression_begin
+  expression_saved0 emit_expression_name emit_space emit_dup emit_space
+  emit_output_byte emit_end
+  expression_saved1 jump emit_expression_done
+;
+
+: emit_let_expression
+  need_token token_start set_expression_saved0 token_length set_expression_saved1
+  expect_int
+  0x0 emit_expression set_expression_saved2
+  variable_count set_expression_saved4
+  expression_saved0 set_token_start expression_saved1 set_token_length
+  add_variable variable_slot set_expression_saved0
+  expression_saved3 emit_expression set_expression_saved1
+  expression_saved4 set_variable_count
+  expect_close next_emit_id set_expression_saved3
+  expression_saved3 emit_expression_begin
+  expression_saved2 emit_expression_name emit_space
+  emit_frame emit_space expression_saved0 emit_literal emit_space emit_plus emit_space emit_cell_set emit_space
+  expression_saved3 0x0 = branch emit_let_normal emit_let_tail
+;
+: emit_let_normal expression_saved1 emit_expression_name jump emit_let_done ;
+: emit_let_tail emit_jump emit_space expression_saved1 emit_expression_name jump emit_let_done ;
+: emit_let_done emit_end expression_saved3 jump emit_expression_done ;
+
+: emit_call_expression
+  require_function set_expression_saved0
+  0x0 set_expression_saved1 jump emit_call_arguments
+;
+: emit_call_arguments
+  next 0x1 assert-equal is_close branch emit_call_done emit_call_argument
+;
+: emit_call_argument
+  token_start set_cursor 0x0 emit_expression
+  expression_saved1 set_argument_id
+  expression_saved1 0x1 + set_expression_saved1
+  jump emit_call_arguments
+;
+: emit_call_done
+  expression_saved1 expression_saved0 function_arity assert-equal
+  next_emit_id set_expression_saved2
+  expression_saved2 emit_expression_begin
+  0x0 set_scan_index jump emit_call_argument_words
+;
+: emit_call_argument_words
+  scan_index expression_saved1 = branch emit_call_target emit_call_argument_word
+;
+: emit_call_argument_word
+  scan_index argument_id emit_expression_name emit_space
+  scan_index 0x1 + set_scan_index jump emit_call_argument_words
+;
+: emit_call_target
+  expression_saved3 branch emit_call_tail emit_call_normal
+;
+: emit_call_normal expression_saved0 emit_f jump emit_call_finish ;
+: emit_call_tail emit_jump emit_space expression_saved0 emit_t jump emit_call_finish ;
+: emit_call_finish emit_end expression_saved2 jump emit_expression_done ;
+: emit_expression_done leave_expression ;
+
+: emit_function
+  set_saved_start set_saved_length
+  emit_colon saved_length emit_f emit_space
+  emit_frame emit_space emit_next_frame emit_space emit_set_frame emit_space
+  emit_frame emit_space 0x0 emit_literal emit_space emit_plus emit_space emit_cell_set emit_space
+  emit_frame emit_space emit_drop emit_space saved_length emit_t emit_space
+  emit_frame emit_space emit_dup emit_space emit_set_next_frame emit_space
+  0x0 emit_literal emit_space emit_plus emit_space emit_cell_get emit_space emit_set_frame emit_end
+
+  emit_colon saved_length emit_t emit_space
+  emit_frame emit_space saved_length function_width emit_literal emit_space emit_plus emit_space
+  emit_set_next_frame emit_space
+  saved_length function_arity set_scan_index jump emit_parameter_stores
+;
+: emit_parameter_stores
+  scan_index 0x0 = branch emit_function_body emit_parameter_store
+;
+: emit_parameter_store
+  emit_frame emit_space scan_index emit_literal emit_space emit_plus emit_space emit_cell_set emit_space
+  scan_index 0x1 - set_scan_index jump emit_parameter_stores
+;
+: emit_function_body
+  emit_jump emit_space saved_start emit_expression_name emit_end
+;
+
+: emit_main
+  emit_colon 0x6d output-byte 0x61 output-byte 0x69 output-byte 0x6e output-byte emit_space
+  0x1 emit_literal emit_space emit_set_frame emit_space
+  0x2 emit_literal emit_space emit_set_next_frame emit_space
+  main_function emit_f emit_space
+  0x100 emit_literal emit_space emit_percent emit_space
+  0x100 emit_literal emit_space emit_plus emit_space
+  0x100 emit_literal emit_space emit_percent emit_space
+  emit_output_byte emit_end
+;
+
+: main collect_program validate_program emit_program ;
+: bad input-length input-get ;

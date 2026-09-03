@@ -7,7 +7,7 @@ language.
 ```text
 alpha/          raw tape semantics and audited native VM seeds
 beta/           trusted imperative tape-assembly language and compiler
-gamma/          bounded concatenative compiler machine
+gamma/          typed scalar/effect functional bootstrap language
 delta/          typed pure functional compiler language
 epsilon/        closed compiler-host language
 library/        core, allocation, and standard-library source
@@ -21,22 +21,28 @@ The selected compiler spine is:
 ```text
 Alpha VM seed + beta_compiler_bytecode.tape
   -> gamma_evaluator.beta -> gamma_evaluator_bytecode.tape
-  -> gamma_compiler.gamma -> canonical Beta -> gamma_compiler_bytecode.tape
-  -> delta_compiler.gamma -> canonical Gamma -> canonical Beta -> delta_compiler_bytecode.tape
+  -> Gamma-authored staged source transformers
+  -> Delta compiler edge (open)
   -> epsilon_compiler.delta -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
   -> omega_compiler.epsilon -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
   -> build.omg/main.omg -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
 ```
 
-Beta is the only source language that encodes Alpha instructions. Every higher
-rung validates its own language and emits canonical source in the immediately
-lower rung; retained receipts make each elaboration independently inspectable.
-The final compiler artifacts remain platform-independent Alpha tapes. Missing
-full elaborators remain explicit
-gaps—an interpreter, host script, bridge, transpiler, or native publication
-route does not stand in for one.
+Beta is the only source language that encodes Alpha instructions. Gamma is
+currently evaluated directly by Beta rather than compiled. Higher-rung
+transformers must still publish canonical source receipts in the immediately
+supported language.
+Final compiler artifacts remain platform-independent Alpha tapes where the edge
+produces one. Gamma instead has an explicit direct-evaluation edge. Missing
+higher compilers remain explicit gaps; host scripts, downgraded compilers, and
+native publication routes do not stand in for them.
 
-The derivation checker is a Gamma customer beside the language chain.
+The former concatenative Gamma implementation is retained under
+`source/gamma/bootstrap/concatenative/`; the former concatenative-Gamma-written
+Delta compiler is under `source/delta/bootstrap/concatenative-compiler/`.
+Neither is a selected edge.
+
+The derivation checker remains an intended Gamma customer beside the language chain.
 `source/psi/` is an internal boundary of the Omega product compiler, not a
 bootstrap language.
 `omega0` and `omega` name output tapes, not source owners.
@@ -45,9 +51,9 @@ The selected rung order follows the backward audit in
 [`bootstrap_minimization.md`](../wiki/design_briefs/bootstrap_minimization.md)
 and candidate-C comparison in
 [`bootstrap_chain_alternatives.md`](../wiki/design_briefs/bootstrap_chain_alternatives.md).
-The imperative tape-assembly language is trusted Beta. The functional language
-previously called Beta is Gamma; the former Gamma and Delta owners are now
-Delta and Epsilon. The older imperative Gamma rung remains only in Git history.
+The imperative tape-assembly language is trusted Beta. Typed scalar/effect Gamma
+is the first functional source-transformer rung, followed by richer Delta and
+the fixed-storage Epsilon compiler host.
 
 `source/omega-rust/` may build, compare, and accelerate development, but it
 supplies no trusted bootstrap premise. Bootstrap invocation lives under

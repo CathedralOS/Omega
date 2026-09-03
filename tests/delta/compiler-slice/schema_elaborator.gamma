@@ -178,6 +178,7 @@
   expect_open expect_def need_token is_main 0x1 assert-equal
   expect_open expect_close expect_int
   expect_open expect_let need_token save_local
+  expect_int
   need_token parse_start
   expect_open expect_function expect_local expect_zero expect_close
   expect_close expect_close

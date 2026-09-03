@@ -292,7 +292,7 @@ direct static-machine spelling.
 | Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF; one optional final transition wildcard | `UnexpectedToken` at the offending token, including `&` where an unqualified machine parameter must begin, a pattern after `_`, and negative pattern `-`; `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
 | Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; case/receiver-method spelling reuse; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate exact machine/member/payload/parameter/state/let/transition binder; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
 | Type and body checking | forward owners/machines/states; empty and nonempty records; finite sums/arrays; views only in admitted positions; unordered exact `Console` member signatures; complete scalar and sum transitions, including redundant final wildcard | D31 zero-array, mixed-data, misplaced-`never`, escaping-view, and sealed-`Console` cases; D56 absent/malformed/duplicate/competing entry shapes; D57 category/semantic-duplicate/arity/missing-coverage transitions; every reason from `UnknownType` through `NonexhaustiveSum`, at its exact structural anchor; no reason-table tie-break |
-| Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 1,048,572-byte `AlphaBootstrapV2` cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
+| Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 16,777,212-byte `AlphaBootstrapV2` cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
 
 The payload row describes the current `AlphaBootstrapV2` profile selected by
 D23. Its exact cap, depth-20 target trie, replay bounds, oversize candidate, and
@@ -425,7 +425,7 @@ backend was less economical than authoring the specified direct components.
   source-owned entry/outcome schema and a total constructor-to-code bijection
   before emission;
 - let the generated adapter implement D30's 4-MiB input profile,
-  1,048,572-byte output maximum, exact `ECOUT` identity/table, and outer
+  16,777,212-byte output maximum, exact `ECOUT` identity/table, and outer
   `Incomplete`/`InternalFailure` outcomes, including validation of D31/D34's sole
   source-authored `Incomplete` resource;
 - compile it with `delta_compiler_bytecode.tape`;

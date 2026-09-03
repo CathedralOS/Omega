@@ -1,0 +1,3 @@
+(def unwrap ((value Int) (fallback Int)) Int (let __v82 Int value (let __m82 Int (first __v82) (let __p82 Int (second __v82) (if (eq __m82 0) fallback (let payload Int __p82 payload))))))
+(def main () Int (unwrap (pair 1 9) 7))
+

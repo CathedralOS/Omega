@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
-# Materialize and invoke the selected in-progress Delta-to-Gamma compiler.
+# Materialize and invoke the downgraded concatenative Delta-to-Gamma compiler.
 # Source tools/bootstrap/paths.sh, beta/artifact_env.sh, and
 # gamma/artifact_env.sh first.
 
-[ -n "${OMEGA_PATH_DELTA_COMPILER_SOURCE:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
+[ -n "${OMEGA_PATH_CONCATENATIVE_DELTA_COMPILER_SOURCE:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
   echo "Delta artifact: source tools/bootstrap/paths.sh first" >&2
   return 2 2>/dev/null || exit 2
 }
@@ -15,7 +15,7 @@ materialize_delta_compiler() {
   DELTA_COMPILER_TAPE_TEMP=${DELTA_COMPILER_DEST}.tape.tmp
 
   if ! compile_gamma_source_to_tape "$GAMMA_COMPILER_EXE" "$BETA_COMPILER_EXE" \
-      "$OMEGA_PATH_DELTA_COMPILER_SOURCE" "$DELTA_COMPILER_TAPE_TEMP"; then
+      "$OMEGA_PATH_CONCATENATIVE_DELTA_COMPILER_SOURCE" "$DELTA_COMPILER_TAPE_TEMP"; then
     rm -f -- "$DELTA_COMPILER_TAPE_TEMP"
     return 1
   fi

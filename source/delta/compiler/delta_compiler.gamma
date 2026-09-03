@@ -1,550 +1,852 @@
-# Selected in-progress Functional Delta-to-Gamma compiler.
-# This executable slice covers Int definitions and expressions; nominal data,
-# match, Bytes, profiles, and proper tail calls remain to be implemented.
-# Rows: kind start length owner aux0 aux1 aux2 aux3.
+; First selected Gamma-authored Delta stage.
+; Lowers finite nullary algebraic data and declaration-order exhaustive matches
+; into ordinary scalar Gamma. Generated match binders use the reserved __m prefix.
 
-: cursor 0x0 cell-get ;
-: set_cursor 0x0 cell-set ;
-: token_start 0x1 cell-get ;
-: set_token_start 0x1 cell-set ;
-: token_length 0x2 cell-get ;
-: set_token_length 0x2 cell-set ;
-: row_count 0x3 cell-get ;
-: set_row_count 0x3 cell-set ;
-: current_function 0x4 cell-get ;
-: set_current_function 0x4 cell-set ;
-: main_function 0x5 cell-get ;
-: set_main_function 0x5 cell-set ;
-: variable_next 0x6 cell-get ;
-: set_variable_next 0x6 cell-set ;
-: scan_index 0x7 cell-get ;
-: set_scan_index 0x7 cell-set ;
-: compare_index 0x8 cell-get ;
-: set_compare_index 0x8 cell-set ;
-: lookup_owner 0x9 cell-get ;
-: set_lookup_owner 0x9 cell-set ;
-: saved_start 0xa cell-get ;
-: set_saved_start 0xa cell-set ;
-: saved_length 0xb cell-get ;
-: set_saved_length 0xb cell-set ;
-: pending_kind 0xc cell-get ;
-: set_pending_kind 0xc cell-set ;
-: pending_aux0 0xd cell-get ;
-: set_pending_aux0 0xd cell-set ;
-: pending_aux1 0xe cell-get ;
-: set_pending_aux1 0xe cell-set ;
-: new_row 0x11 cell-get ;
-: set_new_row 0x11 cell-set ;
-: temp_one 0x12 cell-get ;
-: set_temp_one 0x12 cell-set ;
-: temp_two 0x13 cell-get ;
-: set_temp_two 0x13 cell-set ;
-: number_index 0x14 cell-get ;
-: set_number_index 0x14 cell-set ;
-: number_value 0x15 cell-get ;
-: set_number_value 0x15 cell-set ;
-: number_negative 0x16 cell-get ;
-: set_number_negative 0x16 cell-set ;
-: expression_depth 0x17 cell-get ;
-: set_expression_depth 0x17 cell-set ;
-: expression_context expression_depth 0x2 * 0x40 + ;
-: expression_context_start expression_context cell-get ;
-: expression_context_row expression_context 0x1 + cell-get ;
-: emit_index 0x18 cell-get ;
-: set_emit_index 0x18 cell-set ;
-: hex_value 0x19 cell-get ;
-: set_hex_value 0x19 cell-set ;
-: hex_divisor 0x1a cell-get ;
-: set_hex_divisor 0x1a cell-set ;
-: hex_count 0x1b cell-get ;
-: set_hex_count 0x1b cell-set ;
-: hex_digit 0x1c cell-get ;
-: set_hex_digit 0x1c cell-set ;
+(def fail () Int
+  (read (input)))
 
-: advance cursor + set_cursor ;
-: next jump skip ;
-: skip cursor input-length = branch no_token skip_byte ;
-: no_token 0x0 ;
-: skip_byte cursor input-get dup 0x3b = branch skip_comment skip_space_test ;
-: skip_space_test dup 0x21 < branch skip_space token_begin ;
-: skip_space drop 0x1 advance jump skip ;
-: skip_comment drop 0x1 advance jump comment_loop ;
-: comment_loop cursor input-length = branch no_token comment_byte ;
-: comment_byte cursor input-get dup 0xa = branch comment_end comment_cr ;
-: comment_cr 0xd = branch comment_end comment_advance ;
-: comment_end 0x1 advance jump skip ;
-: comment_advance 0x1 advance jump comment_loop ;
-: token_begin
-  cursor set_token_start cursor input-get dup 0x28 = branch punctuation punctuation_close
-;
-: punctuation_close 0x29 = branch punctuation token_loop_begin ;
-: punctuation drop 0x1 advance 0x1 set_token_length 0x1 ;
-: token_loop_begin drop jump token_loop ;
-: token_loop cursor input-length = branch token_done token_body ;
-: token_body cursor input-get dup 0x21 < branch token_done_drop token_semicolon ;
-: token_semicolon dup 0x3b = branch token_done_drop token_open ;
-: token_open dup 0x28 = branch token_done_drop token_close ;
-: token_close 0x29 = branch token_done token_advance ;
-: token_done_drop drop jump token_done ;
-: token_advance 0x1 advance jump token_loop ;
-: token_done cursor token_start - set_token_length 0x1 ;
-: need_token next 0x1 assert-equal ;
+(def is_space ((byte Int)) Int
+  (lt byte 33))
 
-: token_exact set_saved_length set_saved_start
-  token_length saved_length = branch exact_begin exact_false
-;
-: exact_begin 0x0 set_compare_index jump exact_loop ;
-: exact_loop compare_index token_length = branch exact_true exact_byte ;
-: exact_byte
-  saved_start 0x100 % compare_index token_start + input-get =
-  branch exact_next exact_false
-;
-: exact_next saved_start 0x100 / set_saved_start
-  compare_index 0x1 + set_compare_index jump exact_loop
-;
-: exact_true 0x1 ;
-: exact_false 0x0 ;
+(def skip_comment ((index Int)) Int
+  (if (eq index (input))
+    index
+    (let byte Int (read index)
+      (if (eq byte 10)
+        (+ index 1)
+        (if (eq byte 13)
+          (+ index 1)
+          (skip_comment (+ index 1)))))))
 
-: is_open 0x28 0x1 token_exact ;
-: is_close 0x29 0x1 token_exact ;
-: is_def 0x666564 0x3 token_exact ;
-: is_int 0x746e49 0x3 token_exact ;
-: is_if 0x6669 0x2 token_exact ;
-: is_let 0x74656c 0x3 token_exact ;
-: is_add 0x2b 0x1 token_exact ;
-: is_sub 0x2d 0x1 token_exact ;
-: is_mul 0x2a 0x1 token_exact ;
-: is_div 0x2f 0x1 token_exact ;
-: is_mod 0x25 0x1 token_exact ;
-: is_eq 0x7165 0x2 token_exact ;
-: is_lt 0x746c 0x2 token_exact ;
-: is_main 0x6e69616d 0x4 token_exact ;
-: expect_open need_token is_open 0x1 assert-equal ;
-: expect_close need_token is_close 0x1 assert-equal ;
-: expect_int need_token is_int 0x1 assert-equal ;
+(def skip ((index Int)) Int
+  (if (eq index (input))
+    index
+    (let byte Int (read index)
+      (if (is_space byte)
+        (skip (+ index 1))
+        (if (eq byte 59)
+          (skip (skip_comment (+ index 1)))
+          index)))))
 
-: token_is_integer
-  token_length 0x0 = branch integer_false integer_first
-;
-: integer_first token_start input-get dup 0x2d = branch integer_minus integer_digit ;
-: integer_minus drop token_length 0x1 = branch integer_false integer_true ;
-: integer_digit dup 0x30 < branch integer_false_drop integer_digit_high ;
-: integer_digit_high 0x3a < branch integer_true integer_false ;
-: integer_false_drop drop ;
-: integer_false 0x0 ;
-: integer_true 0x1 ;
+(def token_end ((index Int)) Int
+  (if (eq index (input))
+    index
+    (let byte Int (read index)
+      (if (eq byte 40)
+        (+ index 1)
+        (if (eq byte 41)
+          (+ index 1)
+          (token_word_end index))))))
 
-: parse_integer
-  0x0 set_number_negative 0x0 set_number_value 0x0 set_number_index
-  token_start input-get 0x2d = branch integer_mark_negative integer_loop
-;
-: integer_mark_negative 0x1 set_number_negative 0x1 set_number_index jump integer_loop ;
-: integer_loop number_index token_length = branch integer_done integer_parse_digit ;
-: integer_parse_digit
-  number_index token_start + input-get dup 0x30 < branch bad integer_digit_upper
-;
-: integer_digit_upper dup 0x3a < branch integer_accumulate bad ;
-: integer_accumulate 0x30 - number_value 0xa * + set_number_value
-  number_index 0x1 + set_number_index jump integer_loop
-;
-: integer_done number_negative 0x1 = branch integer_negate integer_positive ;
-: integer_negate 0x0 number_value - ;
-: integer_positive number_value ;
+(def token_word_end ((index Int)) Int
+  (if (eq index (input))
+    index
+    (let byte Int (read index)
+      (if (is_space byte)
+        index
+        (if (eq byte 40)
+          index
+          (if (eq byte 41)
+            index
+            (if (eq byte 59)
+              index
+              (token_word_end (+ index 1)))))))))
 
-: row_address 0x1 - 0x8 * 0x100 + ;
-: row_get swap row_address + cell-get ;
-: row_set swap row_address + cell-set ;
-: row_kind 0x0 row_get ;
-: row_owner 0x3 row_get ;
-: row_aux0 0x4 row_get ;
-: row_aux1 0x5 row_get ;
-: row_aux2 0x6 row_get ;
+(def same_span ((left Int) (left_end Int) (right Int) (right_end Int)) Int
+  (if (eq (- left_end left) (- right_end right))
+    (same_span_bytes left right (- left_end left))
+    0))
 
-: begin_row row_count 0x1 + dup 0x1000 < 0x1 assert-equal
-  dup set_new_row set_row_count
-;
-: clear_pending
-  0x0 set_pending_aux0 0x0 set_pending_aux1
-;
-: add_row
-  begin_row
-  pending_kind new_row 0x0 row_set
-  saved_start new_row 0x1 row_set
-  saved_length new_row 0x2 row_set
-  current_function new_row 0x3 row_set
-  pending_aux0 new_row 0x4 row_set
-  pending_aux1 new_row 0x5 row_set
-  new_row
-;
+(def same_span_bytes ((left Int) (right Int) (remaining Int)) Int
+  (if (eq remaining 0)
+    1
+    (if (eq (read left) (read right))
+      (same_span_bytes (+ left 1) (+ right 1) (- remaining 1))
+      0)))
 
-: find_name set_lookup_owner 0x1 set_scan_index jump find_name_loop ;
-: find_name_loop row_count scan_index < branch find_absent find_name_row ;
-: find_name_row scan_index row_owner lookup_owner = branch find_name_length find_name_next ;
-: find_name_length scan_index 0x2 row_get token_length = branch find_name_compare_begin find_name_next ;
-: find_name_compare_begin 0x0 set_compare_index jump find_name_compare ;
-: find_name_compare compare_index token_length = branch find_present find_name_byte ;
-: find_name_byte
-  scan_index 0x1 row_get compare_index + input-get
-  token_start compare_index + input-get = branch find_name_compare_next find_name_next
-;
-: find_name_compare_next compare_index 0x1 + set_compare_index jump find_name_compare ;
-: find_name_next scan_index 0x1 + set_scan_index jump find_name_loop ;
-: find_present scan_index 0x1 ;
-: find_absent 0x0 0x0 ;
-: require_absent find_name 0x0 assert-equal drop ;
-: require_named find_name 0x1 assert-equal ;
-: require_function 0x0 require_named dup row_kind 0x1 assert-equal ;
-: require_variable current_function require_named dup row_kind 0x2 assert-equal ;
+(def token_data ((start Int) (end Int)) Int
+  (if (eq (- end start) 4)
+    (if (eq (read start) 100)
+      (if (eq (read (+ start 1)) 97)
+        (if (eq (read (+ start 2)) 116)
+          (eq (read (+ start 3)) 97)
+          0)
+        0)
+      0)
+    0))
 
-: add_function
-  token_start set_saved_start token_length set_saved_length
-  0x0 require_absent clear_pending 0x1 set_pending_kind add_row
-;
-: add_variable
-  token_start set_saved_start token_length set_saved_length
-  current_function require_absent clear_pending
-  0x2 set_pending_kind variable_next set_pending_aux0 add_row
-  variable_next 0x1 + set_variable_next
-;
-: add_parameter add_variable dup emit_index swap 0x5 row_set ;
-: add_expression add_row ;
+(def token_def ((start Int) (end Int)) Int
+  (if (eq (- end start) 3)
+    (if (eq (read start) 100)
+      (if (eq (read (+ start 1)) 101)
+        (eq (read (+ start 2)) 102)
+        0)
+      0)
+    0))
 
-: enter_list
-  expression_depth 0x1 + dup 0x10 < 0x1 assert-equal
-  dup set_expression_depth drop
-  saved_start expression_context cell-set
-;
-: begin_list_expression
-  clear_pending set_pending_kind
-  expression_context_start set_saved_start 0x0 set_saved_length
-  add_expression dup expression_context 0x1 + cell-set drop
-;
-: finish_list
-  expect_close expression_context_row
-  expression_depth 0x1 - set_expression_depth
-;
-: finish_consumed
-  expression_context_row expression_depth 0x1 - set_expression_depth
-;
+(def token_match ((start Int) (end Int)) Int
+  (if (eq (- end start) 5)
+    (if (eq (read start) 109)
+      (if (eq (read (+ start 1)) 97)
+        (if (eq (read (+ start 2)) 116)
+          (if (eq (read (+ start 3)) 99)
+            (eq (read (+ start 4)) 104)
+            0)
+          0)
+        0)
+      0)
+    0))
 
-: initialize
-  0x0 set_cursor 0x0 set_row_count 0x0 set_current_function
-  0x0 set_main_function 0x0 set_expression_depth
-;
-: parse_program initialize jump declaration_loop ;
-: declaration_loop next 0x0 = branch declarations_done declaration ;
-: declaration
-  is_open 0x1 assert-equal need_token is_def 0x1 assert-equal
-  need_token add_function set_current_function
-  is_main branch mark_main parameters_begin
-;
-: mark_main current_function set_main_function jump parameters_begin ;
-: parameters_begin
-  0x1 set_variable_next 0x0 set_emit_index expect_open jump parameter_loop
-;
-: parameter_loop need_token is_close branch parameters_done parameter ;
-: parameter
-  is_open 0x1 assert-equal need_token add_parameter drop
-  expect_int expect_close emit_index 0x1 + set_emit_index jump parameter_loop
-;
-: parameters_done
-  emit_index 0xe < 0x1 assert-equal
-  emit_index current_function 0x4 row_set
-  expect_int p1_expression current_function 0x5 row_set
-  variable_next current_function 0x6 row_set
-  expect_close 0x0 set_current_function jump declaration_loop
-;
-: declarations_done
-  main_function 0x0 = branch bad validate_main
-;
-: validate_main main_function row_aux0 0x0 assert-equal ;
+(def token_let ((start Int) (end Int)) Int
+  (if (eq (- end start) 3)
+    (if (eq (read start) 108)
+      (if (eq (read (+ start 1)) 101)
+        (eq (read (+ start 2)) 116)
+        0)
+      0)
+    0))
 
-: p1_expression
-  need_token token_start set_saved_start is_open branch p1_list_enter p1_atom
-;
-: p1_atom token_is_integer branch p1_literal p1_variable ;
-: p1_literal
-  parse_integer set_temp_one clear_pending 0xa set_pending_kind
-  temp_one set_pending_aux0 token_start set_saved_start token_length set_saved_length
-  add_expression
-;
-: p1_variable
-  require_variable set_temp_one clear_pending 0xb set_pending_kind
-  temp_one set_pending_aux0 token_start set_saved_start token_length set_saved_length
-  add_expression
-;
-: p1_list_enter enter_list need_token jump p1_list ;
-: p1_list
-  is_if branch p1_if p1_let_test
-;
-: p1_let_test is_let branch p1_let p1_add_test ;
-: p1_add_test is_add branch p1_add p1_sub_test ;
-: p1_sub_test is_sub branch p1_sub p1_mul_test ;
-: p1_mul_test is_mul branch p1_mul p1_div_test ;
-: p1_div_test is_div branch p1_div p1_mod_test ;
-: p1_mod_test is_mod branch p1_mod p1_eq_test ;
-: p1_eq_test is_eq branch p1_eq p1_lt_test ;
-: p1_lt_test is_lt branch p1_lt p1_call ;
+(def token_int ((start Int) (end Int)) Int
+  (if (eq (- end start) 3)
+    (if (eq (read start) 73)
+      (if (eq (read (+ start 1)) 110)
+        (eq (read (+ start 2)) 116)
+        0)
+      0)
+    0))
 
-: p1_if
-  0xd begin_list_expression
-  p1_expression expression_context_row 0x4 row_set
-  p1_expression expression_context_row 0x5 row_set
-  p1_expression expression_context_row 0x6 row_set
-  finish_list
-;
-: p1_let
-  need_token add_variable set_temp_one
-  0xc begin_list_expression temp_one expression_context_row 0x4 row_set
-  p1_expression expression_context_row 0x5 row_set
-  p1_expression expression_context_row 0x6 row_set
-  finish_list
-;
-: p1_add 0xe jump p1_binary ;
-: p1_sub 0xf jump p1_binary ;
-: p1_mul 0x10 jump p1_binary ;
-: p1_div 0x11 jump p1_binary ;
-: p1_mod 0x12 jump p1_binary ;
-: p1_eq 0x13 jump p1_binary ;
-: p1_lt 0x14 jump p1_binary ;
-: p1_binary
-  begin_list_expression
-  p1_expression expression_context_row 0x4 row_set
-  p1_expression expression_context_row 0x5 row_set
-  finish_list
-;
-: p1_call
-  token_start set_temp_one token_length set_temp_two
-  0x15 begin_list_expression
-  temp_one expression_context_row 0x6 row_set
-  temp_two expression_context_row 0x7 row_set
-  jump p1_call_loop
-;
-: p1_call_loop next 0x1 assert-equal is_close branch p1_call_done p1_call_argument ;
-: p1_call_argument
-  token_start set_cursor p1_expression set_temp_one
-  clear_pending 0x4 set_pending_kind
-  expression_context_row set_current_function
-  expression_context_row row_aux0 set_pending_aux0
-  temp_one set_pending_aux1 0x0 set_saved_start 0x0 set_saved_length
-  add_row drop
-  expression_context_row row_aux0 0x1 + expression_context_row 0x4 row_set
-  expression_context_row row_owner set_current_function
-  jump p1_call_loop
-;
-: p1_call_done finish_consumed ;
+(def is_upper ((byte Int)) Int
+  (if (lt byte 65)
+    0
+    (lt byte 91)))
 
-: resolve_calls 0x1 set_scan_index jump resolve_loop ;
-: resolve_loop row_count scan_index < branch resolve_done resolve_row ;
-: resolve_row scan_index row_kind 0x15 = branch resolve_call resolve_next ;
-: resolve_call
-  scan_index set_temp_two
-  temp_two 0x6 row_get set_token_start temp_two 0x7 row_get set_token_length
-  require_function set_temp_one
-  temp_one row_aux0 temp_two row_aux0 assert-equal
-  temp_one temp_two 0x5 row_set
-  temp_two set_scan_index
-  jump resolve_next
-;
-: resolve_next scan_index 0x1 + set_scan_index jump resolve_loop ;
-: resolve_done ;
+(def is_digit ((byte Int)) Int
+  (if (lt byte 48)
+    0
+    (lt byte 58)))
 
-: find_parameter
-  set_pending_aux0 set_lookup_owner 0x1 set_scan_index jump parameter_find_loop
-;
-: parameter_find_loop row_count scan_index < branch bad parameter_find_row ;
-: parameter_find_row scan_index row_kind 0x2 = branch parameter_owner parameter_find_next ;
-: parameter_owner scan_index row_owner lookup_owner = branch parameter_index parameter_find_next ;
-: parameter_index scan_index row_aux1 pending_aux0 = branch parameter_found parameter_find_next ;
-: parameter_find_next scan_index 0x1 + set_scan_index jump parameter_find_loop ;
-: parameter_found scan_index ;
-: find_argument
-  set_pending_aux0 set_lookup_owner 0x1 set_scan_index jump argument_find_loop
-;
-: argument_find_loop row_count scan_index < branch bad argument_find_row ;
-: argument_find_row scan_index row_kind 0x4 = branch argument_owner argument_find_next ;
-: argument_owner scan_index row_owner lookup_owner = branch argument_index argument_find_next ;
-: argument_index scan_index row_aux0 pending_aux0 = branch argument_found argument_find_next ;
-: argument_find_next scan_index 0x1 + set_scan_index jump argument_find_loop ;
-: argument_found scan_index row_aux1 ;
+(def skip_expression ((index Int)) Int
+  (let start Int (skip index)
+    (if (eq (read start) 40)
+      (skip_list (token_end start))
+      (token_end start))))
 
-: emit_space 0x20 output-byte ;
-: emit_end 0x20 output-byte 0x3b output-byte 0xa output-byte ;
-: emit_colon_space 0x3a output-byte emit_space ;
-: emit_hex_digit hex_digit 0xa < branch emit_hex_decimal emit_hex_alpha ;
-: emit_hex_decimal hex_digit 0x30 + output-byte jump emit_hex_next ;
-: emit_hex_alpha hex_digit 0x57 + output-byte jump emit_hex_next ;
-: emit_hex_next
-  hex_value hex_divisor % set_hex_value
-  hex_divisor 0x10 / set_hex_divisor
-  hex_count 0x1 - set_hex_count jump emit_hex_loop
-;
-: emit_hex_loop hex_count 0x0 = branch emit_hex_done emit_hex_body ;
-: emit_hex_body hex_value hex_divisor / set_hex_digit jump emit_hex_digit ;
-: emit_hex_done ;
-: emit_generated_name
-  set_hex_value output-byte 0x1000 set_hex_divisor 0x4 set_hex_count emit_hex_loop
-;
-: emit_f 0x66 swap emit_generated_name ;
-: emit_e 0x65 swap emit_generated_name ;
-: emit_literal
-  set_hex_value 0x30 output-byte 0x78 output-byte
-  0x1000000000000000 set_hex_divisor 0x10 set_hex_count emit_hex_loop
-;
+(def skip_list ((index Int)) Int
+  (let start Int (skip index)
+    (if (eq (read start) 41)
+      (token_end start)
+      (skip_list (skip_expression start)))))
 
-: emit_prefix
-  0x696e6f6e61632023 output-word
-  0x6c616373206c6163 output-word
-  0x74636e7546207261 output-word
-  0x6544206c616e6f69 output-word
-  0x617078652061746c output-word
-  0x203a0a6e6f69736e output-word
-  0x783020656d617266 output-word
-  0x672d6c6c65632030 output-word
-  0x73203a0a3b207465 output-word
-  0x656d6172665f7465 output-word
-  0x6c65632030783020 output-word
-  0xa3b207465732d6c output-word
-  0x665f7478656e203a output-word
-  0x31783020656d6172 output-word
-  0x65672d6c6c656320 output-word
-  0x6573203a0a3b2074 output-word
-  0x665f7478656e5f74 output-word
-  0x31783020656d6172 output-word
-  0x65732d6c6c656320 output-word
-  0x74 output-byte 0x20 output-byte 0x3b output-byte 0xa output-byte
-;
-: emit_frame
-  0x66 output-byte 0x72 output-byte 0x61 output-byte
-  0x6d output-byte 0x65 output-byte 0x20 output-byte
-;
-: emit_restore_setup
-  0x6e20656d61726620 output-word
-  0x6d6172665f747865 output-word
-  0x72665f7465732065 output-word
-  0x6d61726620656d61 output-word
-  0x202b203078302065 output-word
-  0x7465732d6c6c6563 output-word
-  0x20 output-byte 0x66 output-byte 0x72 output-byte 0x61 output-byte
-  0x6d output-byte 0x65 output-byte 0x20 output-byte
-;
-: emit_next_frame_setup
-  0x6e5f746573202b20 output-word
-  0x6d6172665f747865 output-word
-  0x65 output-byte
-;
-: emit_cell_store
-  0x2d6c6c6563202b20 output-word
-  0x73 output-byte 0x65 output-byte 0x74 output-byte
-;
-: emit_cell_get
-  0x2d6c6c6563202b20 output-word
-  0x67 output-byte 0x65 output-byte 0x74 output-byte
-;
-: emit_restore
-  0x6420656d61726620 output-word
-  0x6e5f746573207075 output-word
-  0x6d6172665f747865 output-word
-  0x202b203078302065 output-word
-  0x7465672d6c6c6563 output-word
-  0x6172665f74657320 output-word
-  0x6d output-byte 0x65 output-byte
-;
-: emit_branch 0x2068636e61726220 output-word ;
-: emit_initial_frames
-  0x6172665f74657320 output-word
-  0x303030783020656d output-word
-  0x3030303030303030 output-word
-  0x6573203230303030 output-word
-  0x665f7478656e5f74 output-word
-  0x72 output-byte 0x61 output-byte 0x6d output-byte 0x65 output-byte 0x20 output-byte
-;
-: emit_main_tail
-  0x2520303031783020 output-word
-  0x2b20303031783020 output-word
-  0x2520303031783020 output-word
-  0x2d74757074756f20 output-word
-  0x62 output-byte 0x79 output-byte 0x74 output-byte 0x65 output-byte
-  0x20 output-byte 0x3b output-byte 0xa output-byte
-;
+(def form_head ((form Int)) Int
+  (skip (token_end form)))
 
-: emit_all emit_prefix 0x1 set_scan_index jump emit_row_loop ;
-: emit_row_loop row_count scan_index < branch emit_main emit_row ;
-: emit_row scan_index row_kind 0x1 = branch emit_function emit_expression_test ;
-: emit_expression_test scan_index row_kind 0xa < branch emit_next emit_expression ;
-: emit_next scan_index 0x1 + set_scan_index jump emit_row_loop ;
+(def form_head_end ((form Int)) Int
+  (token_end (form_head form)))
 
-: emit_function
-  scan_index set_temp_one emit_colon_space temp_one emit_f
-  emit_restore_setup temp_one row_aux2 emit_literal emit_next_frame_setup
-  temp_one row_aux0 set_emit_index jump emit_parameters
-;
-: emit_parameters emit_index 0x0 = branch emit_function_body emit_parameter ;
-: emit_parameter
-  emit_index 0x1 - set_emit_index
-  emit_space emit_frame temp_one emit_index find_parameter row_aux0 emit_literal emit_cell_store
-  jump emit_parameters
-;
-: emit_function_body
-  emit_space temp_one row_aux1 emit_e emit_restore emit_end
-  temp_one set_scan_index jump emit_next
-;
+(def find_type_owner ((name Int) (name_end Int)) Int
+  (find_type_owner_forms 0 name name_end))
 
-: emit_expression
-  scan_index set_temp_one emit_colon_space temp_one emit_e emit_space
-  temp_one row_kind 0xa = branch emit_literal_expression emit_variable_test
-;
-: emit_literal_expression temp_one row_aux0 emit_literal jump emit_expression_done ;
-: emit_variable_test temp_one row_kind 0xb = branch emit_variable_expression emit_let_test ;
-: emit_variable_expression
-  emit_frame temp_one row_aux0 row_aux0 emit_literal emit_cell_get jump emit_expression_done
-;
-: emit_let_test temp_one row_kind 0xc = branch emit_let_expression emit_if_test ;
-: emit_let_expression
-  temp_one row_aux1 emit_e
-  emit_space emit_frame temp_one row_aux0 row_aux0 emit_literal emit_cell_store emit_space
-  temp_one row_aux2 emit_e jump emit_expression_done
-;
-: emit_if_test temp_one row_kind 0xd = branch emit_if_expression emit_binary_test ;
-: emit_if_expression
-  temp_one row_aux0 emit_e emit_branch temp_one row_aux1 emit_e emit_space
-  temp_one row_aux2 emit_e jump emit_expression_done
-;
-: emit_binary_test temp_one row_kind 0x15 < branch emit_binary_expression emit_call_expression ;
-: emit_binary_expression
-  temp_one row_aux0 emit_e emit_space temp_one row_aux1 emit_e emit_space
-  temp_one row_kind 0xe = branch emit_add_operator emit_sub_operator_test
-;
-: emit_add_operator 0x2b output-byte jump emit_expression_done ;
-: emit_sub_operator_test temp_one row_kind 0xf = branch emit_sub_operator emit_mul_operator_test ;
-: emit_sub_operator 0x2d output-byte jump emit_expression_done ;
-: emit_mul_operator_test temp_one row_kind 0x10 = branch emit_mul_operator emit_div_operator_test ;
-: emit_mul_operator 0x2a output-byte jump emit_expression_done ;
-: emit_div_operator_test temp_one row_kind 0x11 = branch emit_div_operator emit_mod_operator_test ;
-: emit_div_operator 0x2f output-byte jump emit_expression_done ;
-: emit_mod_operator_test temp_one row_kind 0x12 = branch emit_mod_operator emit_eq_operator_test ;
-: emit_mod_operator 0x25 output-byte jump emit_expression_done ;
-: emit_eq_operator_test temp_one row_kind 0x13 = branch emit_eq_operator emit_lt_operator ;
-: emit_eq_operator 0x3d output-byte jump emit_expression_done ;
-: emit_lt_operator 0x3c output-byte jump emit_expression_done ;
-: emit_call_expression
-  0x0 set_emit_index jump emit_call_arguments
-;
-: emit_call_arguments
-  emit_index temp_one row_aux0 = branch emit_call_target emit_call_argument
-;
-: emit_call_argument
-  temp_one emit_index find_argument emit_e emit_space
-  emit_index 0x1 + set_emit_index jump emit_call_arguments
-;
-: emit_call_target temp_one row_aux1 emit_f jump emit_expression_done ;
-: emit_expression_done emit_end temp_one set_scan_index jump emit_next ;
+(def find_type_owner_forms ((index Int) (name Int) (name_end Int)) Int
+  (let form Int (skip index)
+    (if (eq form (input))
+      0
+      (let head Int (form_head form)
+        (let head_end Int (token_end head)
+          (if (token_data head head_end)
+            (let type_name Int (skip head_end)
+              (let type_end Int (token_end type_name)
+                (if (same_span type_name type_end name name_end)
+                  (+ form 1)
+                  (find_type_owner_forms
+                    (skip_expression form) name name_end))))
+            (find_type_owner_forms
+              (skip_expression form) name name_end)))))))
 
-: emit_main
-  emit_colon_space
-  0x6d output-byte 0x61 output-byte 0x69 output-byte 0x6e output-byte emit_space
-  0x1 emit_literal emit_initial_frames main_function emit_f emit_main_tail
-;
+(def constructor_arity_at ((constructor_end Int)) Int
+  (count_constructor_fields (skip constructor_end) 0))
 
-: main parse_program resolve_calls emit_all ;
-: bad input-length input-get ;
+(def count_constructor_fields ((index Int) (count Int)) Int
+  (let next Int (skip index)
+    (if (eq (read next) 41)
+      count
+      (let type_end Int (token_end next)
+        (if (field_type_valid next type_end)
+          (count_constructor_fields type_end (+ count 1))
+          (fail))))))
+
+(def field_type_valid ((start Int) (end Int)) Int
+  (if (token_int start end)
+    1
+    (if (is_upper (read start))
+      (if (eq (find_type_owner start end) 0) 0 1)
+      0)))
+
+(def constructor_after ((constructor_end Int)) Int
+  (constructor_fields_after (skip constructor_end)))
+
+(def constructor_fields_after ((index Int)) Int
+  (let next Int (skip index)
+    (if (eq (read next) 41)
+      (token_end next)
+      (let type_end Int (token_end next)
+        (if (field_type_valid next type_end)
+          (constructor_fields_after type_end)
+          (fail))))))
+
+(def data_has_payload ((owner Int)) Int
+  (let form Int (- owner 1)
+    (let head Int (form_head form)
+      (data_items_have_payload
+        (skip (token_end (skip (token_end head)))) 0))))
+
+(def data_items_have_payload ((index Int) (seen Int)) Int
+  (let item Int (skip index)
+    (if (eq (read item) 41)
+      seen
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (let arity Int (constructor_arity_at constructor_end)
+            (data_items_have_payload
+              (constructor_after constructor_end) (+ seen arity))))))))
+
+(def find_constructor_arity ((name Int) (name_end Int)) Int
+  (let owner Int (find_constructor_owner name name_end)
+    (if (eq owner 0)
+      (fail)
+      (let form Int (- owner 1)
+        (let head Int (form_head form)
+          (let result Int
+            (find_constructor_arity_in_data
+              (skip (token_end (skip (token_end head)))) name name_end)
+            (if (eq result 0)
+              (fail)
+              (- result 1))))))))
+
+(def find_constructor_arity_in_data
+  ((index Int) (name Int) (name_end Int)) Int
+  (let item Int (skip index)
+    (if (eq (read item) 41)
+      0
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (if (same_span constructor constructor_end name name_end)
+            (+ (constructor_arity_at constructor_end) 1)
+            (find_constructor_arity_in_data
+              (constructor_after constructor_end) name name_end)))))))
+
+(def find_constructor_tag ((name Int) (name_end Int)) Int
+  (find_constructor_tag_forms 0 name name_end))
+
+(def find_constructor_tag_forms ((index Int) (name Int) (name_end Int)) Int
+  (let form Int (skip index)
+    (if (eq form (input))
+      0
+      (let head Int (form_head form)
+        (let head_end Int (token_end head)
+          (if (token_data head head_end)
+            (let result Int (find_constructor_in_data
+                              (skip (token_end (skip head_end)))
+                              name name_end 0)
+              (if (eq result 0)
+                (find_constructor_tag_forms (skip_expression form) name name_end)
+                result))
+            (find_constructor_tag_forms (skip_expression form) name name_end)))))))
+
+(def find_constructor_in_data
+  ((index Int) (name Int) (name_end Int) (tag Int)) Int
+  (let item Int (skip index)
+    (if (eq (read item) 41)
+      0
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (if (same_span constructor constructor_end name name_end)
+            (+ tag 1)
+            (find_constructor_in_data
+              (constructor_after constructor_end) name name_end (+ tag 1))))))))
+
+(def find_constructor_owner ((name Int) (name_end Int)) Int
+  (find_constructor_owner_forms 0 name name_end))
+
+(def find_constructor_owner_forms ((index Int) (name Int) (name_end Int)) Int
+  (let form Int (skip index)
+    (if (eq form (input))
+      0
+      (let head Int (form_head form)
+        (let head_end Int (token_end head)
+          (if (token_data head head_end)
+            (if (constructor_in_data
+                  (skip (token_end (skip head_end))) name name_end)
+              (+ form 1)
+              (find_constructor_owner_forms
+                (skip_expression form) name name_end))
+            (find_constructor_owner_forms
+              (skip_expression form) name name_end)))))))
+
+(def constructor_in_data ((index Int) (name Int) (name_end Int)) Int
+  (let item Int (skip index)
+    (if (eq (read item) 41)
+      0
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (if (same_span constructor constructor_end name name_end)
+            1
+            (constructor_in_data
+              (constructor_after constructor_end) name name_end)))))))
+
+(def constructor_count ((owner Int)) Int
+  (let form Int (- owner 1)
+    (let head Int (form_head form)
+      (count_constructor_items (skip (token_end (skip (token_end head)))) 0))))
+
+(def count_constructor_items ((index Int) (count Int)) Int
+  (let item Int (skip index)
+    (if (eq (read item) 41)
+      count
+      (let constructor Int (skip (token_end item))
+        (count_constructor_items
+          (constructor_after (token_end constructor)) (+ count 1))))))
+
+(def emit_span ((index Int) (end Int)) Int
+  (if (eq index end)
+    0
+    (let ignored Int (write (read index))
+      (emit_span (+ index 1) end))))
+
+(def emit_int_word () Int
+  (let ignored0 Int (write 'I')
+    (let ignored1 Int (write 'n')
+      (write 't'))))
+
+(def emit_decimal ((value Int)) Int
+  (if (lt value 10)
+    (write (+ 48 value))
+    (let ignored Int (emit_decimal (/ value 10))
+      (write (+ 48 (% value 10))))))
+
+(def emit_match_name ((match_start Int)) Int
+  (let ignored0 Int (write '_')
+    (let ignored1 Int (write '_')
+      (let ignored2 Int (write 'm')
+        (emit_decimal match_start)))))
+
+(def emit_match_payload_name ((match_start Int)) Int
+  (let ignored0 Int (write '_')
+    (let ignored1 Int (write '_')
+      (let ignored2 Int (write 'p')
+        (emit_decimal match_start)))))
+
+(def emit_match_value_name ((match_start Int)) Int
+  (let ignored0 Int (write '_')
+    (let ignored1 Int (write '_')
+      (let ignored2 Int (write 'v')
+        (emit_decimal match_start)))))
+
+(def emit_pair_prefix () Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write 'p')
+      (let ignored2 Int (write 'a')
+        (let ignored3 Int (write 'i')
+          (let ignored4 Int (write 'r')
+            (write '\s')))))))
+
+(def emit_first_prefix () Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write 'f')
+      (let ignored2 Int (write 'i')
+        (let ignored3 Int (write 'r')
+          (let ignored4 Int (write 's')
+            (let ignored5 Int (write 't')
+              (write '\s'))))))))
+
+(def emit_second_prefix () Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write 's')
+      (let ignored2 Int (write 'e')
+        (let ignored3 Int (write 'c')
+          (let ignored4 Int (write 'o')
+            (let ignored5 Int (write 'n')
+              (let ignored6 Int (write 'd')
+                (write '\s')))))))))
+
+(def emit_tag_name ((name Int) (name_end Int)) Int
+  (let ignored0 Int (emit_span name name_end)
+    (let ignored1 Int (write '_')
+      (let ignored2 Int (write '_')
+        (let ignored3 Int (write 't')
+          (let ignored4 Int (write 'a')
+            (write 'g')))))))
+
+(def emit_field_name ((name Int) (name_end Int)) Int
+  (let ignored0 Int (emit_span name name_end)
+    (let ignored1 Int (write '_')
+      (let ignored2 Int (write '_')
+        (let ignored3 Int (write 'f')
+          (let ignored4 Int (write 'i')
+            (let ignored5 Int (write 'e')
+              (let ignored6 Int (write 'l')
+                (let ignored7 Int (write 'd')
+                  (write '0'))))))))))
+
+(def emit_parameter ((name Int) (name_end Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (emit_span name name_end)
+      (let ignored2 Int (write '\s')
+        (let ignored3 Int (emit_int_word)
+          (write ')'))))))
+
+(def emit_payload_parameters ((name Int) (name_end Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (emit_tag_name name name_end)
+      (let ignored2 Int (write '\s')
+        (let ignored3 Int (emit_int_word)
+          (let ignored4 Int (write ')')
+            (let ignored5 Int (write '\s')
+              (let ignored6 Int (write '(')
+                (let ignored7 Int (emit_field_name name name_end)
+                  (let ignored8 Int (write '\s')
+                    (let ignored9 Int (emit_int_word)
+                      (write ')'))))))))))))
+
+(def validate_data ((form Int)) Int
+  (let head Int (form_head form)
+    (let type_name Int (skip (token_end head))
+      (validate_constructor_items (skip (token_end type_name))))))
+
+(def validate_constructor_items ((index Int)) Int
+  (let item Int (skip index)
+    (if (eq (read item) 41)
+      (token_end item)
+      (let constructor Int (skip (token_end item))
+        (validate_constructor_items
+          (constructor_after (token_end constructor)))))))
+
+(def emit_program ((index Int)) Int
+  (let form Int (skip index)
+    (if (eq form (input))
+      10
+      (let head Int (form_head form)
+        (let head_end Int (token_end head)
+          (if (token_data head head_end)
+            (emit_program (validate_data form))
+            (if (token_def head head_end)
+              (let next Int (emit_definition form)
+                (let ignored Int (write '\n')
+                  (emit_program next)))
+              (fail))))))))
+
+(def emit_definition ((form Int)) Int
+  (let head Int (form_head form)
+    (let name Int (skip (token_end head))
+      (let name_end Int (token_end name)
+        (let ignored0 Int (write '(')
+          (let ignored1 Int (emit_span head (token_end head))
+            (let ignored2 Int (write '\s')
+              (let ignored3 Int (emit_span name name_end)
+                (let ignored4 Int (write '\s')
+                  (let parameters Int (skip name_end)
+                    (let after_parameters Int (emit_parameters parameters)
+                      (let ignored5 Int (write '\s')
+                        (let result_type Int (skip after_parameters)
+                          (let after_type Int (token_end result_type)
+                            (let ignored6 Int (emit_int_word)
+                              (let ignored7 Int (write '\s')
+                                (let after_body Int (emit_expression (skip after_type))
+                                  (let close Int (skip after_body)
+                                    (if (eq (read close) 41)
+                                      (let ignored8 Int (write ')')
+                                        (token_end close))
+                                      (fail))))))))))))))))))))
+
+(def emit_parameters ((open Int)) Int
+  (if (eq (read open) 40)
+    (let ignored Int (write '(')
+      (emit_parameter_items (token_end open)))
+    (fail)))
+
+(def emit_parameter_items ((index Int)) Int
+  (let item Int (skip index)
+    (if (eq (read item) 41)
+      (let ignored Int (write ')')
+        (token_end item))
+      (let name Int (skip (token_end item))
+        (let name_end Int (token_end name)
+          (let type_name Int (skip name_end)
+            (let type_end Int (token_end type_name)
+              (let close Int (skip type_end)
+                (if (eq (read close) 41)
+                  (let ignored Int
+                    (emit_parameter_type name name_end type_name type_end)
+                    (emit_parameter_tail (token_end close)))
+                  (fail))))))))))
+
+(def emit_parameter_type
+  ((name Int) (name_end Int) (type_name Int) (type_end Int)) Int
+  (if (token_int type_name type_end)
+    (emit_parameter name name_end)
+    (if (is_upper (read type_name))
+      (let owner Int (find_type_owner type_name type_end)
+        (if (eq owner 0)
+          (fail)
+          (emit_parameter name name_end)))
+      (fail))))
+
+(def emit_parameter_tail ((next Int)) Int
+  (let separated Int (skip next)
+    (if (eq (read separated) 41)
+      (emit_parameter_items next)
+      (let ignored Int (write '\s')
+        (emit_parameter_items next)))))
+
+(def emit_expression ((index Int)) Int
+  (if (eq (read (skip index)) 40)
+    (emit_list_expression (skip index))
+    (emit_atom (skip index))))
+
+(def emit_atom ((start Int)) Int
+  (let end Int (token_end start)
+    (let first Int (read start)
+      (if (is_upper first)
+        (let tag Int (find_constructor_tag start end)
+          (if (eq tag 0)
+            (fail)
+            (let owner Int (find_constructor_owner start end)
+              (if (eq (find_constructor_arity start end) 0)
+                (if (data_has_payload owner)
+                  (let ignored0 Int (emit_pair_prefix)
+                    (let ignored1 Int (emit_decimal (- tag 1))
+                      (let ignored2 Int (write '\s')
+                        (let ignored3 Int (write '0')
+                          (let ignored4 Int (write ')')
+                            end)))))
+                  (let ignored Int (emit_decimal (- tag 1))
+                    end))
+                (fail)))))
+        (let ignored Int (emit_span start end)
+          end)))))
+
+(def emit_list_expression ((open Int)) Int
+  (let head Int (skip (token_end open))
+    (let head_end Int (token_end head)
+      (if (token_match head head_end)
+        (emit_match open (skip head_end))
+        (if (token_let head head_end)
+          (emit_let open (skip head_end))
+          (if (is_upper (read head))
+            (emit_constructor open head head_end)
+            (emit_generic_list open head head_end (skip head_end))))))))
+
+(def emit_constructor ((open Int) (name Int) (name_end Int)) Int
+  (let tag Int (find_constructor_tag name name_end)
+    (let owner Int (find_constructor_owner name name_end)
+      (let arity Int (find_constructor_arity name name_end)
+        (if (eq tag 0)
+          (fail)
+          (if (data_has_payload owner)
+            (let ignored0 Int (emit_pair_prefix)
+              (let ignored1 Int (emit_decimal (- tag 1))
+                (let ignored2 Int (write '\s')
+                  (if (eq arity 0)
+                    (let close Int (skip name_end)
+                      (if (eq (read close) 41)
+                        (let ignored3 Int (write '0')
+                          (let ignored4 Int (write ')')
+                            (token_end close)))
+                        (fail)))
+                    (let argument Int (skip name_end)
+                      (let after_argument Int
+                        (emit_constructor_fields argument arity)
+                        (let close Int (skip after_argument)
+                          (if (eq (read close) 41)
+                            (let ignored3 Int (write ')')
+                              (token_end close))
+                            (fail)))))))))
+            (if (eq arity 0)
+              (let ignored0 Int (emit_decimal (- tag 1))
+                (let close Int (skip name_end)
+                  (if (eq (read close) 41)
+                    (token_end close)
+                    (fail))))
+                    (fail))))))))
+
+      (def emit_constructor_fields ((index Int) (remaining Int)) Int
+        (if (eq remaining 1)
+          (emit_expression index)
+          (let ignored0 Int (emit_pair_prefix)
+            (let after_first Int (emit_expression index)
+              (let ignored1 Int (write '\s')
+                (let after_rest Int
+                  (emit_constructor_fields (skip after_first) (- remaining 1))
+                  (let ignored2 Int (write ')')
+                    after_rest)))))))
+
+(def emit_generic_list ((open Int) (head Int) (head_end Int) (args Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (emit_span head head_end)
+      (emit_generic_arguments args))))
+
+(def emit_generic_arguments ((index Int)) Int
+  (let next Int (skip index)
+    (if (eq (read next) 41)
+      (let ignored Int (write ')')
+        (token_end next))
+      (let ignored0 Int (write '\s')
+        (let after Int (emit_expression next)
+          (emit_generic_arguments after))))))
+
+(def emit_let ((open Int) (index Int)) Int
+  (let name Int (skip index)
+    (let name_end Int (token_end name)
+      (let type_name Int (skip name_end)
+        (let type_end Int (token_end type_name)
+          (let ignored0 Int (write '(')
+            (let ignored1 Int (write 'l')
+              (let ignored2 Int (write 'e')
+                (let ignored3 Int (write 't')
+                  (let ignored4 Int (write '\s')
+                    (let ignored5 Int (emit_span name name_end)
+                      (let ignored6 Int (write '\s')
+                        (let ignored7 Int (emit_int_word)
+                          (let ignored8 Int (write '\s')
+                            (let after_initializer Int (emit_expression (skip type_end))
+                              (let ignored9 Int (write '\s')
+                                (let after_body Int (emit_expression (skip after_initializer))
+                                  (let close Int (skip after_body)
+                                    (if (eq (read close) 41)
+                                      (let ignored10 Int (write ')')
+                                        (token_end close))
+                                      (fail))))))))))))))))))))
+
+(def emit_match ((match_start Int) (scrutinee Int)) Int
+  (let scrutinee_end Int (skip_expression scrutinee)
+    (let first_arm Int (skip scrutinee_end)
+      (let first_pattern Int (skip (token_end first_arm))
+        (let first_constructor Int (pattern_constructor first_pattern)
+        (let first_constructor_end Int (token_end first_constructor)
+          (let owner Int (find_constructor_owner first_constructor first_constructor_end)
+            (if (eq owner 0)
+              (fail)
+              (let count Int (constructor_count owner)
+                (if (data_has_payload owner)
+                  (emit_payload_match
+                    match_start scrutinee scrutinee_end first_arm count owner)
+                  (emit_nullary_match
+                    match_start scrutinee first_arm count owner)))))))))))
+
+(def emit_nullary_match
+  ((match_start Int) (scrutinee Int) (first_arm Int) (count Int) (owner Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write 'l')
+      (let ignored2 Int (write 'e')
+        (let ignored3 Int (write 't')
+          (let ignored4 Int (write '\s')
+            (let ignored5 Int (emit_match_name match_start)
+              (let ignored6 Int (write '\s')
+                (let ignored7 Int (emit_int_word)
+                  (let ignored8 Int (write '\s')
+                    (let after_scrutinee Int (emit_expression scrutinee)
+                      (let ignored9 Int (write '\s')
+                        (let after_arms Int
+                          (emit_match_arms first_arm 0 count owner match_start)
+                          (let ignored10 Int (write ')')
+                            after_arms))))))))))))))
+
+(def emit_payload_match
+  ((match_start Int) (scrutinee Int) (scrutinee_end Int)
+   (first_arm Int) (count Int) (owner Int)) Int
+  (let ignored0 Int (write '(')
+    (let ignored1 Int (write 'l')
+      (let ignored2 Int (write 'e')
+        (let ignored3 Int (write 't')
+          (let ignored4 Int (write '\s')
+            (let ignored5 Int (emit_match_value_name match_start)
+              (let ignored6 Int (write '\s')
+                (let ignored7 Int (emit_int_word)
+                  (let ignored8 Int (write '\s')
+                    (let after_scrutinee Int (emit_expression scrutinee)
+                      (let ignored9 Int (write '\s')
+                        (let ignored10 Int (write '(')
+                          (let ignored11 Int (write 'l')
+                            (let ignored12 Int (write 'e')
+                              (let ignored13 Int (write 't')
+                                (let ignored14 Int (write '\s')
+                                  (let ignored15 Int (emit_match_name match_start)
+                                    (let ignored16 Int (write '\s')
+                                      (let ignored17 Int (emit_int_word)
+                                        (let ignored18 Int (write '\s')
+                                          (let ignored19 Int (emit_first_prefix)
+                                            (let ignored20 Int
+                                              (emit_match_value_name match_start)
+                                              (let ignored21 Int (write ')')
+                                                (let ignored22 Int (write '\s')
+                                                  (let ignored23 Int (write '(')
+                                                    (let ignored24 Int (write 'l')
+                                                      (let ignored25 Int (write 'e')
+                                                        (let ignored26 Int (write 't')
+                                                          (let ignored27 Int (write '\s')
+                                                            (let ignored28 Int
+                                                              (emit_match_payload_name match_start)
+                                                              (let ignored29 Int (write '\s')
+                                                                (let ignored30 Int (emit_int_word)
+                                                                  (let ignored31 Int (write '\s')
+                                                                    (let ignored32 Int
+                                                                      (emit_second_prefix)
+                                                                      (let ignored33 Int
+                                                                        (emit_match_value_name match_start)
+                                                                        (let ignored34 Int (write ')')
+                                                                          (let ignored35 Int (write '\s')
+                                                                            (let after_arms Int
+                                                                              (emit_match_arms
+                                                                                first_arm 0 count owner match_start)
+                                                                              (let ignored36 Int (write ')')
+                                                                                (let ignored37 Int (write ')')
+                                                                                  (let ignored38 Int (write ')')
+                                                                                    after_arms))))))))))))))))))))))))))))))))))))))))))
+
+(def pattern_constructor ((pattern Int)) Int
+  (if (eq (read pattern) 40)
+    (skip (token_end pattern))
+    pattern))
+
+(def pattern_body ((pattern Int) (constructor_end Int) (arity Int)) Int
+  (if (eq arity 0)
+    (skip constructor_end)
+    (let after_pattern Int (pattern_after_binders constructor_end arity)
+      (if (eq after_pattern 0)
+        (fail)
+        (skip after_pattern)))))
+
+(def pattern_after_binders ((index Int) (remaining Int)) Int
+  (if (eq remaining 0)
+    (let close Int (skip index)
+      (if (eq (read close) 41)
+        (token_end close)
+        0))
+    (let binder Int (skip index)
+      (if (eq (read binder) 41)
+        0
+        (pattern_after_binders (token_end binder) (- remaining 1))))))
+
+(def pattern_shape_valid ((pattern Int) (constructor_end Int) (arity Int)) Int
+  (if (eq arity 0)
+    (if (eq (read pattern) 40) 0 1)
+    (if (eq (read pattern) 40)
+      (if (eq (pattern_after_binders constructor_end arity) 0) 0 1)
+      0)))
+
+(def emit_second_prefixes ((remaining Int)) Int
+  (if (eq remaining 0)
+    0
+    (let ignored Int (emit_second_prefix)
+      (emit_second_prefixes (- remaining 1)))))
+
+(def emit_closes ((remaining Int)) Int
+  (if (eq remaining 0)
+    0
+    (let ignored Int (write ')')
+      (emit_closes (- remaining 1)))))
+
+(def emit_payload_projection
+  ((index Int) (arity Int) (match_start Int)) Int
+  (if (eq arity 1)
+    (emit_match_payload_name match_start)
+    (if (eq (+ index 1) arity)
+      (let ignored0 Int (emit_second_prefixes index)
+        (let ignored1 Int (emit_match_payload_name match_start)
+          (emit_closes index)))
+      (let ignored0 Int (emit_first_prefix)
+        (let ignored1 Int (emit_second_prefixes index)
+          (let ignored2 Int (emit_match_payload_name match_start)
+            (emit_closes (+ index 1))))))))
+
+(def emit_arm_body
+  ((body Int) (pattern Int) (constructor_end Int) (arity Int)
+   (match_start Int)) Int
+  (if (eq arity 0)
+    (emit_expression body)
+    (emit_pattern_bindings
+      body (skip constructor_end) 0 arity match_start)))
+
+(def emit_pattern_bindings
+  ((body Int) (binder_index Int) (field_index Int) (arity Int)
+   (match_start Int)) Int
+  (if (eq field_index arity)
+    (emit_expression body)
+    (let binder Int (skip binder_index)
+      (let binder_end Int (token_end binder)
+        (let ignored0 Int (write '(')
+          (let ignored1 Int (write 'l')
+            (let ignored2 Int (write 'e')
+              (let ignored3 Int (write 't')
+                (let ignored4 Int (write '\s')
+                  (let ignored5 Int (emit_span binder binder_end)
+                    (let ignored6 Int (write '\s')
+                      (let ignored7 Int (emit_int_word)
+                        (let ignored8 Int (write '\s')
+                          (let ignored9 Int
+                            (emit_payload_projection field_index arity match_start)
+                            (let ignored10 Int (write '\s')
+                              (let after_body Int
+                                (emit_pattern_bindings
+                                  body binder_end (+ field_index 1)
+                                  arity match_start)
+                                (let ignored11 Int (write ')')
+                                  after_body)))))))))))))))))
+
+(def emit_match_arms
+  ((index Int) (expected_tag Int) (count Int) (owner Int) (match_start Int)) Int
+  (let arm Int (skip index)
+    (if (eq (read arm) 40)
+      (let pattern Int (skip (token_end arm))
+        (let constructor Int (pattern_constructor pattern)
+        (let constructor_end Int (token_end constructor)
+          (let actual_tag Int (find_constructor_tag constructor constructor_end)
+            (let actual_owner Int (find_constructor_owner constructor constructor_end)
+              (let arity Int (find_constructor_arity constructor constructor_end)
+              (if (pattern_shape_valid pattern constructor_end arity)
+              (if (eq actual_tag (+ expected_tag 1))
+                (if (eq actual_owner owner)
+                  (let body Int (pattern_body pattern constructor_end arity)
+                    (if (eq (+ expected_tag 1) count)
+                      (let after_body Int
+                        (emit_arm_body body pattern constructor_end arity match_start)
+                        (let arm_close Int (skip after_body)
+                          (if (eq (read arm_close) 41)
+                            (let match_close Int (skip (token_end arm_close))
+                              (if (eq (read match_close) 41)
+                                (token_end match_close)
+                                (fail)))
+                            (fail))))
+                      (let ignored0 Int (write '(')
+                        (let ignored1 Int (write 'i')
+                          (let ignored2 Int (write 'f')
+                            (let ignored3 Int (write '\s')
+                              (let ignored4 Int (write '(')
+                                (let ignored5 Int (write 'e')
+                                  (let ignored6 Int (write 'q')
+                                    (let ignored7 Int (write '\s')
+                                      (let ignored8 Int (emit_match_name match_start)
+                                        (let ignored9 Int (write '\s')
+                                          (let ignored10 Int (emit_decimal expected_tag)
+                                            (let ignored11 Int (write ')')
+                                              (let ignored12 Int (write '\s')
+                                                (let after_body Int
+                                                  (emit_arm_body
+                                                    body pattern constructor_end arity match_start)
+                                                  (let arm_close Int (skip after_body)
+                                                    (if (eq (read arm_close) 41)
+                                                      (let ignored13 Int (write '\s')
+                                                        (let after_rest Int
+                                                          (emit_match_arms
+                                                            (token_end arm_close)
+                                                            (+ expected_tag 1)
+                                                            count owner match_start)
+                                                          (let ignored14 Int (write ')')
+                                                            after_rest)))
+                                                      (fail)))))))))))))))))))
+                  (fail))
+                (fail))
+              (fail))))))))
+      (fail))))
+
+(def main () Int
+  (emit_program 0))

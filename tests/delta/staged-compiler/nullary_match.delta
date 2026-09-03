@@ -1,0 +1,7 @@
+(data Choice (Left) (Right))
+(def choose ((value Choice) (when_left Int) (when_right Int)) Int
+  (match value
+    (Left when_left)
+    (Right when_right)))
+(def main () Int
+  (choose Right 7 9))

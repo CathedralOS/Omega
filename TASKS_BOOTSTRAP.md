@@ -9,28 +9,29 @@ self-host milestone is required for an intermediate rung.
 ```text
 audited Alpha VM + admitted Beta compiler tape
   -> Beta-written Gamma evaluator -> gamma_evaluator_bytecode.tape
-  -> Gamma compiler -> canonical Beta -> gamma_compiler_bytecode.tape
-  -> Delta compiler -> canonical Gamma -> canonical Beta -> delta_compiler_bytecode.tape
+  -> Gamma-authored staged source transformers
+  -> Delta compiler -> canonical Gamma source
   -> Epsilon compiler -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
   -> Omega compiler D -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
   -> Omega compiler C -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
 ```
 
 Alpha is unchanged. The imperative tape-assembly language is trusted Beta.
-Gamma is now a bounded concatenative compiler machine. The former Gamma is
-Delta, and the former Delta is Epsilon.
+Gamma is now the typed scalar/effect functional language formerly called
+Delta0 and is evaluated directly by Beta. Delta remains the richer typed
+functional language required by Epsilon.
 
 ## Rules
 
 - A language exists only to deliver the next rung and named small tools.
-- Beta alone encodes Alpha. Every higher compiler emits canonical source in the
-  immediately prior rung; selected lower compilers compose the final tape.
+- Beta alone encodes Alpha. Gamma is directly evaluated by a Beta artifact;
+  higher source transformers publish canonical immediately-lower source.
 - Intermediate self-hosting, general-purpose completeness, compatibility, and
   hypothetical reuse are not acceptance conditions.
 - Host scripts invoke, stamp, compare, and report. They do not parse, lower,
   manufacture semantic evidence, or decide trust.
-- Missing artifacts stay missing. No interpreter, old compiler, or native route
-  stands in for an open edge.
+- Missing artifacts stay missing. The selected Gamma evaluator is an explicit
+  edge; no old compiler or native route stands in for an open Delta edge.
 - Every retained feature must cite a Gamma-evaluator, Delta-compiler,
   Epsilon-compiler, Omega-`D`, checker, or edge-verification customer.
 
@@ -40,24 +41,29 @@ Delta, and the former Delta is Epsilon.
 - [x] Trusted Beta's 12,639-byte addressed source reconstructs its admitted 1,792-byte
   compiler tape byte-for-byte; the independent six-case differential and
   strict grammar regression pass.
-- [x] Gamma's concatenative compiler-machine contract is fixed at
-  `source/gamma/LANGUAGE.md`; an 81-line Gamma compiler emits and runs an exact
-  35-byte addressed-CFG customer tape.
-- [ ] A 753-line Beta-authored Gamma evaluator source and 29-case focused gate
-  cover words, stacks, cells, sealed input, append-only output, ordinary calls,
-  and explicit tail CFG transfers. A 186-line Gamma reconstructor emits the
-  exact 4,312-byte evaluator tape from canonical Beta source. Tape admission and
-  the complete conformance suite remain absent.
-- [x] The selected 725-line Gamma compiler emits canonical addressed Beta.
-  Its retained 3,490-line, 84,796-byte self-receipt assembles to the exact
-  26,674-byte native compiler tape. Evaluator and native executions reproduce
-  that receipt; Beta reconstructs the tape. The former 533-line, 19,756-byte
-  direct Gamma-to-Alpha compiler remains comparator-only and agrees on Delta0,
-  the retained corpus, and a 1,048,547-byte near-limit Alpha witness.
+- [ ] Gamma's typed scalar/effect contract is fixed at
+  `source/gamma/LANGUAGE.md`. Its provisional 1,472-line Beta evaluator assembles
+  to an 8,119-byte tape and runs integer/character literals, typed lexical lets, conditionals,
+  scalar operators, forward calls, recursion, sealed input, indexed reads, and
+  byte output plus nested immutable pairs. It executes the unchanged 85-line
+  Gamma-authored augmenter and its exact result-42 receipt. Proper tail
+  execution, static validation of unreachable bodies, bounded output, and pair
+  allocation are implemented. Complete resource outcomes remain.
+- [x] The former concatenative Gamma evaluator/compiler and Gamma-written Delta
+  compiler are downgraded under `source/gamma/bootstrap/concatenative/` and
+  `source/delta/bootstrap/concatenative-compiler/`. They remain comparison
+  evidence and are excluded from selected-edge inventories.
 - [ ] Gamma derivation checker is absent.
-- [ ] The selected 550-line Gamma-written Delta compiler source implements the
-  scalar slice and emits canonical Gamma; its full-language admitted tape is
-  absent.
+- [ ] The selected 852-line Gamma-authored Delta compiler supports finite ADTs
+  whose constructors carry arbitrary `Int` or known nominal fields. Payload-bearing
+  values use immutable `(pair tag product)` nodes with right-nested products, and
+  declaration-order exhaustive matches recover binders through projections and
+  ordinary Gamma lets. Exact nullary, payload, recursive unary, two-field List,
+  and three-field Bytes-rope fixtures evaluate to 9, 9, 3, 9, and `0x42`; a
+  3,001-function transformation also passes. Normative `Bytes`, complete checking,
+  and profiles remain. The
+  downgraded concatenative compiler proves broader expressiveness but is not the
+  selected edge.
 - [x] A noncanonical 565-line current-Gamma compiler now emits Alpha directly
   for scalar Functional Delta: `Int` functions, parameters, lexical `let`,
   conditionals, arithmetic/comparison, nested calls, and direct recursion. Its
@@ -86,7 +92,7 @@ Delta, and the former Delta is Epsilon.
   arenas. A 552-line Epsilon-shaped customer lays out and encodes every Alpha
   instruction variant from symbolic items, compared with 834 retained functional
   backend lines. Two typed record-row arenas carry the full
-  1,048,572-item/label and payload bounds in 118,488,640 bytes including the
+  retained 1,048,572-item/label comparison bound in 118,488,640 bytes including the
   static base. State-machine Delta does not justify inserting another
   functional rung on implementation necessity or full-profile backend source cost;
   an additional experiment adds owner-scoped names and bounded typed call frames
@@ -116,52 +122,25 @@ Delta, and the former Delta is Epsilon.
   Acceptance: an independent reviewer can trace every compiler operation to one
   Beta rule and bind `beta_compiler.beta` byte-identically to the executed tape.
 
-- **GAMMA-EVALUATOR.** Complete the Beta-authored evaluator for the exact strict
-  first-order calculus in `source/gamma/LANGUAGE.md`.
+- **GAMMA-EVALUATOR.** Complete the 1,472-line direct Beta evaluator for the typed
+  scalar/effect contract in `source/gamma/LANGUAGE.md`.
 
-  Keep only 64-bit words, an explicit checked data stack, fixed cells, sealed
-  input, append-only byte/word output, named words, ordinary calls, and explicit
-  tail `jump`/`branch`. Retain exact source bytes plus 32-byte definition rows;
-  resolve names through exact source-order linear scans. Do not add an AST,
-  token array, hashes, caches, interning, heap values, garbage collection,
-  locals, algebraic data, pattern matching, closures, computed jumps,
-  exceptions, modules, packages, interactive evaluation, or ambient effects.
+  Retain declaration census and direct source evaluation; do not add an AST,
+  generated code, concatenative machine, general mutable store, source-declared
+  algebraic data, or ambient host access. Proper tail transfer, validation of
+  every body, bounded output, and immutable pairs are implemented. Close every
+  remaining explicit memory boundary with profile-owned `Incomplete` outcomes.
 
-  The evaluator uses the fixed `AlphaBootstrapV2` partition recorded in the
-  Gamma profile: 1 MiB tape, 8 MiB request, 8 MiB definitions, 16 MiB data
-  stack, 159 MiB cells, 16 MiB word continuations, 16 MiB reserved, and 32 MiB
-  for Alpha's hidden call stack. Regions do not share spare capacity.
+  The little-endian u32 request framing, status taxonomy, memory partition, and
+  publication rule are fixed by `source/gamma/EVALUATOR_PROFILE.md`. The Beta
+  source must continue to assemble directly through the admitted Beta compiler;
+  no symbolic-address resolver is part of the selected edge.
 
-  The exact-ended v2 invocation supplies a little-endian u32 Gamma-source length,
-  exact source, and all remaining bytes as sealed input. Returning from `main`
-  succeeds with stdout. Status alone distinguishes invalid request/source,
-  authored trap, incomplete capacity, and internal contradiction. There is no
-  failure frame, stable reason taxonomy, source coordinate, detailed capacity
-  report, fuel, or source-visible call ceiling. No nonzero result publishes an
-  artifact; looping remains divergence. Output writes immediately. A late
-  failure may leave stdout bytes, but invocation plumbing
-  discards them unless status is 0; only status-0 stdout is an artifact.
-  Successful output is capped at Alpha's 1,048,572-byte raw tape maximum.
-
-  The trusted Beta source is `source/gamma/evaluator/gamma_evaluator.beta`.
-  Its derived Alpha tape is bound through the admitted Beta compiler rather
-  than separately admitted as opaque bytecode.
-
-  The current source is a 29-case-passing, 753-line evaluator core producing a
-  4,312-byte tape. An 81-line Gamma-written Delta0 compiler exercises cells,
-  stack effects, source traversal, exact address assertions, byte emission, and
-  direct CFG execution.
-
-  Acceptance: a closed positive/negative suite pins lexical rejection,
-  source-envelope and definition rejection, duplicate/builtin names, runtime
-  name traps, exact stack effects, wrapping and signed arithmetic edges, input,
-  cell and output bounds, forward/nested calls, exact linear lookup, deep tail
-  transitions, bounded ordinary recursion, stack/continuation exhaustion,
-  malformed private state, and deterministic replay. Mutating an evaluator
-  opcode, branch target, extent bound, or trap
-  path is detected by audit or a focused case. Output gates cover successful
-  single-pass streaming plus late malformed-rope and oversize prefixes that
-  remain unpublished under nonzero status.
+  Acceptance: the scalar/effect and self-augmentation gates pass; malformed
+  reached and unreachable definitions reject before publication; a 100,000-step
+  direct tail recursion witness uses constant activation/context storage;
+  wrapping integer edges and every capacity boundary have exact outcomes; source and tape
+  identities reconstruct without host semantic translation.
 
 ## P1 - Gamma tools
 
@@ -180,22 +159,24 @@ Delta, and the former Delta is Epsilon.
 
 ## P2 - Gamma to Delta
 
-- **DELTA-COMPILER.** Author
-  `source/delta/compiler/delta_compiler.gamma`. It accepts the complete Delta
-  contract, type-checks it, and emits canonical Gamma source.
+- **DELTA-COMPILER.** Extend
+  `source/delta/compiler/delta_compiler.gamma` from its nullary-ADT/match stage
+  until it accepts the complete Delta contract, type-checks it, and emits
+  canonical Gamma source.
 
-  Reuse Gamma's immutable values and compact bytes; do not add compiler-shaped
-  evaluator primitives. The compiler owns Delta names, nominal types,
-  exhaustiveness, checked arithmetic, proper-tail-call lowering, sealed
-  application profiles, exact failure selection, and Gamma elaboration. It may
-  know the exact Epsilon-compiler customer profile but may not parse Epsilon.
+  Build it in auditable stages authored in scalar/effect Gamma, moving richer
+  source representations upward only after the preceding stage can check and
+  emit them. Do not expand the Gamma evaluator with Delta-shaped primitives.
+  The compiler owns Delta names, nominal types, exhaustiveness, checked
+  arithmetic, proper-tail-call lowering, sealed application profiles, exact
+  failure selection, and Gamma elaboration. It may know the exact
+  Epsilon-compiler customer profile but may not parse Epsilon.
 
   Acceptance: Delta language conformance and malformed-source suites pass; the
   compiler compiles representative and complete `epsilon_compiler.delta` source;
-  exact Gamma receipts, composed tape reconstruction, and source-to-Alpha
-  refinement are checked; no host
-  parser, old imperative compiler, serialized interpreter, or alternate tape
-  participates.
+  exact Gamma receipts, evaluator composition, and source-to-Alpha refinement
+  are checked; no host parser, downgraded concatenative compiler, or alternate
+  tape participates.
 
 ## P3 - Delta to Epsilon
 

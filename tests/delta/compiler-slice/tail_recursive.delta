@@ -1,0 +1,14 @@
+; Tail recursion through if branches, including a mutually recursive pair.
+
+(def even ((remaining Int)) Int
+  (if (eq remaining 0)
+    1
+    (odd (- remaining 1))))
+
+(def odd ((remaining Int)) Int
+  (if (eq remaining 0)
+    0
+    (even (- remaining 1))))
+
+(def main () Int
+  (even 100000))

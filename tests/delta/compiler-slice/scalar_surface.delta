@@ -25,7 +25,7 @@
     (accumulate (- remaining 1) (+ total remaining))))
 
 (def main () Int
-  (let seed 6
+  (let seed Int 6
     (if (lt (% (/ (* (increment seed) 5) 4) 4) 4)
       (+ (difference (thirteenth 1 2 3 4 5 6 7 8 9 10 11 12 13)
                      (empty_value))
