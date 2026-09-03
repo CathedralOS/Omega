@@ -27,18 +27,11 @@ struct SourceFileException {
 ///
 /// Each row becomes stale as soon as its file is sharded beneath the ordinary
 /// production/test ceiling. New files and unlisted growth still fail closed.
-const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[
-    SourceFileException {
-        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_review/tests.rs",
-        ceiling: 936,
-        semantic_reason: "terminal authority policy scenarios still share a large fixture vocabulary",
-    },
-    SourceFileException {
-        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/tests/native_realization/construction_prefix.rs",
-        ceiling: 863,
-        semantic_reason: "the construction-prefix depth ladder remains in one source fixture",
-    },
-];
+const SOURCE_FILE_EXCEPTIONS: &[SourceFileException] = &[SourceFileException {
+    path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/tests/native_realization/construction_prefix.rs",
+    ceiling: 863,
+    semantic_reason: "the construction-prefix depth ladder remains in one source fixture",
+}];
 
 /// Exact exceptions to the preferred 100-line entrance ceiling.
 ///
