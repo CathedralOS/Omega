@@ -12536,8 +12536,13 @@ checked-result arithmetic decision listed below.
     store, then reloads both words for the later architecture-native indirect
     call. Its evidence binds the unique earlier establishment, descriptor ABI,
     home, source projection, selected table slot, scalar result, stack motion,
-    and exact x86-64/AArch64 byte intervals. Object/image/installation replay
-    and native execution remain to be added. Do not extend local
+    and exact x86-64/AArch64 byte intervals. Object and final-image replay now
+    independently regenerate those bytes, materialize the complete private
+    table, bind the establishment's symbolic address to it, compose stack
+    demand, and reject byte, slot, or relocation drift on all native targets.
+    Installation encoding rejects this new row explicitly until it can retain
+    the split custody; installation replay and native execution remain to be
+    added. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a

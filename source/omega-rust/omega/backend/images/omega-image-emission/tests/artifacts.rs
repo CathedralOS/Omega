@@ -350,6 +350,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -553,6 +554,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             internal_unit_scalar_calls: Vec::new(),
             installed_provider_unit_scalar_calls: Vec::new(),
             dynamic_calls: Vec::new(),
+            stored_dynamic_calls: Vec::new(),
             dynamic_parameter_calls: Vec::new(),
             forwarded_dynamic_parameter_calls: Vec::new(),
             forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2200,6 +2202,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2312,7 +2315,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "6b1581b63d83e46855790fc3151e3d6f5e93d849f2227dae5a834fa14d896c65"
+        "076a782c74855b6d04049aeb8783d61dc3d42364bde9091770bb429a8e1074ce"
     );
 
     let mut changed_plan = plan;
@@ -2507,6 +2510,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             internal_unit_scalar_calls: Vec::new(),
             installed_provider_unit_scalar_calls: Vec::new(),
             dynamic_calls: Vec::new(),
+            stored_dynamic_calls: Vec::new(),
             dynamic_parameter_calls: Vec::new(),
             forwarded_dynamic_parameter_calls: Vec::new(),
             forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2698,6 +2702,7 @@ fn two_function_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2742,6 +2747,7 @@ fn two_function_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2948,6 +2954,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2992,6 +2999,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -4158,6 +4166,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -4215,6 +4224,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -4269,6 +4279,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),

@@ -56,7 +56,9 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   the instance and private-table address into the shared home, while the later
   operation reloads the same two words for indirect dispatch and records the
   exact target bytes, relocation fields, selected slot, and scalar result.
-  Object replay is the next explicit fence.
+  Object and final-image replay independently validate that evidence and bind
+  the complete private table. Installation serialization is the next explicit
+  fence and currently rejects the split row rather than shedding it.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is

@@ -80,7 +80,7 @@ pub use stack_demand::{derive_stack_demand, derive_unit_stack_demand};
 use boundary_results::boundary_result_is_exact;
 use byte_sequence_custody::linux_write_line_custody_is_exact;
 use completion_receipts::{CompletionCustodyError, validate_completion_custody};
-use dynamic_conformance::validate_dynamic_calls;
+use dynamic_conformance::{validate_dynamic_calls, validate_stored_dynamic_calls};
 use forwarded_dynamic_descriptor::validate_forwarded_dynamic_descriptors;
 use forwarded_dynamic_parameter::validate_forwarded_dynamic_parameter_calls;
 use fully_consumed_affine_pair::{
@@ -285,6 +285,7 @@ pub struct ObjectFunction {
     pub installed_provider_unit_scalar_calls:
         Vec<omega_machine_code::InstalledProviderUnitScalarCallRecord>,
     pub dynamic_calls: Vec<omega_machine_code::DynamicCallRecord>,
+    pub stored_dynamic_calls: Vec<omega_machine_code::StoredDynamicCallRecord>,
     pub dynamic_parameter_calls: Vec<omega_machine_code::DynamicParameterCallRecord>,
     pub forwarded_dynamic_parameter_calls:
         Vec<omega_machine_code::ForwardedDynamicParameterCallRecord>,
@@ -1360,8 +1361,17 @@ fn build_object_artifact_with_x86_feature_profile(
             &machine_functions,
             validated_function_stack.as_ref(),
         )?;
+        let stored_dynamic_peak = validate_stored_dynamic_calls(
+            plan.target,
+            function,
+            &machine_functions,
+            validated_function_stack.as_ref(),
+        )?;
         if let Some(stack) = validated_function_stack.as_mut() {
-            stack.local_peak_bytes = stack.local_peak_bytes.max(dynamic_peak);
+            stack.local_peak_bytes = stack
+                .local_peak_bytes
+                .max(dynamic_peak)
+                .max(stored_dynamic_peak);
         }
         validate_unit_structural_scalar_field_stores(plan.target, function)?;
         validate_scalar_structural_scalar_field_stores(plan.target, function)?;
@@ -1508,6 +1518,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.internal_calls,
                 &function.foreign_calls,
                 &function.dynamic_calls,
+                &function.stored_dynamic_calls,
                 &function.boundary_settlements,
                 &function.unit_integer_constants,
                 &function.unit_scalar_homes,
@@ -1868,6 +1879,12 @@ fn build_object_artifact_with_x86_feature_profile(
         .iter()
         .flat_map(|function| &function.dynamic_calls)
         .map(|call| &call.dynamic_dispatch.application)
+        .chain(
+            plan.functions
+                .iter()
+                .flat_map(|function| &function.stored_dynamic_calls)
+                .map(|call| &call.establishment.stored.application),
+        )
     {
         if let Some(existing) = dynamic_applications
             .iter()
@@ -2132,6 +2149,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 .installed_provider_unit_scalar_calls
                 .clone(),
             dynamic_calls: function.dynamic_calls.clone(),
+            stored_dynamic_calls: function.stored_dynamic_calls.clone(),
             dynamic_parameter_calls: function.dynamic_parameter_calls.clone(),
             forwarded_dynamic_parameter_calls: function.forwarded_dynamic_parameter_calls.clone(),
             forwarded_dynamic_descriptor_calls: function.forwarded_dynamic_descriptor_calls.clone(),
@@ -2452,6 +2470,15 @@ fn build_object_artifact_with_x86_feature_profile(
             omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress { .. } => 2,
         })
         .sum::<usize>();
+    let stored_dynamic_address_relocation_count = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.stored_dynamic_calls)
+        .map(|call| match call.establishment.table_address.encoding {
+            omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 { .. } => 1,
+            omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress { .. } => 2,
+        })
+        .sum::<usize>();
     let forwarded_address_relocation_count = plan
         .functions
         .iter()
@@ -2468,6 +2495,7 @@ fn build_object_artifact_with_x86_feature_profile(
             .saturating_add(callback_relocation_count)
             .saturating_add(dynamic_table_relocation_count)
             .saturating_add(dynamic_address_relocation_count)
+            .saturating_add(stored_dynamic_address_relocation_count)
             .saturating_add(forwarded_table_relocation_count)
             .saturating_add(forwarded_adapter_relocation_count)
             .saturating_add(forwarded_address_relocation_count),
@@ -2568,6 +2596,54 @@ fn build_object_artifact_with_x86_feature_profile(
                     Ok(())
                 };
             match call.table_address.encoding {
+                omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                    relocation_offset,
+                } => push_address(relocation_offset, RelocationKind::X86_64Relative32)?,
+                omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                } => {
+                    push_address(page_relocation_offset, RelocationKind::Aarch64Page21)?;
+                    push_address(
+                        page_offset_relocation_offset,
+                        RelocationKind::Aarch64PageOffset12,
+                    )?;
+                }
+            }
+        }
+        for call in &function.stored_dynamic_calls {
+            let establishment = &call.establishment;
+            let table = dynamic_conformance_tables
+                .iter()
+                .find(|table| {
+                    table.application.commitment == establishment.stored.application.commitment
+                        && same_dynamic_table_application(
+                            &table.application,
+                            &establishment.stored.application,
+                        )
+                })
+                .ok_or(ObjectError::InvalidDynamicConformanceTable)?;
+            let origin = RelocationOrigin::SemanticOperation {
+                function_symbol_handle: emitted.symbol,
+                operation_identity: establishment.psi_operation.get(),
+            };
+            let mut push_address =
+                |local_offset: usize, kind: RelocationKind| -> Result<(), ObjectError> {
+                    relocations.push_record(RelocationRecord {
+                        origin,
+                        section: SectionKind::Text,
+                        offset: emitted
+                            .text_offset
+                            .checked_add(local_offset)
+                            .ok_or(ObjectError::TextSizeOverflow)?,
+                        byte_width: 4,
+                        symbol_handle: table.symbol,
+                        addend: 0,
+                        kind,
+                    });
+                    Ok(())
+                };
+            match establishment.table_address.encoding {
                 omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
                     relocation_offset,
                 } => push_address(relocation_offset, RelocationKind::X86_64Relative32)?,
@@ -2850,6 +2926,7 @@ fn validate_private_functions<'plan>(
                 .is_empty()
             || private.function.unit_scalar_abi.is_some()
             || !private.function.dynamic_calls.is_empty()
+            || !private.function.stored_dynamic_calls.is_empty()
             || !private.function.dynamic_parameter_calls.is_empty()
             || !private
                 .function

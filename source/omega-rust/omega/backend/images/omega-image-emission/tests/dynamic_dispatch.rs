@@ -369,6 +369,24 @@ fn changed_conformance_unit_machine_plan(
     compile_source(source, target)
 }
 
+fn stored_dynamic_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    let source = r#"
+        trait Measure { machine measure(&self) -> bool; }
+        data Item [copy] { value: bool; }
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> bool { transition { _ -> self.value } }
+        }
+        data Holder<'item> { handler: &'item dyn Measure; }
+        data Main [copy] { item: Item; }
+        machine Main::run<'item>(&self) {
+            let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+            let holder: Holder<'item> = Holder { handler: erased };
+            let result: bool = holder.handler.measure();
+        }
+    "#;
+    compile_source(source, target)
+}
+
 fn compile_source(source: &str, target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
@@ -385,6 +403,101 @@ fn compile_source(source: &str, target: NativeTarget) -> omega_machine_code::Mac
         .expect("lower rebound dynamic call to target operations");
     let assigned = assign_registers(&target_plan).expect("assign rebound descriptor");
     emit_machine_code(&assigned).expect("emit rebound descriptor and indirect call")
+}
+
+#[test]
+fn stored_dynamic_descriptor_replays_through_object_and_final_image() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let plan = stored_dynamic_machine_plan(target);
+        let machine_call = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .and_then(|function| function.stored_dynamic_calls.first())
+            .expect("stored dynamic machine call");
+        let artifact = build_object_artifact(&plan).expect("replay stored dynamic call");
+        let object_call = artifact
+            .entry_function()
+            .stored_dynamic_calls
+            .first()
+            .expect("stored dynamic object call");
+        assert_eq!(object_call, machine_call);
+        let [table] = artifact.dynamic_conformance_tables() else {
+            panic!("one stored descriptor table expected")
+        };
+        assert_eq!(
+            table.application,
+            machine_call.establishment.stored.application
+        );
+        assert_eq!(table.slots.len(), 1);
+        let relocation_count = artifact
+            .relocations()
+            .records()
+            .filter(|(_, relocation)| {
+                relocation.origin
+                    == omega_object_file::RelocationOrigin::SemanticOperation {
+                        function_symbol_handle: artifact.entry_function().symbol,
+                        operation_identity: machine_call.establishment.psi_operation.get(),
+                    }
+                    && relocation.symbol_handle == table.symbol
+                    && relocation.section == omega_object_file::SectionKind::Text
+            })
+            .count();
+        assert_eq!(
+            relocation_count,
+            if target.architecture == omega_target::Architecture::X86_64 {
+                1
+            } else {
+                2
+            }
+        );
+        let image = emit_executable_image(&artifact, 3)
+            .expect("link stored descriptor call and private table");
+        assert_eq!(
+            image
+                .functions()
+                .iter()
+                .find(|function| function.machine == plan.entry)
+                .and_then(|function| function.stored_dynamic_calls.first()),
+            Some(object_call)
+        );
+        assert_eq!(
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision")),
+            Err(omega_image_emission::InstallationError::UnsupportedStoredDynamicCalls)
+        );
+    }
+}
+
+#[test]
+fn object_replay_rejects_stored_descriptor_byte_or_slot_substitution() {
+    let plan = stored_dynamic_machine_plan(NativeTarget::linux_x64());
+    let mut wrong_slot = plan.clone();
+    let call = wrong_slot
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == wrong_slot.entry)
+        .and_then(|function| function.stored_dynamic_calls.first_mut())
+        .expect("stored dynamic call");
+    call.selected_table_byte_offset ^= 8;
+    assert!(build_object_artifact(&wrong_slot).is_err());
+
+    let mut wrong_descriptor = plan;
+    let caller = wrong_descriptor
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == wrong_descriptor.entry)
+        .expect("entry caller");
+    let call = caller
+        .stored_dynamic_calls
+        .first()
+        .expect("stored dynamic call");
+    caller.bytes[call.establishment.instance.code_offset] ^= 1;
+    assert!(build_object_artifact(&wrong_descriptor).is_err());
 }
 
 #[test]

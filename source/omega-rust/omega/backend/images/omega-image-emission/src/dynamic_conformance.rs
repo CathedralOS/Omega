@@ -3,7 +3,7 @@
 use omega_calling_conventions::ValueLocation;
 use omega_machine_code::{
     DynamicCallRecord, DynamicInstanceMaterializationRecord, DynamicTableAddressEncoding,
-    MachineCodeFunction, SemanticCodeSite,
+    MachineCodeFunction, SemanticCodeSite, StoredDynamicCallRecord,
 };
 use omega_target::{Architecture, NativeTarget};
 use psi_core::MachineId;
@@ -212,6 +212,442 @@ pub(super) fn validate_dynamic_calls(
         previous_end = Some(operation_end);
     }
     Ok(peak)
+}
+
+pub(super) fn validate_stored_dynamic_calls(
+    target: NativeTarget,
+    function: &MachineCodeFunction,
+    machine_functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
+    function_stack: Option<&ObjectUnitStack>,
+) -> Result<u32, ObjectError> {
+    let mut previous_end = None;
+    let mut operations = std::collections::BTreeSet::new();
+    let mut establishment_operations = std::collections::BTreeSet::new();
+    let mut peak = function_stack.map_or(0, |stack| stack.frame_bytes);
+    for call in &function.stored_dynamic_calls {
+        let establishment = &call.establishment;
+        let invalid = || ObjectError::InvalidDynamicCallEvidence {
+            caller: function.machine,
+            operation: call.psi_operation,
+        };
+        let establishment_end = establishment
+            .code_offset
+            .checked_add(establishment.byte_count)
+            .ok_or_else(invalid)?;
+        let operation_end = call
+            .code_offset
+            .checked_add(call.byte_count)
+            .ok_or_else(invalid)?;
+        if previous_end.is_some_and(|end| end > establishment.code_offset)
+            || establishment_end > call.code_offset
+            || operation_end > function.bytes.len()
+            || establishment.operation_ordinal >= call.operation_ordinal
+            || !function
+                .provenance
+                .operations
+                .contains(&establishment.psi_operation)
+            || !function.provenance.operations.contains(&call.psi_operation)
+            || function
+                .semantic_code_attribution
+                .iter()
+                .filter(|attribution| {
+                    attribution.site == SemanticCodeSite::Operation(establishment.psi_operation)
+                        && attribution.operation_ordinal == establishment.operation_ordinal
+                        && attribution.code_offset == establishment.code_offset
+                        && attribution.byte_count == establishment.byte_count
+                })
+                .count()
+                != 1
+            || function
+                .semantic_code_attribution
+                .iter()
+                .filter(|attribution| {
+                    attribution.site == SemanticCodeSite::Operation(call.psi_operation)
+                        && attribution.operation_ordinal == call.operation_ordinal
+                        && attribution.code_offset == call.code_offset
+                        && attribution.byte_count == call.byte_count
+                })
+                .count()
+                != 1
+            || !establishment
+                .stored
+                .has_complete_custody(function.machine, establishment.psi_operation)
+            || !call
+                .dynamic_dispatch
+                .has_complete_custody(function.machine, call.psi_operation)
+            || call.dynamic_dispatch.stored != establishment.stored
+            || !operations.insert(call.psi_operation)
+            || !establishment_operations.insert(establishment.psi_operation)
+            || establishment.instance.source.access == psi_terminal::StructuralAccess::Owned
+            || establishment.descriptor_abi.instance_byte_offset != 0
+            || establishment.descriptor_abi.table_byte_offset != 8
+            || establishment.descriptor_abi.word_byte_size != 8
+            || establishment.descriptor_abi.total_byte_size != 16
+            || establishment.descriptor_abi.byte_alignment != 8
+            || establishment.descriptor_home_byte_offset % 8 != 0
+            || call.result.home.defining_operation != call.psi_operation
+            || call.call_plan.result.as_ref() != Some(&call.result.source)
+            || !function.unit_scalar_homes.contains(&call.result.home)
+            || call.call_plan.parameters.as_slice()
+                != std::slice::from_ref(&call.argument.destination)
+        {
+            return Err(invalid());
+        }
+        let selected_row = establishment
+            .stored
+            .application
+            .rows
+            .iter()
+            .position(|row| {
+                row.declaring_trait_identity
+                    == call.dynamic_dispatch.dispatch.declaring_trait_identity
+                    && row.public_requirement_identity
+                        == call.dynamic_dispatch.dispatch.public_requirement_identity
+                    && row.requirement_identity
+                        == call.dynamic_dispatch.dispatch.requirement_identity
+                    && row.realization_identity
+                        == call.dynamic_dispatch.dispatch.realization_identity
+                    && row.realization_callable_identity.as_deref()
+                        == Some(
+                            call.dynamic_dispatch
+                                .dispatch
+                                .realization_callable_identity
+                                .as_str(),
+                        )
+            })
+            .ok_or_else(invalid)?;
+        let selected_offset = u32::try_from(selected_row)
+            .ok()
+            .and_then(|row| row.checked_mul(8))
+            .ok_or_else(invalid)?;
+        let selected_callable = establishment
+            .stored
+            .application
+            .realization_callables
+            .iter()
+            .find(|callable| {
+                callable.machine == call.dynamic_dispatch.dispatch.realization
+                    && callable.source_callable_identity
+                        == call.dynamic_dispatch.dispatch.realization_callable_identity
+            })
+            .ok_or_else(invalid)?;
+        if !dynamic_result_matches(selected_callable.result, Some(call.result.home.scalar_type))
+            || selected_offset != call.selected_table_byte_offset
+            || machine_functions
+                .get(&call.dynamic_dispatch.dispatch.realization)
+                .is_none()
+            || establishment
+                .stored
+                .application
+                .realization_callables
+                .iter()
+                .any(|callable| machine_functions.get(&callable.machine).is_none())
+        {
+            return Err(invalid());
+        }
+        validate_stored_instance(target, function, call)?;
+        validate_stored_table_address(target, function, call)?;
+        validate_stored_argument(target, function, call)?;
+        validate_stored_indirect_call(target, function, call)?;
+        let expected_result =
+            expected_unit_scalar_result_bytes(target, &call.result).ok_or_else(invalid)?;
+        let result_end = call
+            .result
+            .code_offset
+            .checked_add(call.result.byte_count)
+            .ok_or_else(invalid)?;
+        if call.result.byte_count != expected_result.len()
+            || function.bytes.get(call.result.code_offset..result_end)
+                != Some(expected_result.as_slice())
+            || result_end != operation_end
+        {
+            return Err(invalid());
+        }
+        let stack = function_stack.ok_or_else(invalid)?;
+        let native_call_end = call
+            .indirect_call_offset
+            .checked_add(call.indirect_call_byte_count)
+            .ok_or_else(invalid)?;
+        let outbound_bytes = if let Some(outbound) = call.unit_stack.outbound {
+            validate_stack_adjustment_pair(
+                target.architecture,
+                function.machine,
+                Some(omega_target_operations::CallSiteOwner::Operation(
+                    call.psi_operation,
+                )),
+                &function.bytes,
+                outbound,
+            )?;
+            if outbound.release_offset != native_call_end
+                || call.result.code_offset
+                    != outbound
+                        .release_offset
+                        .checked_add(outbound.release_byte_count)
+                        .ok_or_else(invalid)?
+            {
+                return Err(invalid());
+            }
+            outbound.byte_size
+        } else if target.architecture == Architecture::Aarch64
+            && call.result.code_offset == native_call_end
+        {
+            0
+        } else {
+            return Err(invalid());
+        };
+        let linkage = if target.architecture == Architecture::X86_64 {
+            8
+        } else {
+            0
+        };
+        let live = stack
+            .frame_bytes
+            .checked_add(outbound_bytes)
+            .and_then(|value| value.checked_add(linkage))
+            .ok_or_else(invalid)?;
+        if !live.is_multiple_of(stack.stack_alignment) {
+            return Err(invalid());
+        }
+        peak = peak.max(live);
+        previous_end = Some(operation_end);
+    }
+    Ok(peak)
+}
+
+fn validate_stored_instance(
+    target: NativeTarget,
+    function: &MachineCodeFunction,
+    call: &StoredDynamicCallRecord,
+) -> Result<(), ObjectError> {
+    let establishment = &call.establishment;
+    let record = &establishment.instance;
+    let selection = &establishment.stored.selection;
+    let invalid = || ObjectError::InvalidDynamicCallEvidence {
+        caller: function.machine,
+        operation: call.psi_operation,
+    };
+    let home = function
+        .unit_parameter_homes
+        .iter()
+        .find(|home| home.place == record.source.place)
+        .ok_or_else(invalid)?;
+    if record.selection_ordinal != selection.ordinal
+        || record.source.place != selection.source.place
+        || record.source.access != selection.source.access
+        || record.source.path != selection.source.path
+        || record.source_home_byte_offset != home.byte_offset
+        || record.source_home_indirect != home.indirect
+        || record.source.source != home.source
+        || record.source.source.shape != home.shape
+        || record
+            .source
+            .source_byte_offset
+            .checked_add(u32::from(record.source.shape.byte_size))
+            .is_none_or(|end| end > u32::from(home.shape.byte_size))
+    {
+        return Err(invalid());
+    }
+    let expected =
+        expected_instance_bytes(target, record, establishment.descriptor_home_byte_offset)
+            .ok_or_else(invalid)?;
+    let end = record
+        .code_offset
+        .checked_add(record.byte_count)
+        .ok_or_else(invalid)?;
+    if record.byte_count != expected.len()
+        || function.bytes.get(record.code_offset..end) != Some(expected.as_slice())
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn validate_stored_table_address(
+    target: NativeTarget,
+    function: &MachineCodeFunction,
+    call: &StoredDynamicCallRecord,
+) -> Result<(), ObjectError> {
+    let establishment = &call.establishment;
+    let invalid = || ObjectError::InvalidDynamicCallEvidence {
+        caller: function.machine,
+        operation: call.psi_operation,
+    };
+    let mut expected = Vec::new();
+    match (target.architecture, establishment.table_address.encoding) {
+        (
+            Architecture::X86_64,
+            DynamicTableAddressEncoding::X86_64Relative32 { relocation_offset },
+        ) => {
+            expected.extend_from_slice(&[0x4c, 0x8d, 0x15]);
+            if Some(relocation_offset) != establishment.table_address.code_offset.checked_add(3) {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&0_i32.to_le_bytes());
+            expected_x86_stack_store(
+                &mut expected,
+                10,
+                establishment
+                    .descriptor_home_byte_offset
+                    .checked_add(8)
+                    .ok_or_else(invalid)?,
+                8,
+            )
+            .ok_or_else(invalid)?;
+        }
+        (
+            Architecture::Aarch64,
+            DynamicTableAddressEncoding::Aarch64PageAddress {
+                page_relocation_offset,
+                page_offset_relocation_offset,
+            },
+        ) => {
+            if page_relocation_offset != establishment.table_address.code_offset
+                || page_offset_relocation_offset != establishment.table_address.code_offset + 4
+            {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&(0x9000_0000 | 10_u32).to_le_bytes());
+            expected.extend_from_slice(&(0x9100_0000 | (10_u32 << 5) | 10_u32).to_le_bytes());
+            expected.extend_from_slice(
+                &expected_aarch64_stack_access(
+                    false,
+                    10,
+                    establishment
+                        .descriptor_home_byte_offset
+                        .checked_add(8)
+                        .ok_or_else(invalid)?,
+                    8,
+                )
+                .ok_or_else(invalid)?
+                .to_le_bytes(),
+            );
+        }
+        _ => return Err(invalid()),
+    }
+    let end = establishment
+        .table_address
+        .code_offset
+        .checked_add(establishment.table_address.byte_count)
+        .ok_or_else(invalid)?;
+    if establishment.table_address.byte_count != expected.len()
+        || function
+            .bytes
+            .get(establishment.table_address.code_offset..end)
+            != Some(expected.as_slice())
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn validate_stored_argument(
+    target: NativeTarget,
+    function: &MachineCodeFunction,
+    call: &StoredDynamicCallRecord,
+) -> Result<(), ObjectError> {
+    let source = &call.establishment.instance.source;
+    let argument = &call.argument;
+    let invalid = || ObjectError::InvalidDynamicCallEvidence {
+        caller: function.machine,
+        operation: call.psi_operation,
+    };
+    if argument.place != source.place
+        || argument.access != source.access
+        || argument.path != source.path
+        || argument.root_structural_type != source.root_structural_type
+        || argument.structural_type != source.structural_type
+        || argument.shape != source.shape
+        || argument.source_byte_offset != source.source_byte_offset
+        || argument.source_home_byte_offset != call.establishment.descriptor_home_byte_offset
+        || argument.source != source.source
+        || argument.destination != source.destination
+        || argument.bytes.len() != argument.byte_count
+    {
+        return Err(invalid());
+    }
+    let expected = expected_argument_bytes(target, argument).ok_or_else(invalid)?;
+    let end = argument
+        .code_offset
+        .checked_add(argument.byte_count)
+        .ok_or_else(invalid)?;
+    if argument.byte_count != expected.len()
+        || argument.bytes != expected
+        || function.bytes.get(argument.code_offset..end) != Some(expected.as_slice())
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn validate_stored_indirect_call(
+    target: NativeTarget,
+    function: &MachineCodeFunction,
+    call: &StoredDynamicCallRecord,
+) -> Result<(), ObjectError> {
+    let invalid = || ObjectError::InvalidDynamicCallEvidence {
+        caller: function.machine,
+        operation: call.psi_operation,
+    };
+    let table_home = call
+        .argument
+        .call_stack_bytes
+        .checked_add(call.establishment.descriptor_home_byte_offset)
+        .and_then(|value| value.checked_add(8))
+        .ok_or_else(invalid)?;
+    let mut expected = Vec::new();
+    match target.architecture {
+        Architecture::X86_64 => {
+            expected_x86_stack_load(&mut expected, 11, table_home, 8).ok_or_else(invalid)?;
+            expected_x86_memory_load(&mut expected, 11, 11, call.selected_table_byte_offset, 8)
+                .ok_or_else(invalid)?;
+            let expected_call_offset = call
+                .argument
+                .code_offset
+                .checked_add(call.argument.byte_count)
+                .and_then(|offset| offset.checked_add(expected.len()))
+                .ok_or_else(invalid)?;
+            if call.indirect_call_offset != expected_call_offset
+                || call.indirect_call_byte_count != 3
+            {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&[0x41, 0xff, 0xd3]);
+        }
+        Architecture::Aarch64 => {
+            expected.extend_from_slice(
+                &expected_aarch64_stack_access(true, 9, table_home, 8)
+                    .ok_or_else(invalid)?
+                    .to_le_bytes(),
+            );
+            expected.extend_from_slice(
+                &expected_aarch64_memory_access(true, 9, 9, call.selected_table_byte_offset, 8)
+                    .ok_or_else(invalid)?
+                    .to_le_bytes(),
+            );
+            let expected_call_offset = call
+                .argument
+                .code_offset
+                .checked_add(call.argument.byte_count)
+                .and_then(|offset| offset.checked_add(expected.len()))
+                .ok_or_else(invalid)?;
+            if call.indirect_call_offset != expected_call_offset
+                || call.indirect_call_byte_count != 4
+            {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&(0xd63f_0000 | (9_u32 << 5)).to_le_bytes());
+        }
+    }
+    let start = call
+        .argument
+        .code_offset
+        .checked_add(call.argument.byte_count)
+        .ok_or_else(invalid)?;
+    let end = start.checked_add(expected.len()).ok_or_else(invalid)?;
+    if function.bytes.get(start..end) != Some(expected.as_slice()) {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 fn dynamic_result_matches(

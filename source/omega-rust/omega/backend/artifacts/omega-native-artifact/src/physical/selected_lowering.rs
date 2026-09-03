@@ -171,6 +171,7 @@ fn validate_return_only_machine_function(
         || !function.internal_unit_scalar_calls.is_empty()
         || !function.installed_provider_unit_scalar_calls.is_empty()
         || !function.dynamic_calls.is_empty()
+        || !function.stored_dynamic_calls.is_empty()
         || !function.dynamic_parameter_calls.is_empty()
         || !function.forwarded_dynamic_descriptor_calls.is_empty()
         || !function.unit_scalar_homes.is_empty()
@@ -287,6 +288,7 @@ fn validate_return_only_object_function(
         || !function.internal_unit_scalar_calls.is_empty()
         || !function.installed_provider_unit_scalar_calls.is_empty()
         || !function.dynamic_calls.is_empty()
+        || !function.stored_dynamic_calls.is_empty()
         || !function.dynamic_parameter_calls.is_empty()
         || !function.forwarded_dynamic_descriptor_calls.is_empty()
         || !function.unit_scalar_homes.is_empty()
@@ -488,6 +490,7 @@ mod tests {
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
                 dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_parameter_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),

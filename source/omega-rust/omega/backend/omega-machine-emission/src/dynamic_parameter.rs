@@ -453,6 +453,7 @@ mod tests {
             assert_eq!(function.semantic_code_attribution.len(), 2);
             assert!(function.scalar_stack.is_some());
             assert!(function.dynamic_calls.is_empty());
+            assert!(function.stored_dynamic_calls.is_empty());
         }
     }
 }
