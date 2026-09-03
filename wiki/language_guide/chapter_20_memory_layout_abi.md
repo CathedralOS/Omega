@@ -859,10 +859,10 @@ same-spelled user trait. One further represented acyclic, non-generic,
 case-free record with a nonzero canonical fixed representation may occur on
 that spine; the authored projection retains both enclosing field identities
 before each direct erased leaf, and represented siblings still cite the root
-plan entry. Third through twenty-second represented record levels are now available
-under the same restrictions. All twenty-one enclosing identities remain in each
+plan entry. Third through twenty-third represented record levels are now available
+under the same restrictions. All twenty-two enclosing identities remain in each
 erased-leaf path, and one bounded recursive traversal rejects hidden unsupported
-custody without a depth-specific implementation. A twenty-third represented record
+custody without a depth-specific implementation. A twenty-fourth represented record
 level, structurally zero-layout wrappers, arrays, generic and case-dependent
 fields, planless agreements, and the generic establishment calls below remain
 unavailable.
