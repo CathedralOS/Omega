@@ -1921,6 +1921,61 @@ fn direct_write_only_boolean_store_crosses_source_codec_and_verification() {
 }
 
 #[test]
+fn direct_write_only_ieee_float_store_crosses_source_codec_and_verification() {
+    let checked = checked_source(
+        r#"
+            data Sink {}
+            machine Sink::fill(destination: &write f32) {
+                destination = 1.25f32;
+            }
+
+            data Root {}
+            machine Root::enter(destination: &mut f32) {
+                Sink::fill(&write destination);
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Root::enter").expect("lower IEEE float store closure");
+    let module = &lowered.semantic_module;
+    let [_, callee] = module.machines.as_slice() else {
+        panic!("caller and write-only callee are retained")
+    };
+    let [callee_parameter] = callee.structural_parameters.as_slice() else {
+        panic!("callee retains one primitive referent")
+    };
+    assert!(matches!(
+        module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == callee_parameter.structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+            psi_core::IeeeFloatFormat::Binary32
+        )))
+    ));
+    let [constant, store] = callee.blocks[0].operations.as_slice() else {
+        panic!("callee emits one IEEE float constant followed by one store")
+    };
+    let stored_value = constant.result.expect_scalar().id;
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IeeeFloatConstant {
+            value: psi_core::IeeeFloatValue::Binary32(0x3fa0_0000)
+        }
+    ));
+    assert!(matches!(
+        store.kind,
+        OperationKind::WriteOnlyPrimitiveStore { destination, value }
+            if destination == callee_parameter.place && value == stored_value
+    ));
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode IEEE float store");
+    let decoded = psi_terminal_codec::decode_module(&encoded).expect("decode IEEE float store");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify IEEE float store");
+}
+
+#[test]
 fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
     let source = r#"
         data Leaf [copy] { value: u16; }

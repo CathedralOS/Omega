@@ -688,8 +688,8 @@ aggregate-element paths remain absent. The verifier also rejects widening,
 target disagreement, overlapping exclusive arguments, and Boolean structural
 observation through write-only access.
 Terminal format 42/vocabulary 45 retains one executable direct whole-root
-primitive replacement from either a landed integer literal or a Boolean
-literal. `PrimitiveScalar` is an honest structural
+primitive replacement from a landed integer literal, landed IEEE float
+literal, or Boolean literal. `PrimitiveScalar` is an honest structural
 referent shape rather than a synthetic record, and
 `WriteOnlyPrimitiveStore(destination, value)` is Unit, unconditional, and
 non-observing. Verification requires one claim-free, unqualified, unrestricted
@@ -711,8 +711,11 @@ ordinal. Dedicated whole-root records bind these facts to exact code intervals
 and bytes. Object construction independently replays the declaration joins,
 borrowed-reference placement and home, literal source, architecture encoding,
 attribution, interval, and bytes. Installation format 72 transports and
-revalidates both store families without treating physical pointer-layout
-equivalence as permission equivalence.
+revalidates the integer and Boolean store families without treating physical
+pointer-layout equivalence as permission equivalence. IEEE float stores
+currently stop at target-neutral abstract operations; target assignment,
+machine emission, object construction, and installation remain explicit
+fail-closed work.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan
