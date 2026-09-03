@@ -73,38 +73,150 @@ fn assigned_stored_plan(
 }
 
 #[test]
-fn stored_descriptor_stops_at_the_split_machine_emission_fence() {
+fn emits_stored_descriptor_establishment_and_later_reload() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let assigned = assigned_stored_plan(target);
-        let caller = assigned
+        let emitted = crate::emit_machine_code(&assigned).expect("stored descriptor emission");
+        let caller = emitted
             .functions
             .iter()
-            .find(|function| function.machine == assigned.entry)
+            .find(|function| function.machine == emitted.entry)
             .expect("entry caller");
-        let omega_assigned_target_operations::AssignedOperation::UnitBody(body) = &caller.operation
-        else {
-            panic!("stored descriptor caller must remain an attached Unit body")
+        let [call] = caller.stored_dynamic_calls.as_slice() else {
+            panic!("one stored descriptor call expected: {caller:#?}")
         };
-        let operation = body
-            .operations
-            .iter()
-            .find_map(|operation| {
-                match operation {
-                omega_assigned_target_operations::AssignedUnitOperation::StoreDynamicDescriptor {
-                    psi_operation,
-                    ..
-                } => Some(*psi_operation),
-                _ => None,
-            }
-            })
-            .expect("assigned stored descriptor");
+        let establishment = &call.establishment;
+        assert_ne!(establishment.psi_operation, call.psi_operation);
+        assert_eq!(call.dynamic_dispatch.stored, establishment.stored);
         assert_eq!(
-            crate::emit_machine_code(&assigned),
-            Err(crate::EmissionError::UnsupportedStoredDynamicDescriptor(
-                operation
-            ))
+            establishment.descriptor_abi,
+            omega_machine_code::DynamicTraitDescriptorAbiRecord {
+                instance_byte_offset: 0,
+                table_byte_offset: 8,
+                word_byte_size: 8,
+                total_byte_size: 16,
+                byte_alignment: 8,
+            }
         );
+        assert_eq!(
+            establishment.instance.selection_ordinal,
+            establishment.stored.selection.ordinal
+        );
+        assert_eq!(call.argument.source, establishment.instance.source.source);
+        assert_eq!(
+            call.argument.source_home_byte_offset,
+            establishment.descriptor_home_byte_offset
+        );
+        assert_eq!(
+            call.result.home.byte_offset,
+            establishment.descriptor_home_byte_offset + 16
+        );
+        assert!(establishment.operation_ordinal < call.operation_ordinal);
+        assert!(establishment.byte_count > 0);
+        assert!(call.byte_count > 0);
+        assert_eq!(call.selected_table_byte_offset, 0);
+        match (target.architecture, establishment.table_address.encoding) {
+            (
+                Architecture::X86_64,
+                omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                    relocation_offset,
+                },
+            ) => {
+                assert_eq!(
+                    &caller.bytes[call.indirect_call_offset
+                        ..call.indirect_call_offset + call.indirect_call_byte_count],
+                    &[0x41, 0xff, 0xd3]
+                );
+                assert!(relocation_offset > establishment.table_address.code_offset);
+            }
+            (
+                Architecture::Aarch64,
+                omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                },
+            ) => {
+                assert_eq!(
+                    u32::from_le_bytes(
+                        caller.bytes[call.indirect_call_offset..call.indirect_call_offset + 4]
+                            .try_into()
+                            .unwrap()
+                    ),
+                    0xd63f_0120
+                );
+                assert_eq!(page_offset_relocation_offset, page_relocation_offset + 4);
+            }
+            evidence => panic!("unexpected stored descriptor evidence: {evidence:?}"),
+        }
     }
+}
+
+#[test]
+fn rejects_stored_descriptor_home_substitution_before_emission() {
+    let target = NativeTarget::linux_x64();
+    let assigned = assigned_stored_plan(target);
+
+    let mut bad_store = assigned.clone();
+    let entry = bad_store.entry;
+    let store_operation = bad_store
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == entry)
+        .and_then(|function| match &mut function.operation {
+            omega_assigned_target_operations::AssignedOperation::UnitBody(body) => body
+                .operations
+                .iter_mut()
+                .find_map(|operation| match operation {
+                    omega_assigned_target_operations::AssignedUnitOperation::StoreDynamicDescriptor {
+                        psi_operation,
+                        descriptor_home_byte_offset,
+                        ..
+                    } => {
+                        *descriptor_home_byte_offset += 8;
+                        Some(*psi_operation)
+                    }
+                    _ => None,
+                }),
+            _ => None,
+        })
+        .expect("stored descriptor establishment");
+    assert_eq!(
+        crate::emit_machine_code(&bad_store),
+        Err(crate::EmissionError::InvalidStoredDynamicDescriptorCustody(
+            store_operation
+        ))
+    );
+
+    let mut bad_call = assigned;
+    let entry = bad_call.entry;
+    let call_operation = bad_call
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == entry)
+        .and_then(|function| match &mut function.operation {
+            omega_assigned_target_operations::AssignedOperation::UnitBody(body) => body
+                .operations
+                .iter_mut()
+                .find_map(|operation| match operation {
+                    omega_assigned_target_operations::AssignedUnitOperation::StoredDynamicScalarCall {
+                        psi_operation,
+                        descriptor_home_byte_offset,
+                        ..
+                    } => {
+                        *descriptor_home_byte_offset += 8;
+                        Some(*psi_operation)
+                    }
+                    _ => None,
+                }),
+            _ => None,
+        })
+        .expect("stored descriptor reload");
+    assert_eq!(
+        crate::emit_machine_code(&bad_call),
+        Err(crate::EmissionError::InvalidStoredDynamicCallCustody(
+            call_operation
+        ))
+    );
 }
 
 fn assigned_direct_plan(

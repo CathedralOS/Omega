@@ -11,7 +11,7 @@ pub use x86_fma::*;
 
 use omega_abstract_operations::{
     AbstractDynamicDescriptorArgument, AbstractReboundDynamicDispatch, AbstractResult,
-    RankedU32CountdownCustody,
+    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, RankedU32CountdownCustody,
 };
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
@@ -135,6 +135,10 @@ pub struct MachineCodeFunction {
     /// The table contents remain semantic demands until object construction
     /// binds every canonical row to an exact function symbol.
     pub dynamic_calls: Vec<DynamicCallRecord>,
+    /// Split establishment/reload custody for descriptors stored in local
+    /// aggregates. Each row binds the earlier materialization bytes and table
+    /// relocation to the later indirect call using one shared descriptor home.
+    pub stored_dynamic_calls: Vec<StoredDynamicCallRecord>,
     /// Complete semantic, ABI, register, slot, stack, and byte custody for
     /// scalar calls through an existential descriptor received as a function
     /// parameter. Unlike `dynamic_calls`, these rows do not materialize
@@ -339,6 +343,39 @@ pub struct DynamicCallRecord {
     pub initial_instance: DynamicInstanceMaterializationRecord,
     pub table_address: DynamicTableAddressMaterialization,
     pub rebound_instance: DynamicInstanceMaterializationRecord,
+    pub argument: InternalUnitCallArgumentRecord,
+    pub selected_table_byte_offset: u32,
+    pub indirect_call_offset: usize,
+    pub indirect_call_byte_count: usize,
+    pub unit_stack: UnitCallStackEvidence,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+/// Exact emitted establishment of one aggregate-stored descriptor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredDynamicDescriptorMaterializationRecord {
+    pub psi_operation: OperationId,
+    pub stored: AbstractStoredDynamicDescriptor,
+    pub descriptor_abi: DynamicTraitDescriptorAbiRecord,
+    pub descriptor_home_byte_offset: u32,
+    pub instance: DynamicInstanceMaterializationRecord,
+    pub table_address: DynamicTableAddressMaterialization,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+/// Exact later reload and indirect invocation through one previously emitted
+/// aggregate-stored descriptor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredDynamicCallRecord {
+    pub establishment: StoredDynamicDescriptorMaterializationRecord,
+    pub psi_operation: OperationId,
+    pub dynamic_dispatch: AbstractStoredDynamicDispatch,
+    pub call_plan: CallPlan,
+    pub result: InternalUnitScalarCallResultRecord,
     pub argument: InternalUnitCallArgumentRecord,
     pub selected_table_byte_offset: u32,
     pub indirect_call_offset: usize,

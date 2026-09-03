@@ -304,7 +304,9 @@ pub(super) fn validate_unit_scalar_argument(
                     && *value == source_value_literal
             }
             (
-                AssignedUnitOperation::ScalarCall { result_home, .. },
+                AssignedUnitOperation::ScalarCall { result_home, .. }
+                | AssignedUnitOperation::DynamicScalarCall { result_home, .. }
+                | AssignedUnitOperation::StoredDynamicScalarCall { result_home, .. },
                 AssignedUnitScalarArgumentSource::Home(source),
             ) => *result_home == source,
             (

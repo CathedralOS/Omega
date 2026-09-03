@@ -197,6 +197,7 @@ fn project_function(
         internal_unit_scalar_calls: Vec::new(),
         installed_provider_unit_scalar_calls: Vec::new(),
         dynamic_calls: Vec::new(),
+        stored_dynamic_calls: Vec::new(),
         dynamic_parameter_calls: Vec::new(),
         forwarded_dynamic_parameter_calls: Vec::new(),
         forwarded_dynamic_descriptor_calls: Vec::new(),

@@ -12531,10 +12531,13 @@ checked-result arithmetic decision listed below.
     exact instance projection for both rows. Physical assignment allocates one
     aligned 16-byte descriptor home at establishment and requires the later call
     to reuse that exact ABI/home before allocating its distinct scalar result
-    home; it rejects reconstructed or substituted stores. Machine encoding,
-    object/image/installation replay, and native execution remain to be added;
-    machine emission rejects the split establishment/reload explicitly until its
-    byte and relocation evidence exists. Do not extend local
+    home; it rejects reconstructed or substituted stores. Machine emission now
+    materializes the instance and private-table address into that home at the
+    store, then reloads both words for the later architecture-native indirect
+    call. Its evidence binds the unique earlier establishment, descriptor ABI,
+    home, source projection, selected table slot, scalar result, stack motion,
+    and exact x86-64/AArch64 byte intervals. Object/image/installation replay
+    and native execution remain to be added. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a

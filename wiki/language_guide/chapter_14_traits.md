@@ -810,9 +810,12 @@ identity and independent validation preserve the unique earlier same-block store
 join. Target lowering derives the selected realization call ABI and instance
 projection for both operations. Physical assignment allocates one aligned
 16-byte descriptor home at establishment and requires the call to reload that
-same home before giving its scalar result a distinct home. Machine encoding and
-object/image/installation replay remain open; machine emission rejects this
-split pair until its bytes and relocation evidence are defined.
+same home before giving its scalar result a distinct home. Machine emission
+writes the selected instance and private-table address at establishment, then
+reloads both descriptor words for the later x86-64 or AArch64 indirect call. It
+retains the exact shared home, selected table slot, relocation fields, call and
+result intervals, and stack evidence. Object/image/installation replay remains
+open.
 Those consumers use the same complete normalized maps.
 Replaceable-component crossing is not another descriptor rung: it is forbidden
 below, and uses a boundary requirement or a consumer-owned local proxy instead.
