@@ -824,7 +824,7 @@ the erased-data adapter rejoins the structural-only scalar-result ABI, and
 machine/object/image evidence replays the exact store/read/return bytes on
 x86-64 and AArch64. Store path, accumulated byte offset, and return field are
 identified independently; assignment rejects disagreement between path, offset,
-or order. Canonical installation format 65 retains the ordered store vector. The
+or order. Canonical installation format 66 retains the ordered store vector. The
 first Boolean store returns an independent `i32` field through the existing
 fixed-integer result-home lane. A Boolean-returning forwarded call instead
 uses an exact one-byte Boolean home and branches directly on that value after
@@ -1089,9 +1089,13 @@ and physical assignment now preserve longer scalar chains in a distinct direct-
 helper carrier, including the unchanged incoming and outgoing two-word ABI.
 Machine emission encodes the next helper as an ordinary direct call and retains
 the parameter origin, unchanged registers, relocation, call-stack facts, and
-return attribution in a separate evidence row. Object and later artifact replay
-remain fail closed until they independently consume that row. Unit results and
-continuation-bearing callers are likewise not yet in this bounded lane.
+return attribution in a separate evidence row. Object and final-image replay
+independently rederive the helper chain, interface and call-plan custody,
+unchanged register handoff, direct-call relocation and opcode shape, and
+semantic attribution. Installation format 66 retains the compact source,
+callee, scalar, parameter-ordinal, and exact text-span projection and rejects
+codec or projection drift. Unit results, continuation-bearing callers, and
+native process observation are not yet in this bounded lane.
 
 Code that wants a local dynamic interface over a component owns a local proxy:
 

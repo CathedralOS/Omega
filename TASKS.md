@@ -11253,7 +11253,7 @@ Remaining N6/N8 work:
   interpreter behavior, or native lowering. The next Terminal-only artifact
   carrier is now live for one direct scalar non-call operation result. Its exact
   source-free coordinate is `(owner MachineId, producer OperationId, result
-  ValueId, format)`. Terminal format 65 / vocabulary 68 encode that source;
+  ValueId, format)`. Terminal format 66 / vocabulary 68 encode that source;
   independent replay requires the unique producer to occur in the named owner
   and declare the exact primitive `f32`/`f64` scalar result. Wrong owners,
   producers, values, formats, call/Unit/structural results,
@@ -12199,7 +12199,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 65 retains compact strong-identity
+  relocation. Canonical installation format 66 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Each installed forwarding row also retains the semantic scalar
@@ -12263,7 +12263,7 @@ checked-result arithmetic decision listed below.
   while their target artifacts cross-link. Exact machine tests place the
   nested projected Boolean through the `Envelope/Flags` path at byte offset 8
   and reject path or accumulated-offset drift before emission. Canonical
-  installation format 65 retains ordered scalar-store vectors and their
+  installation format 66 retains ordered scalar-store vectors and their
   already-encoded path evidence.
   The fixed-integer source gate now matches that already-general physical
   carrier: a nested `u16` source fixture and direct `u64` native canary retain
@@ -12281,7 +12281,7 @@ checked-result arithmetic decision listed below.
   native canary selects `true` from the rebound instance, cross-links on both
   Linux architectures, and exits 70 on the hosted target. Object and
   installation replay rejoin the Boolean semantic result, call placement,
-  home roster, normalization/store interval, and canonical format-65 scalar
+  home roster, normalization/store interval, and canonical format-66 scalar
   tag. Integer-result forwarding remains unchanged.
 
   The first Unit-returning requirement rung now has checked custody without
@@ -12336,7 +12336,7 @@ checked-result arithmetic decision listed below.
   operation order even when no scalar home follows them. Machine parameter
   records now retain authored access, so shared/mutable borrows are not
   misclassified as owned affine values requiring cleanup; canonical
-  installation format 65 retains the parameter access tag introduced in the
+  installation format 66 retains the parameter access tag introduced in the
   prior format's reserved parameter byte. Dynamic-source borrowing no longer
   suppresses cleanup of an independently owned root. Source-driven calls cross
   machine/object/image/installation replay on all four native targets.
@@ -12347,7 +12347,7 @@ checked-result arithmetic decision listed below.
   machine evidence makes both semantic and physical results explicitly
   absent. Adapter construction reads Unit realization ABI from the Unit
   body's native call plan instead of requiring scalar-only mixed-result ABI
-  metadata. Object, image, and format-65 installation replay validate both
+  metadata. Object, image, and format-66 installation replay validate both
   call roles on x86-64 and AArch64; the installed codec carries an explicit
   result-presence tag and rejects mismatched semantic/physical result pairs.
 
@@ -12390,9 +12390,14 @@ checked-result arithmetic decision listed below.
   return. No descriptor words move because assignment proved the ABI registers
   identical; a distinct machine-code row retains parameter origin, both
   interfaces, both call plans, the direct-call relocation, scalar-stack/link
-  custody, and operation/return attribution. Object construction remains fail
-  closed until it independently replays that new row. Multi-hop Unit results
-  and scalar callers with continuations remain outside this bounded rung.
+  custody, and operation/return attribution. Object construction independently
+  rederives the helper chain, call-plan/register handoff, direct-call opcode and
+  relocation, stack/link custody, and semantic attribution before accepting
+  that row. Final-image validation repeats that replay, and canonical
+  installation format 66 retains the compact helper/callee/parameter/scalar
+  identity plus exact text span and rejects projection or codec drift.
+  Multi-hop Unit results, scalar callers with continuations, and a native
+  process-execution assertion remain outside this bounded rung.
 
   Remaining work:
 
@@ -12412,10 +12417,10 @@ checked-result arithmetic decision listed below.
     rule; computed values, indexed/case projections, repeated destinations, and
     a fourth write still has no native carrier;
   - extend descriptors to within-artifact stored/joined/escaping and
-    aggregate-erased forms, beginning by carrying the new scalar machine-code
-    row through object/image/installation replay and native execution, then
-    widening the same custody to Unit results and
-    continuations. Do not extend local
+    aggregate-erased forms. The scalar parameter-forwarding row now crosses
+    object/image/installation replay; next widen the same custody to Unit
+    results and continuations, then add native execution where a retained
+    caller result makes an observable assertion possible. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a

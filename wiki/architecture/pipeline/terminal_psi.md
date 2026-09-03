@@ -831,7 +831,7 @@ x86-64/AArch64 machine, object, image, and installation replay evidence. Target
 lowering accumulates every record-field and final primitive-field offset;
 assignment replays the path against the retained declarations, and machine
 emission rejects path, offset, or order drift before producing bytes. Canonical
-installation format 65 retains the bounded ordered store vector. A
+installation format 66 retains the bounded ordered store vector. A
 structural-only scalar-result realization publishes the ABI that its private
 erased-data adapter must rejoin before calling it. Boolean-returning forwarded
 calls now publish the same ABI with an exact Boolean result, normalize and

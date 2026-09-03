@@ -1,4 +1,4 @@
-//! Canonical format-65 codec for one installed internal Unit-call row.
+//! Canonical format-66 codec for one installed internal Unit-call row.
 //!
 //! Call ordering, stack composition, and custody validation remain in the
 //! installation parent. This child owns only the exact call-row bytes.

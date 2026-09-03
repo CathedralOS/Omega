@@ -90,7 +90,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 65;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 66;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -230,6 +230,7 @@ pub struct InstallationRecord {
     forwarded_dynamic_descriptor_tables: Vec<InstalledForwardedDynamicDescriptorTable>,
     forwarded_dynamic_descriptor_calls: Vec<InstalledForwardedDynamicDescriptorCall>,
     dynamic_parameter_calls: Vec<InstalledDynamicParameterCall>,
+    forwarded_dynamic_parameter_calls: Vec<InstalledForwardedDynamicParameterCall>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
@@ -316,6 +317,10 @@ impl InstallationRecord {
 
     pub fn dynamic_parameter_calls(&self) -> &[InstalledDynamicParameterCall] {
         &self.dynamic_parameter_calls
+    }
+
+    pub fn forwarded_dynamic_parameter_calls(&self) -> &[InstalledForwardedDynamicParameterCall] {
+        &self.forwarded_dynamic_parameter_calls
     }
 
     pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
@@ -434,6 +439,19 @@ pub struct InstalledDynamicParameterCall {
     pub operation: OperationId,
     pub source_value: Option<ValueId>,
     pub requirement_slot: u32,
+    pub text_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledForwardedDynamicParameterCall {
+    pub machine: MachineId,
+    pub operation: OperationId,
+    pub callee: MachineId,
+    pub source_value: ValueId,
+    pub scalar_type: psi_core::ScalarType,
+    pub source_parameter_ordinal: u32,
+    pub target_parameter_ordinal: u32,
     pub text_offset: usize,
     pub byte_count: usize,
 }
@@ -791,6 +809,7 @@ where
         forwarded_dynamic_descriptor_tables: installed_forwarded_dynamic_descriptor_tables(image),
         forwarded_dynamic_descriptor_calls: installed_forwarded_dynamic_descriptor_calls(image)?,
         dynamic_parameter_calls: installed_dynamic_parameter_calls(image)?,
+        forwarded_dynamic_parameter_calls: installed_forwarded_dynamic_parameter_calls(image)?,
         semantic_code_attribution: image.semantic_code_attribution().to_vec(),
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
@@ -1026,6 +1045,7 @@ pub fn encode_installation_record(
         &record.forwarded_dynamic_descriptor_tables,
         &record.forwarded_dynamic_descriptor_calls,
         &record.dynamic_parameter_calls,
+        &record.forwarded_dynamic_parameter_calls,
     )?;
     encode_semantic_code_attributions(
         &mut bytes,
@@ -1062,6 +1082,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         forwarded_dynamic_descriptor_tables,
         forwarded_dynamic_descriptor_calls,
         dynamic_parameter_calls,
+        forwarded_dynamic_parameter_calls,
     ) = decode_dynamic_conformance_custody(&mut reader)?;
     let semantic_code_attribution = decode_semantic_code_attributions(&mut reader)?;
     let port_effects = decode_port_effects(&mut reader)?;
@@ -1088,6 +1109,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         forwarded_dynamic_descriptor_tables,
         forwarded_dynamic_descriptor_calls,
         dynamic_parameter_calls,
+        forwarded_dynamic_parameter_calls,
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
@@ -1127,6 +1149,8 @@ pub fn validate_installation_record(
         || record.forwarded_dynamic_descriptor_calls
             != installed_forwarded_dynamic_descriptor_calls(image)?
         || record.dynamic_parameter_calls != installed_dynamic_parameter_calls(image)?
+        || record.forwarded_dynamic_parameter_calls
+            != installed_forwarded_dynamic_parameter_calls(image)?
         || record.semantic_code_attribution != image.semantic_code_attribution()
         || record.port_effects != image.port_effects()
         || record.boundary_settlements != image.boundary_settlements()
@@ -1457,6 +1481,44 @@ fn installed_dynamic_parameter_calls(
                 operation: call.psi_operation,
                 source_value: call.source_value,
                 requirement_slot: call.requirement.slot,
+                text_offset: function
+                    .text_offset
+                    .checked_add(call.code_offset)
+                    .ok_or(InstallationError::FunctionOffsetNotRepresentable)?,
+                byte_count: call.byte_count,
+            })
+        })
+        .collect()
+}
+
+fn installed_forwarded_dynamic_parameter_calls(
+    image: &ExecutableImage,
+) -> Result<Vec<InstalledForwardedDynamicParameterCall>, InstallationError> {
+    image
+        .functions()
+        .iter()
+        .flat_map(|function| {
+            function
+                .forwarded_dynamic_parameter_calls
+                .iter()
+                .map(move |call| (function, call))
+        })
+        .map(|(function, call)| {
+            let omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(source) =
+                &call.argument.source
+            else {
+                return Err(InstallationError::InvalidForwardedDynamicParameterCall(
+                    function.machine,
+                ));
+            };
+            Ok(InstalledForwardedDynamicParameterCall {
+                machine: function.machine,
+                operation: call.psi_operation,
+                callee: call.callee,
+                source_value: call.source_value,
+                scalar_type: call.scalar_type,
+                source_parameter_ordinal: source.ordinal,
+                target_parameter_ordinal: call.argument.target.ordinal,
                 text_offset: function
                     .text_offset
                     .checked_add(call.code_offset)
@@ -3513,6 +3575,49 @@ fn validate_installed_dynamic_conformance(
             return Err(InstallationError::InvalidDynamicParameterCall(call.machine));
         }
     }
+    let forwarded_parameter_machines = record
+        .forwarded_dynamic_parameter_calls
+        .iter()
+        .map(|call| call.machine)
+        .collect::<std::collections::BTreeSet<_>>();
+    let dynamic_parameter_machines = record
+        .dynamic_parameter_calls
+        .iter()
+        .map(|call| call.machine)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut forwarded_parameter_sites = std::collections::BTreeSet::new();
+    for call in &record.forwarded_dynamic_parameter_calls {
+        let function = functions.get(&call.machine).ok_or(
+            InstallationError::InvalidForwardedDynamicParameterCall(call.machine),
+        )?;
+        let end = call.text_offset.checked_add(call.byte_count).ok_or(
+            InstallationError::InvalidForwardedDynamicParameterCall(call.machine),
+        )?;
+        let function_end = function
+            .text_offset
+            .checked_add(function.byte_count)
+            .ok_or(InstallationError::InvalidForwardedDynamicParameterCall(
+                call.machine,
+            ))?;
+        if call.byte_count == 0
+            || call.text_offset < function.text_offset
+            || end > function_end
+            || call.source_parameter_ordinal != 0
+            || call.target_parameter_ordinal != 0
+            || !functions.contains_key(&call.callee)
+            || (!forwarded_parameter_machines.contains(&call.callee)
+                && !dynamic_parameter_machines.contains(&call.callee))
+            || !matches!(
+                call.scalar_type,
+                psi_core::ScalarType::Boolean | psi_core::ScalarType::Integer(_)
+            )
+            || !forwarded_parameter_sites.insert((call.machine, call.operation))
+        {
+            return Err(InstallationError::InvalidForwardedDynamicParameterCall(
+                call.machine,
+            ));
+        }
+    }
     if sections.data_byte_count == 0 {
         if !record.dynamic_conformance_tables.is_empty()
             || !record.dynamic_calls.is_empty()
@@ -4141,6 +4246,7 @@ pub enum InstallationError {
     TooManyForwardedDynamicDescriptorSlots,
     TooManyForwardedDynamicDescriptorCalls,
     TooManyDynamicParameterCalls,
+    TooManyForwardedDynamicParameterCalls,
     TooManyInternalUnitCallArguments,
     TooManyInternalUnitScalarCallArguments,
     TooManyInternalUnitCallClaims,
@@ -4237,6 +4343,7 @@ pub enum InstallationError {
     InvalidForwardedDynamicDescriptorTable,
     InvalidForwardedDynamicDescriptorCall(MachineId),
     InvalidDynamicParameterCall(MachineId),
+    InvalidForwardedDynamicParameterCall(MachineId),
     InvalidUnitStructuralScalarFieldStore(MachineId),
     InvalidUnitAffineCleanup(MachineId),
     InvalidScalarControlAffineCleanupCount(usize),

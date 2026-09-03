@@ -173,8 +173,12 @@ helper. The function-level target carrier retains a parameter source rather
 than fabricating a structural-field argument, and accepts only an unchanged
 two-word native ABI handoff. Physical assignment preserves the same source and
 destination registers. Machine emission records the ordinary direct helper
-call without materializing either descriptor word; object replay remains the
-next fail-closed boundary.
+call without materializing either descriptor word. Object, final-image, and
+installation replay independently retain the parameter-sourced helper chain,
+exact call plans and unchanged register handoff, direct-call relocation and
+opcode, scalar stack/link custody, semantic attribution, and exact installed
+text span. Continuation-bearing callers, Unit-result chains, and native result
+observation remain outside this bounded family.
 Installed-provider scalar lowering currently admits one direct fixed signed
 `i32` parameter forwarded unchanged to one Unit-returning candidate. Wider or
 mixed scalars, computed arguments, runtime structural arguments in the same
