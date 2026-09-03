@@ -123,7 +123,8 @@ pub(super) fn append_operation(
             unreachable!("goal-free scalar rows return before specialized reconstruction")
         }
         OperationKind::IeeeFloatConstant { .. }
-        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => Ok(()),
+        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+        | OperationKind::StoreDynamicDescriptor { .. } => Ok(()),
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }

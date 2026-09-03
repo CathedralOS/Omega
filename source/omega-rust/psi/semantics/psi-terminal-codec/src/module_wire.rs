@@ -32,10 +32,12 @@ use super::dynamic_dispatch_wire::{
     decode_direct_dynamic_dispatches, decode_dynamic_conformance_selections,
     decode_dynamic_descriptor_arguments, decode_dynamic_descriptor_parameters,
     decode_indirect_dynamic_dispatches, decode_parameter_dynamic_dispatches,
-    decode_rebound_dynamic_descriptors, encode_direct_dynamic_dispatches,
+    decode_rebound_dynamic_descriptors, decode_stored_dynamic_descriptors,
+    decode_stored_dynamic_dispatches, encode_direct_dynamic_dispatches,
     encode_dynamic_conformance_selections, encode_dynamic_descriptor_arguments,
     encode_dynamic_descriptor_parameters, encode_indirect_dynamic_dispatches,
     encode_parameter_dynamic_dispatches, encode_rebound_dynamic_descriptors,
+    encode_stored_dynamic_descriptors, encode_stored_dynamic_dispatches,
 };
 use super::proof_declaration_wire::{
     decode_evidence_interface, decode_proposition_application, decode_proposition_declaration,
@@ -993,10 +995,18 @@ fn encode_raw_for_result_paths(
             &mut writer,
             &module.dynamic_dispatch.rebound_descriptors,
         )?;
+        encode_stored_dynamic_descriptors(
+            &mut writer,
+            &module.dynamic_dispatch.stored_descriptors,
+        )?;
         encode_direct_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.direct_dispatches)?;
         encode_indirect_dynamic_dispatches(
             &mut writer,
             &module.dynamic_dispatch.indirect_dispatches,
+        )?;
+        encode_stored_dynamic_dispatches(
+            &mut writer,
+            &module.dynamic_dispatch.stored_dispatches,
         )?;
         encode_parameter_dynamic_dispatches(
             &mut writer,
@@ -1403,8 +1413,10 @@ pub(super) fn decode_module_body(
         dynamic_descriptor_arguments,
         dynamic_conformance_selections,
         rebound_dynamic_descriptors,
+        stored_dynamic_descriptors,
         direct_dynamic_dispatches,
         indirect_dynamic_dispatches,
+        stored_dynamic_dispatches,
         parameter_dynamic_dispatches,
     ) = if result_path_format == ResultPathWireFormat::Current {
         (
@@ -1412,12 +1424,16 @@ pub(super) fn decode_module_body(
             decode_dynamic_descriptor_arguments(reader)?,
             decode_dynamic_conformance_selections(reader)?,
             decode_rebound_dynamic_descriptors(reader)?,
+            decode_stored_dynamic_descriptors(reader)?,
             decode_direct_dynamic_dispatches(reader)?,
             decode_indirect_dynamic_dispatches(reader)?,
+            decode_stored_dynamic_dispatches(reader)?,
             decode_parameter_dynamic_dispatches(reader)?,
         )
     } else {
         (
+            Vec::new(),
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -1465,8 +1481,10 @@ pub(super) fn decode_module_body(
             arguments: dynamic_descriptor_arguments,
             selections: dynamic_conformance_selections,
             rebound_descriptors: rebound_dynamic_descriptors,
+            stored_descriptors: stored_dynamic_descriptors,
             direct_dispatches: direct_dynamic_dispatches,
             indirect_dispatches: indirect_dynamic_dispatches,
+            stored_dispatches: stored_dynamic_dispatches,
             parameter_dispatches: parameter_dynamic_dispatches,
         },
         quotient_correspondences,

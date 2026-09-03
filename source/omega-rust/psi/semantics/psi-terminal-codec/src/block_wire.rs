@@ -95,6 +95,10 @@ pub(super) fn encode_block_for_result_paths(
                 writer.id(field);
                 encode_integer_value(writer, value);
             }
+            OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
+                writer.u8(54);
+                writer.u32(descriptor_ordinal);
+            }
             OperationKind::Call {
                 callee,
                 arguments,
@@ -1011,6 +1015,9 @@ pub(super) fn decode_block_for_result_paths(
                 requirement_slot: reader.u32()?,
                 requirement_obligations: decode_ids(reader, "ObligationId")?,
                 crash_continuations: decode_crash_routes(reader)?,
+            },
+            54 => OperationKind::StoreDynamicDescriptor {
+                descriptor_ordinal: reader.u32()?,
             },
             41 => OperationKind::CallStructural {
                 callee: reader.id("MachineId")?,

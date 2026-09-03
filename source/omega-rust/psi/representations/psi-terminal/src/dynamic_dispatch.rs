@@ -21,10 +21,15 @@ pub struct TerminalDynamicDispatchCatalog {
     pub selections: Vec<TerminalDynamicConformanceSelection>,
     /// Ordered by owner and dense owner-local descriptor ordinal.
     pub rebound_descriptors: Vec<TerminalReboundDynamicDescriptor>,
+    /// Ordered by owner and dense owner-local aggregate descriptor ordinal.
+    pub stored_descriptors: Vec<TerminalStoredDynamicDescriptor>,
     /// Ordered by owner and operation.
     pub direct_dispatches: Vec<TerminalDirectDynamicDispatch>,
     /// Ordered by owner and operation.
     pub indirect_dispatches: Vec<TerminalIndirectDynamicDispatch>,
+    /// Ordered by owner and operation. These consume an exact descriptor
+    /// previously established in a local aggregate field.
+    pub stored_dispatches: Vec<TerminalStoredDynamicDispatch>,
     /// Ordered by owner and operation. These dispatches consume a descriptor
     /// received through a dynamic parameter rather than an owner-local
     /// materialized descriptor.
@@ -134,6 +139,19 @@ pub struct TerminalReboundDynamicDescriptor {
     pub rebound_selection_ordinal: u32,
 }
 
+/// One selected descriptor established in a field of a local aggregate.
+/// Aggregate identity and field identity remain target-neutral; physical
+/// two-word placement belongs to later representation planning.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalStoredDynamicDescriptor {
+    pub owner: MachineId,
+    pub ordinal: u32,
+    pub establishment_operation: OperationId,
+    pub selection_ordinal: u32,
+    pub aggregate_type_identity: String,
+    pub field_identity: String,
+}
+
 /// One scalar dispatch through a materialized dynamic descriptor.
 ///
 /// The selected row coordinates identify the only callable permitted in the
@@ -141,6 +159,21 @@ pub struct TerminalReboundDynamicDescriptor {
 /// callee.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalIndirectDynamicDispatch {
+    pub owner: MachineId,
+    pub operation: OperationId,
+    pub descriptor_ordinal: u32,
+    pub declaring_trait_identity: String,
+    pub public_requirement_identity: String,
+    pub requirement_identity: String,
+    pub realization_identity: String,
+    pub realization_callable_identity: String,
+    pub realization: MachineId,
+}
+
+/// One scalar dispatch through a descriptor loaded from an exact local
+/// aggregate field.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalStoredDynamicDispatch {
     pub owner: MachineId,
     pub operation: OperationId,
     pub descriptor_ordinal: u32,

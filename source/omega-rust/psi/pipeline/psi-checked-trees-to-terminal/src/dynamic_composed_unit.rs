@@ -24,7 +24,8 @@ use psi_terminal::{
     TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
     TerminalDynamicDispatchCatalog, TerminalDynamicRequirement, TerminalIndirectDynamicDispatch,
     TerminalMachine, TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
-    TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalReboundDynamicDescriptor, TerminalStoredDynamicDescriptor,
+    TerminalStoredDynamicDispatch, Terminator, ValueDeclaration, VocabularyMarker,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
 
@@ -74,6 +75,7 @@ struct ForwardedHelperIds {
 enum DynamicLoweringLane<'a> {
     Direct,
     Rebound(&'a CheckedDynamicSelectionPlan),
+    Stored(&'a psi_checked_trees::CheckedStoredDynamicScalarCallPlan),
 }
 
 pub(super) fn lower_direct_dynamic_composed_unit_machine(
@@ -94,6 +96,13 @@ pub(super) fn lower_rebound_dynamic_composed_unit_machine(
     )
 }
 
+pub(super) fn lower_stored_dynamic_composed_unit_machine(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedStoredDynamicScalarCallPlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    lower_dynamic_composed_unit_machine(checked, &plan.call, DynamicLoweringLane::Stored(plan))
+}
+
 fn lower_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
@@ -104,8 +113,12 @@ fn lower_dynamic_composed_unit_machine(
         DynamicLoweringLane::Rebound(initial) => {
             validate_exact_rebound_plan(checked, plan, initial)?
         }
+        DynamicLoweringLane::Stored(stored) => validate_exact_stored_plan(checked, stored)?,
     };
     if let Some(unit_continuation) = &plan.unit_continuation {
+        if matches!(lane, DynamicLoweringLane::Stored(_)) {
+            return unsupported("stored dynamic result control is not admitted in this rung");
+        }
         return continuation::lower(checked, plan, unit_continuation, caller, lane);
     }
     let (structural_types, type_ids) =
@@ -131,7 +144,14 @@ fn lower_dynamic_composed_unit_machine(
 
     let caller_machine = machine_id(1);
     let has_caller_store = plan.caller_structural_scalar_field_store.is_some();
-    let call_operation = operation_id(if has_caller_store { 3 } else { 1 });
+    let has_descriptor_store = matches!(lane, DynamicLoweringLane::Stored(_));
+    let call_operation = operation_id(if has_caller_store {
+        3
+    } else if has_descriptor_store {
+        2
+    } else {
+        1
+    });
     let call_result_value = value_id(if has_caller_store { 2 } else { 1 });
     let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
     let source_type = lookup_type_id(&type_ids, &plan.source_type_identity)?;
@@ -174,7 +194,13 @@ fn lower_dynamic_composed_unit_machine(
     };
     let mut next_block = 2_u64;
     let mut next_place = 2_u64;
-    let mut next_operation = if has_caller_store { 4 } else { 2 };
+    let mut next_operation = if has_caller_store {
+        4
+    } else if has_descriptor_store {
+        3
+    } else {
+        2
+    };
     let mut next_value = if has_caller_store { 3 } else { 2 };
     let mut next_edge = 2_u64;
     let forwarded_helpers = forwarded_helper_chain_ids(
@@ -222,6 +248,15 @@ fn lower_dynamic_composed_unit_machine(
     let root_service_reach = lower_root_service_reach(checked, plan.caller_machine, &[])?;
     let mut caller_operations =
         lower_caller_store_operations(plan, &caller_self, &structural_types, &type_ids)?;
+    if has_descriptor_store {
+        caller_operations.push(Operation {
+            id: operation_id(1),
+            result: OperationResult::Unit,
+            kind: OperationKind::StoreDynamicDescriptor {
+                descriptor_ordinal: 0,
+            },
+        });
+    }
     caller_operations.push(Operation {
         id: call_operation,
         result: OperationResult::Scalar(ValueDeclaration {
@@ -362,6 +397,7 @@ fn validate_exact_direct_plan(
         plan,
         selection_statement_index,
         call_statement_index,
+        None,
     )
 }
 
@@ -400,6 +436,124 @@ fn validate_exact_rebound_plan(
         plan,
         plan.selection.statement_index,
         plan.coordinate.statement_index,
+        None,
+    )
+}
+
+fn validate_exact_stored_plan(
+    checked: &CheckedTrees,
+    stored: &psi_checked_trees::CheckedStoredDynamicScalarCallPlan,
+) -> Result<DynamicCallerShape, LoweringError> {
+    let plan = &stored.call;
+    let machines = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == plan.caller_machine)
+        .collect::<Vec<_>>();
+    let [machine] = machines.as_slice() else {
+        return unsupported("stored dynamic descriptor drifted from checked aggregate custody");
+    };
+    let states = checked
+        .typed
+        .machine_states(machine)
+        .iter()
+        .filter(|state| state.symbol == plan.caller_state)
+        .collect::<Vec<_>>();
+    let [state] = states.as_slice() else {
+        return unsupported("stored dynamic descriptor drifted from checked aggregate custody");
+    };
+    let statements = checked
+        .typed
+        .statement_table
+        .statements(state.statement_nodes);
+    let Some(psi_checked_trees::statement::StatementNode::LocalData(destination)) =
+        statements.get(stored.storage.statement_index)
+    else {
+        return unsupported("stored dynamic descriptor drifted from checked aggregate custody");
+    };
+    let fields = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .flat_map(|definition| checked.typed.data_members(definition))
+        .filter_map(|member| {
+            let psi_checked_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            (field.symbol == stored.storage.destination_field).then_some(field)
+        })
+        .collect::<Vec<_>>();
+    let [field] = fields.as_slice() else {
+        return unsupported("stored dynamic descriptor drifted from checked aggregate custody");
+    };
+    let binders = checked
+        .typed
+        .machine_type_parameters(machine)
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| (parameter.symbol, format!("$T{index}")))
+        .collect::<Vec<_>>();
+    let destination_type_identity = checked
+        .typed
+        .normalized_type_identity_with_binders(destination.type_reference, &binders)
+        .into_string();
+    let destination_field_identity = field
+        .identity
+        .map(|identity| format!("#{identity}"))
+        .unwrap_or_else(|| field.name.as_str().to_owned());
+    let exact_storages = checked
+        .facts
+        .dynamic_conformances
+        .storages
+        .iter()
+        .filter(|candidate| *candidate == &stored.storage)
+        .count();
+    let exact_plans = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .stored_scalar_calls
+        .iter()
+        .filter(|candidate| *candidate == stored)
+        .count();
+    if exact_storages != 1
+        || exact_plans != 1
+        || stored.storage.selection != plan.selection
+        || stored.storage.machine != plan.caller_machine
+        || stored.storage.state != plan.caller_state
+        || stored.storage.statement_index.checked_add(1)
+            != usize::try_from(plan.coordinate.statement_index).ok()
+        || stored.storage.selection.statement_index.checked_add(1)
+            != Some(stored.storage.statement_index)
+        || stored.storage.destination_path.len() != 2
+        || stored.storage.source_path.len() != 1
+        || destination.symbol != stored.storage.destination_binding
+        || destination.name != stored.storage.destination_name
+        || stored.storage.destination_path[0] != destination.name
+        || stored.storage.destination_path[1] != field.name
+        || stored.storage.source_binding != plan.receiver_binding
+        || stored.storage.source_name != plan.selection.binding_name
+        || stored.storage.source_path[0] != stored.storage.source_name
+        || destination_type_identity != stored.destination_type_identity
+        || destination_field_identity != stored.destination_field_identity
+        || plan.caller_structural_scalar_field_store.is_some()
+        || plan.unit_continuation.is_some()
+        || !plan.forwarding_transfers.is_empty()
+        || !matches!(
+            plan.origin,
+            psi_checked_trees::CheckedDynamicScalarCallOrigin::Local
+        )
+    {
+        return unsupported("stored dynamic descriptor drifted from checked aggregate custody");
+    }
+    validate_exact_dynamic_plan(
+        checked,
+        plan,
+        stored.storage.selection.statement_index,
+        plan.coordinate.statement_index,
+        Some(stored.storage.destination_field),
     )
 }
 
@@ -408,6 +562,7 @@ fn validate_exact_dynamic_plan(
     plan: &CheckedDynamicScalarCallPlan,
     selection_statement_index: usize,
     call_statement_index: u32,
+    expected_flow_receiver: Option<psi_symbols::SymbolHandle>,
 ) -> Result<DynamicCallerShape, LoweringError> {
     let forwarded = match plan.origin {
         psi_checked_trees::CheckedDynamicScalarCallOrigin::Local => None,
@@ -529,7 +684,8 @@ fn validate_exact_dynamic_plan(
                         !call.has_receiver && call.target_symbol == first_state
                     }
                     None => {
-                        call.receiver_symbol == plan.receiver_binding
+                        call.receiver_symbol
+                            == expected_flow_receiver.unwrap_or(plan.receiver_binding)
                             && call.target_symbol == plan.requirement
                     }
                 }
@@ -589,7 +745,7 @@ fn validate_exact_dynamic_plan(
                     )?
             }
             None => {
-                call.receiver_symbol != plan.receiver_binding
+                call.receiver_symbol != expected_flow_receiver.unwrap_or(plan.receiver_binding)
                     || call.target_symbol != plan.requirement
                     || !call.has_receiver
                     || call.service_reach != plan.checked_call_service_reach
@@ -1011,6 +1167,17 @@ fn lower_dynamic_call_custody(
         realization_callable_identity: callable_identity.clone(),
         realization: realization_machine,
     };
+    let stored_row_dispatch = |descriptor_ordinal| TerminalStoredDynamicDispatch {
+        owner: caller_machine,
+        operation: call_operation,
+        descriptor_ordinal,
+        declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
+        public_requirement_identity: selected_row.public_requirement_identity.clone(),
+        requirement_identity: selected_row.requirement_identity.clone(),
+        realization_identity: selected_row.realization_identity.clone(),
+        realization_callable_identity: callable_identity.clone(),
+        realization: realization_machine,
+    };
     Ok(match lane {
         DynamicLoweringLane::Direct => {
             if initial_application.is_some() {
@@ -1021,8 +1188,10 @@ fn lower_dynamic_call_custody(
                 arguments: Vec::new(),
                 selections: vec![latest_selection],
                 rebound_descriptors: Vec::new(),
+                stored_descriptors: Vec::new(),
                 direct_dispatches: Vec::new(),
                 indirect_dispatches: Vec::new(),
+                stored_dispatches: Vec::new(),
                 parameter_dispatches: Vec::new(),
             };
             let call_kind = if let Some(helper) = forwarded_helper {
@@ -1117,8 +1286,10 @@ fn lower_dynamic_call_custody(
                     initial_selection_ordinal: 0,
                     rebound_selection_ordinal: 1,
                 }],
+                stored_descriptors: Vec::new(),
                 direct_dispatches: Vec::new(),
                 indirect_dispatches: Vec::new(),
+                stored_dispatches: Vec::new(),
                 parameter_dispatches: Vec::new(),
             };
             let call_kind = if let Some(helper) = forwarded_helper {
@@ -1163,6 +1334,39 @@ fn lower_dynamic_call_custody(
                 }
             };
             (catalog, call_kind)
+        }
+        DynamicLoweringLane::Stored(stored) => {
+            if initial_application.is_some() || forwarded_helper.is_some() {
+                return unsupported(
+                    "stored dynamic dispatch acquired unrelated descriptor custody",
+                );
+            }
+            let catalog = TerminalDynamicDispatchCatalog {
+                parameters: Vec::new(),
+                arguments: Vec::new(),
+                selections: vec![latest_selection],
+                rebound_descriptors: Vec::new(),
+                stored_descriptors: vec![TerminalStoredDynamicDescriptor {
+                    owner: caller_machine,
+                    ordinal: 0,
+                    establishment_operation: operation_id(1),
+                    selection_ordinal: 0,
+                    aggregate_type_identity: stored.destination_type_identity.clone(),
+                    field_identity: stored.destination_field_identity.clone(),
+                }],
+                direct_dispatches: Vec::new(),
+                indirect_dispatches: Vec::new(),
+                stored_dispatches: vec![stored_row_dispatch(0)],
+                parameter_dispatches: Vec::new(),
+            };
+            (
+                catalog,
+                OperationKind::CallDynamicScalar {
+                    descriptor_ordinal: 0,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            )
         }
     })
 }

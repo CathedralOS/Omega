@@ -5,7 +5,8 @@ use psi_terminal::{
     TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
     TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
     TerminalDynamicRequirement, TerminalIndirectDynamicDispatch, TerminalParameterDynamicDispatch,
-    TerminalReboundDynamicDescriptor,
+    TerminalReboundDynamicDescriptor, TerminalStoredDynamicDescriptor,
+    TerminalStoredDynamicDispatch,
 };
 
 use super::wire::{Reader, Writer};
@@ -264,6 +265,44 @@ pub(super) fn decode_rebound_dynamic_descriptors(
     })
 }
 
+pub(super) fn encode_stored_dynamic_descriptors(
+    writer: &mut Writer,
+    descriptors: &[TerminalStoredDynamicDescriptor],
+) -> Result<(), CodecError> {
+    writer.len("stored dynamic descriptors", descriptors.len())?;
+    for descriptor in descriptors {
+        writer.id(descriptor.owner);
+        writer.u32(descriptor.ordinal);
+        writer.id(descriptor.establishment_operation);
+        writer.u32(descriptor.selection_ordinal);
+        writer.string(
+            "stored dynamic descriptor aggregate type identity",
+            &descriptor.aggregate_type_identity,
+        )?;
+        writer.string(
+            "stored dynamic descriptor field identity",
+            &descriptor.field_identity,
+        )?;
+    }
+    Ok(())
+}
+
+pub(super) fn decode_stored_dynamic_descriptors(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalStoredDynamicDescriptor>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(TerminalStoredDynamicDescriptor {
+            owner: reader.id("MachineId")?,
+            ordinal: reader.u32()?,
+            establishment_operation: reader.id("OperationId")?,
+            selection_ordinal: reader.u32()?,
+            aggregate_type_identity: reader
+                .string("stored dynamic descriptor aggregate type identity")?,
+            field_identity: reader.string("stored dynamic descriptor field identity")?,
+        })
+    })
+}
+
 pub(super) fn encode_indirect_dynamic_dispatches(
     writer: &mut Writer,
     dispatches: &[TerminalIndirectDynamicDispatch],
@@ -316,6 +355,61 @@ pub(super) fn decode_indirect_dynamic_dispatches(
                 .string("indirect dynamic dispatch realization identity")?,
             realization_callable_identity: reader
                 .string("indirect dynamic dispatch realization callable identity")?,
+            realization: reader.id("MachineId")?,
+        })
+    })
+}
+
+pub(super) fn encode_stored_dynamic_dispatches(
+    writer: &mut Writer,
+    dispatches: &[TerminalStoredDynamicDispatch],
+) -> Result<(), CodecError> {
+    writer.len("stored dynamic dispatches", dispatches.len())?;
+    for dispatch in dispatches {
+        writer.id(dispatch.owner);
+        writer.id(dispatch.operation);
+        writer.u32(dispatch.descriptor_ordinal);
+        writer.string(
+            "stored dynamic dispatch declaring trait identity",
+            &dispatch.declaring_trait_identity,
+        )?;
+        writer.string(
+            "stored dynamic dispatch public requirement identity",
+            &dispatch.public_requirement_identity,
+        )?;
+        writer.string(
+            "stored dynamic dispatch requirement identity",
+            &dispatch.requirement_identity,
+        )?;
+        writer.string(
+            "stored dynamic dispatch realization identity",
+            &dispatch.realization_identity,
+        )?;
+        writer.string(
+            "stored dynamic dispatch realization callable identity",
+            &dispatch.realization_callable_identity,
+        )?;
+        writer.id(dispatch.realization);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_stored_dynamic_dispatches(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalStoredDynamicDispatch>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(TerminalStoredDynamicDispatch {
+            owner: reader.id("MachineId")?,
+            operation: reader.id("OperationId")?,
+            descriptor_ordinal: reader.u32()?,
+            declaring_trait_identity: reader
+                .string("stored dynamic dispatch declaring trait identity")?,
+            public_requirement_identity: reader
+                .string("stored dynamic dispatch public requirement identity")?,
+            requirement_identity: reader.string("stored dynamic dispatch requirement identity")?,
+            realization_identity: reader.string("stored dynamic dispatch realization identity")?,
+            realization_callable_identity: reader
+                .string("stored dynamic dispatch realization callable identity")?,
             realization: reader.id("MachineId")?,
         })
     })

@@ -588,7 +588,8 @@ pub(super) fn validate_operation_operands(
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
-        | OperationKind::EstablishAffineScalarRecord { .. } => None,
+        | OperationKind::EstablishAffineScalarRecord { .. }
+        | OperationKind::StoreDynamicDescriptor { .. } => None,
     }) else {
         return Ok(());
     };

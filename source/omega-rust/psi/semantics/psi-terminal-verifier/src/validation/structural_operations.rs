@@ -1034,6 +1034,10 @@ pub(super) fn validate_unit_operation_static(
                 });
             }
         }
+        OperationKind::StoreDynamicDescriptor { .. } => {
+            // The dynamic-dispatch validator owns the exact descriptor,
+            // selection, aggregate identity, field identity, and ordering.
+        }
         _ => unreachable!("caller selects only structural/effect operations"),
     }
     Ok(())

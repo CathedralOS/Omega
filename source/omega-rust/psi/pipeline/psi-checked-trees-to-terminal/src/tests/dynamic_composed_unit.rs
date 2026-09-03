@@ -29,6 +29,36 @@ const DIRECT_DYNAMIC_SOURCE: &str = r#"
     }
 "#;
 
+const STORED_DYNAMIC_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] {
+        value: bool;
+    }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Holder<'item> {
+        handler: &'item dyn Measure;
+    }
+
+    data Main [copy] {
+        item: Item;
+    }
+
+    machine Main::run<'item>(&self) {
+        let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
+        let holder: Holder<'item> = Holder { handler: erased };
+        let result: bool = holder.handler.measure();
+    }
+"#;
+
 const DIRECT_DYNAMIC_INTEGER_STORE_SOURCE: &str = r#"
     trait Measure {
         machine measure(&self) -> i32;
@@ -539,6 +569,84 @@ const FORWARDED_REBOUND_DYNAMIC_UNIT_SOURCE: &str = r#"
 
 fn direct_dynamic_checked() -> psi_checked_trees::CheckedTrees {
     checked_source(DIRECT_DYNAMIC_SOURCE)
+}
+
+#[test]
+fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
+    let mut checked = checked_source(STORED_DYNAMIC_SOURCE);
+    let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(catalog.direct_scalar_calls.is_empty());
+    assert!(catalog.rebound_scalar_calls.is_empty());
+    let [plan] = catalog.stored_scalar_calls.as_slice() else {
+        panic!("one checked stored dynamic plan expected, got {catalog:#?}")
+    };
+    assert_eq!(plan.storage.statement_index, 1);
+    assert_eq!(plan.call.coordinate.statement_index, 2);
+
+    let lowered = lower_machine(&checked, "Main::run").expect("stored dynamic call lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("stored dynamic module verifies");
+    let terminal = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(terminal.selections.len(), 1);
+    assert!(terminal.rebound_descriptors.is_empty());
+    let [descriptor] = terminal.stored_descriptors.as_slice() else {
+        panic!("one terminal stored descriptor expected")
+    };
+    assert!(descriptor.aggregate_type_identity.contains("Holder"));
+    assert_eq!(descriptor.field_identity, "handler");
+    let [dispatch] = terminal.stored_dispatches.as_slice() else {
+        panic!("one terminal stored dispatch expected")
+    };
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == descriptor.owner)
+        .expect("stored descriptor owner");
+    let operations = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        operations[0].kind,
+        OperationKind::StoreDynamicDescriptor {
+            descriptor_ordinal: 0
+        }
+    ));
+    assert_eq!(operations[0].id, descriptor.establishment_operation);
+    assert_eq!(operations[1].id, dispatch.operation);
+    assert!(matches!(
+        operations[1].kind,
+        OperationKind::CallDynamicScalar {
+            descriptor_ordinal: 0,
+            ..
+        }
+    ));
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("stored dynamic module has canonical source-free encoding");
+    assert_eq!(
+        psi_terminal_codec::decode_module(artifact.semantic_bytes())
+            .expect("decode stored dynamic module"),
+        lowered.semantic_module
+    );
+    assert_stored_dynamic_scalar_artifact_executes(&artifact);
+
+    let mut tampered = lowered.semantic_module.clone();
+    tampered.dynamic_dispatch.stored_descriptors[0].selection_ordinal = 1;
+    assert!(psi_terminal_verifier::validate_module(&tampered).is_err());
+
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .stored_scalar_calls[0]
+        .destination_field_identity = "other".into();
+    assert_eq!(
+        unsupported_message(&checked),
+        "stored dynamic descriptor drifted from checked aggregate custody"
+    );
 }
 
 fn direct_plan(
@@ -1318,6 +1426,79 @@ fn assert_dynamic_unit_artifact_executes(artifact: &psi_terminal_codec::Canonica
     let mut meter = psi_terminal_fuel::TerminalFuelMeter::unbounded();
     assert_eq!(
         execution.resume(&mut meter).expect("dynamic Unit executes"),
+        psi_terminal_interpreter::TerminalExecutionStatus::Complete(
+            psi_terminal_interpreter::TerminalExecutionResult::Unit,
+        ),
+    );
+}
+
+fn assert_stored_dynamic_scalar_artifact_executes(
+    artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+) {
+    let module = psi_terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("stored dynamic scalar module decodes for execution");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("stored dynamic scalar entry machine");
+    let [parameter] = entry.structural_parameters.as_slice() else {
+        panic!("stored dynamic scalar entry requires one structural self parameter")
+    };
+    let [descriptor] = module.dynamic_dispatch.stored_descriptors.as_slice() else {
+        panic!("stored dynamic scalar execution requires one descriptor")
+    };
+    let selection = module
+        .dynamic_dispatch
+        .selections
+        .iter()
+        .find(|selection| {
+            selection.owner == descriptor.owner && selection.ordinal == descriptor.selection_ordinal
+        })
+        .expect("stored descriptor retains its exact selection");
+    let [dispatch] = module.dynamic_dispatch.stored_dispatches.as_slice() else {
+        panic!("stored dynamic scalar execution requires one dispatch")
+    };
+    let realization = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == dispatch.realization)
+        .expect("stored dynamic scalar realization machine");
+    let field = realization
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::BooleanStructuralField { field, .. } => Some(field),
+            _ => None,
+        })
+        .expect("stored dynamic scalar realization reads one Boolean field");
+    let argument = psi_terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 1,
+        structural_type: parameter.structural_type,
+        qualifications: parameter.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let boolean_field = psi_terminal_interpreter::TerminalStructuralBooleanFieldValue {
+        argument_index: 0,
+        path: selection.source.path.clone(),
+        field,
+        value: true,
+    };
+    let mut execution = psi_terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &psi_proof_admission::AdmissionProfile::default(),
+        &[],
+        &[argument],
+        &[boolean_field],
+    )
+    .expect("stored dynamic scalar artifact starts");
+    let mut meter = psi_terminal_fuel::TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution
+            .resume(&mut meter)
+            .expect("stored dynamic scalar executes"),
         psi_terminal_interpreter::TerminalExecutionStatus::Complete(
             psi_terminal_interpreter::TerminalExecutionResult::Unit,
         ),

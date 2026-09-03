@@ -3389,6 +3389,7 @@ fn rebound_dynamic_scalar_call_module() -> TerminalModule {
             initial_selection_ordinal: 0,
             rebound_selection_ordinal: 1,
         }],
+        stored_descriptors: Vec::new(),
         direct_dispatches: Vec::new(),
         indirect_dispatches: vec![TerminalIndirectDynamicDispatch {
             owner: caller,
@@ -3401,6 +3402,7 @@ fn rebound_dynamic_scalar_call_module() -> TerminalModule {
             realization_callable_identity: "test::Item::measure#callable".into(),
             realization,
         }],
+        stored_dispatches: Vec::new(),
         parameter_dispatches: Vec::new(),
     };
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallDynamicScalar {

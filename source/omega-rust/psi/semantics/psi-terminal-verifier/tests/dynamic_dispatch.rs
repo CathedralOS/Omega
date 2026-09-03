@@ -165,6 +165,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 conformance_application_commitment: application.commitment,
             }],
             rebound_descriptors: Vec::new(),
+            stored_descriptors: Vec::new(),
             direct_dispatches: vec![TerminalDirectDynamicDispatch {
                 owner: caller,
                 operation,
@@ -177,6 +178,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 realization,
             }],
             indirect_dispatches: Vec::new(),
+            stored_dispatches: Vec::new(),
             parameter_dispatches: Vec::new(),
         },
         quotient_correspondences: Vec::new(),

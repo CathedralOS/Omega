@@ -12,6 +12,9 @@ pub enum LoweringError {
     /// Independent Terminal-to-Omega projection could not rejoin one exact
     /// descriptor, its initializer/latest selections, and its indirect row.
     InvalidDynamicCall(psi_core::OperationId),
+    /// Terminal retains aggregate descriptor storage, but Omega does not yet
+    /// materialize that target-neutral custody as a native two-word local.
+    UnsupportedStoredDynamicDescriptor(psi_core::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// whole-root write-only parameter and its preceding scalar definition.
     InvalidWriteOnlyPrimitiveStore(psi_core::OperationId),

@@ -267,7 +267,37 @@ pub(super) fn validate_closed_conformance_applications(
                                             )
                                     },
                                 )
-                        });
+                        })
+                    || module.dynamic_dispatch.stored_dispatches.iter().any(|dispatch| {
+                        dispatch.owner == application.owner
+                            && dispatch.declaring_trait_identity == row.declaring_trait_identity
+                            && dispatch.public_requirement_identity
+                                == row.public_requirement_identity
+                            && dispatch.requirement_identity == row.requirement_identity
+                            && dispatch.realization_identity == row.realization_identity
+                            && dispatch.realization_callable_identity
+                                == callable.source_callable_identity
+                            && dispatch.realization == callable.machine
+                            && module.dynamic_dispatch.stored_descriptors.iter().any(
+                                |descriptor| {
+                                    descriptor.owner == dispatch.owner
+                                        && descriptor.ordinal == dispatch.descriptor_ordinal
+                                        && module.dynamic_dispatch.selections.iter().any(
+                                            |selection| {
+                                                selection.owner == descriptor.owner
+                                                    && selection.ordinal
+                                                        == descriptor.selection_ordinal
+                                                    && selection
+                                                        .conformance_application_report_fingerprint
+                                                        == application.report_fingerprint
+                                                    && selection
+                                                        .conformance_application_commitment
+                                                        == application.commitment
+                                            },
+                                        )
+                                },
+                            )
+                    });
                 if !proof_output_consumed
                     && !dynamic_dispatch_consumed
                     && !dynamic_argument_consumed
@@ -323,7 +353,48 @@ pub(super) fn validate_closed_conformance_applications(
                                         },
                                     )
                             },
-                        )) => {}
+                        )
+                        || module.dynamic_dispatch.stored_dispatches.iter().any(|dispatch| {
+                            dispatch.owner == application.owner
+                                && rows.iter().any(|row| {
+                                    row.declaring_trait_identity
+                                        == dispatch.declaring_trait_identity
+                                        && row.public_requirement_identity
+                                            == dispatch.public_requirement_identity
+                                        && row.requirement_identity
+                                            == dispatch.requirement_identity
+                                        && row.realization_identity
+                                            == dispatch.realization_identity
+                                        && row.realization_callable_identity.as_deref()
+                                            == Some(
+                                                dispatch.realization_callable_identity.as_str(),
+                                            )
+                                })
+                                && callables.iter().any(|callable| {
+                                    callable.source_callable_identity
+                                        == dispatch.realization_callable_identity
+                                        && callable.machine == dispatch.realization
+                                })
+                                && module.dynamic_dispatch.stored_descriptors.iter().any(
+                                    |descriptor| {
+                                        descriptor.owner == dispatch.owner
+                                            && descriptor.ordinal == dispatch.descriptor_ordinal
+                                            && module.dynamic_dispatch.selections.iter().any(
+                                                |selection| {
+                                                    selection.owner == descriptor.owner
+                                                        && selection.ordinal
+                                                            == descriptor.selection_ordinal
+                                                        && selection
+                                                            .conformance_application_report_fingerprint
+                                                            == application.report_fingerprint
+                                                        && selection
+                                                            .conformance_application_commitment
+                                                            == application.commitment
+                                                },
+                                            )
+                                    },
+                                )
+                        })) => {}
             _ => {
                 return Err(ModuleError::InvalidClosedConformanceApplication {
                     owner: application.owner,

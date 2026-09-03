@@ -217,9 +217,12 @@ pub struct TerminalPayloadlessCaseValue {
     pub result_case: StructuralCaseId,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalStructuralBooleanFieldValue {
     pub argument_index: u32,
+    /// Structural path from the entry argument to the record containing
+    /// `field`. Empty retains the original direct-field input form.
+    pub path: Vec<StructuralPathSegment>,
     pub field: StructuralFieldId,
     pub value: bool,
 }
@@ -453,7 +456,6 @@ pub struct TerminalExecution {
     /// terminal machine/place identity. Literal operations are canonical and
     /// idempotently establish the same bytes on every invocation.
     byte_sequence_literals: BTreeMap<(MachineId, PlaceId), Vec<u8>>,
-    structural_boolean_fields: BTreeMap<(MachineId, PlaceId, StructuralFieldId), bool>,
     /// Exact claim-free affine ownership frontier. Opaque structural storage is
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
@@ -470,7 +472,6 @@ pub struct TerminalExecution {
 
 #[derive(Clone)]
 struct ExecutableMachine {
-    id: MachineId,
     parameters: Vec<psi_terminal::ValueDeclaration>,
     structural_parameters: Vec<StructuralParameterDeclaration>,
     structural_places: Vec<psi_terminal::StructuralPlaceDeclaration>,
@@ -677,7 +678,6 @@ impl TerminalExecution {
                 (
                     machine.id,
                     ExecutableMachine {
-                        id: machine.id,
                         parameters: machine.parameters.clone(),
                         structural_parameters: machine.structural_parameters.clone(),
                         structural_places: machine.structural_places.clone(),
@@ -694,7 +694,7 @@ impl TerminalExecution {
                 )
             })
             .collect::<BTreeMap<_, _>>();
-        let dynamic_scalar_calls = module
+        let mut dynamic_scalar_calls = module
             .dynamic_dispatch
             .indirect_dispatches
             .iter()
@@ -723,6 +723,35 @@ impl TerminalExecution {
                 )
             })
             .collect::<BTreeMap<_, _>>();
+        for dispatch in &module.dynamic_dispatch.stored_dispatches {
+            let descriptor = module
+                .dynamic_dispatch
+                .stored_descriptors
+                .iter()
+                .find(|descriptor| {
+                    descriptor.owner == dispatch.owner
+                        && descriptor.ordinal == dispatch.descriptor_ordinal
+                })
+                .expect("verified stored dispatch has one descriptor");
+            let selection = module
+                .dynamic_dispatch
+                .selections
+                .iter()
+                .find(|selection| {
+                    selection.owner == descriptor.owner
+                        && selection.ordinal == descriptor.selection_ordinal
+                })
+                .expect("verified stored descriptor has one selection");
+            assert!(
+                dynamic_scalar_calls
+                    .insert(
+                        (dispatch.owner, dispatch.descriptor_ordinal),
+                        (dispatch.realization, selection.source.clone()),
+                    )
+                    .is_none(),
+                "verified dynamic descriptor coordinates must be disjoint"
+            );
+        }
         let dynamic_selection_templates = module
             .dynamic_dispatch
             .selections
@@ -764,7 +793,7 @@ impl TerminalExecution {
                 )
             })
             .collect::<BTreeMap<_, _>>();
-        let dynamic_descriptor_templates = module
+        let mut dynamic_descriptor_templates = module
             .dynamic_dispatch
             .rebound_descriptors
             .iter()
@@ -776,6 +805,18 @@ impl TerminalExecution {
                 ((descriptor.owner, descriptor.ordinal), template)
             })
             .collect::<BTreeMap<_, _>>();
+        for descriptor in &module.dynamic_dispatch.stored_descriptors {
+            let template = dynamic_selection_templates
+                .get(&(descriptor.owner, descriptor.selection_ordinal))
+                .expect("verified stored descriptor has one selection")
+                .clone();
+            assert!(
+                dynamic_descriptor_templates
+                    .insert((descriptor.owner, descriptor.ordinal), template)
+                    .is_none(),
+                "verified dynamic descriptor coordinates must be disjoint"
+            );
+        }
         let mut dynamic_descriptor_arguments = BTreeMap::<
             (MachineId, OperationId),
             Vec<psi_terminal::TerminalDynamicDescriptorArgument>,
@@ -811,8 +852,12 @@ impl TerminalExecution {
                 &structural_values,
                 structural_primitive_value_arguments,
             )?;
-        let structural_boolean_fields =
-            bind_structural_boolean_fields(machine, structural_boolean_field_arguments)?;
+        let structural_boolean_fields = bind_structural_boolean_fields(
+            machine,
+            &structural_types,
+            &structural_values,
+            structural_boolean_field_arguments,
+        )?;
         let live_affine_frontier =
             bind_affine_frontier(&machine.structural_parameters, &structural_values)?;
         let live_claims = bind_entry_claims(
@@ -845,10 +890,9 @@ impl TerminalExecution {
             structural_values,
             structural_primitive_storage,
             structural_primitive_entry_places,
-            structural_scalar_fields: BTreeMap::new(),
+            structural_scalar_fields: structural_boolean_fields,
             payloadless_case_values: BTreeMap::new(),
             byte_sequence_literals: BTreeMap::new(),
-            structural_boolean_fields,
             live_affine_frontier,
             live_claims,
             current_machine: module.entry,
@@ -1395,6 +1439,15 @@ impl TerminalExecution {
                     return meter_status(error);
                 }
                 match operation.kind.clone() {
+                    OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
+                        if operation.result != psi_terminal::OperationResult::Unit
+                            || !self
+                                .dynamic_descriptor_templates
+                                .contains_key(&(self.current_machine, descriptor_ordinal))
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                    }
                     OperationKind::EstablishPayloadlessCase { result_case } => {
                         let psi_terminal::OperationResult::Structural(result) = &operation.result
                         else {
@@ -2156,14 +2209,23 @@ impl TerminalExecution {
                         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
+                        let structural_value = self.structural_values.get(&source).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+                        )?;
                         let value = self
-                            .structural_boolean_fields
-                            .get(&(self.current_machine, source, field))
+                            .structural_scalar_fields
+                            .get(&StructuralScalarRuntimeField {
+                                parent: StructuralRuntimePlace::from(structural_value),
+                                field,
+                            })
                             .copied()
                             .ok_or(TerminalInterpretError::StructuralBooleanFieldMissing {
                                 source,
                                 field,
                             })?;
+                        let TerminalScalarValue::Boolean(value) = value else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
                         self.values.insert(
                             operation.result.expect_scalar().id,
                             TerminalScalarValue::Boolean(value),
@@ -3761,8 +3823,10 @@ fn nearest_ieee_float_fused_multiply_add(
 
 fn bind_structural_boolean_fields(
     machine: &ExecutableMachine,
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralBooleanFieldValue],
-) -> Result<BTreeMap<(MachineId, PlaceId, StructuralFieldId), bool>, TerminalInterpretError> {
+) -> Result<BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>, TerminalInterpretError> {
     let required = machine
         .blocks
         .values()
@@ -3773,7 +3837,7 @@ fn bind_structural_boolean_fields(
                     .structural_parameters
                     .iter()
                     .position(|parameter| parameter.place == source)?;
-                Some((argument_index as u32, source, field))
+                Some((argument_index as u32, field))
             }
             _ => None,
         })
@@ -3789,7 +3853,20 @@ fn bind_structural_boolean_fields(
                     field: argument.field,
                 },
             )?;
-        if !required.contains(&(argument.argument_index, parameter.place, argument.field)) {
+        let root = structural_values.get(&parameter.place).ok_or(
+            TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
+        )?;
+        let parent_type =
+            resolve_structural_path_type(structural_types, root.structural_type, &argument.path)
+                .map_err(
+                    |_| TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
+                        argument_index: argument.argument_index,
+                        field: argument.field,
+                    },
+                )?;
+        if direct_scalar_field_type(structural_types, parent_type, argument.field)
+            != Some(ScalarType::Boolean)
+        {
             return Err(
                 TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
                     argument_index: argument.argument_index,
@@ -3797,10 +3874,15 @@ fn bind_structural_boolean_fields(
                 },
             );
         }
+        let mut parent = StructuralRuntimePlace::from(root);
+        parent.path.extend(argument.path.clone());
         if values
             .insert(
-                (machine.id, parameter.place, argument.field),
-                argument.value,
+                StructuralScalarRuntimeField {
+                    parent,
+                    field: argument.field,
+                },
+                TerminalScalarValue::Boolean(argument.value),
             )
             .is_some()
         {
@@ -3812,14 +3894,20 @@ fn bind_structural_boolean_fields(
             );
         }
     }
-    if let Some((_, source, field)) = required
-        .iter()
-        .find(|(_, source, field)| !values.contains_key(&(machine.id, *source, *field)))
-    {
-        return Err(TerminalInterpretError::StructuralBooleanFieldMissing {
-            source: *source,
-            field: *field,
-        });
+    for (argument_index, field) in required {
+        let parameter = &machine.structural_parameters[argument_index as usize];
+        let root = structural_values
+            .get(&parameter.place)
+            .expect("verified entry parameter has a bound structural value");
+        if !values.contains_key(&StructuralScalarRuntimeField {
+            parent: StructuralRuntimePlace::from(root),
+            field,
+        }) {
+            return Err(TerminalInterpretError::StructuralBooleanFieldMissing {
+                source: parameter.place,
+                field,
+            });
+        }
     }
     Ok(values)
 }

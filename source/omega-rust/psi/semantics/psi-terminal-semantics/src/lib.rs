@@ -332,6 +332,7 @@ operation_semantic_rows! {
     EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
     EstablishTrivialAffineLocal => ("schema:operation:establish-trivial-affine-local", LeafDenotation, None),
     EstablishAffineScalarRecord => ("schema:operation:establish-affine-scalar-record", LeafDenotation, None),
+    StoreDynamicDescriptor => ("schema:operation:store-dynamic-descriptor", LeafDenotation, None),
     Call => ("algebra:call:call", CallComposition, None),
     CallUnit => ("algebra:call:call-unit", CallComposition, None),
     CallStructuralScalar => ("algebra:call:call-structural-scalar", CallComposition, None),

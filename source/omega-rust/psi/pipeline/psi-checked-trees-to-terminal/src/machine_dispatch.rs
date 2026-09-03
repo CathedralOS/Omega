@@ -9,6 +9,7 @@ use crate::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::dynamic_composed_unit::{
     lower_direct_dynamic_composed_unit_machine, lower_direct_dynamic_unit_machine,
     lower_rebound_dynamic_composed_unit_machine, lower_rebound_dynamic_unit_machine,
+    lower_stored_dynamic_composed_unit_machine,
 };
 use crate::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
@@ -41,6 +42,9 @@ pub(super) enum SelectedMachineRoute {
         realization_machine: psi_symbols::SymbolHandle,
     },
     ReboundDynamicComposedUnit {
+        realization_machine: psi_symbols::SymbolHandle,
+    },
+    StoredDynamicComposedUnit {
         realization_machine: psi_symbols::SymbolHandle,
     },
     StructuralScalarReturn,
@@ -99,6 +103,29 @@ pub(super) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
+    let stored_dynamic_plans = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .stored_scalar_calls
+        .iter()
+        .filter(|plan| plan.call.caller_machine == selection.machine)
+        .collect::<Vec<_>>();
+    if !stored_dynamic_plans.is_empty() {
+        let [plan] = stored_dynamic_plans.as_slice() else {
+            return unsupported("stored dynamic dispatch plan is duplicated for one caller");
+        };
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("stored dynamic dispatch requires an attached caller");
+        }
+        return routed_machine(
+            lower_stored_dynamic_composed_unit_machine(checked, plan),
+            SelectedMachineRoute::StoredDynamicComposedUnit {
+                realization_machine: plan.call.realization_machine,
+            },
+        );
+    }
     let rebound_dynamic_unit_plans = checked
         .facts
         .flow
