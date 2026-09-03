@@ -145,6 +145,21 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
             CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32,
         )));
     }
+    if linux_console_read_byte_row(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        accepted_binding,
+        accepted_declaration_symbol,
+    )? {
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+            CompilerIntrinsicExecutionIdentity::LinuxReadByte,
+        )));
+    }
     Ok(Some(
         SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
     ))
@@ -161,7 +176,7 @@ fn linux_console_write_byte_row(
     accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
-    linux_console_i32_row(
+    linux_console_row(
         checked,
         plan,
         row,
@@ -173,6 +188,34 @@ fn linux_console_write_byte_row(
         accepted_declaration_symbol,
         "write_byte",
         "ConsoleNativeProvider::write_byte",
+        ConsoleIntrinsicShape::I32ToUnit,
+    )
+}
+
+fn linux_console_read_byte_row(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: Option<&str>,
+    accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
+    accepted_declaration_symbol: Option<SymbolHandle>,
+) -> Result<bool, Diagnostic> {
+    linux_console_row(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        accepted_binding,
+        accepted_declaration_symbol,
+        "read_byte",
+        "ConsoleNativeProvider::read_byte",
+        ConsoleIntrinsicShape::UnitToByteRead,
     )
 }
 
@@ -187,7 +230,7 @@ fn linux_console_exit_row(
     accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
-    linux_console_i32_row(
+    linux_console_row(
         checked,
         plan,
         row,
@@ -199,11 +242,18 @@ fn linux_console_exit_row(
         accepted_declaration_symbol,
         "exit_process",
         "ConsoleNativeProvider::exit_process",
+        ConsoleIntrinsicShape::I32ToUnit,
     )
 }
 
+#[derive(Clone, Copy)]
+enum ConsoleIntrinsicShape {
+    I32ToUnit,
+    UnitToByteRead,
+}
+
 #[allow(clippy::too_many_arguments)]
-fn linux_console_i32_row(
+fn linux_console_row(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -215,6 +265,7 @@ fn linux_console_i32_row(
     accepted_declaration_symbol: Option<SymbolHandle>,
     requirement_name: &str,
     realization_name: &str,
+    shape: ConsoleIntrinsicShape,
 ) -> Result<bool, Diagnostic> {
     let Some(selected_target @ ("linux_x86_64" | "linux_arm64")) = selected_target else {
         return Ok(false);
@@ -244,16 +295,17 @@ fn linux_console_i32_row(
         return Ok(false);
     }
 
-    console_i32_to_unit_row_shape(
+    console_row_shape(
         checked,
         plan,
         row,
         trait_symbol,
         requirement_symbol,
         realization_symbol,
-        true,
+        matches!(shape, ConsoleIntrinsicShape::I32ToUnit),
         requirement_name,
         realization_name,
+        shape,
     )
 }
 
@@ -331,7 +383,7 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
     ) {
         return Ok(false);
     }
-    console_i32_to_unit_row_shape(
+    console_row_shape(
         checked,
         plan,
         row,
@@ -341,10 +393,11 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
         false,
         "exit_process",
         "ConsoleNativeProvider::exit_process",
+        ConsoleIntrinsicShape::I32ToUnit,
     )
 }
 
-fn console_i32_to_unit_row_shape(
+fn console_row_shape(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -354,6 +407,7 @@ fn console_i32_to_unit_row_shape(
     require_inferred_supply: bool,
     requirement_name: &str,
     realization_name: &str,
+    shape: ConsoleIntrinsicShape,
 ) -> Result<bool, Diagnostic> {
     let typed = &checked.typed;
 
@@ -409,7 +463,7 @@ fn console_i32_to_unit_row_shape(
         || method.requirement_owner != definition.name.as_str()
         || method.requirement_identity != requirement_identity
         || row.requirement_identity != requirement_identity
-        || !exact_i32_to_unit_signature(typed, requirement, requirement_name)
+        || !exact_console_signature(typed, requirement, requirement_name, trait_symbol, shape)
     {
         return Ok(false);
     }
@@ -461,7 +515,7 @@ fn console_i32_to_unit_row_shape(
     let [entry] = typed.machine_states(realization) else {
         return Ok(false);
     };
-    if !exact_i32_to_unit_state(typed, entry) {
+    if !exact_console_state(typed, entry, trait_symbol, shape) {
         return Ok(false);
     }
     let conformances = typed
@@ -512,35 +566,83 @@ pub(crate) fn accepted_binding_matches_selected_row_identity(
         && binding.selected_provider_plan_digest() == Some(plan.identity_digest())
 }
 
-fn exact_i32_to_unit_signature(
+fn exact_console_signature(
     typed: &psi_typed_trees::TypedTrees,
     signature: &psi_typed_trees::signature::StateSignature,
     requirement_name: &str,
+    trait_symbol: SymbolHandle,
+    shape: ConsoleIntrinsicShape,
 ) -> bool {
-    signature.name.as_str() == requirement_name
-        && signature.lifetime_parameters.is_empty()
-        && typed.state_signature_type_parameters(signature).is_empty()
-        && signature.native_callback_parameters.is_empty()
-        && !signature.suspends
-        && !signature.blocks
-        && exact_i32_parameter(typed, typed.state_signature_parameters(signature))
-        && matches!(
-            typed
-                .type_reference_table
-                .type_reference(signature.return_type),
-            TypeReferenceNode::Unit
-        )
+    if signature.name.as_str() != requirement_name
+        || !signature.lifetime_parameters.is_empty()
+        || !typed.state_signature_type_parameters(signature).is_empty()
+        || !signature.native_callback_parameters.is_empty()
+        || signature.suspends
+        || signature.blocks
+    {
+        return false;
+    }
+    match shape {
+        ConsoleIntrinsicShape::I32ToUnit => {
+            exact_i32_parameter(typed, typed.state_signature_parameters(signature))
+                && matches!(
+                    typed
+                        .type_reference_table
+                        .type_reference(signature.return_type),
+                    TypeReferenceNode::Unit
+                )
+        }
+        ConsoleIntrinsicShape::UnitToByteRead => {
+            typed.state_signature_parameters(signature).is_empty()
+                && exact_byte_read_type(typed, signature.return_type, trait_symbol)
+        }
+    }
 }
 
-fn exact_i32_to_unit_state(
+fn exact_console_state(
     typed: &psi_typed_trees::TypedTrees,
     state: &psi_typed_trees::state::State,
+    trait_symbol: SymbolHandle,
+    shape: ConsoleIntrinsicShape,
 ) -> bool {
-    exact_i32_parameter(typed, typed.state_parameters(state))
-        && matches!(
-            typed.type_reference_table.type_reference(state.return_type),
-            TypeReferenceNode::Unit
-        )
+    match shape {
+        ConsoleIntrinsicShape::I32ToUnit => {
+            exact_i32_parameter(typed, typed.state_parameters(state))
+                && matches!(
+                    typed.type_reference_table.type_reference(state.return_type),
+                    TypeReferenceNode::Unit
+                )
+        }
+        ConsoleIntrinsicShape::UnitToByteRead => {
+            typed.state_parameters(state).is_empty()
+                && exact_byte_read_type(typed, state.return_type, trait_symbol)
+        }
+    }
+}
+
+fn exact_byte_read_type(
+    typed: &psi_typed_trees::TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    trait_symbol: SymbolHandle,
+) -> bool {
+    let TypeReferenceNode::Named { symbol, name } =
+        typed.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    name.as_str() == "ByteRead"
+        && match typed.symbols.symbol_package_identity(trait_symbol) {
+            Some(package) => typed.symbols.symbol_package_identity(*symbol) == Some(package),
+            None => exact_bundled_standalone_source(
+                typed,
+                *symbol,
+                "console.omg",
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../library/std/console.omg"
+                )),
+            ),
+        }
 }
 
 fn exact_i32_parameter(

@@ -6,7 +6,7 @@ use omega_abstract_operations_to_target_operations::{
 use omega_effects::{CompilerIntrinsicExecutionIdentity, provider_plan::ProviderBinding};
 use omega_target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, LinuxExitGroupI32Realization,
-    LinuxWriteByteI32Realization,
+    LinuxReadByteRealization, LinuxWriteByteI32Realization,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -99,6 +99,17 @@ pub(super) fn settle_compiler_builtins<'request>(
                     request.target
                 ))]);
             }
+            CompilerBuiltinExecution::LinuxReadByte
+                if request.target.object_format == omega_target::ObjectFormat::Elf =>
+            {
+                LinuxReadByteRealization.into()
+            }
+            CompilerBuiltinExecution::LinuxReadByte => {
+                return Err(vec![Diagnostic::error(format!(
+                    "local target catalog cannot realize Linux read-byte for `{requirement}` on {:?}",
+                    request.target
+                ))]);
+            }
         };
         admitted.push(AdmittedBoundarySettlement {
             boundary: boundary.id,
@@ -122,6 +133,9 @@ const fn compiler_intrinsic_execution_identity(
         }
         CompilerBuiltinExecution::LinuxWriteByteI32 => {
             CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32
+        }
+        CompilerBuiltinExecution::LinuxReadByte => {
+            CompilerIntrinsicExecutionIdentity::LinuxReadByte
         }
     }
 }

@@ -68,11 +68,44 @@ fn shape(
                 .ok_or(Error::SourceShape)?;
             ValueShape::integer(bytes, element.alignment)
         }
+        StructuralTypeShape::Sum { cases } if !cases.is_empty() => {
+            conventional_sum_shape(&[], cases, declarations, cache, active)?
+        }
+        StructuralTypeShape::Mixed { fields, cases } if !cases.is_empty() => {
+            conventional_sum_shape(fields, cases, declarations, cache, active)?
+        }
         _ => return Err(Error::SourceShape),
     };
     active.remove(&structural_type);
     cache.insert(structural_type, result);
     Ok(result)
+}
+
+fn conventional_sum_shape(
+    common_fields: &[psi_terminal::StructuralFieldDeclaration],
+    cases: &[psi_terminal::StructuralCaseDeclaration],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<ValueShape, Error> {
+    let common = common_fields
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .map(|field| field_shape(&field.field_type, declarations, cache, active))
+        .collect::<Result<Vec<_>, _>>()?;
+    let payloads = cases
+        .iter()
+        .map(|case| {
+            case.fields
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .map(|field| field_shape(&field.field_type, declarations, cache, active))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    omega_calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
+        .map(|layout| layout.shape)
+        .map_err(|_| Error::SourceShape)
 }
 
 fn field_shape(

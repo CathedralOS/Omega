@@ -896,6 +896,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
                     TargetUnitOperation::BoundarySettlement {
                         psi_operation: write_operation,
                         boundary: write_boundary,
+                        result: omega_target_operations::TargetBoundaryResult::Unit,
                         execution: provider(980).into(),
                         realization: LinuxWriteLineRealization.into(),
                         scalar_arguments: Vec::new(),
@@ -919,6 +920,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
                     TargetUnitOperation::BoundarySettlement {
                         psi_operation: exit_operation,
                         boundary: exit_boundary,
+                        result: omega_target_operations::TargetBoundaryResult::Unit,
                         execution: provider(990).into(),
                         realization: LinuxExitGroupI32Realization.into(),
                         scalar_arguments: vec![BoundaryScalarArgument {
@@ -2401,6 +2403,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                         TargetUnitOperation::BoundarySettlement {
                             psi_operation: settlement_operation,
                             boundary,
+                            result: omega_target_operations::TargetBoundaryResult::Unit,
                             execution: provider_execution.into(),
                             realization: realization.into(),
                             scalar_arguments: Vec::new(),

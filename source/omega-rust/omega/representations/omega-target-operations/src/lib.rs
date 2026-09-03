@@ -8,7 +8,9 @@ pub use omega_abstract_operations::{
     AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
     AbstractStoredDynamicDispatch, CompletionClaimSource, RankedU32CountdownCustody,
 };
-use omega_calling_conventions::{BoundaryEntryPlan, CallPlan, ValuePlacement, ValueShape};
+use omega_calling_conventions::{
+    BoundaryEntryPlan, CallPlan, ConventionalSumLayout, ValuePlacement, ValueShape,
+};
 use omega_target::NativeTarget;
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
@@ -256,6 +258,7 @@ pub struct ProviderExecutionBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerBuiltinExecution {
     LinuxExitGroupI32,
+    LinuxReadByte,
     LinuxWriteByteI32,
 }
 
@@ -346,6 +349,13 @@ pub struct DirectPortReadU8Realization {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LinuxExitGroupI32Realization;
 
+/// Import-free Linux single-byte standard-input read through `read(2)`. The
+/// realization writes one complete conventional `ByteRead` sum into its
+/// assigned caller-frame home: zero remains `Eof`, success writes case tag 1
+/// and the zero-extended byte payload, and every other syscall result traps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LinuxReadByteRealization;
+
 /// Import-free Linux single-byte standard-output write through the kernel's
 /// `write(2)` ABI. Syscall coordinates are target facts and remain closed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -411,6 +421,7 @@ builtin_settlement_conversion!(MetadataOnlyPortRealization);
 builtin_settlement_conversion!(DirectPortReadU8Realization);
 builtin_settlement_conversion!(LinuxWriteLineRealization);
 builtin_settlement_conversion!(LinuxExitGroupI32Realization);
+builtin_settlement_conversion!(LinuxReadByteRealization);
 builtin_settlement_conversion!(LinuxWriteByteI32Realization);
 builtin_settlement_conversion!(ClaimCompletionOnlyRealization);
 
@@ -420,6 +431,7 @@ pub enum BoundaryRealization {
     DirectPortReadU8(DirectPortReadU8Realization),
     LinuxWriteLine(LinuxWriteLineRealization),
     LinuxExitGroupI32(LinuxExitGroupI32Realization),
+    LinuxReadByte(LinuxReadByteRealization),
     LinuxWriteByteI32(LinuxWriteByteI32Realization),
     ClaimCompletionOnly(ClaimCompletionOnlyRealization),
 }
@@ -439,6 +451,12 @@ impl From<DirectPortReadU8Realization> for BoundaryRealization {
 impl From<LinuxExitGroupI32Realization> for BoundaryRealization {
     fn from(realization: LinuxExitGroupI32Realization) -> Self {
         Self::LinuxExitGroupI32(realization)
+    }
+}
+
+impl From<LinuxReadByteRealization> for BoundaryRealization {
+    fn from(realization: LinuxReadByteRealization) -> Self {
+        Self::LinuxReadByte(realization)
     }
 }
 
@@ -620,6 +638,28 @@ pub struct TargetUnitScalarHomeRequirement {
     pub source_value: ValueId,
     pub scalar_type: ScalarType,
     pub shape: ValueShape,
+}
+
+/// One structural boundary result that requires durable caller-frame storage.
+///
+/// The semantic result remains target-neutral; the conventional sum layout is
+/// the receiving target lowerer's exact, replayable storage decision. This
+/// first physical lane admits only closed sum/mixed results and never infers a
+/// tag or payload offset from a nominal type spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetStructuralHomeRequirement {
+    pub defining_operation: OperationId,
+    pub result: StructuralOperationResult,
+    pub layout: ConventionalSumLayout,
+}
+
+/// Closed result role of one compiler-builtin boundary settlement in a Unit
+/// body. Unit is explicit rather than encoded as an absent scalar or absent
+/// structural home.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetBoundaryResult {
+    Unit,
+    Structural(TargetStructuralHomeRequirement),
 }
 
 /// Exact source of one fixed-width integer argument to an attached-Unit
@@ -968,6 +1008,7 @@ pub enum TargetUnitOperation {
     BoundarySettlement {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
+        result: TargetBoundaryResult,
         execution: BoundaryExecutionBinding,
         realization: BoundaryRealization,
         scalar_arguments: Vec<BoundaryScalarArgument>,

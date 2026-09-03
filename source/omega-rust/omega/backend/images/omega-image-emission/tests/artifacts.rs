@@ -414,7 +414,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                     completion_claim_sources: Vec::new(),
                     completion_receipts: Vec::new(),
                     completion_provider_custody: Vec::new(),
-                    native_result: None,
+                    native_result: omega_machine_code::BoundaryResultRecord::Unit,
                     operation_ordinal: 1,
                     code_offset: 0,
                     byte_count: bytes.len(),
@@ -656,7 +656,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                     completion_claim_sources: Vec::new(),
                     completion_receipts: Vec::new(),
                     completion_provider_custody: Vec::new(),
-                    native_result: None,
+                    native_result: omega_machine_code::BoundaryResultRecord::Unit,
                     operation_ordinal: 1,
                     code_offset: 0,
                     byte_count: write_bytes.len(),
@@ -675,7 +675,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                     completion_claim_sources: Vec::new(),
                     completion_receipts: Vec::new(),
                     completion_provider_custody: Vec::new(),
-                    native_result: None,
+                    native_result: omega_machine_code::BoundaryResultRecord::Unit,
                     operation_ordinal: 3,
                     code_offset: exit_offset,
                     byte_count: exit_bytes.len(),
@@ -2315,7 +2315,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "8a4c8fa3775a99f64c120f7ef6d5414aaedde9ab47a8a84d2990164755e178bc"
+        "fdb88efd35d8c60513883f56736e816e0a5ef019e2fee28f5ac8124b9043dbea"
     );
 
     let mut changed_plan = plan;
@@ -2580,7 +2580,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 completion_claim_sources: Vec::new(),
                 completion_receipts: Vec::new(),
                 completion_provider_custody: Vec::new(),
-                native_result: None,
+                native_result: omega_machine_code::BoundaryResultRecord::Unit,
                 operation_ordinal: 1,
                 code_offset: 27,
                 byte_count: 0,

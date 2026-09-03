@@ -219,6 +219,31 @@ pub(crate) fn derive_physical_evidence(
                     installed,
                 )?);
             }
+            (Some(installed), None)
+                if matches!(
+                    (
+                        installed.settlement.execution,
+                        &installed.settlement.realization,
+                    ),
+                    (
+                        BoundaryExecutionRecord::CompilerBuiltin(
+                            CompilerBuiltinExecution::LinuxReadByte
+                        ),
+                        BoundaryRealization::LinuxReadByte(_),
+                    )
+                ) =>
+            {
+                children.push(derive_read_byte_child(
+                    occurrence,
+                    projection.identity(),
+                    requirement,
+                    selected_plan.plan_digest(),
+                    target,
+                    object,
+                    image,
+                    installed,
+                )?);
+            }
             (None, Some(foreign)) => {
                 let Some(child) = derive_normalized_foreign_child(
                     occurrence,
@@ -524,7 +549,7 @@ fn derive_exit_group_child(
         || !settlement.completion_claim_sources.is_empty()
         || !settlement.completion_receipts.is_empty()
         || !settlement.completion_provider_custody.is_empty()
-        || settlement.native_result.is_some()
+        || !settlement.native_result.is_unit()
     {
         return Err("Linux exit-group D41 settlement custody is incomplete or substituted");
     }
@@ -647,7 +672,7 @@ fn derive_write_byte_child(
         || !settlement.completion_claim_sources.is_empty()
         || !settlement.completion_receipts.is_empty()
         || !settlement.completion_provider_custody.is_empty()
-        || settlement.native_result.is_some()
+        || !settlement.native_result.is_unit()
     {
         return Err("Linux write-byte D41 settlement custody is incomplete or substituted");
     }
@@ -699,6 +724,160 @@ fn derive_write_byte_child(
         selected_plan_digest,
         target,
         scalar_argument,
+    );
+    let parent = PhysicalChildParent::BoundaryTraitSettlement(
+        BoundaryTraitSettlementParts {
+            occurrence: *occurrence,
+            requirement_identity: requirement_identity.to_owned(),
+            selected_plan_digest,
+            target,
+            role,
+            identity: parent_identity,
+        }
+        .into(),
+    );
+    let machine_bytes_digest = sha256(machine_bytes);
+    let object_bytes_digest = sha256(object_bytes);
+    let final_image_bytes_digest = sha256(final_image_bytes);
+    let relocation = PhysicalRelocationDisposition::DirectInstructionBytes;
+    let identity = physical_child_identity(
+        &parent,
+        projection,
+        NativePhysicalOccurrence::Boundary(occurrence.identity()),
+        machine_span,
+        object_span,
+        final_image_span,
+        machine_bytes_digest,
+        object_bytes_digest,
+        final_image_bytes_digest,
+        relocation,
+    );
+    Ok(NativePhysicalChildParts {
+        parent,
+        projection,
+        occurrence: NativePhysicalOccurrence::Boundary(occurrence.identity()),
+        machine_span,
+        object_span,
+        final_image_span,
+        machine_bytes_digest,
+        object_bytes_digest,
+        final_image_bytes_digest,
+        relocation,
+        identity,
+    }
+    .into())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_read_byte_child(
+    occurrence: &OptimizedBoundaryOccurrence,
+    projection: NativeOptimizationProjectionIdentity,
+    requirement_identity: &str,
+    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    target: NativeTarget,
+    object: &omega_image_emission::ObjectArtifact,
+    image: &omega_image::EmittedImageOutput,
+    installed: &omega_image_emission::ObjectBoundarySettlement,
+) -> Result<NativePhysicalChild, &'static str> {
+    let settlement = &installed.settlement;
+    let Some(result) = settlement.native_result.structural() else {
+        return Err("Linux read-byte physical child requires one structural result");
+    };
+    if target.object_format != ObjectFormat::Elf
+        || !matches!(
+            target.architecture,
+            Architecture::X86_64 | Architecture::Aarch64
+        )
+        || !settlement.scalar_arguments.is_empty()
+        || !settlement.runtime_scalar_arguments.is_empty()
+        || !settlement.arguments.is_empty()
+        || !settlement.byte_sequence_arguments.is_empty()
+        || !settlement.completion_claim_sources.is_empty()
+        || !settlement.completion_receipts.is_empty()
+        || !settlement.completion_provider_custody.is_empty()
+        || result.defining_operation != occurrence.operation()
+        || result.layout.tag_byte_offset != 0
+        || result.layout.tag_shape != omega_calling_conventions::ValueShape::integer(4, 4)
+        || result.layout.shape != omega_calling_conventions::ValueShape::integer(8, 4)
+        || result.layout.payload_byte_offset != 4
+        || !result.layout.common_fields.is_empty()
+        || result.layout.cases.len() != 2
+        || !result.layout.cases[0].fields.is_empty()
+        || result.layout.cases[1].fields.as_slice()
+            != [omega_calling_conventions::PackedFieldLayout {
+                shape: omega_calling_conventions::ValueShape::integer(4, 4),
+                byte_offset: 4,
+            }]
+    {
+        return Err("Linux read-byte D41 settlement custody is incomplete or substituted");
+    }
+    let payload_offset = result
+        .home_byte_offset
+        .checked_add(u32::from(result.layout.payload_byte_offset))
+        .ok_or("Linux read-byte physical child result home overflow")?;
+    let expected = match target.architecture {
+        Architecture::X86_64 => omega_isa_x86_64::encode_linux_read_byte_to_stack(
+            result.home_byte_offset,
+            payload_offset,
+        )
+        .map_err(|_| "Linux read-byte x86-64 encoding is not reproducible")?,
+        Architecture::Aarch64 => omega_isa_aarch64::encode_linux_read_byte_to_stack(
+            result.home_byte_offset,
+            payload_offset,
+        )
+        .map_err(|_| "Linux read-byte AArch64 encoding is not reproducible")?,
+    };
+    let function = object
+        .functions()
+        .iter()
+        .find(|function| function.machine == occurrence.machine())
+        .ok_or("Linux read-byte physical child names an absent object function")?;
+    let expected_object_offset = function
+        .text_offset
+        .checked_add(settlement.code_offset)
+        .ok_or("Linux read-byte physical child object span overflow")?;
+    if installed.text_offset != expected_object_offset || expected.len() != settlement.byte_count {
+        return Err("Linux read-byte physical child span is detached");
+    }
+    let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
+    let object_span = native_byte_span(installed.text_offset, settlement.byte_count);
+    let final_image_span = object_span;
+    let machine_bytes = span(function.bytes(object), machine_span)?;
+    let object_bytes = span(object.text_bytes(), object_span)?;
+    let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
+    if machine_bytes != expected
+        || machine_bytes != object_bytes
+        || object_bytes != final_image_bytes
+    {
+        return Err("Linux read-byte physical child bytes changed across custody");
+    }
+    let object_end = installed
+        .text_offset
+        .checked_add(settlement.byte_count)
+        .ok_or("Linux read-byte physical child relocation span overflow")?;
+    if object.relocations().records().any(|(_, relocation)| {
+        relocation.section == SectionKind::Text
+            && ranges_overlap(
+                installed.text_offset,
+                object_end,
+                relocation.offset,
+                relocation.offset.saturating_add(relocation.byte_width),
+            )
+    }) {
+        return Err("Linux read-byte physical child unexpectedly contains a relocation");
+    }
+    let role = BoundaryTraitSettlementRole::CompilerBuiltinStructural {
+        catalog: NativeCompilerBuiltinCatalogIdentity::LinuxElfV1,
+        execution: CompilerBuiltinExecution::LinuxReadByte,
+        realization: BoundaryRealization::LinuxReadByte(Default::default()),
+        result: result.clone(),
+    };
+    let parent_identity = builtin_structural_boundary_trait_settlement_identity(
+        occurrence,
+        requirement_identity,
+        selected_plan_digest,
+        target,
+        result,
     );
     let parent = PhysicalChildParent::BoundaryTraitSettlement(
         BoundaryTraitSettlementParts {
@@ -1377,6 +1556,93 @@ fn builtin_runtime_scalar_boundary_trait_settlement_identity(
         }
     }
     digest.finalize().into()
+}
+
+fn builtin_structural_boundary_trait_settlement_identity(
+    occurrence: &OptimizedBoundaryOccurrence,
+    requirement_identity: &str,
+    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    target: NativeTarget,
+    result: &omega_machine_code::BoundaryStructuralResultRecord,
+) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v1\0");
+    digest.update(occurrence.identity().bytes());
+    hash_bytes(&mut digest, requirement_identity.as_bytes());
+    digest.update(selected_plan_digest.as_bytes());
+    hash_target(&mut digest, target);
+    digest.update([1, 3, 3]); // LinuxElfV1, read-byte execution, structural role.
+    digest.update(result.defining_operation.get().to_le_bytes());
+    digest.update(result.result.place.get().to_le_bytes());
+    digest.update(result.result.structural_type.get().to_le_bytes());
+    digest.update([match result.result.multiplicity {
+        psi_terminal::StructuralMultiplicity::Unrestricted => 1,
+        psi_terminal::StructuralMultiplicity::Affine => 2,
+        psi_terminal::StructuralMultiplicity::Linear => 3,
+    }]);
+    digest.update((result.result.qualifications.len() as u64).to_le_bytes());
+    for domain in &result.result.qualifications {
+        digest.update(domain.get().to_le_bytes());
+    }
+    digest.update((result.result.projected_qualifications.len() as u64).to_le_bytes());
+    for qualification in &result.result.projected_qualifications {
+        hash_structural_path(&mut digest, &qualification.path);
+        digest.update(qualification.domain.get().to_le_bytes());
+    }
+    digest.update((result.result.claims.len() as u64).to_le_bytes());
+    for claim in &result.result.claims {
+        digest.update(claim.claim.get().to_le_bytes());
+        hash_structural_path(&mut digest, &claim.path);
+    }
+    hash_sum_layout(&mut digest, &result.layout);
+    digest.update(result.home_byte_offset.to_le_bytes());
+    digest.finalize().into()
+}
+
+fn hash_structural_path(digest: &mut Sha256, path: &[psi_terminal::StructuralPathSegment]) {
+    digest.update((path.len() as u64).to_le_bytes());
+    for segment in path {
+        match segment {
+            psi_terminal::StructuralPathSegment::Field(identity) => {
+                digest.update([1]);
+                hash_bytes(digest, identity.as_bytes());
+            }
+            psi_terminal::StructuralPathSegment::FixedIndex(index) => {
+                digest.update([2]);
+                digest.update(index.to_le_bytes());
+            }
+        }
+    }
+}
+
+fn hash_sum_layout(digest: &mut Sha256, layout: &omega_calling_conventions::ConventionalSumLayout) {
+    hash_integer_shape(digest, layout.shape);
+    digest.update(layout.tag_byte_offset.to_le_bytes());
+    hash_integer_shape(digest, layout.tag_shape);
+    hash_packed_fields(digest, &layout.common_fields);
+    digest.update(layout.payload_byte_offset.to_le_bytes());
+    digest.update((layout.cases.len() as u64).to_le_bytes());
+    for case in &layout.cases {
+        hash_packed_fields(digest, &case.fields);
+    }
+}
+
+fn hash_packed_fields(
+    digest: &mut Sha256,
+    fields: &[omega_calling_conventions::PackedFieldLayout],
+) {
+    digest.update((fields.len() as u64).to_le_bytes());
+    for field in fields {
+        digest.update(field.byte_offset.to_le_bytes());
+        hash_integer_shape(digest, field.shape);
+    }
+}
+
+fn hash_integer_shape(digest: &mut Sha256, shape: omega_calling_conventions::ValueShape) {
+    debug_assert_eq!(shape.class, omega_calling_conventions::ValueClass::Integer);
+    digest.update([1]);
+    digest.update(shape.byte_size.to_le_bytes());
+    digest.update(shape.alignment.to_le_bytes());
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -14,6 +14,9 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// Exact toolchain-owned `Console::write_byte(i32) -> Unit` execution
     /// selected for one canonical Linux target.
     LinuxWriteByteI32,
+    /// Exact toolchain-owned `Console::read_byte() -> ByteRead` execution
+    /// selected for one canonical Linux target.
+    LinuxReadByte,
     BuiltinFunction(psi_symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: CompilerPrimitiveFloatBinaryOperation,
@@ -37,6 +40,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
     match identity {
         CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => bytes[0] = 0,
         CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => bytes[0] = 5,
+        CompilerIntrinsicExecutionIdentity::LinuxReadByte => bytes[0] = 6,
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             bytes[0] = 1;
             bytes[1..5].copy_from_slice(&(function.ordinal() as u32).to_be_bytes());
@@ -471,6 +475,7 @@ pub enum TerminalAuthorityClass {
     InterruptControl,
     InterruptEntry,
     RootMemoryAccess,
+    ProcessInput,
 }
 
 /// Portable filesystem authority facets accepted by D45 service policy.
@@ -517,7 +522,7 @@ impl From<PortableFilesystemAuthorityFacet> for TerminalAuthorityClass {
 }
 
 impl TerminalAuthorityClass {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::FilesystemContentRead,
         Self::FilesystemContentWrite,
         Self::FilesystemMetadataQuery,
@@ -531,6 +536,7 @@ impl TerminalAuthorityClass {
         Self::InterruptControl,
         Self::InterruptEntry,
         Self::RootMemoryAccess,
+        Self::ProcessInput,
     ];
 
     pub const fn canonical_tag(self) -> u8 {
@@ -548,6 +554,7 @@ impl TerminalAuthorityClass {
             Self::InterruptControl => 10,
             Self::InterruptEntry => 11,
             Self::RootMemoryAccess => 12,
+            Self::ProcessInput => 13,
         }
     }
 }
@@ -974,6 +981,7 @@ mod tests {
         let mut identities = vec![
             CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32,
             CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32,
+            CompilerIntrinsicExecutionIdentity::LinuxReadByte,
         ];
         identities.extend(
             psi_symbols::BuiltinFunction::ALL

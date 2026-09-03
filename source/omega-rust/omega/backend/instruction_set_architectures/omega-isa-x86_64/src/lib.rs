@@ -154,6 +154,52 @@ pub fn encode_linux_write_byte_i32_from_r11() -> Vec<u8> {
     bytes
 }
 
+/// Import-free Linux `read(0, &byte, 1)` realization into one canonical
+/// `ByteRead = Eof | Byte(i32)` stack home. The home is zeroed first, so an
+/// exact zero-byte read leaves the ordinal-zero `Eof` value; an exact one-byte
+/// read writes ordinal one after the kernel has filled the payload byte.
+pub fn encode_linux_read_byte_to_stack(
+    home_byte_offset: u32,
+    payload_byte_offset: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(72);
+    bytes.extend_from_slice(&[0x31, 0xc0]); // xor eax, eax
+    for offset in [home_byte_offset, payload_byte_offset] {
+        bytes.extend_from_slice(&[0x89, 0x84, 0x24]); // mov [rsp+disp32], eax
+        bytes.extend_from_slice(&offset.to_le_bytes());
+    }
+    bytes.extend_from_slice(&[0x31, 0xff]); // xor edi, edi (stdin)
+    bytes.extend_from_slice(&[0x48, 0x8d, 0xb4, 0x24]); // lea rsi, [rsp+disp32]
+    bytes.extend_from_slice(&payload_byte_offset.to_le_bytes());
+    bytes.extend_from_slice(&[0xba, 1, 0, 0, 0]); // mov edx, 1
+    bytes.extend_from_slice(&[0x31, 0xc0]); // xor eax, eax (SYS_read)
+    bytes.extend_from_slice(&[0x0f, 0x05]); // syscall
+    bytes.extend_from_slice(&[0x48, 0x83, 0xf8, 0]); // cmp rax, 0
+    let eof_branch = bytes.len();
+    bytes.extend_from_slice(&[0x74, 0]); // je done
+    bytes.extend_from_slice(&[0x48, 0x83, 0xf8, 1]); // cmp rax, 1
+    let trap_branch = bytes.len();
+    bytes.extend_from_slice(&[0x75, 0]); // jne trap
+    bytes.extend_from_slice(&[0xc7, 0x84, 0x24]); // mov dword [rsp+disp32], 1
+    bytes.extend_from_slice(&home_byte_offset.to_le_bytes());
+    bytes.extend_from_slice(&1_u32.to_le_bytes());
+    let done_branch = bytes.len();
+    bytes.extend_from_slice(&[0xeb, 0]); // jmp done
+    let trap = bytes.len();
+    bytes.extend_from_slice(&[0x0f, 0x0b]); // ud2
+    let done = bytes.len();
+
+    let rel8 = |target: usize, end: usize| {
+        i8::try_from(target as i128 - end as i128)
+            .map(|value| value as u8)
+            .map_err(|_| Diagnostic::error("Linux x86-64 read-byte branch is out of range"))
+    };
+    bytes[eof_branch + 1] = rel8(done, eof_branch + 2)?;
+    bytes[trap_branch + 1] = rel8(trap, trap_branch + 2)?;
+    bytes[done_branch + 1] = rel8(done, done_branch + 2)?;
+    Ok(bytes)
+}
+
 /// Import-free Linux `write_line` over one immutable literal.
 pub fn encode_linux_write_line_literal(
     literal: &[u8],
@@ -238,5 +284,11 @@ mod tests {
         assert_eq!(trap_target, 39);
         let success_target = 39_i64 + i64::from(byte_write[38] as i8);
         assert_eq!(success_target, i64::try_from(byte_write.len()).unwrap());
+
+        let byte_read = encode_linux_read_byte_to_stack(16, 20).unwrap();
+        assert_eq!(&byte_read[..2], &[0x31, 0xc0]);
+        assert_eq!(&byte_read[5..9], &16_u32.to_le_bytes());
+        assert!(byte_read.windows(2).any(|window| window == [0x0f, 0x05]));
+        assert_eq!(&byte_read[byte_read.len() - 2..], &[0x0f, 0x0b]);
     }
 }

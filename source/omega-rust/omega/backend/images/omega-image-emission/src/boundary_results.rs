@@ -9,17 +9,17 @@ use psi_core::{IntegerSign, IntegerType, ScalarType};
 pub(super) fn boundary_result_is_exact(
     target: NativeTarget,
     realization: BoundaryRealization,
-    result: Option<&BoundaryResultRecord>,
+    result: &BoundaryResultRecord,
 ) -> bool {
     match realization {
-        BoundaryRealization::MetadataOnlyPort(_) => result.is_none(),
-        BoundaryRealization::ClaimCompletionOnly(_) => result.is_none(),
-        BoundaryRealization::LinuxWriteLine(_) => result.is_none(),
-        BoundaryRealization::LinuxExitGroupI32(_) => result.is_none(),
-        BoundaryRealization::LinuxWriteByteI32(_) => result.is_none(),
+        BoundaryRealization::MetadataOnlyPort(_) => result.is_unit(),
+        BoundaryRealization::ClaimCompletionOnly(_) => result.is_unit(),
+        BoundaryRealization::LinuxWriteLine(_) => result.is_unit(),
+        BoundaryRealization::LinuxExitGroupI32(_) => result.is_unit(),
+        BoundaryRealization::LinuxWriteByteI32(_) => result.is_unit(),
         BoundaryRealization::DirectPortReadU8(_) => {
             target.architecture == Architecture::X86_64
-                && result.is_some_and(|result| {
+                && result.scalar().is_some_and(|result| {
                     result.scalar_type
                         == ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"),
@@ -33,6 +33,24 @@ pub(super) fn boundary_result_is_exact(
                             }]
                 })
         }
+        BoundaryRealization::LinuxReadByte(_) => {
+            let Some(result) = result.structural() else {
+                return false;
+            };
+            matches!(
+                target.architecture,
+                Architecture::X86_64 | Architecture::Aarch64
+            ) && result.layout.tag_byte_offset == 0
+                && result.layout.tag_shape == ValueShape::integer(4, 4)
+                && result.layout.common_fields.is_empty()
+                && result.layout.payload_byte_offset == 4
+                && result.layout.cases.len() == 2
+                && result.layout.cases[0].fields.is_empty()
+                && result.layout.cases[1].fields.len() == 1
+                && result.layout.cases[1].fields[0].byte_offset == 4
+                && result.layout.cases[1].fields[0].shape == ValueShape::integer(4, 4)
+                && result.layout.shape == ValueShape::integer(8, 4)
+        }
     }
 }
 
@@ -40,8 +58,11 @@ pub(super) fn boundary_result_is_exact(
 mod tests {
     use super::*;
     use omega_calling_conventions::ValuePlacement;
-    use omega_target_operations::{DirectPortReadU8Realization, MetadataOnlyPortRealization};
-    use psi_core::{EdgeId, OperationId, ServiceId};
+    use omega_machine_code::BoundaryScalarResultRecord;
+    use omega_target_operations::{
+        DirectPortReadU8Realization, LinuxReadByteRealization, MetadataOnlyPortRealization,
+    };
+    use psi_core::{EdgeId, OperationId, PlaceId, ServiceId, StructuralTypeId};
 
     #[test]
     fn admitted_result_placement_is_exact_and_metadata_cannot_gain_one() {
@@ -57,35 +78,36 @@ mod tests {
                 byte_size: 1,
             }],
         };
-        let result = BoundaryResultRecord {
+        let result = BoundaryResultRecord::Scalar(BoundaryScalarResultRecord {
             value: psi_core::ValueId::new(1).expect("value"),
             scalar_type: ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
             ),
             placement: placement.clone(),
             return_edge: EdgeId::new(1).expect("return edge"),
-        };
+        });
         assert!(boundary_result_is_exact(
             NativeTarget::linux_x64(),
             direct,
-            Some(&result),
+            &result,
         ));
         assert!(!boundary_result_is_exact(
             NativeTarget::linux_arm64(),
             direct,
-            Some(&result),
+            &result,
         ));
         assert!(!boundary_result_is_exact(
             NativeTarget::linux_x64(),
             direct,
-            None,
+            &BoundaryResultRecord::Unit,
         ));
-        let mut wrong_type = result.clone();
+        let mut wrong_type = result.scalar().expect("scalar result").clone();
         wrong_type.scalar_type = ScalarType::Boolean;
+        let wrong_type = BoundaryResultRecord::Scalar(wrong_type);
         assert!(!boundary_result_is_exact(
             NativeTarget::linux_x64(),
             direct,
-            Some(&wrong_type),
+            &wrong_type,
         ));
 
         let metadata = BoundaryRealization::MetadataOnlyPort(MetadataOnlyPortRealization {
@@ -97,12 +119,47 @@ mod tests {
         assert!(boundary_result_is_exact(
             NativeTarget::linux_x64(),
             metadata,
-            None,
+            &BoundaryResultRecord::Unit,
         ));
         assert!(!boundary_result_is_exact(
             NativeTarget::linux_x64(),
             metadata,
-            Some(&result),
+            &result,
+        ));
+    }
+
+    #[test]
+    fn linux_read_byte_requires_the_exact_structural_sum_home() {
+        let layout = omega_calling_conventions::evaluate_conventional_sum_layout(
+            &[],
+            &[vec![], vec![ValueShape::integer(4, 4)]],
+        )
+        .unwrap();
+        let result =
+            BoundaryResultRecord::Structural(omega_machine_code::BoundaryStructuralResultRecord {
+                defining_operation: OperationId::new(1).unwrap(),
+                result: psi_terminal::StructuralOperationResult {
+                    place: PlaceId::new(2).unwrap(),
+                    structural_type: StructuralTypeId::new(3).unwrap(),
+                    multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                },
+                layout,
+                home_byte_offset: 16,
+            });
+        assert!(boundary_result_is_exact(
+            NativeTarget::linux_x64(),
+            BoundaryRealization::LinuxReadByte(LinuxReadByteRealization),
+            &result,
+        ));
+        let mut wrong = result.structural().unwrap().clone();
+        wrong.layout.payload_byte_offset = 8;
+        assert!(!boundary_result_is_exact(
+            NativeTarget::linux_x64(),
+            BoundaryRealization::LinuxReadByte(LinuxReadByteRealization),
+            &BoundaryResultRecord::Structural(wrong),
         ));
     }
 }

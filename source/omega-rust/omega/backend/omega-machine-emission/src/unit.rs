@@ -1,22 +1,23 @@
 use omega_assigned_target_operations::{
-    AssignedAggregateCopy, AssignedFunction, AssignedNativeCallbackArgument,
-    AssignedNormalizedForeignScalarArgument, AssignedScalarLocation, AssignedUnitBody,
-    AssignedUnitOperation, AssignedUnitScalarArgumentSource, AssignedUnitScalarHome,
+    AssignedAggregateCopy, AssignedBoundaryResult, AssignedFunction,
+    AssignedNativeCallbackArgument, AssignedNormalizedForeignScalarArgument,
+    AssignedScalarLocation, AssignedUnitBody, AssignedUnitOperation,
+    AssignedUnitScalarArgumentSource, AssignedUnitScalarHome,
 };
 use omega_calling_conventions::{
     IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape,
 };
 use omega_machine_code::{
     Aarch64ForeignCallFloatingControlRecord, Aarch64ReturnLinkEvidence,
-    BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord, CallbackAddressDestination,
-    CallbackAddressEncoding, CallbackAddressMaterialization, ForeignCallRelocation,
-    ForeignCallScalarArgumentRecord, InternalCallRelocation, InternalUnitCallArgumentRecord,
-    InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallRecord,
-    PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair,
-    UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence,
-    UnitStructuralScalarFieldStoreRecord, X86FloatingControlRecord,
-    X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat, X86ScalarFmaOccurrenceRecord,
-    X86ScalarFmaOperandRecord, derive_completion_provider_custody,
+    BoundaryByteSequenceArgumentRecord, BoundaryResultRecord, BoundarySettlementRecord,
+    BoundaryStructuralResultRecord, CallbackAddressDestination, CallbackAddressEncoding,
+    CallbackAddressMaterialization, ForeignCallRelocation, ForeignCallScalarArgumentRecord,
+    InternalCallRelocation, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
+    InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallRecord, PortEffectRecord,
+    SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair, UnitCallStackEvidence,
+    UnitScalarHomeRecord, UnitStackEvidence, UnitStructuralScalarFieldStoreRecord,
+    X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,
+    X86ScalarFmaOccurrenceRecord, X86ScalarFmaOperandRecord, derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
@@ -1964,6 +1965,7 @@ pub(super) fn emit_unit_body(
             AssignedUnitOperation::BoundarySettlement {
                 psi_operation,
                 boundary,
+                result,
                 execution,
                 realization,
                 scalar_arguments,
@@ -1984,9 +1986,11 @@ pub(super) fn emit_unit_body(
                 let settlement_code_offset = bytes.len();
                 let mut byte_sequence_records = Vec::new();
                 let mut runtime_scalar_records = Vec::new();
+                let mut native_result = BoundaryResultRecord::Unit;
                 match realization {
                     omega_target_operations::BoundaryRealization::MetadataOnlyPort(_) => {
-                        if !scalar_arguments.is_empty()
+                        if !matches!(result, AssignedBoundaryResult::Unit)
+                            || !scalar_arguments.is_empty()
                             || !runtime_scalar_arguments.is_empty()
                             || !byte_sequence_arguments.is_empty()
                         {
@@ -1994,7 +1998,8 @@ pub(super) fn emit_unit_body(
                         }
                     }
                     omega_target_operations::BoundaryRealization::ClaimCompletionOnly(_) => {
-                        if !scalar_arguments.is_empty()
+                        if !matches!(result, AssignedBoundaryResult::Unit)
+                            || !scalar_arguments.is_empty()
                             || !runtime_scalar_arguments.is_empty()
                             || !byte_sequence_arguments.is_empty()
                         {
@@ -2010,7 +2015,8 @@ pub(super) fn emit_unit_body(
                         else {
                             return Err(EmissionError::InvalidLinuxWriteLineCustody);
                         };
-                        if !scalar_arguments.is_empty()
+                        if !matches!(result, AssignedBoundaryResult::Unit)
+                            || !scalar_arguments.is_empty()
                             || !runtime_scalar_arguments.is_empty()
                             || arguments.as_slice() != [argument.argument.clone()]
                             || *literal_operation != argument.literal_operation
@@ -2074,7 +2080,8 @@ pub(super) fn emit_unit_body(
                                 omega_calling_conventions::MachineRegister::Aarch64X(0)
                             }
                         };
-                        if target.object_format != ObjectFormat::Elf
+                        if !matches!(result, AssignedBoundaryResult::Unit)
+                            || target.object_format != ObjectFormat::Elf
                             || argument.destination != expected_destination
                             || !runtime_scalar_arguments.is_empty()
                             || !arguments.is_empty()
@@ -2107,7 +2114,8 @@ pub(super) fn emit_unit_body(
                                 omega_calling_conventions::MachineRegister::Aarch64X(9)
                             }
                         };
-                        if target.object_format != ObjectFormat::Elf
+                        if !matches!(result, AssignedBoundaryResult::Unit)
+                            || target.object_format != ObjectFormat::Elf
                             || argument.parameter_index != 0
                             || argument.source.scalar_type()
                                 != psi_core::ScalarType::Integer(i32_type)
@@ -2148,6 +2156,60 @@ pub(super) fn emit_unit_body(
                     omega_target_operations::BoundaryRealization::DirectPortReadU8(_) => {
                         return Err(EmissionError::InvalidLinuxWriteLineCustody);
                     }
+                    omega_target_operations::BoundaryRealization::LinuxReadByte(_) => {
+                        let AssignedBoundaryResult::Structural(home) = result else {
+                            return Err(EmissionError::InvalidLinuxReadByteCustody(*boundary));
+                        };
+                        if target.object_format != ObjectFormat::Elf
+                            || !scalar_arguments.is_empty()
+                            || !runtime_scalar_arguments.is_empty()
+                            || !arguments.is_empty()
+                            || !byte_sequence_arguments.is_empty()
+                            || home.requirement.defining_operation != *psi_operation
+                            || home.requirement.layout.tag_byte_offset != 0
+                            || home.requirement.layout.tag_shape != ValueShape::integer(4, 4)
+                            || home.requirement.layout.shape != ValueShape::integer(8, 4)
+                            || home.requirement.layout.payload_byte_offset != 4
+                            || !home.requirement.layout.common_fields.is_empty()
+                            || home.requirement.layout.cases.len() != 2
+                            || !home.requirement.layout.cases[0].fields.is_empty()
+                            || home.requirement.layout.cases[1].fields.as_slice()
+                                != [omega_calling_conventions::PackedFieldLayout {
+                                    shape: ValueShape::integer(4, 4),
+                                    byte_offset: 4,
+                                }]
+                        {
+                            return Err(EmissionError::InvalidLinuxReadByteCustody(*boundary));
+                        }
+                        let payload_offset = home
+                            .byte_offset
+                            .checked_add(u32::from(home.requirement.layout.payload_byte_offset))
+                            .ok_or(EmissionError::LinuxReadByteEncoding)?;
+                        let encoded = match target.architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_linux_read_byte_to_stack(
+                                    home.byte_offset,
+                                    payload_offset,
+                                )
+                                .map_err(|_| EmissionError::LinuxReadByteEncoding)?
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_linux_read_byte_to_stack(
+                                    home.byte_offset,
+                                    payload_offset,
+                                )
+                                .map_err(|_| EmissionError::LinuxReadByteEncoding)?
+                            }
+                        };
+                        bytes.extend_from_slice(&encoded);
+                        native_result =
+                            BoundaryResultRecord::Structural(BoundaryStructuralResultRecord {
+                                defining_operation: home.requirement.defining_operation,
+                                result: home.requirement.result.clone(),
+                                layout: home.requirement.layout.clone(),
+                                home_byte_offset: home.byte_offset,
+                            });
+                    }
                 }
                 boundary_settlements.push(BoundarySettlementRecord {
                     psi_operation: *psi_operation,
@@ -2161,7 +2223,7 @@ pub(super) fn emit_unit_body(
                     completion_claim_sources: completion_claim_sources.clone(),
                     completion_receipts: completion_receipts.clone(),
                     completion_provider_custody,
-                    native_result: None,
+                    native_result,
                     operation_ordinal,
                     code_offset: settlement_code_offset,
                     byte_count: bytes.len() - settlement_code_offset,
@@ -2199,6 +2261,13 @@ pub(super) fn emit_unit_body(
                         AssignedUnitOperation::StructuralResultCall { result, .. } => {
                             Some(result.place)
                         }
+                        AssignedUnitOperation::BoundarySettlement {
+                            result:
+                                omega_assigned_target_operations::AssignedBoundaryResult::Structural(
+                                    result,
+                                ),
+                            ..
+                        } => Some(result.requirement.result.place),
                         _ => None,
                     })
                     .collect::<Vec<_>>();
@@ -3271,6 +3340,27 @@ fn validate_assigned_unit_frame(
                 }
                 *cursor = cursor
                     .checked_add(8)
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                None
+            }
+            AssignedUnitOperation::BoundarySettlement {
+                psi_operation,
+                boundary,
+                result: AssignedBoundaryResult::Structural(home),
+                ..
+            } => {
+                let alignment = u32::from(home.requirement.layout.shape.alignment);
+                if alignment == 0 {
+                    return Err(EmissionError::InvalidLinuxReadByteCustody(*boundary));
+                }
+                *cursor = align_u32(*cursor, alignment)?;
+                if home.requirement.defining_operation != *psi_operation
+                    || home.byte_offset != *cursor
+                {
+                    return Err(EmissionError::InvalidLinuxReadByteCustody(*boundary));
+                }
+                *cursor = cursor
+                    .checked_add(u32::from(home.requirement.layout.shape.byte_size))
                     .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
                 None
             }

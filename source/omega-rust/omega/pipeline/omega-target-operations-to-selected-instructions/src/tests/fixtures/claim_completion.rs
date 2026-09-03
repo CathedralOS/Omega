@@ -70,6 +70,7 @@ pub(in crate::tests) fn claim_completion_settlement_fixture() -> (
     let return_operation = body.operations[1].clone();
     let settlement = |psi_operation, argument, sources, receipts, seed| {
         omega_target_operations::TargetUnitOperation::BoundarySettlement {
+            result: omega_target_operations::TargetBoundaryResult::Unit,
             psi_operation,
             boundary,
             execution: omega_target_operations::ProviderExecutionBinding::from_execution_record(

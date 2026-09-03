@@ -896,8 +896,8 @@ Remaining:
   custody remains fail-closed until
   installation retains the corresponding scalar ABI ledger. Package review
   v126/canonical row v84 adds the distinct execution tag, and terminal-authority
-  policy v3 commits its separate ProcessOutput class. `read_byte`, the
-  remaining Console leaves, Darwin/Windows realizations, broader source-form
+  policy v3 commits its separate ProcessOutput class. `read_line`, the
+  remaining non-Linux Console realizations, broader source-form
   inference, and removal of the remaining payload-free
   `via Binding::CompilerIntrinsic` forms remain open.
 
@@ -916,12 +916,28 @@ Remaining:
   multiplicity, qualification frontier, and claims rather than collapsing
   back into an optional scalar. Optimization identity and validation replay
   that complete row, while scalar-definition indexing admits only the scalar
-  role. Structural boundary effects still fail closed in the interpreter;
-  target, assignment, and native receipt carriers remain Unit/scalar-only, and
-  no Linux `read(0, ..., 1)` lowering is claimed. The next rung must first add
-  canonical target layout for closed sums and an exact structural-result home,
-  then carry that home through target assignment and native receipt custody
-  before adding the Linux read realization and executable echo canary.
+  role. Structural boundary effects still fail closed in the interpreter.
+
+  The target/native rung for that result is now closed. One canonical
+  conventional-sum layout uses a signed-i32 tag at byte zero, packs common
+  fields after it, overlays case payloads at one maximally aligned payload
+  base, and rounds the complete shape to its maximum alignment; no niche or
+  target-private alternative is admitted. Target lowering and assignment
+  retain one exact structural-result home, and machine/object/image/
+  installation replay preserves the closed Unit/scalar/structural result role
+  without an optional field. The Linux x86-64 and AArch64 catalogs now lower
+  `Console::read_byte() -> ByteRead` to exact `read(0, ..., 1)` instruction
+  sequences: zero bytes leaves the zero-initialized `Eof` case, one byte writes
+  the `Byte` tag and payload, and every other syscall result traps. D41 physical
+  custody binds the full semantic result, layout, home, emitted bytes, and
+  realization identity. Provider-attachment, affine-cleanup, and builtin-
+  custody replay all recognize the structural role, and a real product-source
+  canary reaches native artifacts on both Linux targets. Package review
+  v129/row v87 and terminal-authority policy v6 add the distinct ProcessInput
+  catalog entry. The next semantic rung is closed-sum inspection: Terminal and
+  native lowering must expose the retained tag and selected case payload before
+  the echo canary can branch on `ByteRead`, consume the affine result, write the
+  byte, and exit.
 
   `InterruptMaskGuard::restore`, `InterruptAcknowledgement::complete`,
   `Task::request_cancel`, and `Task::finish` now use the public top-level

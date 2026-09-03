@@ -3,7 +3,7 @@
 use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
-use super::super::structural_layout::structural_shape;
+use super::super::structural_layout::{structural_shape, structural_sum_layout};
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 
 mod normalized_foreign;
@@ -380,23 +380,67 @@ pub(super) fn lower_boundary_call(
                 provenance.operations.push(*psi_operation);
                 return Ok(());
             }
-            if !result.is_unit() {
-                return Err(
-                    LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
-                        machine: function.machine,
-                        operation: *psi_operation,
-                        boundary: *boundary,
-                    },
-                );
-            }
             let omega_target_operations::BoundarySettlementRealization::Builtin(realization) =
                 binding.realization
             else {
                 unreachable!("normalized foreign settlement returns above")
             };
+            let target_result = match result {
+                omega_abstract_operations::AbstractBoundaryResult::Unit => {
+                    if !declaration.result.is_unit() {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    }
+                    omega_target_operations::TargetBoundaryResult::Unit
+                }
+                omega_abstract_operations::AbstractBoundaryResult::Structural(result) => {
+                    let psi_terminal::BoundaryMachineResult::Structural(expected) =
+                        &declaration.result
+                    else {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    };
+                    if result.structural_type != expected.structural_type
+                        || result.multiplicity != expected.multiplicity
+                        || result.qualifications != expected.qualifications
+                        || !result.projected_qualifications.is_empty()
+                        || !result.claims.is_empty()
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    }
+                    let layout = structural_sum_layout(
+                        result.structural_type,
+                        structural_types,
+                        &mut shape_cache,
+                        &mut active,
+                    )?;
+                    omega_target_operations::TargetBoundaryResult::Structural(
+                        omega_target_operations::TargetStructuralHomeRequirement {
+                            defining_operation: *psi_operation,
+                            result: result.clone(),
+                            layout,
+                        },
+                    )
+                }
+                omega_abstract_operations::AbstractBoundaryResult::Scalar(_) => {
+                    return Err(
+                        LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                            machine: function.machine,
+                            operation: *psi_operation,
+                            boundary: *boundary,
+                        },
+                    );
+                }
+            };
             let mut scalar_arguments = Vec::new();
             let mut runtime_scalar_arguments = Vec::new();
             let mut byte_sequence_arguments = Vec::new();
+            if !matches!(realization, BoundaryRealization::LinuxReadByte(_))
+                && !matches!(
+                    &target_result,
+                    omega_target_operations::TargetBoundaryResult::Unit
+                )
+            {
+                return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+            }
             match realization {
                 BoundaryRealization::MetadataOnlyPort(realization) => {
                     if !arguments.is_empty()
@@ -525,6 +569,28 @@ pub(super) fn lower_boundary_call(
                     });
                     *nonreturning_boundary = true;
                 }
+                BoundaryRealization::LinuxReadByte(_) => {
+                    if target.object_format != ObjectFormat::Elf
+                        || !matches!(
+                            target.architecture,
+                            Architecture::X86_64 | Architecture::Aarch64
+                        )
+                        || !arguments.is_empty()
+                        || !structural_arguments.is_empty()
+                        || !declaration.scalar_parameters.is_empty()
+                        || !declaration.structural_parameters.is_empty()
+                        || !completion_claim_sources.is_empty()
+                        || !completion_receipts.is_empty()
+                        || !matches!(
+                            &target_result,
+                            omega_target_operations::TargetBoundaryResult::Structural(home)
+                                if home.layout.tag_byte_offset == 0
+                                    && home.layout.tag_shape == ValueShape::integer(4, 4)
+                        )
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    }
+                }
                 BoundaryRealization::LinuxWriteByteI32(_) => {
                     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
                     let [source_value] = arguments.as_slice() else {
@@ -574,6 +640,7 @@ pub(super) fn lower_boundary_call(
             operations.push(TargetUnitOperation::BoundarySettlement {
                 psi_operation: *psi_operation,
                 boundary: *boundary,
+                result: target_result,
                 execution: binding.execution,
                 realization,
                 scalar_arguments,

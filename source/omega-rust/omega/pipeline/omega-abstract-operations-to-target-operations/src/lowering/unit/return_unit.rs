@@ -40,6 +40,10 @@ pub(super) fn lower_unit_return(
                 .iter()
                 .filter_map(|operation| match operation {
                     TargetUnitOperation::StructuralResultCall { result, .. } => Some(result.place),
+                    TargetUnitOperation::BoundarySettlement {
+                        result: omega_target_operations::TargetBoundaryResult::Structural(result),
+                        ..
+                    } => Some(result.result.place),
                     _ => None,
                 })
                 .collect::<Vec<_>>();

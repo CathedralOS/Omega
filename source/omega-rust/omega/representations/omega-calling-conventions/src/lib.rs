@@ -1,9 +1,14 @@
+mod aggregate_layout;
 mod callback_materializations;
 mod darwin;
 mod linux;
 mod plans;
 mod stack_realizations;
 mod windows;
+pub use aggregate_layout::{
+    AggregateLayoutError, ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,
+    evaluate_conventional_sum_layout,
+};
 pub use callback_materializations::{
     CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
     CallbackRequirementId, LayoutPlanId, LayoutSlotId, NativeCallbackDemand,

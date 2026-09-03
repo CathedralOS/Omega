@@ -34,39 +34,13 @@ pub(crate) fn structural_shape(
                     if field.relevance.is_erased() {
                         continue;
                     }
-                    let field_shape = match &field.field_type {
-                        StructuralFieldType::Scalar(ScalarType::Boolean) => {
-                            ValueShape::integer(1, 1)
-                        }
-                        StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
-                            let size = integer.bits().div_ceil(8);
-                            let field_alignment = size.next_power_of_two().min(16);
-                            ValueShape::integer(size, field_alignment)
-                        }
-                        StructuralFieldType::Scalar(ScalarType::IeeeFloat(
-                            IeeeFloatFormat::Binary32,
-                        )) => ValueShape::float(4),
-                        StructuralFieldType::Scalar(ScalarType::IeeeFloat(
-                            IeeeFloatFormat::Binary64,
-                        )) => ValueShape::float(8),
-                        StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => {
-                            ValueShape::float(4)
-                        }
-                        StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => {
-                            ValueShape::float(8)
-                        }
-                        StructuralFieldType::ByteSequence(carrier) => {
-                            byte_sequence_shape(*carrier, structural_type)?
-                        }
-                        StructuralFieldType::Structural(nested) => {
-                            structural_shape(*nested, declarations, cache, active)?
-                        }
-                        // Erased capability/proof fields remain semantically
-                        // relevant but deliberately contribute no target
-                        // bytes. A later attempt to project such a field still
-                        // fails because it has no structural runtime shape.
-                        StructuralFieldType::Erased { .. } => continue,
-                    };
+                    let field_shape = structural_field_shape(
+                        &field.field_type,
+                        structural_type,
+                        declarations,
+                        cache,
+                        active,
+                    )?;
                     alignment = alignment.max(field_shape.alignment);
                     byte_size = checked_align_up_u32(byte_size, u32::from(field_shape.alignment))
                         .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
@@ -99,15 +73,135 @@ pub(crate) fn structural_shape(
                     .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
                 Ok(ValueShape::integer(byte_size, element.alignment))
             }
-            StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. } => {
-                Err(LoweringError::UnsupportedStructuralSum(structural_type))
-            }
+            StructuralTypeShape::Sum { cases } => conventional_sum_layout_from_parts(
+                structural_type,
+                &[],
+                cases,
+                declarations,
+                cache,
+                active,
+            )
+            .map(|layout| layout.shape),
+            StructuralTypeShape::Mixed { fields, cases } => conventional_sum_layout_from_parts(
+                structural_type,
+                fields,
+                cases,
+                declarations,
+                cache,
+                active,
+            )
+            .map(|layout| layout.shape),
         }
     })();
     active.remove(&structural_type);
     let shape = result?;
     cache.insert(structural_type, shape);
     Ok(shape)
+}
+
+pub(super) fn structural_sum_layout(
+    structural_type: StructuralTypeId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<omega_calling_conventions::ConventionalSumLayout, LoweringError> {
+    let declaration = declarations
+        .get(&structural_type)
+        .copied()
+        .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+    match &declaration.shape {
+        StructuralTypeShape::Sum { cases } => conventional_sum_layout_from_parts(
+            structural_type,
+            &[],
+            cases,
+            declarations,
+            cache,
+            active,
+        ),
+        StructuralTypeShape::Mixed { fields, cases } => conventional_sum_layout_from_parts(
+            structural_type,
+            fields,
+            cases,
+            declarations,
+            cache,
+            active,
+        ),
+        _ => Err(LoweringError::UnsupportedStructuralSum(structural_type)),
+    }
+}
+
+fn conventional_sum_layout_from_parts(
+    structural_type: StructuralTypeId,
+    common_fields: &[psi_terminal::StructuralFieldDeclaration],
+    cases: &[psi_terminal::StructuralCaseDeclaration],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<omega_calling_conventions::ConventionalSumLayout, LoweringError> {
+    if cases.is_empty() {
+        return Err(LoweringError::EmptyStructuralType(structural_type));
+    }
+    let common = common_fields
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .map(|field| {
+            structural_field_shape(
+                &field.field_type,
+                structural_type,
+                declarations,
+                cache,
+                active,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let payloads = cases
+        .iter()
+        .map(|case| {
+            case.fields
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .map(|field| {
+                    structural_field_shape(
+                        &field.field_type,
+                        structural_type,
+                        declarations,
+                        cache,
+                        active,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    omega_calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
+        .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))
+}
+
+fn structural_field_shape(
+    field: &StructuralFieldType,
+    owner: StructuralTypeId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<ValueShape, LoweringError> {
+    match field {
+        StructuralFieldType::Scalar(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
+        StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+            let size = integer.bits().div_ceil(8);
+            Ok(ValueShape::integer(size, size.next_power_of_two().min(16)))
+        }
+        StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
+        | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(ValueShape::float(4)),
+        StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
+        | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => Ok(ValueShape::float(8)),
+        StructuralFieldType::ByteSequence(carrier) => byte_sequence_shape(*carrier, owner),
+        StructuralFieldType::Structural(nested) => {
+            structural_shape(*nested, declarations, cache, active)
+        }
+        StructuralFieldType::Erased { .. } => {
+            // Callers filter erased fields before requesting runtime shape.
+            Err(LoweringError::UnknownStructuralType(owner))
+        }
+    }
 }
 
 pub(super) fn direct_boolean_field_offset(
@@ -492,5 +586,108 @@ pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
         Some(value)
     } else {
         value.checked_add(alignment - remainder)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn structural_type(value: u32) -> StructuralTypeId {
+        StructuralTypeId::new(value.into()).expect("structural type")
+    }
+
+    fn case(value: u32) -> psi_core::StructuralCaseId {
+        psi_core::StructuralCaseId::new(value.into()).expect("case")
+    }
+
+    fn field(value: u32) -> StructuralFieldId {
+        StructuralFieldId::new(value.into()).expect("field")
+    }
+
+    #[test]
+    fn byte_read_sum_has_the_canonical_tag_prefixed_layout() {
+        let byte_read = structural_type(1);
+        let declaration = StructuralTypeDeclaration {
+            id: byte_read,
+            identity: "std::ByteRead".into(),
+            shape: StructuralTypeShape::Sum {
+                cases: vec![
+                    psi_terminal::StructuralCaseDeclaration {
+                        id: case(1),
+                        identity: "std::ByteRead::Eof".into(),
+                        fields: Vec::new(),
+                    },
+                    psi_terminal::StructuralCaseDeclaration {
+                        id: case(2),
+                        identity: "std::ByteRead::Byte".into(),
+                        fields: vec![psi_terminal::StructuralFieldDeclaration {
+                            id: field(1),
+                            identity: "std::ByteRead::Byte::value".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                                    .expect("i32"),
+                            )),
+                        }],
+                    },
+                ],
+            },
+        };
+        let declarations = BTreeMap::from([(byte_read, &declaration)]);
+
+        let shape = structural_shape(
+            byte_read,
+            &declarations,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .expect("ByteRead target shape");
+
+        assert_eq!(shape, ValueShape::integer(8, 4));
+    }
+
+    #[test]
+    fn nested_sums_compose_as_payload_shapes() {
+        let inner = structural_type(1);
+        let outer = structural_type(2);
+        let declarations = vec![
+            StructuralTypeDeclaration {
+                id: inner,
+                identity: "test::Inner".into(),
+                shape: StructuralTypeShape::Sum {
+                    cases: vec![psi_terminal::StructuralCaseDeclaration {
+                        id: case(1),
+                        identity: "test::Inner::Only".into(),
+                        fields: Vec::new(),
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: outer,
+                identity: "test::Outer".into(),
+                shape: StructuralTypeShape::Sum {
+                    cases: vec![psi_terminal::StructuralCaseDeclaration {
+                        id: case(2),
+                        identity: "test::Outer::Nested".into(),
+                        fields: vec![psi_terminal::StructuralFieldDeclaration {
+                            id: field(1),
+                            identity: "test::Outer::Nested::value".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(inner),
+                        }],
+                    }],
+                },
+            },
+        ];
+        let catalog = declarations
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect::<BTreeMap<_, _>>();
+
+        let shape = structural_shape(outer, &catalog, &mut BTreeMap::new(), &mut BTreeSet::new())
+            .expect("nested sum target shape");
+
+        assert_eq!(shape, ValueShape::integer(8, 4));
     }
 }

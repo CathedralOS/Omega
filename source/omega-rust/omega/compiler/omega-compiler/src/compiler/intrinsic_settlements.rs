@@ -113,6 +113,7 @@ pub(super) fn derive_compiler_intrinsic_settlement_proposals(
             *execution,
             CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32
                 | CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32
+                | CompilerIntrinsicExecutionIdentity::LinuxReadByte
         ) {
             diagnostics.push(Diagnostic::error(format!(
                 "selected compiler intrinsic `{}` for Terminal boundary `{requirement}` has no native boundary realization",
@@ -126,6 +127,9 @@ pub(super) fn derive_compiler_intrinsic_settlement_proposals(
             }
             CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => {
                 omega_target_operations::CompilerBuiltinExecution::LinuxWriteByteI32
+            }
+            CompilerIntrinsicExecutionIdentity::LinuxReadByte => {
+                omega_target_operations::CompilerBuiltinExecution::LinuxReadByte
             }
             _ => unreachable!("native boundary intrinsic was checked above"),
         };

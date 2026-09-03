@@ -31,7 +31,7 @@ pub(crate) fn linux_write_line_custody_is_exact(
                 psi_terminal::ByteSequenceCarrier::BorrowedView
             )
         )
-        || settlement.native_result.is_some()
+        || !settlement.native_result.is_unit()
     {
         return false;
     }

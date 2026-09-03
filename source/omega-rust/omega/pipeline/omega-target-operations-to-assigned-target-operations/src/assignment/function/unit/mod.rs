@@ -24,7 +24,8 @@ pub(super) fn assign(
         unreachable!("Unit assignment receives a Unit body");
     };
     let mut assigned_scalar_homes = BTreeMap::new();
-    let mut next_scalar_home = scalar_call::unit_scalar_home_start(body, target)?;
+    let mut assigned_structural_homes = BTreeMap::new();
+    let mut next_frame_home = scalar_call::unit_scalar_home_start(body, target)?;
     let mut operations = Vec::with_capacity(body.operations.len());
     for (operation_index, operation) in body.operations.iter().enumerate() {
         let native_callback = match operation {
@@ -43,7 +44,8 @@ pub(super) fn assign(
             target,
             native_callback,
             &mut assigned_scalar_homes,
-            &mut next_scalar_home,
+            &mut assigned_structural_homes,
+            &mut next_frame_home,
         )?;
         operations.push(assigned);
     }

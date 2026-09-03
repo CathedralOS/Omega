@@ -57,12 +57,19 @@ pub(super) fn validate_completion_custody(
                 omega_target_operations::CompilerBuiltinExecution::LinuxWriteByteI32,
             ),
             omega_target_operations::BoundaryRealization::LinuxWriteByteI32(_),
+        )
+        | (
+            omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                omega_target_operations::CompilerBuiltinExecution::LinuxReadByte,
+            ),
+            omega_target_operations::BoundaryRealization::LinuxReadByte(_),
         ) => true,
         (omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(_), _)
         | (
             _,
             omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_)
-            | omega_target_operations::BoundaryRealization::LinuxWriteByteI32(_),
+            | omega_target_operations::BoundaryRealization::LinuxWriteByteI32(_)
+            | omega_target_operations::BoundaryRealization::LinuxReadByte(_),
         ) => false,
         _ => true,
     };
@@ -217,7 +224,7 @@ mod tests {
             completion_claim_sources,
             completion_receipts,
             completion_provider_custody,
-            native_result: None,
+            native_result: omega_machine_code::BoundaryResultRecord::Unit,
             operation_ordinal: 1,
             code_offset: 0,
             byte_count: 0,

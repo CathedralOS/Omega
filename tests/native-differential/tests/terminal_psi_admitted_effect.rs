@@ -889,7 +889,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     ));
     let native_result = direct_machine.functions[0].boundary_settlements[0]
         .native_result
-        .as_ref()
+        .scalar()
         .expect("native result evidence");
     assert_eq!(native_result.value, result.value);
     assert_eq!(native_result.scalar_type, result.scalar_type);
@@ -902,17 +902,19 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         direct_call_plan.result.as_ref().unwrap()
     );
     let mut missing_native_result = direct_machine.clone();
-    missing_native_result.functions[0].boundary_settlements[0].native_result = None;
+    missing_native_result.functions[0].boundary_settlements[0].native_result =
+        omega_machine_code::BoundaryResultRecord::Unit;
     assert!(matches!(
         build_object_artifact(&missing_native_result),
         Err(omega_image_emission::ObjectError::BoundaryRealizationMismatch { .. })
     ));
     let mut wrong_return_edge = direct_machine.clone();
-    wrong_return_edge.functions[0].boundary_settlements[0]
-        .native_result
-        .as_mut()
-        .expect("native result")
-        .return_edge = EdgeId::new(2).expect("wrong return edge");
+    let omega_machine_code::BoundaryResultRecord::Scalar(native_result) =
+        &mut wrong_return_edge.functions[0].boundary_settlements[0].native_result
+    else {
+        panic!("native scalar result")
+    };
+    native_result.return_edge = EdgeId::new(2).expect("wrong return edge");
     assert!(matches!(
         build_object_artifact(&wrong_return_edge),
         Err(omega_image_emission::ObjectError::BoundaryRealizationMismatch { .. })

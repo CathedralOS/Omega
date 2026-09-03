@@ -920,6 +920,8 @@ dependencies = [
  "omega-image",
  "omega-image-emission",
  "omega-installation-evidence",
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
  "omega-machine-code",
  "omega-object-file",
  "omega-optimization-core",

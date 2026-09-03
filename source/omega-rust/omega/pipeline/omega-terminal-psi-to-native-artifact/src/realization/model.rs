@@ -31,6 +31,7 @@ builtin_native_realization_conversion!(omega_target_operations::MetadataOnlyPort
 builtin_native_realization_conversion!(omega_target_operations::DirectPortReadU8Realization);
 builtin_native_realization_conversion!(omega_target_operations::LinuxWriteLineRealization);
 builtin_native_realization_conversion!(omega_target_operations::LinuxExitGroupI32Realization);
+builtin_native_realization_conversion!(omega_target_operations::LinuxReadByteRealization);
 builtin_native_realization_conversion!(omega_target_operations::ClaimCompletionOnlyRealization);
 
 #[derive(Debug, Clone)]

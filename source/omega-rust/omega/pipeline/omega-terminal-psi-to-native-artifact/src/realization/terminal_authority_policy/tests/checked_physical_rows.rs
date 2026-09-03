@@ -19,12 +19,16 @@ fn checked_port_write_classifies_only_by_exact_profile_and_port() {
         policy.classify(exact).unwrap().classes(),
         &[TerminalAuthorityClass::PortIo]
     );
-    assert!(policy
-        .classify(port_write(omega_target::TargetProfile::LinuxX64, 0x0080))
-        .is_err());
-    assert!(policy
-        .classify(port_write(omega_target::TargetProfile::WindowsX64, 0x03f8))
-        .is_err());
+    assert!(
+        policy
+            .classify(port_write(omega_target::TargetProfile::LinuxX64, 0x0080))
+            .is_err()
+    );
+    assert!(
+        policy
+            .classify(port_write(omega_target::TargetProfile::WindowsX64, 0x03f8))
+            .is_err()
+    );
     assert!(current_terminal_authority_policy().classify(exact).is_err());
 }
 
