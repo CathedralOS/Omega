@@ -41,7 +41,10 @@ pub use artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
     build_artifact_manifest, validate_artifact_manifest,
 };
-pub use canonical_artifact::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
+pub use canonical_artifact::{
+    CanonicalTerminalArtifact, CanonicalTerminalArtifactEnvelopeError,
+    CanonicalTerminalArtifactError,
+};
 pub use canonical_order::canonical_proposition_order_key;
 pub use debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,

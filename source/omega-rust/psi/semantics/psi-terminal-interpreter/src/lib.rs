@@ -53,6 +53,29 @@ pub fn interpret_terminal_artifact_measured(
     )
 }
 
+/// Decode one complete portable Terminal-Psi envelope, independently verify
+/// its semantic and proof sections, and execute it with a fresh effect-policy
+/// input supplied by the receiver. The envelope contains no checked-tree or
+/// build-process object.
+pub fn interpret_serialized_terminal_artifact_with_effect_handler_measured(
+    artifact_bytes: &[u8],
+    profile: &psi_proof_admission::AdmissionProfile,
+    scalar_arguments: &[TerminalScalarValue],
+    structural_arguments: &[TerminalStructuralValue],
+    handler: &mut impl TerminalEffectHandler,
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
+    let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
+        .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
+    interpret_terminal_artifact_with_effect_handler_measured(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        profile,
+        scalar_arguments,
+        structural_arguments,
+        handler,
+    )
+}
+
 /// Execute one verified artifact with opaque structural runtime arguments and
 /// an injected deterministic effect handler. The interpreter records every
 /// accepted effect in semantic execution order; the handler cannot inspect or
@@ -4645,6 +4668,7 @@ pub enum ProviderInstallationError {
 
 #[derive(Debug)]
 pub enum TerminalArtifactInterpretError {
+    ArtifactDecode(psi_terminal_codec::CanonicalTerminalArtifactError),
     SemanticDecode(psi_terminal_codec::CodecError),
     ProofDecode(psi_terminal_codec::ProofCodecError),
     Verification(psi_terminal_verifier::VerificationError),

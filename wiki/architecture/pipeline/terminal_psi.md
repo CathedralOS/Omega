@@ -38,8 +38,13 @@ and compiler-builtin proposals travel as an exact owned companion beside the
 target-neutral semantic module; they do not grant the consumer authority. The
 consumer accepts the full proposal using its target catalog and local
 admissions or rejects realization without invalidating the Psi semantics. The
-compiler Terminal-product canary discards all frontend objects before
-exercising that consumer boundary.
+portable artifact envelope owns the canonical semantic and proof sections plus
+the optional canonical debug section; its manifest is reconstructed from those
+sections rather than serialized as trusted redundant input. The compiler
+Terminal-product canary writes that envelope in one process, lets the producer
+exit, and decodes, verifies, and interprets it under freshly supplied authority
+in a second process. No checked compilation or other frontend object can cross
+that boundary.
 
 The first source-evaluated import re-entry is now concrete. A consuming
 compiler coordinator derives demanded boundary identities from canonical

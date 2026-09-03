@@ -157,6 +157,59 @@ fn canonical_terminal_artifact_owns_and_replays_exact_sections() {
 }
 
 #[test]
+fn canonical_terminal_artifact_transport_round_trips_without_producer_objects() {
+    let artifact =
+        CanonicalTerminalArtifact::from_parts(&semantic_module(), &kernel_bundle(), None)
+            .expect("canonical Terminal artifact");
+    let identity = artifact.manifest().identity();
+    let bytes = artifact.to_bytes();
+    drop(artifact);
+
+    assert_eq!(&bytes[..8], b"PSIART\0\0");
+    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
+    let decoded = CanonicalTerminalArtifact::from_bytes(&bytes)
+        .expect("source-free Terminal artifact envelope");
+    assert_eq!(decoded.manifest().identity(), identity);
+    assert_eq!(decoded.to_bytes(), bytes);
+
+    let mut wrong_magic = bytes.clone();
+    wrong_magic[0] ^= 1;
+    assert!(matches!(
+        CanonicalTerminalArtifact::from_bytes(&wrong_magic),
+        Err(
+            psi_terminal_codec::CanonicalTerminalArtifactError::Envelope(
+                psi_terminal_codec::CanonicalTerminalArtifactEnvelopeError::InvalidMagic
+            )
+        )
+    ));
+
+    let mut stale = bytes.clone();
+    stale[8..10].copy_from_slice(&2_u16.to_le_bytes());
+    assert!(matches!(
+        CanonicalTerminalArtifact::from_bytes(&stale),
+        Err(
+            psi_terminal_codec::CanonicalTerminalArtifactError::Envelope(
+                psi_terminal_codec::CanonicalTerminalArtifactEnvelopeError::UnsupportedFormatMarker(
+                    2
+                )
+            )
+        )
+    ));
+
+    let mut trailing = bytes.clone();
+    trailing.push(0);
+    assert!(matches!(
+        CanonicalTerminalArtifact::from_bytes(&trailing),
+        Err(
+            psi_terminal_codec::CanonicalTerminalArtifactError::Envelope(
+                psi_terminal_codec::CanonicalTerminalArtifactEnvelopeError::TrailingBytes(1)
+            )
+        )
+    ));
+    assert!(CanonicalTerminalArtifact::from_bytes(&bytes[..bytes.len() - 1]).is_err());
+}
+
+#[test]
 fn proof_format_round_trips_terminal_proposition_disjunction() {
     let conclusion = Proposition::Disjunction(vec![Proposition::Truth, Proposition::Falsehood]);
     let proof = ProofNode {

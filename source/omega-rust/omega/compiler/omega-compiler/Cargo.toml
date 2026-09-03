@@ -79,6 +79,7 @@ serde_json = "1"
 
 [dev-dependencies]
 sha2 = "0.10.9"
+psi-terminal-interpreter = { path = "../../../psi/semantics/psi-terminal-interpreter" }
 omega-bounded-process = { path = "../../tooling/omega-bounded-process" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-machine-code = { path = "../../representations/omega-machine-code" }
