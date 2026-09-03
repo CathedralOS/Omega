@@ -23,14 +23,21 @@ pub(super) fn assign(
     };
     let parameter_index = usize::try_from(destination.position).map_err(|_| invalid())?;
     let parameter = body.parameters.get(parameter_index).ok_or_else(invalid)?;
-    let TargetUnitScalarArgumentSource::IntegerImmediate { scalar_type, .. } = source else {
-        return Err(invalid());
+    let (expected_scalar_type, expected_shape) = match source {
+        TargetUnitScalarArgumentSource::IntegerImmediate { scalar_type, .. } => {
+            let referent_shape =
+                super::scalar_call::fixed_integer_shape(source.source_value(), scalar_type)
+                    .map_err(|_| invalid())?;
+            (
+                ScalarType::Integer(scalar_type),
+                ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment),
+            )
+        }
+        TargetUnitScalarArgumentSource::BooleanImmediate { .. } => {
+            (ScalarType::Boolean, ValueShape::borrowed_reference(1, 1))
+        }
+        _ => return Err(invalid()),
     };
-    let referent_shape =
-        super::scalar_call::fixed_integer_shape(source.source_value(), scalar_type)
-            .map_err(|_| invalid())?;
-    let expected_shape =
-        ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment);
     if destination.is_self
         || destination.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
         || !matches!(
@@ -42,7 +49,7 @@ pub(super) fn assign(
         || !destination.projected_qualifications.is_empty()
         || destination_type.id != destination.structural_type
         || destination_type.shape
-            != psi_terminal::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(scalar_type))
+            != psi_terminal::StructuralTypeShape::PrimitiveScalar(expected_scalar_type)
         || !body
             .structural_types
             .iter()
@@ -64,10 +71,13 @@ pub(super) fn assign(
         &BTreeMap::new(),
     )
     .ok_or_else(invalid)?;
-    if !matches!(
-        assigned_source,
-        AssignedUnitScalarArgumentSource::IntegerImmediate { .. }
-    ) {
+    if assigned_source.scalar_type() != expected_scalar_type
+        || !matches!(
+            assigned_source,
+            AssignedUnitScalarArgumentSource::IntegerImmediate { .. }
+                | AssignedUnitScalarArgumentSource::BooleanImmediate { .. }
+        )
+    {
         return Err(invalid());
     }
     Ok(AssignedUnitOperation::WriteOnlyPrimitiveStore {

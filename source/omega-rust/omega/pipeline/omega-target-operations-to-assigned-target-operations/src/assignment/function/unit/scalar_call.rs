@@ -208,6 +208,32 @@ pub(super) fn assign_known_unit_scalar_source(
                 },
             )
         }
+        TargetUnitScalarArgumentSource::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+        } => {
+            let matches = preceding_operations
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        TargetUnitOperation::BooleanConstant {
+                            psi_operation,
+                            result,
+                            value: retained_value,
+                        } if *psi_operation == defining_operation
+                            && *result == source_value
+                            && *retained_value == value
+                    )
+                })
+                .count();
+            (matches == 1).then_some(AssignedUnitScalarArgumentSource::BooleanImmediate {
+                defining_operation,
+                source_value,
+                value,
+            })
+        }
         TargetUnitScalarArgumentSource::Home(home) => {
             let matches = preceding_operations
                 .iter()

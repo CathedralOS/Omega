@@ -380,8 +380,10 @@ the ordinary borrowed-reference ABI through target selection, physical
 assignment, and machine emission on x86-64 and AArch64. Object construction
 independently replays the exact parameter, primitive width, pointer home,
 literal source, target instruction bytes, and attribution; installation format
-71 transports and revalidates that custody canonically. Boolean native lowering
-and opaque provider non-observation authority remain explicitly fenced.
+71 transports and revalidates that custody canonically. Boolean stores retain
+an exact one-byte referent and Boolean immediate through target selection and
+independent assignment on both native architectures, then stop at machine
+emission. Opaque provider non-observation authority remains explicitly fenced.
 
 ### Geometry, demand, and supply
 

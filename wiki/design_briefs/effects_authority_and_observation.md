@@ -95,10 +95,13 @@ their call closure. An opaque provider's claimed non-observation is admitted
 unless installation supplies physical isolation evidence.
 
 The first bounded whole-root primitive store is retained as a structural-state
-event through target-neutral operations, optimization validation, physical
-assignment, and native store emission. Object construction independently
-replays the exact non-observing store custody and bytes, and installation
-transports that replay canonically. The classification prevents scalar
+event through target-neutral operations and optimization validation. Integer
+literals continue through physical assignment and native store emission;
+Boolean literals retain their exact Boolean definition, one-byte referent, and
+borrowed-reference placement through independent assignment, then fail closed
+at machine emission. Object construction independently replays the exact
+fixed-integer non-observing store custody and bytes, and installation transports
+that replay canonically. The classification prevents scalar
 dead-code reasoning from erasing the write; it does not claim a readable
 observation of the prior referent or authorize an opaque provider.
 

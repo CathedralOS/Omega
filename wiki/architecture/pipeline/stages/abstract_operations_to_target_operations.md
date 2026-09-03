@@ -79,6 +79,12 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   bounded service-free fixed-integer function family. `lowering/unit/scalar_call.rs`
   admits attached-Unit calls only when that independently derived callee ABI
   matches, retaining constants or earlier call results as typed sources.
+- `lowering/unit/write_only_primitive_store.rs` owns the first whole-root
+  non-observing primitive replacement. Fixed integers derive their exact native
+  referent shape; Booleans retain a distinct one-byte referent and preceding
+  Boolean definition. Both select borrowed-reference placement and cross
+  independent physical assignment, while Boolean machine emission remains an
+  explicit downstream fence.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider

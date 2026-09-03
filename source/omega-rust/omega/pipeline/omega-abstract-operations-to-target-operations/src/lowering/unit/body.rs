@@ -10,7 +10,7 @@ use super::dynamic::{
 use super::return_unit::lower_unit_return;
 use super::scalar_call::{KnownUnitInteger, lower_scalar_call};
 use super::scalar_definitions::{
-    lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
+    lower_boolean_constant, lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
 };
 use super::structural_call::{StructuralCallLocalSource, lower_structural_unit_call};
 use super::structural_result::lower_structural_result_call;
@@ -58,6 +58,7 @@ pub(super) fn lower_unit_body(
         BTreeMap::<PlaceId, StructuralCallLocalSource>::new();
     let mut integer_constants =
         BTreeMap::<ValueId, (OperationId, IntegerType, IntegerValue)>::new();
+    let mut boolean_constants = BTreeMap::<ValueId, (OperationId, bool)>::new();
     let mut ieee_float_constants =
         BTreeMap::<ValueId, (OperationId, psi_core::IeeeFloatValue)>::new();
     let mut scalar_values = scalar_parameters
@@ -106,6 +107,7 @@ pub(super) fn lower_unit_body(
                 structural_types,
                 &parameters_by_place,
                 &scalar_values,
+                &boolean_constants,
                 &mut operations,
                 &mut provenance,
             )?,
@@ -473,6 +475,20 @@ pub(super) fn lower_unit_body(
                 &mut operations,
                 &mut provenance,
             )?,
+            AbstractOperation::BooleanConstant {
+                psi_operation,
+                result,
+                value,
+            } => lower_boolean_constant(
+                function.machine,
+                *psi_operation,
+                *result,
+                *value,
+                nonreturning_boundary,
+                &mut boolean_constants,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::IeeeFloatConstant {
                 psi_operation,
                 result,
@@ -509,7 +525,6 @@ pub(super) fn lower_unit_body(
             )?,
             AbstractOperation::Crash { .. }
             | AbstractOperation::IntegerConstant { .. }
-            | AbstractOperation::BooleanConstant { .. }
             | AbstractOperation::BooleanStructuralField { .. }
             | AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::BooleanNot { .. }

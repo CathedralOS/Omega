@@ -181,8 +181,10 @@ storage containing no live `T` is a separate feature.
 > value producer precedes a Unit write-only event, the verifier reconstructs
 > exact type/access/place custody without an old-value premise, and the
 > reference interpreter mutates exact-typed stable target-neutral backing across an
-> in-module call with fuel charged before the store. Opaque-provider execution
-> and native address/width/store lowering still fail closed. `&write` is never
+> in-module call with fuel charged before the store. The Boolean form retains
+> its exact one-byte referent and literal through target selection and physical
+> assignment on both native architectures, then fails closed at machine
+> emission. Opaque-provider execution remains gated. `&write` is never
 > temporarily lowered as `&mut`.
 
 Code may perform plain typed stores, content-independent field/index/range
@@ -212,8 +214,9 @@ assignment, and machine emission on x86-64 and AArch64. Object construction
 independently replays its exact parameter identity, access, primitive type,
 borrowed-reference placement and home, preceding typed scalar definition,
 target store bytes, and semantic attribution. Installation format 71 transports
-that custody canonically. Boolean native lowering and opaque-provider
-non-observation guarantees remain fail closed.
+that custody canonically. The Boolean sibling reaches independently replayed
+physical assignment and then stops at its explicit machine-emission fence;
+opaque-provider non-observation guarantees remain fail closed.
 
 A partial write must leave `T` valid at the ordinary invariant-window
 consumption points. The checker may prove that from the written inputs, static

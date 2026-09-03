@@ -125,12 +125,15 @@ preceding exact-typed scalar use through target-neutral abstract operations and
 optimization validation. The current native fixed-integer sublane derives the
 primitive referent's exact width/alignment, selects a borrowed-reference ABI on
 x86-64 and AArch64, and retains the exact declaration, placement, immediate,
-and semantic operation. Physical assignment and machine emission independently
-replay those joins before producing the non-observing store bytes. A dedicated
-custody row binds every fact to the exact code interval and bytes, which object
-construction replays independently and installation encoding transports
-canonically. Boolean native lowering remains fail closed; provider
-non-observation authority also remains absent.
+and semantic operation. Its Boolean sibling retains an exact one-byte referent
+and preceding Boolean definition through target lowering and independent
+physical assignment, then stops at a dedicated machine-emission fence without
+an integer surrogate. Fixed-integer physical assignment and machine emission
+independently replay those joins before producing the non-observing store
+bytes. A dedicated custody row binds every fact to the exact code interval and
+bytes, which object construction replays independently and installation
+encoding transports canonically. Provider non-observation authority also
+remains absent.
 
 ## Consumers and cleanup
 

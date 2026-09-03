@@ -75,6 +75,32 @@ pub(super) fn lower_integer_constant(
     Ok(())
 }
 
+pub(super) fn lower_boolean_constant(
+    machine: MachineId,
+    psi_operation: OperationId,
+    result: ValueId,
+    value: bool,
+    nonreturning_boundary: bool,
+    boolean_constants: &mut BTreeMap<ValueId, (OperationId, bool)>,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    if nonreturning_boundary
+        || boolean_constants
+            .insert(result, (psi_operation, value))
+            .is_some()
+    {
+        return Err(LoweringError::UnsupportedOperationInUnitFunction(machine));
+    }
+    operations.push(TargetUnitOperation::BooleanConstant {
+        psi_operation,
+        result,
+        value,
+    });
+    provenance.operations.push(psi_operation);
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_ieee_float_constant(
     psi_operation: OperationId,

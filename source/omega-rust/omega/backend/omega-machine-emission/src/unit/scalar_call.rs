@@ -354,7 +354,7 @@ fn assigned_destination_for_placement(
     }
 }
 
-pub(super) const fn unit_scalar_argument_source_record(
+pub(super) fn unit_scalar_argument_source_record(
     source: AssignedUnitScalarArgumentSource,
 ) -> InternalUnitScalarArgumentSourceRecord {
     match source {
@@ -392,6 +392,9 @@ pub(super) const fn unit_scalar_argument_source_record(
             scalar_type,
             value,
         },
+        AssignedUnitScalarArgumentSource::BooleanImmediate { .. } => {
+            unreachable!("Boolean immediates do not yet cross the machine-emission fence")
+        }
         AssignedUnitScalarArgumentSource::Home(home) => {
             InternalUnitScalarArgumentSourceRecord::Home(unit_scalar_home_record(home))
         }
@@ -497,6 +500,9 @@ pub(super) fn emit_x86_64_unit_scalar_argument(
             destination_register,
             canonical_integer_bits(source_value, scalar_type, value)?,
         ),
+        AssignedUnitScalarArgumentSource::BooleanImmediate { source_value, .. } => {
+            return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+        }
         AssignedUnitScalarArgumentSource::Home(home) => {
             let source_offset = call_stack_bytes
                 .checked_add(home.byte_offset)
@@ -538,6 +544,9 @@ pub(super) fn emit_aarch64_unit_scalar_argument(
             destination_register,
             canonical_integer_bits(source_value, scalar_type, value)?,
         ),
+        AssignedUnitScalarArgumentSource::BooleanImmediate { source_value, .. } => {
+            return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+        }
         AssignedUnitScalarArgumentSource::Home(home) => {
             let source_offset = call_stack_bytes
                 .checked_add(home.byte_offset)
