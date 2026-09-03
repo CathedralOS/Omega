@@ -4,7 +4,8 @@ use psi_checked_trees::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedBooleanExpression,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
-    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedComposedUnitControlMachinePlan,
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseSuccessorPlan,
+    CheckedClosedSumPayloadTransferPlan, CheckedComposedUnitControlMachinePlan,
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
     CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
@@ -269,6 +270,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                 CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
                     boundary_symbols.contains(target_machine)
                 }
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    target_machine, ..
+                } => boundary_symbols.contains(target_machine),
                 _ => false,
             })
     });
@@ -307,12 +311,25 @@ pub(crate) fn build_checked_unit_effect_plans(
                 )
         }))
         .chain(composed_machines.iter().flat_map(|plan| {
-            std::iter::once(plan.attachment_type_identity.as_str()).chain(
-                plan.states
-                    .iter()
-                    .flat_map(|state| &state.structural_parameters)
-                    .map(|parameter| parameter.type_identity.as_str()),
-            )
+            std::iter::once(plan.attachment_type_identity.as_str())
+                .chain(
+                    plan.states
+                        .iter()
+                        .flat_map(|state| &state.structural_parameters)
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
+                .chain(plan.states.iter().flat_map(|state| {
+                    state
+                        .operations
+                        .iter()
+                        .filter_map(|operation| match operation {
+                            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                result,
+                                ..
+                            } => Some(result.type_identity.as_str()),
+                            _ => None,
+                        })
+                }))
         }))
         .chain(
             dynamic_dispatch

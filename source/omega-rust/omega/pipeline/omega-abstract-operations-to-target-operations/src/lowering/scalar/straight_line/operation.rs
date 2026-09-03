@@ -263,7 +263,7 @@ pub(super) fn lower_operation(
             }
             provenance.edges.push(*psi_edge);
         }
-        AbstractOperation::Conditional { .. } => {
+        AbstractOperation::Conditional { .. } | AbstractOperation::StructuralCase { .. } => {
             return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                 function.machine,
             ));

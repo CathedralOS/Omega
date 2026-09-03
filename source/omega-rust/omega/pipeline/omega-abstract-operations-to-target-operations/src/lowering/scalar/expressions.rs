@@ -498,6 +498,7 @@ pub(super) fn conditional_provenance(
             AbstractOperation::DynamicDescriptorParameter { .. }
             | AbstractOperation::Jump { .. }
             | AbstractOperation::Conditional { .. }
+            | AbstractOperation::StructuralCase { .. }
             | AbstractOperation::Return { .. }
             | AbstractOperation::ReturnUnit { .. }
             | AbstractOperation::ReturnStructural { .. }

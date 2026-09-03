@@ -66,6 +66,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::IntegerStructuralField { .. }
         | O::Jump { .. }
         | O::Conditional { .. }
+        | O::StructuralCase { .. }
         | O::Return { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }

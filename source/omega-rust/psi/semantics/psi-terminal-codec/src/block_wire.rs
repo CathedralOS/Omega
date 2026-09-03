@@ -8,7 +8,8 @@ use psi_terminal::{
     Block, ClaimTransfer, CompletionReceipt, CrashCause, NominalAffineCleanup, Operation,
     OperationKind, OperationResult, OutcomeSpecificCallEvidence,
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificGuard, StructuralAffineDiscard, StructuralResultClaimTransfer, Terminator,
+    OutcomeSpecificGuard, StructuralAffineDiscard, StructuralCaseSuccessorEdge,
+    StructuralResultClaimTransfer, Terminator,
 };
 
 use super::contract_wire::{
@@ -704,6 +705,27 @@ pub(super) fn encode_block_for_result_paths(
             encode_successor_edge(writer, when_true)?;
             encode_successor_edge(writer, when_false)?;
         }
+        Terminator::StructuralCase { source, cases } => {
+            writer.u8(9);
+            writer.id(*source);
+            writer.len("structural case successors", cases.len())?;
+            for case in cases {
+                writer.id(case.edge);
+                writer.id(case.target);
+                writer.id(case.case);
+                writer.len("structural case payload fields", case.payload_fields.len())?;
+                for field in &case.payload_fields {
+                    writer.id(*field);
+                }
+                writer.len(
+                    "structural case trivial affine discards",
+                    case.trivial_affine_discards.len(),
+                )?;
+                for place in &case.trivial_affine_discards {
+                    writer.id(*place);
+                }
+            }
+        }
         Terminator::Crash {
             edge,
             cause,
@@ -1192,6 +1214,18 @@ pub(super) fn decode_block_for_result_paths(
                     cleanup_machine: reader.id("MachineId")?,
                     cleanup_receiver: decode_optional_id(reader, "PlaceId")?,
                     requirement_obligations: decode_ids(reader, "ObligationId")?,
+                })
+            })?,
+        },
+        9 => Terminator::StructuralCase {
+            source: reader.id("PlaceId")?,
+            cases: decode_counted(reader, |reader| {
+                Ok(StructuralCaseSuccessorEdge {
+                    edge: reader.id("EdgeId")?,
+                    target: reader.id("BlockId")?,
+                    case: reader.id("StructuralCaseId")?,
+                    payload_fields: decode_ids(reader, "StructuralFieldId")?,
+                    trivial_affine_discards: decode_ids(reader, "PlaceId")?,
                 })
             })?,
         },

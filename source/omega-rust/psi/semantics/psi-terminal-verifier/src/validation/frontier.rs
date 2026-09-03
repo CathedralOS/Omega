@@ -239,6 +239,9 @@ pub(super) fn validate_structural_frontier(
                 (when_true.edge, when_true.target),
                 (when_false.edge, when_false.target),
             ],
+            Terminator::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| (case.edge, case.target)).collect()
+            }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
@@ -576,6 +579,23 @@ pub(super) fn validate_structural_frontier(
                         .entry(when_false.target)
                         .or_default()
                         .push(frontier);
+                }
+            }
+            Terminator::StructuralCase { cases, .. } => {
+                for case in cases {
+                    let mut case_frontier = frontier.clone();
+                    apply_edge_trivial_affine_discards(
+                        machine,
+                        &mut case_frontier,
+                        case.edge,
+                        &case.trivial_affine_discards,
+                    )?;
+                    snapshots
+                        .edge_exits
+                        .insert(case.edge, case_frontier.snapshot());
+                    if !representation_backedges.contains(&case.edge) {
+                        incoming.entry(case.target).or_default().push(case_frontier);
+                    }
                 }
             }
             Terminator::ReturnUnit {

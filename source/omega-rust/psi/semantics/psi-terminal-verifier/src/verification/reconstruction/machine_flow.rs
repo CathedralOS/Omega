@@ -26,6 +26,9 @@ pub(super) fn deterministic_block_order(
                 (when_true.edge, when_true.target),
                 (when_false.edge, when_false.target),
             ],
+            Terminator::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| (case.edge, case.target)).collect()
+            }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }

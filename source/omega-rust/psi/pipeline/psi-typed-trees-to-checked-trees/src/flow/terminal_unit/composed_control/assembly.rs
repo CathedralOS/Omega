@@ -13,7 +13,8 @@ pub(in crate::flow::terminal_unit) fn build_all(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| {
-            build(program, facts, shapes, boundaries, machine)
+            closed_sum::build(program, facts, shapes, boundaries, machine)
+                .or_else(|| build(program, facts, shapes, boundaries, machine))
                 .or_else(|| prefixed_control::build(program, facts, shapes, boundaries, machine))
                 .or_else(|| nested_control::build(program, facts, shapes, boundaries, machine))
         })

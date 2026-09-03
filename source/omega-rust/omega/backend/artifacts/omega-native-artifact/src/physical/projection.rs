@@ -346,6 +346,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         AbstractOperation::DynamicDescriptorParameter { .. }
         | AbstractOperation::Jump { .. }
         | AbstractOperation::Conditional { .. }
+        | AbstractOperation::StructuralCase { .. }
         | AbstractOperation::Return { .. }
         | AbstractOperation::ReturnUnit { .. }
         | AbstractOperation::ReturnStructural { .. }

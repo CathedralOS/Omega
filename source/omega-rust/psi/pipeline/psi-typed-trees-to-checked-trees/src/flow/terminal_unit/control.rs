@@ -1723,7 +1723,7 @@ fn checked_unit_scalar_result_local(
     })
 }
 
-fn checked_unit_boundary_structural_result_local(
+pub(super) fn checked_unit_boundary_structural_result_local(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     statements: &[StatementNode],

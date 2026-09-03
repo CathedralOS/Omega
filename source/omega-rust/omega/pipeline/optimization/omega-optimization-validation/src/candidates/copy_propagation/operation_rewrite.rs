@@ -98,6 +98,15 @@ pub(crate) fn rewrite_block_parameter_operation(
                 }
             }
         }
+        O::StructuralCase { cases, .. } => {
+            for successor in cases {
+                if successor.target == patch.block {
+                    successor
+                        .payloads
+                        .remove(usize::try_from(patch.position).expect("u32 fits usize"));
+                }
+            }
+        }
         O::Return { value, .. } => replace(value),
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }

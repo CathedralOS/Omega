@@ -1,7 +1,7 @@
 use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentProjectionIdentity,
     ContentStructuralPlace, ContractId, EdgeId, EvidenceTermId, MachineId, ObligationId,
-    OperationId, PlaceId, PropositionError, PropositionId, ScalarType, ServiceId,
+    OperationId, PlaceId, PropositionError, PropositionId, ScalarType, ServiceId, StructuralCaseId,
     StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
@@ -1240,6 +1240,25 @@ pub enum ModuleError {
         block: BlockId,
         condition: ValueId,
         actual: ScalarType,
+    },
+    StructuralCaseSourceUnknown {
+        machine: MachineId,
+        block: BlockId,
+        place: PlaceId,
+    },
+    StructuralCaseRequiresClosedSum {
+        machine: MachineId,
+        block: BlockId,
+        structural_type: StructuralTypeId,
+    },
+    StructuralCaseRosterMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
+    StructuralCasePayloadMismatch {
+        edge: EdgeId,
+        case: StructuralCaseId,
+        field: Option<StructuralFieldId>,
     },
     ReturnTypeMismatch {
         machine: MachineId,

@@ -434,6 +434,11 @@ fn operation_observations(
         O::BoundaryCall { .. } => (vec![event(C::BoundaryCall)], May, May),
         O::PortWrite { .. } => (vec![event(C::Service)], No, No),
         O::Jump { .. } | O::Conditional { .. } => (vec![event(C::ControlTransfer)], No, No),
+        O::StructuralCase { .. } => (
+            vec![event(C::StructuralState), event(C::ControlTransfer)],
+            No,
+            No,
+        ),
         O::Return { .. } | O::ReturnUnit { .. } => (vec![event(C::NormalExit)], No, No),
         O::ReturnStructural { .. } => (
             vec![event(C::StructuralState), event(C::NormalExit)],

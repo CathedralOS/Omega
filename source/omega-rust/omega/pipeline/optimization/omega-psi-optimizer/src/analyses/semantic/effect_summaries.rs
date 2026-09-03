@@ -396,6 +396,7 @@ fn operation_effect(
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),
         O::PortWrite { .. } => (EffectClass::Service, Yes, No, No, No),
         O::Crash { .. } => (EffectClass::Control, Yes, No, Yes, No),
+        O::StructuralCase { .. } => (EffectClass::Control, No, Yes, No, No),
         O::Jump { .. } | O::Conditional { .. } | O::Return { .. } | O::ReturnUnit { .. } => {
             (EffectClass::Control, No, May, No, No)
         }

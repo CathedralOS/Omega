@@ -3070,6 +3070,13 @@ impl TerminalExecution {
                     self.current = successor.target;
                     self.next_operation = 0;
                 }
+                // Payload-bearing boundary results are opaque to the current
+                // target-neutral host carrier. Native execution owns this
+                // closed-sum inspection lane; the interpreter fails closed
+                // until its embedding API can supply an exact case/payload.
+                Terminator::StructuralCase { .. } => {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
                 Terminator::Return {
                     value,
                     cleanup_actions,

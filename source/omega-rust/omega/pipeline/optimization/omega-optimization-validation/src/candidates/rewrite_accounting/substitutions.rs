@@ -76,6 +76,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
             rewrite_bindings(&mut when_true.bindings);
             rewrite_bindings(&mut when_false.bindings);
         }
+        O::StructuralCase { .. } => {}
         O::Return { value, .. } => replace(value),
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }
