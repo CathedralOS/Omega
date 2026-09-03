@@ -205,6 +205,7 @@ fn project_function(
         unit_integer_constants: Vec::new(),
         unit_affine_scalar_records: Vec::new(),
         unit_structural_scalar_field_stores: Vec::new(),
+        unit_write_only_primitive_stores: Vec::new(),
         scalar_structural_scalar_field_stores: Vec::new(),
         unit_affine_cleanup: Some(omega_machine_code::UnitAffineCleanupRecord {
             psi_edge: psi_return_edge,

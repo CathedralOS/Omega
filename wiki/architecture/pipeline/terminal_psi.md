@@ -703,8 +703,12 @@ and opaque-provider realization remain gated. Native target lowering derives
 the exact primitive referent width/alignment and selects a borrowed-reference
 ABI on x86-64 and AArch64 while retaining the complete declaration, placement,
 immediate, and operation identity. Physical assignment independently replays
-that custody, then stops at the machine-code store fence; physical
-pointer-layout equivalence is not permission equivalence.
+that custody. Machine emission independently revalidates the destination, type,
+placement, immediate, and exact parameter home, emits the target store, and
+binds every fact to its exact code interval and bytes in a dedicated whole-root
+record. Object construction is the remaining explicit fence until it can
+replay and transport that record independently; physical pointer-layout
+equivalence is not permission equivalence.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

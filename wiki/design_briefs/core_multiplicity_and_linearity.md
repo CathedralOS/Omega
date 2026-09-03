@@ -126,7 +126,11 @@ optimization validation. Target lowering now derives the primitive referent's
 exact width/alignment, selects a borrowed-reference ABI on x86-64 and AArch64,
 and retains the exact declaration, placement, immediate, and semantic
 operation. Physical assignment independently replays those joins. Machine-code
-store emission and provider non-observation authority remain absent.
+emission then revalidates the exact destination, type, placement, immediate,
+and parameter home before producing the non-observing store bytes on x86-64
+and AArch64. Its dedicated custody row binds those facts to the exact code
+interval and bytes. Object construction remains fail closed until it can replay
+that row independently; provider non-observation authority also remains absent.
 
 ## Consumers and cleanup
 

@@ -358,6 +358,7 @@ fn terminal_image(
             unit_integer_constants: Vec::new(),
             unit_affine_scalar_records: Vec::new(),
             unit_structural_scalar_field_stores: Vec::new(),
+            unit_write_only_primitive_stores: Vec::new(),
             scalar_structural_scalar_field_stores: Vec::new(),
             unit_affine_cleanup: None,
             semantic_code_attribution: vec![

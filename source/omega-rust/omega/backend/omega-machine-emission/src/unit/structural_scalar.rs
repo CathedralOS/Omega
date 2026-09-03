@@ -821,7 +821,7 @@ fn assigned_integer_result_matches(
     }
 }
 
-fn emit_x86_64_unit_store_immediate(
+pub(super) fn emit_x86_64_unit_store_immediate(
     bytes: &mut Vec<u8>,
     home: &X86UnitParameterHome,
     field_byte_offset: u32,
@@ -881,7 +881,7 @@ pub(crate) fn emit_x86_64_memory_store_width(
     Ok(())
 }
 
-fn emit_aarch64_unit_store_immediate(
+pub(super) fn emit_aarch64_unit_store_immediate(
     bytes: &mut Vec<u8>,
     home: &Aarch64UnitParameterHome,
     field_byte_offset: u32,
