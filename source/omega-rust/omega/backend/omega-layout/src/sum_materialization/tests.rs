@@ -34,6 +34,9 @@ mod fixed_depth_seventeen;
 mod fixed_depth_eighteen;
 mod fixed_depth_nineteen;
 mod fixed_depth_twenty;
+mod fixed_depth_twenty_one;
+mod fixed_depth_twenty_two;
+mod fixed_depth_twenty_three;
 
 fn checked(source: &str) -> CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
