@@ -475,14 +475,9 @@ pub(super) fn derive_depth_thirteen_nested_sums_bytes_with_reachability(
                         for eighth_occurrence in &ninth_occurrence.inner.paths {
                             for seventh_occurrence in &eighth_occurrence.inner.paths {
                                 for sixth_occurrence in &seventh_occurrence.inner.paths {
-                                    for fifth_occurrence in &sixth_occurrence.inner.paths
-                                    {
-                                        for fourth_occurrence in
-                                            &fifth_occurrence.inner.paths
-                                        {
-                                            for third_occurrence in
-                                                &fourth_occurrence.inner.paths
-                                            {
+                                    for fifth_occurrence in &sixth_occurrence.inner.paths {
+                                        for fourth_occurrence in &fifth_occurrence.inner.paths {
+                                            for third_occurrence in &fourth_occurrence.inner.paths {
                                                 for second_occurrence in
                                                     &third_occurrence.inner.paths
                                                 {
@@ -863,17 +858,10 @@ pub(super) fn derive_depth_fourteen_nested_sums_bytes_with_reachability(
                     for tenth_occurrence in &eleventh_occurrence.inner.paths {
                         for ninth_occurrence in &tenth_occurrence.inner.paths {
                             for eighth_occurrence in &ninth_occurrence.inner.paths {
-                                for seventh_occurrence in &eighth_occurrence.inner.paths
-                                {
-                                    for sixth_occurrence in
-                                        &seventh_occurrence.inner.paths
-                                    {
-                                        for fifth_occurrence in
-                                            &sixth_occurrence.inner.paths
-                                        {
-                                            for fourth_occurrence in
-                                                &fifth_occurrence.inner.paths
-                                            {
+                                for seventh_occurrence in &eighth_occurrence.inner.paths {
+                                    for sixth_occurrence in &seventh_occurrence.inner.paths {
+                                        for fifth_occurrence in &sixth_occurrence.inner.paths {
+                                            for fourth_occurrence in &fifth_occurrence.inner.paths {
                                                 for third_occurrence in
                                                     &fourth_occurrence.inner.paths
                                                 {
@@ -1258,15 +1246,9 @@ pub(super) fn derive_depth_fifteen_nested_sums_bytes_with_reachability(
                         for tenth_occurrence in &eleventh_occurrence.inner.paths {
                             for ninth_occurrence in &tenth_occurrence.inner.paths {
                                 for eighth_occurrence in &ninth_occurrence.inner.paths {
-                                    for seventh_occurrence in
-                                        &eighth_occurrence.inner.paths
-                                    {
-                                        for sixth_occurrence in
-                                            &seventh_occurrence.inner.paths
-                                        {
-                                            for fifth_occurrence in
-                                                &sixth_occurrence.inner.paths
-                                            {
+                                    for seventh_occurrence in &eighth_occurrence.inner.paths {
+                                        for sixth_occurrence in &seventh_occurrence.inner.paths {
+                                            for fifth_occurrence in &sixth_occurrence.inner.paths {
                                                 for fourth_occurrence in
                                                     &fifth_occurrence.inner.paths
                                                 {
@@ -1656,15 +1638,9 @@ pub(super) fn derive_depth_twelve_nested_sums_bytes_with_reachability(
                         for seventh_occurrence in &eighth_occurrence.inner.paths {
                             for sixth_occurrence in &seventh_occurrence.inner.paths {
                                 for fifth_occurrence in &sixth_occurrence.inner.paths {
-                                    for fourth_occurrence in
-                                        &fifth_occurrence.inner.paths
-                                    {
-                                        for third_occurrence in
-                                            &fourth_occurrence.inner.paths
-                                        {
-                                            for second_occurrence in
-                                                &third_occurrence.inner.paths
-                                            {
+                                    for fourth_occurrence in &fifth_occurrence.inner.paths {
+                                        for third_occurrence in &fourth_occurrence.inner.paths {
+                                            for second_occurrence in &third_occurrence.inner.paths {
                                                 total_leaf_occurrences = total_leaf_occurrences
                                                     .checked_add(
                                                         second_occurrence
@@ -2040,12 +2016,8 @@ pub(super) fn derive_depth_eleven_nested_sums_bytes_with_reachability(
                         for sixth_occurrence in &seventh_occurrence.inner.paths {
                             for fifth_occurrence in &sixth_occurrence.inner.paths {
                                 for fourth_occurrence in &fifth_occurrence.inner.paths {
-                                    for third_occurrence in
-                                        &fourth_occurrence.inner.paths
-                                    {
-                                        for second_occurrence in
-                                            &third_occurrence.inner.paths
-                                        {
+                                    for third_occurrence in &fourth_occurrence.inner.paths {
+                                        for second_occurrence in &third_occurrence.inner.paths {
                                             total_leaf_occurrences = total_leaf_occurrences
                                         .checked_add(second_occurrence.inner.paths.len())
                                         .ok_or_else(|| {
@@ -2414,8 +2386,7 @@ pub(super) fn derive_depth_ten_nested_sums_bytes_with_reachability(
                         for fifth_occurrence in &sixth_occurrence.inner.paths {
                             for fourth_occurrence in &fifth_occurrence.inner.paths {
                                 for third_occurrence in &fourth_occurrence.inner.paths {
-                                    for second_occurrence in &third_occurrence.inner.paths
-                                    {
+                                    for second_occurrence in &third_occurrence.inner.paths {
                                         total_leaf_occurrences = total_leaf_occurrences
                                         .checked_add(second_occurrence.inner.paths.len())
                                         .ok_or_else(|| {

@@ -1,30 +1,8 @@
 //! Exact plural depth-eighteen constant-value custody and replay.
 
-use super::depth_seventeen::{
-    depth_seventeen_paths_reports_match_for_replay,
-    validate_const_materializable_record_with_depth_seventeen_nested_sums_with_reachability,
-};
+use super::depth_seventeen::validate_const_materializable_record_with_depth_seventeen_nested_sums_with_reachability;
 use super::*;
 use psi_layout_plans::ConventionalDepthEighteenRecordSumPathsLayoutReport;
-
-pub(super) fn depth_eighteen_paths_reports_match_for_replay(
-    left: &ConventionalDepthEighteenRecordSumPathsLayoutReport,
-    right: &ConventionalDepthEighteenRecordSumPathsLayoutReport,
-) -> bool {
-    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
-        && left.paths.len() == right.paths.len()
-        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.outer_field,
-                left.outer_member_identity,
-                &right.outer_field,
-                right.outer_member_identity,
-            ) && depth_seventeen_paths_reports_match_for_replay(
-                &left.inner,
-                &right.inner,
-            )
-        })
-}
 
 fn depth_eighteen_nested_sums_materialization_report_fingerprint(
     schema_name: &str,
@@ -190,7 +168,7 @@ impl ValidatedConstRecordWithDepthEighteenNestedSumsMaterialization {
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_eighteen_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable plural depth-eighteen layout drifted from retained custody"
@@ -482,24 +460,12 @@ fn derive_depth_eighteen_nested_sums_bytes_with_reachability(
             for sixteenth_occurrence in &seventeenth_occurrence.inner.paths {
                 for fifteenth_occurrence in &sixteenth_occurrence.inner.paths {
                     for fourteenth_occurrence in &fifteenth_occurrence.inner.paths {
-                        for thirteenth_occurrence in
-                            &fourteenth_occurrence.inner.paths
-                        {
-                            for twelfth_occurrence in
-                                &thirteenth_occurrence.inner.paths
-                            {
-                                for eleventh_occurrence in
-                                    &twelfth_occurrence.inner.paths
-                                {
-                                    for tenth_occurrence in
-                                        &eleventh_occurrence.inner.paths
-                                    {
-                                        for ninth_occurrence in
-                                            &tenth_occurrence.inner.paths
-                                        {
-                                            for eighth_occurrence in
-                                                &ninth_occurrence.inner.paths
-                                            {
+                        for thirteenth_occurrence in &fourteenth_occurrence.inner.paths {
+                            for twelfth_occurrence in &thirteenth_occurrence.inner.paths {
+                                for eleventh_occurrence in &twelfth_occurrence.inner.paths {
+                                    for tenth_occurrence in &eleventh_occurrence.inner.paths {
+                                        for ninth_occurrence in &tenth_occurrence.inner.paths {
+                                            for eighth_occurrence in &ninth_occurrence.inner.paths {
                                                 for seventh_occurrence in
                                                     &eighth_occurrence.inner.paths
                                                 {
@@ -510,14 +476,10 @@ fn derive_depth_eighteen_nested_sums_bytes_with_reachability(
                                                             &sixth_occurrence.inner.paths
                                                         {
                                                             for fourth_occurrence in
-                                                                &fifth_occurrence
-                                                                    .inner
-                                                                    .paths
+                                                                &fifth_occurrence.inner.paths
                                                             {
                                                                 for third_occurrence in
-                                                                    &fourth_occurrence
-                                                                        .inner
-                                                                        .paths
+                                                                    &fourth_occurrence.inner.paths
                                                                 {
                                                                     for second_occurrence in
                                                                         &third_occurrence
