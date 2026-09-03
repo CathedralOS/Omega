@@ -3,9 +3,9 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CallingPlanId,
     CanonicalSuspensionCrossing, MachineContractId, MachineEntryId,
-    SelectedTaskRuntimeProviderFact, StackPlan, StackRepresentationId, SuspensionCrossingId,
-    TaskActivationPlanFact, TaskActivationPlanSet, TaskRuntimeId, TaskSpecializationCommitment,
-    TaskStartOperation, ValueLayoutId, validate_activation_plan,
+    SelectedTaskRuntimeProviderFact, StackPlan, StackRepresentationId, TaskActivationPlanFact,
+    TaskActivationPlanSet, TaskRuntimeId, TaskSpecializationCommitment, TaskStartOperation,
+    ValueLayoutId, validate_activation_plan,
 };
 use psi_checked_trees::{CheckedTrees, SuspensionCrossingStorage};
 use psi_diagnostics::Diagnostic;
@@ -1333,85 +1333,17 @@ fn canonical_suspension_crossing(
     program: &CheckedTrees,
     crossing: &psi_checked_trees::SuspensionCrossingCarryFact,
 ) -> Result<CanonicalSuspensionCrossing, Vec<Diagnostic>> {
-    let mut hash = StableHash::new();
-    hash.byte(0x73);
-    hash.string(symbol_identity(program, crossing.machine).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "task activation carry crossing machine label must resolve exactly",
-        )]
-    })?);
-    hash.string(symbol_identity(program, crossing.state).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "task activation carry crossing state label must resolve exactly",
-        )]
-    })?);
-    hash.usize(crossing.statement_index);
-    hash.usize(crossing.call_ordinal);
-    hash.string(symbol_identity(program, crossing.target).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "task activation carry crossing target label must resolve exactly",
-        )]
-    })?);
-    hash.byte(u8::from(
-        crossing.effective.suspension == CarrySuspension::Allowed,
-    ));
-    hash.byte(u8::from(crossing.effective.cpu == CarryCpu::Origin));
-    hash.byte(u8::from(
-        crossing.effective.host_thread == CarryHostThread::Origin,
-    ));
-    hash.byte(match crossing.effective.address {
-        psi_language_semantics::CarryAddress::Movable => 1,
-        psi_language_semantics::CarryAddress::Stable => 2,
-    });
-    for live in &crossing.live_values {
-        hash.string(
-            program
-                .normalized_type_identity(live.type_reference)
-                .as_str(),
-        );
-        hash.byte(match live.storage {
-            SuspensionCrossingStorage::Persistent => 1,
-            SuspensionCrossingStorage::Parameter => 2,
-            SuspensionCrossingStorage::Local => 3,
-            SuspensionCrossingStorage::CallArgument => 4,
-        });
-        hash.byte(u8::from(
-            live.effective.suspension == CarrySuspension::Allowed,
-        ));
-        hash.byte(u8::from(live.effective.cpu == CarryCpu::Origin));
-        hash.byte(u8::from(
-            live.effective.host_thread == CarryHostThread::Origin,
-        ));
-        hash.byte(match live.effective.address {
-            psi_language_semantics::CarryAddress::Movable => 1,
-            psi_language_semantics::CarryAddress::Stable => 2,
-        });
-    }
     Ok(CanonicalSuspensionCrossing {
-        identity: normalized_id(
-            hash.finish(),
-            SuspensionCrossingId::from_normalized_identity,
-        )?,
+        identity: psi_checked_trees::canonical_suspension_crossing_id(program, crossing)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "task activation carry crossing source identity must resolve exactly",
+                )]
+            })?,
         suspension_allowed: crossing.effective.suspension == CarrySuspension::Allowed,
         preserve_cpu: crossing.effective.cpu == CarryCpu::Origin,
         preserve_host_thread: crossing.effective.host_thread == CarryHostThread::Origin,
     })
-}
-
-fn symbol_identity(program: &CheckedTrees, symbol: psi_symbols::SymbolHandle) -> Option<&str> {
-    for machine in program.machines() {
-        if machine.symbol == symbol {
-            return Some(machine.name.as_str());
-        }
-        if let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == symbol)
-        {
-            return Some(state.name.as_str());
-        }
-    }
-    None
 }
 
 fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
@@ -2242,6 +2174,7 @@ mod tests {
                 statement_index: 0,
                 call_ordinal: 0,
                 target: root_state,
+                receiver: None,
                 effective: CarryPolicy {
                     suspension: CarrySuspension::Allowed,
                     cpu: CarryCpu::Origin,
@@ -2258,6 +2191,7 @@ mod tests {
                 statement_index: 0,
                 call_ordinal: 1,
                 target: child_state,
+                receiver: None,
                 effective: CarryPolicy::PERMISSIVE,
                 live_values: Vec::new(),
             },

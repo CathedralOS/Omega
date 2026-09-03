@@ -806,6 +806,9 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
@@ -968,6 +971,9 @@ fn conditional_shared_tail_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
@@ -1102,6 +1108,9 @@ fn nested_constant_conditional_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
@@ -1252,6 +1261,9 @@ fn nested_boolean_conditional_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),

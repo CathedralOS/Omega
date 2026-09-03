@@ -260,6 +260,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
             call_ordinal: 0,
             terminal_operation: call_operation,
             source_target: plan.realization_machine,
+            source_values_before_call: Vec::new(),
         });
     lowered.semantic_module.entry = caller.id;
     lowered.semantic_module.machines.insert(0, caller);

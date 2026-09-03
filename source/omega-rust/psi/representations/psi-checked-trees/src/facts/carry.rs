@@ -4,7 +4,9 @@
 //! passes never need to reinterpret source syntax.
 
 use psi_arena::{Arena, HandleSpan};
-use psi_language_semantics::CarryPolicy;
+use psi_language_semantics::{
+    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension,
+};
 use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -68,18 +70,54 @@ pub struct SuspensionCrossingCarryFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
     pub target: SymbolHandle,
+    /// Exact method receiver when the call is not receiver-free. The first
+    /// Terminal carrier fails closed on this cohort until it can bind the
+    /// receiver to a source-free structural place.
+    pub receiver: Option<SymbolHandle>,
     pub effective: CarryPolicy,
     pub live_values: Vec<SuspensionCrossingLiveValueFact>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SuspensionCrossingLiveValueFact {
     pub type_reference: psi_typed_trees::types::TypeReferenceHandle,
     pub storage: SuspensionCrossingStorage,
+    /// Exact source coordinate for this value. The coordinate is retained by
+    /// the checker because neither its storage class nor its type identifies a
+    /// unique value at the crossing.
+    pub origin: SuspensionCrossingValueOrigin,
+    /// Complete live linear-claim identities attached to this exact place.
+    /// An empty roster means no compiler-owned live claim was established; it
+    /// must never be reconstructed from the type or storage class.
+    pub claims: Vec<psi_language_semantics::PermissionClaimIdentity>,
     /// Per-value policy after a born-strict claim is relaxed by the exact
     /// compiler-owned permissions still attached to this place. This may be
     /// stricter than the transparent carrier's structural policy.
     pub effective: CarryPolicy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SuspensionCrossingValueOrigin {
+    Persistent {
+        symbol: SymbolHandle,
+    },
+    Parameter {
+        symbol: SymbolHandle,
+        /// Dense ordinal among non-`self` state parameters.
+        position: usize,
+    },
+    Local {
+        symbol: SymbolHandle,
+        /// Source statement that establishes the local.
+        statement_index: usize,
+        /// Exact position in the checked scalar environment: non-`self`
+        /// parameters followed by preceding local-data bindings.
+        environment_position: usize,
+    },
+    CallArgument {
+        /// Dense ordinary argument ordinal at the exact call coordinate.
+        position: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,6 +130,98 @@ pub enum SuspensionCrossingStorage {
     Local,
     /// Value materialized for the suspending call itself.
     CallArgument,
+}
+
+/// Reconstruct the established suspension-crossing identity used by Omega's
+/// activation planning. Exact live-place and claim coordinates remain
+/// separately replayable frontier data; extending that frontier does not
+/// silently rename already-published crossing identities.
+pub fn canonical_suspension_crossing_id(
+    program: &psi_typed_trees::TypedTrees,
+    crossing: &SuspensionCrossingCarryFact,
+) -> Option<psi_core::SuspensionCrossingId> {
+    let mut hash = StableCrossingHash::new();
+    hash.byte(0x73);
+    hash.string(symbol_identity(program, crossing.machine)?);
+    hash.string(symbol_identity(program, crossing.state)?);
+    hash.usize(crossing.statement_index);
+    hash.usize(crossing.call_ordinal);
+    hash.string(symbol_identity(program, crossing.target)?);
+    hash.policy(crossing.effective);
+    for live in &crossing.live_values {
+        hash.string(
+            program
+                .normalized_type_identity(live.type_reference)
+                .as_str(),
+        );
+        hash.byte(match live.storage {
+            SuspensionCrossingStorage::Persistent => 1,
+            SuspensionCrossingStorage::Parameter => 2,
+            SuspensionCrossingStorage::Local => 3,
+            SuspensionCrossingStorage::CallArgument => 4,
+        });
+        hash.policy(live.effective);
+    }
+    psi_core::SuspensionCrossingId::new(hash.finish())
+}
+
+fn symbol_identity(program: &psi_typed_trees::TypedTrees, symbol: SymbolHandle) -> Option<&str> {
+    for machine in program.machines() {
+        if machine.symbol == symbol {
+            return Some(machine.name.as_str());
+        }
+        if let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == symbol)
+        {
+            return Some(state.name.as_str());
+        }
+    }
+    None
+}
+
+struct StableCrossingHash(u64);
+
+impl StableCrossingHash {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+
+    fn new() -> Self {
+        Self(Self::OFFSET)
+    }
+
+    fn byte(&mut self, byte: u8) {
+        self.0 ^= u64::from(byte);
+        self.0 = self.0.wrapping_mul(Self::PRIME);
+    }
+
+    fn string(&mut self, value: &str) {
+        for byte in value.as_bytes() {
+            self.byte(*byte);
+        }
+        self.byte(0);
+    }
+
+    fn usize(&mut self, value: usize) {
+        for byte in (value as u64).to_le_bytes() {
+            self.byte(byte);
+        }
+    }
+
+    fn policy(&mut self, policy: CarryPolicy) {
+        self.byte(u8::from(policy.suspension == CarrySuspension::Allowed));
+        self.byte(u8::from(policy.cpu == CarryCpu::Origin));
+        self.byte(u8::from(policy.host_thread == CarryHostThread::Origin));
+        self.byte(match policy.address {
+            CarryAddress::Movable => 1,
+            CarryAddress::Stable => 2,
+        });
+    }
+
+    fn finish(self) -> u64 {
+        self.0.max(1)
+    }
 }
 
 impl CarryFacts {

@@ -51,6 +51,9 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -204,6 +207,9 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,

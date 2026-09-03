@@ -48,6 +48,7 @@ fn carry_manifest_keeps_authored_and_effective_policies_separate() {
             statement_index: 3,
             call_ordinal: 1,
             target: machine,
+            receiver: None,
             effective: CarryPolicy::STRICT,
             live_values: Vec::new(),
         });

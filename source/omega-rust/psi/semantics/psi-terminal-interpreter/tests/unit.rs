@@ -684,6 +684,9 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
@@ -2467,6 +2470,9 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
@@ -2566,6 +2572,9 @@ fn scalar_boundary_effect_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
@@ -2679,6 +2688,9 @@ fn effect_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -3017,6 +3029,9 @@ fn unit_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
@@ -3740,6 +3755,9 @@ fn nominal_affine_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -4715,6 +4733,9 @@ fn partial_affine_field_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
     }
@@ -4945,6 +4966,9 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
     }

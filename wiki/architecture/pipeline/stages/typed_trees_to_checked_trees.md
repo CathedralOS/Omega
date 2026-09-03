@@ -133,9 +133,9 @@ Must own:
   call shape accepts one direct write-only literal fixed-array parameter root
   projected by exactly one in-bounds literal `FixedIndex` to an unrestricted
   non-Atomic primitive element. Its bounded nested successor accepts exactly
-  two ordered literal indexes through a recursively literal fixed array, either
+  two or three ordered literal indexes through a recursively literal fixed array, either
   directly or after the eligible field prefix, to the same primitive leaf.
-  Checked and Terminal replay retain the complete one- or two-segment suffix.
+  Checked and Terminal replay retain the complete one-, two-, or three-segment suffix.
   Recursively literal fixed arrays whose ultimate elements are unrestricted
   primitive scalars or eligible material nongeneric, invariant-free `[copy]`
   records or sums admit whole replacement, static length metadata, and literal

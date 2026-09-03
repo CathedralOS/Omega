@@ -219,12 +219,18 @@ fn checked_crossing_records_canonical_site_and_joined_policy() {
         psi_language_semantics::CarryPolicy::PERMISSIVE
     );
     assert!(crossing.target.is_valid());
-    assert!(
-        crossing
-            .live_values
-            .iter()
-            .any(|value| { value.storage == psi_checked_trees::SuspensionCrossingStorage::Local })
-    );
+    assert!(crossing.live_values.iter().any(|value| {
+        value.storage == psi_checked_trees::SuspensionCrossingStorage::Local
+            && matches!(
+                value.origin,
+                psi_checked_trees::SuspensionCrossingValueOrigin::Local {
+                    statement_index: 0,
+                    environment_position: 0,
+                    ..
+                }
+            )
+            && value.claims.is_empty()
+    }));
 }
 
 #[test]
@@ -272,6 +278,15 @@ fn admitted_across_suspend_permission_relaxes_only_the_claim_suspension_axis() {
                 && value.storage == psi_checked_trees::SuspensionCrossingStorage::Local
         })
         .expect("live admitted token");
+    assert!(matches!(
+        token.origin,
+        psi_checked_trees::SuspensionCrossingValueOrigin::Local {
+            statement_index: 0,
+            environment_position: 0,
+            ..
+        }
+    ));
+    assert_eq!(token.claims.len(), 1, "exact live claim identity retained");
     assert_eq!(
         token.effective,
         psi_language_semantics::CarryPolicy {

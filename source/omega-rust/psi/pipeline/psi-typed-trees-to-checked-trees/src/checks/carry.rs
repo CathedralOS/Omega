@@ -26,8 +26,8 @@ impl ClaimCarryContext<'_> {
         program: &psi_typed_trees::TypedTrees,
         value_name: &str,
         structural: CarryPolicy,
+        claim_identities: &[psi_language_semantics::PermissionClaimIdentity],
     ) -> CarryPolicy {
-        let claim_identities = self.live_claim_identities(program, value_name);
         let claim_policies = claim_identities
             .iter()
             .filter_map(|identity| {
@@ -352,6 +352,10 @@ pub(super) fn check_suspension_carry(
                 statement_index: call.statement_index,
                 call_ordinal: call.call_ordinal,
                 target: call.target_symbol,
+                receiver: call
+                    .receiver_symbol
+                    .is_valid()
+                    .then_some(call.receiver_symbol),
                 effective: crossing.effective,
                 live_values: crossing.live_values,
             });
@@ -463,10 +467,11 @@ fn append_call_carried_argument_diagnostics(
         return;
     };
     let arguments = crate::call_site_argument_expressions(program, call_site);
-    for (parameter, argument) in parameters
+    for (position, (parameter, argument)) in parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
         .zip(arguments)
+        .enumerate()
     {
         let display_name = program.expression_table.display_name(*argument);
         append_if_suspension_forbidden_with_type_parameters(
@@ -477,6 +482,7 @@ fn append_call_carried_argument_diagnostics(
             call,
             claim_carry,
             psi_checked_trees::SuspensionCrossingStorage::CallArgument,
+            psi_checked_trees::SuspensionCrossingValueOrigin::CallArgument { position },
             crossing,
             diagnostics,
         );
@@ -588,6 +594,9 @@ fn append_persistent_field_if_live(
         call,
         claim_carry,
         psi_checked_trees::SuspensionCrossingStorage::Persistent,
+        psi_checked_trees::SuspensionCrossingValueOrigin::Persistent {
+            symbol: field_symbol,
+        },
         crossing,
         diagnostics,
     );
@@ -736,25 +745,28 @@ fn append_live_parameter_diagnostics(
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for parameter in program.state_parameters(state) {
-        if parameter.is_self
-            || (!crate::borrow::place_is_used_after_statement(
+    for (position, parameter) in program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+    {
+        if !crate::borrow::place_is_used_after_statement(
+            program,
+            state.statement_nodes,
+            call.statement_index,
+            parameter.symbol,
+            parameter.name.as_str(),
+        ) && !call_site.is_some_and(|call_site| {
+            intra_statement::place_is_used_after_call(
                 program,
-                state.statement_nodes,
+                state,
                 call.statement_index,
+                call_site,
                 parameter.symbol,
                 parameter.name.as_str(),
-            ) && !call_site.is_some_and(|call_site| {
-                intra_statement::place_is_used_after_call(
-                    program,
-                    state,
-                    call.statement_index,
-                    call_site,
-                    parameter.symbol,
-                    parameter.name.as_str(),
-                )
-            }))
-        {
+            )
+        }) {
             continue;
         }
         append_if_suspension_forbidden(
@@ -765,6 +777,10 @@ fn append_live_parameter_diagnostics(
             call,
             claim_carry,
             psi_checked_trees::SuspensionCrossingStorage::Parameter,
+            psi_checked_trees::SuspensionCrossingValueOrigin::Parameter {
+                symbol: parameter.symbol,
+                position,
+            },
             crossing,
             diagnostics,
         );
@@ -781,6 +797,12 @@ fn append_live_local_diagnostics(
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let parameter_count = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
+    let mut local_position = 0;
     for (definition_index, statement) in program
         .statement_table
         .statements(state.statement_nodes)
@@ -793,6 +815,8 @@ fn append_live_local_diagnostics(
         let psi_typed_trees::statement::StatementNode::LocalData(local) = statement else {
             continue;
         };
+        let position = local_position;
+        local_position += 1;
         if !crate::borrow::place_is_used_after_statement(
             program,
             state.statement_nodes,
@@ -819,6 +843,11 @@ fn append_live_local_diagnostics(
             call,
             claim_carry,
             psi_checked_trees::SuspensionCrossingStorage::Local,
+            psi_checked_trees::SuspensionCrossingValueOrigin::Local {
+                symbol: local.symbol,
+                statement_index: definition_index,
+                environment_position: parameter_count + position,
+            },
             crossing,
             diagnostics,
         );
@@ -833,6 +862,7 @@ fn append_if_suspension_forbidden(
     call: &psi_checked_trees::BorrowCallFact,
     claim_carry: &ClaimCarryContext<'_>,
     storage: psi_checked_trees::SuspensionCrossingStorage,
+    origin: psi_checked_trees::SuspensionCrossingValueOrigin,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -844,6 +874,7 @@ fn append_if_suspension_forbidden(
         call,
         claim_carry,
         storage,
+        origin,
         crossing,
         diagnostics,
     );
@@ -857,18 +888,22 @@ fn append_if_suspension_forbidden_with_type_parameters(
     call: &psi_checked_trees::BorrowCallFact,
     claim_carry: &ClaimCarryContext<'_>,
     storage: psi_checked_trees::SuspensionCrossingStorage,
+    origin: psi_checked_trees::SuspensionCrossingValueOrigin,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let structural =
         psi_validation::effective_type_carry_policy(program, type_parameters, type_reference);
-    let policy = claim_carry.effective_policy(program, value_name, structural);
+    let claims = claim_carry.live_claim_identities(program, value_name);
+    let policy = claim_carry.effective_policy(program, value_name, structural, &claims);
     crossing.effective = crossing.effective.intersect(policy);
     crossing
         .live_values
         .push(psi_checked_trees::SuspensionCrossingLiveValueFact {
             type_reference,
             storage,
+            origin,
+            claims,
             effective: policy,
         });
     if policy.suspension == CarrySuspension::Allowed {

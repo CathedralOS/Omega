@@ -127,6 +127,10 @@ semantic_id!(
     "Stable identity of one terminal-Psi operation."
 );
 semantic_id!(
+    SuspensionCrossingId,
+    "Stable source-free identity of one checked suspension crossing."
+);
+semantic_id!(
     EdgeId,
     "Stable identity of one terminal-Psi control-flow edge."
 );

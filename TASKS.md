@@ -6556,22 +6556,23 @@ Owners:
   non-observing replacement referee. One successor additionally permits that
   field path to end in exactly one in-bounds literal index of a nonempty literal
   fixed-array leaf with an unrestricted primitive element. The bounded nested
-  successor now permits exactly two in-bounds literal indexes when the field
+  successors now permit two or three in-bounds literal indexes when the field
   leaf is a recursively literal fixed array whose ultimate element is an
   unrestricted non-Atomic primitive. Checked and Terminal custody retain the
-  ordered `Field` identities followed by the exact one or two `FixedIndex`
+  ordered `Field` identities followed by the exact one, two, or three `FixedIndex`
   segments; the independent verifier replays every field and array shape,
   bound, type, multiplicity, and write-only access. The same literal-index
   subloan accepts a direct `&write [P; N]` parameter root, or the exact nested
-  `&write [[P; I]; O]` form for the two-index rung, when every selected length
-  is nonzero and literal and `P` is an unrestricted non-Atomic primitive.
+  `&write [[P; I]; O]` or `&write [[[P; I]; M]; O]` form for the two- and
+  three-index rungs, when every selected length is nonzero and literal and `P`
+  is an unrestricted non-Atomic primitive.
   Checked planning plus Terminal replay independently rejoin the complete
   ordered path, array shapes, bounds, element type, multiplicity, and
   write-only access. Reusable local aliases, dynamic or range projection, a
-  third index, case/payload, qualified/generic/invariant/constrained paths,
+  fourth index, case/payload, qualified/generic/invariant/constrained paths,
   whole nested-array or aggregate elements,
   multi-parameter structural calls, and provider boundaries remain fenced.
-  Exact unrestricted record-leaf and one- or two-index canaries cross
+  Exact unrestricted record-leaf and one-, two-, or three-index canaries cross
   checked Unit planning, Terminal codec replay, and verification. Neither form
   creates a Terminal write event.
 
@@ -10394,12 +10395,27 @@ reach or trust, and private proof improvements do not change public identity.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
-  park/resume, and expand the suspension-safe-loan subset. Add one
-  `TerminalSuspensionCallPlan` per exact possibly suspending call, keyed by its
-  `OperationId` and existing `SuspensionCrossingId`. It retains the source-free
-  live place/claim frontier and carry demands without adding a local CFG
-  terminator or cleanup edge. The separate activation realization inherits
-  CPU/thread preservation into `ActivationCarryObligations` and joins the WCSU
+  park/resume, and expand the suspension-safe-loan subset. The first bounded
+  Terminal retention rung now consumes an exact checked crossing for a
+  receiver-free direct scalar call and emits a paired
+  `TerminalSuspensionCallSite` and `TerminalSuspensionCallPlan`. The canonical
+  site binds the exact `OperationId`, existing `SuspensionCrossingId`, callee,
+  and a commitment over the complete ordered scalar frontier; the detailed row
+  retains exact primitive type, parameter/straight-line-local/call-argument
+  storage role, empty claim roster, and four-axis carry demands. Format 74 /
+  vocabulary 77 encode both rows, and independent verification rejoins their
+  bijection, call target, frontier commitment, SSA visibility and provenance,
+  call-argument membership, canonical order, counts, types, and policies. This
+  adds no local CFG terminator or cleanup edge. Receiver-bearing,
+  threaded-local, persistent, structural, claim-bearing, Unit, boundary, and
+  dynamic crossings remain fail closed; extend the row to those frontiers
+  without recomputing checked liveness. The retained site independently catches
+  stale plan deletion or drift, but a coordinated rewrite of count, site,
+  commitment, and plan is not yet reconstructible from `OperationKind::Call`;
+  bind an authoritative possibly-suspending crossing roster into a call-side
+  carrier before treating arbitrary rewritten modules as complete. The separate
+  activation realization
+  inherits CPU/thread preservation into `ActivationCarryObligations` and joins the WCSU
   stack, lease, and provider evidence; neither layer rederives liveness.
 
   Parking leaves the call incomplete and establishes no result. Resumption
@@ -12193,7 +12209,7 @@ checked-result arithmetic decision listed below.
   Checked Psi publishes the exact caller/callee coordinate, dense runtime-
   parameter position, bare trait, source binding, and selected conformance for
   each descriptor transfer. Introduced in Terminal format 64 / vocabulary 67
-  and retained by current format 71 / vocabulary 74, these rows carry
+  and retained by current format 74 / vocabulary 77, these rows carry
   target-neutral descriptor parameters, ordered requirement slots, call
   arguments sourced from a direct selection, a rebound local descriptor, or an
   inbound descriptor parameter, and parameter-slot dispatches. Canonical validation
@@ -12350,8 +12366,9 @@ checked-result arithmetic decision listed below.
   forwarded source crosses one ordinary Unit call into a
   `CallDynamicParameterUnit` helper. Canonical encoding, call-composition rows,
   verification, fixed fuel, and reference interpretation all retain Unit as
-  Unit and reject scalar-result substitution. Current format 71 / vocabulary
-  74 adds an honest owner-local selection argument source, so direct Unit and
+  Unit and reject scalar-result substitution. Format 71 / vocabulary 74 added
+  an honest owner-local selection argument source, retained by current format
+  74 / vocabulary 77, so direct Unit and
   scalar descriptor forwarding cross the same helper boundary without
   fabricating a rebound. The scalar form retains its checked result, helper
   parameter dispatch, durable caller home, adapters, and machine/object/image/

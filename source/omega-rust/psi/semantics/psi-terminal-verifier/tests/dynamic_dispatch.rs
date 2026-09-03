@@ -181,6 +181,9 @@ fn dynamic_dispatch_module() -> TerminalModule {
             stored_dispatches: Vec::new(),
             parameter_dispatches: Vec::new(),
         },
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {

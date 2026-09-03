@@ -41,6 +41,9 @@ fn unit_module() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: id::<MachineId>(1),
@@ -85,8 +88,8 @@ fn v56_v59_reconstructs_absent_result_path_rosters_as_current_empty_rows() {
     assert_eq!(decode_module(&legacy), Ok(module.clone()));
 
     let current = encode_module(&module).expect("current result-path bytes");
-    assert_eq!(&current[8..10], &73_u16.to_le_bytes());
-    assert_eq!(&current[10..12], &76_u16.to_le_bytes());
+    assert_eq!(&current[8..10], &74_u16.to_le_bytes());
+    assert_eq!(&current[10..12], &77_u16.to_le_bytes());
 
     let mut crossed_pair = legacy;
     crossed_pair[10..12].copy_from_slice(&72_u16.to_le_bytes());

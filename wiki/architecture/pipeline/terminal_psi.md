@@ -673,12 +673,12 @@ projection; malformed path, target type/access, source access, qualification,
 arity, or provider substitution rejects. Reusable local or re-entrant reborrow
 authority does not follow. One direct write-only literal fixed-array parameter
 root may carry exactly one in-bounds literal `FixedIndex` to an unrestricted
-non-Atomic primitive element. The bounded nested successor admits exactly two
+non-Atomic primitive element. The bounded nested successors admit two or three
 ordered in-bounds `FixedIndex` segments through a recursively literal fixed
 array, either directly or after the eligible field prefix, when the ultimate
 element is likewise an unrestricted non-Atomic primitive. The verifier
 independently rejoins every array shape, bound, element type, multiplicity, and
-write-only access. Dynamic, range, third-index, whole nested-array, and
+write-only access. Dynamic, range, fourth-index, whole nested-array, and
 aggregate-element paths remain absent. The verifier also rejects widening,
 target disagreement, overlapping exclusive arguments, and Boolean structural
 observation through write-only access.
@@ -789,8 +789,9 @@ requirement slot, obligations, and crash continuations round-trip canonically.
 Validation rejoins the complete application, Unit callable interface, selected
 row or parameter slot, operation, access, and source. Fixed fuel and reference
 execution resolve the same rows without allocating a value ID or result home.
-Current format 71/vocabulary 74 adds a distinct owner-local selection argument
-source alongside rebound descriptors and inbound parameters. Direct-selection
+Format 71/vocabulary 74 added a distinct owner-local selection argument source,
+retained by current format 74/vocabulary 77 alongside rebound descriptors and
+inbound parameters. Direct-selection
 Unit and scalar forwarding therefore cross the helper without relabeling their
 custody. The scalar form retains its exact result through the ordinary caller,
 parameter-slot helper, target assignment, durable Unit-frame home, and native
@@ -3024,14 +3025,32 @@ continuation. If the provider parks it, the call operation remains incomplete:
 its result is not established, later operations have not executed, and no
 return, crash, cleanup, or affine disposition edge commits.
 
-Terminal Psi will retain one `TerminalSuspensionCallPlan` keyed by the exact
-call `OperationId` and the checker-derived `SuspensionCrossingId`. The row owns
-the source-free Terminal place/claim frontier corresponding to the checked live
-values and retains their exact carry demands. Production must consume the
-checked crossing rather than recompute liveness from Terminal block shape;
-validation and verification independently rejoin the call, crossing identity,
-frontier, types, and policies. A missing, duplicate, redirected, or
-understated row rejects.
+The first bounded retention rung consumes an exact checked crossing for a
+receiver-free direct scalar call and emits a paired
+`TerminalSuspensionCallSite` and `TerminalSuspensionCallPlan`. The canonical
+site binds the exact call `OperationId`, checker-derived
+`SuspensionCrossingId`, callee, and a SHA-256 commitment over the complete
+ordered scalar frontier. The detailed plan retains exact primitive type,
+parameter/straight-line-local/call-argument storage role, empty claim roster,
+and four-axis carry demand for every live value. Format 74 / vocabulary 77
+encode both rows. Production consumes checked liveness rather than recomputing
+it from Terminal block shape; validation and verification independently rejoin
+the site/plan bijection, call target, frontier commitment, SSA visibility and
+provenance, call-argument membership, canonical order, counts, types, and
+policies. Missing, duplicate, redirected, or understated rows reject, and the
+catalog adds no operation, terminator, or cleanup edge.
+
+The retained site independently catches stale plan deletion or drift. A
+coordinated rewrite of count, site, commitment, and plan is not yet
+reconstructible from `OperationKind::Call`, however. An authoritative
+possibly-suspending crossing roster must be bound into a call-side carrier
+before arbitrary rewritten modules can be treated as complete.
+
+Receiver-bearing and threaded-local crossings fail closed before publication.
+Persistent, structural, claim-bearing, Unit, boundary, and dynamic-call
+frontiers remain later rungs; admitting them must preserve their exact checked
+place and claim identities rather than deriving a frontier from Terminal type
+or block shape.
 
 Provider-independent Terminal semantics ends at that demand. The Omega task
 activation sidecar inherits the crossing's `preserve_cpu` and
@@ -3914,7 +3933,7 @@ and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
 format substitution fail closed. Introduced in Terminal format 70 / vocabulary
-73 and retained by current format 71 / vocabulary 74, source tag 9 rejects
+73 and retained by current format 74 / vocabulary 77, source tag 9 rejects
 under legacy formats. Checked/source production now
 covers one nonempty field/case path below a direct structural parameter in the
 owning top-level machine contract. Checked custody retains exact owner symbol,

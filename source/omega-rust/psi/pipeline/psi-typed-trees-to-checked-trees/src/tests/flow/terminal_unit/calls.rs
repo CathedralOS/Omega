@@ -975,6 +975,90 @@ fn retains_exact_field_prefixed_two_index_write_only_subloan() {
 }
 
 #[test]
+fn retains_exact_three_index_direct_root_write_only_subloan() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(values: &write [[[u16; 4]; 3]; 2]) {
+            Sink::fill(&write values[1][2][3]);
+        }
+        "#,
+    );
+    let forward = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("three-index write-only caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("three-index attenuation should retain its checked call")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one three-index write-only argument")
+    };
+    assert_eq!(
+        argument.access,
+        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    assert_eq!(
+        argument.path,
+        [
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
+        ]
+    );
+}
+
+#[test]
+fn retains_exact_field_prefixed_three_index_write_only_subloan() {
+    let checked = checked(
+        r#"
+        data Outer [copy] { values: [[[u16; 4]; 3]; 2]; sibling: u16; }
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.values[1][2][3]);
+        }
+        "#,
+    );
+    let forward = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("field-prefixed three-index write-only caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("field-prefixed three-index attenuation should retain its checked call")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one field-prefixed three-index write-only argument")
+    };
+    assert!(matches!(
+        argument.path.as_slice(),
+        [
+            psi_checked_trees::CheckedUnitStructuralPathSegment::Field(_),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
+        ]
+    ));
+}
+
+#[test]
 fn write_only_common_field_subloan_does_not_bypass_ordinary_call_shape() {
     for (name, source) in [
         (

@@ -141,6 +141,40 @@ fn exact_two_literal_indexes_may_finish_a_common_field_subloan() {
 }
 
 #[test]
+fn exact_three_literal_indexes_may_narrow_a_direct_write_only_root() {
+    lower_typed_trees(typed(
+        r#"
+            machine replace(value: &write u16) {
+                value = 7;
+            }
+
+            machine forward(values: &write [[[u16; 4]; 3]; 2]) {
+                replace(&write values[1][2][3]);
+            }
+        "#,
+    ))
+    .expect("three exact literal indexes may narrow a nested direct write-only array root");
+}
+
+#[test]
+fn exact_three_literal_indexes_may_finish_a_common_field_subloan() {
+    lower_typed_trees(typed(
+        r#"
+            data Outer { values: [[[u16; 4]; 3]; 2]; sibling: u16; }
+
+            machine replace(value: &write u16) {
+                value = 7;
+            }
+
+            machine forward(outer: &write Outer) {
+                replace(&write outer.values[1][2][3]);
+            }
+        "#,
+    ))
+    .expect("three exact literal indexes may finish a common-field write-only subloan");
+}
+
+#[test]
 fn direct_root_write_only_subloan_keeps_wider_index_shapes_fenced() {
     for (name, source) in [
         (
@@ -171,11 +205,11 @@ fn direct_root_write_only_subloan_keeps_wider_index_shapes_fenced() {
             "#,
         ),
         (
-            "third index",
+            "fourth index",
             r#"
                 machine replace(value: &write u16) {}
-                machine forward(values: &write [[[u16; 2]; 2]; 2]) {
-                    replace(&write values[0][0][0]);
+                machine forward(values: &write [[[[u16; 2]; 2]; 2]; 2]) {
+                    replace(&write values[0][0][0][0]);
                 }
             "#,
         ),
@@ -223,6 +257,16 @@ fn direct_root_write_only_subloan_keeps_wider_index_shapes_fenced() {
                 machine replace(value: &write Leaf) {}
                 machine forward(values: &write [[Leaf; 2]; 2]) {
                     replace(&write values[0][0]);
+                }
+            "#,
+        ),
+        (
+            "three-index record element",
+            r#"
+                data Leaf [copy] { value: u16; }
+                machine replace(value: &write Leaf) {}
+                machine forward(values: &write [[[Leaf; 2]; 2]; 2]) {
+                    replace(&write values[0][0][0]);
                 }
             "#,
         ),
@@ -287,12 +331,12 @@ fn wider_indexed_write_only_subloans_remain_fenced() {
             "#,
         ),
         (
-            "third index",
+            "fourth index",
             r#"
-                data Outer { values: [[[u16; 2]; 2]; 2]; }
+                data Outer { values: [[[[u16; 2]; 2]; 2]; 2]; }
                 machine replace(value: &write u16) {}
                 machine forward(outer: &write Outer) {
-                    replace(&write outer.values[0][0][0]);
+                    replace(&write outer.values[0][0][0][0]);
                 }
             "#,
         ),
@@ -317,11 +361,22 @@ fn wider_indexed_write_only_subloans_remain_fenced() {
                 }
             "#,
         ),
+        (
+            "three-index record element",
+            r#"
+                data Leaf [copy] { value: u16; }
+                data Outer { values: [[[Leaf; 2]; 2]; 2]; }
+                machine replace(value: &write Leaf) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.values[0][0][0]);
+                }
+            "#,
+        ),
     ] {
         let rendered = rendered_rejection(source);
         assert!(
             rendered.contains("forms `&write` from an unsupported projection")
-                && rendered.contains("one or two in-bounds literal fixed-array indexes"),
+                && rendered.contains("one, two, or three in-bounds literal fixed-array indexes"),
             "{name} unexpectedly crossed the literal-indexed subloan gate: {rendered}"
         );
     }

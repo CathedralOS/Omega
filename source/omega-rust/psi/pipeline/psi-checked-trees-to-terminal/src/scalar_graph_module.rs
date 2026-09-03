@@ -959,17 +959,11 @@ pub(super) fn build_scalar_graph_module(
         .compositions
         .into_iter()
         .map(|composition| {
-            let Some(occurrence) = all_operations
-                .source_calls
-                .iter()
-                .find(|occurrence| {
-                    occurrence.source_state == composition.producer_coordinate.state
-                        && occurrence.statement_index
-                            == composition.producer_coordinate.statement_index
-                        && occurrence.call_ordinal == composition.producer_coordinate.call_ordinal
-                })
-                .copied()
-            else {
+            let Some(occurrence) = all_operations.source_calls.iter().find(|occurrence| {
+                occurrence.source_state == composition.producer_coordinate.state
+                    && occurrence.statement_index == composition.producer_coordinate.statement_index
+                    && occurrence.call_ordinal == composition.producer_coordinate.call_ordinal
+            }) else {
                 return Err(LoweringError::ContentPartitionProducerOperationMissing);
             };
             if occurrence.source_target != composition.source_callable {
@@ -1064,6 +1058,9 @@ pub(super) fn build_scalar_graph_module(
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             dynamic_dispatch: Default::default(),
+            suspension_call_plan_count: 0,
+            suspension_call_sites: Vec::new(),
+            suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: terminal_machine,

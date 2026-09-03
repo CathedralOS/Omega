@@ -6,8 +6,9 @@ use psi_core::{
     IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerSign, IntegerType,
     IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionId,
     ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    StructuralPlaceKind, StructuralTypeId, SuspensionCrossingId, ValueId,
 };
+use psi_language_semantics::CarryPolicy;
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
@@ -32,12 +33,70 @@ use psi_terminal::{
     TerminalPlacedViewInput, TerminalProofRankingRelation, TerminalProofRecursiveCallSite,
     TerminalProofRecursiveComponent, TerminalProofRecursiveEdge, TerminalProofRecursiveField,
     TerminalProofRecursiveMember, TerminalProofRecursiveType, TerminalRankedGuard,
-    TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument,
+    TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
+    TerminalSuspensionLiveValue, TerminalSuspensionPlace, TerminalSuspensionStorage,
+    TerminalSuspensionValueType, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
 };
+
+#[test]
+fn suspension_call_plan_round_trips_canonically_and_rejects_prior_format() {
+    let mut module = call_fixture();
+    let live = |storage| TerminalSuspensionLiveValue {
+        place: TerminalSuspensionPlace::Scalar(value_id(100)),
+        value_type: TerminalSuspensionValueType::Scalar(ScalarType::Boolean),
+        storage,
+        claim_count: 0,
+        claims: Vec::new(),
+        effective: CarryPolicy::PERMISSIVE,
+    };
+    let plan = TerminalSuspensionCallPlan {
+        operation: operation_id(101),
+        crossing: suspension_crossing_id(1),
+        target: TerminalSuspensionCallTarget::Machine(machine_id(101)),
+        effective: CarryPolicy::PERMISSIVE,
+        live_value_count: 2,
+        live_values: vec![
+            live(TerminalSuspensionStorage::Local),
+            live(TerminalSuspensionStorage::CallArgument),
+        ],
+    };
+    module.suspension_call_plan_count = 1;
+    module.suspension_call_sites = vec![TerminalSuspensionCallSite {
+        operation: plan.operation,
+        crossing: plan.crossing,
+        target: plan.target,
+        frontier_commitment: psi_terminal::suspension_frontier_commitment(&plan),
+    }];
+    module.suspension_call_plans = vec![plan];
+
+    let bytes = encode_module(&module).expect("suspension plan encodes");
+    assert_eq!(&bytes[8..10], 74_u16.to_le_bytes());
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        encode_module(&decode_module(&bytes).unwrap()),
+        Ok(bytes.clone())
+    );
+
+    let mut stale = bytes;
+    stale[8..10].copy_from_slice(&73_u16.to_le_bytes());
+    assert_eq!(
+        decode_module(&stale),
+        Err(CodecError::UnsupportedFormatMarker(73))
+    );
+
+    let mut noncanonical = module;
+    noncanonical.suspension_call_plans[0].live_values.reverse();
+    assert_eq!(
+        encode_module(&noncanonical),
+        Err(CodecError::NonCanonicalOrder(
+            "suspension live values by place, storage, type, and policy"
+        ))
+    );
+}
 
 #[test]
 fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
@@ -45,7 +104,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 73_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 74_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -53,7 +112,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "2e88bc29ca51a0c14d1d987e9e6bf8f031f3ac0701558d519fe9340cac41ea0d"
+        "1f57a35ed616b13718f190e4efc153c458f4ec38c291e229a8a2b0975e15aa59"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -66,7 +125,7 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
     let mut module = unit_fixture();
     module.proof_recursive_components = vec![proof_recursive_component_fixture()];
     let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 73_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 74_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("recursive semantic identity");
@@ -170,7 +229,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 73_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 74_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -931,7 +990,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 73_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 74_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -944,7 +1003,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 73_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 74_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -979,7 +1038,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 73_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 74_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -1451,6 +1510,9 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
     };
@@ -2626,10 +2688,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&74_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&75_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(74))
+        Err(CodecError::UnsupportedFormatMarker(75))
     );
 
     let mut stale_format = bytes.clone();
@@ -2817,6 +2879,9 @@ fn partial_affine_fixture() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -3053,6 +3118,9 @@ fn nominal_affine_fixture() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -3241,6 +3309,9 @@ fn structural_effect_fixture() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -3388,7 +3459,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 73_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 74_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -4043,6 +4114,9 @@ fn unit_fixture() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(900),
@@ -4261,6 +4335,9 @@ fn fixture() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
@@ -4411,6 +4488,9 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(80),
@@ -4640,6 +4720,9 @@ fn call_fixture() -> TerminalModule {
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -4744,6 +4827,7 @@ id_constructor!(block_id, BlockId);
 id_constructor!(place_id, PlaceId);
 id_constructor!(claim_id, ClaimId);
 id_constructor!(operation_id, OperationId);
+id_constructor!(suspension_crossing_id, SuspensionCrossingId);
 id_constructor!(structural_type_id, StructuralTypeId);
 id_constructor!(structural_field_id, StructuralFieldId);
 id_constructor!(structural_case_id, StructuralCaseId);
