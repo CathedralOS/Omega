@@ -1602,10 +1602,10 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
     assert_eq!(paths.paths.len(), 2);
     assert_eq!(paths.paths[0].outer_field, "first");
     assert_eq!(paths.paths[0].outer_member_identity, Some(2));
-    assert_eq!(paths.paths[0].depth_two_paths.paths.len(), 1);
+    assert_eq!(paths.paths[0].inner.paths.len(), 1);
     assert_eq!(paths.paths[1].outer_field, "pair");
     assert_eq!(paths.paths[1].outer_member_identity, Some(3));
-    assert_eq!(paths.paths[1].depth_two_paths.paths.len(), 2);
+    assert_eq!(paths.paths[1].inner.paths.len(), 2);
     assert_eq!(
         paths.outer_layout.offsets.as_deref(),
         Some(&[0, 4, 16, 32][..])
@@ -1740,23 +1740,23 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
     duplicate.paths[1] = duplicate.paths[0].clone();
     rejects(&duplicate);
     let mut missing_inner = paths.clone();
-    missing_inner.paths[1].depth_two_paths.paths.pop();
+    missing_inner.paths[1].inner.paths.pop();
     rejects(&missing_inner);
     let mut wrong_outer_identity = paths.clone();
     wrong_outer_identity.paths[1].outer_member_identity = Some(2);
     rejects(&wrong_outer_identity);
     let mut wrong_first_identity = paths.clone();
-    wrong_first_identity.paths[1].depth_two_paths.paths[1].outer_member_identity = Some(1);
+    wrong_first_identity.paths[1].inner.paths[1].outer_member_identity = Some(1);
     rejects(&wrong_first_identity);
     let mut wrong_middle_identity = paths.clone();
-    wrong_middle_identity.paths[1].depth_two_paths.paths[1]
-        .middle_paths
+    wrong_middle_identity.paths[1].inner.paths[1]
+        .inner
         .paths[0]
         .outer_member_identity = Some(2);
     rejects(&wrong_middle_identity);
     let mut wrong_leaf_identity = paths.clone();
-    wrong_leaf_identity.paths[1].depth_two_paths.paths[1]
-        .middle_paths
+    wrong_leaf_identity.paths[1].inner.paths[1]
+        .inner
         .paths[0]
         .child_sum_layouts[0]
         .member_identity = Some(2);
@@ -1767,29 +1767,29 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
     rejects(&wrong_outer_geometry);
     let mut wrong_first_geometry = paths.clone();
     wrong_first_geometry.paths[1]
-        .depth_two_paths
+        .inner
         .outer_layout
         .entries[1]
         .placement = LayoutPlacementReport::At { offset: 12 };
     rejects(&wrong_first_geometry);
     let mut wrong_middle_geometry = paths.clone();
-    wrong_middle_geometry.paths[1].depth_two_paths.paths[1]
-        .middle_paths
+    wrong_middle_geometry.paths[1].inner.paths[1]
+        .inner
         .outer_layout
         .entries[0]
         .placement = LayoutPlacementReport::At { offset: 4 };
     rejects(&wrong_middle_geometry);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[1].depth_two_paths.paths[1]
-        .middle_paths
+    wrong_leaf_geometry.paths[1].inner.paths[1]
+        .inner
         .paths[0]
         .inner_layout
         .entries[0]
         .placement = LayoutPlacementReport::At { offset: 4 };
     rejects(&wrong_leaf_geometry);
     let mut wrong_sum_geometry = paths.clone();
-    wrong_sum_geometry.paths[1].depth_two_paths.paths[1]
-        .middle_paths
+    wrong_sum_geometry.paths[1].inner.paths[1]
+        .inner
         .paths[0]
         .child_sum_layouts[0]
         .layout
@@ -1803,8 +1803,8 @@ fn plural_depth_three_paths_compose_existing_plural_custody_and_fail_closed() {
     renamed.paths[0].outer_field = "renamed_first".into();
     renamed.outer_layout.entries[2].field = "renamed_pair".into();
     renamed.paths[1].outer_field = "renamed_pair".into();
-    renamed.paths[1].depth_two_paths.outer_layout.entries[1].field = "renamed_right".into();
-    renamed.paths[1].depth_two_paths.paths[1].outer_field = "renamed_right".into();
+    renamed.paths[1].inner.outer_layout.entries[1].field = "renamed_right".into();
+    renamed.paths[1].inner.paths[1].outer_field = "renamed_right".into();
     carrier
         .replay_against(
             &checked,
@@ -2027,8 +2027,8 @@ fn plural_depth_four_paths_compose_depth_three_custody_and_retain_fences() {
     assert_eq!(paths.paths[0].outer_member_identity, Some(2));
     assert_eq!(paths.paths[1].outer_field, "right");
     assert_eq!(paths.paths[1].outer_member_identity, Some(3));
-    assert_eq!(paths.paths[0].depth_three_paths.paths.len(), 2);
-    assert_eq!(paths.paths[1].depth_three_paths.paths.len(), 2);
+    assert_eq!(paths.paths[0].inner.paths.len(), 2);
+    assert_eq!(paths.paths[1].inner.paths.len(), 2);
     assert_eq!(
         paths.outer_layout.offsets.as_deref(),
         Some(&[0, 4, 24, 44][..])
@@ -2140,13 +2140,13 @@ fn plural_depth_four_paths_compose_depth_three_custody_and_retain_fences() {
     wrong_outer_identity.paths[0].outer_member_identity = Some(3);
     rejects(&wrong_outer_identity);
     let mut wrong_inner_identity = paths.clone();
-    wrong_inner_identity.paths[0].depth_three_paths.paths[1].outer_member_identity = Some(1);
+    wrong_inner_identity.paths[0].inner.paths[1].outer_member_identity = Some(1);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].depth_three_paths.paths[1]
-        .depth_two_paths
+    wrong_leaf_geometry.paths[0].inner.paths[1]
+        .inner
         .paths[0]
-        .middle_paths
+        .inner
         .paths[0]
         .child_sum_layouts[0]
         .layout
@@ -2313,8 +2313,8 @@ fn plural_depth_five_paths_compose_depth_four_custody_and_retain_fences() {
     assert_eq!(paths.paths[0].outer_member_identity, Some(2));
     assert_eq!(paths.paths[1].outer_field, "right");
     assert_eq!(paths.paths[1].outer_member_identity, Some(3));
-    assert_eq!(paths.paths[0].depth_four_paths.paths.len(), 2);
-    assert_eq!(paths.paths[1].depth_four_paths.paths.len(), 2);
+    assert_eq!(paths.paths[0].inner.paths.len(), 2);
+    assert_eq!(paths.paths[1].inner.paths.len(), 2);
     assert_eq!(
         paths.outer_layout.offsets.as_deref(),
         Some(&[0, 4, 48, 92][..])
@@ -2470,15 +2470,15 @@ fn plural_depth_five_paths_compose_depth_four_custody_and_retain_fences() {
     wrong_outer_identity.paths[0].outer_member_identity = Some(3);
     rejects(&wrong_outer_identity);
     let mut wrong_inner_identity = paths.clone();
-    wrong_inner_identity.paths[0].depth_four_paths.paths[1].outer_member_identity = Some(1);
+    wrong_inner_identity.paths[0].inner.paths[1].outer_member_identity = Some(1);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].depth_four_paths.paths[1]
-        .depth_three_paths
+    wrong_leaf_geometry.paths[0].inner.paths[1]
+        .inner
         .paths[0]
-        .depth_two_paths
+        .inner
         .paths[0]
-        .middle_paths
+        .inner
         .paths[0]
         .child_sum_layouts[0]
         .layout
@@ -2488,13 +2488,13 @@ fn plural_depth_five_paths_compose_depth_four_custody_and_retain_fences() {
     rejects(&wrong_leaf_geometry);
     let mut wrong_child_extent = paths.clone();
     wrong_child_extent.paths[0]
-        .depth_four_paths
+        .inner
         .outer_layout
         .size = Some(48);
     rejects(&wrong_child_extent);
     let mut wrong_child_alignment = paths.clone();
     wrong_child_alignment.paths[0]
-        .depth_four_paths
+        .inner
         .outer_layout
         .align = 8;
     rejects(&wrong_child_alignment);
@@ -2668,8 +2668,8 @@ fn plural_depth_six_paths_compose_depth_five_custody_and_retain_fences() {
     assert_eq!(paths.paths[0].outer_member_identity, Some(1));
     assert_eq!(paths.paths[1].outer_field, "right");
     assert_eq!(paths.paths[1].outer_member_identity, Some(2));
-    assert_eq!(paths.paths[0].depth_five_paths.paths.len(), 1);
-    assert_eq!(paths.paths[1].depth_five_paths.paths.len(), 1);
+    assert_eq!(paths.paths[0].inner.paths.len(), 1);
+    assert_eq!(paths.paths[1].inner.paths.len(), 1);
     assert_eq!(paths.outer_layout.offsets.as_deref(), Some(&[0, 8][..]));
     assert_eq!(paths.outer_layout.size, Some(16));
 
@@ -2782,17 +2782,17 @@ fn plural_depth_six_paths_compose_depth_five_custody_and_retain_fences() {
     wrong_outer_identity.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_outer_identity);
     let mut wrong_inner_identity = paths.clone();
-    wrong_inner_identity.paths[0].depth_five_paths.paths[0].outer_member_identity = Some(2);
+    wrong_inner_identity.paths[0].inner.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].depth_five_paths.paths[0]
-        .depth_four_paths
+    wrong_leaf_geometry.paths[0].inner.paths[0]
+        .inner
         .paths[0]
-        .depth_three_paths
+        .inner
         .paths[0]
-        .depth_two_paths
+        .inner
         .paths[0]
-        .middle_paths
+        .inner
         .paths[0]
         .child_sum_layouts[0]
         .layout
@@ -2802,7 +2802,7 @@ fn plural_depth_six_paths_compose_depth_five_custody_and_retain_fences() {
     rejects(&wrong_leaf_geometry);
     let mut wrong_child_extent = paths.clone();
     wrong_child_extent.paths[0]
-        .depth_five_paths
+        .inner
         .outer_layout
         .size = Some(16);
     rejects(&wrong_child_extent);
@@ -2965,8 +2965,8 @@ fn plural_depth_seven_paths_compose_depth_six_custody_and_retain_fences() {
     assert_eq!(paths.paths[0].outer_member_identity, Some(1));
     assert_eq!(paths.paths[1].outer_field, "right");
     assert_eq!(paths.paths[1].outer_member_identity, Some(2));
-    assert_eq!(paths.paths[0].depth_six_paths.paths.len(), 1);
-    assert_eq!(paths.paths[1].depth_six_paths.paths.len(), 1);
+    assert_eq!(paths.paths[0].inner.paths.len(), 1);
+    assert_eq!(paths.paths[1].inner.paths.len(), 1);
     assert_eq!(paths.outer_layout.offsets.as_deref(), Some(&[0, 8][..]));
     assert_eq!(paths.outer_layout.size, Some(16));
 
@@ -3083,19 +3083,19 @@ fn plural_depth_seven_paths_compose_depth_six_custody_and_retain_fences() {
     wrong_outer_identity.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_outer_identity);
     let mut wrong_inner_identity = paths.clone();
-    wrong_inner_identity.paths[0].depth_six_paths.paths[0].outer_member_identity = Some(2);
+    wrong_inner_identity.paths[0].inner.paths[0].outer_member_identity = Some(2);
     rejects(&wrong_inner_identity);
     let mut wrong_leaf_geometry = paths.clone();
-    wrong_leaf_geometry.paths[0].depth_six_paths.paths[0]
-        .depth_five_paths
+    wrong_leaf_geometry.paths[0].inner.paths[0]
+        .inner
         .paths[0]
-        .depth_four_paths
+        .inner
         .paths[0]
-        .depth_three_paths
+        .inner
         .paths[0]
-        .depth_two_paths
+        .inner
         .paths[0]
-        .middle_paths
+        .inner
         .paths[0]
         .child_sum_layouts[0]
         .layout
@@ -3104,16 +3104,16 @@ fn plural_depth_seven_paths_compose_depth_six_custody_and_retain_fences() {
         .offset += 1;
     rejects(&wrong_leaf_geometry);
     let mut wrong_case_ordinal = paths.clone();
-    wrong_case_ordinal.paths[0].depth_six_paths.paths[0]
-        .depth_five_paths
+    wrong_case_ordinal.paths[0].inner.paths[0]
+        .inner
         .paths[0]
-        .depth_four_paths
+        .inner
         .paths[0]
-        .depth_three_paths
+        .inner
         .paths[0]
-        .depth_two_paths
+        .inner
         .paths[0]
-        .middle_paths
+        .inner
         .paths[0]
         .child_sum_layouts[0]
         .layout
@@ -3122,13 +3122,13 @@ fn plural_depth_seven_paths_compose_depth_six_custody_and_retain_fences() {
     rejects(&wrong_case_ordinal);
     let mut wrong_child_extent = paths.clone();
     wrong_child_extent.paths[0]
-        .depth_six_paths
+        .inner
         .outer_layout
         .size = Some(16);
     rejects(&wrong_child_extent);
     let mut wrong_child_alignment = paths.clone();
     wrong_child_alignment.paths[0]
-        .depth_six_paths
+        .inner
         .outer_layout
         .align = 16;
     rejects(&wrong_child_alignment);
@@ -3422,21 +3422,21 @@ fn plural_depth_two_record_chains_retain_complete_occurrence_custody() {
     );
     for occurrence in &paths.paths {
         assert_eq!(
-            occurrence.middle_paths.outer_layout.offsets.as_deref(),
+            occurrence.inner.outer_layout.offsets.as_deref(),
             Some(&[0, 4, 20, 24, 40][..])
         );
-        assert_eq!(occurrence.middle_paths.outer_layout.size, Some(44));
-        assert_eq!(occurrence.middle_paths.paths.len(), 2);
+        assert_eq!(occurrence.inner.outer_layout.size, Some(44));
+        assert_eq!(occurrence.inner.paths.len(), 2);
         assert_eq!(
             occurrence
-                .middle_paths
+                .inner
                 .paths
                 .iter()
                 .map(|path| (path.outer_field.as_str(), path.outer_member_identity))
                 .collect::<Vec<_>>(),
             [("first", Some(2)), ("second", Some(4))]
         );
-        for leaf in &occurrence.middle_paths.paths {
+        for leaf in &occurrence.inner.paths {
             assert_eq!(leaf.inner_layout.offsets.as_deref(), Some(&[0, 4, 12][..]));
             assert_eq!(leaf.inner_layout.size, Some(16));
             assert_eq!(leaf.child_sum_layouts.len(), 1);
@@ -3559,11 +3559,11 @@ fn plural_depth_two_record_chains_retain_complete_occurrence_custody() {
     let mut renamed = paths.clone();
     renamed.outer_layout.entries[1].field = "renamed_middle".into();
     renamed.paths[0].outer_field = "renamed_middle".into();
-    renamed.paths[0].middle_paths.outer_layout.entries[1].field = "renamed_leaf".into();
-    renamed.paths[0].middle_paths.paths[0].outer_field = "renamed_leaf".into();
-    renamed.paths[0].middle_paths.paths[0].inner_layout.entries[1].field =
+    renamed.paths[0].inner.outer_layout.entries[1].field = "renamed_leaf".into();
+    renamed.paths[0].inner.paths[0].outer_field = "renamed_leaf".into();
+    renamed.paths[0].inner.paths[0].inner_layout.entries[1].field =
         "renamed_choice".into();
-    renamed.paths[0].middle_paths.paths[0].child_sum_layouts[0].field = "renamed_choice".into();
+    renamed.paths[0].inner.paths[0].child_sum_layouts[0].field = "renamed_choice".into();
     carrier
         .replay_against(&checked, "Outer", &renamed, &value, ByteOrder::LittleEndian)
         .expect("stable-numbered plural names at all three layers are presentation-only");
@@ -3592,25 +3592,25 @@ fn plural_depth_two_record_chains_retain_complete_occurrence_custody() {
     reordered_outer.paths.swap(0, 1);
     rejects(&reordered_outer);
     let mut missing_middle = paths.clone();
-    missing_middle.paths[0].middle_paths.paths.pop();
+    missing_middle.paths[0].inner.paths.pop();
     rejects(&missing_middle);
     let mut extra_middle = paths.clone();
     extra_middle.paths[0]
-        .middle_paths
+        .inner
         .paths
-        .push(paths.paths[0].middle_paths.paths[0].clone());
+        .push(paths.paths[0].inner.paths[0].clone());
     rejects(&extra_middle);
     let mut reordered_middle = paths.clone();
-    reordered_middle.paths[0].middle_paths.paths.swap(0, 1);
+    reordered_middle.paths[0].inner.paths.swap(0, 1);
     rejects(&reordered_middle);
     let mut wrong_outer_identity = paths.clone();
     wrong_outer_identity.paths[0].outer_member_identity = Some(4);
     rejects(&wrong_outer_identity);
     let mut wrong_middle_identity = paths.clone();
-    wrong_middle_identity.paths[0].middle_paths.paths[0].outer_member_identity = Some(4);
+    wrong_middle_identity.paths[0].inner.paths[0].outer_member_identity = Some(4);
     rejects(&wrong_middle_identity);
     let mut wrong_child_identity = paths.clone();
-    wrong_child_identity.paths[0].middle_paths.paths[0].child_sum_layouts[0].member_identity =
+    wrong_child_identity.paths[0].inner.paths[0].child_sum_layouts[0].member_identity =
         Some(3);
     rejects(&wrong_child_identity);
     let mut wrong_outer_layout = paths.clone();
@@ -3619,19 +3619,19 @@ fn plural_depth_two_record_chains_retain_complete_occurrence_custody() {
     rejects(&wrong_outer_layout);
     let mut wrong_middle_layout = paths.clone();
     wrong_middle_layout.paths[0]
-        .middle_paths
+        .inner
         .outer_layout
         .entries[1]
         .placement = LayoutPlacementReport::At { offset: 8 };
     rejects(&wrong_middle_layout);
     let mut wrong_leaf_layout = paths.clone();
-    wrong_leaf_layout.paths[0].middle_paths.paths[0]
+    wrong_leaf_layout.paths[0].inner.paths[0]
         .inner_layout
         .entries[1]
         .placement = LayoutPlacementReport::At { offset: 8 };
     rejects(&wrong_leaf_layout);
     let mut wrong_child_row = paths.clone();
-    wrong_child_row.paths[0].middle_paths.paths[0].child_sum_layouts[0]
+    wrong_child_row.paths[0].inner.paths[0].child_sum_layouts[0]
         .layout
         .cases[1]
         .payload_fields[0]

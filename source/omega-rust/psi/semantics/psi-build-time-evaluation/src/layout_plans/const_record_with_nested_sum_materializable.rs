@@ -255,7 +255,7 @@ impl ValidatedConstRecordWithDepthThirteenNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_twelve_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -549,7 +549,7 @@ impl ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_thirteen_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -843,7 +843,7 @@ impl ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_fourteen_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -1137,7 +1137,7 @@ impl ValidatedConstRecordWithDepthTwelveNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_eleven_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -1430,7 +1430,7 @@ impl ValidatedConstRecordWithDepthElevenNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_ten_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -1723,7 +1723,7 @@ impl ValidatedConstRecordWithDepthTenNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_nine_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -2012,7 +2012,7 @@ impl ValidatedConstRecordWithDepthNineNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_eight_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -2302,7 +2302,7 @@ impl ValidatedConstRecordWithDepthEightNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_seven_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -2596,7 +2596,7 @@ impl ValidatedConstRecordWithDepthSevenNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_six_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -2889,7 +2889,7 @@ impl ValidatedConstRecordWithDepthSixNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_five_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -3178,7 +3178,7 @@ impl ValidatedConstRecordWithDepthFiveNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_four_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -3467,7 +3467,7 @@ impl ValidatedConstRecordWithDepthFourNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_three_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -3757,7 +3757,7 @@ impl ValidatedConstRecordWithDepthThreeNestedSumsMaterialization {
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_two_paths,
+                &path.inner,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -4400,7 +4400,7 @@ impl ValidatedConstRecordWithDepthTwoNestedSumsMaterialization {
             retained.middle.replay_against_with_reachability(
                 typed,
                 replayed.middle.schema_name(),
-                &path.middle_paths,
+                &path.inner,
                 replayed.middle.value(),
                 byte_order,
                 reachability,

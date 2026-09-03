@@ -947,7 +947,7 @@ fn project_conventional_record_with_depth_three_nested_sums_materialization_layo
             }
             for occurrence in &depth_two_paths.paths {
                 total_leaf_paths = total_leaf_paths
-                    .checked_add(occurrence.middle_paths.paths.len())
+                    .checked_add(occurrence.inner.paths.len())
                     .ok_or_else(|| {
                         Diagnostic::error("plural depth-three leaf-path count overflows")
                     })?;
@@ -960,7 +960,7 @@ fn project_conventional_record_with_depth_three_nested_sums_materialization_layo
             paths.push(ConventionalDepthThreeRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_two_paths,
+                inner: depth_two_paths,
             });
         }
 
@@ -1146,9 +1146,9 @@ fn project_conventional_record_with_depth_four_nested_sums_materialization_layou
                 )));
             }
             for second_occurrence in &depth_three_paths.paths {
-                for first_occurrence in &second_occurrence.depth_two_paths.paths {
+                for first_occurrence in &second_occurrence.inner.paths {
                     total_leaf_paths = total_leaf_paths
-                        .checked_add(first_occurrence.middle_paths.paths.len())
+                        .checked_add(first_occurrence.inner.paths.len())
                         .ok_or_else(|| {
                             Diagnostic::error("plural depth-four leaf-path count overflows")
                         })?;
@@ -1162,7 +1162,7 @@ fn project_conventional_record_with_depth_four_nested_sums_materialization_layou
             paths.push(ConventionalDepthFourRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_three_paths,
+                inner: depth_three_paths,
             });
         }
 
@@ -1349,10 +1349,10 @@ fn project_conventional_record_with_depth_five_nested_sums_materialization_layou
                 )));
             }
             for third_occurrence in &depth_four_paths.paths {
-                for second_occurrence in &third_occurrence.depth_three_paths.paths {
-                    for first_occurrence in &second_occurrence.depth_two_paths.paths {
+                for second_occurrence in &third_occurrence.inner.paths {
+                    for first_occurrence in &second_occurrence.inner.paths {
                         total_leaf_paths = total_leaf_paths
-                            .checked_add(first_occurrence.middle_paths.paths.len())
+                            .checked_add(first_occurrence.inner.paths.len())
                             .ok_or_else(|| {
                                 Diagnostic::error("plural depth-five leaf-path count overflows")
                             })?;
@@ -1367,7 +1367,7 @@ fn project_conventional_record_with_depth_five_nested_sums_materialization_layou
             paths.push(ConventionalDepthFiveRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_four_paths,
+                inner: depth_four_paths,
             });
         }
 
@@ -1554,11 +1554,11 @@ fn project_conventional_record_with_depth_six_nested_sums_materialization_layout
                 )));
             }
             for fourth_occurrence in &depth_five_paths.paths {
-                for third_occurrence in &fourth_occurrence.depth_four_paths.paths {
-                    for second_occurrence in &third_occurrence.depth_three_paths.paths {
-                        for first_occurrence in &second_occurrence.depth_two_paths.paths {
+                for third_occurrence in &fourth_occurrence.inner.paths {
+                    for second_occurrence in &third_occurrence.inner.paths {
+                        for first_occurrence in &second_occurrence.inner.paths {
                             total_leaf_paths = total_leaf_paths
-                                .checked_add(first_occurrence.middle_paths.paths.len())
+                                .checked_add(first_occurrence.inner.paths.len())
                                 .ok_or_else(|| {
                                     Diagnostic::error("plural depth-six leaf-path count overflows")
                                 })?;
@@ -1574,7 +1574,7 @@ fn project_conventional_record_with_depth_six_nested_sums_materialization_layout
             paths.push(ConventionalDepthSixRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_five_paths,
+                inner: depth_five_paths,
             });
         }
 
@@ -1761,12 +1761,12 @@ fn project_conventional_record_with_depth_seven_nested_sums_materialization_layo
                 )));
             }
             for sixth_occurrence in &depth_six_paths.paths {
-                for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
-                    for fourth_occurrence in &fifth_occurrence.depth_four_paths.paths {
-                        for third_occurrence in &fourth_occurrence.depth_three_paths.paths {
-                            for second_occurrence in &third_occurrence.depth_two_paths.paths {
+                for fifth_occurrence in &sixth_occurrence.inner.paths {
+                    for fourth_occurrence in &fifth_occurrence.inner.paths {
+                        for third_occurrence in &fourth_occurrence.inner.paths {
+                            for second_occurrence in &third_occurrence.inner.paths {
                                 total_leaf_paths = total_leaf_paths
-                                    .checked_add(second_occurrence.middle_paths.paths.len())
+                                    .checked_add(second_occurrence.inner.paths.len())
                                     .ok_or_else(|| {
                                         Diagnostic::error(
                                             "plural depth-seven leaf-path count overflows",
@@ -1785,7 +1785,7 @@ fn project_conventional_record_with_depth_seven_nested_sums_materialization_layo
             paths.push(ConventionalDepthSevenRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_six_paths,
+                inner: depth_six_paths,
             });
         }
 
@@ -1972,13 +1972,13 @@ fn project_conventional_record_with_depth_eight_nested_sums_materialization_layo
                 )));
             }
             for seventh_occurrence in &depth_seven_paths.paths {
-                for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                    for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
-                        for fourth_occurrence in &fifth_occurrence.depth_four_paths.paths {
-                            for third_occurrence in &fourth_occurrence.depth_three_paths.paths {
-                                for second_occurrence in &third_occurrence.depth_two_paths.paths {
+                for sixth_occurrence in &seventh_occurrence.inner.paths {
+                    for fifth_occurrence in &sixth_occurrence.inner.paths {
+                        for fourth_occurrence in &fifth_occurrence.inner.paths {
+                            for third_occurrence in &fourth_occurrence.inner.paths {
+                                for second_occurrence in &third_occurrence.inner.paths {
                                     total_leaf_paths = total_leaf_paths
-                                        .checked_add(second_occurrence.middle_paths.paths.len())
+                                        .checked_add(second_occurrence.inner.paths.len())
                                         .ok_or_else(|| {
                                             Diagnostic::error(
                                                 "plural depth-eight leaf-path count overflows",
@@ -1998,7 +1998,7 @@ fn project_conventional_record_with_depth_eight_nested_sums_materialization_layo
             paths.push(ConventionalDepthEightRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_seven_paths,
+                inner: depth_seven_paths,
             });
         }
 
@@ -2185,15 +2185,15 @@ fn project_conventional_record_with_depth_nine_nested_sums_materialization_layou
                 )));
             }
             for eighth_occurrence in &depth_eight_paths.paths {
-                for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths {
-                    for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                        for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
-                            for fourth_occurrence in &fifth_occurrence.depth_four_paths.paths {
-                                for third_occurrence in &fourth_occurrence.depth_three_paths.paths {
-                                    for second_occurrence in &third_occurrence.depth_two_paths.paths
+                for seventh_occurrence in &eighth_occurrence.inner.paths {
+                    for sixth_occurrence in &seventh_occurrence.inner.paths {
+                        for fifth_occurrence in &sixth_occurrence.inner.paths {
+                            for fourth_occurrence in &fifth_occurrence.inner.paths {
+                                for third_occurrence in &fourth_occurrence.inner.paths {
+                                    for second_occurrence in &third_occurrence.inner.paths
                                     {
                                         total_leaf_paths = total_leaf_paths
-                                            .checked_add(second_occurrence.middle_paths.paths.len())
+                                            .checked_add(second_occurrence.inner.paths.len())
                                             .ok_or_else(|| {
                                                 Diagnostic::error(
                                                     "plural depth-nine leaf-path count overflows",
@@ -2214,7 +2214,7 @@ fn project_conventional_record_with_depth_nine_nested_sums_materialization_layou
             paths.push(ConventionalDepthNineRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_eight_paths,
+                inner: depth_eight_paths,
             });
         }
 
@@ -2401,20 +2401,20 @@ fn project_conventional_record_with_depth_ten_nested_sums_materialization_layout
                 )));
             }
             for ninth_occurrence in &depth_nine_paths.paths {
-                for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
-                    for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths {
-                        for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                            for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
-                                for fourth_occurrence in &fifth_occurrence.depth_four_paths.paths {
+                for eighth_occurrence in &ninth_occurrence.inner.paths {
+                    for seventh_occurrence in &eighth_occurrence.inner.paths {
+                        for sixth_occurrence in &seventh_occurrence.inner.paths {
+                            for fifth_occurrence in &sixth_occurrence.inner.paths {
+                                for fourth_occurrence in &fifth_occurrence.inner.paths {
                                     for third_occurrence in
-                                        &fourth_occurrence.depth_three_paths.paths
+                                        &fourth_occurrence.inner.paths
                                     {
                                         for second_occurrence in
-                                            &third_occurrence.depth_two_paths.paths
+                                            &third_occurrence.inner.paths
                                         {
                                             total_leaf_paths = total_leaf_paths
                                                 .checked_add(
-                                                    second_occurrence.middle_paths.paths.len(),
+                                                    second_occurrence.inner.paths.len(),
                                                 )
                                                 .ok_or_else(|| {
                                                     Diagnostic::error(
@@ -2437,7 +2437,7 @@ fn project_conventional_record_with_depth_ten_nested_sums_materialization_layout
             paths.push(ConventionalDepthTenRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_nine_paths,
+                inner: depth_nine_paths,
             });
         }
 
@@ -2624,23 +2624,23 @@ fn project_conventional_record_with_depth_eleven_nested_sums_materialization_lay
                 )));
             }
             for tenth_occurrence in &depth_ten_paths.paths {
-                for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                    for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
-                        for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths {
-                            for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                                for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
+                for ninth_occurrence in &tenth_occurrence.inner.paths {
+                    for eighth_occurrence in &ninth_occurrence.inner.paths {
+                        for seventh_occurrence in &eighth_occurrence.inner.paths {
+                            for sixth_occurrence in &seventh_occurrence.inner.paths {
+                                for fifth_occurrence in &sixth_occurrence.inner.paths {
                                     for fourth_occurrence in
-                                        &fifth_occurrence.depth_four_paths.paths
+                                        &fifth_occurrence.inner.paths
                                     {
                                         for third_occurrence in
-                                            &fourth_occurrence.depth_three_paths.paths
+                                            &fourth_occurrence.inner.paths
                                         {
                                             for second_occurrence in
-                                                &third_occurrence.depth_two_paths.paths
+                                                &third_occurrence.inner.paths
                                             {
                                                 total_leaf_paths = total_leaf_paths
                                                     .checked_add(
-                                                        second_occurrence.middle_paths.paths.len(),
+                                                        second_occurrence.inner.paths.len(),
                                                     )
                                                     .ok_or_else(|| {
                                                         Diagnostic::error(
@@ -2664,7 +2664,7 @@ fn project_conventional_record_with_depth_eleven_nested_sums_materialization_lay
             paths.push(ConventionalDepthElevenRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_ten_paths,
+                inner: depth_ten_paths,
             });
         }
 
@@ -2854,31 +2854,31 @@ fn project_conventional_record_with_depth_thirteen_nested_sums_materialization_l
                 )));
             }
             for twelfth_occurrence in &depth_twelve_paths.paths {
-                for eleventh_occurrence in &twelfth_occurrence.depth_eleven_paths.paths {
-                    for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
-                        for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                            for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
-                                for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths
+                for eleventh_occurrence in &twelfth_occurrence.inner.paths {
+                    for tenth_occurrence in &eleventh_occurrence.inner.paths {
+                        for ninth_occurrence in &tenth_occurrence.inner.paths {
+                            for eighth_occurrence in &ninth_occurrence.inner.paths {
+                                for seventh_occurrence in &eighth_occurrence.inner.paths
                                 {
                                     for sixth_occurrence in
-                                        &seventh_occurrence.depth_six_paths.paths
+                                        &seventh_occurrence.inner.paths
                                     {
                                         for fifth_occurrence in
-                                            &sixth_occurrence.depth_five_paths.paths
+                                            &sixth_occurrence.inner.paths
                                         {
                                             for fourth_occurrence in
-                                                &fifth_occurrence.depth_four_paths.paths
+                                                &fifth_occurrence.inner.paths
                                             {
                                                 for third_occurrence in
-                                                    &fourth_occurrence.depth_three_paths.paths
+                                                    &fourth_occurrence.inner.paths
                                                 {
                                                     for second_occurrence in
-                                                        &third_occurrence.depth_two_paths.paths
+                                                        &third_occurrence.inner.paths
                                                     {
                                                         total_leaf_paths = total_leaf_paths
                                                         .checked_add(
                                                             second_occurrence
-                                                                .middle_paths
+                                                                .inner
                                                                 .paths
                                                                 .len(),
                                                         )
@@ -2906,7 +2906,7 @@ fn project_conventional_record_with_depth_thirteen_nested_sums_materialization_l
             paths.push(ConventionalDepthThirteenRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_twelve_paths,
+                inner: depth_twelve_paths,
             });
         }
 
@@ -3096,33 +3096,33 @@ fn project_conventional_record_with_depth_fourteen_nested_sums_materialization_l
                 )));
             }
             for thirteenth_occurrence in &depth_thirteen_paths.paths {
-                for twelfth_occurrence in &thirteenth_occurrence.depth_twelve_paths.paths {
-                    for eleventh_occurrence in &twelfth_occurrence.depth_eleven_paths.paths {
-                        for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
-                            for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                                for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
+                for twelfth_occurrence in &thirteenth_occurrence.inner.paths {
+                    for eleventh_occurrence in &twelfth_occurrence.inner.paths {
+                        for tenth_occurrence in &eleventh_occurrence.inner.paths {
+                            for ninth_occurrence in &tenth_occurrence.inner.paths {
+                                for eighth_occurrence in &ninth_occurrence.inner.paths {
                                     for seventh_occurrence in
-                                        &eighth_occurrence.depth_seven_paths.paths
+                                        &eighth_occurrence.inner.paths
                                     {
                                         for sixth_occurrence in
-                                            &seventh_occurrence.depth_six_paths.paths
+                                            &seventh_occurrence.inner.paths
                                         {
                                             for fifth_occurrence in
-                                                &sixth_occurrence.depth_five_paths.paths
+                                                &sixth_occurrence.inner.paths
                                             {
                                                 for fourth_occurrence in
-                                                    &fifth_occurrence.depth_four_paths.paths
+                                                    &fifth_occurrence.inner.paths
                                                 {
                                                     for third_occurrence in
-                                                        &fourth_occurrence.depth_three_paths.paths
+                                                        &fourth_occurrence.inner.paths
                                                     {
                                                         for second_occurrence in
-                                                            &third_occurrence.depth_two_paths.paths
+                                                            &third_occurrence.inner.paths
                                                         {
                                                             total_leaf_paths = total_leaf_paths
                                                         .checked_add(
                                                             second_occurrence
-                                                                .middle_paths
+                                                                .inner
                                                                 .paths
                                                                 .len(),
                                                         )
@@ -3151,7 +3151,7 @@ fn project_conventional_record_with_depth_fourteen_nested_sums_materialization_l
             paths.push(ConventionalDepthFourteenRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_thirteen_paths,
+                inner: depth_thirteen_paths,
             });
         }
 
@@ -3341,39 +3341,39 @@ fn project_conventional_record_with_depth_fifteen_nested_sums_materialization_la
                 )));
             }
             for fourteenth_occurrence in &depth_fourteen_paths.paths {
-                for thirteenth_occurrence in &fourteenth_occurrence.depth_thirteen_paths.paths {
-                    for twelfth_occurrence in &thirteenth_occurrence.depth_twelve_paths.paths {
-                        for eleventh_occurrence in &twelfth_occurrence.depth_eleven_paths.paths {
-                            for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
-                                for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
+                for thirteenth_occurrence in &fourteenth_occurrence.inner.paths {
+                    for twelfth_occurrence in &thirteenth_occurrence.inner.paths {
+                        for eleventh_occurrence in &twelfth_occurrence.inner.paths {
+                            for tenth_occurrence in &eleventh_occurrence.inner.paths {
+                                for ninth_occurrence in &tenth_occurrence.inner.paths {
                                     for eighth_occurrence in
-                                        &ninth_occurrence.depth_eight_paths.paths
+                                        &ninth_occurrence.inner.paths
                                     {
                                         for seventh_occurrence in
-                                            &eighth_occurrence.depth_seven_paths.paths
+                                            &eighth_occurrence.inner.paths
                                         {
                                             for sixth_occurrence in
-                                                &seventh_occurrence.depth_six_paths.paths
+                                                &seventh_occurrence.inner.paths
                                             {
                                                 for fifth_occurrence in
-                                                    &sixth_occurrence.depth_five_paths.paths
+                                                    &sixth_occurrence.inner.paths
                                                 {
                                                     for fourth_occurrence in
-                                                        &fifth_occurrence.depth_four_paths.paths
+                                                        &fifth_occurrence.inner.paths
                                                     {
                                                         for third_occurrence in &fourth_occurrence
-                                                            .depth_three_paths
+                                                            .inner
                                                             .paths
                                                         {
                                                             for second_occurrence in
                                                                 &third_occurrence
-                                                                    .depth_two_paths
+                                                                    .inner
                                                                     .paths
                                                             {
                                                                 total_leaf_paths = total_leaf_paths
                                                         .checked_add(
                                                             second_occurrence
-                                                                .middle_paths
+                                                                .inner
                                                                 .paths
                                                                 .len(),
                                                         )
@@ -3403,7 +3403,7 @@ fn project_conventional_record_with_depth_fifteen_nested_sums_materialization_la
             paths.push(ConventionalDepthFifteenRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_fourteen_paths,
+                inner: depth_fourteen_paths,
             });
         }
 
@@ -3590,26 +3590,26 @@ fn project_conventional_record_with_depth_twelve_nested_sums_materialization_lay
                 )));
             }
             for eleventh_occurrence in &depth_eleven_paths.paths {
-                for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
-                    for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                        for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
-                            for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths {
-                                for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                                    for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths
+                for tenth_occurrence in &eleventh_occurrence.inner.paths {
+                    for ninth_occurrence in &tenth_occurrence.inner.paths {
+                        for eighth_occurrence in &ninth_occurrence.inner.paths {
+                            for seventh_occurrence in &eighth_occurrence.inner.paths {
+                                for sixth_occurrence in &seventh_occurrence.inner.paths {
+                                    for fifth_occurrence in &sixth_occurrence.inner.paths
                                     {
                                         for fourth_occurrence in
-                                            &fifth_occurrence.depth_four_paths.paths
+                                            &fifth_occurrence.inner.paths
                                         {
                                             for third_occurrence in
-                                                &fourth_occurrence.depth_three_paths.paths
+                                                &fourth_occurrence.inner.paths
                                             {
                                                 for second_occurrence in
-                                                    &third_occurrence.depth_two_paths.paths
+                                                    &third_occurrence.inner.paths
                                                 {
                                                     total_leaf_paths = total_leaf_paths
                                                         .checked_add(
                                                             second_occurrence
-                                                                .middle_paths
+                                                                .inner
                                                                 .paths
                                                                 .len(),
                                                         )
@@ -3636,7 +3636,7 @@ fn project_conventional_record_with_depth_twelve_nested_sums_materialization_lay
             paths.push(ConventionalDepthTwelveRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                depth_eleven_paths,
+                inner: depth_eleven_paths,
             });
         }
 
@@ -3829,7 +3829,7 @@ fn project_conventional_record_with_depth_two_nested_sums_materialization_layout
             paths.push(ConventionalDepthTwoRecordSumOccurrenceLayoutReport {
                 outer_field: declared.name.to_string(),
                 outer_member_identity: declared.identity,
-                middle_paths,
+                inner: middle_paths,
             });
         }
 

@@ -170,89 +170,89 @@ pub(super) fn project_conventional_record_with_depth_twenty_three_nested_sums_ma
             }
             for twenty_second_occurrence in &depth_twenty_two_paths.paths {
                 for twenty_first_occurrence in
-                    &twenty_second_occurrence.depth_twenty_one_paths.paths
+                    &twenty_second_occurrence.inner.paths
                 {
-                    for twentieth_occurrence in &twenty_first_occurrence.depth_twenty_paths.paths {
+                    for twentieth_occurrence in &twenty_first_occurrence.inner.paths {
                         for nineteenth_occurrence in
-                            &twentieth_occurrence.depth_nineteen_paths.paths
+                            &twentieth_occurrence.inner.paths
                         {
                             for eighteenth_occurrence in
-                                &nineteenth_occurrence.depth_eighteen_paths.paths
+                                &nineteenth_occurrence.inner.paths
                             {
                                 for seventeenth_occurrence in
-                                    &eighteenth_occurrence.depth_seventeen_paths.paths
+                                    &eighteenth_occurrence.inner.paths
                                 {
                                     for sixteenth_occurrence in
-                                        &seventeenth_occurrence.depth_sixteen_paths.paths
+                                        &seventeenth_occurrence.inner.paths
                                     {
                                         for fifteenth_occurrence in
-                                            &sixteenth_occurrence.depth_fifteen_paths.paths
+                                            &sixteenth_occurrence.inner.paths
                                         {
                                             for fourteenth_occurrence in
-                                                &fifteenth_occurrence.depth_fourteen_paths.paths
+                                                &fifteenth_occurrence.inner.paths
                                             {
                                                 for thirteenth_occurrence in &fourteenth_occurrence
-                                                    .depth_thirteen_paths
+                                                    .inner
                                                     .paths
                                                 {
                                                     for twelfth_occurrence in &thirteenth_occurrence
-                                                        .depth_twelve_paths
+                                                        .inner
                                                         .paths
                                                     {
                                                         for eleventh_occurrence in
                                                             &twelfth_occurrence
-                                                                .depth_eleven_paths
+                                                                .inner
                                                                 .paths
                                                         {
                                                             for tenth_occurrence in
                                                                 &eleventh_occurrence
-                                                                    .depth_ten_paths
+                                                                    .inner
                                                                     .paths
                                                             {
                                                                 for ninth_occurrence in
                                                                     &tenth_occurrence
-                                                                        .depth_nine_paths
+                                                                        .inner
                                                                         .paths
                                                                 {
                                                                     for eighth_occurrence in
                                                                         &ninth_occurrence
-                                                                            .depth_eight_paths
+                                                                            .inner
                                                                             .paths
                                                                     {
                                                                         for seventh_occurrence in
                                                                             &eighth_occurrence
-                                                                                .depth_seven_paths
+                                                                                .inner
                                                                                 .paths
                                                                         {
                                                                             for sixth_occurrence in
                                                                                 &seventh_occurrence
-                                                                                    .depth_six_paths
+                                                                                    .inner
                                                                                     .paths
                                                                             {
                                                                                 for fifth_occurrence in
                                                                             &sixth_occurrence
-                                                                                .depth_five_paths
+                                                                                .inner
                                                                                 .paths
                                                                         {
                                                                             for fourth_occurrence in
                                                                             &fifth_occurrence
-                                                                                .depth_four_paths
+                                                                                .inner
                                                                                 .paths
                                                                         {
                                                                             for third_occurrence in
                                                                             &fourth_occurrence
-                                                                                .depth_three_paths
+                                                                                .inner
                                                                                 .paths
                                                                         {
                                                                             for second_occurrence in
                                                                                 &third_occurrence
-                                                                                    .depth_two_paths
+                                                                                    .inner
                                                                                     .paths
                                                                             {
                                                                                 total_leaf_paths = total_leaf_paths
                                                         .checked_add(
                                                             second_occurrence
-                                                                .middle_paths
+                                                                .inner
                                                                 .paths
                                                                 .len(),
                                                         )
@@ -291,7 +291,7 @@ pub(super) fn project_conventional_record_with_depth_twenty_three_nested_sums_ma
                 ConventionalDepthTwentyThreeRecordSumOccurrenceLayoutReport {
                     outer_field: declared.name.to_string(),
                     outer_member_identity: declared.identity,
-                    depth_twenty_two_paths,
+                    inner: depth_twenty_two_paths,
                 },
             );
         }

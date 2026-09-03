@@ -119,7 +119,7 @@ pub(super) fn derive_depth_two_nested_sums_bytes_with_reachability(
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
         total_leaf_occurrences = total_leaf_occurrences
-            .checked_add(path.middle_paths.paths.len())
+            .checked_add(path.inner.paths.len())
             .ok_or_else(|| {
                 MaterializationDiagnostic(
                     "ConstMaterializable plural depth-two leaf occurrence count overflows".into(),
@@ -165,12 +165,12 @@ pub(super) fn derive_depth_two_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_nested_sum_records_with_reachability(
                 typed,
                 middle_data.name.as_str(),
-                &path.middle_paths,
+                &path.inner,
                 middle_value,
                 byte_order,
                 reachability,
             )?;
-        let middle_size = path.middle_paths.outer_layout.size.ok_or_else(|| {
+        let middle_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-two path `{}` requires one exact middle extent",
                 middle_field.name
@@ -239,11 +239,11 @@ pub(super) fn derive_depth_two_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .middle_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated middle extent"),
-                align: path.middle_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: middle_bytes,
             });
@@ -468,28 +468,28 @@ pub(super) fn derive_depth_thirteen_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for twelfth_occurrence in &path.depth_twelve_paths.paths {
-            for eleventh_occurrence in &twelfth_occurrence.depth_eleven_paths.paths {
-                for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
-                    for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                        for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
-                            for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths {
-                                for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                                    for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths
+        for twelfth_occurrence in &path.inner.paths {
+            for eleventh_occurrence in &twelfth_occurrence.inner.paths {
+                for tenth_occurrence in &eleventh_occurrence.inner.paths {
+                    for ninth_occurrence in &tenth_occurrence.inner.paths {
+                        for eighth_occurrence in &ninth_occurrence.inner.paths {
+                            for seventh_occurrence in &eighth_occurrence.inner.paths {
+                                for sixth_occurrence in &seventh_occurrence.inner.paths {
+                                    for fifth_occurrence in &sixth_occurrence.inner.paths
                                     {
                                         for fourth_occurrence in
-                                            &fifth_occurrence.depth_four_paths.paths
+                                            &fifth_occurrence.inner.paths
                                         {
                                             for third_occurrence in
-                                                &fourth_occurrence.depth_three_paths.paths
+                                                &fourth_occurrence.inner.paths
                                             {
                                                 for second_occurrence in
-                                                    &third_occurrence.depth_two_paths.paths
+                                                    &third_occurrence.inner.paths
                                                 {
                                                     total_leaf_occurrences = total_leaf_occurrences
                                                     .checked_add(
                                                         second_occurrence
-                                                            .middle_paths
+                                                            .inner
                                                             .paths
                                                             .len(),
                                                     )
@@ -550,12 +550,12 @@ pub(super) fn derive_depth_thirteen_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_twelve_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_twelve_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_twelve_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-thirteen path `{}` requires one exact inner extent",
                 inner_field.name
@@ -627,11 +627,11 @@ pub(super) fn derive_depth_thirteen_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_twelve_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-twelve extent"),
-                align: path.depth_twelve_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -857,33 +857,33 @@ pub(super) fn derive_depth_fourteen_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for thirteenth_occurrence in &path.depth_thirteen_paths.paths {
-            for twelfth_occurrence in &thirteenth_occurrence.depth_twelve_paths.paths {
-                for eleventh_occurrence in &twelfth_occurrence.depth_eleven_paths.paths {
-                    for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
-                        for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                            for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
-                                for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths
+        for thirteenth_occurrence in &path.inner.paths {
+            for twelfth_occurrence in &thirteenth_occurrence.inner.paths {
+                for eleventh_occurrence in &twelfth_occurrence.inner.paths {
+                    for tenth_occurrence in &eleventh_occurrence.inner.paths {
+                        for ninth_occurrence in &tenth_occurrence.inner.paths {
+                            for eighth_occurrence in &ninth_occurrence.inner.paths {
+                                for seventh_occurrence in &eighth_occurrence.inner.paths
                                 {
                                     for sixth_occurrence in
-                                        &seventh_occurrence.depth_six_paths.paths
+                                        &seventh_occurrence.inner.paths
                                     {
                                         for fifth_occurrence in
-                                            &sixth_occurrence.depth_five_paths.paths
+                                            &sixth_occurrence.inner.paths
                                         {
                                             for fourth_occurrence in
-                                                &fifth_occurrence.depth_four_paths.paths
+                                                &fifth_occurrence.inner.paths
                                             {
                                                 for third_occurrence in
-                                                    &fourth_occurrence.depth_three_paths.paths
+                                                    &fourth_occurrence.inner.paths
                                                 {
                                                     for second_occurrence in
-                                                        &third_occurrence.depth_two_paths.paths
+                                                        &third_occurrence.inner.paths
                                                     {
                                                         total_leaf_occurrences = total_leaf_occurrences
                                                     .checked_add(
                                                         second_occurrence
-                                                            .middle_paths
+                                                            .inner
                                                             .paths
                                                             .len(),
                                                     )
@@ -945,12 +945,12 @@ pub(super) fn derive_depth_fourteen_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_thirteen_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_thirteen_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_thirteen_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-fourteen path `{}` requires one exact inner extent",
                 inner_field.name
@@ -1022,11 +1022,11 @@ pub(super) fn derive_depth_fourteen_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_thirteen_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-thirteen extent"),
-                align: path.depth_thirteen_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -1251,35 +1251,35 @@ pub(super) fn derive_depth_fifteen_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for fourteenth_occurrence in &path.depth_fourteen_paths.paths {
-            for thirteenth_occurrence in &fourteenth_occurrence.depth_thirteen_paths.paths {
-                for twelfth_occurrence in &thirteenth_occurrence.depth_twelve_paths.paths {
-                    for eleventh_occurrence in &twelfth_occurrence.depth_eleven_paths.paths {
-                        for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
-                            for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                                for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
+        for fourteenth_occurrence in &path.inner.paths {
+            for thirteenth_occurrence in &fourteenth_occurrence.inner.paths {
+                for twelfth_occurrence in &thirteenth_occurrence.inner.paths {
+                    for eleventh_occurrence in &twelfth_occurrence.inner.paths {
+                        for tenth_occurrence in &eleventh_occurrence.inner.paths {
+                            for ninth_occurrence in &tenth_occurrence.inner.paths {
+                                for eighth_occurrence in &ninth_occurrence.inner.paths {
                                     for seventh_occurrence in
-                                        &eighth_occurrence.depth_seven_paths.paths
+                                        &eighth_occurrence.inner.paths
                                     {
                                         for sixth_occurrence in
-                                            &seventh_occurrence.depth_six_paths.paths
+                                            &seventh_occurrence.inner.paths
                                         {
                                             for fifth_occurrence in
-                                                &sixth_occurrence.depth_five_paths.paths
+                                                &sixth_occurrence.inner.paths
                                             {
                                                 for fourth_occurrence in
-                                                    &fifth_occurrence.depth_four_paths.paths
+                                                    &fifth_occurrence.inner.paths
                                                 {
                                                     for third_occurrence in
-                                                        &fourth_occurrence.depth_three_paths.paths
+                                                        &fourth_occurrence.inner.paths
                                                     {
                                                         for second_occurrence in
-                                                            &third_occurrence.depth_two_paths.paths
+                                                            &third_occurrence.inner.paths
                                                         {
                                                             total_leaf_occurrences = total_leaf_occurrences
                                                     .checked_add(
                                                         second_occurrence
-                                                            .middle_paths
+                                                            .inner
                                                             .paths
                                                             .len(),
                                                     )
@@ -1342,12 +1342,12 @@ pub(super) fn derive_depth_fifteen_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_fourteen_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_fourteen_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_fourteen_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-fifteen path `{}` requires one exact inner extent",
                 inner_field.name
@@ -1419,11 +1419,11 @@ pub(super) fn derive_depth_fifteen_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_fourteen_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-fourteen extent"),
-                align: path.depth_fourteen_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -1649,26 +1649,26 @@ pub(super) fn derive_depth_twelve_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for eleventh_occurrence in &path.depth_eleven_paths.paths {
-            for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
-                for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                    for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
-                        for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths {
-                            for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                                for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
+        for eleventh_occurrence in &path.inner.paths {
+            for tenth_occurrence in &eleventh_occurrence.inner.paths {
+                for ninth_occurrence in &tenth_occurrence.inner.paths {
+                    for eighth_occurrence in &ninth_occurrence.inner.paths {
+                        for seventh_occurrence in &eighth_occurrence.inner.paths {
+                            for sixth_occurrence in &seventh_occurrence.inner.paths {
+                                for fifth_occurrence in &sixth_occurrence.inner.paths {
                                     for fourth_occurrence in
-                                        &fifth_occurrence.depth_four_paths.paths
+                                        &fifth_occurrence.inner.paths
                                     {
                                         for third_occurrence in
-                                            &fourth_occurrence.depth_three_paths.paths
+                                            &fourth_occurrence.inner.paths
                                         {
                                             for second_occurrence in
-                                                &third_occurrence.depth_two_paths.paths
+                                                &third_occurrence.inner.paths
                                             {
                                                 total_leaf_occurrences = total_leaf_occurrences
                                                     .checked_add(
                                                         second_occurrence
-                                                            .middle_paths
+                                                            .inner
                                                             .paths
                                                             .len(),
                                                     )
@@ -1728,12 +1728,12 @@ pub(super) fn derive_depth_twelve_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_eleven_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_eleven_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_eleven_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-twelve path `{}` requires one exact inner extent",
                 inner_field.name
@@ -1804,11 +1804,11 @@ pub(super) fn derive_depth_twelve_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_eleven_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-eleven extent"),
-                align: path.depth_eleven_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -2033,21 +2033,21 @@ pub(super) fn derive_depth_eleven_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for tenth_occurrence in &path.depth_ten_paths.paths {
-            for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
-                    for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths {
-                        for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                            for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
-                                for fourth_occurrence in &fifth_occurrence.depth_four_paths.paths {
+        for tenth_occurrence in &path.inner.paths {
+            for ninth_occurrence in &tenth_occurrence.inner.paths {
+                for eighth_occurrence in &ninth_occurrence.inner.paths {
+                    for seventh_occurrence in &eighth_occurrence.inner.paths {
+                        for sixth_occurrence in &seventh_occurrence.inner.paths {
+                            for fifth_occurrence in &sixth_occurrence.inner.paths {
+                                for fourth_occurrence in &fifth_occurrence.inner.paths {
                                     for third_occurrence in
-                                        &fourth_occurrence.depth_three_paths.paths
+                                        &fourth_occurrence.inner.paths
                                     {
                                         for second_occurrence in
-                                            &third_occurrence.depth_two_paths.paths
+                                            &third_occurrence.inner.paths
                                         {
                                             total_leaf_occurrences = total_leaf_occurrences
-                                        .checked_add(second_occurrence.middle_paths.paths.len())
+                                        .checked_add(second_occurrence.inner.paths.len())
                                         .ok_or_else(|| {
                                             MaterializationDiagnostic(
                                                 "ConstMaterializable plural depth-eleven leaf occurrence count overflows"
@@ -2103,12 +2103,12 @@ pub(super) fn derive_depth_eleven_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_ten_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_ten_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_ten_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-eleven path `{}` requires one exact inner extent",
                 inner_field.name
@@ -2179,11 +2179,11 @@ pub(super) fn derive_depth_eleven_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_ten_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-ten extent"),
-                align: path.depth_ten_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -2407,17 +2407,17 @@ pub(super) fn derive_depth_ten_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for ninth_occurrence in &path.depth_nine_paths.paths {
-            for eighth_occurrence in &ninth_occurrence.depth_eight_paths.paths {
-                for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths {
-                    for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                        for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
-                            for fourth_occurrence in &fifth_occurrence.depth_four_paths.paths {
-                                for third_occurrence in &fourth_occurrence.depth_three_paths.paths {
-                                    for second_occurrence in &third_occurrence.depth_two_paths.paths
+        for ninth_occurrence in &path.inner.paths {
+            for eighth_occurrence in &ninth_occurrence.inner.paths {
+                for seventh_occurrence in &eighth_occurrence.inner.paths {
+                    for sixth_occurrence in &seventh_occurrence.inner.paths {
+                        for fifth_occurrence in &sixth_occurrence.inner.paths {
+                            for fourth_occurrence in &fifth_occurrence.inner.paths {
+                                for third_occurrence in &fourth_occurrence.inner.paths {
+                                    for second_occurrence in &third_occurrence.inner.paths
                                     {
                                         total_leaf_occurrences = total_leaf_occurrences
-                                        .checked_add(second_occurrence.middle_paths.paths.len())
+                                        .checked_add(second_occurrence.inner.paths.len())
                                         .ok_or_else(|| {
                                             MaterializationDiagnostic(
                                                 "ConstMaterializable plural depth-ten leaf occurrence count overflows"
@@ -2472,12 +2472,12 @@ pub(super) fn derive_depth_ten_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_nine_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_nine_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_nine_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-ten path `{}` requires one exact inner extent",
                 inner_field.name
@@ -2546,11 +2546,11 @@ pub(super) fn derive_depth_ten_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_nine_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-nine extent"),
-                align: path.depth_nine_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -2775,15 +2775,15 @@ pub(super) fn derive_depth_nine_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for eighth_occurrence in &path.depth_eight_paths.paths {
-            for seventh_occurrence in &eighth_occurrence.depth_seven_paths.paths {
-                for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                    for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
-                        for fourth_occurrence in &fifth_occurrence.depth_four_paths.paths {
-                            for third_occurrence in &fourth_occurrence.depth_three_paths.paths {
-                                for second_occurrence in &third_occurrence.depth_two_paths.paths {
+        for eighth_occurrence in &path.inner.paths {
+            for seventh_occurrence in &eighth_occurrence.inner.paths {
+                for sixth_occurrence in &seventh_occurrence.inner.paths {
+                    for fifth_occurrence in &sixth_occurrence.inner.paths {
+                        for fourth_occurrence in &fifth_occurrence.inner.paths {
+                            for third_occurrence in &fourth_occurrence.inner.paths {
+                                for second_occurrence in &third_occurrence.inner.paths {
                                     total_leaf_occurrences = total_leaf_occurrences
-                                        .checked_add(second_occurrence.middle_paths.paths.len())
+                                        .checked_add(second_occurrence.inner.paths.len())
                                         .ok_or_else(|| {
                                             MaterializationDiagnostic(
                                                 "ConstMaterializable plural depth-nine leaf occurrence count overflows"
@@ -2837,12 +2837,12 @@ pub(super) fn derive_depth_nine_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_eight_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_eight_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_eight_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-nine path `{}` requires one exact inner extent",
                 inner_field.name
@@ -2911,11 +2911,11 @@ pub(super) fn derive_depth_nine_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_eight_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-eight extent"),
-                align: path.depth_eight_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -3140,14 +3140,14 @@ pub(super) fn derive_depth_eight_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for seventh_occurrence in &path.depth_seven_paths.paths {
-            for sixth_occurrence in &seventh_occurrence.depth_six_paths.paths {
-                for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
-                    for fourth_occurrence in &fifth_occurrence.depth_four_paths.paths {
-                        for third_occurrence in &fourth_occurrence.depth_three_paths.paths {
-                            for second_occurrence in &third_occurrence.depth_two_paths.paths {
+        for seventh_occurrence in &path.inner.paths {
+            for sixth_occurrence in &seventh_occurrence.inner.paths {
+                for fifth_occurrence in &sixth_occurrence.inner.paths {
+                    for fourth_occurrence in &fifth_occurrence.inner.paths {
+                        for third_occurrence in &fourth_occurrence.inner.paths {
+                            for second_occurrence in &third_occurrence.inner.paths {
                                 total_leaf_occurrences = total_leaf_occurrences
-                                    .checked_add(second_occurrence.middle_paths.paths.len())
+                                    .checked_add(second_occurrence.inner.paths.len())
                                     .ok_or_else(|| {
                                         MaterializationDiagnostic(
                                             "ConstMaterializable plural depth-eight leaf occurrence count overflows"
@@ -3200,12 +3200,12 @@ pub(super) fn derive_depth_eight_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_seven_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_seven_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_seven_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-eight path `{}` requires one exact inner extent",
                 inner_field.name
@@ -3274,11 +3274,11 @@ pub(super) fn derive_depth_eight_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_seven_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-seven extent"),
-                align: path.depth_seven_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -3503,13 +3503,13 @@ pub(super) fn derive_depth_seven_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for sixth_occurrence in &path.depth_six_paths.paths {
-            for fifth_occurrence in &sixth_occurrence.depth_five_paths.paths {
-                for fourth_occurrence in &fifth_occurrence.depth_four_paths.paths {
-                    for third_occurrence in &fourth_occurrence.depth_three_paths.paths {
-                        for second_occurrence in &third_occurrence.depth_two_paths.paths {
+        for sixth_occurrence in &path.inner.paths {
+            for fifth_occurrence in &sixth_occurrence.inner.paths {
+                for fourth_occurrence in &fifth_occurrence.inner.paths {
+                    for third_occurrence in &fourth_occurrence.inner.paths {
+                        for second_occurrence in &third_occurrence.inner.paths {
                             total_leaf_occurrences = total_leaf_occurrences
-                                .checked_add(second_occurrence.middle_paths.paths.len())
+                                .checked_add(second_occurrence.inner.paths.len())
                                 .ok_or_else(|| {
                                     MaterializationDiagnostic(
                                         "ConstMaterializable plural depth-seven leaf occurrence count overflows"
@@ -3561,12 +3561,12 @@ pub(super) fn derive_depth_seven_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_six_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_six_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_six_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-seven path `{}` requires one exact inner extent",
                 inner_field.name
@@ -3635,11 +3635,11 @@ pub(super) fn derive_depth_seven_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_six_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-six extent"),
-                align: path.depth_six_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -3863,12 +3863,12 @@ pub(super) fn derive_depth_six_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for fourth_occurrence in &path.depth_five_paths.paths {
-            for third_occurrence in &fourth_occurrence.depth_four_paths.paths {
-                for second_occurrence in &third_occurrence.depth_three_paths.paths {
-                    for first_occurrence in &second_occurrence.depth_two_paths.paths {
+        for fourth_occurrence in &path.inner.paths {
+            for third_occurrence in &fourth_occurrence.inner.paths {
+                for second_occurrence in &third_occurrence.inner.paths {
+                    for first_occurrence in &second_occurrence.inner.paths {
                         total_leaf_occurrences = total_leaf_occurrences
-                            .checked_add(first_occurrence.middle_paths.paths.len())
+                            .checked_add(first_occurrence.inner.paths.len())
                             .ok_or_else(|| {
                                 MaterializationDiagnostic(
                                     "ConstMaterializable plural depth-six leaf occurrence count overflows"
@@ -3919,12 +3919,12 @@ pub(super) fn derive_depth_six_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_five_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_five_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_five_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-six path `{}` requires one exact inner extent",
                 inner_field.name
@@ -3993,11 +3993,11 @@ pub(super) fn derive_depth_six_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_five_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-five extent"),
-                align: path.depth_five_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -4222,11 +4222,11 @@ pub(super) fn derive_depth_five_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for third_occurrence in &path.depth_four_paths.paths {
-            for second_occurrence in &third_occurrence.depth_three_paths.paths {
-                for first_occurrence in &second_occurrence.depth_two_paths.paths {
+        for third_occurrence in &path.inner.paths {
+            for second_occurrence in &third_occurrence.inner.paths {
+                for first_occurrence in &second_occurrence.inner.paths {
                     total_leaf_occurrences = total_leaf_occurrences
-                        .checked_add(first_occurrence.middle_paths.paths.len())
+                        .checked_add(first_occurrence.inner.paths.len())
                         .ok_or_else(|| {
                             MaterializationDiagnostic(
                                 "ConstMaterializable plural depth-five leaf occurrence count overflows"
@@ -4276,12 +4276,12 @@ pub(super) fn derive_depth_five_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_four_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_four_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_four_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-five path `{}` requires one exact inner extent",
                 inner_field.name
@@ -4350,11 +4350,11 @@ pub(super) fn derive_depth_five_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_four_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-four extent"),
-                align: path.depth_four_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -4579,10 +4579,10 @@ pub(super) fn derive_depth_four_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for second_occurrence in &path.depth_three_paths.paths {
-            for first_occurrence in &second_occurrence.depth_two_paths.paths {
+        for second_occurrence in &path.inner.paths {
+            for first_occurrence in &second_occurrence.inner.paths {
                 total_leaf_occurrences = total_leaf_occurrences
-                    .checked_add(first_occurrence.middle_paths.paths.len())
+                    .checked_add(first_occurrence.inner.paths.len())
                     .ok_or_else(|| {
                         MaterializationDiagnostic(
                             "ConstMaterializable plural depth-four leaf occurrence count overflows"
@@ -4631,12 +4631,12 @@ pub(super) fn derive_depth_four_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_three_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_three_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_three_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-four path `{}` requires one exact inner extent",
                 inner_field.name
@@ -4705,11 +4705,11 @@ pub(super) fn derive_depth_four_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_three_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-three extent"),
-                align: path.depth_three_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -4934,9 +4934,9 @@ pub(super) fn derive_depth_three_nested_sums_bytes_with_reachability(
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for occurrence in &path.depth_two_paths.paths {
+        for occurrence in &path.inner.paths {
             total_leaf_occurrences = total_leaf_occurrences
-                .checked_add(occurrence.middle_paths.paths.len())
+                .checked_add(occurrence.inner.paths.len())
                 .ok_or_else(|| {
                     MaterializationDiagnostic(
                         "ConstMaterializable plural depth-three leaf occurrence count overflows"
@@ -4984,12 +4984,12 @@ pub(super) fn derive_depth_three_nested_sums_bytes_with_reachability(
             validate_const_materializable_record_with_depth_two_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_two_paths,
+                &path.inner,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_two_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.inner.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "ConstMaterializable plural depth-three path `{}` requires one exact inner extent",
                 inner_field.name
@@ -5058,11 +5058,11 @@ pub(super) fn derive_depth_three_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_two_paths
+                    .inner
                     .outer_layout
                     .size
                     .expect("validated plural depth-two extent"),
-                align: path.depth_two_paths.outer_layout.align,
+                align: path.inner.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
