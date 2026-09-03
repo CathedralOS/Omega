@@ -698,9 +698,11 @@ exact-type SSA value. The operation name describes its non-observing effect,
 not a requirement to discard readable authority. Reference execution keeps
 exact-typed primitive backing outside suspended call
 frames, so a callee replacement is caller-visible; fuel is consumed before the
-mutation and resumption cannot replay it. Broader projected/aggregate stores,
-opaque-provider realization, and native address/width/store lowering remain
-gated; physical pointer-layout equivalence is not permission equivalence.
+mutation and resumption cannot replay it. Broader projected/aggregate stores
+and opaque-provider realization remain gated. Native target lowering derives
+the exact primitive referent width/alignment and selects a borrowed-reference
+ABI on x86-64 and AArch64, then stops at the explicit physical-store fence;
+physical pointer-layout equivalence is not permission equivalence.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

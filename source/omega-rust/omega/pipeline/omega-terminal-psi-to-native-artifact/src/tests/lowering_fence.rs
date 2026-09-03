@@ -33,9 +33,9 @@ fn verified_write_only_primitive_store_stops_at_physical_lowering_fence() {
         &abstract_plan,
         omega_target::NativeTarget::linux_x64(),
     )
-    .expect_err("native lowering has no physical primitive-scalar or store custody yet");
+    .expect_err("native lowering has no physical store custody yet");
     assert!(matches!(
         error,
-        omega_abstract_operations_to_target_operations::LoweringError::UnsupportedStructuralPrimitiveScalar(_)
-    ));
+        omega_abstract_operations_to_target_operations::LoweringError::UnsupportedWriteOnlyPrimitiveStore { .. }
+    ), "unexpected lowering fence: {error:?}");
 }

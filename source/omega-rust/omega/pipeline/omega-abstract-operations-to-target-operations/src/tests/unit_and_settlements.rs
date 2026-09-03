@@ -93,7 +93,7 @@ fn parameter_dynamic_unit_dispatch_retains_two_word_result_less_abi() {
 }
 
 #[test]
-fn write_only_primitive_store_stops_at_explicit_physical_lowering_fence() {
+fn write_only_primitive_store_selects_exact_borrowed_abi_before_store_fence() {
     let machine = MachineId::new(61).unwrap();
     let block = BlockId::new(62).unwrap();
     let place = PlaceId::new(63).unwrap();
@@ -155,13 +155,32 @@ fn write_only_primitive_store_stops_at_explicit_physical_lowering_fence() {
         }],
     };
 
-    assert_eq!(
-        lower_to_target_operations(&plan, NativeTarget::linux_x64()),
-        Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
-            machine,
-            operation: store_operation,
-        })
-    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        assert_eq!(
+            lower_to_target_operations(&plan, target),
+            Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
+                machine,
+                operation: store_operation,
+            })
+        );
+
+        let mut interface_only = plan.clone();
+        interface_only.functions[0].operations.remove(1);
+        let lowered = lower_to_target_operations(&interface_only, target)
+            .expect("write-only primitive interface has an exact borrowed-reference ABI");
+        let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+            panic!("write-only primitive helper must remain an attached Unit body")
+        };
+        assert_eq!(
+            body.call_plan.parameters[0].shape,
+            ValueShape::borrowed_reference(4, 4)
+        );
+        assert_eq!(
+            body.parameters[0].shape,
+            ValueShape::borrowed_reference(4, 4)
+        );
+        assert_eq!(body.parameters[0].access, StructuralAccess::WriteOnlyBorrow);
+    }
 }
 
 #[test]

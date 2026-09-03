@@ -22,9 +22,22 @@ pub(crate) fn structural_shape(
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
         match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(_) => Err(
-                LoweringError::UnsupportedStructuralPrimitiveScalar(structural_type),
-            ),
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
+                Ok(ValueShape::integer(1, 1))
+            }
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) => {
+                let byte_size = integer.bits().div_ceil(8);
+                Ok(ValueShape::integer(
+                    byte_size,
+                    byte_size.next_power_of_two().min(8),
+                ))
+            }
+            StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+                IeeeFloatFormat::Binary32,
+            )) => Ok(ValueShape::float(4)),
+            StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+                IeeeFloatFormat::Binary64,
+            )) => Ok(ValueShape::float(8)),
             StructuralTypeShape::ByteSequence(_) => Err(
                 LoweringError::UnsupportedStructuralByteSequence(structural_type),
             ),
@@ -101,6 +114,20 @@ pub(crate) fn structural_shape(
     let shape = result?;
     cache.insert(structural_type, shape);
     Ok(shape)
+}
+
+pub(super) fn structural_parameter_shape(
+    referent: ValueShape,
+    access: StructuralAccess,
+) -> ValueShape {
+    if matches!(
+        access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) {
+        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+    } else {
+        referent
+    }
 }
 
 pub(super) fn structural_sum_layout(
