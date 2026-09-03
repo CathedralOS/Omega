@@ -1,8 +1,9 @@
 //! Independent assignment replay for a whole-root primitive store.
 
 use crate::assignment::shared::*;
+use omega_assigned_target_operations::AssignedUnitWriteOnlyPrimitiveStoreSource;
 use omega_calling_conventions::ValuePlacement;
-use omega_target_operations::TargetUnitBody;
+use omega_target_operations::{TargetUnitBody, TargetUnitWriteOnlyPrimitiveStoreSource};
 use psi_core::ScalarType;
 use psi_terminal::{StructuralParameterDeclaration, StructuralTypeDeclaration};
 
@@ -14,7 +15,7 @@ pub(super) fn assign(
     destination: &StructuralParameterDeclaration,
     destination_type: &StructuralTypeDeclaration,
     destination_placement: &ValuePlacement,
-    source: TargetUnitScalarArgumentSource,
+    source: TargetUnitWriteOnlyPrimitiveStoreSource,
     preceding_operations: &[TargetUnitOperation],
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     let invalid = || AssignmentError::WriteOnlyPrimitiveStoreCustodyMismatch {
@@ -24,7 +25,7 @@ pub(super) fn assign(
     let parameter_index = usize::try_from(destination.position).map_err(|_| invalid())?;
     let parameter = body.parameters.get(parameter_index).ok_or_else(invalid)?;
     let (expected_scalar_type, expected_shape) = match source {
-        TargetUnitScalarArgumentSource::IntegerImmediate { scalar_type, .. } => {
+        TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate { scalar_type, .. } => {
             let referent_shape =
                 super::scalar_call::fixed_integer_shape(source.source_value(), scalar_type)
                     .map_err(|_| invalid())?;
@@ -33,10 +34,19 @@ pub(super) fn assign(
                 ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment),
             )
         }
-        TargetUnitScalarArgumentSource::BooleanImmediate { .. } => {
+        TargetUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate { .. } => {
             (ScalarType::Boolean, ValueShape::borrowed_reference(1, 1))
         }
-        _ => return Err(invalid()),
+        TargetUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate { value, .. } => {
+            let byte_size = match value.format() {
+                psi_core::IeeeFloatFormat::Binary32 => 4,
+                psi_core::IeeeFloatFormat::Binary64 => 8,
+            };
+            (
+                ScalarType::IeeeFloat(value.format()),
+                ValueShape::borrowed_reference(byte_size, byte_size),
+            )
+        }
     };
     if destination.is_self
         || destination.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
@@ -65,19 +75,103 @@ pub(super) fn assign(
     {
         return Err(invalid());
     }
-    let assigned_source = super::scalar_call::assign_known_unit_scalar_source(
-        source,
-        preceding_operations,
-        &BTreeMap::new(),
-    )
-    .ok_or_else(invalid)?;
-    if assigned_source.scalar_type() != expected_scalar_type
-        || !matches!(
-            assigned_source,
-            AssignedUnitScalarArgumentSource::IntegerImmediate { .. }
-                | AssignedUnitScalarArgumentSource::BooleanImmediate { .. }
-        )
-    {
+    let definition_matches = preceding_operations
+        .iter()
+        .filter(|operation| match (source, operation) {
+            (
+                TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
+                    defining_operation,
+                    source_value,
+                    scalar_type,
+                    value,
+                },
+                TargetUnitOperation::IntegerConstant {
+                    psi_operation,
+                    result,
+                    scalar_type: retained_type,
+                    value: retained_value,
+                },
+            ) => {
+                *psi_operation == defining_operation
+                    && *result == source_value
+                    && *retained_type == scalar_type
+                    && *retained_value == value
+            }
+            (
+                TargetUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate {
+                    defining_operation,
+                    source_value,
+                    value,
+                },
+                TargetUnitOperation::BooleanConstant {
+                    psi_operation,
+                    result,
+                    value: retained_value,
+                },
+            ) => {
+                *psi_operation == defining_operation
+                    && *result == source_value
+                    && *retained_value == value
+            }
+            (
+                TargetUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate {
+                    defining_operation,
+                    source_value,
+                    value,
+                },
+                TargetUnitOperation::IeeeFloatConstant {
+                    psi_operation,
+                    result,
+                    value: retained_value,
+                },
+            ) => {
+                *psi_operation == defining_operation
+                    && *result == source_value
+                    && *retained_value == value
+            }
+            _ => false,
+        })
+        .count();
+    if definition_matches != 1 {
+        return Err(invalid());
+    }
+    let assigned_source = match source {
+        TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => {
+            if psi_core::ScalarTerm::integer(scalar_type, value).is_err() {
+                return Err(invalid());
+            }
+            AssignedUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
+                defining_operation,
+                source_value,
+                scalar_type,
+                value,
+            }
+        }
+        TargetUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+        } => AssignedUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+        },
+        TargetUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate {
+            defining_operation,
+            source_value,
+            value,
+        } => AssignedUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate {
+            defining_operation,
+            source_value,
+            value,
+        },
+    };
+    if assigned_source.scalar_type() != expected_scalar_type {
         return Err(invalid());
     }
     Ok(AssignedUnitOperation::WriteOnlyPrimitiveStore {

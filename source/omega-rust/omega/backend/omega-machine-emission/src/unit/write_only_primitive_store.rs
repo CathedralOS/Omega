@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use omega_assigned_target_operations::{
-    AssignedUnitBody, AssignedUnitOperation, AssignedUnitScalarArgumentSource,
+    AssignedUnitBody, AssignedUnitOperation, AssignedUnitWriteOnlyPrimitiveStoreSource,
 };
 use omega_calling_conventions::ValueShape;
 use omega_machine_code::{
@@ -44,7 +44,7 @@ pub(super) fn emit_write_only_primitive_store(
     };
     let invalid = || EmissionError::InvalidWriteOnlyPrimitiveStoreCustody(*psi_operation);
     let (source_record, destination_scalar_type, byte_size, bits) = match *source {
-        AssignedUnitScalarArgumentSource::IntegerImmediate {
+        AssignedUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
             defining_operation,
             source_value,
             scalar_type,
@@ -68,7 +68,7 @@ pub(super) fn emit_write_only_primitive_store(
                 integer_bits(source_value, scalar_type, value)?,
             )
         }
-        AssignedUnitScalarArgumentSource::BooleanImmediate {
+        AssignedUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate {
             defining_operation,
             source_value,
             value,
@@ -93,7 +93,9 @@ pub(super) fn emit_write_only_primitive_store(
                 u64::from(value),
             )
         }
-        _ => return Err(invalid()),
+        AssignedUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate { .. } => {
+            return Err(invalid());
+        }
     };
     let parameter_index = usize::try_from(destination.position).map_err(|_| invalid())?;
     let parameter = body.parameters.get(parameter_index).ok_or_else(invalid)?;

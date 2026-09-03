@@ -3,6 +3,8 @@
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::scalar_call::KnownUnitInteger;
+use omega_target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
+use psi_core::IeeeFloatValue;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_write_only_primitive_store(
@@ -12,6 +14,7 @@ pub(super) fn lower_write_only_primitive_store(
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
+    ieee_float_constants: &BTreeMap<ValueId, (OperationId, IeeeFloatValue)>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
@@ -51,18 +54,25 @@ pub(super) fn lower_write_only_primitive_store(
     let (expected_shape, source) = match value.scalar_type {
         ScalarType::Integer(integer_type) => {
             let referent_shape = fixed_native_integer_shape(integer_type).ok_or_else(invalid)?;
-            let known_value = scalar_values
-                .get(&value.value)
-                .copied()
-                .ok_or_else(invalid)?;
-            if known_value.scalar_type() != integer_type
-                || !matches!(known_value, KnownUnitInteger::Immediate { .. })
-            {
+            let Some(KnownUnitInteger::Immediate {
+                defining_operation,
+                scalar_type,
+                value: immediate,
+            }) = scalar_values.get(&value.value).copied()
+            else {
+                return Err(invalid());
+            };
+            if scalar_type != integer_type {
                 return Err(invalid());
             }
             (
                 ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment),
-                known_value.into_target_source(value.value),
+                TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate {
+                    defining_operation,
+                    source_value: value.value,
+                    scalar_type,
+                    value: immediate,
+                },
             )
         }
         ScalarType::Boolean => {
@@ -72,14 +82,34 @@ pub(super) fn lower_write_only_primitive_store(
                 .ok_or_else(invalid)?;
             (
                 ValueShape::borrowed_reference(1, 1),
-                TargetUnitScalarArgumentSource::BooleanImmediate {
+                TargetUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate {
                     defining_operation,
                     source_value: value.value,
                     value: immediate,
                 },
             )
         }
-        ScalarType::IeeeFloat(_) => return Err(invalid()),
+        ScalarType::IeeeFloat(format) => {
+            let (defining_operation, immediate) = ieee_float_constants
+                .get(&value.value)
+                .copied()
+                .ok_or_else(invalid)?;
+            if immediate.format() != format {
+                return Err(invalid());
+            }
+            let byte_size = match format {
+                IeeeFloatFormat::Binary32 => 4,
+                IeeeFloatFormat::Binary64 => 8,
+            };
+            (
+                ValueShape::borrowed_reference(byte_size, byte_size),
+                TargetUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate {
+                    defining_operation,
+                    source_value: value.value,
+                    value: immediate,
+                },
+            )
+        }
     };
     let target_parameter = parameters_by_place
         .get(&destination.place)

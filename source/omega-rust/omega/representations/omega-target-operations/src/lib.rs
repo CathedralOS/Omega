@@ -713,6 +713,47 @@ impl TargetUnitScalarArgumentSource {
     }
 }
 
+/// Exact source of one whole-root primitive replacement. This is distinct
+/// from scalar-call arguments: admitting a store literal must not silently
+/// widen any call ABI or foreign-boundary vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetUnitWriteOnlyPrimitiveStoreSource {
+    IntegerImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
+    BooleanImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: bool,
+    },
+    IeeeFloatImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: IeeeFloatValue,
+    },
+}
+
+impl TargetUnitWriteOnlyPrimitiveStoreSource {
+    pub const fn source_value(self) -> ValueId {
+        match self {
+            Self::IntegerImmediate { source_value, .. }
+            | Self::BooleanImmediate { source_value, .. }
+            | Self::IeeeFloatImmediate { source_value, .. } => source_value,
+        }
+    }
+
+    pub const fn scalar_type(self) -> ScalarType {
+        match self {
+            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::BooleanImmediate { .. } => ScalarType::Boolean,
+            Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
+        }
+    }
+}
+
 /// One positional scalar argument and its exact selected ABI
 /// destination. `placement` is retained from the complete call plan so a
 /// later assignment cannot silently reinterpret an incoming-stack coordinate
@@ -792,7 +833,7 @@ pub enum TargetUnitOperation {
         destination: StructuralParameterDeclaration,
         destination_type: StructuralTypeDeclaration,
         destination_placement: ValuePlacement,
-        source: TargetUnitScalarArgumentSource,
+        source: TargetUnitWriteOnlyPrimitiveStoreSource,
     },
     /// One verifier-approved fixed-width integer write into an exact field of
     /// a staged attached-Unit structural parameter. Semantic location and

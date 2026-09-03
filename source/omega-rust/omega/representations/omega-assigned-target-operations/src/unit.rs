@@ -224,6 +224,47 @@ impl AssignedUnitScalarArgumentSource {
     }
 }
 
+/// Independently replayed physical source for one whole-root primitive store.
+/// It remains separate from scalar-call sources so a new store family cannot
+/// widen call or boundary acceptance by representation alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignedUnitWriteOnlyPrimitiveStoreSource {
+    IntegerImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
+    BooleanImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: bool,
+    },
+    IeeeFloatImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: IeeeFloatValue,
+    },
+}
+
+impl AssignedUnitWriteOnlyPrimitiveStoreSource {
+    pub const fn source_value(self) -> ValueId {
+        match self {
+            Self::IntegerImmediate { source_value, .. }
+            | Self::BooleanImmediate { source_value, .. }
+            | Self::IeeeFloatImmediate { source_value, .. } => source_value,
+        }
+    }
+
+    pub const fn scalar_type(self) -> ScalarType {
+        match self {
+            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::BooleanImmediate { .. } => ScalarType::Boolean,
+            Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
+        }
+    }
+}
+
 /// One positional scalar argument after durable-home assignment. The complete
 /// ABI placement remains explicit; it is not reconstructed from register
 /// ordinals during emission.
@@ -285,7 +326,7 @@ pub enum AssignedUnitOperation {
         destination: StructuralParameterDeclaration,
         destination_type: StructuralTypeDeclaration,
         destination_placement: ValuePlacement,
-        source: AssignedUnitScalarArgumentSource,
+        source: AssignedUnitWriteOnlyPrimitiveStoreSource,
     },
     StructuralScalarFieldStore {
         psi_operation: OperationId,

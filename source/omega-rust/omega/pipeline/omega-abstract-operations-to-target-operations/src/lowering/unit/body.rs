@@ -108,6 +108,7 @@ pub(super) fn lower_unit_body(
                 &parameters_by_place,
                 &scalar_values,
                 &boolean_constants,
+                &ieee_float_constants,
                 &mut operations,
                 &mut provenance,
             )?,
