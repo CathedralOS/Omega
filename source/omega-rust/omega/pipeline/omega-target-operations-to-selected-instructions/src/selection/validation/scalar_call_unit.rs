@@ -103,7 +103,7 @@ pub(super) fn validate(
         } else {
             durable
         };
-        for argument_index in 0..2 {
+        for (argument_index, input_register) in inputs.into_iter().enumerate() {
             let instruction = &block.instructions[base + argument_index];
             let value = source_call.arguments[argument_index].source.source_value();
             let register = &selected.virtual_registers[base + argument_index];
@@ -114,7 +114,7 @@ pub(super) fn validate(
                     .iter()
                     .map(|operand| operand.virtual_register)
                     .ne([
-                        inputs[argument_index],
+                        input_register,
                         VirtualRegisterId((base + argument_index) as u32),
                     ])
                 || instruction.provenance

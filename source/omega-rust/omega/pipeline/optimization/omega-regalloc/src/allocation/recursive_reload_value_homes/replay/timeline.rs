@@ -255,11 +255,11 @@ fn retain_pairs(
     }
 }
 
-fn lookup<'a>(
+fn lookup(
     function: usize,
-    specs: &'a [ReplaySpec],
+    specs: &[ReplaySpec],
     action: GeneralizedSpillActionId,
-) -> Result<&'a ReplaySpec, RecursiveReloadValueHomeError> {
+) -> Result<&ReplaySpec, RecursiveReloadValueHomeError> {
     specs
         .iter()
         .find(|row| row.action == action)

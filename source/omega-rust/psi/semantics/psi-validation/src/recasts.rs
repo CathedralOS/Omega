@@ -1271,7 +1271,7 @@ fn judge_slice_recast(
             let remaining = region_length - exact_offset;
             if remaining < 0
                 || element_representation.size == 0
-                || remaining as usize % element_representation.size != 0
+                || !(remaining as usize).is_multiple_of(element_representation.size)
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "{context}: interior slice target `{target_label}` does not exactly tile \

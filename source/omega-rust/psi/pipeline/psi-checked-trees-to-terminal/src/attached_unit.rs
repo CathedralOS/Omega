@@ -598,7 +598,7 @@ pub(super) fn lower_attached_unit_closure_including(
             .map(|requirement| {
                 if usize::try_from(requirement.argument_index)
                     .ok()
-                    .map_or(true, |index| index >= parameters.len())
+                    .is_none_or(|index| index >= parameters.len())
                 {
                     return Err(LoweringError::Unsupported(
                         "boundary structural requirement has an invalid argument index",
@@ -1706,7 +1706,6 @@ pub(super) fn lower_attached_unit_closure_including(
                     let left = lower_operand(left)?;
                     let right = lower_operand(right)?;
                     let addend = lower_operand(addend)?;
-                    drop(lower_operand);
                     let value = ValueDeclaration {
                         id: value_id(next_value_identity),
                         scalar_type: result_type,
@@ -2464,11 +2463,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 .chain(local_places.iter().cloned())
                 .chain(affine_scalar_record_places.iter().cloned())
                 .chain(literal_places.iter().cloned())
-                .chain(
-                    structural_result_places
-                        .iter()
-                        .map(|(place, _)| place.clone()),
-                )
+                .chain(structural_result_places.iter().map(|(place, _)| *place))
                 .collect(),
             entry_claims: entry_claims.clone(),
             published_service_ceiling: if let Some(provider) = provider_candidate_plans

@@ -67,16 +67,18 @@ fn duplicate_and_unscheduled_manifest_identities_reject() {
             OptimizationUnitIdentity::from_canonical_bytes(b"output"),
             OptimizationRuleSetIdentity::from_ordered_rules(&listed).unwrap(),
             listed,
-            vec![OptimizationDecisionRecord::new(
-                OptimizationUnitIdentity::from_canonical_bytes(b"input"),
-                OptimizationCandidateIdentity::from_canonical_bytes(b"candidate"),
-                unscheduled,
-                OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Inapplicable,),
-                AnalysisSet::default(),
-                Vec::new(),
-                None,
-            )
-            .unwrap()],
+            vec![
+                OptimizationDecisionRecord::new(
+                    OptimizationUnitIdentity::from_canonical_bytes(b"input"),
+                    OptimizationCandidateIdentity::from_canonical_bytes(b"candidate"),
+                    unscheduled,
+                    OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Inapplicable,),
+                    AnalysisSet::default(),
+                    Vec::new(),
+                    None,
+                )
+                .unwrap()
+            ],
             OptimizationWorkUsage::default(),
         ),
         Err(InvalidOptimizationManifestRecord::DecisionNamesUnscheduledRule)

@@ -200,9 +200,9 @@ fn countdown_edge_parts<'program>(
     usize,
     ExpressionHandle,
 )> {
-    let ExpressionNode::Name(decreases_path) = program.expression_table.expression(decreases)
-    else {
-        return None;
+    let decreases_path = match program.expression_table.expression(decreases) {
+        ExpressionNode::Name(path) => path,
+        _ => return None,
     };
     let decrease_name = program
         .expression_table
@@ -210,23 +210,15 @@ fn countdown_edge_parts<'program>(
         .last()
         .map(|member| member.as_str())
         .unwrap_or_default();
-    let Some(parameter) = program
+    let parameter = program
         .state_parameters(source)
         .iter()
         .filter(|parameter| !parameter.is_self)
         .find(|parameter| {
             parameter.symbol == decreases_path.symbol || parameter.name.as_str() == decrease_name
-        })
-    else {
-        return None;
-    };
-    let Some(argument_index) = target_argument_index(program, target, parameter.name.as_str())
-    else {
-        return None;
-    };
-    let Some(argument) = arguments.get(argument_index).copied() else {
-        return None;
-    };
+        })?;
+    let argument_index = target_argument_index(program, target, parameter.name.as_str())?;
+    let argument = arguments.get(argument_index).copied()?;
     Some((parameter, argument_index, argument))
 }
 

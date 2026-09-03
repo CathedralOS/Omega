@@ -87,9 +87,11 @@ pub(super) fn resolve_state_scoped_table_path_member_symbols(
         resolved.push(current);
     }
 
-    (resolved.len() == members.len())
-        .then_some(resolved)
-        .unwrap_or_default()
+    if resolved.len() == members.len() {
+        resolved
+    } else {
+        Default::default()
+    }
 }
 
 pub(super) fn resolve_state_scoped_table_path_with_indexed_last_member(
@@ -210,45 +212,47 @@ fn resolve_state_scoped_table_members(
     }
 
     if !current.is_valid() {
-        current = if indexed_last_member.is_some() && index + 1 == members.len() {
-            let indexed_symbol = resolve_base_indexed_symbol(
-                symbols,
-                machine_symbol,
-                state_symbol,
-                members[index].as_str(),
-                indexed_last_member.expect("indexed last member should be present"),
-            );
-            if !indexed_symbol.is_valid() {
-                return invalid_symbol_pair();
-            }
-            indexed_symbol
-        } else {
-            let base_symbol =
-                resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index]);
-            if !base_symbol.is_valid() {
-                return invalid_symbol_pair();
-            }
-            base_symbol
-        };
+        current =
+            if let Some(last_index) = indexed_last_member.filter(|_| index + 1 == members.len()) {
+                let indexed_symbol = resolve_base_indexed_symbol(
+                    symbols,
+                    machine_symbol,
+                    state_symbol,
+                    members[index].as_str(),
+                    last_index,
+                );
+                if !indexed_symbol.is_valid() {
+                    return invalid_symbol_pair();
+                }
+                indexed_symbol
+            } else {
+                let base_symbol =
+                    resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index]);
+                if !base_symbol.is_valid() {
+                    return invalid_symbol_pair();
+                }
+                base_symbol
+            };
         head = current;
         index += 1;
     } else {
-        current = if indexed_last_member.is_some() && index + 1 == members.len() {
-            child_indexed_symbol_by_kinds(
-                symbols,
-                current,
-                &[SymbolKind::Field, SymbolKind::State],
-                members[index].as_str(),
-                indexed_last_member.expect("indexed last member should be present"),
-            )
-        } else {
-            child_or_attached_data_child_symbol_by_kinds(
-                symbols,
-                current,
-                &[SymbolKind::Field, SymbolKind::State],
-                members[index].as_str(),
-            )
-        };
+        current =
+            if let Some(last_index) = indexed_last_member.filter(|_| index + 1 == members.len()) {
+                child_indexed_symbol_by_kinds(
+                    symbols,
+                    current,
+                    &[SymbolKind::Field, SymbolKind::State],
+                    members[index].as_str(),
+                    last_index,
+                )
+            } else {
+                child_or_attached_data_child_symbol_by_kinds(
+                    symbols,
+                    current,
+                    &[SymbolKind::Field, SymbolKind::State],
+                    members[index].as_str(),
+                )
+            };
         if !current.is_valid() {
             return invalid_symbol_pair();
         }
@@ -258,7 +262,7 @@ fn resolve_state_scoped_table_members(
 
     for (offset, member) in members[index..].iter().enumerate() {
         let is_last = index + offset + 1 == members.len();
-        current = if indexed_last_member.is_some() && is_last {
+        current = if let Some(last_index) = indexed_last_member.filter(|_| is_last) {
             child_indexed_symbol_by_kinds(
                 symbols,
                 current,
@@ -269,7 +273,7 @@ fn resolve_state_scoped_table_members(
                     SymbolKind::Variant,
                 ],
                 member.as_str(),
-                indexed_last_member.expect("indexed last member should be present"),
+                last_index,
             )
         } else {
             child_or_attached_data_child_symbol_by_kinds(

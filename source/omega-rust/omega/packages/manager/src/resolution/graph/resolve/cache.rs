@@ -62,12 +62,10 @@ impl GitAcquisitionCache {
             .selected
             .iter()
             .find(|(selected, _)| selected == request)
+            && (application_root_allowed
+                || resolved.role() == crate::declarations::BuildDeclarationKind::Package)
         {
-            if application_root_allowed
-                || resolved.role() == crate::declarations::BuildDeclarationKind::Package
-            {
-                return Ok(resolved.clone());
-            }
+            return Ok(resolved.clone());
         }
         let pin = self
             .pins

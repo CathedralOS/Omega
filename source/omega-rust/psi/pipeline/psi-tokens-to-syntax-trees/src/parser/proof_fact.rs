@@ -20,9 +20,7 @@ fn copy_item_path_to_expression_path(
         .tables
         .items
         .identifier_path_members(span)
-        .iter()
-        .cloned()
-        .collect::<Vec<_>>();
+        .to_vec();
 
     for member in members {
         let handle = syntax_trees

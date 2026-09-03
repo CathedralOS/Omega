@@ -1298,7 +1298,10 @@ fn descriptor_transfer_retains_one_parameter_forwarding_hop() {
     let [plan] = dynamic.direct_scalar_calls.as_slice() else {
         panic!("one multi-hop dynamic scalar call expected, got {dynamic:#?}")
     };
-    assert_eq!(plan.forwarding_transfers, [parameter_transfer.clone()]);
+    assert_eq!(
+        plan.forwarding_transfers.as_slice(),
+        std::slice::from_ref(parameter_transfer)
+    );
     let psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
         machine,
         state,
@@ -1344,7 +1347,10 @@ fn descriptor_transfer_retains_one_unit_parameter_forwarding_hop() {
     let [plan] = dynamic.direct_unit_calls.as_slice() else {
         panic!("one multi-hop dynamic Unit call expected, got {dynamic:#?}")
     };
-    assert_eq!(plan.forwarding_transfers, [parameter_transfer.clone()]);
+    assert_eq!(
+        plan.forwarding_transfers.as_slice(),
+        std::slice::from_ref(parameter_transfer)
+    );
     assert!(matches!(
         selection_transfer.source,
         psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection

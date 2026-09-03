@@ -175,7 +175,7 @@ fn domain(value: u32, carrier: StructuralTypeId) -> StructuralDomainDeclaration 
     StructuralDomainDeclaration {
         id: StructuralDomainId::new(value.into()).unwrap(),
         semantic_domain: DomainSemanticId::new(value.into()).unwrap(),
-        identity: format!("ProjectedDomain{value}").into(),
+        identity: format!("ProjectedDomain{value}"),
         carrier,
         content_projection: None,
     }

@@ -429,7 +429,7 @@ fn compiler_captured_canonical_metadata_rejects_late_same_length_content_drift()
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&tree.0.join("root"), fs::Permissions::from_mode(0o755))
+        fs::set_permissions(tree.0.join("root"), fs::Permissions::from_mode(0o755))
             .expect("unseal source root for cleanup");
     }
 }

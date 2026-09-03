@@ -1,15 +1,15 @@
 //! Optimizer module role: identity leaf. Complete policy-table commitment.
 
 use omega_effects::{
-    terminal_mechanism_identity_bytes, TerminalAuthorityDisposition, TerminalMechanismIdentity,
+    TerminalAuthorityDisposition, TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
 };
 use sha2::{Digest, Sha256};
 
 use super::{
-    classification::classify_compiler_intrinsic,
-    inventory::{committed_policy_mechanisms, CLOSED_POLICY_ROW_COUNT},
-    model::TerminalAuthorityPolicyRow,
     TERMINAL_AUTHORITY_POLICY_VERSION,
+    classification::classify_compiler_intrinsic,
+    inventory::{CLOSED_POLICY_ROW_COUNT, committed_policy_mechanisms},
+    model::TerminalAuthorityPolicyRow,
 };
 
 const POLICY_COMMITMENT_DOMAIN: &[u8] = b"omega.terminal-authority.policy.v2\0";

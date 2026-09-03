@@ -153,7 +153,8 @@ pub(crate) fn emit_realization_machine_code(
                 let physical_evidence_scope = match boundary_application_coverage {
                     Some(coverage) => {
                         let validation = optimized.validation();
-                        let scope = omega_native_artifact::NativePhysicalEvidenceScope::from_validated_optimization(
+
+                        omega_native_artifact::NativePhysicalEvidenceScope::from_validated_optimization(
                             optimized.plan(),
                             validation.psi(),
                             validation.identity(),
@@ -162,8 +163,7 @@ pub(crate) fn emit_realization_machine_code(
                         )
                         .map_err(|error| {
                             realization_error("optimized physical-evidence projection", error)
-                        })?;
-                        scope
+                        })?
                     }
                     None => NativePhysicalEvidenceScope::Unavailable,
                 };
@@ -208,10 +208,10 @@ pub(crate) fn emit_realization_machine_code(
                 omega_optimization_pipeline::StagedOptimizedNativeContinuation::CoverageFallbackAssigned(
                     _,
                 ) => {
-                    return Err(realization_error(
+                    Err(realization_error(
                         "optimized native continuation",
                         "a nonempty optimization selection unexpectedly used the coverage fallback",
-                    ));
+                    ))
                 }
                 omega_optimization_pipeline::StagedOptimizedNativeContinuation::SelectedPhysical(
                     physical,
@@ -232,15 +232,15 @@ pub(crate) fn emit_realization_machine_code(
                                     final_unit: optimized_validation.final_unit(),
                                 },
                             )?;
-                        return Ok(EmittedRealizationMachineCode {
+                        Ok(EmittedRealizationMachineCode {
                             machine_code: MachineCodePlanWithPrivateFunctions {
                                 plan,
                                 private_functions: Vec::new(),
                             },
                             physical_evidence_scope,
-                        });
+                        })
                     }
-                    other => return Err(selected_physical_pipeline_not_publishable(
+                    other => Err(selected_physical_pipeline_not_publishable(
                         request.optimization_selections,
                         &other,
                     )),

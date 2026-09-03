@@ -92,12 +92,11 @@ fn check_checked_facts_recording_with_crash_admission(
     }
 
     crashes::infer_path_conditioned_guard_coverage(program, facts, &incoming_guards);
-    if enforce_crash_admission {
-        if let Err(mut crash_diagnostics) =
+    if enforce_crash_admission
+        && let Err(mut crash_diagnostics) =
             crashes::check_published_ceiling_coverage(program, facts)
-        {
-            diagnostics.append(&mut crash_diagnostics);
-        }
+    {
+        diagnostics.append(&mut crash_diagnostics);
     }
 
     content::infer_identity_preserving_reshuffles(program, facts);

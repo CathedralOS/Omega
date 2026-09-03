@@ -155,10 +155,7 @@ fn validate_trait_requirement_cycles(
     reported_cycle_symbols: &mut Vec<SymbolHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if reported_cycle_symbols
-        .iter()
-        .any(|symbol| *symbol == trait_definition.symbol)
-    {
+    if reported_cycle_symbols.contains(&trait_definition.symbol) {
         return;
     }
 

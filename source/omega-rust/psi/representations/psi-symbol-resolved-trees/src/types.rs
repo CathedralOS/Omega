@@ -11,7 +11,7 @@ mod tests;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TypeReference {
     Reference(ReferenceTypeReference),
     Constrained(ConstrainedTypeReference),
@@ -37,13 +37,8 @@ pub enum TypeReference {
     SelfType {
         symbol: SymbolHandle,
     },
+    #[default]
     Unit,
-}
-
-impl Default for TypeReference {
-    fn default() -> Self {
-        Self::Unit
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -563,7 +558,7 @@ impl Default for TypeReferenceTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
@@ -604,13 +599,8 @@ pub enum TypeReferenceNode {
     SelfType {
         symbol: SymbolHandle,
     },
+    #[default]
     Unit,
-}
-
-impl Default for TypeReferenceNode {
-    fn default() -> Self {
-        Self::Unit
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

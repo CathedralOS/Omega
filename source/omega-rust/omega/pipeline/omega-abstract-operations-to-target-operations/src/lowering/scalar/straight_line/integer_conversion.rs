@@ -4,7 +4,7 @@ use super::*;
 
 pub(super) fn lower_integer_conversion(
     operation: &AbstractOperation,
-    mut values: &mut BTreeMap<ValueId, KnownScalar>,
+    values: &mut BTreeMap<ValueId, KnownScalar>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
     let (psi_operation, result, scalar_type, value) = match operation {
@@ -103,11 +103,7 @@ pub(super) fn lower_integer_conversion(
         _ => unreachable!("integer-conversion routing admits only its declared operations"),
     };
 
-    insert_value(
-        &mut values,
-        result,
-        KnownScalar::Integer { scalar_type, value },
-    )?;
+    insert_value(values, result, KnownScalar::Integer { scalar_type, value })?;
     provenance.operations.push(psi_operation);
     Ok(())
 }

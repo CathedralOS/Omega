@@ -137,12 +137,12 @@ impl<'program> Evaluator<'program> {
                         let byte = value.as_int().ok_or_else(|| {
                             Halt::Trap("carrier byte write value is not an integer".to_owned())
                         })? as u8;
-                        if let Value::Str(text) = &*collection_cell.borrow() {
-                            if let Err(len) = text.write_byte(index, byte) {
-                                return Err(Halt::Trap(format!(
-                                    "carrier byte write index {index} out of bounds (len {len})"
-                                )));
-                            }
+                        if let Value::Str(text) = &*collection_cell.borrow()
+                            && let Err(len) = text.write_byte(index, byte)
+                        {
+                            return Err(Halt::Trap(format!(
+                                "carrier byte write index {index} out of bounds (len {len})"
+                            )));
                         }
                         return Ok(());
                     }
@@ -160,18 +160,17 @@ impl<'program> Evaluator<'program> {
                 // the source cell and remember the two scalar interpretations;
                 // eval_name performs source -> view reads, while assignment
                 // performs view -> source writes before touching the cell.
-                if local.initial_value.is_valid() {
-                    if let Some((source, recast)) =
+                if local.initial_value.is_valid()
+                    && let Some((source, recast)) =
                         self.mutable_scalar_recast_initializer(local.initial_value, frame)?
-                    {
-                        frame.bind(local.name.as_str(), self.allocate_cell(Value::Ref(source))?);
-                        frame.bind_type(local.name.as_str(), local.type_reference);
-                        frame
-                            .mutable_scalar_recasts
-                            .borrow_mut()
-                            .insert(local.name.as_str().to_owned(), recast);
-                        return Ok(());
-                    }
+                {
+                    frame.bind(local.name.as_str(), self.allocate_cell(Value::Ref(source))?);
+                    frame.bind_type(local.name.as_str(), local.type_reference);
+                    frame
+                        .mutable_scalar_recasts
+                        .borrow_mut()
+                        .insert(local.name.as_str().to_owned(), recast);
+                    return Ok(());
                 }
                 // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so
                 // a later mutation of `v` does not alias the initializer's source. A
@@ -338,10 +337,10 @@ impl<'program> Evaluator<'program> {
         // -- e.g. `Picker::pick` and `Main::read_at` BOTH having a `try1` sub-state -- collides on
         // the type/global fallbacks below and runs the WRONG machine's body (the read_at `try1`
         // transition would run pick's `try1`, returning pick's value).
-        if let Some(machine) = self.current_machine(frame) {
-            if self.find_state(machine, state_name).is_some() {
-                return Some(machine.clone());
-            }
+        if let Some(machine) = self.current_machine(frame)
+            && self.find_state(machine, state_name).is_some()
+        {
+            return Some(machine.clone());
         }
         let type_symbol = match &*frame.self_cell.borrow() {
             Value::Struct { type_symbol, .. } => *type_symbol,
@@ -494,10 +493,10 @@ impl<'program> Evaluator<'program> {
         }
 
         // (2) Sibling state of the current machine.
-        if let Some(machine) = self.current_machine(frame) {
-            if self.find_state(machine, target).is_some() {
-                return Ok((machine.clone(), target.to_owned(), frame.self_cell.clone()));
-            }
+        if let Some(machine) = self.current_machine(frame)
+            && self.find_state(machine, target).is_some()
+        {
+            return Ok((machine.clone(), target.to_owned(), frame.self_cell.clone()));
         }
 
         // (3) A free helper machine.
@@ -654,10 +653,10 @@ impl<'program> Evaluator<'program> {
         // A FREE top-level machine named exactly `target` (`machine pick(x: i32)
         // -> i32`): its body state is the generated `entry`, so the state-name
         // scan below would miss it.
-        if let Some(machine) = self.find_machine_by_name(target) {
-            if machine.attached_data.is_none() {
-                return Some(machine.clone());
-            }
+        if let Some(machine) = self.find_machine_by_name(target)
+            && machine.attached_data.is_none()
+        {
+            return Some(machine.clone());
         }
         // Otherwise a machine that simply has a state named `target` -- but only when that
         // is UNAMBIGUOUS. With several candidates (e.g. two impls of the same trait

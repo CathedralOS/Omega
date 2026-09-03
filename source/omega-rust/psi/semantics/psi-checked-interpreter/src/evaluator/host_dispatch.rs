@@ -140,15 +140,15 @@ impl<'program> Evaluator<'program> {
                 // the mutable text-carrier out-parameter. CRLF is normalized (a trailing `\r` is
                 // dropped). Returns whether a line was available (some programs ignore it).
                 let line = self.read_stdin_line();
-                if let Some(first) = arguments.first() {
-                    if let Ok(cell) = self.resolve_place(*first, frame) {
-                        let cell = self.deref_cell(cell);
-                        if let Value::Str(text) = &*cell.borrow() {
-                            text.replace(line.clone().into_bytes())
-                                .map_err(Halt::Resource)?;
-                        } else {
-                            *cell.borrow_mut() = self.allocate_text(line.clone().into_bytes())?;
-                        }
+                if let Some(first) = arguments.first()
+                    && let Ok(cell) = self.resolve_place(*first, frame)
+                {
+                    let cell = self.deref_cell(cell);
+                    if let Value::Str(text) = &*cell.borrow() {
+                        text.replace(line.clone().into_bytes())
+                            .map_err(Halt::Resource)?;
+                    } else {
+                        *cell.borrow_mut() = self.allocate_text(line.clone().into_bytes())?;
                     }
                 }
                 Ok(Some(Value::Bool(!line.is_empty())))

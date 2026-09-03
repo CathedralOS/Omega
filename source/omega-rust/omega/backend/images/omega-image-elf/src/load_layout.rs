@@ -963,10 +963,18 @@ fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
             && target_alignment.is_power_of_two()
             && candidate.image_memory.bss_alignment != 0
             && candidate.image_memory.bss_alignment.is_power_of_two()
-            && candidate.image_memory.data_file_offset % target_alignment == 0
-            && candidate.image_memory.data_virtual_address % target_alignment == 0
-            && candidate.image_memory.bss_virtual_address % candidate.image_memory.bss_alignment
-                == 0,
+            && candidate
+                .image_memory
+                .data_file_offset
+                .is_multiple_of(target_alignment)
+            && candidate
+                .image_memory
+                .data_virtual_address
+                .is_multiple_of(target_alignment)
+            && candidate
+                .image_memory
+                .bss_virtual_address
+                .is_multiple_of(candidate.image_memory.bss_alignment),
         "source data/BSS placement no longer replays retained target alignment",
     )?;
     let first_rx_section = candidate

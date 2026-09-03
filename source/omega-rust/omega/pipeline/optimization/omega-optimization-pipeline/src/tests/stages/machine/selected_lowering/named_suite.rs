@@ -362,10 +362,10 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
             Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&10_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&11_u32.to_le_bytes());
         assert_eq!(
             FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
-            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(10))
+            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(11))
         );
         let mut legacy_version = encoded.clone();
         legacy_version[8..12].copy_from_slice(&8_u32.to_le_bytes());

@@ -212,9 +212,7 @@ pub(super) fn build_unit_affine_scalar_record_local(
         }),
         Some(_) => return None,
     };
-    if value.value_i64().is_none() {
-        return None;
-    }
+    value.value_i64()?;
     let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
     let field_identity = terminal_field_identity(program, field.symbol)?;
     if !matches!(
@@ -693,7 +691,7 @@ pub(super) fn build_call_operation(
             )?
             .try_into()
             .ok()?,
-            service_reach: call.service_reach.clone(),
+            service_reach: call.service_reach,
         });
     }
 
@@ -1058,7 +1056,7 @@ pub(super) fn build_call_operation(
             target_machine: target_machine.symbol,
             target_state: target_state.symbol,
             target_contract_report_fingerprint: target_contract.report_fingerprint,
-            service_reach: call.service_reach.clone(),
+            service_reach: call.service_reach,
             scalar_arguments,
             structural_arguments,
             completion_receipts: transfers,
@@ -1069,7 +1067,7 @@ pub(super) fn build_call_operation(
             target_machine: target_machine.symbol,
             target_state: target_state.symbol,
             target_contract_report_fingerprint: target_contract.report_fingerprint,
-            service_reach: call.service_reach.clone(),
+            service_reach: call.service_reach,
             structural_arguments,
             claim_transfers: transfers,
         })
@@ -1304,32 +1302,28 @@ pub(super) fn ordinary_projected_call_is_supported(
 
     let bounded_affine_array_index_path = if allow_field_path_projection {
         let mut type_reference = caller_source_parameters[0].type_reference;
-        loop {
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Constrained { base_type, .. }
-                | TypeReferenceNode::Reference {
-                    referee: base_type, ..
-                } => type_reference = *base_type,
-                _ => break,
-            }
+        while let TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } = program.type_reference_table.type_reference(type_reference)
+        {
+            type_reference = *base_type;
         }
         match (
             arguments[0].path.as_slice(),
             program.type_reference_table.type_reference(type_reference),
         ) {
             (
-                [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)],
+                [CheckedUnitStructuralPathSegment::FixedIndex(0..=3)],
                 TypeReferenceNode::FixedArray {
-                    length: psi_typed_trees::types::FixedArrayLength::Literal(2 | 3 | 4),
+                    length: psi_typed_trees::types::FixedArrayLength::Literal(2..=4),
                     ..
                 },
             ) => true,
             (
                 [
                     CheckedUnitStructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                    CheckedUnitStructuralPathSegment::FixedIndex(
-                        inner @ (0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14),
-                    ),
+                    CheckedUnitStructuralPathSegment::FixedIndex(inner @ (0..=14)),
                 ],
                 TypeReferenceNode::FixedArray {
                     element_type,
@@ -1340,7 +1334,7 @@ pub(super) fn ordinary_projected_call_is_supported(
                 matches!(
                     program.type_reference_table.type_reference(*element_type),
                     TypeReferenceNode::FixedArray {
-                        length: psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15)),
+                        length: psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3..=15)),
                         ..
                     } if u64::try_from(*inner_length).is_ok_and(|length| *inner < length)
                 )
@@ -1802,14 +1796,12 @@ pub(super) fn structural_call_arguments(
                         .is_empty() =>
             {
                 let mut source_type = source_parameter.type_reference;
-                loop {
-                    match program.type_reference_table.type_reference(source_type) {
-                        TypeReferenceNode::Constrained { base_type, .. }
-                        | TypeReferenceNode::Reference {
-                            referee: base_type, ..
-                        } => source_type = *base_type,
-                        _ => break,
-                    }
+                while let TypeReferenceNode::Constrained { base_type, .. }
+                | TypeReferenceNode::Reference {
+                    referee: base_type, ..
+                } = program.type_reference_table.type_reference(source_type)
+                {
+                    source_type = *base_type;
                 }
                 let TypeReferenceNode::FixedArray {
                     element_type,
@@ -2486,18 +2478,17 @@ fn structural_signature_with_affine_pair(
         // Primitive values remain in the scalar namespace. A reference to a
         // primitive may become a structural place only for the bounded
         // write-only store/call closure or the exact bounded shared-observer leaf.
-        if !parameter.is_self {
-            if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
-            {
-                if !allow_scalar_parameters || parameter.is_mutable {
-                    return None;
-                }
-                scalar_parameters.push(CheckedStructuralScalarParameterPlan {
-                    source_position: u32::try_from(position).ok()?,
-                    primitive_type,
-                });
-                continue;
+        if !parameter.is_self
+            && let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
+        {
+            if !allow_scalar_parameters || parameter.is_mutable {
+                return None;
             }
+            scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+                source_position: u32::try_from(position).ok()?,
+                primitive_type,
+            });
+            continue;
         }
         if parameter.is_self && is_reference(program, parameter.type_reference) {
             continue;
@@ -2554,16 +2545,17 @@ fn structural_signature_with_affine_pair(
         {
             return None;
         }
+        let primitive_access_is_supported = matches!(
+            access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+        ) || (shared_primitive_observer_type.is_some()
+            && access == CheckedStructuralAccess::SharedBorrow);
         if matches!(
             shapes.types.get(&type_identity).map(|shape| &shape.shape),
             Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(_))
         ) && (multiplicity != Multiplicity::Unrestricted
             || !qualifications.is_empty()
-            || !matches!(
-                access,
-                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-            ) && !(shared_primitive_observer_type.is_some()
-                && access == CheckedStructuralAccess::SharedBorrow))
+            || !primitive_access_is_supported)
         {
             return None;
         }
@@ -2702,14 +2694,12 @@ pub(super) fn entry_claims(
             return None;
         }
         let mut source_type = source.type_reference;
-        loop {
-            match program.type_reference_table.type_reference(source_type) {
-                TypeReferenceNode::Constrained { base_type, .. }
-                | TypeReferenceNode::Reference {
-                    referee: base_type, ..
-                } => source_type = *base_type,
-                _ => break,
-            }
+        while let TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } = program.type_reference_table.type_reference(source_type)
+        {
+            source_type = *base_type;
         }
         if let TypeReferenceNode::FixedArray {
             length: psi_typed_trees::types::FixedArrayLength::Literal(length),

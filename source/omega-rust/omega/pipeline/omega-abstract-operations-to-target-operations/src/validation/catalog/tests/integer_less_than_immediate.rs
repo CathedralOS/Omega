@@ -96,7 +96,7 @@ fn pair() -> (AbstractFunction, TargetFunction) {
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
-mixed_structural_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![
                     left_constant_operation,

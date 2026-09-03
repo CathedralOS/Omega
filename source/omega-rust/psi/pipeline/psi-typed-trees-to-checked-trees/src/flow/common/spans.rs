@@ -5,11 +5,7 @@ pub(crate) fn clone_flow_contexts(
     source: psi_arena::HandleSpan<FlowSemanticContextRef>,
 ) -> psi_arena::HandleSpan<FlowSemanticContextRef> {
     let mut cloned = psi_arena::HandleSpan::empty();
-    let copied: Vec<_> = semantic_context_refs
-        .span_or_empty(source)
-        .iter()
-        .copied()
-        .collect();
+    let copied: Vec<_> = semantic_context_refs.span_or_empty(source).to_vec();
     for context_ref in copied {
         semantic_context_refs.append_to_span(&mut cloned, context_ref);
     }
@@ -65,11 +61,7 @@ pub(crate) fn clone_constraint_refs(
     source: psi_arena::HandleSpan<FlowConstraintRef>,
 ) -> psi_arena::HandleSpan<FlowConstraintRef> {
     let mut cloned = psi_arena::HandleSpan::empty();
-    let copied: Vec<_> = constraint_refs
-        .span_or_empty(source)
-        .iter()
-        .copied()
-        .collect();
+    let copied: Vec<_> = constraint_refs.span_or_empty(source).to_vec();
     for constraint_ref in copied {
         constraint_refs.append_to_span(&mut cloned, constraint_ref);
     }
@@ -113,11 +105,7 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
         .map(|context_ref| context_ref.context)
         .collect();
     let mut projected = psi_arena::HandleSpan::empty();
-    let copied: Vec<_> = constraint_refs
-        .span_or_empty(source)
-        .iter()
-        .copied()
-        .collect();
+    let copied: Vec<_> = constraint_refs.span_or_empty(source).to_vec();
 
     for constraint_ref in copied {
         let keep = match constraint_ref.kind {
@@ -146,11 +134,7 @@ pub(crate) fn filter_constraint_refs(
     mut keep: impl FnMut(FlowConstraintRef) -> bool,
 ) -> psi_arena::HandleSpan<FlowConstraintRef> {
     let mut filtered = psi_arena::HandleSpan::empty();
-    let copied: Vec<_> = constraint_refs
-        .span_or_empty(source)
-        .iter()
-        .copied()
-        .collect();
+    let copied: Vec<_> = constraint_refs.span_or_empty(source).to_vec();
 
     for constraint_ref in copied {
         if keep(constraint_ref) {

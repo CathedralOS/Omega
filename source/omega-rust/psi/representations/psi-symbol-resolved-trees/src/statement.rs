@@ -830,7 +830,7 @@ pub enum TransitionGuardNode {
     When(crate::expression::ExpressionHandle),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TransitionTargetNode {
     Named {
         path: TableNamePath,
@@ -843,13 +843,8 @@ pub enum TransitionTargetNode {
     },
     Value(crate::expression::ExpressionHandle),
     SelfTarget,
+    #[default]
     Terminal,
-}
-
-impl Default for TransitionTargetNode {
-    fn default() -> Self {
-        Self::Terminal
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

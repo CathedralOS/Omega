@@ -26,9 +26,18 @@ fn validates_native_bitwise_and_boundaries_on_every_native_target() {
                     panic!("constant integer bitwise-AND must publish only its exact immediate family")
                 };
                 assert_eq!(row.machine(), machine());
-                assert_eq!(row.left_constant_operation(), OperationId::new(73_003).unwrap());
-                assert_eq!(row.right_constant_operation(), OperationId::new(73_005).unwrap());
-                assert_eq!(row.bitwise_and_operation(), OperationId::new(73_007).unwrap());
+                assert_eq!(
+                    row.left_constant_operation(),
+                    OperationId::new(73_003).unwrap()
+                );
+                assert_eq!(
+                    row.right_constant_operation(),
+                    OperationId::new(73_005).unwrap()
+                );
+                assert_eq!(
+                    row.bitwise_and_operation(),
+                    OperationId::new(73_007).unwrap()
+                );
                 assert_eq!(row.return_edge(), EdgeId::new(73_009).unwrap());
                 assert_eq!(row.left_constant_result(), ValueId::new(73_004).unwrap());
                 assert_eq!(row.right_constant_result(), ValueId::new(73_006).unwrap());
@@ -107,18 +116,22 @@ fn classifier_is_disjoint_from_plain_not_or_xor_and_parameter_and() {
     ] {
         let mut adjacent = default_plan();
         adjacent.functions[0].operations[2] = replacement;
-        assert!(!crate::validation::straight_line_integer_bitwise_and_immediate::is_candidate(
-            &adjacent.functions[0]
-        ));
+        assert!(
+            !crate::validation::straight_line_integer_bitwise_and_immediate::is_candidate(
+                &adjacent.functions[0]
+            )
+        );
     }
 
-    assert!(!crate::validation::straight_line_integer_bitwise_and_immediate::is_candidate(
-        &super::super::parameter_translation_fixture::uniform_integer_bitwise_and_plan(
-            scalar_type(),
-            2,
+    assert!(
+        !crate::validation::straight_line_integer_bitwise_and_immediate::is_candidate(
+            &super::super::parameter_translation_fixture::uniform_integer_bitwise_and_plan(
+                scalar_type(),
+                2,
+            )
+            .functions[0]
         )
-        .functions[0]
-    ));
+    );
 }
 
 pub(super) fn native_types() -> Vec<IntegerType> {
@@ -130,9 +143,7 @@ pub(super) fn native_types() -> Vec<IntegerType> {
     types
 }
 
-pub(super) fn boundary_pairs(
-    scalar_type: IntegerType,
-) -> [(IntegerValue, IntegerValue); 4] {
+pub(super) fn boundary_pairs(scalar_type: IntegerType) -> [(IntegerValue, IntegerValue); 4] {
     let minimum = scalar_type.minimum_value();
     let maximum = scalar_type.maximum_value();
     [

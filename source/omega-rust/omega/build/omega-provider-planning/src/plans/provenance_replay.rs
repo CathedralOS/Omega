@@ -2363,7 +2363,7 @@ fn replay_provider_row_binding(
                     )));
                 }
             };
-            if &replayed != &row.binding {
+            if replayed != row.binding {
                 return Err(psi_diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` row `{}` binding does not equal its exact typed realization replay",
                     plan.name, row.requirement_identity,

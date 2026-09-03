@@ -203,7 +203,7 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
         &[selection],
     )
     .expect("an explicit boundary-requirement selection chooses its declared candidate");
-    assert_eq!(selected, [derived.plan.clone()]);
+    assert_eq!(selected, std::slice::from_ref(&derived.plan));
 }
 
 #[test]
@@ -308,7 +308,7 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         &[selection],
     )
     .expect("an explicit selection chooses the declared external candidate");
-    assert_eq!(selected, [derived.plan.clone()]);
+    assert_eq!(selected, std::slice::from_ref(&derived.plan));
 
     let selected_with_provenance = select_provider_plans_with_provenance(
         std::slice::from_ref(derived),
@@ -1096,7 +1096,7 @@ fn provider_grant_ledger_resolves_one_exact_selector_subject() {
     let candidates = vec![first.clone()];
     let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
         &candidates,
-        &[first.name.clone()],
+        std::slice::from_ref(&first.name),
     )
     .expect("selected provider");
     let grants = resolve_selected_provider_grants(

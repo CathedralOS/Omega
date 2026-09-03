@@ -334,7 +334,7 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
         || block.id != machine.entry
         || !block.parameters.is_empty()
         || !block.operations.is_empty()
-        || machine.parameters.len() != 0
+        || !machine.parameters.is_empty()
         || cleanups.is_empty()
         || machine.structural_parameters.len() != cleanups.len()
         || machine.structural_places.len() != cleanups.len()

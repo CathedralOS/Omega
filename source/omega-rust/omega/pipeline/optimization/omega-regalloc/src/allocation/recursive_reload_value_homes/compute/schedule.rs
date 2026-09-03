@@ -251,11 +251,11 @@ fn record(
     }
 }
 
-fn spec<'a>(
+fn spec(
     function: usize,
-    specs: &'a [ReloadSpec],
+    specs: &[ReloadSpec],
     action: GeneralizedSpillActionId,
-) -> Result<&'a ReloadSpec, RecursiveReloadValueHomeError> {
+) -> Result<&ReloadSpec, RecursiveReloadValueHomeError> {
     specs
         .iter()
         .find(|row| row.action == action)

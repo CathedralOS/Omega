@@ -385,7 +385,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::ParametersAndAffineLocals,
+                StructuralArgumentSourcePolicy::ParametersOrAffineLocals,
             )?;
             if let Some(argument_index) = structural_arguments
                 .iter()
@@ -498,7 +498,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::ParametersOnly,
+                StructuralArgumentSourcePolicy::OnlyParameters,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -614,7 +614,7 @@ pub(super) fn validate_unit_operation_static(
                 || callee_parameter.access != StructuralAccess::Owned
                 || !callee_parameter.qualifications.is_empty()
                 || !callee_parameter.projected_qualifications.is_empty()
-                || argument.path.len() != 0
+                || !argument.path.is_empty()
                 || argument.access != StructuralAccess::Owned
                 || result.structural_type != callee_result.structural_type
                 || result.multiplicity != StructuralMultiplicity::Affine
@@ -664,7 +664,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::ParametersOnly,
+                StructuralArgumentSourcePolicy::OnlyParameters,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -729,7 +729,7 @@ pub(super) fn validate_unit_operation_static(
             }
             if !callee.parameters.is_empty()
                 || structural_arguments.len() != 1
-                || structural_arguments[0].path.len() != 0
+                || !structural_arguments[0].path.is_empty()
                 || callee.structural_parameters.len() != 1
                 || result.structural_type != callee_result.structural_type
                 || result.multiplicity != callee_result.multiplicity
@@ -845,7 +845,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::ParametersOnly,
+                StructuralArgumentSourcePolicy::OnlyParameters,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -908,7 +908,7 @@ pub(super) fn validate_unit_operation_static(
                 &boundary.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::ParametersAndByteSequenceLiterals,
+                StructuralArgumentSourcePolicy::ParametersOrByteSequenceLiterals,
             )?;
             validate_service_reach(
                 operation.id,
@@ -1027,7 +1027,6 @@ pub(super) fn validate_unit_operation_static(
 /// residual sibling subtree in recursive reverse declaration order. This
 /// partition is checked independently of producer facts before the ownership
 /// walk relies on the path-sensitive terminator.
-
 fn validate_unit_call_contract_places(
     callee: &TerminalMachine,
     operation: OperationId,
@@ -1079,9 +1078,9 @@ fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<It
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StructuralArgumentSourcePolicy {
-    ParametersOnly,
-    ParametersAndByteSequenceLiterals,
-    ParametersAndAffineLocals,
+    OnlyParameters,
+    ParametersOrByteSequenceLiterals,
+    ParametersOrAffineLocals,
 }
 
 pub(super) fn validate_structural_arguments(
@@ -1129,31 +1128,41 @@ pub(super) fn validate_structural_arguments(
                         StructuralPlaceKind::ByteSequenceLiteral {
                             structural_type, ..
                         } if source_policy
-                            == StructuralArgumentSourcePolicy::ParametersAndByteSequenceLiterals => Some((
-                            structural_type,
-                            StructuralMultiplicity::Unrestricted,
-                            StructuralAccess::Owned,
-                            &[][..],
-                            &[][..],
-                        )),
+                            == StructuralArgumentSourcePolicy::ParametersOrByteSequenceLiterals =>
+                        {
+                            Some((
+                                structural_type,
+                                StructuralMultiplicity::Unrestricted,
+                                StructuralAccess::Owned,
+                                &[][..],
+                                &[][..],
+                            ))
+                        }
                         StructuralPlaceKind::TrivialAffineLocal {
                             structural_type, ..
                         } if source_policy
-                            == StructuralArgumentSourcePolicy::ParametersAndAffineLocals
-                            && argument.path.is_empty() => Some((
-                            structural_type,
-                            StructuralMultiplicity::Affine,
-                            StructuralAccess::Owned,
-                            &[][..],
-                            &[][..],
-                        )),
+                            == StructuralArgumentSourcePolicy::ParametersOrAffineLocals
+                            && argument.path.is_empty() =>
+                        {
+                            Some((
+                                structural_type,
+                                StructuralMultiplicity::Affine,
+                                StructuralAccess::Owned,
+                                &[][..],
+                                &[][..],
+                            ))
+                        }
                         StructuralPlaceKind::OperationResult {
                             producer,
                             structural_type,
-                        } if source_policy == StructuralArgumentSourcePolicy::ParametersAndAffineLocals
+                        } if source_policy
+                            == StructuralArgumentSourcePolicy::ParametersOrAffineLocals
                             && argument.path.is_empty()
-                            && caller.blocks.iter().flat_map(|block| &block.operations).any(
-                                |operation| {
+                            && caller
+                                .blocks
+                                .iter()
+                                .flat_map(|block| &block.operations)
+                                .any(|operation| {
                                     operation.id == producer
                                         && matches!(
                                             operation.kind,
@@ -1168,14 +1177,16 @@ pub(super) fn validate_structural_arguments(
                                                 && result.projected_qualifications.is_empty()
                                                 && result.claims.is_empty()
                                         })
-                                },
-                            ) => Some((
-                            structural_type,
-                            StructuralMultiplicity::Affine,
-                            StructuralAccess::Owned,
-                            &[][..],
-                            &[][..],
-                        )),
+                                }) =>
+                        {
+                            Some((
+                                structural_type,
+                                StructuralMultiplicity::Affine,
+                                StructuralAccess::Owned,
+                                &[][..],
+                                &[][..],
+                            ))
+                        }
                         _ => None,
                     }
                 })

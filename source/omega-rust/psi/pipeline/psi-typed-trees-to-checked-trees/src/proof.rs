@@ -519,7 +519,7 @@ pub(crate) fn bind_proof_output_call_facts(
             _ => {}
         }
         for field in fields.keys() {
-            if !(*field == "value" && runtime_value_type.is_some())
+            if (*field != "value" || runtime_value_type.is_none())
                 && !callee_outputs
                     .iter()
                     .any(|output| proof.evidence_terms.get(*output).name == *field)

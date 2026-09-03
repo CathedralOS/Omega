@@ -1326,9 +1326,10 @@ fn compiler_body_machine_double_indexed_binary_write_footprints_reach_x86_and_aa
 
 #[test]
 fn compiler_body_general_x86_binary_write_footprints_reach_artifacts() {
-    for (case_name, source_text) in [(
-        "frame-indexed-by-region",
-        r#"use omega::language::std::console;
+    {
+        let (case_name, source_text) = (
+            "frame-indexed-by-region",
+            r#"use omega::language::std::console;
 data Counter { n: i32 in Wrapping; }
 data Room { exits: [Counter; 3]; }
 data Main { console: Console; index: u64 [0..=2]; }
@@ -1343,7 +1344,7 @@ machine Main::main(&mut self) {
 }
 
 "#,
-    )] {
+        );
         let scratch = std::env::temp_dir().join(format!(
             "omega-compiler-body-general-x86-binary-write-footprint-{case_name}-{}",
             std::process::id()

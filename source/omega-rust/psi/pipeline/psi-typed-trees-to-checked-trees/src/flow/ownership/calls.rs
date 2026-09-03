@@ -84,17 +84,18 @@ pub(in crate::flow) fn append_call_ownership_events(
     // that receiver and must emit the same move event as the explicit static
     // spelling (`Type::consume(value)`). Without this edge, `value.finish()`
     // left the original linear obligation live at scope exit.
-    if !includes_explicit_self && borrow_call.has_receiver {
-        if let Some(receiver) = owned_method_receiver_place(
+    if !includes_explicit_self
+        && borrow_call.has_receiver
+        && let Some(receiver) = owned_method_receiver_place(
             program,
             state.symbol,
             borrow_call.statement_index,
             &call_site,
             declared_parameters,
             borrow_call.receiver_symbol,
-        ) {
-            append_move_event_for_place(program, sink, receiver, source);
-        }
+        )
+    {
+        append_move_event_for_place(program, sink, receiver, source);
     }
 
     let parameters = declared_parameters

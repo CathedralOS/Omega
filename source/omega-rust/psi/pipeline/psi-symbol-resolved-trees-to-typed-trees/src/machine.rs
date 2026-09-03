@@ -239,7 +239,7 @@ pub(crate) fn lower_machine(
         })
         .unwrap_or_default();
     let invocations = lower_authored_invocations(
-        &lowerer.source_trees,
+        lowerer.source_trees,
         lowerer.source_trees.machine_invokes(machine),
         invocation_parameters,
         machine.name.as_str(),

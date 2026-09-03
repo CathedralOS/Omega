@@ -445,11 +445,11 @@ fn replay_root_type_reference(
     }
 }
 
-fn replay_data_type<'program>(
-    program: &'program psi_typed_trees::TypedTrees,
+fn replay_data_type(
+    program: &psi_typed_trees::TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
     machine_symbol: SymbolHandle,
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+) -> Option<&psi_typed_trees::data::DataDefinition> {
     match program.type_reference_table.type_reference(type_reference) {
         psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. }
         | psi_typed_trees::types::TypeReferenceNode::Constrained {

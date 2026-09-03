@@ -120,7 +120,7 @@ fn project_operational_keyword_locations(
     source_spans: &[psi_source::SourceSpan],
     role: PackageReviewSourceLocationRole,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
-    if authored != !source_spans.is_empty() {
+    if authored == source_spans.is_empty() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{owner_name}` has contradictory authored `{clause}` source custody"
         ))]);

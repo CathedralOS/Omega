@@ -101,10 +101,10 @@ fn index_homes(
 > {
     let mut indexed = BTreeMap::new();
     for (function, home_function) in homes.plan().functions.iter().enumerate() {
-        if let Some(home) = &home_function.assignment {
-            if indexed.insert((function, home.result), home).is_some() {
-                return Err(SyntheticReloadValueError::UnexpectedReloadHome { function });
-            }
+        if let Some(home) = &home_function.assignment
+            && indexed.insert((function, home.result), home).is_some()
+        {
+            return Err(SyntheticReloadValueError::UnexpectedReloadHome { function });
         }
     }
     Ok(indexed)

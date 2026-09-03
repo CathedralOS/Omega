@@ -202,11 +202,14 @@ fn retained_child_symbol(
     symbol: SymbolHandle,
     name: &str,
 ) -> SymbolHandle {
-    (symbol.is_valid()
+    if symbol.is_valid()
         && program.symbols.get(symbol).parent == parent
-        && program.symbols.name(symbol) == name)
-        .then_some(symbol)
-        .unwrap_or_else(SymbolHandle::invalid)
+        && program.symbols.name(symbol) == name
+    {
+        symbol
+    } else {
+        SymbolHandle::invalid()
+    }
 }
 
 fn callable_receiver_type_name(

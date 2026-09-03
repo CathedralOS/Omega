@@ -248,7 +248,10 @@ invokes console;
     );
     let reviews = production_candidate.reviews();
     let root_review = reviews.review(&root_key).expect("bound root review");
-    assert_eq!(root_review.semantic_bindings(), &[binding.clone()]);
+    assert_eq!(
+        root_review.semantic_bindings(),
+        std::slice::from_ref(&binding)
+    );
     let [authority] = root_review.projection().dangerous_authorities() else {
         panic!("resolved Console binding must expose one process authority")
     };
@@ -263,7 +266,7 @@ invokes console;
 
     let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
     let conflicts = compare_review_only_initial_capabilities(
-        &reviews,
+        reviews,
         &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
         conflict_limits,
     )
@@ -289,7 +292,7 @@ invokes console;
     assert!(matches!(
         bind_fresh_package_root_policy(
             &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
-            &reviews,
+            reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             conflict_limits,
             None,
@@ -318,7 +321,7 @@ invokes console;
         .expect("accept every exact blocking row");
     let evidence = accept_ordinary_closure_evidence(
         &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
-        &reviews,
+        reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         conflict_limits,
         Some(&root_policy),

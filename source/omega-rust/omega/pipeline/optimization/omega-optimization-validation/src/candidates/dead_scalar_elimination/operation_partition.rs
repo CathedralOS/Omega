@@ -88,28 +88,24 @@ pub(crate) fn independently_validated_dead_scalar_shape(
     }
     match (rule_family, operation) {
         (
-            family,
+            DeadScalarFamily::Literal,
             O::IntegerConstant {
                 psi_operation,
                 result,
                 scalar_type,
                 ..
             },
-        ) if family == DeadScalarFamily::Literal => {
-            Some((*psi_operation, *result, *scalar_type, None))
-        }
+        ) => Some((*psi_operation, *result, *scalar_type, None)),
         (
-            family,
+            DeadScalarFamily::Literal,
             O::BooleanConstant {
                 psi_operation,
                 result,
                 ..
             },
-        ) if family == DeadScalarFamily::Literal => {
-            Some((*psi_operation, *result, ScalarType::Boolean, None))
-        }
+        ) => Some((*psi_operation, *result, ScalarType::Boolean, None)),
         (
-            family,
+            DeadScalarFamily::UnconditionallyTotal,
             O::BooleanNot {
                 psi_operation,
                 result,
@@ -135,11 +131,9 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 result,
                 ..
             },
-        ) if family == DeadScalarFamily::UnconditionallyTotal => {
-            Some((*psi_operation, *result, ScalarType::Boolean, None))
-        }
+        ) => Some((*psi_operation, *result, ScalarType::Boolean, None)),
         (
-            family,
+            DeadScalarFamily::UnconditionallyTotal,
             O::IntegerBitwiseNot {
                 psi_operation,
                 result,
@@ -200,28 +194,28 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 scalar_type,
                 ..
             },
-        ) if family == DeadScalarFamily::UnconditionallyTotal => Some((
+        ) => Some((
             *psi_operation,
             *result,
             ScalarType::Integer(*scalar_type),
             None,
         )),
         (
-            family,
+            DeadScalarFamily::UnconditionallyTotal,
             O::IntegerWiden {
                 psi_operation,
                 result,
                 target_type,
                 ..
             },
-        ) if family == DeadScalarFamily::UnconditionallyTotal => Some((
+        ) => Some((
             *psi_operation,
             *result,
             ScalarType::Integer(*target_type),
             None,
         )),
         (
-            family,
+            DeadScalarFamily::UnconditionallyTotal,
             O::WrappingIntegerShiftLeft {
                 psi_operation,
                 result,
@@ -234,14 +228,14 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 value_type,
                 ..
             },
-        ) if family == DeadScalarFamily::UnconditionallyTotal => Some((
+        ) => Some((
             *psi_operation,
             *result,
             ScalarType::Integer(*value_type),
             None,
         )),
         (
-            family,
+            DeadScalarFamily::ProofCertified,
             O::IntegerExactCast {
                 psi_operation,
                 obligation,
@@ -249,14 +243,14 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 target_type,
                 ..
             },
-        ) if family == DeadScalarFamily::ProofCertified => Some((
+        ) => Some((
             *psi_operation,
             *result,
             ScalarType::Integer(*target_type),
             Some(*obligation),
         )),
         (
-            family,
+            DeadScalarFamily::ProofCertified,
             O::ExactIntegerShiftLeft {
                 psi_operation,
                 obligation,
@@ -271,14 +265,14 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 value_type,
                 ..
             },
-        ) if family == DeadScalarFamily::ProofCertified => Some((
+        ) => Some((
             *psi_operation,
             *result,
             ScalarType::Integer(*value_type),
             Some(*obligation),
         )),
         (
-            family,
+            DeadScalarFamily::ProofCertified,
             O::ExactIntegerAdd {
                 psi_operation,
                 obligation,
@@ -342,7 +336,7 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 scalar_type,
                 ..
             },
-        ) if family == DeadScalarFamily::ProofCertified => Some((
+        ) => Some((
             *psi_operation,
             *result,
             ScalarType::Integer(*scalar_type),

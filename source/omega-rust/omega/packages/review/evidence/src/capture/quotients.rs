@@ -12,12 +12,12 @@ use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCorrespondenceOperationKind,
     QuotientTheoremCorrespondence, QuotientTheoremRole as CanonicalQuotientTheoremRole,
 };
+use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{
     ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
     QuotientTheoremRole as TypedQuotientTheoremRole,
 };
 use psi_typed_trees::statement::StatementNode;
-use psi_typed_trees::TypedTrees;
 
 /// Project the complete bounded proof-only direct quotient batch into package
 /// review without admitting any executable quotient operation.

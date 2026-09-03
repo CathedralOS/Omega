@@ -122,7 +122,7 @@ fn inclusive_signed_predicate_covers_boundaries_and_disagrees_with_unsigned_orde
         }
     }
 
-    assert!(i64::MIN <= 0 && (i64::MIN as u64) > 0_u64);
-    assert!(-1_i64 <= 0 && (-1_i64 as u64) > 0_u64);
-    assert!(0_i64 > -1 && 0_u64 < (-1_i64 as u64));
+    assert!((i64::MIN as u64) > 0_u64);
+    assert!((-1_i64 as u64) > 0_u64);
+    assert!(0_u64 < (-1_i64 as u64));
 }

@@ -382,7 +382,7 @@ fn joined_branches_match(
                     && transfer.source_binding == plan.receiver_binding
                     && transfer.source
                         == psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection
-                    && transfer.sole_selection() == Some(&plan.selection)
+                    && transfer.sole_selection() == Some(plan.selection)
                     && transfer.has_complete_source_custody(transfers)
             })
             .collect::<Vec<_>>();

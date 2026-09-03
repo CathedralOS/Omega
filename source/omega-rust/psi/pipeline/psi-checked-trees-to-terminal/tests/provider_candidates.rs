@@ -300,7 +300,7 @@ fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
         &proof,
         &psi_proof_admission::AdmissionProfile::default(),
         &[],
-        &[argument.clone()],
+        std::slice::from_ref(&argument),
         &installation,
     )
     .expect("structural provider execution starts");

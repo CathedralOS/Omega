@@ -45,10 +45,10 @@ pub fn aarch64_fixed_register_view(
 /// Resolve the exact preservation convention selected by the clean terminal
 /// lane for one supported AArch64 target. The ISA owner, rather than generic
 /// orchestration, owns this target/object-format to ABI-policy mapping.
-pub fn aarch64_preservation_convention_for_target<'model>(
-    model: &'model ValidatedPhysicalRegisterModel,
+pub fn aarch64_preservation_convention_for_target(
+    model: &ValidatedPhysicalRegisterModel,
     target: NativeTarget,
-) -> Option<&'model PreservationConvention> {
+) -> Option<&PreservationConvention> {
     if target.architecture != Architecture::Aarch64 {
         return None;
     }

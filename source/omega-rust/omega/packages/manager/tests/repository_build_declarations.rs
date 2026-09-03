@@ -152,7 +152,7 @@ fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependenc
         .expect("create repository project resolver storage");
 
     let compiler = resolve_external_local_project_closure_with_storage(
-        &repository.join("source/omega"),
+        repository.join("source/omega"),
         ExternalSourceContext::derive(b"repository-compiler-product"),
         &storage,
         LocalSourceLimits::default(),
@@ -191,7 +191,7 @@ fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependenc
     );
 
     let parser = resolve_external_local_project_closure_with_storage(
-        &repository.join("source/psi"),
+        repository.join("source/psi"),
         ExternalSourceContext::derive(b"repository-parser-package"),
         &storage,
         LocalSourceLimits::default(),

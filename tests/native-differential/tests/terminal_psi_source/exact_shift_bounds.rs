@@ -636,14 +636,13 @@ fn checked_source_range_comparisons_cover_both_operand_orders_and_inclusive_orde
             .blocks
             .iter()
             .flat_map(|block| &block.operations)
-            .filter(|operation| {
+            .rfind(|operation| {
                 matches!(
                     operation.kind,
                     OperationKind::IntegerLessThan { .. }
                         | OperationKind::IntegerLessOrEqual { .. }
                 )
             })
-            .last()
             .expect("the ordered comparison remains explicit before optimization")
             .id;
         let semantic = encode_module(&lowered.semantic_module).expect("range comparison semantics");
@@ -743,8 +742,7 @@ fn checked_source_range_equality_covers_both_operand_orders_and_declines_overlap
             .blocks
             .iter()
             .flat_map(|block| &block.operations)
-            .filter(|operation| matches!(operation.kind, OperationKind::IntegerEqual { .. }))
-            .last()
+            .rfind(|operation| matches!(operation.kind, OperationKind::IntegerEqual { .. }))
             .expect("integer equality remains explicit before optimization")
             .id;
         let semantic = encode_module(&lowered.semantic_module).expect("range equality semantics");

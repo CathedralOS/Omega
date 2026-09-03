@@ -117,11 +117,11 @@ fn substitute_operand(operation: &mut TargetOperation) {
     let TargetIntegerExpression::IntegerExactCast { operand, .. } = expression(operation) else {
         unreachable!()
     };
-    *operand = Box::new(TargetIntegerExpression::Parameter {
+    **operand = TargetIntegerExpression::Parameter {
         source_value: ValueId::new(66_004).unwrap(),
         parameter_index: 0,
         location: ScalarParameterLocation::IncomingStack { byte_offset: 0 },
-    });
+    };
 }
 
 fn substitute_operation(operation: &mut TargetOperation) {

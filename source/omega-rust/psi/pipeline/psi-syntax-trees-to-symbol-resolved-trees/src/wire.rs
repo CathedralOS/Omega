@@ -19,10 +19,7 @@ pub(crate) fn lower_wire_schema(
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(&wire_data.name),
         is_public: wire_data.is_public,
-        encoding: wire_data
-            .encoding
-            .as_ref()
-            .map(|encoding| crate::name::lower_name(encoding)),
+        encoding: wire_data.encoding.as_ref().map(crate::name::lower_name),
         members,
     })
 }

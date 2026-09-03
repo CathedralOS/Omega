@@ -453,12 +453,11 @@ pub(super) fn validate_value(
     }
     if let TypeReferenceNode::Named { name, .. } =
         typed.type_reference_table.type_reference(type_reference)
+        && name.as_str().starts_with("Atomic")
     {
-        if name.as_str().starts_with("Atomic") {
-            return Err(MaterializationDiagnostic(format!(
-                "{path} has atomic type `{name}`, which is not ConstMaterializable"
-            )));
-        }
+        return Err(MaterializationDiagnostic(format!(
+            "{path} has atomic type `{name}`, which is not ConstMaterializable"
+        )));
     }
     if let Some(primitive) = typed.primitive_type_reference(type_reference) {
         return match (primitive, value) {

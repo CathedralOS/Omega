@@ -674,7 +674,7 @@ fn encode_field(
         ElfProcedureLinkageFixupKind::Aarch64Load64Low12 => {
             let page_offset = target_address & 0xfff;
             require(
-                page_offset % 8 == 0,
+                page_offset.is_multiple_of(8),
                 "AArch64 procedure LDR target is not eight-byte aligned",
             )?;
             (page_offset / 8) << 10

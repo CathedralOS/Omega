@@ -8,7 +8,7 @@ pub(super) fn lower_operation(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    mut values: &mut BTreeMap<ValueId, KnownScalar>,
+    values: &mut BTreeMap<ValueId, KnownScalar>,
     function_result: AbstractResult,
     call_plan: &CallPlan,
     target_structural_parameters: &[TargetStructuralParameter],
@@ -126,7 +126,7 @@ pub(super) fn lower_operation(
                 return Err(LoweringError::IntegerConstantOutsideType(*result));
             }
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *integer_type,
@@ -146,7 +146,7 @@ pub(super) fn lower_operation(
             result,
             value,
         } => {
-            insert_value(&mut values, *result, KnownScalar::Boolean(*value))?;
+            insert_value(values, *result, KnownScalar::Boolean(*value))?;
             provenance.operations.push(*psi_operation);
         }
         AbstractOperation::BooleanStructuralField { .. }
@@ -168,7 +168,7 @@ pub(super) fn lower_operation(
                 .cloned()
                 .ok_or(LoweringError::UnknownValue(*operand))?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 negate_boolean(operand, *psi_operation, *result)?,
             )?;
@@ -189,7 +189,7 @@ pub(super) fn lower_operation(
                 .cloned()
                 .ok_or(LoweringError::UnknownValue(*right))?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 equal_boolean(left, right, *psi_operation, *result)?,
             )?;
@@ -210,7 +210,7 @@ pub(super) fn lower_operation(
                 .cloned()
                 .ok_or(LoweringError::UnknownValue(*right))?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 equal_integer(
                     *left,
@@ -245,7 +245,7 @@ pub(super) fn lower_operation(
                 .ok_or(LoweringError::UnknownValue(*right))?;
             let inclusive = matches!(operation, AbstractOperation::IntegerLessOrEqual { .. });
             insert_value(
-                &mut values,
+                values,
                 *result,
                 order_integer(
                     *left,
@@ -287,7 +287,7 @@ pub(super) fn lower_operation(
                 _ => unreachable!(),
             };
             let value = lower_conditional_integer_binary(
-                &values,
+                values,
                 *result,
                 *scalar_type,
                 *left,
@@ -296,7 +296,7 @@ pub(super) fn lower_operation(
                 *psi_operation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *scalar_type,
@@ -335,7 +335,7 @@ pub(super) fn lower_operation(
                 WrappingShiftKind::Right
             };
             let shifted = lower_wrapping_shift(
-                &values,
+                values,
                 *result,
                 *value_type,
                 *count_type,
@@ -345,7 +345,7 @@ pub(super) fn lower_operation(
                 *psi_operation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *value_type,
@@ -364,7 +364,7 @@ pub(super) fn lower_operation(
             count,
         } => {
             let shifted = lower_exact_shift_right(
-                &values,
+                values,
                 *result,
                 *value_type,
                 *count_type,
@@ -374,7 +374,7 @@ pub(super) fn lower_operation(
                 *obligation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *value_type,
@@ -393,7 +393,7 @@ pub(super) fn lower_operation(
             count,
         } => {
             let shifted = lower_exact_shift_left(
-                &values,
+                values,
                 *result,
                 *value_type,
                 *count_type,
@@ -403,7 +403,7 @@ pub(super) fn lower_operation(
                 *obligation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *value_type,
@@ -432,7 +432,7 @@ pub(super) fn lower_operation(
             right,
         } => {
             let value = lower_conditional_integer_binary(
-                &values,
+                values,
                 *result,
                 *scalar_type,
                 *left,
@@ -441,7 +441,7 @@ pub(super) fn lower_operation(
                 *psi_operation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *scalar_type,
@@ -459,7 +459,7 @@ pub(super) fn lower_operation(
             right,
         } => {
             let value = lower_conditional_integer_binary(
-                &values,
+                values,
                 *result,
                 *scalar_type,
                 *left,
@@ -468,7 +468,7 @@ pub(super) fn lower_operation(
                 *psi_operation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *scalar_type,
@@ -486,7 +486,7 @@ pub(super) fn lower_operation(
             right,
         } => {
             let value = lower_conditional_integer_binary(
-                &values,
+                values,
                 *result,
                 *scalar_type,
                 *left,
@@ -495,7 +495,7 @@ pub(super) fn lower_operation(
                 *psi_operation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *scalar_type,
@@ -513,7 +513,7 @@ pub(super) fn lower_operation(
             right,
         } => {
             let value = lower_conditional_integer_binary(
-                &values,
+                values,
                 *result,
                 *scalar_type,
                 *left,
@@ -522,7 +522,7 @@ pub(super) fn lower_operation(
                 *psi_operation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *scalar_type,
@@ -540,7 +540,7 @@ pub(super) fn lower_operation(
             right,
         } => {
             let value = lower_conditional_integer_binary(
-                &values,
+                values,
                 *result,
                 *scalar_type,
                 *left,
@@ -549,7 +549,7 @@ pub(super) fn lower_operation(
                 *psi_operation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *scalar_type,
@@ -567,7 +567,7 @@ pub(super) fn lower_operation(
             right,
         } => {
             let value = lower_conditional_integer_binary(
-                &values,
+                values,
                 *result,
                 *scalar_type,
                 *left,
@@ -576,7 +576,7 @@ pub(super) fn lower_operation(
                 *psi_operation,
             )?;
             insert_value(
-                &mut values,
+                values,
                 *result,
                 KnownScalar::Integer {
                     scalar_type: *scalar_type,
@@ -609,7 +609,7 @@ pub(super) fn lower_operation(
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             for (parameter, value) in transferred {
-                insert_value(&mut values, parameter, value)?;
+                insert_value(values, parameter, value)?;
             }
             provenance.edges.push(*psi_edge);
         }

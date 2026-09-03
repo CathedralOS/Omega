@@ -236,7 +236,7 @@ impl Interval {
         }
         let (Some(low), Some(high)) = (&self.low, &self.high) else {
             // Unbounded base: an even power is still known non-negative.
-            return if power % 2 == 0 {
+            return if power.is_multiple_of(2) {
                 Self {
                     low: Some(BigInt::zero()),
                     high: None,
@@ -322,10 +322,10 @@ impl<'program> Engine<'program> {
                     // `is_signed_integer` is false exactly for the unsigned
                     // integer primitives (floats/bool/string report true), so
                     // this marks precisely the `>= 0` carriers.
-                    if let Some(primitive) = primitive {
-                        if !primitive.is_signed_integer() {
-                            unsigned_atoms.push(name.clone());
-                        }
+                    if let Some(primitive) = primitive
+                        && !primitive.is_signed_integer()
+                    {
+                        unsigned_atoms.push(name.clone());
                     }
                     parameter_atoms.push(name);
                 }
@@ -673,12 +673,11 @@ impl<'program> Engine<'program> {
     /// Prove `polynomial >= bound` via the difference-bound matrix or the
     /// interval evaluator.
     pub(super) fn prove_at_least(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
-        if let Some((positive, negative, constant)) = polynomial.as_atom_difference() {
-            if let Some(best) = self.matrix_bound(&positive, &negative) {
-                if best.add(&constant) >= *bound {
-                    return true;
-                }
-            }
+        if let Some((positive, negative, constant)) = polynomial.as_atom_difference()
+            && let Some(best) = self.matrix_bound(&positive, &negative)
+            && best.add(&constant) >= *bound
+        {
+            return true;
         }
         if let Some((atom, sign, constant)) = polynomial.as_single_atom() {
             let other = if sign == 1 {
@@ -686,10 +685,10 @@ impl<'program> Engine<'program> {
             } else {
                 self.matrix_bound(ZERO_ATOM, &atom)
             };
-            if let Some(best) = other {
-                if best.add(&constant) >= *bound {
-                    return true;
-                }
+            if let Some(best) = other
+                && best.add(&constant) >= *bound
+            {
+                return true;
             }
         }
         // A stored hypothesis bound whose polynomial IS the goal polynomial
@@ -702,10 +701,10 @@ impl<'program> Engine<'program> {
                 return true;
             }
         }
-        if let Some(low) = self.polynomial_interval(polynomial).low {
-            if low >= *bound {
-                return true;
-            }
+        if let Some(low) = self.polynomial_interval(polynomial).low
+            && low >= *bound
+        {
+            return true;
         }
         false
     }

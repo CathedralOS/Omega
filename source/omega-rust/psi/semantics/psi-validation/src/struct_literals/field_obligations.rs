@@ -274,20 +274,20 @@ pub(crate) fn validate_array_literal_elements_for_shape(
     // both silent before this. Only a resolved `Literal` length is checked; a
     // generic `ConstParameter` length is unknown until instantiation (a `ConstCall`
     // is const-eval'd to `Literal` upstream, so it never reaches here unresolved).
-    if let Some(expected_len) = expected_len {
-        if element_handles.len() != expected_len {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` assigns an array literal with {} element(s) to a \
+    if let Some(expected_len) = expected_len
+        && element_handles.len() != expected_len
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` assigns an array literal with {} element(s) to a \
                  `[_; {expected_len}]` place; a fixed-array literal must supply exactly \
                  {expected_len} element(s)",
-                machine.name.as_str(),
-                state.name.as_str(),
-                element_handles.len(),
-            )));
-            // A mis-sized literal is reported once; skip the per-element checks so
-            // the count error is not buried under class/narrowing noise.
-            return;
-        }
+            machine.name.as_str(),
+            state.name.as_str(),
+            element_handles.len(),
+        )));
+        // A mis-sized literal is reported once; skip the per-element checks so
+        // the count error is not buried under class/narrowing noise.
+        return;
     }
     for element in element_handles {
         crate::domain_weakening::validate_implicit_domain_weakening(

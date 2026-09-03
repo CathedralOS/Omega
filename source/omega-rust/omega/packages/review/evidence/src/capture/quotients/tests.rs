@@ -687,12 +687,10 @@ fn two_argument_lift_unselected_private_and_wrong_package_forms_remain_fenced() 
         "equivalent_reflexive>(value)",
         1,
     ));
-    assert!(project_non_executable_quotient_package_review(
-        &unselected,
-        package(PACKAGE),
-        target()
-    )
-    .is_err());
+    assert!(
+        project_non_executable_quotient_package_review(&unselected, package(PACKAGE), target())
+            .is_err()
+    );
 
     let private =
         single_program(TOTAL_DIRECT_DEFINE.replacen("pub machine admitted", "machine admitted", 1));
@@ -702,12 +700,10 @@ fn two_argument_lift_unselected_private_and_wrong_package_forms_remain_fenced() 
     );
 
     let owned = single_program(TOTAL_DIRECT_DEFINE.to_owned());
-    assert!(project_non_executable_quotient_package_review(
-        &owned,
-        package(FOREIGN_PACKAGE),
-        target()
-    )
-    .is_err());
+    assert!(
+        project_non_executable_quotient_package_review(&owned, package(FOREIGN_PACKAGE), target())
+            .is_err()
+    );
 }
 
 #[test]
@@ -716,12 +712,10 @@ fn adapted_literal_permuted_repeated_generic_and_private_transport_forms_remain_
         let Ok(program) = try_single_program(source) else {
             return;
         };
-        assert!(project_non_executable_quotient_package_review(
-            &program,
-            package(PACKAGE),
-            target()
-        )
-        .is_err());
+        assert!(
+            project_non_executable_quotient_package_review(&program, package(PACKAGE), target())
+                .is_err()
+        );
     };
 
     rejects(TRANSPORT_BACKED_LIFT.replace(

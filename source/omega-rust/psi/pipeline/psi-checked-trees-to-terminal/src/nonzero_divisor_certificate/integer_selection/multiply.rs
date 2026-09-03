@@ -568,17 +568,18 @@ pub(super) fn targeted_operand_endpoints(
     );
     let candidates =
         add_endpoint_candidates(integer_type, operand, lower, assumptions, semantic_axioms);
-    let prefix_witnesses = affine_proofs
-        .is_empty()
-        .then(|| {
+    let prefix_witnesses = if affine_proofs.is_empty() {
+        {
             targeted_multiply_operand_prefix_witnesses(
                 context,
                 semantic_axioms,
                 definitions,
                 operand,
             )
-        })
-        .unwrap_or_default();
+        }
+    } else {
+        Default::default()
+    };
     for affine_proof in affine_proofs {
         if !proofs
             .iter()
@@ -1239,7 +1240,7 @@ fn prove_targeted_affine_prefix_endpoint(
         Proposition::LessOrEqual(operand.clone(), bound)
     };
     for witness in witnesses {
-        let Some(checked) = check_integer_affine_witness(context, semantic_axioms, &witness).ok()
+        let Some(checked) = check_integer_affine_witness(context, semantic_axioms, witness).ok()
         else {
             continue;
         };

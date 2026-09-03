@@ -1,7 +1,7 @@
 use omega_abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
 };
-use omega_calling_conventions::{evaluate_call_plan, CallSignature, CallingPolicy};
+use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use omega_target::NativeTarget;
 use omega_target_operations::{
     TargetFunction, TargetOperation, TargetUnitBody, TargetUnitOperation, TerminalPsiProvenance,
@@ -215,7 +215,7 @@ fn byte_sequence_literal_pair() -> (AbstractFunction, TargetFunction) {
             operations: vec![
                 AbstractOperation::EstablishByteSequenceLiteral {
                     psi_operation: operation,
-                    place: place.clone(),
+                    place,
                     structural_type: structural_type.clone(),
                     bytes: bytes.clone(),
                 },
@@ -464,7 +464,7 @@ fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
             operations: vec![
                 AbstractOperation::EstablishTrivialAffineLocal {
                     psi_operation: operation,
-                    place: place.clone(),
+                    place,
                     structural_type: structural_type.clone(),
                 },
                 AbstractOperation::ReturnUnit {

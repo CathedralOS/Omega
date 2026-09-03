@@ -8,6 +8,7 @@
 //!   2. plain `interpret()` (hermetic default): the identical program must
 //!      still run and exit identically against the VIRTUAL fs, with NOTHING
 //!      appearing on real disk (the differential oracle stays hermetic).
+//!
 //! The A/B is the point: one program, one exit code, two worlds.
 //!
 //! Rung 2 (grants): under `RealScoped { read: src, write: out }` a probe
@@ -710,7 +711,7 @@ machine Main::main(&mut self) {{
     state bad(&mut self, code: i32) {{ self.console.exit_process(code); }}
 }}
 "#,
-        assets = omg_path(&assets),
+        assets = omg_path(assets),
     )
 }
 
@@ -1297,7 +1298,7 @@ machine Main::main(&mut self) {{
     state done(&mut self) {{ self.console.exit_process(self.passed as i32); }}
 }}
 "#,
-        base = omg_path(&base),
+        base = omg_path(base),
     )
 }
 
@@ -1426,7 +1427,7 @@ machine Main::main(&mut self) {{
     state done(&mut self) {{ self.console.exit_process(self.passed as i32); }}
 }}
 "#,
-        base = omg_path(&base),
+        base = omg_path(base),
     )
 }
 

@@ -126,7 +126,7 @@ impl RankingOrder {
             return OrderResolution::Resolved(Self::IncreasingTo(*limit));
         }
         if !view_arguments.is_empty() {
-            let path = order.iter().copied().collect::<Vec<_>>().join("::");
+            let path = order.to_vec().join("::");
             return OrderResolution::Rejected {
                 message: format!(
                     "view arguments are only meaningful on an argumented view                      (`Nat::IncreasingTo(limit)`); `{path}` takes none"
@@ -355,10 +355,10 @@ fn decreasing_value_kind(
     decreases: ExpressionHandle,
 ) -> Option<DecreasingValueKind> {
     // `value.len` (or any member named `len`) is a nat-like scalar.
-    if let ExpressionNode::Member(member) = program.expression_table.expression(decreases) {
-        if member.member.as_str() == "len" {
-            return Some(DecreasingValueKind::Nat);
-        }
+    if let ExpressionNode::Member(member) = program.expression_table.expression(decreases)
+        && member.member.as_str() == "len"
+    {
+        return Some(DecreasingValueKind::Nat);
     }
 
     let parameter = state_parameter_of_expression(program, state, decreases)?;

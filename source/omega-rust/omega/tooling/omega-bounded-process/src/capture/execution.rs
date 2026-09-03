@@ -121,14 +121,23 @@ pub(super) fn execute(
                 }
             };
         }
-        if status_complete && stdout.is_some() && stderr.is_some() && input_complete {
+        if status_complete
+            && input_complete
+            && let (Some(stdout), Some(stderr)) = (&mut stdout, &mut stderr)
+        {
+            // Match both completions before extracting either one. Taking the
+            // options inside the pattern consumes the first completed stream
+            // whenever the second is still pending and falsely reports that
+            // the workers ended early.
+            let stdout = std::mem::take(stdout);
+            let stderr = std::mem::take(stderr);
             let completion = child
                 .finish()
                 .map_err(|error| BoundedProcessRunError::Finalize(error.to_string()))?;
             return Ok(BoundedProcessOutput {
                 status: completion.status(),
-                stdout: stdout.expect("stdout completion was checked"),
-                stderr: stderr.expect("stderr completion was checked"),
+                stdout,
+                stderr,
             });
         }
 

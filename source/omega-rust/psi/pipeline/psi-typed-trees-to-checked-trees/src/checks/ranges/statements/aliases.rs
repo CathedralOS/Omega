@@ -111,12 +111,11 @@ pub(super) fn seed_subslice_window_facts(
     // Pin the exact length `b - a` for a constant-bounded window, even when the
     // base length is unknown (window-shrinking length fact).
     if let Some((start, end)) = bounds {
-        if let (Ok(start), Ok(end)) = (usize::try_from(start), usize::try_from(end)) {
-            if start <= end {
-                if let Ok(length) = i64::try_from(end - start) {
-                    facts.prove_exact_length(window_label, length);
-                }
-            }
+        if let (Ok(start), Ok(end)) = (usize::try_from(start), usize::try_from(end))
+            && start <= end
+            && let Ok(length) = i64::try_from(end - start)
+        {
+            facts.prove_exact_length(window_label, length);
         }
         return;
     }

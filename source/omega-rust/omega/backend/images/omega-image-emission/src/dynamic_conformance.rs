@@ -669,32 +669,6 @@ fn dynamic_result_matches(
     }
 }
 
-#[cfg(test)]
-mod result_class_tests {
-    use super::dynamic_result_matches;
-
-    #[test]
-    fn unit_and_scalar_result_classes_are_not_substitutable() {
-        use psi_terminal::ClosedConformanceCallableResult::{Bool, I32, Unit};
-
-        let i32_type = psi_core::ScalarType::Integer(
-            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap(),
-        );
-        assert!(dynamic_result_matches(Unit, None));
-        assert!(dynamic_result_matches(I32, Some(i32_type)));
-        assert!(dynamic_result_matches(
-            Bool,
-            Some(psi_core::ScalarType::Boolean)
-        ));
-        assert!(!dynamic_result_matches(Unit, Some(i32_type)));
-        assert!(!dynamic_result_matches(I32, None));
-        assert!(!dynamic_result_matches(
-            I32,
-            Some(psi_core::ScalarType::Boolean)
-        ));
-    }
-}
-
 fn validate_instance(
     target: NativeTarget,
     function: &MachineCodeFunction,
@@ -1221,4 +1195,30 @@ fn expected_aarch64_memory_access(
             | (u32::from(base) << 5)
             | u32::from(register),
     )
+}
+
+#[cfg(test)]
+mod result_class_tests {
+    use super::dynamic_result_matches;
+
+    #[test]
+    fn unit_and_scalar_result_classes_are_not_substitutable() {
+        use psi_terminal::ClosedConformanceCallableResult::{Bool, I32, Unit};
+
+        let i32_type = psi_core::ScalarType::Integer(
+            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap(),
+        );
+        assert!(dynamic_result_matches(Unit, None));
+        assert!(dynamic_result_matches(I32, Some(i32_type)));
+        assert!(dynamic_result_matches(
+            Bool,
+            Some(psi_core::ScalarType::Boolean)
+        ));
+        assert!(!dynamic_result_matches(Unit, Some(i32_type)));
+        assert!(!dynamic_result_matches(I32, None));
+        assert!(!dynamic_result_matches(
+            I32,
+            Some(psi_core::ScalarType::Boolean)
+        ));
+    }
 }

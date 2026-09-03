@@ -165,7 +165,7 @@ pub(crate) fn validate(
         StraightLineByteSequenceLiteralUnitReturnTranslationReceipt::new(
             source.machine,
             *psi_operation,
-            place.clone(),
+            *place,
             structural_type.clone(),
             bytes.clone(),
             *psi_edge,

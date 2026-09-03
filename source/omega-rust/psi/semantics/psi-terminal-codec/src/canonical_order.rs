@@ -376,20 +376,20 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 "float-meaning projections by dense proof value and first-use source IDs",
             ));
         }
-        if let psi_terminal::FloatMeaningSource::TransitionalInput(source) = &projection.source {
-            if !float_projection_sources.contains(&source.id) {
-                let Ok(expected) = u32::try_from(float_projection_sources.len()) else {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "float-meaning projections by dense proof value and first-use transitional source IDs",
-                    ));
-                };
-                if source.id.0 != expected {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "float-meaning projections by dense proof value and first-use transitional source IDs",
-                    ));
-                }
-                float_projection_sources.push(source.id);
+        if let psi_terminal::FloatMeaningSource::TransitionalInput(source) = &projection.source
+            && !float_projection_sources.contains(&source.id)
+        {
+            let Ok(expected) = u32::try_from(float_projection_sources.len()) else {
+                return Err(CodecError::NonCanonicalOrder(
+                    "float-meaning projections by dense proof value and first-use transitional source IDs",
+                ));
+            };
+            if source.id.0 != expected {
+                return Err(CodecError::NonCanonicalOrder(
+                    "float-meaning projections by dense proof value and first-use transitional source IDs",
+                ));
             }
+            float_projection_sources.push(source.id);
         }
     }
     if !strictly_increasing(module.proposition_declarations.iter().cloned().map(

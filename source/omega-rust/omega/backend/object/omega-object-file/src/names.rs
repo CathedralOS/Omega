@@ -35,12 +35,15 @@ pub fn object_symbol_handle_by_foreign_locator(
         return psi_arena::Handle::invalid();
     }
     let symbol = object.layout.symbols.get(import.symbol);
-    (symbol.kind == crate::SymbolKind::Import
+    if symbol.kind == crate::SymbolKind::Import
         && symbol.section == SymbolSection::None
         && symbol.offset == 0
-        && symbol.size == 0)
-        .then_some(import.symbol)
-        .unwrap_or_else(psi_arena::Handle::invalid)
+        && symbol.size == 0
+    {
+        import.symbol
+    } else {
+        psi_arena::Handle::invalid()
+    }
 }
 
 /// Stable diagnostic/linker-local label for an atomic foreign import. The
@@ -130,6 +133,31 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
         (_, SectionKind::Text) => ".text".to_owned(),
         (_, SectionKind::Data) => ".data".to_owned(),
         (_, SectionKind::Bss) => ".bss".to_owned(),
+    }
+}
+
+pub fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
+    match section {
+        SymbolSection::None => String::new(),
+        SymbolSection::Section(kind) => section_name(target, kind),
+    }
+}
+
+pub fn machine_storage_symbol_name(machine_name: &str) -> String {
+    format!("omega_machine_{machine_name}_storage")
+}
+
+pub fn runtime_frame_storage_symbol_name() -> String {
+    "omega_runtime_frame_storage".to_owned()
+}
+
+pub fn storage_region_symbol_name(
+    region: RuntimeStorageRegion,
+    entry_machine_name: &str,
+) -> String {
+    match region {
+        RuntimeStorageRegion::Machine => machine_storage_symbol_name(entry_machine_name),
+        RuntimeStorageRegion::RuntimeFrame => runtime_frame_storage_symbol_name(),
     }
 }
 
@@ -241,30 +269,5 @@ mod tests {
             !object_symbol_handle_by_foreign_locator(&object, &locator).is_valid(),
             "ambiguous exact rows must fail closed"
         );
-    }
-}
-
-pub fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
-    match section {
-        SymbolSection::None => String::new(),
-        SymbolSection::Section(kind) => section_name(target, kind),
-    }
-}
-
-pub fn machine_storage_symbol_name(machine_name: &str) -> String {
-    format!("omega_machine_{machine_name}_storage")
-}
-
-pub fn runtime_frame_storage_symbol_name() -> String {
-    "omega_runtime_frame_storage".to_owned()
-}
-
-pub fn storage_region_symbol_name(
-    region: RuntimeStorageRegion,
-    entry_machine_name: &str,
-) -> String {
-    match region {
-        RuntimeStorageRegion::Machine => machine_storage_symbol_name(entry_machine_name),
-        RuntimeStorageRegion::RuntimeFrame => runtime_frame_storage_symbol_name(),
     }
 }

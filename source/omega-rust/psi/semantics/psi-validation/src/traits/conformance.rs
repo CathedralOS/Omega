@@ -709,7 +709,7 @@ fn validate_machine_top_level_requirement_conformance(
     let mut type_bindings = required_type_parameters
         .iter()
         .zip(actual_type_parameters)
-        .filter_map(|(required, actual)| {
+        .filter(|&(required, actual)| {
             matches!(
                 (&required.kind, &actual.kind),
                 (TypeParameterKind::Type, TypeParameterKind::Type)
@@ -718,11 +718,11 @@ fn validate_machine_top_level_requirement_conformance(
                         TypeParameterKind::Const { .. }
                     )
             )
-            .then(|| TraitTypeBinding {
-                parameter_symbol: required.symbol,
-                parameter_name: required.name.as_str().to_owned(),
-                target: TraitTypeBindingTarget::Parameter(actual.symbol),
-            })
+        })
+        .map(|(required, actual)| TraitTypeBinding {
+            parameter_symbol: required.symbol,
+            parameter_name: required.name.as_str().to_owned(),
+            target: TraitTypeBindingTarget::Parameter(actual.symbol),
         })
         .collect::<Vec<_>>();
     for (index, (required, actual)) in required_type_parameters
@@ -2343,7 +2343,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         requirement_type_parameters
             .iter()
             .zip(actual_type_parameters.iter())
-            .filter_map(|(required, actual)| {
+            .filter(|&(required, actual)| {
                 matches!(
                     (&required.kind, &actual.kind),
                     (TypeParameterKind::Type, TypeParameterKind::Type)
@@ -2352,11 +2352,11 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                             TypeParameterKind::Const { .. }
                         )
                 )
-                .then(|| TraitTypeBinding {
-                    parameter_symbol: required.symbol,
-                    parameter_name: required.name.as_str().to_owned(),
-                    target: TraitTypeBindingTarget::Parameter(actual.symbol),
-                })
+            })
+            .map(|(required, actual)| TraitTypeBinding {
+                parameter_symbol: required.symbol,
+                parameter_name: required.name.as_str().to_owned(),
+                target: TraitTypeBindingTarget::Parameter(actual.symbol),
             }),
     );
     for (index, (required, actual)) in requirement_type_parameters

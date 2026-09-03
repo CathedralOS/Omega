@@ -281,7 +281,7 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
         assign_normalized_foreign_scalar_arguments_for_plan(
             &result_plan,
             target,
-            &[argument.clone()],
+            std::slice::from_ref(&argument),
             &preceding,
             &BTreeMap::new(),
         )

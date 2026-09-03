@@ -151,9 +151,8 @@ pub(crate) fn canonical_referenced_imports(
             .relocation_table
             .relocations
             .iter()
-            .filter_map(|(_, relocation)| {
-                (relocation.symbol_handle == import.symbol_handle).then(|| relocation.clone())
-            })
+            .filter(|&(_, relocation)| relocation.symbol_handle == import.symbol_handle)
+            .map(|(_, relocation)| relocation.clone())
             .collect::<Vec<_>>();
         if !relocations.is_empty() {
             requests.push(ElfImportRequest {

@@ -102,6 +102,19 @@ fn validate_structural_fields(
                 field: field.id,
             });
         }
+        let is_provider_attachment = permit_provider_attachment
+            && module.machines.iter().any(|machine| {
+                machine.structural_places.iter().any(|place| {
+                    matches!(
+                        place.kind,
+                        StructuralPlaceKind::ProviderAttachment {
+                            attachment,
+                            field: provider_field,
+                            ..
+                        } if attachment == structural_type && provider_field == field.id
+                    )
+                })
+            });
         match &field.field_type {
             StructuralFieldType::Erased { type_identity } if type_identity.is_empty() => {
                 return Err(ModuleError::InvalidErasedStructuralField {
@@ -110,21 +123,7 @@ fn validate_structural_fields(
                 });
             }
             StructuralFieldType::Erased { .. }
-                if !field.relevance.is_erased()
-                    && !(permit_provider_attachment
-                        && module.machines.iter().any(|machine| {
-                            machine.structural_places.iter().any(|place| {
-                                matches!(
-                                    place.kind,
-                                    StructuralPlaceKind::ProviderAttachment {
-                                        attachment,
-                                        field: provider_field,
-                                        ..
-                                    } if attachment == structural_type
-                                        && provider_field == field.id
-                                )
-                            })
-                        })) =>
+                if !field.relevance.is_erased() && !is_provider_attachment =>
             {
                 return Err(ModuleError::InvalidErasedStructuralField {
                     structural_type,
@@ -1728,13 +1727,10 @@ pub(super) fn resolve_structural_path(
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in path {
-        let Some(declaration) = module
+        let declaration = module
             .structural_types
             .iter()
-            .find(|declaration| declaration.id == structural_type)
-        else {
-            return None;
-        };
+            .find(|declaration| declaration.id == structural_type)?;
         structural_type = match (segment, &declaration.shape) {
             (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
                 let field = fields
@@ -1778,10 +1774,10 @@ pub(super) fn is_bounded_partial_affine_path(
                             [StructuralPathSegment::FixedIndex(0 | 1)]
                         ) | (
                             StructuralTypeShape::FixedArray { length: 3, .. },
-                            [StructuralPathSegment::FixedIndex(0 | 1 | 2)]
+                            [StructuralPathSegment::FixedIndex(0..=2)]
                         ) | (
                             StructuralTypeShape::FixedArray { length: 4, .. },
-                            [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
+                            [StructuralPathSegment::FixedIndex(0..=3)]
                         )
                     )
             }))
@@ -1802,7 +1798,7 @@ pub(super) fn is_bounded_partial_affine_path(
                                     (&inner.shape, path),
                                     (
                                         StructuralTypeShape::FixedArray {
-                                            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15),
+                                            length: inner_length @ (3..=15),
                                             ..
                                         },
                                         [
@@ -1892,7 +1888,7 @@ pub(super) fn partial_affine_residuals(
             .find(|declaration| declaration.id == element)?;
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15),
+            length: inner_length @ (3..=15),
         } = inner.shape
         else {
             return None;

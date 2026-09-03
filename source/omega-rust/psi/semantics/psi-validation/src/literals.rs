@@ -53,7 +53,7 @@ pub(crate) fn validate_suffix_magnitudes(program: &TypedTrees, diagnostics: &mut
                     if width == 64 {
                         true
                     } else {
-                        value <= (1u64 << width) - 1
+                        value < (1u64 << width)
                     }
                 })
         };

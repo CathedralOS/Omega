@@ -42,7 +42,7 @@ impl<'program> Evaluator<'program> {
                 continue;
             }
             if let Some(child) = self.program.wire_field_nested_schema(field) {
-                let children = wire_nested_scalar_fields(&self.program, child)?;
+                let children = wire_nested_scalar_fields(self.program, child)?;
                 fields.push((
                     field.name.as_str().to_owned(),
                     field.number,
@@ -447,7 +447,7 @@ impl<'program> Evaluator<'program> {
                 continue;
             }
             if let Some(child) = self.program.wire_field_nested_schema(field) {
-                let children = wire_nested_decode_scalar_fields(&self.program, child, target_type)?;
+                let children = wire_nested_decode_scalar_fields(self.program, child, target_type)?;
                 fields.push((
                     field.name.as_str().to_owned(),
                     field.number,
@@ -469,7 +469,7 @@ impl<'program> Evaluator<'program> {
                 let mut predicates = Vec::new();
                 for (domain_name, predicate) in
                     psi_typed_trees::byte_predicates::type_reference_domain_predicates(
-                        &self.program,
+                        self.program,
                         field.type_reference,
                     )
                 {

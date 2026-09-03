@@ -66,10 +66,10 @@ fn contract_call_target_has_self_parameter(
     Some(parameters.iter().any(|parameter| parameter.is_self))
 }
 
-fn contract_call_target_parameter_sets<'a>(
-    compilation: &'a CheckedCompilation,
+fn contract_call_target_parameter_sets(
+    compilation: &CheckedCompilation,
     target: SymbolHandle,
-) -> Vec<&'a [psi_typed_trees::signature::StateParameter]> {
+) -> Vec<&[psi_typed_trees::signature::StateParameter]> {
     let mut candidates = compilation
         .machines()
         .iter()

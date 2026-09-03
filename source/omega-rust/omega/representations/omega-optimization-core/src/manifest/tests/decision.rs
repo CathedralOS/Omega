@@ -131,9 +131,11 @@ fn decision_identity_binds_every_authoritative_field_and_rejects_tamper() {
         )
         .unwrap(),
     ];
-    assert!(variants
-        .iter()
-        .all(|variant| variant.identity() != base.identity()));
+    assert!(
+        variants
+            .iter()
+            .all(|variant| variant.identity() != base.identity())
+    );
 
     let mut tampered = base.encode();
     tampered[12] ^= 1;

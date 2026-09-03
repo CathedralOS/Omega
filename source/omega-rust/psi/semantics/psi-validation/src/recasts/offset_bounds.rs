@@ -17,6 +17,7 @@ use psi_typed_trees::types::TypeReferenceNode;
 ///   intervening write to that place and NO later call (a later callee
 ///   holding `&mut self` could rewrite the field) between the witness and
 ///   the transition.
+///
 /// One unprovable edge kills the meet. Symbolic bounds (`offset +
 /// desc_size < map_size`) remain -- gap 4b.
 #[derive(Clone, Copy, PartialEq, Eq)]

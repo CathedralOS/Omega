@@ -165,7 +165,7 @@ fn integer_widen_shared_envelope_corruption_fails_closed() {
         StraightLineIntegerWidenParameterTranslationError::SourceBlockRoster
     );
     assert_eq!(
-        leaf_error(|function| function.parameters.push(function.parameters[0].clone())),
+        leaf_error(|function| function.parameters.push(function.parameters[0])),
         StraightLineIntegerWidenParameterTranslationError::SourceParameterRoster
     );
     assert_eq!(

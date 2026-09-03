@@ -701,9 +701,8 @@ fn collect_exact_proof_statement_edges(
                         let members = program.statement_table.name_path_members(path.members);
                         if let [receiver, target] = members
                             && receiver.as_str() == "self"
-                            && let Some(callee) = resolve_machine_index(
-                                program, machine, symbols, index_of, target,
-                            )
+                            && let Some(callee) =
+                                resolve_machine_index(program, machine, symbols, index_of, target)
                         {
                             edges.push(ExactProofCallEdge {
                                 caller,
@@ -1340,9 +1339,7 @@ fn proof_rank_parameter(
     program: &TypedTrees,
     machine: &Machine,
 ) -> Option<(SymbolHandle, TypeReferenceHandle, String)> {
-    let Some(caller_witness) = machine.termination_plan.implementation_witness.as_ref() else {
-        return None;
-    };
+    let caller_witness = machine.termination_plan.implementation_witness.as_ref()?;
     let [caller_subject] = caller_witness.subjects.as_slice() else {
         return None;
     };
@@ -1376,35 +1373,26 @@ fn proof_edge_decrease_witness(
         .as_ref()?
         .subjects
         .first()?;
-    let Some((callee_machine, callee_entry)) = machine
+    let (callee_machine, callee_entry) = machine
         .attached_data
         .as_ref()
         .and_then(|attached_data| {
             symbols.attached_machine_state(program, attached_data.as_str(), target.as_str())
         })
-        .or_else(|| crate::calls::free_machine_entry_state(program, symbols, target.as_str()))
-    else {
-        return None;
-    };
-    let Some(callee_witness) = callee_machine
+        .or_else(|| crate::calls::free_machine_entry_state(program, symbols, target.as_str()))?;
+    let callee_witness = callee_machine
         .termination_plan
         .implementation_witness
-        .as_ref()
-    else {
-        return None;
-    };
+        .as_ref()?;
     let [callee_subject] = callee_witness.subjects.as_slice() else {
         return None;
     };
-    let Some((measure_position, callee_parameter)) = program
+    let (measure_position, callee_parameter) = program
         .state_parameters(callee_entry)
         .iter()
         .filter(|parameter| !parameter.is_self)
         .enumerate()
-        .find(|(_, parameter)| parameter.name.as_str() == callee_subject.as_str())
-    else {
-        return None;
-    };
+        .find(|(_, parameter)| parameter.name.as_str() == callee_subject.as_str())?;
     let callee_rank_type_identity = program
         .package_qualified_type_identity(callee_parameter.type_reference)
         .into_string();

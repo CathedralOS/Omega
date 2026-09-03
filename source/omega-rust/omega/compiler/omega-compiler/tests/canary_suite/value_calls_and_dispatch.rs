@@ -1084,23 +1084,18 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
                     .plans()
                     .iter()
                     .flat_map(|plan| {
-                        plan.rows.iter().filter_map(move |row| {
-                            matches!(
+                        plan.rows.iter().filter(|&row| matches!(
                                 row.binding,
                                 omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
                                     ..
                                 }
-                            )
-                            .then(|| {
-                                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                            )).map(|row| omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
                                     plan.schema.identity_digest(),
                                     row.requirement_identity.clone(),
                                     omega_effects::TerminalAuthorityDisposition::from_classes([
                                         omega_effects::TerminalAuthorityClass::ProcessTermination,
                                     ]),
-                                )
-                            })
-                        })
+                                ))
                     })
                     .collect(),
             )
@@ -1190,23 +1185,18 @@ fn assert_forwarded_dynamic_result_canary(
                     .plans()
                     .iter()
                     .flat_map(|plan| {
-                        plan.rows.iter().filter_map(move |row| {
-                            matches!(
+                        plan.rows.iter().filter(|&row| matches!(
                                 row.binding,
                                 omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
                                     ..
                                 }
-                            )
-                            .then(|| {
-                                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                            )).map(|row| omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
                                     plan.schema.identity_digest(),
                                     row.requirement_identity.clone(),
                                     omega_effects::TerminalAuthorityDisposition::from_classes([
                                         omega_effects::TerminalAuthorityClass::ProcessTermination,
                                     ]),
-                                )
-                            })
-                        })
+                                ))
                     })
                     .collect(),
             )
@@ -1565,23 +1555,18 @@ fn runtime_local_named_dyn_rebound_direct_exit_canary_runs() {
                     .plans()
                     .iter()
                     .flat_map(|plan| {
-                        plan.rows.iter().filter_map(move |row| {
-                            matches!(
+                        plan.rows.iter().filter(|&row| matches!(
                                 row.binding,
                                 omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
                                     ..
                                 }
-                            )
-                            .then(|| {
-                                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                            )).map(|row| omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
                                     plan.schema.identity_digest(),
                                     row.requirement_identity.clone(),
                                     omega_effects::TerminalAuthorityDisposition::from_classes([
                                         omega_effects::TerminalAuthorityClass::ProcessTermination,
                                     ]),
-                                )
-                            })
-                        })
+                                ))
                     })
                     .collect(),
             )

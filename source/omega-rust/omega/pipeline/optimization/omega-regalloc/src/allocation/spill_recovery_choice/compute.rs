@@ -416,12 +416,12 @@ fn interferes(
         .is_ok()
 }
 
-fn checked_view<'a>(
+fn checked_view(
     function: usize,
     class: RegisterClassId,
     id: RegisterViewId,
-    physical: &'a ValidatedPhysicalRegisterModel,
-) -> Result<&'a RegisterView, SpillRecoveryChoiceError> {
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<&RegisterView, SpillRecoveryChoiceError> {
     physical
         .model()
         .views

@@ -29,6 +29,13 @@ const MAX_TEST_LEAF_LINES: usize = 800;
 const MAX_ENTRANCE_LINES: usize = 160;
 const MAX_SOURCE_DIRECTORY_DEPTH: usize = 5;
 
+/// Exact no-growth ratchets for package leaves that predate the bound.
+const PRODUCTION_LEAF_EXCEPTIONS: &[(&str, usize, &str)] = &[(
+    "review/evidence/src/ledger/results.rs",
+    653,
+    "ordinary obligation result models and reconstruction remain colocated",
+)];
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -348,6 +355,17 @@ fn package_source_has_shared_owners_and_one_way_adapter_dependencies() {
 #[test]
 fn package_sources_are_bounded_and_shallow_enough_to_navigate() {
     let packages = package_root();
+    for (relative, ceiling, reason) in PRODUCTION_LEAF_EXCEPTIONS {
+        let lines = fs::read_to_string(packages.join(relative))
+            .unwrap_or_else(|error| panic!("read package exception {relative}: {error}"))
+            .lines()
+            .count();
+        assert!(*ceiling > MAX_PRODUCTION_LEAF_LINES && !reason.trim().is_empty());
+        assert!(
+            lines > MAX_PRODUCTION_LEAF_LINES,
+            "stale package source exception: {relative} is now {lines} lines ({reason})"
+        );
+    }
     for crate_name in PACKAGE_CRATES {
         let source_root = packages.join(crate_name).join("src");
         for path in rust_files(&source_root) {
@@ -359,12 +377,22 @@ fn package_sources_are_bounded_and_shallow_enough_to_navigate() {
                 || path
                     .components()
                     .any(|component| component.as_os_str() == "tests");
+            let relative = path
+                .strip_prefix(&packages)
+                .expect("package source belongs beneath the package root")
+                .to_string_lossy();
+            let exact_ceiling = PRODUCTION_LEAF_EXCEPTIONS
+                .iter()
+                .find_map(|(exception, ceiling, _)| (*exception == relative).then_some(*ceiling));
             let (limit, kind) = if is_entrance {
                 (MAX_ENTRANCE_LINES, "entrance")
             } else if is_test {
                 (MAX_TEST_LEAF_LINES, "test leaf")
             } else {
-                (MAX_PRODUCTION_LEAF_LINES, "production leaf")
+                (
+                    exact_ceiling.unwrap_or(MAX_PRODUCTION_LEAF_LINES),
+                    "production leaf",
+                )
             };
             let lines = source.lines().count();
             assert!(

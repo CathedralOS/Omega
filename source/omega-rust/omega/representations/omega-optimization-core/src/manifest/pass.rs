@@ -8,8 +8,9 @@ use crate::{
 };
 
 use super::{
-    codec::ManifestCursor, InvalidOptimizationManifestRecord, OptimizationDecisionRecord,
-    OptimizationManifestDecodeError, OptimizationWorkUsage, DECISION_FIXED_WIDTH, PASS_WIRE_FORMAT,
+    DECISION_FIXED_WIDTH, InvalidOptimizationManifestRecord, OptimizationDecisionRecord,
+    OptimizationManifestDecodeError, OptimizationWorkUsage, PASS_WIRE_FORMAT,
+    codec::ManifestCursor,
 };
 
 /// Canonical pass-level manifest row. Rule and decision order is execution

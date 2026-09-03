@@ -120,7 +120,9 @@ impl PrimitiveAccessRequest<'_, '_> {
         }
 
         let alignment = self.effective_supply.alignment_bytes;
-        if alignment == 0 || !alignment.is_power_of_two() || self.primitive_address % alignment != 0
+        if alignment == 0
+            || !alignment.is_power_of_two()
+            || !self.primitive_address.is_multiple_of(alignment)
         {
             return Err(AccessPlanDiagnostic(
                 "primitive lowering requires the admitted supply alignment to hold at the sealed primitive address"

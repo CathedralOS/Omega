@@ -81,7 +81,9 @@ pub(super) fn bind_successor_axioms(
         let mut seen = axioms.iter().enumerate().fold(
             HashMap::<_, Vec<_>>::new(),
             |mut seen, (index, axiom)| {
-                seen.entry(fact_fingerprint(axiom)).or_default().push(index);
+                seen.entry(fact_cache_fingerprint(axiom))
+                    .or_default()
+                    .push(index);
                 seen
             },
         );
@@ -90,7 +92,7 @@ pub(super) fn bind_successor_axioms(
                 continue;
             }
             let rewritten = substitute_proposition_values(proposition, &substitutions);
-            let fingerprint = fact_fingerprint(&rewritten);
+            let fingerprint = fact_cache_fingerprint(&rewritten);
             let duplicate = seen
                 .get(&fingerprint)
                 .is_some_and(|indices| indices.iter().any(|index| axioms[*index] == rewritten));
@@ -157,7 +159,7 @@ fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
 
 /// Fast, non-authoritative bucketing for exact proposition deduplication.
 /// Collisions are always resolved with full proposition equality.
-fn fact_fingerprint(proposition: &Proposition) -> u64 {
+fn fact_cache_fingerprint(proposition: &Proposition) -> u64 {
     let mut hasher = FactHasher::default();
     proposition.hash(&mut hasher);
     hasher.finish()

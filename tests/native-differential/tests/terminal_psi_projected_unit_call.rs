@@ -2702,7 +2702,7 @@ fn assert_wider_nested_affine_array_native_custody(
             decode_installation_record(&encoded),
             Ok(installation.clone())
         );
-        if matches!(inner_length, 9 | 10 | 11 | 12 | 13 | 14 | 15) {
+        if matches!(inner_length, 9..=15) {
             assert_widest_image_installation_and_codec_tamper(
                 target,
                 &object,

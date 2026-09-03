@@ -313,17 +313,16 @@ pub(super) fn validate_structural_frontier(
             snapshots
                 .operation_entries
                 .insert(operation.id, frontier.snapshot());
-            if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind {
-                if frontier
+            if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind
+                && frontier
                     .owned_places
                     .insert(destination, StructuralMultiplicity::Affine)
                     .is_some()
-                {
-                    return Err(ModuleError::TrivialAffineLocalAlreadyLive {
-                        operation: operation.id,
-                        place: destination,
-                    });
-                }
+            {
+                return Err(ModuleError::TrivialAffineLocalAlreadyLive {
+                    operation: operation.id,
+                    place: destination,
+                });
             }
             let consumed_places = match &operation.kind {
                 OperationKind::CallUnit {
@@ -974,8 +973,8 @@ fn projected_fixed_array_root_is_fully_consumed(
     let Some(length) = usize::try_from(*length).ok() else {
         return false;
     };
-    if parameter.multiplicity != StructuralMultiplicity::Linear {
-        if parameter.multiplicity != StructuralMultiplicity::Affine
+    if parameter.multiplicity != StructuralMultiplicity::Linear
+        && (parameter.multiplicity != StructuralMultiplicity::Affine
             || parameter.is_self
             || parameter.access != StructuralAccess::Owned
             || !parameter.qualifications.is_empty()
@@ -987,10 +986,9 @@ fn projected_fixed_array_root_is_fully_consumed(
                     .find(|declaration| declaration.id == *element)
                     .map(|declaration| &declaration.shape),
                 Some(StructuralTypeShape::Record { .. })
-            )
-        {
-            return false;
-        }
+            ))
+    {
+        return false;
     }
     let Some(moved) = frontier.partial_custody_paths.get(&place) else {
         return false;

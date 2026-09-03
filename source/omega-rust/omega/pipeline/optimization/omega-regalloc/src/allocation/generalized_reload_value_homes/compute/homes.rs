@@ -60,11 +60,11 @@ pub(super) fn record_coexistence(
     }
 }
 
-pub(super) fn legality_row<'a>(
+pub(super) fn legality_row(
     function: usize,
-    legality: &'a crate::FunctionAllocationLegality,
+    legality: &crate::FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&'a crate::VirtualRegisterAllocationLegality, GeneralizedReloadValueHomeError> {
+) -> Result<&crate::VirtualRegisterAllocationLegality, GeneralizedReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()

@@ -441,10 +441,7 @@ fn expression_path_head(
     }
 }
 
-fn machine_for_symbol<'program>(
-    program: &'program TypedTrees,
-    machine_symbol: SymbolHandle,
-) -> Option<&'program Machine> {
+fn machine_for_symbol(program: &TypedTrees, machine_symbol: SymbolHandle) -> Option<&Machine> {
     program
         .machines()
         .iter()
@@ -463,10 +460,7 @@ fn enclosing_state<'program>(
 }
 
 /// Finds a state by symbol across every machine in the program.
-fn state_for_symbol<'program>(
-    program: &'program TypedTrees,
-    state_symbol: SymbolHandle,
-) -> Option<&'program State> {
+fn state_for_symbol(program: &TypedTrees, state_symbol: SymbolHandle) -> Option<&State> {
     program.machines().iter().find_map(|machine| {
         program
             .machine_states(machine)
@@ -545,10 +539,10 @@ fn is_capability_type(
 /// Resolves a call target to the boundary trait it reaches and the boundary
 /// signature, if any. The target may be a boundary trait signature directly, or
 /// an in-package implementation state whose machine conforms to a boundary trait.
-fn boundary_capability<'program>(
-    program: &'program TypedTrees,
+fn boundary_capability(
+    program: &TypedTrees,
     target_symbol: SymbolHandle,
-) -> Option<(SymbolHandle, Option<&'program StateSignature>)> {
+) -> Option<(SymbolHandle, Option<&StateSignature>)> {
     if !target_symbol.is_valid() {
         return None;
     }

@@ -530,10 +530,10 @@ pub(super) fn lowered_exact_cross_cast_chain_family(
     }
 }
 
-pub(super) fn lowered_exact_cross_cast_chain_link<'a>(
-    expression: &'a LoweredDirectExpression,
+pub(super) fn lowered_exact_cross_cast_chain_link(
+    expression: &LoweredDirectExpression,
     family: ExactCrossCastChainFamily,
-) -> Option<(psi_core::IntegerType, &'a LoweredDirectExpression)> {
+) -> Option<(psi_core::IntegerType, &LoweredDirectExpression)> {
     match (family, expression) {
         (
             ExactCrossCastChainFamily::DivideRemainder,

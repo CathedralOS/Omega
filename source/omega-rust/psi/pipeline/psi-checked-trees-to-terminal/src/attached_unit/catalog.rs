@@ -764,7 +764,7 @@ pub(crate) fn lower_root_service_reach(
                     checked
                         .typed
                         .normalized_machine_overload_identity(machine)
-                        .ok_or_else(|| {
+                        .ok_or({
                             LoweringError::Unsupported(
                                 "top-level installation reach requirement has no normalized machine overload identity",
                             )

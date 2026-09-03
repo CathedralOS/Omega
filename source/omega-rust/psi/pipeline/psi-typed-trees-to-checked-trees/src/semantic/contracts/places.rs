@@ -264,11 +264,11 @@ fn contract_owner_parameter_symbol(
     .map(|parameter| parameter.symbol)
 }
 
-fn contract_owner_parameter<'program>(
-    program: &'program psi_typed_trees::TypedTrees,
+fn contract_owner_parameter(
+    program: &psi_typed_trees::TypedTrees,
     owner: ContractProofFactOwner,
     mut matches: impl FnMut(&psi_typed_trees::signature::StateParameter) -> bool,
-) -> Option<&'program psi_typed_trees::signature::StateParameter> {
+) -> Option<&psi_typed_trees::signature::StateParameter> {
     let state_symbol = match owner {
         ContractProofFactOwner::MachineState { state_symbol, .. }
         | ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol,

@@ -8,9 +8,7 @@ use super::super::TotalScalarIdentityShape;
 
 /// Return the two saturating multiplication annihilation laws in canonical
 /// left-zero/right-zero order. The zero operand is also the replacement.
-pub(super) fn classify(
-    operation: &O,
-) -> Vec<TotalScalarIdentityShape> {
+pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     let O::SaturatingIntegerMultiply {
         psi_operation,
         result,

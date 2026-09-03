@@ -716,14 +716,14 @@ fn derive_relation_and_representative(
         let argument_type =
             crate::places::declared_place_type_raw(program, machine, Some(state), *argument);
         let Some(argument_type) = argument_type else {
-            let is_closed_literal_candidate = match program.expression_table.expression(*argument) {
-                psi_typed_trees::expression::ExpressionNode::Boolean(_) => true,
-                psi_typed_trees::expression::ExpressionNode::Integer(_) => true,
-                psi_typed_trees::expression::ExpressionNode::Float(_) => true,
-                psi_typed_trees::expression::ExpressionNode::String(_) => true,
-                psi_typed_trees::expression::ExpressionNode::ArrayLiteral(_) => true,
-                _ => false,
-            };
+            let is_closed_literal_candidate = matches!(
+                program.expression_table.expression(*argument),
+                psi_typed_trees::expression::ExpressionNode::Boolean(_)
+                    | psi_typed_trees::expression::ExpressionNode::Integer(_)
+                    | psi_typed_trees::expression::ExpressionNode::Float(_)
+                    | psi_typed_trees::expression::ExpressionNode::String(_)
+                    | psi_typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+            );
             if request.kind == QuotientOperationKind::Lift && is_closed_literal_candidate {
                 if representative.is_none() {
                     representative = Some(derive_representative_telescope(program, request)?);
@@ -731,20 +731,16 @@ fn derive_relation_and_representative(
                 if let Some(parameter) = representative
                     .as_ref()
                     .and_then(|representative| representative.parameters.get(position))
-                {
-                    match closed_lift_literal_for_representative(
+                    && closed_lift_literal_for_representative(
                         program,
                         *argument,
                         parameter.type_reference,
                         position,
-                    )? {
-                        Some(_) => {
-                            input_relations
-                                .push(InputRelation::ExactEquality(parameter.type_reference));
-                            continue;
-                        }
-                        None => {}
-                    }
+                    )?
+                    .is_some()
+                {
+                    input_relations.push(InputRelation::ExactEquality(parameter.type_reference));
+                    continue;
                 }
             }
             return Err(RelationPlanError::UnresolvedArgumentType(position));

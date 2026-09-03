@@ -192,10 +192,10 @@ fn is_write_only_length_metadata(
 /// substitution and whose authored domain cannot couple replacement to prior
 /// content. Record traversal and atomic sum replacement apply their own shape
 /// judgments below.
-fn closed_write_only_data<'program>(
-    program: &'program TypedTrees,
+fn closed_write_only_data(
+    program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<&'program DataDefinition> {
+) -> Option<&DataDefinition> {
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(type_reference)
     else {
@@ -217,10 +217,10 @@ fn closed_write_only_data<'program>(
 /// The first aggregate traversal rung is deliberately nominal and closed. A
 /// record may contain wider siblings without making them writable; final-leaf
 /// eligibility is checked separately at the exact assignment target.
-fn write_only_record<'program>(
-    program: &'program TypedTrees,
+fn write_only_record(
+    program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<&'program DataDefinition> {
+) -> Option<&DataDefinition> {
     let definition = closed_write_only_data(program, type_reference)?;
     (DataDefinition::shape_kind_from_members(program.data_members(definition))
         == DataShapeKind::Record)
@@ -307,9 +307,7 @@ fn write_only_record_field_type(
         members.push(cursor);
         cursor = member.receiver;
     }
-    let Some(root) = direct_write_only_root(program, cursor, roots) else {
-        return None;
-    };
+    let root = direct_write_only_root(program, cursor, roots)?;
     if members.is_empty() {
         return None;
     }
@@ -320,10 +318,8 @@ fn write_only_record_field_type(
         else {
             unreachable!("member path was collected above")
         };
-        let Some(definition) = write_only_record(program, receiver_type) else {
-            return None;
-        };
-        let Some(field) = program
+        let definition = write_only_record(program, receiver_type)?;
+        let field = program
             .data_members(definition)
             .iter()
             .find_map(|candidate| {
@@ -334,10 +330,7 @@ fn write_only_record_field_type(
                     || (!member.member_symbol.is_valid()
                         && field.name.as_str() == member.member.as_str()))
                 .then_some(field)
-            })
-        else {
-            return None;
-        };
+            })?;
         if field.relevance.is_erased() {
             return None;
         }

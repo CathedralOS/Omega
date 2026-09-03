@@ -237,7 +237,7 @@ pub(crate) fn validate(
     else {
         return Err(Error::TargetOperationRoster);
     };
-    let expected_operands = literals.map(|literal| target_operand(literal));
+    let expected_operands = literals.map(target_operand);
     if *target_fma_operation != *fma_operation
         || *target_fma_result != *fma_result
         || *target_format != *format

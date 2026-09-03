@@ -22,12 +22,11 @@ pub(super) fn lower_function(
     ieee_float_fma: &BTreeMap<OperationId, omega_target_operations::TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
-    if !native_boundaries::has_installed_scalar_call(function, installed_calls) {
-        if let Some(lowered) =
+    if !native_boundaries::has_installed_scalar_call(function, installed_calls)
+        && let Some(lowered) =
             lower_linux_exit_group_i32(function, target, boundary_machines, settlements)?
-        {
-            return Ok(lowered);
-        }
+    {
+        return Ok(lowered);
     }
     if let Some((operation, boundary)) =
         native_boundaries::unsupported_scalar_call(function, settlements, installed_calls)

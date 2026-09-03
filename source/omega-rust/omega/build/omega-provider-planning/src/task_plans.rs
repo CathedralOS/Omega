@@ -2258,15 +2258,14 @@ mod tests {
                 fields: psi_arena::HandleSpan::empty(),
             },
         );
-        let existing_target = program
+        let existing_target = *program
             .facts
             .carry
             .contained_targets
             .iter()
             .next()
             .expect("child target")
-            .1
-            .clone();
+            .1;
         let ordered_targets = program.facts.carry.contained_targets.insert_many([
             existing_target,
             psi_checked_trees::ContainedMachineTargetFact { machine: sibling },
@@ -2430,15 +2429,14 @@ mod tests {
     #[test]
     fn activation_topology_rejects_duplicate_target() {
         let (mut program, root, _, _) = activation_crossing_validation_fixture();
-        let target = program
+        let target = *program
             .facts
             .carry
             .contained_targets
             .iter()
             .next()
             .expect("contained target")
-            .1
-            .clone();
+            .1;
         let targets = program
             .facts
             .carry

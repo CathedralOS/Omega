@@ -232,17 +232,18 @@ pub(in crate::symbols) fn assign_membership_symbol(
             return;
         };
         let type_symbol = top_level_symbol_for_source(symbols, SymbolKind::Data, type_name);
-        let case_symbol = type_symbol
-            .is_valid()
-            .then(|| {
+        let case_symbol = if type_symbol.is_valid() {
+            {
                 child_symbol_by_kinds(
                     symbols,
                     type_symbol,
                     &[SymbolKind::Variant],
                     case_name.as_str(),
                 )
-            })
-            .unwrap_or_else(SymbolHandle::invalid);
+            }
+        } else {
+            SymbolHandle::invalid()
+        };
         (type_symbol, case_symbol)
     };
     if let psi_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =

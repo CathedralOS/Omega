@@ -1,4 +1,8 @@
 #![forbid(unsafe_code)]
+#![allow(
+    clippy::obfuscated_if_else,
+    reason = "valid-handle copy expressions use one uniform then/fallback idiom"
+)]
 
 //! Psi-owned typed source representation.
 

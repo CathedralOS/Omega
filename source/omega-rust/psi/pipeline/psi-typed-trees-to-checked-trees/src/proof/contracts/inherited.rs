@@ -107,10 +107,7 @@ fn append_trait_contract_facts_for_machine(
     evidence_terms: &psi_arena::Arena<CheckedEvidenceTerm>,
     visited_traits: &mut Vec<SymbolHandle>,
 ) {
-    if visited_traits
-        .iter()
-        .any(|symbol| *symbol == trait_definition.symbol)
-    {
+    if visited_traits.contains(&trait_definition.symbol) {
         return;
     }
 
@@ -223,10 +220,7 @@ fn estimated_trait_contract_fact_capacity_for_machine(
     trait_definition: &psi_typed_trees::trait_definition::TraitDefinition,
     visited_traits: &mut Vec<SymbolHandle>,
 ) -> usize {
-    if visited_traits
-        .iter()
-        .any(|symbol| *symbol == trait_definition.symbol)
-    {
+    if visited_traits.contains(&trait_definition.symbol) {
         return 0;
     }
 

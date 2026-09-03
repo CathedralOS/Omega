@@ -1625,10 +1625,10 @@ pub(super) fn validate_outer_record_owner(
     Ok(())
 }
 
-pub(super) fn exact_named_data<'a>(
-    typed: &'a TypedTrees,
+pub(super) fn exact_named_data(
+    typed: &TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
-) -> Result<Option<&'a DataDefinition>, MaterializationDiagnostic> {
+) -> Result<Option<&DataDefinition>, MaterializationDiagnostic> {
     if typed.primitive_type_reference(type_reference).is_some() {
         return Ok(None);
     }

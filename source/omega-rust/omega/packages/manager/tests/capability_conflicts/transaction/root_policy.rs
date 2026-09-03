@@ -25,7 +25,7 @@ pub(super) fn assert_persistence_and_recovery(
         )
         .expect("bind second exact blocking row");
     let accepted_resolution =
-        resolve_review_only_root_policy_decisions(&conflicts, &[second_accept, first_accept])
+        resolve_review_only_root_policy_decisions(conflicts, &[second_accept, first_accept])
             .expect("resolve every blocking row");
     assert!(accepted_resolution.all_blocking_rows_accepted());
     assert_eq!(accepted_resolution.decisions().len(), 2);
@@ -60,12 +60,12 @@ end_root_policy_resolution\n",
         )
     );
     assert_eq!(
-        recover_review_only_root_policy_resolution(&conflicts, &accepted_record, record_limits)
+        recover_review_only_root_policy_resolution(conflicts, &accepted_record, record_limits)
             .expect("recover accepted root policy"),
         accepted_resolution
     );
     assert_eq!(
-        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept, second_accept])
+        resolve_review_only_root_policy_decisions(conflicts, &[first_accept, second_accept])
             .expect("repeat accepted root policy")
             .encode_canonical(record_limits)
             .expect("encode repeated policy"),
@@ -89,7 +89,7 @@ end_root_policy_resolution\n",
         .expect("persist accepted root policy beneath project root");
     assert_eq!(
         policy_project
-            .recover_resolution(&accepted_policy_path, &conflicts, record_limits)
+            .recover_resolution(&accepted_policy_path, conflicts, record_limits)
             .expect("recover root-project-custodied policy"),
         accepted_resolution
     );
@@ -121,7 +121,7 @@ end_root_policy_resolution\n",
     assert!(matches!(
         policy_project.recover_resolution(
             &accepted_policy_path,
-            &conflicts,
+            conflicts,
             ReviewOnlyRootPolicyRecordLimits::new(accepted_record.len() - 1, 2, 2)
         ),
         Err(ReviewOnlyRootPolicyFileError::ByteLimitExceeded { .. })
@@ -161,7 +161,7 @@ end_root_policy_resolution\n",
     )
     .expect("write authored noncanonical policy");
     assert!(matches!(
-        policy_project.recover_resolution(&noncanonical_policy_path, &conflicts, record_limits),
+        policy_project.recover_resolution(&noncanonical_policy_path, conflicts, record_limits),
         Err(ReviewOnlyRootPolicyFileError::Record(
             ReviewOnlyRootPolicyRecordError::InvalidFraming
         ))
@@ -172,7 +172,7 @@ end_root_policy_resolution\n",
     std::fs::create_dir(policy_directory_path.join(directory_policy_path.as_str()))
         .expect("create non-regular policy leaf");
     assert!(matches!(
-        policy_project.recover_resolution(&directory_policy_path, &conflicts, record_limits),
+        policy_project.recover_resolution(&directory_policy_path, conflicts, record_limits),
         Err(ReviewOnlyRootPolicyFileError::NotRegularFile { .. })
     ));
 
@@ -198,7 +198,7 @@ end_root_policy_resolution\n",
         )
         .expect("create policy leaf symlink");
         assert!(matches!(
-            policy_project.recover_resolution(&leaf_link_path, &conflicts, record_limits),
+            policy_project.recover_resolution(&leaf_link_path, conflicts, record_limits),
             Err(ReviewOnlyRootPolicyFileError::NotRegularFile { .. })
         ));
         assert!(matches!(
@@ -224,7 +224,7 @@ end_root_policy_resolution\n",
     };
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             &wrong_candidate_record,
             record_limits
         ),
@@ -236,7 +236,7 @@ end_root_policy_resolution\n",
     let reordered_record = format!("{}\n", reordered_lines.join("\n"));
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             reordered_record.as_bytes(),
             record_limits
         ),
@@ -255,7 +255,7 @@ end_root_policy_resolution\n",
     };
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             &bad_commitment_record,
             record_limits
         ),
@@ -265,27 +265,27 @@ end_root_policy_resolution\n",
     let mut trailing_record = accepted_record.clone();
     trailing_record.extend_from_slice(b"unexpected\n");
     assert!(matches!(
-        recover_review_only_root_policy_resolution(&conflicts, &trailing_record, record_limits),
+        recover_review_only_root_policy_resolution(conflicts, &trailing_record, record_limits),
         Err(ReviewOnlyRootPolicyRecordError::InvalidFraming)
     ));
 
     let mut bad_header_record = accepted_record.clone();
     bad_header_record[0] = b'X';
     assert!(matches!(
-        recover_review_only_root_policy_resolution(&conflicts, &bad_header_record, record_limits),
+        recover_review_only_root_policy_resolution(conflicts, &bad_header_record, record_limits),
         Err(ReviewOnlyRootPolicyRecordError::InvalidHeader)
     ));
 
     let mut invalid_utf8_record = accepted_record.clone();
     invalid_utf8_record[0] = 0xff;
     assert!(matches!(
-        recover_review_only_root_policy_resolution(&conflicts, &invalid_utf8_record, record_limits),
+        recover_review_only_root_policy_resolution(conflicts, &invalid_utf8_record, record_limits),
         Err(ReviewOnlyRootPolicyRecordError::InvalidUtf8)
     ));
     let crlf_record = accepted_text.replacen('\n', "\r\n", 1);
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             crlf_record.as_bytes(),
             record_limits
         ),
@@ -293,7 +293,7 @@ end_root_policy_resolution\n",
     ));
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             &accepted_record[..accepted_record.len() - 1],
             record_limits
         ),
@@ -306,7 +306,7 @@ end_root_policy_resolution\n",
     uppercase_fingerprint_record[first_fingerprint_offset] = b'A';
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             &uppercase_fingerprint_record,
             record_limits
         ),
@@ -317,7 +317,7 @@ end_root_policy_resolution\n",
     invalid_candidate_record[candidate_offset] = b'g';
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             &invalid_candidate_record,
             record_limits
         ),
@@ -328,7 +328,7 @@ end_root_policy_resolution\n",
     invalid_commitment_record[commitment_offset] = b'g';
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             &invalid_commitment_record,
             record_limits
         ),
@@ -339,7 +339,7 @@ end_root_policy_resolution\n",
         accepted_text.replacen("decision_count 2", "decision_count 02", 1);
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             noncanonical_count_record.as_bytes(),
             record_limits
         ),
@@ -352,7 +352,7 @@ end_root_policy_resolution\n",
     );
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             overflowing_count_record.as_bytes(),
             record_limits
         ),
@@ -363,7 +363,7 @@ end_root_policy_resolution\n",
         accepted_text.replacen("accept_candidate_change", "allow_candidate_change", 1);
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             invalid_disposition_record.as_bytes(),
             record_limits
         ),
@@ -376,7 +376,7 @@ end_root_policy_resolution\n",
     let missing_record = format!("{}\n", missing_lines.join("\n"));
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             missing_record.as_bytes(),
             record_limits
         ),
@@ -390,7 +390,7 @@ end_root_policy_resolution\n",
     let duplicate_record = format!("{}\n", duplicate_lines.join("\n"));
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             duplicate_record.as_bytes(),
             record_limits
         ),
@@ -401,7 +401,7 @@ end_root_policy_resolution\n",
 
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             &accepted_record,
             ReviewOnlyRootPolicyRecordLimits::new(accepted_record.len() - 1, 2, 2)
         ),
@@ -409,7 +409,7 @@ end_root_policy_resolution\n",
     ));
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             &accepted_record,
             ReviewOnlyRootPolicyRecordLimits::new(accepted_record.len(), 1, 2)
         ),
@@ -429,7 +429,7 @@ end_root_policy_resolution\n",
     ));
     assert!(matches!(
         recover_review_only_root_policy_resolution(
-            &conflicts,
+            conflicts,
             &accepted_record,
             ReviewOnlyRootPolicyRecordLimits::new(accepted_record.len(), 2, 1)
         ),
@@ -463,7 +463,7 @@ end_root_policy_resolution\n",
             .encode_canonical(record_limits)
             .expect("encode alternate-baseline policy");
     assert!(matches!(
-        recover_review_only_root_policy_resolution(&conflicts, &stale_record, record_limits),
+        recover_review_only_root_policy_resolution(conflicts, &stale_record, record_limits),
         Err(ReviewOnlyRootPolicyRecordError::UnknownConflictFingerprint { .. })
     ));
     assert!(matches!(
@@ -477,11 +477,11 @@ end_root_policy_resolution\n",
         package.candidate_closure()
     );
     assert!(matches!(
-        resolve_review_only_root_policy_decisions(&conflicts, &[stale_decision, first_accept]),
+        resolve_review_only_root_policy_decisions(conflicts, &[stale_decision, first_accept]),
         Err(ReviewOnlyRootPolicyResolutionError::StaleOrForeignConflict { .. })
     ));
     assert_eq!(
-        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept, second_accept])
+        resolve_review_only_root_policy_decisions(conflicts, &[first_accept, second_accept])
             .expect("decision input order is canonicalized")
             .commitment(),
         accepted_resolution.commitment()
@@ -494,7 +494,7 @@ end_root_policy_resolution\n",
         )
         .expect("bind explicit candidate rejection");
     let rejected_resolution =
-        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept, second_reject])
+        resolve_review_only_root_policy_decisions(conflicts, &[first_accept, second_reject])
             .expect("a rejection is still a complete policy result");
     assert!(!rejected_resolution.all_blocking_rows_accepted());
     assert_ne!(
@@ -510,7 +510,7 @@ end_root_policy_resolution\n",
             .contains("reject_candidate_change")
     );
     assert_eq!(
-        recover_review_only_root_policy_resolution(&conflicts, &rejected_record, record_limits)
+        recover_review_only_root_policy_resolution(conflicts, &rejected_record, record_limits)
             .expect("recover rejected root policy"),
         rejected_resolution
     );
@@ -521,25 +521,25 @@ end_root_policy_resolution\n",
         .expect("persist rejected root policy");
     assert_eq!(
         policy_project
-            .recover_resolution(&rejected_policy_path, &conflicts, record_limits)
+            .recover_resolution(&rejected_policy_path, conflicts, record_limits)
             .expect("recover rejected root policy from project custody"),
         rejected_resolution
     );
     assert!(matches!(
-        resolve_review_only_root_policy_decisions(&conflicts, &[]),
+        resolve_review_only_root_policy_decisions(conflicts, &[]),
         Err(ReviewOnlyRootPolicyResolutionError::EmptyDecisionSet)
     ));
     assert!(matches!(
-        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept]),
+        resolve_review_only_root_policy_decisions(conflicts, &[first_accept]),
         Err(ReviewOnlyRootPolicyResolutionError::MissingDecision { .. })
     ));
     assert!(matches!(
-        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept, first_accept]),
+        resolve_review_only_root_policy_decisions(conflicts, &[first_accept, first_accept]),
         Err(ReviewOnlyRootPolicyResolutionError::DuplicateDecision { .. })
     ));
     assert!(matches!(
         resolve_review_only_root_policy_decisions(
-            &conflicts,
+            conflicts,
             &[first_accept, first_accept, second_accept]
         ),
         Err(ReviewOnlyRootPolicyResolutionError::TooManyDecisions { maximum: 2 })

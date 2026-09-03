@@ -5,11 +5,11 @@ use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
 use super::super::super::model::TranslationFamilyDescriptor;
+use crate::AbstractToTargetTranslationFamily;
 use crate::validation::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
     straight_line_integer_bitwise_and_immediate,
 };
-use crate::AbstractToTargetTranslationFamily;
 
 pub(in crate::validation::catalog) const DESCRIPTOR: TranslationFamilyDescriptor =
     TranslationFamilyDescriptor::new(

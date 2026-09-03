@@ -58,13 +58,10 @@ fn exact_affine_array_calls(
     {
         return None;
     }
-    let Some(root) = cleanup
+    let root = cleanup
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == home.structural_type)
-    else {
-        return None;
-    };
+        .find(|declaration| declaration.id == home.structural_type)?;
     let StructuralTypeShape::FixedArray { element, length } = root.shape else {
         return None;
     };

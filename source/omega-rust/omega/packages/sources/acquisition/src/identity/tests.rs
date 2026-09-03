@@ -234,7 +234,7 @@ fn recovered_external_local_lineage_rejects_noncanonical_separators() {
         ExternalLocalLineage::from_recovered_canonical_path(
             canonical.replacen(
                 std::path::MAIN_SEPARATOR,
-                &std::path::MAIN_SEPARATOR.to_string().repeat(2),
+                &std::path::MAIN_SEPARATOR_STR.repeat(2),
                 1,
             ),
             context,

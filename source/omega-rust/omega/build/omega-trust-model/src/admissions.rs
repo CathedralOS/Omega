@@ -432,8 +432,9 @@ mod tests {
         let required = admission("accepted fact: A", 1, 7);
         let accepted = admission("accepted fact: A", 1, 8);
 
-        let settlement = settle_trust_admissions(vec![required.clone()], &[accepted.clone()])
-            .expect("distinct strong admissions are not duplicate request rows");
+        let settlement =
+            settle_trust_admissions(vec![required.clone()], std::slice::from_ref(&accepted))
+                .expect("distinct strong admissions are not duplicate request rows");
         assert_eq!(settlement.unresolved(), &[required]);
         assert_eq!(settlement.unused(), &[accepted]);
     }

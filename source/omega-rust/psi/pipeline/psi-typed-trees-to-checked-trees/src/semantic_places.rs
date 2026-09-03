@@ -56,9 +56,7 @@ pub(crate) fn instantiate_call_contract_place(
     let original_segments: Vec<_> = facts
         .place_segments
         .span_or_empty(original_place.segments)
-        .iter()
-        .copied()
-        .collect();
+        .to_vec();
 
     let mut segments = substitution.segments;
     segments.extend(original_segments);

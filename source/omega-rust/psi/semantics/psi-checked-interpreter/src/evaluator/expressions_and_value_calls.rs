@@ -626,20 +626,21 @@ impl<'program> Evaluator<'program> {
         // Slice/array view builtins on an array-valued receiver. `.as_slice()` /
         // `.as_mut_slice()` produce a slice that SHARES the array's element cells (so a
         // write through the slice aliases the array); `.len()` returns the element count.
-        if matches!(target, "as_slice" | "as_mut_slice" | "len") && call.receiver.is_valid() {
-            if let Ok(cell) = self.resolve_place(call.receiver, frame) {
-                let cell = self.deref_cell(cell);
-                let elements = match &*cell.borrow() {
-                    Value::Array(elements) => Some(elements.clone()),
-                    _ => None,
-                };
-                if let Some(elements) = elements {
-                    return Ok(match target {
-                        "len" => Value::Int(elements.len() as i64),
-                        // A slice view shares the same element `Rc`s.
-                        _ => Value::Array(elements),
-                    });
-                }
+        if matches!(target, "as_slice" | "as_mut_slice" | "len")
+            && call.receiver.is_valid()
+            && let Ok(cell) = self.resolve_place(call.receiver, frame)
+        {
+            let cell = self.deref_cell(cell);
+            let elements = match &*cell.borrow() {
+                Value::Array(elements) => Some(elements.clone()),
+                _ => None,
+            };
+            if let Some(elements) = elements {
+                return Ok(match target {
+                    "len" => Value::Int(elements.len() as i64),
+                    // A slice view shares the same element `Rc`s.
+                    _ => Value::Array(elements),
+                });
             }
         }
 
@@ -647,13 +648,14 @@ impl<'program> Evaluator<'program> {
         // interpreter represents literal-backed and borrowed byte views with
         // the same shared `Value::Str` cell, mirroring the native `{ptr, len}`
         // descriptor copy. Returning a clone shares the bytes.
-        if matches!(target, "as_view" | "bytes") && call.receiver.is_valid() {
-            if let Ok(cell) = self.resolve_place(call.receiver, frame) {
-                let cell = self.deref_cell(cell);
-                let value = cell.borrow().clone();
-                if matches!(value, Value::Str(_)) {
-                    return Ok(value);
-                }
+        if matches!(target, "as_view" | "bytes")
+            && call.receiver.is_valid()
+            && let Ok(cell) = self.resolve_place(call.receiver, frame)
+        {
+            let cell = self.deref_cell(cell);
+            let value = cell.borrow().clone();
+            if matches!(value, Value::Str(_)) {
+                return Ok(value);
             }
         }
 
@@ -1199,15 +1201,13 @@ impl<'program> Evaluator<'program> {
 
         // (1) Receiver expression resolving to a contained sub-machine / data instance
         // (e.g. `s.code()` where `s: &mut Circle`): run on that instance's machine.
-        if call.receiver.is_valid() {
-            if let Ok(cell) = self.resolve_place(call.receiver, frame) {
-                let cell = self.deref_cell(cell);
-                let is_self = Cell::ptr_eq(&cell, &frame.self_cell);
-                if !is_self {
-                    if let Some(machine) = self.machine_for_instance_state(&cell, target) {
-                        return Ok((machine, target.to_owned(), cell));
-                    }
-                }
+        if call.receiver.is_valid()
+            && let Ok(cell) = self.resolve_place(call.receiver, frame)
+        {
+            let cell = self.deref_cell(cell);
+            let is_self = Cell::ptr_eq(&cell, &frame.self_cell);
+            if !is_self && let Some(machine) = self.machine_for_instance_state(&cell, target) {
+                return Ok((machine, target.to_owned(), cell));
             }
         }
 
@@ -1216,33 +1216,32 @@ impl<'program> Evaluator<'program> {
         // group-qualified machine `<Type>::<target>`. Such a machine takes no
         // receiver (a pure constructor/helper), so the caller's self cell rides
         // along untouched -- same as the free-machine arm (3).
-        if call.receiver.is_valid() {
-            if let psi_typed_trees::expression::ExpressionNode::Name(path) =
+        if call.receiver.is_valid()
+            && let psi_typed_trees::expression::ExpressionNode::Name(path) =
                 self.program.expression_table.expression(call.receiver)
+        {
+            let members = self
+                .program
+                .expression_table
+                .name_path_members(path.members);
+            if members.len() == 1
+                && members[0].as_str() != "self"
+                && frame.get(members[0].as_str()).is_none()
             {
-                let members = self
+                let group = members[0].as_str();
+                if let Some(machine) = self
                     .program
-                    .expression_table
-                    .name_path_members(path.members);
-                if members.len() == 1
-                    && members[0].as_str() != "self"
-                    && frame.get(members[0].as_str()).is_none()
+                    .machines()
+                    .iter()
+                    .find(|machine| {
+                        let mut segments = machine.name.as_str().split("::");
+                        segments.next() == Some(group)
+                            && machine.name.as_str().ends_with(target)
+                            && self.find_state(machine, target).is_some()
+                    })
+                    .cloned()
                 {
-                    let group = members[0].as_str();
-                    if let Some(machine) = self
-                        .program
-                        .machines()
-                        .iter()
-                        .find(|machine| {
-                            let mut segments = machine.name.as_str().split("::");
-                            segments.next() == Some(group)
-                                && machine.name.as_str().ends_with(target)
-                                && self.find_state(machine, target).is_some()
-                        })
-                        .cloned()
-                    {
-                        return Ok((machine, target.to_owned(), frame.self_cell.clone()));
-                    }
+                    return Ok((machine, target.to_owned(), frame.self_cell.clone()));
                 }
             }
         }
@@ -1250,12 +1249,11 @@ impl<'program> Evaluator<'program> {
         // (2) Sibling state of the current machine -- ONLY for self/receiverless
         // calls (a non-self receiver was handled by (1) or falls to the host
         // fallback below).
-        if receiver_is_self {
-            if let Some(machine) = self.current_machine(frame) {
-                if self.find_state(machine, target).is_some() {
-                    return Ok((machine.clone(), target.to_owned(), frame.self_cell.clone()));
-                }
-            }
+        if receiver_is_self
+            && let Some(machine) = self.current_machine(frame)
+            && self.find_state(machine, target).is_some()
+        {
+            return Ok((machine.clone(), target.to_owned(), frame.self_cell.clone()));
         }
 
         // (3) A free helper machine (self/receiverless calls only).

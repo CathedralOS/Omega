@@ -904,8 +904,8 @@ fn add_magnitudes(a: &[u64], b: &[u64]) -> Vec<u64> {
     let (longer, shorter) = if a.len() >= b.len() { (a, b) } else { (b, a) };
     let mut result = Vec::with_capacity(longer.len() + 1);
     let mut carry = 0u64;
-    for index in 0..longer.len() {
-        let (sum, overflow_a) = longer[index].overflowing_add(carry);
+    for (index, limb) in longer.iter().enumerate() {
+        let (sum, overflow_a) = limb.overflowing_add(carry);
         let (sum, overflow_b) = sum.overflowing_add(*shorter.get(index).unwrap_or(&0));
         carry = u64::from(overflow_a) + u64::from(overflow_b);
         result.push(sum);
@@ -921,8 +921,8 @@ fn sub_magnitudes(a: &[u64], b: &[u64]) -> Vec<u64> {
     debug_assert!(cmp_magnitudes(a, b) != Ordering::Less);
     let mut result = Vec::with_capacity(a.len());
     let mut borrow = 0u64;
-    for index in 0..a.len() {
-        let (difference, underflow_a) = a[index].overflowing_sub(borrow);
+    for (index, limb) in a.iter().enumerate() {
+        let (difference, underflow_a) = limb.overflowing_sub(borrow);
         let (difference, underflow_b) = difference.overflowing_sub(*b.get(index).unwrap_or(&0));
         borrow = u64::from(underflow_a) + u64::from(underflow_b);
         result.push(difference);

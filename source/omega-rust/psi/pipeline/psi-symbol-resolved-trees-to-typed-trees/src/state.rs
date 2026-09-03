@@ -400,7 +400,7 @@ pub(crate) fn lower_state_signature(
     }
 
     let invocations = lower_authored_invocations(
-        &lowerer.source_trees,
+        lowerer.source_trees,
         lowerer.source_trees.signature_invokes(signature.invokes),
         lowerer.source_trees.state_parameters(signature.parameters),
         signature.name.as_str(),

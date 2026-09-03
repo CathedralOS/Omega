@@ -41,12 +41,10 @@ pub(super) fn assign_top_level_symbols(
         .collect::<Vec<_>>();
     let mut conformance_symbols = conformance_symbols.into_iter();
     program.conformances.for_each_mut(|conformance| {
-        if conformance.alias.is_some() {
-            if !conformance.symbol.is_valid() {
-                conformance.symbol = conformance_symbols
-                    .next()
-                    .unwrap_or_else(SymbolHandle::invalid);
-            }
+        if conformance.alias.is_some() && !conformance.symbol.is_valid() {
+            conformance.symbol = conformance_symbols
+                .next()
+                .unwrap_or_else(SymbolHandle::invalid);
         }
     });
     assign_conformance_parameter_symbols(program, symbols);

@@ -812,7 +812,6 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
         .borrow
         .reborrow_loan_resources
         .iter()
-        .map(|(handle, row)| (handle, row))
         .collect::<Vec<_>>();
     assert_eq!(after.len(), 2);
     assert_eq!(after[0].0, before[0].0);
@@ -859,13 +858,7 @@ fn retains_projected_direct_reborrow_parent() {
         }
         "#,
     );
-    let loans = checked
-        .facts
-        .borrow
-        .loans
-        .iter()
-        .map(|(handle, loan)| (handle, loan))
-        .collect::<Vec<_>>();
+    let loans = checked.facts.borrow.loans.iter().collect::<Vec<_>>();
     assert_eq!(loans.len(), 2);
     assert_eq!(
         loans[1].1.lineage,

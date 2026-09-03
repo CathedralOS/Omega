@@ -58,30 +58,35 @@ pub(super) fn reconstruct(
     function: &AbstractFunction,
 ) -> Result<ReconstructedWrappingIntegerShiftRightImmediate, Error> {
     let (function_result, function_type) = reconstruct_envelope(function)?;
-    let [AbstractOperation::IntegerConstant {
-        psi_operation: value_constant_operation,
-        result: value_constant_result,
-        scalar_type: constant_value_type,
-        value,
-    }, AbstractOperation::IntegerConstant {
-        psi_operation: count_constant_operation,
-        result: count_constant_result,
-        scalar_type: constant_count_type,
-        value: count,
-    }, AbstractOperation::WrappingIntegerShiftRight {
-        psi_operation: wrapping_shift_operation,
-        result: wrapping_shift_result,
-        value_type,
-        count_type,
-        value: value_operand,
-        count: count_operand,
-    }, AbstractOperation::Return {
-        psi_edge: return_edge,
-        result,
-        value: returned_value,
-        scalar_type: return_type,
-        cleanup_actions,
-    }] = function.operations.as_slice()
+    let [
+        AbstractOperation::IntegerConstant {
+            psi_operation: value_constant_operation,
+            result: value_constant_result,
+            scalar_type: constant_value_type,
+            value,
+        },
+        AbstractOperation::IntegerConstant {
+            psi_operation: count_constant_operation,
+            result: count_constant_result,
+            scalar_type: constant_count_type,
+            value: count,
+        },
+        AbstractOperation::WrappingIntegerShiftRight {
+            psi_operation: wrapping_shift_operation,
+            result: wrapping_shift_result,
+            value_type,
+            count_type,
+            value: value_operand,
+            count: count_operand,
+        },
+        AbstractOperation::Return {
+            psi_edge: return_edge,
+            result,
+            value: returned_value,
+            scalar_type: return_type,
+            cleanup_actions,
+        },
+    ] = function.operations.as_slice()
     else {
         return Err(Error::SourceOperationRoster);
     };

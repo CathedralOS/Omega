@@ -7,9 +7,9 @@ use crate::{
 };
 
 use super::{
-    codec::ManifestCursor, InvalidOptimizationManifestRecord, OptimizationFactReference,
-    OptimizationFactReferenceDecodeError, OptimizationManifestDecodeError, DECISION_FIXED_WIDTH,
-    DECISION_WIRE_FORMAT,
+    DECISION_FIXED_WIDTH, DECISION_WIRE_FORMAT, InvalidOptimizationManifestRecord,
+    OptimizationFactReference, OptimizationFactReferenceDecodeError,
+    OptimizationManifestDecodeError, codec::ManifestCursor,
 };
 
 /// Canonical machine record for one policy/validation decision.

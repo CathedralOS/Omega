@@ -22,9 +22,10 @@ pub use psi_language_core::{
 
 /// Semantic ownership-event roles. Shared by checked flow and every lowered
 /// semantic summary so no stage can reinterpret a generic move/drop marker.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PermissionEventKind {
     Establish,
+    #[default]
     Transfer,
     Consume,
     AffineDrop,
@@ -42,15 +43,10 @@ pub enum PermissionAccess {
     Exclusive,
 }
 
-impl Default for PermissionEventKind {
-    fn default() -> Self {
-        Self::Transfer
-    }
-}
-
 /// Stable source identity for a permission event across IR stages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PermissionEventSource {
+    #[default]
     StateEntry,
     Statement {
         statement_index: usize,
@@ -61,12 +57,6 @@ pub enum PermissionEventSource {
         target_symbol: psi_symbols::SymbolHandle,
     },
     StateExit,
-}
-
-impl Default for PermissionEventSource {
-    fn default() -> Self {
-        Self::StateEntry
-    }
 }
 
 /// Stable origin of the semantic value/obligation carried by a permission

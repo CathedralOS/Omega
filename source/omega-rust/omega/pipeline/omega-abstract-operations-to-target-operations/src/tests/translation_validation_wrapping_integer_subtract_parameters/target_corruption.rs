@@ -111,10 +111,10 @@ fn wrapping_integer_subtract_target_nested_operand_corruption_fails_closed() {
             unreachable!()
         };
         let operand = left.clone();
-        *left = Box::new(TargetIntegerExpression::BitwiseNot {
+        **left = TargetIntegerExpression::BitwiseNot {
             psi_operation: OperationId::new(49_513).unwrap(),
             operand,
-        });
+        };
     });
 }
 

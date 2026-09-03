@@ -1,4 +1,6 @@
 mod callables;
+#[allow(clippy::module_inception)]
+// This file groups record modules; `package` holds the package record itself.
 mod package;
 mod providers;
 mod source;

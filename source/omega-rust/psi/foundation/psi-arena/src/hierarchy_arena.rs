@@ -75,9 +75,7 @@ impl<T: HierarchyNode> HierarchyArena<T> {
             return Some(HierarchyChildHandles::empty());
         }
 
-        if self.nodes.paged_span(children).is_none() {
-            return None;
-        }
+        self.nodes.paged_span(children)?;
 
         Some(HierarchyChildHandles {
             next_index: children.start().arena_index(),
@@ -91,13 +89,8 @@ impl<T: HierarchyNode> HierarchyArena<T> {
         parent: Handle<T>,
         mut matches: impl FnMut(Handle<T>, &T) -> bool,
     ) -> Option<Handle<T>> {
-        for child in self.child_handles(parent)? {
-            if matches(child, self.get(child)) {
-                return Some(child);
-            }
-        }
-
-        None
+        self.child_handles(parent)?
+            .find(|&child| matches(child, self.get(child)))
     }
 
     pub fn len(&self) -> usize {

@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 
-use super::generator::{CorpusCase, CASE_COUNT, FORMAT, GENERATOR, SEED};
+use super::generator::{CASE_COUNT, CorpusCase, FORMAT, GENERATOR, SEED};
 
 const CHECKED_IN: &str =
     include_str!("../../corpora/optimizer/v2/conditional_u64_optimizer_lanes.txt");

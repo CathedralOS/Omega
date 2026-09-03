@@ -31,7 +31,7 @@ fn validates_all_fixed_saturating_integer_remainder_types_and_operand_placements
         for scalar_type in &integers {
             for (left, right) in operand_pairs {
                 let source = saturating_integer_remainder_parameters_plan(
-                    &vec![ScalarType::Integer(*scalar_type); 10],
+                    &[ScalarType::Integer(*scalar_type); 10],
                     left,
                     right,
                 );

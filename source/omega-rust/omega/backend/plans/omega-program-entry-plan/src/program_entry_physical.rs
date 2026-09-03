@@ -213,7 +213,7 @@ fn hash_digest_field(digest: &mut Sha256, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use omega_calling_conventions::{
-        evaluate_ordinary_boundary_entry_plan, CallSignature, CallingPolicy, ValueShape,
+        CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
     };
 
     use super::*;

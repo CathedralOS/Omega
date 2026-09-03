@@ -1666,7 +1666,7 @@ pub(super) fn structural_crash_route_argument_prefix(
         .or_else(|| {
             trivial_affine_locals.iter().find_map(|local| {
                 (local.id == argument.place)
-                    .then(|| match local.kind {
+                    .then_some(match local.kind {
                         StructuralPlaceKind::TrivialAffineLocal {
                             structural_type, ..
                         } => Some(structural_type),
@@ -1678,7 +1678,7 @@ pub(super) fn structural_crash_route_argument_prefix(
         .or_else(|| {
             affine_scalar_record_locals.iter().find_map(|local| {
                 (local.id == argument.place)
-                    .then(|| match local.kind {
+                    .then_some(match local.kind {
                         StructuralPlaceKind::OperationResult {
                             structural_type, ..
                         } => Some(structural_type),

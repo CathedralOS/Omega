@@ -72,10 +72,12 @@ fn no_logical_action_requires_no_spill_area() {
 fn exact_work_budget_is_sufficient() {
     let source = source();
     let exact = omega_optimization_core::OptimizationWorkBudget::new(1, 1, 2, 1, 1).unwrap();
-    assert!(color_logical_spill_stack_slots(
-        &source,
-        StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
-        exact,
-    )
-    .is_ok());
+    assert!(
+        color_logical_spill_stack_slots(
+            &source,
+            StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
+            exact,
+        )
+        .is_ok()
+    );
 }

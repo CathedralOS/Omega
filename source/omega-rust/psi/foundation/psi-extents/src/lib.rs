@@ -1,4 +1,8 @@
 #![forbid(unsafe_code)]
+#![allow(
+    clippy::result_large_err,
+    reason = "extent failures deliberately return the conserved authority needed for retry"
+)]
 
 //! Conservation model for authority over concrete address-space ranges.
 //!
@@ -2048,7 +2052,6 @@ mod tests {
 
         let loan = root.loan(8, 8).expect("local root loan");
         assert_eq!(loan.program_local_origin(), Some(program_local_origin(3)));
-        drop(loan);
 
         let (lower, upper) = root.split_at(32).expect("local root split");
         let restored = lower.merge(upper).expect("local root rejoin");
@@ -2091,11 +2094,9 @@ mod tests {
         assert_eq!((shared.base(), shared.length()), (0x1004, 8));
         assert_eq!(shared.polarity(), LoanPolarity::Shared);
         assert_eq!(shared.provider_issuance(), Some(provider_issuance(1)));
-        drop(shared);
 
         let exclusive = extent.loan_mut(16, 8).expect("exclusive loan");
         assert_eq!(exclusive.polarity(), LoanPolarity::Exclusive);
-        drop(exclusive);
 
         assert!(extent.loan(60, 8).is_err());
     }
@@ -2307,7 +2308,6 @@ mod tests {
         let error = begin_external_loan(shared, loan_id(601), &write_grant, Some(shared_reach))
             .expect_err("device mutation needs exclusive custody");
         assert!(error.diagnostic().0.contains("exclusive"));
-        drop((*error).into_loan());
 
         let exclusive = extent.loan_mut(0, 16).expect("exclusive loan");
         let exclusive_reach = reach_receipt(

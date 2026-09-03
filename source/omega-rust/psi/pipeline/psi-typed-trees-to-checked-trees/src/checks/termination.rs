@@ -150,21 +150,21 @@ pub(crate) fn infer_machine_checked_summary(
 ) -> psi_language_semantics::TerminationGuarantee {
     use psi_language_semantics::TerminationGuarantee;
 
-    let established =
-        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody {
-            false
-        } else if retired_subtraction_message(program, machine).is_some() {
-            false
-        } else if !graph::machine_has_cycle(program, machine) {
-            true
-        } else if machine.termination_plan.implementation_witness.is_some() {
-            matches!(
-                ranking::machine_decrease_outcome(program, machine),
-                ranking::DecreaseOutcome::Proven
-            )
-        } else {
-            false
-        };
+    let established = if machine.supply_mode
+        != psi_language_semantics::MachineSupplyMode::CheckedBody
+        || retired_subtraction_message(program, machine).is_some()
+    {
+        false
+    } else if !graph::machine_has_cycle(program, machine) {
+        true
+    } else if machine.termination_plan.implementation_witness.is_some() {
+        matches!(
+            ranking::machine_decrease_outcome(program, machine),
+            ranking::DecreaseOutcome::Proven
+        )
+    } else {
+        false
+    };
 
     if established {
         TerminationGuarantee::Terminates {

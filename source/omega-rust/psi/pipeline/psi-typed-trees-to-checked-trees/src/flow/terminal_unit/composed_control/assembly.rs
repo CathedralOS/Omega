@@ -2,6 +2,24 @@
 
 use super::*;
 
+pub(in crate::flow::terminal_unit) fn build_all(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    boundaries: &[CheckedBoundaryMachinePlan],
+) -> Vec<CheckedComposedUnitControlMachinePlan> {
+    program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build(program, facts, shapes, boundaries, machine)
+                .or_else(|| prefixed_control::build(program, facts, shapes, boundaries, machine))
+                .or_else(|| nested_control::build(program, facts, shapes, boundaries, machine))
+        })
+        .collect()
+}
+
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,

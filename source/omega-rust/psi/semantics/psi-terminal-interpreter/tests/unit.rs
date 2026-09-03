@@ -1952,7 +1952,7 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument.clone()],
+        std::slice::from_ref(&argument),
         &mut handler,
     )
     .expect("verified Unit/effect artifact should execute");
@@ -2063,7 +2063,7 @@ fn boundary_scalar_arguments_reach_effect_handlers_in_declared_order() {
         completion_receipts: Vec::new(),
         result: psi_terminal::BoundaryMachineResult::Unit,
     };
-    assert_eq!(handler.effects, [expected.clone()]);
+    assert_eq!(handler.effects, std::slice::from_ref(&expected));
     assert_eq!(measured.effects(), &[expected]);
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
 }
@@ -2190,7 +2190,7 @@ fn unit_calls_transfer_and_settle_nested_record_field_claims() {
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument.clone()],
+        std::slice::from_ref(&argument),
         &mut handler,
     )
     .expect("verified nested field custody should execute");
@@ -2275,7 +2275,7 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument.clone()],
+        std::slice::from_ref(&argument),
         &mut handler,
     )
     .expect("verified sibling field custody should execute");
@@ -3644,27 +3644,31 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
     second_application.report_fingerprint =
         closed_conformance_application_report_fingerprint(&second_application);
     second_application.commitment = closed_conformance_application_commitment(&second_application);
-    module.closed_conformance_applications.push(second_application.clone());
-    module.closed_conformance_applications.sort_by(|left, right| {
-        (
-            left.owner,
-            &left.declaration_identity,
-            left.report_fingerprint,
-        )
-            .cmp(&(
-                right.owner,
-                &right.declaration_identity,
-                right.report_fingerprint,
-            ))
-    });
+    module
+        .closed_conformance_applications
+        .push(second_application.clone());
+    module
+        .closed_conformance_applications
+        .sort_by(|left, right| {
+            (
+                left.owner,
+                &left.declaration_identity,
+                left.report_fingerprint,
+            )
+                .cmp(&(
+                    right.owner,
+                    &right.declaration_identity,
+                    right.report_fingerprint,
+                ))
+        });
 
     module.dynamic_dispatch.rebound_descriptors.clear();
-    module.dynamic_dispatch.selections[0]
-        .conformance_application_report_fingerprint = first_application.report_fingerprint;
+    module.dynamic_dispatch.selections[0].conformance_application_report_fingerprint =
+        first_application.report_fingerprint;
     module.dynamic_dispatch.selections[0].conformance_application_commitment =
         first_application.commitment;
-    module.dynamic_dispatch.selections[1]
-        .conformance_application_report_fingerprint = second_application.report_fingerprint;
+    module.dynamic_dispatch.selections[1].conformance_application_report_fingerprint =
+        second_application.report_fingerprint;
     module.dynamic_dispatch.selections[1].conformance_application_commitment =
         second_application.commitment;
     module.dynamic_dispatch.arguments = vec![
@@ -3774,11 +3778,10 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
     second_machine.entry = block_id(98);
     second_machine.blocks[0].id = block_id(98);
     second_machine.blocks[0].operations[0].id = operation_id(6);
-    second_machine.blocks[0].operations[0].result =
-        OperationResult::Scalar(ValueDeclaration {
-            id: value_id(11),
-            scalar_type: integer,
-        });
+    second_machine.blocks[0].operations[0].result = OperationResult::Scalar(ValueDeclaration {
+        id: value_id(11),
+        scalar_type: integer,
+    });
     second_machine.blocks[0].operations[0].kind = OperationKind::IntegerConstant {
         value: IntegerValue::Signed(41),
     };
@@ -4903,9 +4906,11 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
                         caller_claim: claim,
                     }],
                     requirement_obligations: Vec::new(),
-                    crash_continuations: crashes
-                        .then(|| vec![crash_route.clone()])
-                        .unwrap_or_default(),
+                    crash_continuations: if crashes {
+                        vec![crash_route.clone()]
+                    } else {
+                        Default::default()
+                    },
                     selected_evidence: Vec::new(),
                 },
             }],
@@ -4918,9 +4923,11 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         }],
         contract: MachineContract {
             id: contract_id(1),
-            crash_routes: crashes
-                .then(|| vec![crash_route.clone()])
-                .unwrap_or_default(),
+            crash_routes: if crashes {
+                vec![crash_route.clone()]
+            } else {
+                Default::default()
+            },
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
@@ -4993,7 +5000,11 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         }],
         contract: MachineContract {
             id: contract_id(2),
-            crash_routes: crashes.then(|| vec![crash_route]).unwrap_or_default(),
+            crash_routes: if crashes {
+                vec![crash_route]
+            } else {
+                Default::default()
+            },
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),

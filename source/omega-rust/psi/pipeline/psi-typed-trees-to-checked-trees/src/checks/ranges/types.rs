@@ -56,6 +56,7 @@ pub(super) fn expression_is_slice(
 /// - the arithmetic domain is EXACT: a `in Wrapping`/`Saturating` store is
 ///   deliberately permissive (probed live: `[0..=4] in Wrapping` accepts a
 ///   store of 100), so a non-Exact range must never discharge an index bound.
+///
 /// Every store into an Exact ranged place is range-checked (the narrowing
 /// keystone) and ZII requires 0 in range, so the declared interval holds at
 /// every read.
@@ -86,7 +87,7 @@ pub(in crate::checks) fn expression_enforced_declared_range(
 
 /// R1 dependent range (`i: u32 [0..=self.count]`): the SUBSTITUTED literal
 /// interval. The caller-side proof obligation established `i <= count@entry
-/// + offset`; `count`'s own enforced literal range holds at EVERY write
+/// plus `offset`; `count`'s own enforced literal range holds at EVERY write
 /// (store-enforced), so `count@entry <= high(count)` and the substituted
 /// `(min, high(count) + offset)` is a true invariant of `i` -- immune to the
 /// field being reassigned after entry. `None` when the named field is

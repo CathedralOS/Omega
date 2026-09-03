@@ -123,7 +123,8 @@ pub(super) fn index_expressions_may_overlap(
     right: ExpressionHandle,
 ) -> bool {
     let mut selectors = SelectorSnapshotEvaluation::capture();
-    let may_overlap = index_expressions_may_overlap_with_selectors(
+
+    index_expressions_may_overlap_with_selectors(
         program,
         left,
         SelectorLocation {
@@ -136,8 +137,7 @@ pub(super) fn index_expressions_may_overlap(
             segment_index: 0,
         },
         &mut selectors,
-    );
-    may_overlap
+    )
 }
 
 pub(super) fn index_expressions_may_overlap_with_selectors(

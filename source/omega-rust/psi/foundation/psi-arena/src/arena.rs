@@ -457,8 +457,7 @@ impl<T: Default> Arena<T> {
         self.items
             .into_iter()
             .zip(self.occupied)
-            .enumerate()
-            .filter_map(|(_, (item, occupied))| occupied.then_some(item))
+            .filter_map(|(item, occupied)| occupied.then_some(item))
     }
 
     pub fn into_span_items(self, span: HandleSpan<T>) -> impl Iterator<Item = T> {

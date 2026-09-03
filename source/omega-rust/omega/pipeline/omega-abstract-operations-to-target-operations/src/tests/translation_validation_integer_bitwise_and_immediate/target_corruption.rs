@@ -8,11 +8,15 @@ fn target_provenance_corruption_fails_closed() {
         StraightLineIntegerBitwiseAndImmediateTranslationError::TargetProvenance
     );
     assert_eq!(
-        candidate_error(|target| { target.functions[0].provenance.operations.pop(); }),
+        candidate_error(|target| {
+            target.functions[0].provenance.operations.pop();
+        }),
         StraightLineIntegerBitwiseAndImmediateTranslationError::TargetProvenance
     );
     assert_eq!(
-        candidate_error(|target| { target.functions[0].provenance = TerminalPsiProvenance::default(); }),
+        candidate_error(|target| {
+            target.functions[0].provenance = TerminalPsiProvenance::default();
+        }),
         StraightLineIntegerBitwiseAndImmediateTranslationError::TargetProvenance
     );
 }
@@ -34,22 +38,30 @@ fn target_immediate_corruption_fails_closed() {
 }
 
 fn mutate_edge(operation: &mut TargetOperation) {
-    let TargetOperation::ReturnIntegerImmediate { psi_edge, .. } = operation else { unreachable!() };
+    let TargetOperation::ReturnIntegerImmediate { psi_edge, .. } = operation else {
+        unreachable!()
+    };
     *psi_edge = EdgeId::new(73_200).unwrap();
 }
 
 fn mutate_source_value(operation: &mut TargetOperation) {
-    let TargetOperation::ReturnIntegerImmediate { source_value, .. } = operation else { unreachable!() };
+    let TargetOperation::ReturnIntegerImmediate { source_value, .. } = operation else {
+        unreachable!()
+    };
     *source_value = ValueId::new(73_201).unwrap();
 }
 
 fn mutate_scalar_type(operation: &mut TargetOperation) {
-    let TargetOperation::ReturnIntegerImmediate { scalar_type, .. } = operation else { unreachable!() };
+    let TargetOperation::ReturnIntegerImmediate { scalar_type, .. } = operation else {
+        unreachable!()
+    };
     *scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
 }
 
 fn mutate_value(operation: &mut TargetOperation) {
-    let TargetOperation::ReturnIntegerImmediate { value, .. } = operation else { unreachable!() };
+    let TargetOperation::ReturnIntegerImmediate { value, .. } = operation else {
+        unreachable!()
+    };
     *value = IntegerValue::Unsigned(0);
 }
 

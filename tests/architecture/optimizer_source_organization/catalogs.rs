@@ -192,31 +192,6 @@ fn check_repository_wide_catalog_uniqueness(audit: &mut Audit) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn catalog_scan_ignores_const_functions_and_finds_proxy_arrays() {
-        let declarations = constant_declarations(
-            "pub const fn optimization(self) -> Optimization { self.optimization }\n\
-             const EXACT_RULE: Optimization = Optimization::ControlFlowCleanup;\n\
-             pub const HIDDEN_ORDER: [Optimization; 1] = [\n\
-                 Optimization::ControlFlowCleanup,\n\
-             ];",
-        );
-        assert_eq!(
-            declarations
-                .iter()
-                .map(|declaration| declaration.name.as_str())
-                .collect::<Vec<_>>(),
-            ["EXACT_RULE", "HIDDEN_ORDER"]
-        );
-        assert!(!is_optimization_array(&declarations[0]));
-        assert!(is_optimization_array(&declarations[1]));
-    }
-}
-
 pub(crate) fn check(audit: &mut Audit) {
     check_repository_wide_catalog_uniqueness(audit);
 
@@ -304,7 +279,7 @@ pub(crate) fn check(audit: &mut Audit) {
         Ok(()) => {
             let mut catalog_declarations = Vec::new();
             for file in legalization_files {
-                let Ok(relative) = repository_relative_path(&repository, &file) else {
+                let Ok(relative) = repository_relative_path(repository, &file) else {
                     continue;
                 };
                 let contents = match fs::read_to_string(&file) {
@@ -341,5 +316,30 @@ pub(crate) fn check(audit: &mut Audit) {
                 "failed to inventory legalization catalogs: {error}"
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_scan_ignores_const_functions_and_finds_proxy_arrays() {
+        let declarations = constant_declarations(
+            "pub const fn optimization(self) -> Optimization { self.optimization }\n\
+             const EXACT_RULE: Optimization = Optimization::ControlFlowCleanup;\n\
+             pub const HIDDEN_ORDER: [Optimization; 1] = [\n\
+                 Optimization::ControlFlowCleanup,\n\
+             ];",
+        );
+        assert_eq!(
+            declarations
+                .iter()
+                .map(|declaration| declaration.name.as_str())
+                .collect::<Vec<_>>(),
+            ["EXACT_RULE", "HIDDEN_ORDER"]
+        );
+        assert!(!is_optimization_array(&declarations[0]));
+        assert!(is_optimization_array(&declarations[1]));
     }
 }

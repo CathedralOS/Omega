@@ -302,7 +302,7 @@ fn verify_validated_module<'module>(
             .remove(&site.obligation.id)
             .ok_or(VerificationError::MissingEvidence(site.obligation.id))?;
         let accepted = verify_obligation_with_machine_parameters(
-            &context,
+            context,
             &site.obligation,
             &site.requirements,
             &site.semantic_axioms,

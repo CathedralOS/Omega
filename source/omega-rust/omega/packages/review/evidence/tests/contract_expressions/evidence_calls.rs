@@ -222,12 +222,9 @@ fn evidence_call_projection_rejects_argument_drift_after_checking() {
     assert_tamper_rejected(
         target,
         |checked| {
-            let expression =
-                checked.facts.proof.contract_expression_evidence_calls[0].expression;
-            let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
-                .expression_table
-                .expression(expression)
-                .clone()
+            let expression = checked.facts.proof.contract_expression_evidence_calls[0].expression;
+            let psi_typed_trees::expression::ExpressionNode::Call(call) =
+                checked.expression_table.expression(expression).clone()
             else {
                 panic!("checked evidence occurrence must rejoin a call")
             };

@@ -151,7 +151,7 @@ pub(super) fn lower_unit_body(
                 }
                 operations.push(TargetUnitOperation::EstablishByteSequenceLiteral {
                     psi_operation: *psi_operation,
-                    place: place.clone(),
+                    place: *place,
                     structural_type: structural_type.clone(),
                     bytes: bytes.clone(),
                 });
@@ -199,7 +199,7 @@ pub(super) fn lower_unit_body(
                 }
                 operations.push(TargetUnitOperation::EstablishTrivialAffineLocal {
                     psi_operation: *psi_operation,
-                    place: place.clone(),
+                    place: *place,
                     structural_type: structural_type.clone(),
                 });
                 provenance.operations.push(*psi_operation);

@@ -12,7 +12,7 @@ fn source_canary() -> PathBuf {
         .join("tests/omega/pass/terminal_psi/integer_control_contract/main.omg")
 }
 
-fn operation_site<'map>(sites: &'map [DebugSite], operation: OperationId) -> &'map DebugSite {
+fn operation_site(sites: &[DebugSite], operation: OperationId) -> &DebugSite {
     sites
         .iter()
         .find(|site| site.subject == DebugSubject::Operation(operation))

@@ -160,7 +160,7 @@ fn source_parameter_contract_corruption_fails_closed() {
         StraightLineIntegerParameterTranslationError::SourceParameters
     );
     assert_eq!(
-        leaf_error(|function| function.parameters.push(function.parameters[0].clone())),
+        leaf_error(|function| function.parameters.push(function.parameters[0])),
         StraightLineIntegerParameterTranslationError::SourceParameterRoster
     );
     assert_eq!(

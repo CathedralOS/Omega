@@ -8,6 +8,7 @@
 //!   primitive or a data type that itself declares the property.
 //! - `carry(...)`: the authored four-axis floor may not be more permissive
 //!   than the policy derived from every stored field.
+//!
 //! Whether zeroed storage establishes a type is derived from its default
 //! domain, fields, and zero-case payload in `data`; semantic emptiness is not
 //! a type property.

@@ -15,10 +15,10 @@ use psi_core::{OperationId, ScalarType, ValueId};
 pub(in crate::rules::passes) use compatible_policy::{
     compatible_policy_scalar_leader, compatible_policy_scalar_redundant,
 };
+pub(super) use model::TotalScalarExpressionKey;
 pub(in crate::rules::passes) use model::{
     CompatiblePolicyScalarExpressionKey, ProofCertifiedScalarExpressionKey,
 };
-pub(super) use model::TotalScalarExpressionKey;
 pub(in crate::rules::passes) use proof_certified::proof_certified_scalar_expression;
 pub(super) use total::total_scalar_expression;
 

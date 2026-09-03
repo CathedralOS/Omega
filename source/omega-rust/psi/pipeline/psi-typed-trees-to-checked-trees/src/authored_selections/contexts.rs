@@ -137,7 +137,7 @@ pub(super) fn checked_collection_view_intrinsic_from_exact_owner(
         }
         retained = Some(candidate);
     }
-    retained.map(|operation| Intrinsic::CollectionView(operation))
+    retained.map(Intrinsic::CollectionView)
 }
 
 pub(super) fn checked_machine_call_target_from_exact_owner(

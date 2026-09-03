@@ -3,8 +3,8 @@
 use crate::selection::constraints::instruction;
 use crate::selection::shared::*;
 
-use super::direct_parameter::{false_successor, true_successor};
 use super::ScalarConstructionContext;
+use super::direct_parameter::{false_successor, true_successor};
 
 pub(super) fn build(
     context: &ScalarConstructionContext<'_>,

@@ -47,16 +47,12 @@ pub(crate) fn linux_write_line_custody_is_exact(
         && custody.code_offset == settlement.code_offset
         && custody.code_byte_count == data.start
         && custody.code_byte_count != 0
-        && custody.data_offset
-            == settlement
-                .code_offset
-                .checked_add(data.start)
-                .unwrap_or(usize::MAX)
+        && custody.data_offset == settlement.code_offset.saturating_add(data.start)
         && custody.data_byte_count == data.len()
         && custody.data_byte_count == custody.bytes.len().saturating_add(1)
-        && encoded.get(data.clone()).is_some_and(|payload| {
-            payload.strip_suffix(&[b'\n']) == Some(custody.bytes.as_slice())
-        });
+        && encoded
+            .get(data.clone())
+            .is_some_and(|payload| payload.strip_suffix(b"\n") == Some(custody.bytes.as_slice()));
     if !exact_intervals {
         return false;
     }

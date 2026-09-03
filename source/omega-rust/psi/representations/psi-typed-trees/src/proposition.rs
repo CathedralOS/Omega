@@ -708,7 +708,7 @@ impl crate::TypedTrees {
         let binder_labels = application
             .binder_arguments
             .iter()
-            .map(|argument| display_binder_argument(argument))
+            .map(display_binder_argument)
             .collect::<Vec<_>>();
         let argument_labels = self
             .expression_table

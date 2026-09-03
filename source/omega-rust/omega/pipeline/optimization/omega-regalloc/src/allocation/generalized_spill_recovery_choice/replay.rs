@@ -51,13 +51,12 @@ pub(super) fn replay<S: ValidatedSelectedAnalysis>(
     }
     let mut work_items = BTreeMap::new();
     for (function, row) in worklist.plan().functions.iter().enumerate() {
-        if let Some(item) = &row.item {
-            if work_items
+        if let Some(item) = &row.item
+            && work_items
                 .insert((function, item.id), (row.machine, item))
                 .is_some()
-            {
-                return Err(GeneralizedSpillRecoveryChoiceError::MissingPressure { function });
-            }
+        {
+            return Err(GeneralizedSpillRecoveryChoiceError::MissingPressure { function });
         }
     }
     let mut assignments = BTreeMap::new();

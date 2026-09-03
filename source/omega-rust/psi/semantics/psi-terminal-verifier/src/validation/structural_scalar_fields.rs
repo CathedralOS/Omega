@@ -2,10 +2,10 @@
 
 use super::*;
 
-fn parameter_for<'machine>(
-    machine: &'machine TerminalMachine,
+fn parameter_for(
+    machine: &TerminalMachine,
     place: PlaceId,
-) -> Option<&'machine StructuralParameterDeclaration> {
+) -> Option<&StructuralParameterDeclaration> {
     let parameter = machine
         .structural_parameters
         .iter()

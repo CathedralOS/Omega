@@ -188,17 +188,17 @@ fn field_type_reference(
                         .type_reference_table
                         .type_reference_handles(*arguments),
                 )
-                .filter_map(|(parameter, argument)| {
+                .filter(|&(parameter, _argument)| {
                     matches!(
                         parameter.kind,
                         psi_typed_trees::data::TypeParameterKind::Type
                     )
-                    .then(|| {
-                        (
-                            parameter.symbol,
-                            substituted_type_reference(program, *argument, substitutions),
-                        )
-                    })
+                })
+                .map(|(parameter, argument)| {
+                    (
+                        parameter.symbol,
+                        substituted_type_reference(program, *argument, substitutions),
+                    )
                 })
                 .collect();
             substitutions.extend(bindings);

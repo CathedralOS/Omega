@@ -280,7 +280,7 @@ pub(super) fn emit_structural_scalar_call(
         owner: CallSiteOwner::Operation(*psi_operation),
         target: *callee,
         result: Some(result.scalar_type),
-        semantic_result: Some(result.clone()),
+        semantic_result: Some(*result),
         structural_result: None,
         scalar_arguments: scalar_argument_records,
         arguments: copies

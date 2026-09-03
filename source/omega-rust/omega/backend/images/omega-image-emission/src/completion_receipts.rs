@@ -11,10 +11,10 @@ use psi_terminal::{CompletionReceipt, StructuralArgument, StructuralPathSegment}
 /// Callers translate these private classes to their existing public errors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum CompletionCustodyError {
-    InvalidArgumentPath,
-    InvalidReceiptArgumentIndex,
-    InvalidReceiptCustody,
-    InvalidProviderCustody,
+    ArgumentPath,
+    ReceiptArgumentIndex,
+    ReceiptCustody,
+    ProviderCustody,
 }
 
 /// Replay the complete completion-custody responsibility after the verified
@@ -30,20 +30,20 @@ pub(super) fn validate_completion_custody(
             |segment| matches!(segment, StructuralPathSegment::Field(identity) if identity.is_empty()),
         )
     }) {
-        return Err(CompletionCustodyError::InvalidArgumentPath);
+        return Err(CompletionCustodyError::ArgumentPath);
     }
     if settlement.completion_receipts.iter().any(|receipt| {
         usize::try_from(receipt.argument_index)
             .map_or(true, |index| index >= settlement.arguments.len())
     }) {
-        return Err(CompletionCustodyError::InvalidReceiptArgumentIndex);
+        return Err(CompletionCustodyError::ReceiptArgumentIndex);
     }
     if !completion_receipts_have_exact_custody(
         &settlement.arguments,
         &settlement.completion_claim_sources,
         &settlement.completion_receipts,
     ) {
-        return Err(CompletionCustodyError::InvalidReceiptCustody);
+        return Err(CompletionCustodyError::ReceiptCustody);
     }
     let compiler_builtin_pair_is_exact = match (settlement.execution, settlement.realization) {
         (
@@ -74,7 +74,7 @@ pub(super) fn validate_completion_custody(
         _ => true,
     };
     if !compiler_builtin_pair_is_exact {
-        return Err(CompletionCustodyError::InvalidProviderCustody);
+        return Err(CompletionCustodyError::ProviderCustody);
     }
     if derive_completion_provider_custody(
         settlement.execution,
@@ -83,7 +83,7 @@ pub(super) fn validate_completion_custody(
     )
     .is_none_or(|expected| expected != settlement.completion_provider_custody)
     {
-        return Err(CompletionCustodyError::InvalidProviderCustody);
+        return Err(CompletionCustodyError::ProviderCustody);
     }
     Ok(())
 }
@@ -364,21 +364,21 @@ mod tests {
         invalid_argument.completion_receipts[0].argument_index = 2;
         assert_eq!(
             validate_completion_custody(&invalid_argument),
-            Err(CompletionCustodyError::InvalidArgumentPath)
+            Err(CompletionCustodyError::ArgumentPath)
         );
 
         let mut invalid_index = valid.clone();
         invalid_index.completion_receipts[0].argument_index = 2;
         assert_eq!(
             validate_completion_custody(&invalid_index),
-            Err(CompletionCustodyError::InvalidReceiptArgumentIndex)
+            Err(CompletionCustodyError::ReceiptArgumentIndex)
         );
 
         let mut invalid_receipt = valid.clone();
         invalid_receipt.completion_receipts[0].claim = ClaimId::new(2).expect("other claim");
         assert_eq!(
             validate_completion_custody(&invalid_receipt),
-            Err(CompletionCustodyError::InvalidReceiptCustody)
+            Err(CompletionCustodyError::ReceiptCustody)
         );
 
         let mut invalid_provider = valid;
@@ -387,7 +387,7 @@ mod tests {
             .provider_plan_report_identity = 9;
         assert_eq!(
             validate_completion_custody(&invalid_provider),
-            Err(CompletionCustodyError::InvalidProviderCustody)
+            Err(CompletionCustodyError::ProviderCustody)
         );
 
         let mut role_substitution = settlement(Vec::new(), Vec::new(), Vec::new());
@@ -396,7 +396,7 @@ mod tests {
         );
         assert_eq!(
             validate_completion_custody(&role_substitution),
-            Err(CompletionCustodyError::InvalidProviderCustody)
+            Err(CompletionCustodyError::ProviderCustody)
         );
 
         let mut reverse_role_substitution = settlement(Vec::new(), Vec::new(), Vec::new());
@@ -404,7 +404,7 @@ mod tests {
             omega_target_operations::BoundaryRealization::LinuxWriteByteI32(Default::default());
         assert_eq!(
             validate_completion_custody(&reverse_role_substitution),
-            Err(CompletionCustodyError::InvalidProviderCustody)
+            Err(CompletionCustodyError::ProviderCustody)
         );
     }
 }

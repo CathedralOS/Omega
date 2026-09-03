@@ -184,7 +184,7 @@ fn validate_recursive_nested_sums_with_reachability<InnerPaths, Inner, Derive>(
     reachability: &mut SumReachability<'_>,
     fingerprint_domain: &[u8],
     mut derive: Derive,
-    inner_fingerprint: fn(&Inner) -> u64,
+    inner_report_fingerprint: fn(&Inner) -> u64,
 ) -> Result<
     ValidatedConstRecursiveNestedSumsMaterialization<
         ConventionalRecordSumPathsLayoutReport<InnerPaths>,
@@ -225,7 +225,7 @@ where
         byte_order,
         value,
         &derived.bytes,
-        |occurrence| inner_fingerprint(&occurrence.inner),
+        |occurrence| inner_report_fingerprint(&occurrence.inner),
     );
     Ok(ValidatedConstRecursiveNestedSumsMaterialization {
         schema_name: schema_name.to_owned(),
@@ -257,7 +257,7 @@ fn replay_recursive_nested_sums_with_reachability<InnerPaths, Inner, Derive, Rep
     mut replay_inner: ReplayInner,
     inner_schema_name: for<'a> fn(&'a Inner) -> &'a str,
     inner_value: for<'a> fn(&'a Inner) -> &'a BuildTimeValue,
-    inner_fingerprint: fn(&Inner) -> u64,
+    inner_report_fingerprint: fn(&Inner) -> u64,
 ) -> Result<(), MaterializationDiagnostic>
 where
     InnerPaths: RecordSumPathsInnerLayout + RecordSumPathsReplay,
@@ -343,8 +343,8 @@ where
             byte_order,
             reachability,
         )?;
-        if inner_fingerprint(&retained_occurrence.inner)
-            != inner_fingerprint(&replayed_occurrence.inner)
+        if inner_report_fingerprint(&retained_occurrence.inner)
+            != inner_report_fingerprint(&replayed_occurrence.inner)
         {
             return Err(MaterializationDiagnostic(format!(
                 "ConstMaterializable plural {depth_label} inner custody drifted after exact replay"
@@ -368,7 +368,7 @@ where
         byte_order,
         value,
         &replayed.bytes,
-        |occurrence| inner_fingerprint(&occurrence.inner),
+        |occurrence| inner_report_fingerprint(&occurrence.inner),
     );
     if fingerprint != retained.non_authoritative_materialization_report_fingerprint {
         return Err(MaterializationDiagnostic(format!(

@@ -98,9 +98,7 @@ pub(crate) fn joined_place_label(
     let mut segments: Vec<_> = semantic
         .place_segments
         .span_or_empty(place.segments)
-        .iter()
-        .copied()
-        .collect();
+        .to_vec();
     segments.extend(extra_segments.iter().copied());
     canonical_place_label_from_parts(program, place.root, &segments)
 }

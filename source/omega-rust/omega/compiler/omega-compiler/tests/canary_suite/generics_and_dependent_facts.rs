@@ -1443,7 +1443,7 @@ fn open_index_exact_local_fact_canary_runs() {
     );
     let evidence = conditions
         .iter()
-        .map(|condition| {
+        .flat_map(|condition| {
             let psi_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { facts } =
                 &condition.discharge
             else {
@@ -1458,7 +1458,6 @@ fn open_index_exact_local_fact_canary_runs() {
                 })
                 .collect::<Vec<_>>()
         })
-        .flatten()
         .collect::<Vec<_>>();
     assert!(
         evidence

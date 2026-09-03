@@ -798,12 +798,7 @@ fn handle_span_contains<T>(span: HandleSpan<T>, handle: Handle<T>) -> bool {
         && !span.is_empty()
         && handle.generation() == span.start().generation()
         && handle.arena_index() >= span.start().arena_index()
-        && handle.arena_index()
-            < span
-                .start()
-                .arena_index()
-                .checked_add(span.count())
-                .unwrap_or(u32::MAX)
+        && handle.arena_index() < span.start().arena_index().saturating_add(span.count())
 }
 
 #[cfg(test)]

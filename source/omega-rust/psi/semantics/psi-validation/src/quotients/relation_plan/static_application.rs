@@ -179,7 +179,7 @@ fn static_argument_matches_type(
     program: &TypedTrees,
     argument: &StaticMachineArgument,
     concrete: TypeReferenceHandle,
-    substitutions: &[RepresentativeStaticBinding],
+    _substitutions: &[RepresentativeStaticBinding],
 ) -> bool {
     if argument.const_literal.is_some() || argument.evidence_projection.is_some() {
         return false;
@@ -220,7 +220,7 @@ fn static_argument_matches_type(
             .iter()
             .zip(concrete_arguments)
             .all(|(argument, concrete)| {
-                static_argument_matches_type(program, argument, *concrete, substitutions)
+                static_argument_matches_type(program, argument, *concrete, _substitutions)
             })
 }
 

@@ -8,9 +8,7 @@ use super::super::TotalScalarIdentityShape;
 
 /// Return the four exact-width absorbing laws in canonical operation and
 /// left-literal/right-literal order. The law operand is also the replacement.
-pub(super) fn classify(
-    operation: &O,
-) -> Vec<TotalScalarIdentityShape> {
+pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     match operation {
         O::IntegerBitwiseAnd {
             psi_operation,

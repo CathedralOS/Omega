@@ -391,11 +391,11 @@ fn lower_member_path(
     Ok((identities, current_type))
 }
 
-fn exact_field<'checked>(
-    checked: &'checked CheckedTrees,
+fn exact_field(
+    checked: &CheckedTrees,
     owner_symbol: SymbolHandle,
     field_symbol: SymbolHandle,
-) -> Option<(&'checked DataDefinition, &'checked DataField)> {
+) -> Option<(&DataDefinition, &DataField)> {
     let data = checked
         .typed
         .data_definitions()

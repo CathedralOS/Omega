@@ -433,7 +433,7 @@ pub(super) fn expected_maximal_residual_subtrees(
         };
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15),
+            length: inner_length @ (3..=15),
         } = declarations.get(&element)?.shape
         else {
             return None;
@@ -494,10 +494,10 @@ pub(super) fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
             |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
         )) || matches!(
         path,
-        [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
+        [StructuralPathSegment::FixedIndex(0..=3)]
             | [
                 StructuralPathSegment::FixedIndex(0 | 1),
-                StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14),
+                StructuralPathSegment::FixedIndex(0..=14),
             ]
     )
 }
@@ -651,7 +651,7 @@ mod tests {
     fn nested_sums_compose_as_payload_shapes() {
         let inner = structural_type(1);
         let outer = structural_type(2);
-        let declarations = vec![
+        let declarations = [
             StructuralTypeDeclaration {
                 id: inner,
                 identity: "test::Inner".into(),

@@ -129,7 +129,7 @@ ensures result == 1;
         .expect("bind other candidate decision");
     assert!(matches!(
         resolve_review_only_root_policy_decisions(
-            &conflicts,
+            conflicts,
             &[wrong_candidate_decision, first_accept]
         ),
         Err(ReviewOnlyRootPolicyResolutionError::WrongCandidateClosure { .. })

@@ -6,11 +6,6 @@ use omega_regalloc::PostAllocationSelectedTransformation;
 use super::{build_artifacts, validate_artifacts};
 use crate::stages::realization::function_relative_realization::assembly::expected_post_allocation_machine_manifest;
 use crate::{
-    validate_optimized_active_resident_rematerialization,
-    validate_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_custody,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
-    validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
-    validate_optimized_register_home_after_fixed_view_copy_custody,
     FunctionRelativeOptimizationRealizationError,
     PostAllocationMachineFunctionRelativeSourceCustody,
     StagedAllocationRecoveryFunctionRelativeSource, StagedAllocationRecoverySourceCustodyReceipt,
@@ -21,6 +16,11 @@ use crate::{
     StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt,
     StagedPostAllocationMachineFunctionRelativeSource,
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
+    validate_optimized_active_resident_rematerialization,
+    validate_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_custody,
+    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
+    validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
+    validate_optimized_register_home_after_fixed_view_copy_custody,
 };
 
 pub fn stage_post_allocation_machine_function_relative_realization_after_allocation_recovery(

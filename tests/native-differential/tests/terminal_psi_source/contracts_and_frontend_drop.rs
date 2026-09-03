@@ -117,7 +117,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
             .all(|snippet| *snippet == "7i32")
     );
     let edge_snippets = snippets(|subject| matches!(subject, DebugSubject::Edge(_)));
-    assert!(edge_snippets.iter().any(|snippet| *snippet == "7i32"));
+    assert!(edge_snippets.contains(&"7i32"));
     assert!(edge_snippets.contains(&"->"));
     assert_eq!(
         terminal_psi_identity(&semantic_module).unwrap(),

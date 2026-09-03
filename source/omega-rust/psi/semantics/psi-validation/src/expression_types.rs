@@ -110,7 +110,16 @@ pub fn argument_matches_type_reference_handle(
         TypeReferenceNode::Reference {
             referee, access, ..
         } => {
+            let implicit_shared_source_has_identity = matches!(
+                argument_node,
+                ExpressionNode::Call(_)
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Name(_)
+                    | ExpressionNode::String(_)
+            );
             *access == psi_language_semantics::ReferenceAccess::Shared
+                && implicit_shared_source_has_identity
                 && argument_matches_type_reference_handle(program, argument, *referee)
         }
         TypeReferenceNode::Constrained { base_type, .. } => {

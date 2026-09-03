@@ -44,20 +44,19 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
         GitWorkspaceProjectionError<PlannerError>,
     >,
 ) -> Result<(ResolvedGitSource, Evidence), GitWorkspaceProjectionError<PlannerError>> {
-    if let Some(pin) = pin {
-        if !pin.matches_request(
+    if let Some(pin) = pin
+        && !pin.matches_request(
             request.requested_locator(),
             request.lineage(),
             request.locator_identity(),
             request.transport_profile(),
             request.requested_revision(),
-        ) {
-            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-                message: "Git acquisition reuse pin does not match the exact source request"
-                    .to_owned(),
-            }
-            .into());
+        )
+    {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "Git acquisition reuse pin does not match the exact source request".to_owned(),
         }
+        .into());
     }
     let execution_transport = request.execution_transport();
     let executor = GitExecutor::selected(
@@ -103,7 +102,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
             let namespace_result = entry_lock.verify_path_identity();
             if verification_result.is_err() || namespace_result.is_err() {
                 let invalidation_result = invalidate_git_cache_entry_from_open_parent(
-                    &cache_dir,
+                    cache_dir,
                     entry_lock.parent(),
                     &entry_name,
                     &entry_root,
@@ -129,7 +128,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
             }
             let creation_result = create_git_cache_entry(
                 &executor,
-                &cache_dir,
+                cache_dir,
                 entry_lock.parent(),
                 &entry_root,
                 &entry_name,
@@ -186,7 +185,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
             }
             Err(GitWorkspaceProjectionError::Source(error)) => {
                 let invalidation_result = invalidate_git_cache_entry_from_open_parent(
-                    &cache_dir,
+                    cache_dir,
                     entry_lock.parent(),
                     &entry_name,
                     &entry_root,

@@ -272,7 +272,7 @@ impl Default for TypeReferenceTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
@@ -316,6 +316,7 @@ pub enum TypeReferenceNode {
     },
     Named(Identifier),
     SelfType,
+    #[default]
     Unit,
 }
 
@@ -348,12 +349,6 @@ impl fmt::Display for FixedArrayLength {
             Self::ConstParameter(name) => write!(formatter, "{name}"),
             Self::ConstCall(name) => write!(formatter, "{name}()"),
         }
-    }
-}
-
-impl Default for TypeReferenceNode {
-    fn default() -> Self {
-        Self::Unit
     }
 }
 

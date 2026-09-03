@@ -1458,7 +1458,7 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
         &AdmissionProfile::default(),
         &[],
         &[TerminalStructuralValue {
-            opaque_identity: 0x5e77_1e,
+            opaque_identity: 0x005e_771e,
             structural_type: parameter.structural_type,
             qualifications: Vec::new(),
             path: Vec::new(),
@@ -1612,7 +1612,7 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
         &AdmissionProfile::default(),
         &[],
         &[TerminalStructuralValue {
-            opaque_identity: 0xc017_e17,
+            opaque_identity: 0x0c01_7e17,
             structural_type: parameter.structural_type,
             qualifications: parameter.qualifications.clone(),
             path: Vec::new(),
@@ -1689,7 +1689,7 @@ fn source_content_custody_unit_exit_retains_projection_and_consumes_claim() {
         &AdmissionProfile::default(),
         &[],
         &[TerminalStructuralValue {
-            opaque_identity: 0xc017_017,
+            opaque_identity: 0x0c01_7017,
             structural_type: parameter.structural_type,
             qualifications: parameter.qualifications.clone(),
             path: Vec::new(),

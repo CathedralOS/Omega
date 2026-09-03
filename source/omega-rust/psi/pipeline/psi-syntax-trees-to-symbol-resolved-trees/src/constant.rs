@@ -287,7 +287,7 @@ pub(crate) fn try_lower_const_reference(
         .position(|other| std::ptr::eq(other, definition))?;
     let lowered =
         crate::expression::lower_expression_into_table(lowerer, syntax_trees, definition.value);
-    Some(lowered.map(|expression| {
+    Some(lowered.inspect(|&expression| {
         if let Some(exposure) = lowerer.current_authored_expression_exposure {
             lowerer
                 .pending_const_selections
@@ -298,7 +298,6 @@ pub(crate) fn try_lower_const_reference(
                     exposure,
                 });
         }
-        expression
     }))
 }
 

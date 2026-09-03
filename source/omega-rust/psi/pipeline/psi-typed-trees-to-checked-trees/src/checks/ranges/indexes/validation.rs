@@ -489,6 +489,7 @@ fn check_known_length_range_index(
 ///     `..=b` needs `b < N` (a proven exclusive upper bound `<= N`);
 ///   - the START is the literal `0`, so `0 <= b` holds for the non-negative end.
 ///     A non-zero runtime start keeps the existing (range-bound) proof path.
+///
 /// The exclusive upper bounds are seeded from `<`/`<=` guards and dropped on
 /// reassignment (see `RangeFacts`), so they reflect a relation live at the access.
 fn known_length_range_via_index_bounds_is_proven(

@@ -21,9 +21,7 @@ pub(crate) fn instantiate_known_call_mutation_summary_places(
     borrow_call: &BorrowCallFact,
     cache: &mut StateMutationSummaryCache,
 ) -> Option<Vec<CanonicalPlace>> {
-    let Some(target_state) = find_state(program, borrow_call.target_symbol) else {
-        return None;
-    };
+    let target_state = find_state(program, borrow_call.target_symbol)?;
     let summary_places = state_mutation_summary_places(program, cache, target_state);
     if summary_places.is_empty() {
         if core_method_mutates_receiver(program, target_state) {

@@ -484,7 +484,7 @@ pub(super) fn validate_dynamic_dispatches(
             &realization.structural_parameters,
             dispatch.operation,
             true,
-            super::structural_operations::StructuralArgumentSourcePolicy::ParametersOnly,
+            super::structural_operations::StructuralArgumentSourcePolicy::OnlyParameters,
         )?;
         validate_structural_arguments(
             module,
@@ -493,7 +493,7 @@ pub(super) fn validate_dynamic_dispatches(
             &realization.structural_parameters,
             dispatch.operation,
             true,
-            super::structural_operations::StructuralArgumentSourcePolicy::ParametersOnly,
+            super::structural_operations::StructuralArgumentSourcePolicy::OnlyParameters,
         )?;
         if !exact_call
             || rows != 1
@@ -575,10 +575,14 @@ pub(super) fn validate_dynamic_dispatches(
                 return Err(invalid_indirect_dispatch(machine.id, operation.id));
             }
             if matches!(operation.kind, OperationKind::StoreDynamicDescriptor { .. })
-                && !module.dynamic_dispatch.stored_descriptors.iter().any(|descriptor| {
-                    descriptor.owner == machine.id
-                        && descriptor.establishment_operation == operation.id
-                })
+                && !module
+                    .dynamic_dispatch
+                    .stored_descriptors
+                    .iter()
+                    .any(|descriptor| {
+                        descriptor.owner == machine.id
+                            && descriptor.establishment_operation == operation.id
+                    })
             {
                 return Err(ModuleError::InvalidStoredDynamicDescriptor {
                     owner: machine.id,
@@ -629,9 +633,13 @@ fn validate_stored_dynamic_dispatches(
         if !descriptor_coordinates.insert((descriptor.owner, descriptor.ordinal))
             || !establishment_coordinates
                 .insert((descriptor.owner, descriptor.establishment_operation))
-            || module.dynamic_dispatch.rebound_descriptors.iter().any(|rebound| {
-                rebound.owner == descriptor.owner && rebound.ordinal == descriptor.ordinal
-            })
+            || module
+                .dynamic_dispatch
+                .rebound_descriptors
+                .iter()
+                .any(|rebound| {
+                    rebound.owner == descriptor.owner && rebound.ordinal == descriptor.ordinal
+                })
         {
             return Err(ModuleError::DuplicateStoredDynamicDescriptor {
                 owner: descriptor.owner,
@@ -646,12 +654,12 @@ fn validate_stored_dynamic_dispatches(
                 actual: descriptor.ordinal,
             });
         }
-        *expected = expected.checked_add(1).ok_or(
-            ModuleError::InvalidStoredDynamicDescriptor {
+        *expected = expected
+            .checked_add(1)
+            .ok_or(ModuleError::InvalidStoredDynamicDescriptor {
                 owner: descriptor.owner,
                 ordinal: descriptor.ordinal,
-            },
-        )?;
+            })?;
         let selection_count = selections
             .iter()
             .filter(|selection| {
@@ -803,7 +811,9 @@ fn validate_stored_dynamic_dispatches(
                 .operations
                 .iter()
                 .position(|operation| operation.id == dispatch.operation);
-            establishment.zip(call).is_some_and(|(store, call)| store < call)
+            establishment
+                .zip(call)
+                .is_some_and(|(store, call)| store < call)
         });
         let exact_call = matches!(
             (&operation.kind, &operation.result, &realization.result),
@@ -842,7 +852,7 @@ fn validate_stored_dynamic_dispatches(
             &realization.structural_parameters,
             dispatch.operation,
             true,
-            super::structural_operations::StructuralArgumentSourcePolicy::ParametersOnly,
+            super::structural_operations::StructuralArgumentSourcePolicy::OnlyParameters,
         )?;
         if !ordered_in_one_block
             || !exact_call

@@ -382,7 +382,7 @@ fn parse_asm_where_contract<'tokens, 'source>(
         return Ok((ParsedAsmWhereContract::default(), input));
     }
     let mut input = input.take_contextual("where")?;
-    let contract_site = input.clone();
+    let contract_site = input;
     let mut contract = ParsedAsmWhereContract::default();
 
     while !input.at_punctuation(PunctuationKind::LeftBrace) {
@@ -419,7 +419,7 @@ fn parse_asm_where_contract<'tokens, 'source>(
             return Err(input.error_here("an asm where block may declare `clobbers` only once"));
         }
         input = input.take_contextual("clobbers")?;
-        let clobber_list_site = input.clone();
+        let clobber_list_site = input;
         let mut declared = std::collections::BTreeSet::new();
         if input.at_contextual("none") {
             input = input.take_contextual("none")?;
@@ -529,7 +529,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedAsmInstruction> {
-    let mnemonic_site = input.clone();
+    let mnemonic_site = input;
     let (mnemonic, input) = input.take_identifier()?;
 
     let Some(entry) = asm_catalog_entry(mnemonic.as_str()) else {
@@ -956,7 +956,6 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
     // because the identifier arm only fires when ANOTHER identifier follows.
     let (is_mutable, input) = if input.at_contextual("mut")
         && input
-            .clone()
             .take_contextual("mut")
             .is_ok_and(|rest| rest.at_name_like())
     {
@@ -1010,14 +1009,13 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
 /// accounting by 2.
 /// ATOMICS (ch17): Try to parse and carry
 /// `let name: type = place.compare_exchange(expected, new_val, succ_ord, fail_ord);`
-/// as TWO statements:
-///   1. reserve the result local without reading the atomic place;
-///   2. carry `prior + (prior == expected) * (new_val - prior)` as the
-///      interpreter model inside an opaque CAS carrier.
-///      -- arithmetically conditional swap: when `prior == expected` evaluates
-///         to 1 this simplifies to `place = new_val`; when 0, `place = prior`
-///         (no-op). Native selection replaces the carrier with one CAS and
-///         writes its observed prior into the result local.
+/// as two statements. The first reserves the result local without reading the
+/// atomic place. The second carries
+/// `prior + (prior == expected) * (new_val - prior)` as the interpreter model
+/// inside an opaque CAS carrier. Arithmetically, when `prior == expected`
+/// evaluates to 1 this simplifies to `place = new_val`; when 0, `place = prior`
+/// (no-op). Native selection replaces the carrier with one CAS and writes its
+/// observed prior into the result local.
 ///
 /// Return-shape choice: the PRIOR value (before the potential swap), not a
 /// bool.  This mirrors x86 CMPXCHG's RAX contract and lets callers check

@@ -20,10 +20,12 @@ pub fn reconstruct_trust_report(
     accepted_template_classifications: &crate::AcceptedTemplateClassifications,
 ) -> Result<TrustReport, Vec<Diagnostic>> {
     let typed = &checked.typed;
-    let mut report = TrustReport::default();
-    report.selected_provider_closure_report_fingerprint =
-        selected_provider_plans.compatibility_report_identity();
-    report.selected_provider_closure_digest = selected_provider_plans.identity_digest();
+    let mut report = TrustReport {
+        selected_provider_closure_report_fingerprint: selected_provider_plans
+            .compatibility_report_identity(),
+        selected_provider_closure_digest: selected_provider_plans.identity_digest(),
+        ..Default::default()
+    };
     for selected_plan in selected_provider_plans.plans() {
         let exact_candidate_matches = provider_plans
             .iter()
@@ -80,15 +82,17 @@ pub fn reconstruct_trust_report(
         let selected = selected_provider_plans.plans().iter().any(|selected| {
             selected == plan && selected.identity_digest() == plan.identity_digest()
         });
-        let grant_selectors = selected
-            .then(|| {
+        let grant_selectors = if selected {
+            {
                 provider_grants
                     .iter()
                     .filter(|grant| grant.replays_selected_plan(plan))
                     .map(|grant| grant.selector.clone())
                     .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+            }
+        } else {
+            Default::default()
+        };
         let granted = !grant_selectors.is_empty();
         let provenance = if granted {
             "root grant (build.omg)"
@@ -681,7 +685,7 @@ fn trust_provider_realization(
 ) -> TrustProviderRealization {
     use omega_effects::provider_plan::ProviderBinding;
 
-    let realization = match binding {
+    match binding {
         ProviderBinding::Import { evaluated } => TrustProviderRealization::Import {
             evaluated: evaluated.clone(),
         },
@@ -719,8 +723,7 @@ fn trust_provider_realization(
             machine_identity: machine_identity.clone(),
             machine_package_identity: *machine_package_identity,
         },
-    };
-    realization
+    }
 }
 
 #[cfg(test)]

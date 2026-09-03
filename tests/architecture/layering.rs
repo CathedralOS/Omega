@@ -35,10 +35,10 @@ use serde_json::Value;
 
 #[path = "layering/callee_save_storage.rs"]
 mod callee_save_storage;
-#[path = "layering/fixed_precolored_split_requirements.rs"]
-mod fixed_precolored_split_requirements;
 #[path = "layering/fixed_precolored_segment_homes.rs"]
 mod fixed_precolored_segment_homes;
+#[path = "layering/fixed_precolored_split_requirements.rs"]
+mod fixed_precolored_split_requirements;
 
 /// Architectural layers, lowest rank first. A crate may depend on crates whose
 /// rank is `<=` its own; depending on a strictly higher rank is "upward" and
@@ -1816,6 +1816,7 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
             &[
                 "assembly",
                 "custody",
+                "dynamic_join",
                 "dynamic_result",
                 "guards",
                 "leaves",
@@ -2285,7 +2286,9 @@ fn retained_native_product_enters_only_terminal_realization() {
     assert!(
         driver.contains("compile_checked_with_observations(&request, prepared)?;")
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
-            && driver.contains("super::optimization::native_report(request, checked).map(finalize_report)")
+            && driver.contains(
+                "super::optimization::native_report(request, checked).map(finalize_report)"
+            )
             && driver.contains("super::optimization::prepare_native_report(request, checked)?")
             && native.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"

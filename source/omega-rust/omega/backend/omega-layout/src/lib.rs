@@ -15,27 +15,27 @@ pub use field_paths::{field_data_layout_fields, field_machine_layout, field_path
 pub use sizing::primitive_layout;
 pub use sum_materialization::{
     project_conventional_record_with_depth_eight_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_eighteen_nested_sums_materialization_layout,
     project_conventional_record_with_depth_eleven_nested_sums_materialization_layout,
     project_conventional_record_with_depth_fifteen_nested_sums_materialization_layout,
     project_conventional_record_with_depth_five_nested_sums_materialization_layout,
     project_conventional_record_with_depth_four_nested_sums_materialization_layout,
     project_conventional_record_with_depth_fourteen_nested_sums_materialization_layout,
     project_conventional_record_with_depth_nine_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_nineteen_nested_sums_materialization_layout,
     project_conventional_record_with_depth_seven_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_seventeen_nested_sums_materialization_layout,
     project_conventional_record_with_depth_six_nested_sums_materialization_layout,
     project_conventional_record_with_depth_sixteen_nested_sums_materialization_layout,
-    project_conventional_record_with_depth_seventeen_nested_sums_materialization_layout,
-    project_conventional_record_with_depth_eighteen_nested_sums_materialization_layout,
-    project_conventional_record_with_depth_nineteen_nested_sums_materialization_layout,
-    project_conventional_record_with_depth_twenty_nested_sums_materialization_layout,
-    project_conventional_record_with_depth_twenty_one_nested_sums_materialization_layout,
-    project_conventional_record_with_depth_twenty_two_nested_sums_materialization_layout,
-    project_conventional_record_with_depth_twenty_three_nested_sums_materialization_layout,
     project_conventional_record_with_depth_ten_nested_sums_materialization_layout,
     project_conventional_record_with_depth_thirteen_nested_sums_materialization_layout,
     project_conventional_record_with_depth_three_nested_sum_materialization_layout,
     project_conventional_record_with_depth_three_nested_sums_materialization_layout,
     project_conventional_record_with_depth_twelve_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_twenty_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_twenty_one_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_twenty_three_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_twenty_two_nested_sums_materialization_layout,
     project_conventional_record_with_depth_two_nested_sum_materialization_layout,
     project_conventional_record_with_depth_two_nested_sums_materialization_layout,
     project_conventional_record_with_nested_sum_record_materialization_layout,
@@ -66,7 +66,7 @@ impl Default for TypeLayout {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TypeLayoutDescriptor {
     Reference {
         referee: Box<TypeLayoutDescriptor>,
@@ -110,13 +110,8 @@ pub enum TypeLayoutDescriptor {
         symbol: SymbolHandle,
         name: Identifier,
     },
+    #[default]
     Unit,
-}
-
-impl Default for TypeLayoutDescriptor {
-    fn default() -> Self {
-        Self::Unit
-    }
 }
 
 impl TypeLayoutDescriptor {

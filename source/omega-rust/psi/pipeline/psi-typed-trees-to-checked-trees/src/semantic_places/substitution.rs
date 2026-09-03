@@ -46,12 +46,7 @@ pub(crate) fn call_contract_place_substitution(
         }?;
 
         let place = *facts.places.get(substitution_place);
-        let segments = facts
-            .place_segments
-            .span_or_empty(place.segments)
-            .iter()
-            .copied()
-            .collect();
+        let segments = facts.place_segments.span_or_empty(place.segments).to_vec();
         return Some(ContractPlaceSubstitution {
             root: place.root,
             segments,
@@ -61,12 +56,7 @@ pub(crate) fn call_contract_place_substitution(
     if symbol_name(program, parameter_symbol) == "self" {
         let substitution_place = super::receiver_place_for_call(program, facts, call, &call_site)?;
         let place = *facts.places.get(substitution_place);
-        let segments = facts
-            .place_segments
-            .span_or_empty(place.segments)
-            .iter()
-            .copied()
-            .collect();
+        let segments = facts.place_segments.span_or_empty(place.segments).to_vec();
         return Some(ContractPlaceSubstitution {
             root: place.root,
             segments,

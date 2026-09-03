@@ -414,10 +414,7 @@ fn total_scalar_identity_codec_binds_all_twenty_six_rows_and_only_the_literal_fa
             16,
         ),
         (TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft, 17),
-        (
-            TotalScalarIdentityKind::IntegerBitwiseAndAllOnesRight,
-            18,
-        ),
+        (TotalScalarIdentityKind::IntegerBitwiseAndAllOnesRight, 18),
         (TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft, 19),
         (TotalScalarIdentityKind::IntegerBitwiseOrZeroRight, 20),
         (TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft, 21),

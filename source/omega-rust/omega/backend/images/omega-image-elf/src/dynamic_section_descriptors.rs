@@ -547,8 +547,8 @@ fn validate_cross_payloads(
 ) -> Result<(), Diagnostic> {
     let bytes = payloads.payloads();
     require(
-        bytes.dynsym.len() % 24 == 0
-            && bytes.versym.len() % 2 == 0
+        bytes.dynsym.len().is_multiple_of(24)
+            && bytes.versym.len().is_multiple_of(2)
             && bytes.dynsym.len() / 24 == bytes.versym.len() / 2,
         "ELF dynamic symbol and GNU symbol-version descriptor counts diverge",
     )?;

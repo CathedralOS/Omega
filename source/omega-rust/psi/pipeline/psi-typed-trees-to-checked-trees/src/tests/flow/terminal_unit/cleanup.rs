@@ -3216,7 +3216,8 @@ fn three_element_affine_array_moves_two_indices_and_discards_the_sole_residual()
         vec![2, 1],
         "live array siblings clean in decreasing index order",
     );
-    for machine in ["all"] {
+    {
+        let machine = "all";
         assert!(
             checked
                 .facts

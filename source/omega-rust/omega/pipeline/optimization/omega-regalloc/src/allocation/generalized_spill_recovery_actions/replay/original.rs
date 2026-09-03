@@ -77,19 +77,17 @@ pub(super) fn replay<S: ValidatedSelectedAnalysis>(
                 destination_class,
                 ..
             } = *event
-            {
-                if reloads
+                && reloads
                     .insert(
                         (function, action),
                         (point, before_instruction, destination_class),
                     )
                     .is_some()
-                {
-                    return Err(GeneralizedSpillRecoveryActionError::MissingPressureReload {
-                        function,
-                        action,
-                    });
-                }
+            {
+                return Err(GeneralizedSpillRecoveryActionError::MissingPressureReload {
+                    function,
+                    action,
+                });
             }
         }
     }

@@ -634,7 +634,7 @@ fn lower_ranked_structural_unit_countdown(
         || ranked.covered_cyclic_edges.len() != 1
         || ranked.rank_lower_bound != 0
         || header_plan.scalar_parameters.len() != 1
-        || done_plan.scalar_parameters.len() != 0
+        || !done_plan.scalar_parameters.is_empty()
     {
         return unsupported("ranked structural Unit countdown component shape");
     }

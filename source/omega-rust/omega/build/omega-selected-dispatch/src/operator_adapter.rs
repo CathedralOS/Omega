@@ -774,11 +774,11 @@ pub(super) fn resolve_checked_adapter_for_operator(
     )))
 }
 
-pub(super) fn exact_operator_definition<'program>(
-    checked: &'program CheckedTrees,
+pub(super) fn exact_operator_definition(
+    checked: &CheckedTrees,
     expression: ExpressionHandle,
     symbol: psi_symbols::SymbolHandle,
-) -> Result<&'program psi_typed_trees::operator::OperatorDefinition, Diagnostic> {
+) -> Result<&psi_typed_trees::operator::OperatorDefinition, Diagnostic> {
     let operators = checked
         .typed
         .operators()

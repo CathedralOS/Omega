@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use crate::inventory::ReleaseRow;
 use crate::Audit;
+use crate::inventory::ReleaseRow;
 
 pub(super) fn check(audit: &mut Audit, published: &BTreeMap<String, ReleaseRow>) {
     check_record_inventory(audit, published);
@@ -100,7 +100,7 @@ fn completed_record_field(line: &str, field: &str) -> bool {
     let Some(value) = line.strip_prefix(field).map(str::trim) else {
         return false;
     };
-    !value.is_empty() && !value.contains("PENDING") && !(value.contains('<') && value.contains('>'))
+    !(value.is_empty() || value.contains("PENDING") || value.contains('<') && value.contains('>'))
 }
 
 #[test]
@@ -148,10 +148,14 @@ fn promotion_record_requires_exact_identity_and_completed_evidence() {
             "Differential evidence: PENDING",
         );
     let defects = record_defects("ControlFlowCleanup", "Recommended", &incomplete);
-    assert!(defects
-        .iter()
-        .any(|defect| defect.contains("Exact rule: ControlFlowCleanup")));
-    assert!(defects
-        .iter()
-        .any(|defect| defect.contains("Differential evidence:")));
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("Exact rule: ControlFlowCleanup"))
+    );
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("Differential evidence:"))
+    );
 }

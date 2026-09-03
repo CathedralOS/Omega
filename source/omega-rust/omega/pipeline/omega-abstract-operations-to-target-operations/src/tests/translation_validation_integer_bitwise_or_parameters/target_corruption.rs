@@ -114,10 +114,10 @@ fn integer_bitwise_or_target_expression_corruption_fails_closed() {
             unreachable!()
         };
         let operand = left.clone();
-        *left = Box::new(TargetIntegerExpression::BitwiseNot {
+        **left = TargetIntegerExpression::BitwiseNot {
             psi_operation: OperationId::new(46_512).unwrap(),
             operand,
-        });
+        };
     });
     for substitute in [false, true] {
         assert_target_operation_error(|operation| {

@@ -102,8 +102,7 @@ pub(super) fn candidate_error(
     mutate(&mut target);
     let AbstractToTargetTranslationValidationError::FunctionFamily {
         family: AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseAndImmediate,
-        error:
-            AbstractToTargetTranslationFamilyError::StraightLineIntegerBitwiseAndImmediate(error),
+        error: AbstractToTargetTranslationFamilyError::StraightLineIntegerBitwiseAndImmediate(error),
         ..
     } = validate_abstract_to_target_translation(&source, target_profile, &target).unwrap_err()
     else {

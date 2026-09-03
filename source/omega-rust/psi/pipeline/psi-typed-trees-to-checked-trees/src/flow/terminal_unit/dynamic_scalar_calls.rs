@@ -32,8 +32,10 @@ fn build_checked_dynamic_scalar_call_transaction(
     boundaries: &[CheckedBoundaryMachinePlan],
 ) -> Option<psi_checked_trees::CheckedDynamicDispatchPlans> {
     let binding_facts = facts.dynamic_conformances.binding_facts();
-    let mut plans = psi_checked_trees::CheckedDynamicDispatchPlans::default();
-    plans.transfers = build_checked_dynamic_descriptor_transfers(program, facts, &binding_facts);
+    let mut plans = psi_checked_trees::CheckedDynamicDispatchPlans {
+        transfers: build_checked_dynamic_descriptor_transfers(program, facts, &binding_facts),
+        ..psi_checked_trees::CheckedDynamicDispatchPlans::default()
+    };
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {

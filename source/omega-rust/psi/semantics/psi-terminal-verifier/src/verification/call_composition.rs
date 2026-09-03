@@ -198,11 +198,15 @@ pub(super) fn compose_call_operation(
                         && dispatch.operation == operation.id
                         && dispatch.descriptor_ordinal == *descriptor_ordinal
                 });
-            let stored = module.dynamic_dispatch.stored_dispatches.iter().find(|dispatch| {
-                dispatch.owner == machine.id
-                    && dispatch.operation == operation.id
-                    && dispatch.descriptor_ordinal == *descriptor_ordinal
-            });
+            let stored = module
+                .dynamic_dispatch
+                .stored_dispatches
+                .iter()
+                .find(|dispatch| {
+                    dispatch.owner == machine.id
+                        && dispatch.operation == operation.id
+                        && dispatch.descriptor_ordinal == *descriptor_ordinal
+                });
             let (realization, selection_ordinal) = match (indirect, stored) {
                 (Some(dispatch), None) => {
                     let descriptor = module
@@ -235,8 +239,7 @@ pub(super) fn compose_call_operation(
                 .selections
                 .iter()
                 .find(|selection| {
-                    selection.owner == machine.id
-                        && selection.ordinal == selection_ordinal
+                    selection.owner == machine.id && selection.ordinal == selection_ordinal
                 })
                 .expect("validated dynamic descriptor has one selected source");
             let callee = machines

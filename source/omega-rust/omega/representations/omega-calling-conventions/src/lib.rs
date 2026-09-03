@@ -1133,17 +1133,9 @@ pub enum PlatformCallData {
     TimespecArgument,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct HostOperationReference {
     pub key: HostOperationKey,
-}
-
-impl Default for HostOperationReference {
-    fn default() -> Self {
-        Self {
-            key: HostOperationKey::default(),
-        }
-    }
 }
 
 pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {

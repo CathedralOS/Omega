@@ -198,10 +198,10 @@ pub(super) fn validate_repeated_value_field(
 }
 
 /// The data definition a `Named` type reference points at, if any.
-pub(super) fn named_data_definition<'program>(
-    program: &'program TypedTrees,
+pub(super) fn named_data_definition(
+    program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+) -> Option<&psi_typed_trees::data::DataDefinition> {
     let TypeReferenceNode::Named { name, .. } =
         program.type_reference_table.type_reference(type_reference)
     else {

@@ -101,7 +101,7 @@ pub(super) fn exercise_host_native(case: &CorpusCase, artifact: &CorpusArtifact)
             Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
         )
     };
-    let first = run_machine(case, artifact, target.clone(), optimization);
+    let first = run_machine(case, artifact, target, optimization);
     let second = run_machine(case, artifact, target, optimization);
     assert_eq!(first, second, "host-native corpus case drifted: {case:?}");
     if cfg!(target_arch = "x86_64") {
@@ -265,19 +265,21 @@ fn assert_sccp(
     rewritten.sort_unstable();
     assert_eq!(rewritten, artifact.add_operations);
     for &add_operation in &artifact.add_operations {
-        assert!(optimized.plan().functions[0]
-            .operations
-            .iter()
-            .any(|operation| {
-                matches!(
-                    operation,
-                    AbstractOperation::IntegerConstant {
-                        psi_operation,
-                        value: IntegerValue::Unsigned(value),
-                        ..
-                    } if *psi_operation == add_operation && *value == artifact.expected.into()
-                )
-            }));
+        assert!(
+            optimized.plan().functions[0]
+                .operations
+                .iter()
+                .any(|operation| {
+                    matches!(
+                        operation,
+                        AbstractOperation::IntegerConstant {
+                            psi_operation,
+                            value: IntegerValue::Unsigned(value),
+                            ..
+                        } if *psi_operation == add_operation && *value == artifact.expected.into()
+                    )
+                })
+        );
     }
 }
 

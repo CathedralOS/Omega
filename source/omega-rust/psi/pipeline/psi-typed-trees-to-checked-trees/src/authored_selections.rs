@@ -241,7 +241,7 @@ fn finalize_checked_authored_selections_with_policy(
                             call.receiver,
                         )
                     })
-                    .map(|intrinsic| CheckedResolutionTarget::Intrinsic(intrinsic))
+                    .map(CheckedResolutionTarget::Intrinsic)
                     .or_else(|| {
                         declaration_target(checked_call_target(
                             program,

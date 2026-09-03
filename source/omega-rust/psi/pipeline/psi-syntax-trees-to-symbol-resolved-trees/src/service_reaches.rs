@@ -484,10 +484,10 @@ fn collect_parameter_spans(
     }
     spans.push(span);
     for parameter in arena.span_or_empty(span) {
-        if let TypeParameterKind::Machine { contract } = &parameter.kind {
-            if let Some(contract) = contract.structural() {
-                collect_parameter_spans(arena, contract.type_parameters, spans);
-            }
+        if let TypeParameterKind::Machine { contract } = &parameter.kind
+            && let Some(contract) = contract.structural()
+        {
+            collect_parameter_spans(arena, contract.type_parameters, spans);
         }
     }
 }

@@ -17,7 +17,7 @@ mod optimizer_corpus {
     mod psi;
     mod selected_machine;
 
-    use generator::{cases, CASE_COUNT};
+    use generator::{CASE_COUNT, cases};
 
     #[test]
     fn deterministic_valid_psi_and_selected_machine_corpus() {

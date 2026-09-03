@@ -113,7 +113,7 @@ pub(in super::super) fn validate_subject(
     for selection in dependency_requests {
         validate_source_identity(&selection.selected, limits.maximum_identity_bytes)?;
         validate_dependency_request(&selection.request, limits.maximum_request_bytes)?;
-        if package_by_key.get(&selection.requester).is_none() {
+        if !package_by_key.contains_key(&selection.requester) {
             return Err(CanonicalSourceClosureSubjectError::new(
                 "dependency request names an unknown requester",
             ));

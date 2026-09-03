@@ -817,7 +817,7 @@ fn plan_reborrow_restored_call_uses(
             .enumerate()
             .filter(|(_, candidate)| candidate.parent_loan == parent.loan)
             .collect::<Vec<_>>();
-        let bounded_shared_freeze = matches!(shared_cohort.len(), 1 | 2 | 3)
+        let bounded_shared_freeze = matches!(shared_cohort.len(), 1..=3)
             && shared_cohort.iter().all(|(_, member)| {
                 member.access == psi_checked_trees::BorrowAccessKind::Read
                     && member.access_effect == CheckedReborrowAccessEffect::SharedFreeze
@@ -2422,23 +2422,15 @@ fn expected_explicit_reborrow_parent(
     let psi_facts::PlaceRoot::Symbol(source_root) = source.root else {
         return None;
     };
-    let mut candidates = borrow
-        .loans
-        .iter()
-        .filter(|(parent_handle, parent)| {
-            *parent_handle != child_handle
-                && borrow.state_owns_loan(state, *parent_handle)
-                && parent.statement_index < child.statement_index
-                && parent.lineage != BorrowLoanLineage::UnretainedDerived
-                && parent.owner_symbol == source_root
-                && owner_path_matches_source(
-                    program,
-                    borrow.loan_owner_path(parent),
-                    &source.segments,
-                )
-                && child.source_owner_symbol == parent.owner_symbol
-        })
-        .map(|(handle, parent)| (handle, parent));
+    let mut candidates = borrow.loans.iter().filter(|(parent_handle, parent)| {
+        *parent_handle != child_handle
+            && borrow.state_owns_loan(state, *parent_handle)
+            && parent.statement_index < child.statement_index
+            && parent.lineage != BorrowLoanLineage::UnretainedDerived
+            && parent.owner_symbol == source_root
+            && owner_path_matches_source(program, borrow.loan_owner_path(parent), &source.segments)
+            && child.source_owner_symbol == parent.owner_symbol
+    });
     let (parent_handle, parent) = candidates.next()?;
     if candidates.next().is_some()
         || !child_place_replays_from_parent(borrow, parent, &source.segments, child)

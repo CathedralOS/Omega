@@ -265,16 +265,16 @@ pub(super) fn build_symbol_table(
         }
     }
     for conformance in &program.conformances {
-        if conformance.alias.is_some() {
-            if let Some(conformance_symbol) = root_children.next() {
-                insert_conformance_symbol_children(
-                    &mut builder,
-                    program,
-                    conformance_symbol,
-                    conformance,
-                    has_sources,
-                );
-            }
+        if conformance.alias.is_some()
+            && let Some(conformance_symbol) = root_children.next()
+        {
+            insert_conformance_symbol_children(
+                &mut builder,
+                program,
+                conformance_symbol,
+                conformance,
+                has_sources,
+            );
         }
     }
     for machine in &program.machines {

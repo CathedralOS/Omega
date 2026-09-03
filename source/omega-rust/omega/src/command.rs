@@ -99,66 +99,70 @@ pub(crate) fn run() {
             std::process::exit(1);
         }
     };
-    let report = if !arguments.check_only && prepared_project.is_some() {
-        let prepared = prepared_project.expect("package project is present");
-        let target_profile =
-            omega_target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
-                .unwrap_or_else(|diagnostic| {
-                    eprintln!("{diagnostic}");
+    let report = match prepared_project {
+        Some(prepared) if !arguments.check_only => {
+            let target_profile =
+                omega_target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
+                    .unwrap_or_else(|diagnostic| {
+                        eprintln!("{diagnostic}");
+                        std::process::exit(1);
+                    });
+            let policy = arguments
+                .package_root_policy
+                .as_deref()
+                .map(open_package_root_policy)
+                .transpose()
+                .unwrap_or_else(|error| {
+                    eprintln!("{error}");
                     std::process::exit(1);
                 });
-        let policy = arguments
-            .package_root_policy
-            .as_deref()
-            .map(open_package_root_policy)
-            .transpose()
-            .unwrap_or_else(|error| {
-                eprintln!("{error}");
-                std::process::exit(1);
-            });
-        let mut request =
-            omega_package_manager::operations::PreparedLocalProjectNativeRequest::new(
-                prepared,
-                &build_dir,
-                target_profile,
-            )
-            .with_artifact_policy(artifact_policy)
-            .with_accepted_trust_admissions(accepted_admissions)
-            .with_optimization_rollback(arguments.optimization_rollback);
-        if let Some((directory, name)) = policy.as_ref() {
-            request = request.with_root_policy(
-                omega_package_manager::operations::LocalProjectRootPolicy::new(directory, name),
-            );
+            let mut request =
+                omega_package_manager::operations::PreparedLocalProjectNativeRequest::new(
+                    prepared,
+                    &build_dir,
+                    target_profile,
+                )
+                .with_artifact_policy(artifact_policy)
+                .with_accepted_trust_admissions(accepted_admissions)
+                .with_optimization_rollback(arguments.optimization_rollback);
+            if let Some((directory, name)) = policy.as_ref() {
+                request = request.with_root_policy(
+                    omega_package_manager::operations::LocalProjectRootPolicy::new(directory, name),
+                );
+            }
+            omega_package_manager::operations::compile_prepared_local_project_for_native(request)
+                .unwrap_or_else(|error| {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                })
         }
-        omega_package_manager::operations::compile_prepared_local_project_for_native(request)
-            .unwrap_or_else(|error| {
-                eprintln!("{error}");
+        prepared_project => {
+            if arguments.package_root_policy.is_some() {
+                eprintln!(
+                    "--package-root-policy requires native production from a build.omg project"
+                );
+                std::process::exit(1);
+            }
+            let package_inputs = prepared_project.map(|prepared| {
+                let (entry_path, package_inputs) = prepared.into_parts();
+                options.root_path = entry_path;
+                package_inputs
+            });
+            let mut request = CompileRequest::new(options)
+                .with_requested_product(requested_product)
+                .with_artifact_policy(artifact_policy)
+                .with_optimization_rollback(arguments.optimization_rollback)
+                .with_accepted_trust_admissions(accepted_admissions);
+            if let Some(package_inputs) = package_inputs {
+                request = request.with_package_inputs(package_inputs);
+            }
+            compile(request).unwrap_or_else(|diagnostics| {
+                for diagnostic in diagnostics {
+                    eprintln!("{diagnostic}");
+                }
                 std::process::exit(1);
             })
-    } else {
-        if arguments.package_root_policy.is_some() {
-            eprintln!("--package-root-policy requires native production from a build.omg project");
-            std::process::exit(1);
         }
-        let package_inputs = prepared_project.map(|prepared| {
-            let (entry_path, package_inputs) = prepared.into_parts();
-            options.root_path = entry_path;
-            package_inputs
-        });
-        let mut request = CompileRequest::new(options)
-            .with_requested_product(requested_product)
-            .with_artifact_policy(artifact_policy)
-            .with_optimization_rollback(arguments.optimization_rollback)
-            .with_accepted_trust_admissions(accepted_admissions);
-        if let Some(package_inputs) = package_inputs {
-            request = request.with_package_inputs(package_inputs);
-        }
-        compile(request).unwrap_or_else(|diagnostics| {
-            for diagnostic in diagnostics {
-                eprintln!("{diagnostic}");
-            }
-            std::process::exit(1);
-        })
     };
     let settlement = report.trust_admission_settlement();
     if arguments.accept_admissions {

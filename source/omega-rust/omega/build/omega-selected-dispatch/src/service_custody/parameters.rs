@@ -88,13 +88,13 @@ fn validate_unit_machines(
                 primitive_type,
             });
         }
-        if carries_receipt {
-            if invalid_scalar_parameter || plan.scalar_parameters != source_scalar_parameters {
-                diagnostics.push(Diagnostic::error(format!(
+        if carries_receipt
+            && (invalid_scalar_parameter || plan.scalar_parameters != source_scalar_parameters)
+        {
+            diagnostics.push(Diagnostic::error(format!(
                     "checked Unit machine `{}` routed Service scalar parameters do not rejoin the exact immutable typed source partition",
                     machine.name,
                 )));
-            }
         }
 
         for (position, source_parameter) in source_parameters.iter().enumerate() {

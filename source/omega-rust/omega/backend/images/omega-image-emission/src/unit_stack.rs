@@ -491,10 +491,9 @@ pub(super) fn validate_complete_unit_stack_evidence(
                 {
                     continue;
                 }
-                if aarch64_stack_adjustment_at(bytes, offset) {
-                    if claimed.remove(&offset) != Some(4) {
-                        return Err(ObjectError::UnclaimedUnitStackAdjustment { machine, offset });
-                    }
+                if aarch64_stack_adjustment_at(bytes, offset) && claimed.remove(&offset) != Some(4)
+                {
+                    return Err(ObjectError::UnclaimedUnitStackAdjustment { machine, offset });
                 }
             }
         }

@@ -301,7 +301,6 @@ fn parse_unary_expression_handle<'tokens, 'source>(
     // may still name an ordinary `suspend()` or `block()` operation).
     if input.at_contextual("suspend")
         && input
-            .clone()
             .take_contextual("suspend")
             .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::LeftParen))
     {
@@ -339,7 +338,6 @@ fn parse_unary_expression_handle<'tokens, 'source>(
 
     if input.at_contextual("block")
         && input
-            .clone()
             .take_contextual("block")
             .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::LeftParen))
     {

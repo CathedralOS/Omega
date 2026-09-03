@@ -287,7 +287,7 @@ impl Default for CapabilityContract {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum CapabilityContractKind {
     Ensures,
     /// Outcome-specific guarantee row. The path is authored syntax only;
@@ -296,6 +296,7 @@ pub enum CapabilityContractKind {
     EnsuresForResultCase {
         result_case: HandleSpan<Identifier>,
     },
+    #[default]
     Requires,
     Crashes {
         cause: CrashCause,
@@ -306,12 +307,6 @@ pub enum CapabilityContractKind {
 pub enum CrashCause {
     Trap,
     Abort,
-}
-
-impl Default for CapabilityContractKind {
-    fn default() -> Self {
-        Self::Requires
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -327,7 +322,7 @@ pub struct TargetHost {
     pub settings: HandleSpan<TargetHostSetting>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TargetHostSetting {
     pub name: Identifier,
     pub value: TargetHostSettingValue,
@@ -348,19 +343,11 @@ pub struct BoundaryPolicy {
     pub path: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum BoundaryMode {
+    #[default]
     Checked,
     Unchecked,
-}
-
-impl Default for TargetHostSetting {
-    fn default() -> Self {
-        Self {
-            name: Identifier::default(),
-            value: TargetHostSettingValue::default(),
-        }
-    }
 }
 
 impl Default for TargetHostSettingValue {
@@ -375,12 +362,6 @@ impl Default for BoundaryPolicy {
             mode: BoundaryMode::default(),
             path: HandleSpan::empty(),
         }
-    }
-}
-
-impl Default for BoundaryMode {
-    fn default() -> Self {
-        Self::Checked
     }
 }
 

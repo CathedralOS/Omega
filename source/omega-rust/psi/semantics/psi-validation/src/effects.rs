@@ -21,17 +21,17 @@ pub fn validate_behavior_plan(
             continue;
         };
 
-        if machine.attached_data.is_some() && machine.name.as_str().ends_with("::drop") {
-            if machine.suspends
+        if machine.attached_data.is_some()
+            && machine.name.as_str().ends_with("::drop")
+            && (machine.suspends
                 || machine.blocks
                 || machine_summary.transitive_may_suspend
-                || machine_summary.transitive_may_block
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "cleanup machine `{}` must be transitively non-suspending and nonblocking",
-                    machine.name
-                )));
-            }
+                || machine_summary.transitive_may_block)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "cleanup machine `{}` must be transitively non-suspending and nonblocking",
+                machine.name
+            )));
         }
 
         // Requirements, boundaries, accepted contracts, and external

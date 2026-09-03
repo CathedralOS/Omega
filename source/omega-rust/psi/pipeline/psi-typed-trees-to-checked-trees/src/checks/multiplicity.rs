@@ -219,7 +219,7 @@ fn nominal_drop_place_name<'program>(
                     .machine_states(machine)
                     .iter()
                     .any(|state| state.symbol == state_symbol))
-            .then(|| machine.attached_data.as_deref())
+            .then_some(machine.attached_data.as_deref())
             .flatten()
         })
     {
@@ -1044,7 +1044,6 @@ fn derive_checked_claim_outcome_map(
     let mut entries = result_expressions
         .iter()
         .copied()
-        .into_iter()
         .flat_map(|(statement_index, expression)| {
             claim_outcomes_for_expression(
                 program,
@@ -2865,15 +2864,17 @@ fn apply_statement_permission_production(
         let place_index = target.place_index;
         let obligation_live = target.obligation_live;
         let claim_identity = target.claim_identity.unwrap_or_else(|| {
-            obligation_live
-                .then(|| {
+            if obligation_live {
+                {
                     claim_identities.mint(
                         machine_symbol,
                         state_symbol,
                         PermissionEventSource::Statement { statement_index },
                     )
-                })
-                .unwrap_or(PermissionClaimIdentity::Unknown)
+                }
+            } else {
+                PermissionClaimIdentity::Unknown
+            }
         });
         let provenance = target.provenance;
         let claim_path = places[place_index].path.clone();
@@ -3045,14 +3046,14 @@ fn permission_kind_for_move(
         &call_site,
         parameters,
         SymbolHandle::invalid(),
-    ) {
-        if place.root == event.root && place.segments.as_slice() == event_segments {
-            return if type_carries_linear_obligation(program, target_state.return_type) {
-                PermissionEventKind::Transfer
-            } else {
-                PermissionEventKind::Consume
-            };
-        }
+    ) && place.root == event.root
+        && place.segments.as_slice() == event_segments
+    {
+        return if type_carries_linear_obligation(program, target_state.return_type) {
+            PermissionEventKind::Transfer
+        } else {
+            PermissionEventKind::Consume
+        };
     }
     PermissionEventKind::Transfer
 }

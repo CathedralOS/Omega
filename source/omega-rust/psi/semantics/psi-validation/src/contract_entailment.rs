@@ -1474,14 +1474,12 @@ pub(crate) fn proof_edge_strict_decrease_judged(
             }
         }
     }
-    if incoming != 1 {
-        if trace {
-            eprintln!(
-                "EDGE {}: {} incoming edges -- arm facts skipped",
-                state.name.as_str(),
-                incoming
-            );
-        }
+    if incoming != 1 && trace {
+        eprintln!(
+            "EDGE {}: {} incoming edges -- arm facts skipped",
+            state.name.as_str(),
+            incoming
+        );
     }
     for other in program.machine_states(machine) {
         if incoming != 1 {
@@ -1598,7 +1596,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                     continue;
                 }
                 let member_name = member.member.as_str().to_owned();
-                if declared_fields.iter().any(|field| *field == member_name) {
+                if declared_fields.contains(&member_name) {
                     aliased.push((
                         member_name,
                         StructuralTerm::Variable(parameter.name.as_str().to_owned()),
@@ -2503,7 +2501,7 @@ fn recognize_structural_state_leaves(
     path: &mut Vec<SymbolHandle>,
     fresh: &mut usize,
 ) -> Option<Vec<StructuralCaseArm>> {
-    if !state.symbol.is_valid() || path.iter().any(|symbol| *symbol == state.symbol) {
+    if !state.symbol.is_valid() || path.contains(&state.symbol) {
         return None;
     }
     path.push(state.symbol);
@@ -2531,11 +2529,8 @@ fn recognize_structural_state_leaves(
                     environment.push((local.name.as_str().to_owned(), term));
                 }
                 StatementNode::Call(_) if !saw_transition && collect_citations => {
-                    let Some((target, argument_handles)) =
-                        citation_call_in_statement(program, statement)
-                    else {
-                        return None;
-                    };
+                    let (target, argument_handles) =
+                        citation_call_in_statement(program, statement)?;
                     let argument_terms = argument_handles
                         .iter()
                         .map(|argument| judge.callee_term(*argument, &environment, 0))

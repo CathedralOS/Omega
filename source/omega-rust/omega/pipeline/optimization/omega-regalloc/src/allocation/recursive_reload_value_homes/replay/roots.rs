@@ -56,10 +56,10 @@ pub(super) fn reconstruct(
         || third.legality != legality.receipt().identity()
         || second
             .selected
-            .map_or(false, |root| root != selected.receipt().identity())
+            .is_some_and(|root| root != selected.receipt().identity())
         || second
             .ranges
-            .map_or(false, |root| root != ranges.receipt().identity())
+            .is_some_and(|root| root != ranges.receipt().identity())
         || ranges.receipt().selected() != selected.receipt().identity()
         || legality.receipt().ranges() != ranges.receipt().identity()
         || [

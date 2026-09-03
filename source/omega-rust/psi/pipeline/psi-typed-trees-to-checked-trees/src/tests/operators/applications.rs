@@ -544,22 +544,33 @@ fn checked_named_open_generic_boundary_application_retains_symbolic_type_binder(
         .find(|machine| machine.name.as_str() == "compare")
         .expect("generic producer machine");
     assert_eq!(application.machine_symbol, machine.symbol);
-    assert_eq!(application.requirement_symbol, checked.operators()[0].symbol);
-    let [psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
-        binder_owner,
-        binder_ordinal,
-        binder_symbol,
-        machine_binder_ordinal,
-        machine_binder_symbol,
-    }] = application.arguments.as_slice()
+    assert_eq!(
+        application.requirement_symbol,
+        checked.operators()[0].symbol
+    );
+    let [
+        psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+            binder_owner,
+            binder_ordinal,
+            binder_symbol,
+            machine_binder_ordinal,
+            machine_binder_symbol,
+        },
+    ] = application.arguments.as_slice()
     else {
         panic!("one symbolic type-binder mapping")
     };
     assert_eq!(*binder_owner, application.requirement_symbol);
     assert_eq!(*binder_ordinal, 0);
-    assert_eq!(*binder_symbol, checked.operator_type_parameters(&checked.operators()[0])[0].symbol);
+    assert_eq!(
+        *binder_symbol,
+        checked.operator_type_parameters(&checked.operators()[0])[0].symbol
+    );
     assert_eq!(*machine_binder_ordinal, 0);
-    assert_eq!(*machine_binder_symbol, checked.machine_type_parameters(machine)[0].symbol);
+    assert_eq!(
+        *machine_binder_symbol,
+        checked.machine_type_parameters(machine)[0].symbol
+    );
 }
 
 #[test]
@@ -665,7 +676,13 @@ fn checked_boundary_first_cohort_rejects_open_type_applications() {
 
     assert_eq!(checked.facts.operators.resolved_uses().count(), 2);
     assert!(checked.facts.operators.boundary_applications.is_empty());
-    assert!(checked.facts.operators.symbolic_boundary_applications.is_empty());
+    assert!(
+        checked
+            .facts
+            .operators
+            .symbolic_boundary_applications
+            .is_empty()
+    );
 }
 
 #[test]

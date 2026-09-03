@@ -162,8 +162,8 @@ pub(crate) fn validate_function_structural_catalog(
             return Err(mismatch());
         }
     }
-    if let Some(result) = function.result.structural() {
-        if places.get(&result.place) != Some(&StructuralPlaceKind::Result)
+    if let Some(result) = function.result.structural()
+        && (places.get(&result.place) != Some(&StructuralPlaceKind::Result)
             || !types.contains_key(&result.structural_type)
             || !structural_qualifications_match(
                 result.structural_type,
@@ -175,10 +175,9 @@ pub(crate) fn validate_function_structural_catalog(
                 &result.projected_qualifications,
                 types,
                 domains,
-            )
-        {
-            return Err(mismatch());
-        }
+            ))
+    {
+        return Err(mismatch());
     }
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         let structural_result = match &node.operation {

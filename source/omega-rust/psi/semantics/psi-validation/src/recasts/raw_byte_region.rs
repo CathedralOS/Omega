@@ -109,7 +109,7 @@ pub(super) fn interior_byte_region_source(
             .and_then(|raw| {
                 let interval = crate::arithmetic_domains::range_constraint_interval(program, raw)?;
                 let high = interval.high()?;
-                (!interval.low().is_some_and(|low| low < 0) && high >= 0).then_some(high)
+                (interval.low().is_none_or(|low| low >= 0) && high >= 0).then_some(high)
             });
             declared_high
                 .or_else(|| incoming_guard_offset_bound(program, machine, state, indexed.index))

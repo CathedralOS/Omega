@@ -221,10 +221,10 @@ pub fn reject_undischarged_build_bound_progress(
         .collect())
 }
 
-fn owning_machine<'a>(
-    program: &'a psi_checked_trees::CheckedTrees,
+fn owning_machine(
+    program: &psi_checked_trees::CheckedTrees,
     symbol: SymbolHandle,
-) -> Option<&'a psi_typed_trees::machine::Machine> {
+) -> Option<&psi_typed_trees::machine::Machine> {
     program.machines().iter().find(|machine| {
         machine.symbol == symbol
             || program

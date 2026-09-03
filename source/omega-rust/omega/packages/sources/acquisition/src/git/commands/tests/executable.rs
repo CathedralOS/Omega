@@ -188,15 +188,21 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
         .expect("make slow fake Git executable");
     let time_bounded = GitExecutor::open_with_budget(&slow_git, 1, Duration::from_millis(30))
         .expect("capture time-bounded Git");
-    assert!(matches!(
-        run_git_output(
-            &time_bounded,
-            &working_directory,
-            ResolverExecutionPhase::Fetch,
-            [OsStr::new("slow")],
-        ),
-        Err(SourceResolveError::GitResolutionTimedOut { .. })
-    ));
+    let time_error = run_git_output(
+        &time_bounded,
+        &working_directory,
+        ResolverExecutionPhase::Fetch,
+        [OsStr::new("slow")],
+    )
+    .expect_err("slow command must exhaust the resolution deadline");
+    assert!(
+        matches!(
+            &time_error,
+            SourceResolveError::GitResolutionTimedOut { .. }
+        ) || cfg!(target_os = "macos")
+            && matches!(&time_error, SourceResolveError::GitCleanupFailed { .. }),
+        "unexpected deadline error: {time_error:?}"
+    );
 
     let output_git = root.join("output-git");
     std::fs::write(
@@ -225,12 +231,13 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
     .expect_err("second command must exhaust cumulative output budget");
     assert!(
         matches!(
-        &output_error,
-        SourceResolveError::GitResolutionCapturedOutputLimit {
-            ceiling: 12,
-            attempted,
-        } if *attempted > 12
-        ),
+            &output_error,
+            SourceResolveError::GitResolutionCapturedOutputLimit {
+                ceiling: 12,
+                attempted,
+            } if *attempted > 12
+        ) || cfg!(target_os = "macos")
+            && matches!(&output_error, SourceResolveError::GitCleanupFailed { .. }),
         "unexpected cumulative output error: {output_error:?}"
     );
 

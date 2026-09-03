@@ -1928,7 +1928,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -1972,7 +1972,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -2016,7 +2016,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -2385,7 +2385,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -2421,7 +2421,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 .flat_map(|block| &block.operations)
                 .find_map(|candidate| {
                     (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
-                        .then(|| match candidate.kind {
+                        .then_some(match candidate.kind {
                             OperationKind::IntegerConstant { value } => Some(value),
                             _ => None,
                         })
@@ -5157,12 +5157,11 @@ fn assert_source_structural_return(
             let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind else {
                 panic!("structural return may only establish trivial affine locals")
             };
-            let place = machine
+            let place = *machine
                 .structural_places
                 .iter()
                 .find(|place| place.id == destination)
-                .expect("local establishment has a typed place")
-                .clone();
+                .expect("local establishment has a typed place");
             let StructuralPlaceKind::TrivialAffineLocal {
                 structural_type, ..
             } = place.kind
@@ -5234,7 +5233,7 @@ fn assert_source_structural_return(
     let mut structural_arguments = vec![argument.clone()];
     for (index, cleanup_parameter) in machine.structural_parameters.iter().skip(1).enumerate() {
         structural_arguments.push(TerminalStructuralValue {
-            opaque_identity: 0xd15c_a4d + u64::try_from(index).expect("cleanup index fits u64"),
+            opaque_identity: 0x0d15_ca4d + u64::try_from(index).expect("cleanup index fits u64"),
             structural_type: cleanup_parameter.structural_type,
             qualifications: cleanup_parameter.qualifications.clone(),
             path: Vec::new(),
@@ -5325,7 +5324,10 @@ fn assert_source_structural_return(
         abstract_function.structural_parameters,
         structural_parameters
     );
-    assert_eq!(abstract_function.entry_claims, [entry_claim.clone()]);
+    assert_eq!(
+        abstract_function.entry_claims.as_slice(),
+        std::slice::from_ref(entry_claim)
+    );
     assert!(matches!(
         abstract_function.operations.as_slice(),
         [AbstractOperation::ReturnStructural {

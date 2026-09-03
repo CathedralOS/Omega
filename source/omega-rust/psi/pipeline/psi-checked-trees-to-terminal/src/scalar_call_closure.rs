@@ -64,10 +64,9 @@ pub(super) fn checked_scalar_call_closure(
                     "attached scalar call target is not an exact bounded static scalar realization",
                 );
             }
-            if authorized_static_scalar {
-                if !authorized_static_scalar_realizations.contains(&target) {
-                    authorized_static_scalar_realizations.push(target);
-                }
+            if authorized_static_scalar && !authorized_static_scalar_realizations.contains(&target)
+            {
+                authorized_static_scalar_realizations.push(target);
             }
             if !closure.contains(&target) {
                 closure.push(target);

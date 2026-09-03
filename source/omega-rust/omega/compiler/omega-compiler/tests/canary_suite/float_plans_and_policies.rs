@@ -3612,8 +3612,7 @@ fn domain_operator_inactive_same_carrier_meanings_coexist() {
 fn domain_operator_competing_binding_meanings_fail_at_use_site() {
     let canary = fail_canary("domains/domain_operator_competing_spelling_meanings");
     let diagnostics = compile_to_checked(&canary.join("main.omg"), None)
-        .err()
-        .expect("competing selected domain meanings should fail");
+        .expect_err("competing selected domain meanings should fail");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic

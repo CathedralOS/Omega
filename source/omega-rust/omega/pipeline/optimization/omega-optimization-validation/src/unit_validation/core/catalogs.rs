@@ -144,6 +144,6 @@ pub(super) fn validate_final_authorities(
             unit.entry,
         ));
     }
-    validate_root_service_reach(unit, &machines, &boundary_machines, &services)?;
+    validate_root_service_reach(unit, machines, boundary_machines, services)?;
     Ok(())
 }

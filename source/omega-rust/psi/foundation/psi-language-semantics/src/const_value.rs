@@ -436,7 +436,7 @@ mod tests {
             "integerx:i641:1".to_owned(),
             "integer3:i641".to_owned(),
             "integer1:\u{00b5}1:1".to_owned(),
-            format!("integer3:i641:1junk"),
+            "integer3:i641:1junk".to_string(),
             framed("array", ["[bool; 1]", malformed_child.as_str()]),
         ] {
             assert!(decode(encoding).is_none());

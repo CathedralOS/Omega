@@ -148,10 +148,10 @@ fn state_place_path(
 }
 
 /// The machine whose attached data owns the place a `self.field` target refers to.
-pub(crate) fn machine_by_symbol<'program>(
-    program: &'program psi_typed_trees::TypedTrees,
+pub(crate) fn machine_by_symbol(
+    program: &psi_typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
-) -> Option<&'program Machine> {
+) -> Option<&Machine> {
     program
         .machines()
         .iter()
@@ -259,10 +259,10 @@ fn type_reference_data_name(
 /// The data definition a field's type names (a struct-typed field, peeling
 /// `&`/`&mut` and a domain wrapper), or `None` if the field is not data-typed.
 /// Used to descend a nested field path for the entry-invariant seed.
-pub(crate) fn data_definition_for_field_type<'program>(
-    program: &'program psi_typed_trees::TypedTrees,
+pub(crate) fn data_definition_for_field_type(
+    program: &psi_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+) -> Option<&psi_typed_trees::data::DataDefinition> {
     let name = type_reference_data_name(program, type_reference)?;
     program
         .data_definitions()

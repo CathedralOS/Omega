@@ -772,23 +772,23 @@ fn rebase_tree_statement_occurrences(
             }
         }
         statement::Statement::Transition(transition) => {
-            if let statement::TransitionTarget::Named(target) = &mut transition.target {
-                if let Some(occurrence) = target.authored_call_selection {
-                    target.authored_call_selection = Some(
-                        rebase
-                            .rebase_appended(occurrence)
-                            .expect("tree transition occurrence was validated before mutation"),
-                    );
-                }
+            if let statement::TransitionTarget::Named(target) = &mut transition.target
+                && let Some(occurrence) = target.authored_call_selection
+            {
+                target.authored_call_selection = Some(
+                    rebase
+                        .rebase_appended(occurrence)
+                        .expect("tree transition occurrence was validated before mutation"),
+                );
             }
-            if let Some(statement::TransitionTarget::Named(target)) = &mut transition.continuation {
-                if let Some(occurrence) = target.authored_call_selection {
-                    target.authored_call_selection = Some(
-                        rebase
-                            .rebase_appended(occurrence)
-                            .expect("tree continuation occurrence was validated before mutation"),
-                    );
-                }
+            if let Some(statement::TransitionTarget::Named(target)) = &mut transition.continuation
+                && let Some(occurrence) = target.authored_call_selection
+            {
+                target.authored_call_selection = Some(
+                    rebase
+                        .rebase_appended(occurrence)
+                        .expect("tree continuation occurrence was validated before mutation"),
+                );
             }
         }
         _ => {}

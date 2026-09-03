@@ -95,7 +95,7 @@ fn validate_terminal_image_with_import_count(
             .checked_add(output.final_text_bytes.len() as u64)
             .ok_or_else(|| Diagnostic::error("terminal-Psi final text placement overflows"))?;
         if output.final_image_layout.data_address < text_end
-            || output.final_image_layout.data_address % 8 != 0
+            || !output.final_image_layout.data_address.is_multiple_of(8)
         {
             return Err(Diagnostic::error(
                 "terminal-Psi initialized data has an invalid final placement",

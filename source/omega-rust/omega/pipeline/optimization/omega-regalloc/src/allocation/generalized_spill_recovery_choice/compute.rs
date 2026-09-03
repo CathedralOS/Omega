@@ -335,12 +335,12 @@ fn admit_roots(
     Ok(())
 }
 
-fn checked_view<'a>(
+fn checked_view(
     function: usize,
     class: omega_register_model::RegisterClassId,
     id: RegisterViewId,
-    physical: &'a ValidatedPhysicalRegisterModel,
-) -> Result<&'a RegisterView, GeneralizedSpillRecoveryChoiceError> {
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<&RegisterView, GeneralizedSpillRecoveryChoiceError> {
     physical
         .model()
         .views
