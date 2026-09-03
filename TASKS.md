@@ -12508,10 +12508,20 @@ checked-result arithmetic decision listed below.
   successor edges, both complete branch-local scalar-call plans, and exactly
   two independently replayable selection-sourced transfers into the same
   callee parameter; the ordinary composed-control topology proves the control
-  split. The open seam is checked-to-Terminal emission of that plan. Native
-  lowering, aggregate storage, return, forwarding after the join, and component
-  crossing remain fenced; do not add a representative conformance or a second
-  joined-descriptor vocabulary to bypass that control seam.
+  split. Checked-to-Terminal lowering now independently replays that atomic
+  plan and emits the exact three-block conditional caller. Each branch calls
+  one shared helper while supplying its own selection-sourced descriptor
+  argument to the helper's single descriptor parameter; the helper alone
+  performs the parameter dispatch. Both closed applications and their distinct
+  realization machines remain explicit. Canonical verification, codec replay,
+  source-call occurrence accounting, and interpretation execute both branches,
+  while guard, successor, selection, interface, or application drift rejects.
+  Promotion also retains both source carrier shapes instead of dropping them
+  with the consumed direct candidates. The open seam is target-neutral abstract
+  and native lowering of this checked control graph. Aggregate storage, return,
+  forwarding after the join, and component crossing remain fenced; do not add a
+  representative conformance or a second joined-descriptor vocabulary to bypass
+  that control seam.
 
   Remaining work:
 

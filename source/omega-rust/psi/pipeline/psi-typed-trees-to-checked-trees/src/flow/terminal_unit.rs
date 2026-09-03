@@ -335,6 +335,18 @@ pub(crate) fn build_checked_unit_effect_plans(
         )
         .chain(
             dynamic_dispatch
+                .joined_scalar_calls
+                .iter()
+                .flat_map(|plan| {
+                    [
+                        plan.caller_attachment_type_identity.as_str(),
+                        plan.when_true.call.source_type_identity.as_str(),
+                        plan.when_false.call.source_type_identity.as_str(),
+                    ]
+                }),
+        )
+        .chain(
+            dynamic_dispatch
                 .stored_scalar_calls
                 .iter()
                 .flat_map(|plan| {

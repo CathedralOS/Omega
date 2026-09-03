@@ -1692,4 +1692,22 @@ fn two_branch_dynamic_calls_retain_both_terminal_join_predecessors() {
         second.selection.source_symbol
     );
     assert_ne!(first.selection.conformance, second.selection.conformance);
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_types
+            .iter()
+            .any(|plan| plan.identity == joined.caller_attachment_type_identity)
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_types
+            .iter()
+            .any(|plan| plan.identity == first.source_type_identity)
+    );
 }

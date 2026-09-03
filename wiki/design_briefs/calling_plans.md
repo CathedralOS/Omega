@@ -607,8 +607,14 @@ conformances. The checked producer now groups the first three-state Boolean
 source shape into one joined-call plan containing the exact guard, both
 successor edges, both complete branch-local calls, and the two exact root
 transfers into the shared parameter. This avoids presenting the backend with
-two rival plans for one source machine. Checked-to-Terminal emission of that
-atomic plan remains fenced. Physical selection, aggregate storage beyond the
+two rival plans for one source machine. Checked-to-Terminal lowering replays
+that plan and emits one three-block conditional caller, two selection-sourced
+descriptor arguments, one shared helper descriptor parameter, and the two
+independent closed applications and realization machines. Canonical
+verification, codec replay, source-call occurrence accounting, and
+interpretation cover both branches. Promotion retains the structural carrier
+shapes needed by the joined plan after consuming the direct candidates.
+Target-neutral abstract and physical selection, aggregate storage beyond the
 bounded single-field local form below, returns, forwarding after the join, and
 component crossings remain fenced.
 
