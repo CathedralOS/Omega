@@ -12432,8 +12432,16 @@ checked-result arithmetic decision listed below.
   independently validate that result class, helper chain, call plans, unchanged
   registers, relocation/opcode, stack/link custody, attribution, and cleanup
   edge. Installation format 67 uses one canonical optional-result encoding and
-  rejects mixed value/type presence. Scalar callers with continuations and a
-  native process-execution assertion remain outside this bounded rung.
+  rejects mixed value/type presence. Scalar caller continuations now use the
+  same complete forwarding chain instead of stopping at one helper: checked-
+  to-Terminal lowering retains every parameter interface and source call before
+  consuming the returned scalar in the caller's exact conditional/effect
+  diamond. Terminal verification and canonical encoding cover the composed
+  graph. A full compiler canary retains one selection-sourced descriptor call,
+  one parameter-forwarding direct call, and one final parameter-sourced
+  indirect call through object/final-image validation for x86-64 and AArch64;
+  on a matching Linux host it executes the emitted image and requires the
+  selected realization's result to drive exit status 70.
 
   Remaining work:
 
@@ -12455,10 +12463,9 @@ checked-result arithmetic decision listed below.
   - extend descriptors to within-artifact stored/joined/escaping and
     aggregate-erased forms. The scalar parameter-forwarding row now crosses
     object/image/installation replay; the Unit form now reaches verified
-    Terminal Psi, machine emission, and native artifact replay. Next widen
-    scalar continuations and add native execution
-    where a retained caller result makes an observable assertion possible. Do
-    not extend local
+    Terminal Psi, machine emission, and native artifact replay, and a retained
+    scalar caller continuation now makes the complete multi-hop result
+    observable through the native exit canary. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a
