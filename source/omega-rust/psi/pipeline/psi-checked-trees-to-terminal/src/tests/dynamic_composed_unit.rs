@@ -382,6 +382,46 @@ const FORWARDED_DIRECT_DYNAMIC_INTEGER_SOURCE: &str = r#"
     }
 "#;
 
+const JOINED_DYNAMIC_BOOLEAN_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, choose_first: bool) {
+        transition choose_first {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
 const MULTI_HOP_DYNAMIC_INTEGER_SOURCE: &str = r#"
     trait Measure {
         machine measure(&self) -> i32;
@@ -1050,6 +1090,175 @@ fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() 
         psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
     );
     assert_dynamic_unit_artifact_executes(&artifact);
+}
+
+#[test]
+fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
+    let mut checked = checked_source(JOINED_DYNAMIC_BOOLEAN_SOURCE);
+    let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(checked_catalog.direct_scalar_calls.is_empty());
+    let [joined] = checked_catalog.joined_scalar_calls.as_slice() else {
+        panic!("one checked dynamic join expected: {checked_catalog:#?}")
+    };
+    assert_ne!(
+        joined.when_true.call.selection.conformance,
+        joined.when_false.call.selection.conformance,
+    );
+
+    let lowered =
+        lower_machine(&checked, "Main::run").expect("two exact dynamic predecessors should lower");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("joined dynamic Terminal module should verify");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 2);
+    assert_eq!(catalog.arguments.len(), 2);
+    assert_eq!(catalog.parameters.len(), 1);
+    assert_eq!(catalog.parameter_dispatches.len(), 1);
+    assert_eq!(
+        catalog.arguments[0].source,
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
+    );
+    assert_eq!(
+        catalog.arguments[1].source,
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 1 },
+    );
+    assert_eq!(
+        lowered
+            .semantic_module
+            .closed_conformance_applications
+            .len(),
+        2
+    );
+    assert_eq!(lowered.source_call_occurrences.len(), 3);
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("joined dynamic caller machine");
+    assert_eq!(caller.blocks.len(), 3);
+    assert!(matches!(
+        caller.blocks[0].terminator,
+        Terminator::Conditional { .. }
+    ));
+    let parameter_owner = catalog.parameters[0].owner;
+    assert!(caller.blocks[1..].iter().all(|block| {
+        matches!(
+            block.operations.as_slice(),
+            [Operation {
+                kind: OperationKind::CallStructuralScalar { callee, .. },
+                ..
+            }] if *callee == parameter_owner
+        )
+    }));
+
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("joined dynamic module should encode canonically");
+    assert_eq!(
+        psi_terminal_codec::decode_module(artifact.semantic_bytes())
+            .expect("joined dynamic module should decode"),
+        lowered.semantic_module,
+    );
+    let [self_parameter] = caller.structural_parameters.as_slice() else {
+        panic!("joined caller requires one structural self parameter")
+    };
+    let psi_terminal::StructuralTypeShape::Record {
+        fields: caller_fields,
+    } = &lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == self_parameter.structural_type)
+        .expect("joined dynamic caller type")
+        .shape
+    else {
+        panic!("joined dynamic caller must be a record")
+    };
+    let [psi_terminal::StructuralPathSegment::Field(first_field)] =
+        catalog.selections[0].source.path.as_slice()
+    else {
+        panic!("joined dynamic source must be one field")
+    };
+    let psi_terminal::StructuralFieldType::Structural(source_type) = caller_fields
+        .iter()
+        .find(|field| field.identity == *first_field)
+        .expect("joined dynamic source field")
+        .field_type
+    else {
+        panic!("joined dynamic source field must be structural")
+    };
+    let psi_terminal::StructuralTypeShape::Record {
+        fields: source_fields,
+    } = &lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == source_type)
+        .expect("joined dynamic source type")
+        .shape
+    else {
+        panic!("joined dynamic source must be a record")
+    };
+    let [marker] = source_fields.as_slice() else {
+        panic!("joined dynamic source has one Boolean field")
+    };
+    let field_values = catalog
+        .selections
+        .iter()
+        .enumerate()
+        .map(
+            |(index, selection)| psi_terminal_interpreter::TerminalStructuralBooleanFieldValue {
+                argument_index: 0,
+                path: selection.source.path.clone(),
+                field: marker.id,
+                value: index == 0,
+            },
+        )
+        .collect::<Vec<_>>();
+    for choose_first in [true, false] {
+        let structural = psi_terminal_interpreter::TerminalStructuralValue {
+            opaque_identity: 1,
+            structural_type: self_parameter.structural_type,
+            qualifications: self_parameter.qualifications.clone(),
+            path: Vec::new(),
+        };
+        let mut execution = psi_terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &psi_proof_admission::AdmissionProfile::default(),
+                &[psi_terminal_interpreter::TerminalScalarValue::Boolean(
+                    choose_first,
+                )],
+                &[structural],
+                &field_values,
+            )
+            .expect("joined dynamic artifact should start");
+        let mut meter = psi_terminal_fuel::TerminalFuelMeter::unbounded();
+        assert_eq!(
+            execution
+                .resume(&mut meter)
+                .expect("joined dynamic artifact should execute"),
+            psi_terminal_interpreter::TerminalExecutionStatus::Complete(
+                psi_terminal_interpreter::TerminalExecutionResult::Unit,
+            ),
+        );
+    }
+
+    let [joined] = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .joined_scalar_calls
+        .as_mut_slice()
+    else {
+        unreachable!("checked above")
+    };
+    joined.when_false.successor.target_state = joined.when_true.successor.target_state;
+    assert_eq!(
+        unsupported_message(&checked),
+        "joined dynamic control plan drifted from checked custody",
+    );
 }
 
 #[test]

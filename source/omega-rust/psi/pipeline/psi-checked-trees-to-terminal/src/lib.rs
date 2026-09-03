@@ -1262,6 +1262,15 @@ pub fn lower_machine(
         SelectedMachineRoute::StoredDynamicComposedUnit {
             realization_machine,
         } => vec![selection.machine, realization_machine],
+        SelectedMachineRoute::JoinedDynamicComposedUnit {
+            realization_machines,
+        } => {
+            let mut machines = vec![selection.machine];
+            machines.extend(realization_machines);
+            machines.sort_by_key(|machine| (machine.arena_index(), machine.generation()));
+            machines.dedup();
+            machines
+        }
         SelectedMachineRoute::UnitEffect => {
             let mut closure = checked_unit_call_closure_including(checked, selection.machine, &[])?;
             let mut structural_realizations = Vec::new();
@@ -1415,6 +1424,20 @@ pub fn lower_machine(
         ) {
             return unsupported(
                 "rebound dynamic dispatch must publish one or two closed conformance applications",
+            );
+        }
+    } else if matches!(
+        route,
+        SelectedMachineRoute::JoinedDynamicComposedUnit { .. }
+    ) {
+        if !(1..=2).contains(
+            &lowered
+                .semantic_module
+                .closed_conformance_applications
+                .len(),
+        ) {
+            return unsupported(
+                "joined dynamic dispatch must publish one or two closed conformance applications",
             );
         }
     } else {

@@ -32,7 +32,15 @@ use psi_terminal::{
 use super::*;
 
 mod continuation;
+mod join;
 mod unit;
+
+pub(super) fn lower_joined_dynamic_composed_unit_machine(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedJoinedDynamicScalarCallPlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    join::lower(checked, plan)
+}
 
 pub(super) fn lower_direct_dynamic_unit_machine(
     checked: &CheckedTrees,

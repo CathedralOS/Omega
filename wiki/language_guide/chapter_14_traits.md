@@ -706,19 +706,19 @@ The first implemented join records exactly two within-artifact predecessor
 calls into one bare dynamic state parameter. Checking preserves one complete
 path per alternative: the original named conformance selection, its source
 place, and every descriptor-carrying call edge through the join. It never
-chooses one incoming selection as representative. This bounded rung does not
-yet compose that source control graph into Terminal Psi. The Terminal semantic
-model itself requires no special joined descriptor: two calls may supply their
-distinct selection-sourced descriptor arguments to one callee descriptor
-parameter, and verification, canonical encoding, and interpretation preserve
-the selected referent and private table on both branches. Checking groups the
-first three-state Boolean form into one plan with the exact guard, successors,
-branch-local calls, and both selection-sourced transfers; it does not leave two
-whole-machine candidates for lowering to choose between. Terminal source
-emission, three-way joins, forwarding after a join, native source lowering,
-aggregate storage beyond the
-bounded single-field local form below, returns, and component crossings remain
-rejected.
+chooses one incoming selection as representative. The Terminal semantic model
+requires no special joined descriptor: two calls supply their distinct
+selection-sourced descriptor arguments to one callee descriptor parameter.
+Checking groups the first three-state Boolean form into one plan with the exact
+guard, successors, branch-local calls, and both selection-sourced transfers;
+it does not leave two whole-machine candidates for lowering to choose between.
+Checked-to-Terminal lowering independently replays that plan as a three-block
+caller whose branches invoke one shared helper, and retains both closed
+applications and realization machines. Verification, canonical encoding, and
+interpretation preserve the selected referent and private table on both
+branches. Three-way joins, forwarding after a join, native source lowering,
+aggregate storage beyond the bounded single-field local form below, returns,
+and component crossings remain rejected.
 
 Only a closed conformance block licenses local dynamic dispatch. A bodyless
 whole-trait conformance remains useful for static checking, but has no complete
