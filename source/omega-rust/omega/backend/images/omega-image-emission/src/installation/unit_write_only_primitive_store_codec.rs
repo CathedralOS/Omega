@@ -1,0 +1,110 @@
+//! Canonical transport for whole-root non-observing primitive-store rows.
+
+use omega_machine_code::UnitWriteOnlyPrimitiveStoreRecord;
+use psi_core::{OperationId, ScalarType, StructuralTypeId};
+use psi_terminal::{StructuralTypeDeclaration, StructuralTypeShape};
+
+use super::{
+    InstallationError, Reader,
+    boundary_result_scalar_codec::{
+        decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
+    },
+    decode_boolean,
+    internal_unit_scalar_call_codec::{
+        decode_argument_source, decode_offset, encode_argument_source, encode_offset,
+    },
+    push_u32, push_u64,
+    structural_scalar_codec::{decode_identity, encode_identity},
+    unit_structural_scalar_field_store_codec::{decode_destination, encode_destination},
+    value_placement_codec::{decode_direct_placement, encode_direct_placement},
+};
+
+pub(super) fn encode_unit_write_only_primitive_stores(
+    bytes: &mut Vec<u8>,
+    stores: &[UnitWriteOnlyPrimitiveStoreRecord],
+) -> Result<(), InstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(stores.len())
+            .map_err(|_| InstallationError::TooManyUnitWriteOnlyPrimitiveStores)?,
+    );
+    for store in stores {
+        push_u64(bytes, store.psi_operation.get());
+        encode_destination(bytes, &store.destination)?;
+        push_u64(bytes, store.destination_type.id.get());
+        encode_identity(bytes, &store.destination_type.identity)?;
+        let StructuralTypeShape::PrimitiveScalar(scalar_type) = store.destination_type.shape else {
+            return Err(InstallationError::InvalidStructuralTypeShape);
+        };
+        encode_boundary_result_scalar_type(bytes, scalar_type);
+        encode_direct_placement(bytes, &store.destination_placement)?;
+        encode_argument_source(bytes, store.source)?;
+        push_u32(bytes, store.parameter_home_byte_offset);
+        bytes.push(u8::from(store.parameter_home_indirect));
+        bytes.extend_from_slice(&[0; 3]);
+        encode_offset(bytes, store.operation_ordinal)?;
+        encode_offset(bytes, store.code_offset)?;
+        encode_offset(bytes, store.byte_count)?;
+        push_u32(
+            bytes,
+            u32::try_from(store.bytes.len())
+                .map_err(|_| InstallationError::TooManyUnitWriteOnlyPrimitiveStoreBytes)?,
+        );
+        bytes.extend_from_slice(&store.bytes);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_unit_write_only_primitive_stores(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<UnitWriteOnlyPrimitiveStoreRecord>, InstallationError> {
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyUnitWriteOnlyPrimitiveStores)?;
+    if count > reader.remaining() / 96 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut stores = Vec::with_capacity(count);
+    for _ in 0..count {
+        let psi_operation = OperationId::new(reader.u64()?)
+            .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+        let destination = decode_destination(reader)?;
+        let destination_type_id = StructuralTypeId::new(reader.u64()?)
+            .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+        let destination_type_identity = decode_identity(reader)?;
+        let destination_scalar_type = decode_boundary_result_scalar_type(reader)?;
+        if !matches!(destination_scalar_type, ScalarType::Integer(_)) {
+            return Err(InstallationError::InvalidStructuralTypeShape);
+        }
+        let destination_placement = decode_direct_placement(reader)?;
+        let source = decode_argument_source(reader)?;
+        let parameter_home_byte_offset = reader.u32()?;
+        let parameter_home_indirect = decode_boolean(reader.u8()?)?;
+        if reader.take(3)? != [0; 3] {
+            return Err(InstallationError::NonzeroReservedField);
+        }
+        let operation_ordinal = decode_offset(reader)?;
+        let code_offset = decode_offset(reader)?;
+        let byte_count = decode_offset(reader)?;
+        let bytes_len = usize::try_from(reader.u32()?)
+            .map_err(|_| InstallationError::TooManyUnitWriteOnlyPrimitiveStoreBytes)?;
+        let store_bytes = reader.take(bytes_len)?.to_vec();
+        stores.push(UnitWriteOnlyPrimitiveStoreRecord {
+            psi_operation,
+            destination,
+            destination_type: StructuralTypeDeclaration {
+                id: destination_type_id,
+                identity: destination_type_identity,
+                shape: StructuralTypeShape::PrimitiveScalar(destination_scalar_type),
+            },
+            destination_placement,
+            source,
+            parameter_home_byte_offset,
+            parameter_home_indirect,
+            operation_ordinal,
+            code_offset,
+            byte_count,
+            bytes: store_bytes,
+        });
+    }
+    Ok(stores)
+}

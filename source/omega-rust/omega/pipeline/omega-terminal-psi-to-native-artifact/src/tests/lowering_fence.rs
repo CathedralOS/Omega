@@ -159,13 +159,40 @@ fn verified_write_only_primitive_store_reaches_exact_machine_emission() {
         );
         let image = omega_image_emission::emit_executable_image(&object, 3)
             .expect("replayed store reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains the replayed store");
+        let installed_function = installation
+            .functions()
+            .iter()
+            .find(|candidate| candidate.machine == function.machine)
+            .expect("installation retains the store-owning function");
+        assert_eq!(
+            installed_function.unit_write_only_primitive_stores,
+            function.unit_write_only_primitive_stores
+        );
+        let installation_bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode the installed store custody");
+        let decoded = omega_image_emission::decode_installation_record(&installation_bytes)
+            .expect("decode the installed store custody");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("installed store rejoins the executable image");
+        let installed_store_bytes = installed_function.unit_write_only_primitive_stores[0]
+            .bytes
+            .clone();
+        let mut corrupted_installation = installation_bytes;
+        let encoded_store = corrupted_installation
+            .windows(installed_store_bytes.len())
+            .rposition(|window| window == installed_store_bytes)
+            .expect("installed store bytes occur in the canonical record");
+        corrupted_installation[encoded_store] ^= 1;
         assert!(matches!(
-            omega_image_emission::build_installation_record(
-                &image,
-                psi_core::ProfileDecisionId::new(1).unwrap()
-            ),
+            omega_image_emission::decode_installation_record(&corrupted_installation),
             Err(
-                omega_image_emission::InstallationError::UnsupportedUnitWriteOnlyPrimitiveStore(
+                omega_image_emission::InstallationError::InvalidUnitWriteOnlyPrimitiveStore(
                     machine
                 )
             ) if machine == function.machine

@@ -1,12 +1,14 @@
 //! Installation-shape validation for retained fixed-integer ABI and attached-
 //! Unit scalar-call transport. Native byte replay remains object-owned.
 
-use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+};
 use omega_machine_code::SemanticCodeSite;
 use omega_target::NativeTarget;
 use omega_target_operations::CallSiteOwner;
 use psi_core::MachineId;
-use psi_terminal::StructuralAccess;
+use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 use super::{InstallationError, InstallationRecord, InstalledFunction};
 
@@ -469,6 +471,148 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
     Ok(())
 }
 
+pub(super) fn validate_installed_unit_write_only_primitive_stores(
+    record: &InstallationRecord,
+    functions: &std::collections::BTreeMap<MachineId, &InstalledFunction>,
+) -> Result<(), InstallationError> {
+    for function in functions.values().copied() {
+        let invalid = || InstallationError::InvalidUnitWriteOnlyPrimitiveStore(function.machine);
+        let mut previous = None;
+        for store in &function.unit_write_only_primitive_stores {
+            let key = (store.operation_ordinal, store.code_offset);
+            let parameter_index =
+                usize::try_from(store.destination.position).map_err(|_| invalid())?;
+            let parameter = function
+                .unit_parameters
+                .get(parameter_index)
+                .ok_or_else(invalid)?;
+            let home = function
+                .unit_parameter_homes
+                .get(parameter_index)
+                .ok_or_else(invalid)?;
+            let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                defining_operation,
+                source_value,
+                scalar_type,
+                value,
+            } = store.source
+            else {
+                return Err(invalid());
+            };
+            let StructuralTypeShape::PrimitiveScalar(psi_core::ScalarType::Integer(
+                destination_scalar_type,
+            )) = store.destination_type.shape
+            else {
+                return Err(invalid());
+            };
+            let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
+            let expected_shape = ValueShape::borrowed_reference(width, width.min(8));
+            let [
+                ValueLocation::Indirect {
+                    copy_stack_byte_offset: None,
+                    byte_size: placement_byte_size,
+                    alignment: placement_alignment,
+                    ..
+                },
+            ] = home.source.locations.as_slice()
+            else {
+                return Err(invalid());
+            };
+            let source_count = function
+                .unit_integer_constants
+                .iter()
+                .filter(|constant| {
+                    constant.defining_operation == defining_operation
+                        && constant.source_value == source_value
+                        && constant.scalar_type == scalar_type
+                        && constant.value == value
+                        && constant.operation_ordinal < store.operation_ordinal
+                })
+                .count();
+            let destination_type_count = function
+                .unit_affine_cleanup
+                .as_ref()
+                .ok_or_else(invalid)?
+                .structural_types
+                .iter()
+                .filter(|candidate| *candidate == &store.destination_type)
+                .count();
+            let bits = crate::unit_structural_scalar_field_store::integer_bits(scalar_type, value)
+                .ok_or_else(invalid)?;
+            let expected_bytes = crate::unit_structural_scalar_field_store::expected_store_bytes(
+                record.target,
+                home,
+                0,
+                width,
+                bits,
+            )
+            .ok_or_else(invalid)?;
+            let end = store
+                .code_offset
+                .checked_add(store.byte_count)
+                .ok_or_else(invalid)?;
+            let exact_attribution_count = record
+                .semantic_code_attribution
+                .iter()
+                .filter(|attribution| {
+                    attribution.machine == function.machine
+                        && attribution.attribution.site
+                            == SemanticCodeSite::Operation(store.psi_operation)
+                        && attribution.attribution.operation_ordinal == store.operation_ordinal
+                        && attribution.attribution.code_offset == store.code_offset
+                        && attribution.attribution.byte_count == store.byte_count
+                })
+                .count();
+            if previous.is_some_and(|previous| previous >= key)
+                || source_count != 1
+                || destination_type_count != 1
+                || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
+                || scalar_type.is_address()
+                || !scalar_type.admits(value)
+                || destination_scalar_type != scalar_type
+                || store.destination_type.identity.is_empty()
+                || store.destination_type.id != store.destination.structural_type
+                || store.destination.is_self
+                || store.destination.multiplicity != StructuralMultiplicity::Unrestricted
+                || !matches!(
+                    store.destination.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+                || !store.destination.qualifications.is_empty()
+                || !store.destination.projected_qualifications.is_empty()
+                || parameter.place != store.destination.place
+                || parameter.structural_type != store.destination.structural_type
+                || parameter.multiplicity != store.destination.multiplicity
+                || parameter.access != store.destination.access
+                || parameter.shape != expected_shape
+                || home.place != parameter.place
+                || home.structural_type != parameter.structural_type
+                || home.multiplicity != parameter.multiplicity
+                || home.access != parameter.access
+                || home.shape != parameter.shape
+                || home.source.shape != expected_shape
+                || home.source != store.destination_placement
+                || !home.indirect
+                || *placement_byte_size != width
+                || *placement_alignment != width.min(8)
+                || store.parameter_home_byte_offset != home.byte_offset
+                || !store.parameter_home_indirect
+                || store.byte_count == 0
+                || store.byte_count != store.bytes.len()
+                || store.bytes != expected_bytes
+                || end > function.byte_count
+                || exact_attribution_count != 1
+                || record.target.pointer_size != 8
+                || record.target.pointer_alignment != 8
+            {
+                return Err(invalid());
+            }
+            previous = Some(key);
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
@@ -547,6 +691,7 @@ mod tests {
             unit_integer_constants: Vec::new(),
             unit_affine_scalar_records: Vec::new(),
             unit_structural_scalar_field_stores: Vec::new(),
+            unit_write_only_primitive_stores: Vec::new(),
             scalar_structural_scalar_field_stores: Vec::new(),
             unit_affine_cleanup: None,
             scalar_affine_cleanup: None,

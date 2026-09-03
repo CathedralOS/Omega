@@ -97,10 +97,10 @@ unless installation supplies physical isolation evidence.
 The first bounded whole-root primitive store is retained as a structural-state
 event through target-neutral operations, optimization validation, physical
 assignment, and native store emission. Object construction independently
-replays the exact non-observing store custody and bytes. That classification
-prevents scalar dead-code reasoning from erasing the write; it does not claim a
-readable observation of the prior referent, authorize an opaque provider, or
-bypass the remaining installation-transport fence.
+replays the exact non-observing store custody and bytes, and installation
+transports that replay canonically. The classification prevents scalar
+dead-code reasoning from erasing the write; it does not claim a readable
+observation of the prior referent or authorize an opaque provider.
 
 Frame size is compiler-derived and reported. Task activation capacity is
 declared or proved through task-pool authority. Version retention is a

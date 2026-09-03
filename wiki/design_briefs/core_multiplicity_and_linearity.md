@@ -128,9 +128,9 @@ x86-64 and AArch64, and retains the exact declaration, placement, immediate,
 and semantic operation. Physical assignment and machine emission independently
 replay those joins before producing the non-observing store bytes. A dedicated
 custody row binds every fact to the exact code interval and bytes, which object
-construction replays independently. Boolean native lowering and installation
-transport remain fail closed; provider non-observation authority also remains
-absent.
+construction replays independently and installation encoding transports
+canonically. Boolean native lowering remains fail closed; provider
+non-observation authority also remains absent.
 
 ## Consumers and cleanup
 
