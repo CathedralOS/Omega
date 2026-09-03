@@ -626,9 +626,14 @@ distinct selection/application custody and the same helper target. Physical
 assignment rejoins the guard with the complete Unit call plan, selects its
 exact register or incoming-stack coordinate, and assigns both leaf descriptor
 arguments independently; guard identity or placement drift fails closed.
-Native encoding remains fenced at that explicit assigned operation. Aggregate
-storage beyond the bounded single-field local form below, forwarding after the
-join, and component crossings also remain fenced.
+Native encoding emits that Boolean split and both leaf calls with one shared
+Unit epilogue: the true-arm return jumps over the false leaf into the common
+frame-release/return sequence. Object construction independently decodes the
+conditional and convergence targets, rejoins the five semantic intervals and
+the two exact descriptor sources, and rejects branch-byte or source collapse
+before final-image replay. Aggregate storage beyond the bounded single-field
+local form below, forwarding after the join, installation/component crossing,
+and wider control graphs remain fenced.
 
 The first Terminal aggregate-storage rung accepts only the checked immutable
 one-field record initialized from one earlier exact shared-borrow selection.

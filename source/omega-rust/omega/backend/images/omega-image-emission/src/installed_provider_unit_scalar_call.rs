@@ -23,6 +23,9 @@ pub(super) fn validate_installed_provider_unit_scalar_calls(
     functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
     validated_call_stacks: &[ObjectUnitCallStack],
 ) -> Result<(), ObjectError> {
+    if function.installed_provider_unit_scalar_calls.is_empty() {
+        return Ok(());
+    }
     validate_unit_scalar_abi(target, function)?;
     let invalid = || ObjectError::InvalidInstalledProviderUnitScalarCallEvidence(function.machine);
     if function.installed_provider_unit_scalar_calls.len() > 1 {

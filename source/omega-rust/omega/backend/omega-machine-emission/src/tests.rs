@@ -27,6 +27,8 @@ use psi_terminal::{
     StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 
+#[path = "tests/dynamic_descriptor_join.rs"]
+mod dynamic_descriptor_join;
 #[path = "tests/forwarded_dynamic_descriptor.rs"]
 mod forwarded_dynamic_descriptor;
 #[path = "tests/installed_provider_scalar.rs"]

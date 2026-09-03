@@ -12545,11 +12545,15 @@ checked-result arithmetic decision listed below.
   replays the Boolean parameter against the complete Unit call plan, reduces
   its exact placement to the selected register or incoming-stack coordinate,
   and independently assigns both descriptor-bearing branch calls. Parameter
-  identity or placement substitution rejects. Native encoding remains the
-  open seam and rejects this new operation explicitly. Aggregate storage,
-  forwarding after the join, and component crossing remain fenced; do not add
-  a representative conformance or a second joined-descriptor vocabulary to
-  bypass that control seam.
+  identity or placement substitution rejects. Native encoding now emits the
+  Boolean split, both descriptor-bearing leaves, and one shared physical
+  epilogue on x86-64 and AArch64. The true-arm return is an explicit join
+  branch over the false leaf; object construction independently decodes both
+  branch targets, rejoins all five semantic intervals and both descriptor
+  sources, and rejects byte, edge, or source collapse before final-image
+  replay. Aggregate storage, forwarding after the join, installation/component
+  crossing, and wider control graphs remain fenced; do not add a representative
+  conformance or a second joined-descriptor vocabulary to bypass those seams.
 
   Remaining work:
 

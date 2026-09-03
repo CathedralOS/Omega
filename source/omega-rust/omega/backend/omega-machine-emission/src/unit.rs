@@ -1,7 +1,7 @@
 use omega_assigned_target_operations::{
     AssignedAggregateCopy, AssignedFunction, AssignedNativeCallbackArgument,
-    AssignedNormalizedForeignScalarArgument, AssignedUnitBody, AssignedUnitOperation,
-    AssignedUnitScalarArgumentSource, AssignedUnitScalarHome,
+    AssignedNormalizedForeignScalarArgument, AssignedScalarLocation, AssignedUnitBody,
+    AssignedUnitOperation, AssignedUnitScalarArgumentSource, AssignedUnitScalarHome,
 };
 use omega_calling_conventions::{
     IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape,
@@ -39,10 +39,10 @@ use structural_scalar::{
 use super::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
     aarch64_unit_register, aarch64_unit_stack_access, append_aarch64_instructions,
-    emit_aarch64_adjust_sp, emit_aarch64_sp_address, emit_x86_64_adjust_sp,
-    emit_x86_64_memory_load_width, emit_x86_64_stack_load_width, emit_x86_64_stack_store_width,
-    exact_partial_cleanup_partition, executable_nominal_cleanup, placement_fragment,
-    stack_adjustment_pair, x86_unit_register,
+    emit_aarch64_adjust_sp, emit_aarch64_condition_load, emit_aarch64_sp_address,
+    emit_x86_64_adjust_sp, emit_x86_64_memory_load_width, emit_x86_64_parameter_return,
+    emit_x86_64_stack_load_width, emit_x86_64_stack_store_width, exact_partial_cleanup_partition,
+    executable_nominal_cleanup, placement_fragment, stack_adjustment_pair, x86_unit_register,
 };
 
 type EstablishedAffineScalarRecords = std::collections::BTreeMap<
@@ -919,6 +919,7 @@ pub(super) fn emit_unit_body(
     let mut established_affine_scalar_records = std::collections::BTreeMap::new();
     let mut established_ieee_float_constants = std::collections::BTreeMap::new();
     let mut pending_conditional: Option<(usize, usize, u8)> = None;
+    let mut pending_join_return: Option<(usize, usize)> = None;
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
         if pending_conditional
             .is_some_and(|(false_ordinal, _, _)| false_ordinal == operation_ordinal)
@@ -933,12 +934,53 @@ pub(super) fn emit_unit_body(
                 aarch64_condition,
             )?;
         }
+        if pending_join_return
+            .is_some_and(|(return_ordinal, _)| return_ordinal == operation_ordinal)
+        {
+            let (_, branch_offset) = pending_join_return
+                .take()
+                .expect("the shared return owns the pending join branch");
+            patch_unit_unconditional_branch(&mut bytes, target.architecture, branch_offset)?;
+        }
         if returned {
             return Err(EmissionError::UnitOperationAfterReturn);
         }
         let code_offset = bytes.len();
         let mut operation_site = None;
         let mut edge_site = None;
+        if let AssignedUnitOperation::Return {
+            psi_edge,
+            cleanup_actions,
+        } = operation
+            && matches!(
+                body.operations.first(),
+                Some(AssignedUnitOperation::ConditionalBooleanParameter {
+                    when_true,
+                    when_false,
+                    ..
+                }) if operation_ordinal == 2
+                    && *psi_edge == when_true.nominal_return_edge
+                    && when_false.operation_ordinal == 3
+                    && pending_conditional.is_some()
+            )
+        {
+            if !cleanup_actions.is_empty() || pending_join_return.is_some() {
+                return Err(EmissionError::ConditionalBranchEncodingInvalid);
+            }
+            let branch_offset = bytes.len();
+            match target.architecture {
+                Architecture::X86_64 => bytes.extend_from_slice(&[0xe9, 0, 0, 0, 0]),
+                Architecture::Aarch64 => bytes.extend_from_slice(&0x1400_0000_u32.to_le_bytes()),
+            }
+            pending_join_return = Some((4, branch_offset));
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(*psi_edge),
+                operation_ordinal,
+                code_offset,
+                byte_count: bytes.len() - code_offset,
+            });
+            continue;
+        }
         match operation {
             AssignedUnitOperation::EstablishByteSequenceLiteral {
                 psi_operation,
@@ -1459,8 +1501,64 @@ pub(super) fn emit_unit_body(
                     0,
                 ));
             }
-            AssignedUnitOperation::ConditionalBooleanParameter { .. } => {
-                return Err(EmissionError::UnitBooleanParameterControlUnsupported);
+            AssignedUnitOperation::ConditionalBooleanParameter {
+                condition,
+                location,
+                when_true,
+                when_false,
+            } => {
+                edge_site = Some(when_true.psi_edge);
+                let exact_parameter = body
+                    .scalar_parameters
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, parameter)| *parameter == condition)
+                    .collect::<Vec<_>>();
+                let [(parameter_index, parameter)] = exact_parameter.as_slice() else {
+                    return Err(EmissionError::ConditionalBranchEncodingInvalid);
+                };
+                let exact_body = matches!(
+                    body.operations.as_slice(),
+                    [
+                        AssignedUnitOperation::ConditionalBooleanParameter { .. },
+                        AssignedUnitOperation::StructuralScalarCallWithDynamicArguments { .. },
+                        AssignedUnitOperation::Return {
+                            psi_edge: true_return,
+                            cleanup_actions: true_cleanup,
+                        },
+                        AssignedUnitOperation::StructuralScalarCallWithDynamicArguments { .. },
+                        AssignedUnitOperation::Return {
+                            psi_edge: false_return,
+                            cleanup_actions: false_cleanup,
+                        },
+                    ] if *true_return == when_true.nominal_return_edge
+                        && *false_return == when_false.nominal_return_edge
+                        && true_cleanup.is_empty()
+                        && false_cleanup.is_empty()
+                );
+                if operation_ordinal != 0
+                    || pending_conditional.is_some()
+                    || pending_join_return.is_some()
+                    || condition.scalar_type != psi_core::ScalarType::Boolean
+                    || condition.placement.shape != ValueShape::integer(1, 1)
+                    || body.call_plan.parameters.get(*parameter_index) != Some(&parameter.placement)
+                    || when_true.operation_ordinal != 1
+                    || when_false.operation_ordinal != 3
+                    || when_true.psi_edge == when_false.psi_edge
+                    || when_true.nominal_return_edge == when_false.nominal_return_edge
+                    || !exact_body
+                {
+                    return Err(EmissionError::ConditionalBranchEncodingInvalid);
+                }
+                let branch_offset = emit_unit_boolean_parameter_branch(
+                    &mut bytes,
+                    target.architecture,
+                    condition.value,
+                    *location,
+                    x86_frame_bytes,
+                    aarch64_frame_bytes,
+                )?;
+                pending_conditional = Some((3, branch_offset, 0));
             }
             AssignedUnitOperation::ConditionalDispatch { fallthrough_edge } => {
                 edge_site = Some(*fallthrough_edge);
@@ -2375,7 +2473,7 @@ pub(super) fn emit_unit_body(
             byte_count: bytes.len() - code_offset,
         });
     }
-    if !returned || pending_conditional.is_some() {
+    if !returned || pending_conditional.is_some() || pending_join_return.is_some() {
         return Err(EmissionError::UnitFunctionHasNoReturn);
     }
     Ok(UnitEmission {
@@ -2472,6 +2570,98 @@ fn emit_unit_boolean_branch(
             Ok(branch_offset)
         }
     }
+}
+
+fn emit_unit_boolean_parameter_branch(
+    bytes: &mut Vec<u8>,
+    architecture: Architecture,
+    source: psi_core::ValueId,
+    location: AssignedScalarLocation,
+    x86_frame_bytes: u32,
+    aarch64_frame_bytes: u32,
+) -> Result<usize, EmissionError> {
+    match architecture {
+        Architecture::X86_64 => {
+            let location = match location {
+                AssignedScalarLocation::IncomingStack { byte_offset } => {
+                    AssignedScalarLocation::IncomingStack {
+                        byte_offset: byte_offset
+                            .checked_add(x86_frame_bytes)
+                            .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?,
+                    }
+                }
+                other => other,
+            };
+            let mut load = emit_x86_64_parameter_return(source, false, location)?;
+            if load.pop() != Some(0xc3) {
+                return Err(EmissionError::ConditionalBranchEncodingInvalid);
+            }
+            bytes.extend_from_slice(&load);
+            bytes.extend_from_slice(&[0x85, 0xc0]); // test eax, eax
+            let branch_offset = bytes.len();
+            bytes.extend_from_slice(&[0x0f, 0x84, 0, 0, 0, 0]); // je false arm
+            Ok(branch_offset)
+        }
+        Architecture::Aarch64 => {
+            let location = match location {
+                AssignedScalarLocation::IncomingStack { byte_offset } => {
+                    AssignedScalarLocation::IncomingStack {
+                        byte_offset: byte_offset
+                            .checked_add(aarch64_frame_bytes)
+                            .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?,
+                    }
+                }
+                other => other,
+            };
+            let (load, register) = emit_aarch64_condition_load(source, location)?;
+            bytes.extend_from_slice(&load);
+            let compare = 0x7100_001f_u32 | (u32::from(register) << 5); // cmp wN, #0
+            bytes.extend_from_slice(&compare.to_le_bytes());
+            let branch_offset = bytes.len();
+            bytes.extend_from_slice(&0x5400_0000_u32.to_le_bytes()); // b.eq false arm
+            Ok(branch_offset)
+        }
+    }
+}
+
+fn patch_unit_unconditional_branch(
+    bytes: &mut [u8],
+    architecture: Architecture,
+    branch_offset: usize,
+) -> Result<(), EmissionError> {
+    match architecture {
+        Architecture::X86_64 => {
+            if bytes.get(branch_offset) != Some(&0xe9) {
+                return Err(EmissionError::ConditionalBranchEncodingInvalid);
+            }
+            let target = i64::try_from(bytes.len())
+                .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            let next = i64::try_from(branch_offset + 5)
+                .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            let displacement = i32::try_from(target - next)
+                .map_err(|_| EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            bytes
+                .get_mut(branch_offset + 1..branch_offset + 5)
+                .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?
+                .copy_from_slice(&displacement.to_le_bytes());
+        }
+        Architecture::Aarch64 => {
+            let distance = bytes
+                .len()
+                .checked_sub(branch_offset)
+                .filter(|distance| distance.is_multiple_of(4))
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            let words = u32::try_from(distance / 4)
+                .ok()
+                .filter(|words| *words <= 0x01ff_ffff)
+                .ok_or(EmissionError::ConditionalBranchDistanceNotEncodable)?;
+            bytes
+                .get_mut(branch_offset..branch_offset + 4)
+                .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?
+                .copy_from_slice(&(0x1400_0000 | words).to_le_bytes());
+        }
+    }
+    Ok(())
 }
 
 fn emit_unit_integer_equality_branch(
