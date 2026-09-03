@@ -81,6 +81,42 @@ fn admits_borrow_wrapped_exact_dynamic_coercion_receiver() {
 }
 
 #[test]
+fn resolves_dynamic_member_call_through_lifetime_applied_local_record() {
+    validate(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item {
+            value: i32;
+        }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Holder<'item> {
+            handler: &'item dyn Shape;
+        }
+
+        data Reader {
+            item: Item;
+        }
+
+        machine Reader::read<'item>(&self) {
+            let erased: &'item dyn Shape = &self.item as &dyn Item::Primary;
+            let holder: Holder<'item> = Holder { handler: erased };
+            let result: i32 = holder.handler.code();
+        }
+        "#,
+    )
+    .expect("a lifetime-applied record member must retain its dynamic trait type");
+}
+
+#[test]
 fn rejects_ordinary_let_bound_receiver() {
     let diagnostics = validate(
         r#"
