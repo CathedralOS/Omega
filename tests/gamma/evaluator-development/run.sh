@@ -40,10 +40,10 @@ import subprocess
 from pathlib import Path
 
 artifacts = (
-    ("SYMBOLIC", 33857, "59f3a059a1fb488b18a8a706681267c6722adfe1374a0207dbf9d11016ad461a"),
+    ("SYMBOLIC", 32096, "5536cc82d08aff023ed3092838b203b5a1e06d686e56681ed778b6b0bfd7a184"),
     ("RESOLVER", 2302, "71bca1be08a58ae8596b0f829d48ee43f48d963829ea8a21208197be0598d3c8"),
-    ("BETA", 41536, "8a32405571e939f90d3c6c562561bd389bcee998b0c1f4b397e14a8a9c97aeb4"),
-    ("TAPE", 8119, "a2d79be0de063d409683b3bbdf1d27cba9d5b845dbbfe0635b5029e0ff729ef2"),
+    ("BETA", 39423, "3cecc17595639fbd1b7ddd7748d7033896596f56feef1d014a31303613a3d134"),
+    ("TAPE", 7690, "008ad07e8db094d644c52d205f3a55229a0df04ace3bd170872439e1878cd7a8"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -135,6 +135,10 @@ negative = {
     "empty character": (b"(def main () Int '')\n", 1),
     "wide character": (b"(def main () Int 'ab')\n", 1),
     "unknown character escape": (b"(def main () Int '\\x')\n", 1),
+    "unused return escape": (b"(def main () Int '\\r')\n", 1),
+    "unused tab escape": (b"(def main () Int '\\t')\n", 1),
+    "unused quote escape": (b"(def main () Int '\\'')\n", 1),
+    "unused slash escape": (b"(def main () Int '\\\\')\n", 1),
 }
 for name, (source, status) in negative.items():
     if run(source) != (status, b""):
