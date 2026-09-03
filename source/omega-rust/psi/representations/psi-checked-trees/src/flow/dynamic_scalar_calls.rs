@@ -132,10 +132,173 @@ pub struct CheckedDynamicDescriptorTransferPlan {
     pub target_trait: SymbolHandle,
     pub source_binding: SymbolHandle,
     /// Whether this call materializes an owner-local selection or forwards an
-    /// already-received descriptor parameter. The retained concrete selection
-    /// remains the root authority in both cases.
+    /// already-received descriptor parameter.
     pub source: CheckedDynamicDescriptorTransferSource,
+    /// Independently counted syntactic calls entering the source parameter's
+    /// state. Zero for an owner-local selection; one or two for the bounded
+    /// parameter-forwarding lane.
+    pub source_predecessor_count: u32,
+    /// Complete alternative paths by which a runtime descriptor can reach
+    /// this call. A direct selection has one path. A parameter forwarded after
+    /// a control-flow join has one path per incoming edge; no representative
+    /// selection is allowed to stand in for the joined alternatives.
+    pub source_paths: Vec<CheckedDynamicDescriptorTransferPath>,
+}
+
+/// One exact root selection and the ordered ordinary-call edges that carry it
+/// to a descriptor parameter. Keeping the paths distinct preserves both
+/// same-conformance/different-referent joins and different-conformance joins.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicDescriptorTransferPath {
     pub selection: DynamicConformanceBindingFact,
+    pub edges: Vec<CheckedDynamicDescriptorTransferEdge>,
+}
+
+/// Expression-table-free identity of one descriptor-carrying ordinary-call
+/// edge. This is a projection of the owning transfer, not a second authority
+/// row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicDescriptorTransferEdge {
+    pub caller_machine: SymbolHandle,
+    pub caller_state: SymbolHandle,
+    pub coordinate: CheckedUnitCallCoordinate,
+    pub target_machine: SymbolHandle,
+    pub target_state: SymbolHandle,
+    pub parameter_position: u32,
+    pub parameter: SymbolHandle,
+    pub target_trait: SymbolHandle,
+    pub source_binding: SymbolHandle,
+    pub source: CheckedDynamicDescriptorTransferSource,
+    pub source_predecessor_count: u32,
+}
+
+impl CheckedDynamicDescriptorTransferEdge {
+    pub fn canonical_order_key(&self) -> [u32; 20] {
+        let (source_kind, source_position) = match self.source {
+            CheckedDynamicDescriptorTransferSource::Selection => (0, 0),
+            CheckedDynamicDescriptorTransferSource::Parameter { parameter_position } => {
+                (1, parameter_position)
+            }
+        };
+        [
+            self.caller_machine.arena_index(),
+            self.caller_machine.generation(),
+            self.caller_state.arena_index(),
+            self.caller_state.generation(),
+            self.coordinate.statement_index,
+            self.coordinate.call_ordinal,
+            self.target_machine.arena_index(),
+            self.target_machine.generation(),
+            self.target_state.arena_index(),
+            self.target_state.generation(),
+            self.parameter_position,
+            self.parameter.arena_index(),
+            self.parameter.generation(),
+            self.target_trait.arena_index(),
+            self.target_trait.generation(),
+            self.source_binding.arena_index(),
+            self.source_binding.generation(),
+            source_kind,
+            source_position,
+            self.source_predecessor_count,
+        ]
+    }
+}
+
+impl CheckedDynamicDescriptorTransferPlan {
+    pub fn edge(&self) -> CheckedDynamicDescriptorTransferEdge {
+        CheckedDynamicDescriptorTransferEdge {
+            caller_machine: self.caller_machine,
+            caller_state: self.caller_state,
+            coordinate: self.coordinate,
+            target_machine: self.target_machine,
+            target_state: self.target_state,
+            parameter_position: self.parameter_position,
+            parameter: self.parameter,
+            target_trait: self.target_trait,
+            source_binding: self.source_binding,
+            source: self.source,
+            source_predecessor_count: self.source_predecessor_count,
+        }
+    }
+
+    /// The concrete root is available only when no control-flow join exists.
+    pub fn sole_selection(&self) -> Option<&DynamicConformanceBindingFact> {
+        let [path] = self.source_paths.as_slice() else {
+            return None;
+        };
+        Some(&path.selection)
+    }
+
+    /// Replays the complete incoming transfer graph for this row. This does
+    /// not discover selections or edges: every expected path must already be
+    /// present in the supplied checked roster.
+    pub fn has_complete_source_custody(
+        &self,
+        transfers: &[CheckedDynamicDescriptorTransferPlan],
+    ) -> bool {
+        self.has_complete_source_custody_inner(transfers, &mut Vec::new())
+    }
+
+    fn has_complete_source_custody_inner(
+        &self,
+        transfers: &[CheckedDynamicDescriptorTransferPlan],
+        visiting: &mut Vec<CheckedDynamicDescriptorTransferEdge>,
+    ) -> bool {
+        let edge = self.edge();
+        if visiting.contains(&edge) || self.source_paths.is_empty() {
+            return false;
+        }
+        visiting.push(edge.clone());
+        let valid = match self.source {
+            CheckedDynamicDescriptorTransferSource::Selection => {
+                let [path] = self.source_paths.as_slice() else {
+                    visiting.pop();
+                    return false;
+                };
+                self.source_predecessor_count == 0
+                    && path.edges == [edge]
+                    && path.selection.machine == self.caller_machine
+                    && path.selection.state == self.caller_state
+                    && path.selection.binding == self.source_binding
+                    && path.selection.target_trait == self.target_trait
+                    && path.selection.statement_index < self.coordinate.statement_index as usize
+            }
+            CheckedDynamicDescriptorTransferSource::Parameter { .. } => {
+                let mut incoming = transfers
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.target_machine == self.caller_machine
+                            && candidate.target_state == self.caller_state
+                            && candidate.parameter == self.source_binding
+                            && candidate.target_trait == self.target_trait
+                    })
+                    .collect::<Vec<_>>();
+                incoming.sort_by_key(|candidate| candidate.edge().canonical_order_key());
+                let mut expected_paths = Vec::new();
+                let incoming_valid = usize::try_from(self.source_predecessor_count).ok()
+                    == Some(incoming.len())
+                    && matches!(incoming.len(), 1 | 2)
+                    && incoming
+                        .iter()
+                        .all(|candidate| candidate.source_paths.len() == 1)
+                    && incoming.iter().all(|candidate| {
+                        if !candidate.has_complete_source_custody_inner(transfers, visiting) {
+                            return false;
+                        }
+                        for path in &candidate.source_paths {
+                            let mut path = path.clone();
+                            path.edges.push(edge.clone());
+                            expected_paths.push(path);
+                        }
+                        true
+                    });
+                incoming_valid && self.source_paths == expected_paths
+            }
+        };
+        visiting.pop();
+        valid
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

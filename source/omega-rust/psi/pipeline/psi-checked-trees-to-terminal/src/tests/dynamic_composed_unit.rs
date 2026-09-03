@@ -692,7 +692,7 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
     assert_eq!(transfer.parameter, parameter);
     assert_eq!(transfer.parameter_position, 0);
     assert_eq!(transfer.source_binding, plan.latest.receiver_binding);
-    assert_eq!(transfer.selection, plan.latest.selection);
+    assert_eq!(transfer.sole_selection(), Some(&plan.latest.selection));
 
     let lowered =
         lower_machine(&checked, "Main::run").expect("transparent forwarded dynamic call lowers");

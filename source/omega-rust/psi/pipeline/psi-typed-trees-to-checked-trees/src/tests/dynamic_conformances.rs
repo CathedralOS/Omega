@@ -550,7 +550,7 @@ fn forwarded_dynamic_unit_plan_rejoins_outer_transfer_and_inner_parameter_call()
     assert_eq!(transfer.parameter, parameter);
     assert_eq!(transfer.parameter_position, 0);
     assert_eq!(transfer.source_binding, plan.latest.receiver_binding);
-    assert_eq!(transfer.selection, plan.latest.selection);
+    assert_eq!(transfer.sole_selection(), Some(&plan.latest.selection));
 }
 
 #[test]
@@ -610,7 +610,7 @@ fn forwarded_direct_dynamic_unit_plan_retains_the_same_two_machine_join() {
     assert_eq!(transfer.target_state, state);
     assert_eq!(transfer.parameter, parameter);
     assert_eq!(transfer.source_binding, plan.receiver_binding);
-    assert_eq!(transfer.selection, plan.selection);
+    assert_eq!(transfer.sole_selection(), Some(&plan.selection));
 }
 
 #[test]
@@ -1289,7 +1289,10 @@ fn descriptor_transfer_retains_one_parameter_forwarding_hop() {
         selection_transfer.parameter,
         parameter_transfer.source_binding
     );
-    assert_eq!(selection_transfer.selection, parameter_transfer.selection);
+    assert_eq!(
+        selection_transfer.sole_selection(),
+        parameter_transfer.sole_selection()
+    );
     let [plan] = dynamic.direct_scalar_calls.as_slice() else {
         panic!("one multi-hop dynamic scalar call expected, got {dynamic:#?}")
     };
@@ -1366,7 +1369,198 @@ fn descriptor_transfer_retains_one_unit_parameter_forwarding_hop() {
 }
 
 #[test]
-fn descriptor_transfer_does_not_collapse_a_control_flow_join() {
+fn descriptor_transfer_retains_every_control_flow_join_alternative() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { first: Item; second: Item; }
+
+        machine Main::run(&self, choose_first: bool) {
+            let selected_first: &dyn Shape = &self.first as &dyn Item::Primary;
+            let selected_second: &dyn Shape = &self.second as &dyn Item::Secondary;
+            transition choose_first {
+                true -> join(selected_first)
+                _ -> join(selected_second)
+            }
+
+            state join(&self, erased: &dyn Shape) {
+                let result: i32 = finish(erased);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let roots = dynamic
+        .transfers
+        .iter()
+        .filter(|transfer| {
+            transfer.source == psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+        })
+        .collect::<Vec<_>>();
+    let joined = dynamic
+        .transfers
+        .iter()
+        .filter(|transfer| {
+            matches!(
+                transfer.source,
+                psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                    parameter_position: 0
+                }
+            )
+        })
+        .collect::<Vec<_>>();
+    let [first_root, second_root] = roots.as_slice() else {
+        panic!("two exact incoming selections expected, got {dynamic:#?}")
+    };
+    let [joined] = joined.as_slice() else {
+        panic!("one joined outgoing descriptor edge expected, got {dynamic:#?}")
+    };
+    let (first_root, second_root, joined) = (*first_root, *second_root, *joined);
+    assert_eq!(first_root.target_state, second_root.target_state);
+    assert_eq!(first_root.target_state, joined.caller_state);
+    assert_eq!(first_root.source_predecessor_count, 0);
+    assert_eq!(second_root.source_predecessor_count, 0);
+    assert_eq!(joined.source_predecessor_count, 2);
+    assert_eq!(first_root.parameter, joined.source_binding);
+    assert_eq!(second_root.parameter, joined.source_binding);
+    assert_eq!(joined.source_paths.len(), 2);
+    assert!(joined.source_paths.iter().all(|path| path.edges.len() == 2));
+    assert_eq!(joined.source_paths[0].edges[0], first_root.edge());
+    assert_eq!(joined.source_paths[1].edges[0], second_root.edge());
+    assert!(
+        joined
+            .source_paths
+            .iter()
+            .all(|path| path.edges[1] == joined.edge())
+    );
+    assert_ne!(
+        joined.source_paths[0].selection.source_symbol,
+        joined.source_paths[1].selection.source_symbol,
+        "the joined descriptor must retain both runtime referents"
+    );
+    assert_ne!(
+        joined.source_paths[0].selection.conformance, joined.source_paths[1].selection.conformance,
+        "the joined descriptor must retain every exact selected conformance"
+    );
+    assert!(joined.has_complete_source_custody(&dynamic.transfers));
+    assert!(dynamic.direct_scalar_calls.is_empty());
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+
+    let mut missing_path = joined.clone();
+    missing_path.source_paths.pop();
+    assert!(!missing_path.has_complete_source_custody(&dynamic.transfers));
+
+    let mut substituted_selection = joined.clone();
+    substituted_selection.source_paths[1].selection =
+        substituted_selection.source_paths[0].selection.clone();
+    assert!(!substituted_selection.has_complete_source_custody(&dynamic.transfers));
+
+    let mut substituted_edge = joined.clone();
+    substituted_edge.source_paths[0].edges[0]
+        .coordinate
+        .call_ordinal += 1;
+    assert!(!substituted_edge.has_complete_source_custody(&dynamic.transfers));
+
+    let mut substituted_parameter = joined.clone();
+    substituted_parameter.source_paths[0].edges[0].parameter = joined.parameter;
+    assert!(!substituted_parameter.has_complete_source_custody(&dynamic.transfers));
+
+    let mut substituted_interface = joined.clone();
+    substituted_interface.source_paths[0].edges[0].target_trait =
+        psi_symbols::SymbolHandle::default();
+    assert!(!substituted_interface.has_complete_source_custody(&dynamic.transfers));
+
+    let mut substituted_predecessor_count = joined.clone();
+    substituted_predecessor_count.source_predecessor_count = 1;
+    assert!(!substituted_predecessor_count.has_complete_source_custody(&dynamic.transfers));
+
+    let roster_missing_predecessor = dynamic
+        .transfers
+        .iter()
+        .filter(|transfer| transfer.edge() != second_root.edge())
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(!joined.has_complete_source_custody(&roster_missing_predecessor));
+}
+
+#[test]
+fn descriptor_transfer_fences_join_with_an_unadmitted_third_predecessor() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { first: Item; second: Item; }
+
+        machine Main::run(&self, ambient: &dyn Shape, choice: u8) {
+            let selected_first: &dyn Shape = &self.first as &dyn Item::Primary;
+            let selected_second: &dyn Shape = &self.second as &dyn Item::Primary;
+            transition choice {
+                0 -> join(selected_first)
+                1 -> join(selected_second)
+                _ -> join(ambient)
+            }
+
+            state join(&self, erased: &dyn Shape) {
+                let result: i32 = finish(erased);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert_eq!(
+        dynamic
+            .transfers
+            .iter()
+            .filter(|transfer| {
+                transfer.source
+                    == psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+            })
+            .count(),
+        2
+    );
+    assert!(dynamic.transfers.iter().all(|transfer| {
+        transfer.source
+            != psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                parameter_position: 0,
+            }
+    }));
+    assert!(dynamic.direct_scalar_calls.is_empty());
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+}
+
+#[test]
+fn descriptor_transfer_fences_forwarding_after_the_first_join() {
     let checked = check_dynamic_source(
         r#"
         trait Shape {
@@ -1390,8 +1584,13 @@ fn descriptor_transfer_does_not_collapse_a_control_flow_join() {
             }
 
             state join(&self, erased: &dyn Shape) {
-                let result: i32 = finish(erased);
+                let result: i32 = relay(erased);
             }
+        }
+
+        machine relay(erased: &dyn Shape) -> i32 {
+            let result: i32 = finish(erased);
+            transition { _ -> result }
         }
 
         machine finish(erased: &dyn Shape) -> i32 {
@@ -1401,17 +1600,29 @@ fn descriptor_transfer_does_not_collapse_a_control_flow_join() {
         "#,
     );
     let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert_eq!(dynamic.transfers.len(), 2);
-    assert!(dynamic.transfers.iter().all(|transfer| matches!(
-        transfer.source,
-        psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection
-    )));
-    assert!(
-        dynamic
-            .transfers
-            .iter()
-            .all(|transfer| transfer.target_state == dynamic.transfers[0].target_state)
-    );
+    let joined = dynamic
+        .transfers
+        .iter()
+        .find(|transfer| {
+            matches!(
+                transfer.source,
+                psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                    parameter_position: 0
+                }
+            ) && transfer.source_paths.len() == 2
+        })
+        .expect("the first exact two-way join must be retained");
+    assert!(joined.has_complete_source_custody(&dynamic.transfers));
+    assert!(!dynamic.transfers.iter().any(|transfer| {
+        transfer.caller_machine == joined.target_machine
+            && transfer.caller_state == joined.target_state
+            && matches!(
+                transfer.source,
+                psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                    parameter_position: 0
+                }
+            )
+    }));
     assert!(dynamic.direct_scalar_calls.is_empty());
     assert!(dynamic.rebound_scalar_calls.is_empty());
 }

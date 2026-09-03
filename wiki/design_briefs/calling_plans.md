@@ -587,6 +587,20 @@ ordinary private table-slot call. A changed or inferred conformance, non-cast
 assignment, control-flow join, aggregate storage, return, and component
 crossing gain no authority from this rung.
 
+The first checked control-flow join is narrower than general descriptor
+storage. Exactly two syntactic calls may feed one bare dynamic state parameter,
+and both calls must already have complete descriptor-transfer custody. The
+joined outgoing transfer retains two distinct paths: each path owns its exact
+root conformance selection and the complete ordered call-edge chain through
+the join. Even when both roots select the same conformance, their source places
+remain distinct; when they select different conformances, neither may stand in
+as a representative for the other. An unrecognized third predecessor, a
+missing edge, a substituted selection or coordinate, or an attempt to forward
+the already-joined value again publishes no joined transfer. This is checked
+custody only. Terminal table materialization and physical selection for a
+joined descriptor remain fenced, as do aggregate storage, returns, and
+component crossings.
+
 A bare dynamic parameter retains every eligible complete closed conformance as
 an exact candidate map. Call-site specialization selects from those maps by the
 concrete receiver and routes to each row's retained realization symbol. It does

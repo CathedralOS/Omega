@@ -43,7 +43,7 @@ pub(super) fn build_checked_dynamic_unit_call(
     };
     let forwarded_selection = forwarded
         .as_ref()
-        .map(|forwarded| forwarded.transfer.selection.clone());
+        .and_then(|forwarded| forwarded.transfer.sole_selection().cloned());
     let forwarding_transfers = forwarded
         .as_ref()
         .map(|forwarded| forwarded.prior_transfers.clone())
@@ -80,7 +80,7 @@ pub(super) fn build_checked_dynamic_unit_call(
                 forwarded.flow_call,
                 call,
                 forwarded.transfer.source_binding,
-                forwarded.transfer.selection.binding_name.clone(),
+                forwarded.transfer.sole_selection()?.binding_name.clone(),
                 Some(parameter.type_reference),
                 psi_checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
                     machine: forwarded.machine.symbol,
@@ -599,7 +599,7 @@ fn forwarded_unit_transfer_path_is_exact(forwarded: &ForwardedDynamicUnitCall<'_
                 != (psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
                     parameter_position: 0,
                 })
-            || transfer.selection != forwarded.transfer.selection
+            || transfer.sole_selection() != forwarded.transfer.sole_selection()
         {
             return false;
         }
