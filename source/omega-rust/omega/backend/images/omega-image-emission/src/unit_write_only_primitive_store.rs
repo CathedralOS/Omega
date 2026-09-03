@@ -52,17 +52,7 @@ fn validate_store(
             let abi = function.unit_scalar_abi.as_ref()?;
             let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
             let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
-            let (scalar_shape, byte_size) = match scalar_type {
-                ScalarType::Boolean => (ValueShape::integer(1, 1), 1),
-                ScalarType::Integer(integer)
-                    if integer.carrier() == psi_core::IntegerCarrier::Fixed
-                        && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-                {
-                    let byte_size = integer.bits().checked_div(8)?;
-                    (ValueShape::integer(byte_size, byte_size.min(8)), byte_size)
-                }
-                _ => return None,
-            };
+            let (scalar_shape, byte_size) = native_scalar_shape(scalar_type)?;
             let [
                 ValueLocation::Register {
                     register: expected_register,
@@ -73,18 +63,25 @@ fn validate_store(
             else {
                 return None;
             };
+            let mut parameter_shapes = abi
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    let (shape, _) = native_scalar_shape(parameter.scalar_type)?;
+                    (parameter.placement.shape == shape).then_some(shape)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            parameter_shapes.push(parameter.shape);
             let expected_plan = evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
-                    parameters: vec![scalar_shape, parameter.shape],
+                    parameters: parameter_shapes,
                     result: None,
                 },
             )
             .ok()?;
             (
-                parameter_index == 0
-                    && abi.parameters.len() == 1
-                    && function.unit_parameters.len() == 1
+                function.unit_parameters.len() == 1
                     && scalar_parameter.value == source_value
                     && scalar_parameter.scalar_type == scalar_type
                     && scalar_parameter.placement.shape == scalar_shape
@@ -94,8 +91,9 @@ fn validate_store(
                             *expected_register,
                         )
                     && abi.call_plan == expected_plan
-                    && abi.call_plan.parameters.first() == Some(&scalar_parameter.placement)
-                    && abi.call_plan.parameters.get(1) == Some(&home.source),
+                    && abi.call_plan.parameters.get(scalar_parameter_index)
+                        == Some(&scalar_parameter.placement)
+                    && abi.call_plan.parameters.get(abi.parameters.len()) == Some(&home.source),
                 scalar_type,
                 byte_size,
                 None,
@@ -281,6 +279,20 @@ fn validate_store(
         return None;
     }
     Some(())
+}
+
+fn native_scalar_shape(scalar_type: ScalarType) -> Option<(ValueShape, u16)> {
+    match scalar_type {
+        ScalarType::Boolean => Some((ValueShape::integer(1, 1), 1)),
+        ScalarType::Integer(integer)
+            if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+        {
+            let byte_size = integer.bits().checked_div(8)?;
+            Some((ValueShape::integer(byte_size, byte_size.min(8)), byte_size))
+        }
+        _ => None,
+    }
 }
 
 fn zero_code_source_is_consistent(

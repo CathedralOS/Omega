@@ -10,6 +10,7 @@ use psi_core::{IntegerSign, IntegerType, IntegerValue};
 use psi_terminal::StructuralAccess;
 
 use super::ObjectError;
+use super::instruction_loads::{aarch64_terminal_register, x86_terminal_register};
 
 pub(super) fn validate_unit_structural_scalar_field_stores(
     target: NativeTarget,
@@ -159,16 +160,16 @@ pub(crate) fn expected_parameter_store_bytes(
     byte_size: u16,
     source: omega_target_operations::MachineRegister,
 ) -> Option<Vec<u8>> {
-    match (target.architecture, source) {
-        (Architecture::X86_64, omega_target_operations::MachineRegister::X86Rdi) => {
+    match target.architecture {
+        Architecture::X86_64 => {
             const ADDRESS_REGISTER: u8 = 10;
-            const SOURCE_REGISTER: u8 = 7;
+            let source_register = x86_terminal_register(source)?;
             let mut bytes = Vec::new();
             if home.indirect {
                 emit_x86_stack_load(&mut bytes, ADDRESS_REGISTER, home.byte_offset, 8)?;
                 emit_x86_memory_store(
                     &mut bytes,
-                    SOURCE_REGISTER,
+                    source_register,
                     ADDRESS_REGISTER,
                     field_byte_offset,
                     byte_size,
@@ -176,16 +177,16 @@ pub(crate) fn expected_parameter_store_bytes(
             } else {
                 emit_x86_stack_store(
                     &mut bytes,
-                    SOURCE_REGISTER,
+                    source_register,
                     home.byte_offset.checked_add(field_byte_offset)?,
                     byte_size,
                 )?;
             }
             Some(bytes)
         }
-        (Architecture::Aarch64, omega_target_operations::MachineRegister::Aarch64X(0)) => {
+        Architecture::Aarch64 => {
             const ADDRESS_REGISTER: u8 = 17;
-            const SOURCE_REGISTER: u8 = 0;
+            let source_register = aarch64_terminal_register(source)?;
             let mut instructions = Vec::new();
             if home.indirect {
                 instructions.push(aarch64_access(
@@ -197,7 +198,7 @@ pub(crate) fn expected_parameter_store_bytes(
                 )?);
                 instructions.push(aarch64_access(
                     aarch64_store_base(byte_size)?,
-                    SOURCE_REGISTER,
+                    source_register,
                     ADDRESS_REGISTER,
                     field_byte_offset,
                     byte_size,
@@ -205,7 +206,7 @@ pub(crate) fn expected_parameter_store_bytes(
             } else {
                 instructions.push(aarch64_access(
                     aarch64_store_base(byte_size)?,
-                    SOURCE_REGISTER,
+                    source_register,
                     31,
                     home.byte_offset.checked_add(field_byte_offset)?,
                     byte_size,
@@ -218,7 +219,6 @@ pub(crate) fn expected_parameter_store_bytes(
                     .collect(),
             )
         }
-        _ => None,
     }
 }
 

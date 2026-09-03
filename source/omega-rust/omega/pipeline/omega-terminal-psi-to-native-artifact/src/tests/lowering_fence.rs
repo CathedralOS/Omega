@@ -1260,17 +1260,17 @@ fn parameter_sourced_write_only_store_caller_reaches_verified_terminal_execution
 }
 
 #[test]
-fn boolean_parameter_store_caller_reaches_canonical_installation() {
+fn multiple_boolean_parameters_reach_a_write_only_store_and_canonical_installation() {
     let checked = checked(
         r#"
             data Sink {}
-            machine Sink::fill(destination: &write bool, replacement: bool) {
+            machine Sink::fill(destination: &write bool, ignored: bool, replacement: bool) {
                 destination = replacement;
             }
 
             data Root {}
-            machine Root::enter(destination: &mut bool, replacement: bool) {
-                Sink::fill(&write destination, replacement);
+            machine Root::enter(destination: &mut bool, ignored: bool, replacement: bool) {
+                Sink::fill(&write destination, ignored, replacement);
             }
         "#,
     );
@@ -1282,13 +1282,17 @@ fn boolean_parameter_store_caller_reaches_canonical_installation() {
         .iter()
         .find(|machine| machine.id == lowered.semantic_module.entry)
         .expect("Boolean caller is retained");
-    let [scalar_parameter] = root.parameters.as_slice() else {
-        panic!("Boolean caller retains one scalar parameter")
+    let [ignored_parameter, replacement_parameter] = root.parameters.as_slice() else {
+        panic!("Boolean caller retains both scalar parameters")
     };
     let [structural_parameter] = root.structural_parameters.as_slice() else {
         panic!("Boolean caller retains one structural parameter")
     };
-    assert_eq!(scalar_parameter.scalar_type, psi_core::ScalarType::Boolean);
+    assert_eq!(ignored_parameter.scalar_type, psi_core::ScalarType::Boolean);
+    assert_eq!(
+        replacement_parameter.scalar_type,
+        psi_core::ScalarType::Boolean
+    );
     let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("encode Boolean caller semantics");
     let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
@@ -1299,7 +1303,10 @@ fn boolean_parameter_store_caller_reaches_canonical_installation() {
         &semantic,
         &proof,
         &psi_proof_admission::AdmissionProfile::default(),
-        &[replacement],
+        &[
+            psi_terminal_interpreter::TerminalScalarValue::Boolean(true),
+            replacement,
+        ],
         &[psi_terminal_interpreter::TerminalStructuralValue {
             opaque_identity: 23,
             structural_type: structural_parameter.structural_type,
@@ -1351,18 +1358,21 @@ fn boolean_parameter_store_caller_reaches_canonical_installation() {
         else {
             panic!("Target caller retains its Unit call")
         };
-        assert!(matches!(
-            scalar_arguments.as_slice(),
-            [omega_target_operations::TargetUnitScalarCallArgument {
-                parameter_index: 0,
-                source: omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
-                    parameter_index: 0,
+        assert_eq!(scalar_arguments.len(), 2);
+        for (index, (argument, parameter)) in scalar_arguments
+            .iter()
+            .zip([ignored_parameter, replacement_parameter])
+            .enumerate()
+        {
+            assert!(matches!(
+                argument.source,
+                omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index,
                     source_value,
                     scalar_type: psi_core::ScalarType::Boolean,
-                },
-                ..
-            }] if *source_value == scalar_parameter.id
-        ));
+                } if usize::try_from(parameter_index) == Ok(index) && source_value == parameter.id
+            ));
+        }
         let assigned =
             omega_target_operations_to_assigned_target_operations::assign_registers(&target)
                 .expect("Boolean caller reaches physical assignment");
@@ -1376,19 +1386,28 @@ fn boolean_parameter_store_caller_reaches_canonical_installation() {
         let [call] = emitted_root.internal_unit_calls.as_slice() else {
             panic!("emitted Boolean caller retains one internal Unit call")
         };
-        assert!(matches!(
-            call.scalar_arguments.as_slice(),
-            [omega_machine_code::InternalUnitScalarCallArgumentRecord {
-                parameter_index: 0,
-                source: omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
-                    parameter_index: 0,
-                    source_value,
+        assert_eq!(call.scalar_arguments.len(), 2);
+        assert!(call.scalar_arguments.iter().all(|argument| {
+            matches!(
+                argument.source,
+                omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
                     scalar_type: psi_core::ScalarType::Boolean,
                     ..
-                },
-                byte_count: 0,
+                }
+            ) && argument.byte_count == 0
+        }));
+        let emitted_sink = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == call.target)
+            .expect("emitted Boolean callee is retained");
+        assert!(matches!(
+            emitted_sink.unit_write_only_primitive_stores[0].source,
+            omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                parameter_index: 1,
+                scalar_type: psi_core::ScalarType::Boolean,
                 ..
-            }] if *source_value == scalar_parameter.id
+            }
         ));
         let mut corrupted = emitted.clone();
         let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
@@ -1400,7 +1419,7 @@ fn boolean_parameter_store_caller_reaches_canonical_installation() {
             .find(|function| function.machine == emitted.entry)
             .unwrap()
             .internal_unit_calls[0]
-            .scalar_arguments[0]
+            .scalar_arguments[1]
             .source
         else {
             unreachable!()

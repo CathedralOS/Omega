@@ -716,20 +716,22 @@ treating physical pointer-layout equivalence as permission equivalence. IEEE
 float stores retain their exact preceding definition, raw bits, referent shape,
 store-only source carrier, machine bytes, and attribution through both object
 and installation replay.
-The semantic store lane also admits one exact scalar parameter as the
-replacement source when it is the machine's sole scalar parameter and matches
-the primitive referent exactly. Checked planning retains the authored
+The semantic store lane also admits one exact scalar parameter from an ordered
+scalar roster as the replacement source when it matches the primitive referent
+exactly. Checked planning retains the authored
 structural/scalar parameter partition; Terminal verification and target-neutral
 abstract lowering preserve the runtime value identity without fabricating a
 constant. The native sublane admits every non-address fixed integer
 (`i8`/`u8` through `i64`/`u64`) plus Boolean and independently replays its exact
-type, incoming `RDI`/`X0` placement, destination home, machine bytes, and
-installation source record on both Linux targets. Terminal format 77/vocabulary
+type, selected incoming register placement, destination home, machine bytes,
+and installation source record on both Linux targets. Terminal format 77/vocabulary
 80 now retains an ordinary
 `CallUnit`'s scalar arguments independently from its structural arguments,
 verifies their exact arity and types against the callee, transports them through
 canonical bytes, and binds them in reference execution. This admits a semantic
-caller that forwards one scalar parameter into the write-only-store callee.
+caller that forwards an ordered all-register scalar roster into the
+write-only-store callee, including a callee store sourced from a later roster
+position.
 Abstract lowering and optimizer identity/dataflow retain and revalidate the
 same scalar arguments. Abstract-to-Target lowering now derives one complete
 call plan with a scalar prefix and structural suffix while preserving the exact
@@ -743,8 +745,8 @@ zero-byte same-register transfer, structural copy, stack evidence, and call
 bytes. Installation format 78 transports and replays the same custody on both
 Linux targets. The ordinary call source may now be either the caller's exact
 Boolean parameter or an exact preceding Boolean literal definition. This
-completes the one-parameter native-fixed-integer-or-Boolean
-caller-to-write-only-store lane; additional scalar parameters, computed
+completes the bounded register-resident native-fixed-integer-or-Boolean
+caller-to-write-only-store lane; stack-carried scalar sources, computed
 nonliteral sources, IEEE runtime sources, and non-native integer carriers
 remain fail closed.
 

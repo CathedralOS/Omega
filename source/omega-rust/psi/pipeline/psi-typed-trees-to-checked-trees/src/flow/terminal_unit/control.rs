@@ -1862,25 +1862,27 @@ fn build_write_only_primitive_store(
                     psi_checked_trees::CheckedBooleanExpression::Constant(_)
                 )
         );
-    let direct_parameter_type = match value {
+    let direct_parameter = match value {
         CheckedScalarExpression::Parameter {
-            position: 0,
+            position,
             primitive_type,
-        } => Some(*primitive_type),
-        CheckedScalarExpression::Boolean(expression)
-            if matches!(
-                expression.as_ref(),
-                psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
-            ) =>
-        {
-            Some(PrimitiveType::Bool)
-        }
+        } => Some((*position, *primitive_type)),
+        CheckedScalarExpression::Boolean(expression) => match expression.as_ref() {
+            psi_checked_trees::CheckedBooleanExpression::Parameter { position } => {
+                Some((*position, PrimitiveType::Bool))
+            }
+            _ => None,
+        },
         _ => None,
     };
-    let direct_parameter = matches!(scalar_parameters, [parameter]
-        if Some(parameter.primitive_type) == direct_parameter_type
-            && Some(*destination_type) == direct_parameter_type);
-    if !(direct_literal && scalar_parameters.is_empty() || direct_parameter)
+    let direct_parameter_is_exact = direct_parameter.is_some_and(|(position, primitive_type)| {
+        usize::try_from(position)
+            .ok()
+            .and_then(|position| scalar_parameters.get(position))
+            .is_some_and(|parameter| parameter.primitive_type == primitive_type)
+            && *destination_type == primitive_type
+    });
+    if !(direct_literal && scalar_parameters.is_empty() || direct_parameter_is_exact)
         || crate::values::scalar_expression_type(value) != Some(*destination_type)
     {
         return None;

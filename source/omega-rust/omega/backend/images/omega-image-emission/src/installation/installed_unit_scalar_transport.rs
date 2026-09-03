@@ -505,17 +505,8 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                         .parameters
                         .get(scalar_parameter_index)
                         .ok_or_else(invalid)?;
-                    let (scalar_shape, width) = match scalar_type {
-                        psi_core::ScalarType::Boolean => (ValueShape::integer(1, 1), 1),
-                        psi_core::ScalarType::Integer(integer)
-                            if integer.carrier() == psi_core::IntegerCarrier::Fixed
-                                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-                        {
-                            let width = integer.bits().checked_div(8).ok_or_else(invalid)?;
-                            (ValueShape::integer(width, width.min(8)), width)
-                        }
-                        _ => return Err(invalid()),
-                    };
+                    let (scalar_shape, width) = installed_native_scalar_shape(scalar_type)
+                        .ok_or_else(invalid)?;
                     let [ValueLocation::Register {
                         register: expected_register,
                         value_byte_offset: 0,
@@ -524,18 +515,27 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     else {
                         return Err(invalid());
                     };
+                    let mut parameter_shapes = abi
+                        .parameters
+                        .iter()
+                        .map(|parameter| {
+                            let (shape, _) =
+                                installed_native_scalar_shape(parameter.scalar_type)?;
+                            (parameter.placement.shape == shape).then_some(shape)
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or_else(invalid)?;
+                    parameter_shapes.push(parameter.shape);
                     let expected_plan = evaluate_call_plan(
                         CallingPolicy::native_for_target(record.target),
                         &CallSignature {
-                            parameters: vec![scalar_shape, parameter.shape],
+                            parameters: parameter_shapes,
                             result: None,
                         },
                     )
                     .map_err(|_| invalid())?;
                     (
-                            parameter_index == 0
-                            && abi.parameters.len() == 1
-                            && function.unit_parameters.len() == 1
+                        function.unit_parameters.len() == 1
                             && scalar_parameter.value == source_value
                             && scalar_parameter.scalar_type == scalar_type
                             && scalar_parameter.placement.shape == scalar_shape
@@ -545,9 +545,10 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                                     *expected_register,
                                 )
                             && abi.call_plan == expected_plan
-                            && abi.call_plan.parameters.first()
+                            && abi.call_plan.parameters.get(scalar_parameter_index)
                                 == Some(&scalar_parameter.placement)
-                            && abi.call_plan.parameters.get(1) == Some(&home.source),
+                            && abi.call_plan.parameters.get(abi.parameters.len())
+                                == Some(&home.source),
                         scalar_type,
                         width,
                         None,
@@ -780,6 +781,20 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
         }
     }
     Ok(())
+}
+
+fn installed_native_scalar_shape(scalar_type: psi_core::ScalarType) -> Option<(ValueShape, u16)> {
+    match scalar_type {
+        psi_core::ScalarType::Boolean => Some((ValueShape::integer(1, 1), 1)),
+        psi_core::ScalarType::Integer(integer)
+            if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+        {
+            let width = integer.bits().checked_div(8)?;
+            Some((ValueShape::integer(width, width.min(8)), width))
+        }
+        _ => None,
+    }
 }
 
 fn installed_zero_code_store_source_is_consistent(
