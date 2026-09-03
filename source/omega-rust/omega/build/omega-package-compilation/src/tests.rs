@@ -129,6 +129,46 @@ fn accepted_semantic_binding_canonicalizes_explicit_terminal_permissions() {
 }
 
 #[test]
+fn filesystem_binding_retains_explicit_portable_facet_permissions() {
+    let schema = omega_effects::provider_plan::ServiceSchemaDigest::from_digest([9; 32]);
+    let binding = AcceptedSemanticBinding::new_service(
+        AcceptedSemanticBindingRole::FilesystemHostService,
+        identity(1),
+        "FilesystemHost",
+        schema,
+    )
+    .expect("filesystem service binding")
+    .with_terminal_authority_permissions(vec![
+        omega_effects::ServiceTerminalAuthorityPermission::for_filesystem_facets(
+            schema,
+            "FilesystemHost::open#exact",
+            [
+                omega_effects::PortableFilesystemAuthorityFacet::ContentRead,
+                omega_effects::PortableFilesystemAuthorityFacet::ContentWrite,
+                omega_effects::PortableFilesystemAuthorityFacet::MetadataQuery,
+            ],
+        ),
+    ])
+    .expect("explicit filesystem facets share the exact accepted schema");
+
+    let [permission] = binding.terminal_authority_permissions() else {
+        panic!("one exact filesystem permission must survive binding custody");
+    };
+    assert_eq!(
+        permission.requirement_identity(),
+        "FilesystemHost::open#exact"
+    );
+    assert_eq!(
+        permission.permitted().classes(),
+        &[
+            omega_effects::TerminalAuthorityClass::FilesystemContentRead,
+            omega_effects::TerminalAuthorityClass::FilesystemContentWrite,
+            omega_effects::TerminalAuthorityClass::FilesystemMetadataQuery,
+        ]
+    );
+}
+
+#[test]
 fn accepted_semantic_binding_rejects_permission_schema_and_key_substitution() {
     let schema = omega_effects::provider_plan::ServiceSchemaDigest::from_digest([7; 32]);
     let other_schema = omega_effects::provider_plan::ServiceSchemaDigest::from_digest([8; 32]);

@@ -5552,12 +5552,13 @@ machine build(builder: &mut Build) {
         omega_compiler::FinalRealizationEvidenceError::NativeArtifactMismatch,
     );
 
-    let port_diagnostics = compile_package(&port_root, 47, "physical-port")
-        .expect_err("unsupported PortIo authority must reject before D32 evidence derivation");
+    let port_diagnostics = compile_package(&port_root, 47, "physical-port").expect_err(
+        "root PortIo authority without provider custody must reject before D32 evidence derivation",
+    );
     assert!(
         port_diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("unsupported by the current D45 role sum")),
+            .contains("no selected provider requirement custody")),
         "unexpected PortIo diagnostics: {port_diagnostics:#?}",
     );
 }

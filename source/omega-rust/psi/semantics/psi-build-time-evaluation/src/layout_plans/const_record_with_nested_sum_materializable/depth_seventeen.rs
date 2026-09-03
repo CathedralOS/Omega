@@ -1,11 +1,15 @@
-//! Exact plural depth-sixteen constant-value custody and replay.
+//! Exact plural depth-seventeen constant-value custody and replay.
 
+use super::depth_sixteen::{
+    depth_sixteen_paths_reports_match_for_replay,
+    validate_const_materializable_record_with_depth_sixteen_nested_sums_with_reachability,
+};
 use super::*;
-use psi_layout_plans::ConventionalDepthSixteenRecordSumPathsLayoutReport;
+use psi_layout_plans::ConventionalDepthSeventeenRecordSumPathsLayoutReport;
 
-pub(super) fn depth_sixteen_paths_reports_match_for_replay(
-    left: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
-    right: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
+fn depth_seventeen_paths_reports_match_for_replay(
+    left: &ConventionalDepthSeventeenRecordSumPathsLayoutReport,
+    right: &ConventionalDepthSeventeenRecordSumPathsLayoutReport,
 ) -> bool {
     layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
         && left.paths.len() == right.paths.len()
@@ -15,19 +19,19 @@ pub(super) fn depth_sixteen_paths_reports_match_for_replay(
                 left.outer_member_identity,
                 &right.outer_field,
                 right.outer_member_identity,
-            ) && depth_fifteen_paths_reports_match_for_replay(
-                &left.depth_fifteen_paths,
-                &right.depth_fifteen_paths,
+            ) && depth_sixteen_paths_reports_match_for_replay(
+                &left.depth_sixteen_paths,
+                &right.depth_sixteen_paths,
             )
         })
 }
 
-fn depth_sixteen_nested_sums_materialization_report_fingerprint(
+fn depth_seventeen_nested_sums_materialization_report_fingerprint(
     schema_name: &str,
     schema_report_fingerprint: u64,
     outer_layout_report_fingerprint: u64,
-    path_layout: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
-    occurrences: &[ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization],
+    path_layout: &ConventionalDepthSeventeenRecordSumPathsLayoutReport,
+    occurrences: &[ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization],
     byte_order: ByteOrder,
     value: &BuildTimeValue,
     bytes: &[u8],
@@ -35,7 +39,7 @@ fn depth_sixteen_nested_sums_materialization_report_fingerprint(
     let mut hash = 0xcbf29ce484222325u64;
     hash_bytes(
         &mut hash,
-        b"omega.const-materializable-plural-depth-sixteen-record-sum-paths.v1",
+        b"omega.const-materializable-plural-depth-seventeen-record-sum-paths.v1",
     );
     hash_text(&mut hash, schema_name);
     hash_u64(&mut hash, schema_report_fingerprint);
@@ -54,7 +58,7 @@ fn depth_sixteen_nested_sums_materialization_report_fingerprint(
         }
         hash_u64(
             &mut hash,
-            normalized_layout_plan_report_fingerprint(&path.depth_fifteen_paths.outer_layout),
+            normalized_layout_plan_report_fingerprint(&path.depth_sixteen_paths.outer_layout),
         );
         hash_u64(
             &mut hash,
@@ -77,18 +81,18 @@ fn depth_sixteen_nested_sums_materialization_report_fingerprint(
 }
 
 /// Exact custody for one authored outer-field occurrence in the complete
-/// plural depth-sixteen path set.
+/// plural depth-seventeen path set.
 ///
-/// The nested carrier retains its complete plural depth-fifteen custody. This
+/// The nested carrier retains its complete plural depth-sixteen custody. This
 /// type deliberately does not implement `Clone`.
 #[derive(Debug)]
-pub struct ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization {
+pub struct ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization {
     outer_field: String,
     outer_member_identity: Option<u64>,
-    inner: ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization,
+    inner: ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization,
 }
 
-impl ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization {
+impl ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization {
     pub fn outer_field(&self) -> &str {
         &self.outer_field
     }
@@ -97,31 +101,31 @@ impl ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization {
         self.outer_member_identity
     }
 
-    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization {
+    pub const fn inner(&self) -> &ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
         &self.inner
     }
 }
 
 /// Exact custody for the complete authored-order set of qualifying
-/// `Outer -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
+/// `Outer -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums` paths.
 ///
 /// The outer layout and final image are retained once. Each outer occurrence
-/// owns exactly one unchanged plural depth-fifteen carrier. This type deliberately
+/// owns exactly one unchanged plural depth-sixteen carrier. This type deliberately
 /// does not implement `Clone`.
 #[derive(Debug)]
-pub struct ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
+pub struct ValidatedConstRecordWithDepthSeventeenNestedSumsMaterialization {
     schema_name: String,
     non_authoritative_schema_report_fingerprint: u64,
     value: BuildTimeValue,
-    path_layout: ConventionalDepthSixteenRecordSumPathsLayoutReport,
+    path_layout: ConventionalDepthSeventeenRecordSumPathsLayoutReport,
     non_authoritative_outer_layout_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization>,
+    occurrences: Vec<ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization>,
     byte_order: ByteOrder,
     bytes: Vec<u8>,
     non_authoritative_materialization_report_fingerprint: u64,
 }
 
-impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
+impl ValidatedConstRecordWithDepthSeventeenNestedSumsMaterialization {
     pub fn schema_name(&self) -> &str {
         &self.schema_name
     }
@@ -130,11 +134,11 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
         &self.value
     }
 
-    pub const fn path_layout(&self) -> &ConventionalDepthSixteenRecordSumPathsLayoutReport {
+    pub const fn path_layout(&self) -> &ConventionalDepthSeventeenRecordSumPathsLayoutReport {
         &self.path_layout
     }
 
-    pub fn occurrences(&self) -> &[ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization] {
+    pub fn occurrences(&self) -> &[ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization] {
         &self.occurrences
     }
 
@@ -147,12 +151,12 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
     }
 
     /// Re-resolve the complete authored-order path set and independently replay
-    /// every retained depth-fifteen carrier before accepting the staged image.
+    /// every retained depth-sixteen carrier before accepting the staged image.
     pub fn replay_against(
         &self,
         typed: &TypedTrees,
         schema_name: &str,
-        path_layout: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
+        path_layout: &ConventionalDepthSeventeenRecordSumPathsLayoutReport,
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
@@ -167,11 +171,11 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
         )
     }
 
-    pub(super) fn replay_against_with_reachability(
+    fn replay_against_with_reachability(
         &self,
         typed: &TypedTrees,
         schema_name: &str,
-        path_layout: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
+        path_layout: &ConventionalDepthSeventeenRecordSumPathsLayoutReport,
         value: &BuildTimeValue,
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
@@ -179,22 +183,22 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
         if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
         {
             return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen invocation drifted from retained custody"
+                "ConstMaterializable plural depth-seventeen invocation drifted from retained custody"
                     .into(),
             ));
         }
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
-            || !depth_sixteen_paths_reports_match_for_replay(path_layout, &self.path_layout)
+            || !depth_seventeen_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
             return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen layout drifted from retained custody"
+                "ConstMaterializable plural depth-seventeen layout drifted from retained custody"
                     .into(),
             ));
         }
 
-        let replayed = derive_depth_sixteen_nested_sums_bytes_with_reachability(
+        let replayed = derive_depth_seventeen_nested_sums_bytes_with_reachability(
             typed,
             schema_name,
             path_layout,
@@ -204,7 +208,7 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
         )?;
         if replayed.occurrences.len() != self.occurrences.len() {
             return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen custody changed cardinality".into(),
+                "ConstMaterializable plural depth-seventeen custody changed cardinality".into(),
             ));
         }
         for (((retained, replayed), path), retained_path) in self
@@ -226,14 +230,14 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
                 retained_path.outer_member_identity,
             ) {
                 return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-sixteen occurrence identity drifted from retained custody"
+                    "ConstMaterializable plural depth-seventeen occurrence identity drifted from retained custody"
                         .into(),
                 ));
             }
             retained.inner.replay_against_with_reachability(
                 typed,
                 replayed.inner.schema_name(),
-                &path.depth_fifteen_paths,
+                &path.depth_sixteen_paths,
                 replayed.inner.value(),
                 byte_order,
                 reachability,
@@ -246,7 +250,7 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
                     .non_authoritative_materialization_report_fingerprint()
             {
                 return Err(MaterializationDiagnostic(
-                    "ConstMaterializable plural depth-sixteen inner custody drifted after exact replay"
+                    "ConstMaterializable plural depth-seventeen inner custody drifted after exact replay"
                         .into(),
                 ));
             }
@@ -255,10 +259,11 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
             || replayed.bytes != self.bytes
         {
             return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen bytes drifted after exact replay".into(),
+                "ConstMaterializable plural depth-seventeen bytes drifted after exact replay"
+                    .into(),
             ));
         }
-        let fingerprint = depth_sixteen_nested_sums_materialization_report_fingerprint(
+        let fingerprint = depth_seventeen_nested_sums_materialization_report_fingerprint(
             schema_name,
             replayed.schema_report_fingerprint,
             outer_fingerprint,
@@ -270,7 +275,7 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
         );
         if fingerprint != self.non_authoritative_materialization_report_fingerprint {
             return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen fingerprint drifted after exact replay"
+                "ConstMaterializable plural depth-seventeen fingerprint drifted after exact replay"
                     .into(),
             ));
         }
@@ -292,7 +297,7 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
         )?;
         if destination.len() < self.bytes.len() {
             return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-sixteen copy needs {} bytes, destination has {}",
+                "ConstMaterializable plural depth-seventeen copy needs {} bytes, destination has {}",
                 self.bytes.len(),
                 destination.len()
             )));
@@ -302,16 +307,18 @@ impl ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
     }
 }
 
-pub fn validate_const_materializable_record_with_depth_sixteen_nested_sums(
+pub fn validate_const_materializable_record_with_depth_seventeen_nested_sums(
     typed: &TypedTrees,
     schema_name: &str,
-    path_layout: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
+    path_layout: &ConventionalDepthSeventeenRecordSumPathsLayoutReport,
     value: &BuildTimeValue,
     byte_order: ByteOrder,
-) -> Result<ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization, MaterializationDiagnostic>
-{
+) -> Result<
+    ValidatedConstRecordWithDepthSeventeenNestedSumsMaterialization,
+    MaterializationDiagnostic,
+> {
     let mut reachability = SumReachability::new(typed);
-    validate_const_materializable_record_with_depth_sixteen_nested_sums_with_reachability(
+    validate_const_materializable_record_with_depth_seventeen_nested_sums_with_reachability(
         typed,
         schema_name,
         path_layout,
@@ -321,16 +328,18 @@ pub fn validate_const_materializable_record_with_depth_sixteen_nested_sums(
     )
 }
 
-pub(super) fn validate_const_materializable_record_with_depth_sixteen_nested_sums_with_reachability(
+fn validate_const_materializable_record_with_depth_seventeen_nested_sums_with_reachability(
     typed: &TypedTrees,
     schema_name: &str,
-    path_layout: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
+    path_layout: &ConventionalDepthSeventeenRecordSumPathsLayoutReport,
     value: &BuildTimeValue,
     byte_order: ByteOrder,
     reachability: &mut SumReachability<'_>,
-) -> Result<ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization, MaterializationDiagnostic>
-{
-    let derived = derive_depth_sixteen_nested_sums_bytes_with_reachability(
+) -> Result<
+    ValidatedConstRecordWithDepthSeventeenNestedSumsMaterialization,
+    MaterializationDiagnostic,
+> {
+    let derived = derive_depth_seventeen_nested_sums_bytes_with_reachability(
         typed,
         schema_name,
         path_layout,
@@ -339,18 +348,19 @@ pub(super) fn validate_const_materializable_record_with_depth_sixteen_nested_sum
         reachability,
     )?;
     let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = depth_sixteen_nested_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.occurrences,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
+    let materialization_fingerprint =
+        depth_seventeen_nested_sums_materialization_report_fingerprint(
+            schema_name,
+            derived.schema_report_fingerprint,
+            outer_fingerprint,
+            path_layout,
+            &derived.occurrences,
+            byte_order,
+            value,
+            &derived.bytes,
+        );
     Ok(
-        ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization {
+        ValidatedConstRecordWithDepthSeventeenNestedSumsMaterialization {
             schema_name: schema_name.to_owned(),
             non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
             value: value.clone(),
@@ -364,26 +374,26 @@ pub(super) fn validate_const_materializable_record_with_depth_sixteen_nested_sum
     )
 }
 
-struct DerivedDepthSixteenNestedSumsMaterialization {
+struct DerivedDepthSeventeenNestedSumsMaterialization {
     schema_report_fingerprint: u64,
-    occurrences: Vec<ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization>,
+    occurrences: Vec<ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization>,
     bytes: Vec<u8>,
 }
 
-fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
+fn derive_depth_seventeen_nested_sums_bytes_with_reachability(
     typed: &TypedTrees,
     schema_name: &str,
-    path_layout: &ConventionalDepthSixteenRecordSumPathsLayoutReport,
+    path_layout: &ConventionalDepthSeventeenRecordSumPathsLayoutReport,
     value: &BuildTimeValue,
     byte_order: ByteOrder,
     reachability: &mut SumReachability<'_>,
-) -> Result<DerivedDepthSixteenNestedSumsMaterialization, MaterializationDiagnostic> {
+) -> Result<DerivedDepthSeventeenNestedSumsMaterialization, MaterializationDiagnostic> {
     let data = unique_data_by_name(typed, schema_name)?;
     validate_outer_record_owner(typed, data)?;
     let schema_report_fingerprint = normalized_schema_report_fingerprint(typed, data);
     if path_layout.outer_layout.schema_report_fingerprint != schema_report_fingerprint {
         return Err(MaterializationDiagnostic(format!(
-            "ConstMaterializable plural depth-sixteen outer layout schema report fingerprint does not match `{schema_name}`"
+            "ConstMaterializable plural depth-seventeen outer layout schema report fingerprint does not match `{schema_name}`"
         )));
     }
     let BuildTimeValue::Struct { type_name, fields } = value else {
@@ -411,7 +421,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
     let mut candidates = Vec::new();
     candidates.try_reserve_exact(members.len()).map_err(|_| {
         MaterializationDiagnostic(
-            "ConstMaterializable plural depth-sixteen occurrence set exceeds compiler resources"
+            "ConstMaterializable plural depth-seventeen occurrence set exceeds compiler resources"
                 .into(),
         )
     })?;
@@ -440,7 +450,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
         match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
             DataShapeKind::Enum => {
                 return Err(MaterializationDiagnostic(format!(
-                    "ConstMaterializable plural depth-sixteen path does not admit direct outer sum field `{}`",
+                    "ConstMaterializable plural depth-seventeen path does not admit direct outer sum field `{}`",
                     field.name
                 )));
             }
@@ -461,51 +471,55 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
     }
     if candidates.is_empty() {
         return Err(MaterializationDiagnostic(
-            "ConstMaterializable plural depth-sixteen paths require a nonempty qualifying occurrence set"
+            "ConstMaterializable plural depth-seventeen paths require a nonempty qualifying occurrence set"
                 .into(),
         ));
     }
     if path_layout.paths.len() != candidates.len() {
         return Err(MaterializationDiagnostic(format!(
-            "ConstMaterializable plural depth-sixteen report contains {} occurrence(s), expected the complete authored-order set of {}",
+            "ConstMaterializable plural depth-seventeen report contains {} occurrence(s), expected the complete authored-order set of {}",
             path_layout.paths.len(),
             candidates.len()
         )));
     }
     let mut total_leaf_occurrences = 0usize;
     for path in &path_layout.paths {
-        for fifteenth_occurrence in &path.depth_fifteen_paths.paths {
-            for fourteenth_occurrence in &fifteenth_occurrence.depth_fourteen_paths.paths {
-                for thirteenth_occurrence in &fourteenth_occurrence.depth_thirteen_paths.paths {
-                    for twelfth_occurrence in &thirteenth_occurrence.depth_twelve_paths.paths {
-                        for eleventh_occurrence in &twelfth_occurrence.depth_eleven_paths.paths {
-                            for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
-                                for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths {
-                                    for eighth_occurrence in
-                                        &ninth_occurrence.depth_eight_paths.paths
+        for sixteenth_occurrence in &path.depth_sixteen_paths.paths {
+            for fifteenth_occurrence in &sixteenth_occurrence.depth_fifteen_paths.paths {
+                for fourteenth_occurrence in &fifteenth_occurrence.depth_fourteen_paths.paths {
+                    for thirteenth_occurrence in &fourteenth_occurrence.depth_thirteen_paths.paths {
+                        for twelfth_occurrence in &thirteenth_occurrence.depth_twelve_paths.paths {
+                            for eleventh_occurrence in &twelfth_occurrence.depth_eleven_paths.paths
+                            {
+                                for tenth_occurrence in &eleventh_occurrence.depth_ten_paths.paths {
+                                    for ninth_occurrence in &tenth_occurrence.depth_nine_paths.paths
                                     {
-                                        for seventh_occurrence in
-                                            &eighth_occurrence.depth_seven_paths.paths
+                                        for eighth_occurrence in
+                                            &ninth_occurrence.depth_eight_paths.paths
                                         {
-                                            for sixth_occurrence in
-                                                &seventh_occurrence.depth_six_paths.paths
+                                            for seventh_occurrence in
+                                                &eighth_occurrence.depth_seven_paths.paths
                                             {
-                                                for fifth_occurrence in
-                                                    &sixth_occurrence.depth_five_paths.paths
+                                                for sixth_occurrence in
+                                                    &seventh_occurrence.depth_six_paths.paths
                                                 {
-                                                    for fourth_occurrence in
-                                                        &fifth_occurrence.depth_four_paths.paths
+                                                    for fifth_occurrence in
+                                                        &sixth_occurrence.depth_five_paths.paths
                                                     {
-                                                        for third_occurrence in &fourth_occurrence
-                                                            .depth_three_paths
-                                                            .paths
+                                                        for fourth_occurrence in
+                                                            &fifth_occurrence.depth_four_paths.paths
                                                         {
-                                                            for second_occurrence in
-                                                                &third_occurrence
-                                                                    .depth_two_paths
+                                                            for third_occurrence in
+                                                                &fourth_occurrence
+                                                                    .depth_three_paths
                                                                     .paths
                                                             {
-                                                                total_leaf_occurrences = total_leaf_occurrences
+                                                                for second_occurrence in
+                                                                    &third_occurrence
+                                                                        .depth_two_paths
+                                                                        .paths
+                                                                {
+                                                                    total_leaf_occurrences = total_leaf_occurrences
                                                     .checked_add(
                                                         second_occurrence
                                                             .middle_paths
@@ -514,10 +528,11 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
                                                     )
                                                     .ok_or_else(|| {
                                                         MaterializationDiagnostic(
-                                                            "ConstMaterializable plural depth-sixteen leaf occurrence count overflows"
+                                                            "ConstMaterializable plural depth-seventeen leaf occurrence count overflows"
                                                                 .into(),
                                                         )
                                                     })?;
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -534,7 +549,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
         }
         if total_leaf_occurrences > SumReachability::MAX_EDGES {
             return Err(MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen paths exceed the global leaf occurrence bound"
+                "ConstMaterializable plural depth-seventeen paths exceed the global leaf occurrence bound"
                     .into(),
             ));
         }
@@ -545,7 +560,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
         .try_reserve_exact(candidates.len())
         .map_err(|_| {
             MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen inner custody exceeds compiler resources"
+                "ConstMaterializable plural depth-seventeen inner custody exceeds compiler resources"
                     .into(),
             )
         })?;
@@ -561,7 +576,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
             inner_field.identity,
         ) {
             return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-sixteen path for `{}` is missing, duplicated, or out of authored field order",
+                "ConstMaterializable plural depth-seventeen path for `{}` is missing, duplicated, or out of authored field order",
                 inner_field.name
             )));
         }
@@ -569,28 +584,28 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
             .get(inner_field.name.as_str())
             .expect("complete outer value checked above");
         let inner =
-            validate_const_materializable_record_with_depth_fifteen_nested_sums_with_reachability(
+            validate_const_materializable_record_with_depth_sixteen_nested_sums_with_reachability(
                 typed,
                 inner_data.name.as_str(),
-                &path.depth_fifteen_paths,
+                &path.depth_sixteen_paths,
                 inner_value,
                 byte_order,
                 reachability,
             )?;
-        let inner_size = path.depth_fifteen_paths.outer_layout.size.ok_or_else(|| {
+        let inner_size = path.depth_sixteen_paths.outer_layout.size.ok_or_else(|| {
             MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-sixteen path `{}` requires one exact inner extent",
+                "ConstMaterializable plural depth-seventeen path `{}` requires one exact inner extent",
                 inner_field.name
             ))
         })?;
         if usize::try_from(inner_size).ok() != Some(inner.bytes().len()) {
             return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable plural depth-sixteen inner bytes for `{}` do not cover the exact inner extent",
+                "ConstMaterializable plural depth-seventeen inner bytes for `{}` do not cover the exact inner extent",
                 inner_field.name
             )));
         }
         occurrences.push(
-            ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization {
+            ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization {
                 outer_field: inner_field.name.to_string(),
                 outer_member_identity: inner_field.identity,
                 inner,
@@ -603,14 +618,14 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
         .try_reserve_exact(members.len())
         .map_err(|_| {
             MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen outer field custody exceeds compiler resources"
+                "ConstMaterializable plural depth-seventeen outer field custody exceeds compiler resources"
                     .into(),
             )
         })?;
     let mut active = Vec::new();
     active.try_reserve_exact(1).map_err(|_| {
         MaterializationDiagnostic(
-            "ConstMaterializable plural depth-sixteen active path exceeds compiler resources"
+            "ConstMaterializable plural depth-seventeen active path exceeds compiler resources"
                 .into(),
         )
     })?;
@@ -640,7 +655,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
                 .try_reserve_exact(occurrence.inner.bytes().len())
                 .map_err(|_| {
                     MaterializationDiagnostic(
-                        "ConstMaterializable plural depth-sixteen inner staging exceeds compiler resources"
+                        "ConstMaterializable plural depth-seventeen inner staging exceeds compiler resources"
                             .into(),
                     )
                 })?;
@@ -649,11 +664,11 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path
-                    .depth_fifteen_paths
+                    .depth_sixteen_paths
                     .outer_layout
                     .size
-                    .expect("validated plural depth-fifteen extent"),
-                align: path.depth_fifteen_paths.outer_layout.align,
+                    .expect("validated plural depth-sixteen extent"),
+                align: path.depth_sixteen_paths.outer_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
             });
@@ -701,7 +716,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
     }
     if occurrence_index != occurrences.len() {
         return Err(MaterializationDiagnostic(
-            "ConstMaterializable plural depth-sixteen staging did not consume the complete authored-order set"
+            "ConstMaterializable plural depth-seventeen staging did not consume the complete authored-order set"
                 .into(),
         ));
     }
@@ -711,17 +726,17 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
         path_layout
             .outer_layout
             .size
-            .expect("validated plural depth-sixteen outer extent"),
+            .expect("validated plural depth-seventeen outer extent"),
     )
     .map_err(|_| {
         MaterializationDiagnostic(
-            "ConstMaterializable plural depth-sixteen outer extent exceeds compiler host".into(),
+            "ConstMaterializable plural depth-seventeen outer extent exceeds compiler host".into(),
         )
     })?;
     let mut bytes = Vec::new();
     bytes.try_reserve_exact(byte_len).map_err(|_| {
         MaterializationDiagnostic(
-            "ConstMaterializable plural depth-sixteen staged bytes exceed compiler resources"
+            "ConstMaterializable plural depth-seventeen staged bytes exceed compiler resources"
                 .into(),
         )
     })?;
@@ -732,7 +747,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
         .try_reserve_exact(encoded_fields.len())
         .map_err(|_| {
             MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen schema staging exceeds compiler resources"
+                "ConstMaterializable plural depth-seventeen schema staging exceeds compiler resources"
                     .into(),
             )
         })?;
@@ -740,7 +755,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
         .try_reserve_exact(encoded_fields.len())
         .map_err(|_| {
             MaterializationDiagnostic(
-                "ConstMaterializable plural depth-sixteen value staging exceeds compiler resources"
+                "ConstMaterializable plural depth-seventeen value staging exceeds compiler resources"
                     .into(),
             )
         })?;
@@ -768,7 +783,7 @@ fn derive_depth_sixteen_nested_sums_bytes_with_reachability(
         values.push(AggregateFieldValue::new(field.name, field.bytes)?);
     }
     materialize_aggregate_layout_into(&path_layout.outer_layout, &schemas, &values, &mut bytes)?;
-    Ok(DerivedDepthSixteenNestedSumsMaterialization {
+    Ok(DerivedDepthSeventeenNestedSumsMaterialization {
         schema_report_fingerprint,
         occurrences,
         bytes,

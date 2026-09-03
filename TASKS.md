@@ -9438,6 +9438,17 @@ compiler concept is introduced.
   new exact table coexists with the legacy review classifier but never derives
   from it.
 
+  The filesystem migration now has a closed, typed six-facet policy-authoring
+  vocabulary over content read/write, metadata query/mutation, directory
+  enumeration, and namespace mutation. It canonicalizes directly into the D45
+  terminal classes while requiring the consumer to retain exact schema and
+  requirement coordinates; it never classifies a readable method name. The
+  accepted `FilesystemHost` binding retains those rows unchanged, and
+  selected-closure regression coverage exercises every facet through an exact
+  selected requirement and normalized-foreign leaf. Next attach explicit
+  facet rows to real `FilesystemHost` requirements and prove coverage for each
+  corresponding transitional broad review row before retiring that row.
+
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,
   handle provenance, or other exact constraint proof enters mechanism identity.
@@ -12746,21 +12757,37 @@ checked-result arithmetic decision listed below.
   records, recursive or array-mediated paths, direct-sum coexistence, and
   target-dependent placement remain rejected; every shallower API retains its
   exact boundary.
-  The `omega-layout` materialization owner's 7,884-line regression corpus now
-  lives in a 4,306-line private test root over a focused 3,131-line
-  depth-eight-through-fifteen child and a 447-line depth-sixteen child. The
-  4,877-line production owner retains 51 production functions, 23 public
-  projection entry points, exact module paths, diagnostics, and the complete
-  31-test crate behavior. The matching 13,580-line Psi materialization owner is
-  now a 5,000-line public carrier/replay facade over private byte-derivation
-  (6,121 lines), report-identity (1,309 lines), bounded sum-reachability (374
-  lines), and a focused 776-line depth-sixteen successor. Its append-only
-  public inventory now has 35 carrier types and 19 validation entry
+  The complete plural depth-seventeen fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Fifteenth -> Fourteenth -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-sixteen report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-sixteen carriers, preserves repeated
+  nominal occurrences, rebuilds every nested zero-padded image in authored
+  order, replays every layout and occurrence identity hash-free, and performs
+  one final atomic copy. Projection and replay share one memoized bounded walk
+  and global leaf ceiling across the complete cohort. Paths deeper than
+  seventeen records, recursive or array-mediated paths, direct-sum
+  coexistence, and target-dependent placement remain rejected; every shallower
+  API retains its exact boundary.
+  The `omega-layout` materialization owner's 8,343-line regression corpus now
+  lives in a 4,307-line private test root over a focused 3,131-line
+  depth-eight-through-fifteen child, a 447-line depth-sixteen child, and a
+  458-line depth-seventeen child. The 5,156-line production owner retains 53
+  production functions, 24 public projection entry points, exact module paths,
+  diagnostics, and the complete 32-test crate behavior. The matching
+  14,377-line Psi materialization owner is now a 5,006-line public
+  carrier/replay facade over private byte-derivation (6,121 lines),
+  report-identity (1,309 lines), bounded sum-reachability (374 lines), a focused
+  776-line depth-sixteen successor, and a focused 791-line depth-seventeen
+  successor. Its append-only public inventory now has 37 carrier types and 20
+  validation entry
   points while preserving the sibling `SumReachability` import path and exact
   diagnostics. This remains module ownership only; the fixed-depth reports and
   their exact shallower/deeper rejection boundaries remain distinct.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  sixteen records, plural paths deeper than sixteen records, mixed
+  seventeen records, plural paths deeper than seventeen records, mixed
   common-field/case shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
@@ -12888,11 +12915,19 @@ checked-result arithmetic decision listed below.
     selected generated row and any target-owned `provider_defaults` entry join
     the base carrier and settle against the final typed continuation;
     unselected siblings remain inert;
+  - package-aware compilation now repeats the authored-declaration authority
+    gate over the exact final checked base-plus-extension program before
+    deriving the package subject. The pre-build verdict remains bound to the
+    frozen base commitment, while generated selections must independently obey
+    the same exact package ownership, public visibility, and direct-dependency
+    rules. A generated unit cannot use the retained dependency closure to
+    select a transitive-only declaration;
   - canaries pin generated overload/conformance non-interference, exact
     selected-build/configuration/evidence custody, generated-machine
     continuation, dependency-bundle no-rerun, unit-local normalization,
     no-source-reread, exact target selection and cross-unit cohort rejection,
-    and structural absence of the retired rebuild path.
+    final generated-selection authority replay and transitive-dependency
+    rejection, and structural absence of the retired rebuild path.
 
   Remaining engineering work, not language design:
   - broaden the retained typed continuation beyond its current validated data

@@ -389,6 +389,49 @@ pub enum TerminalAuthorityClass {
     RootMemoryAccess,
 }
 
+/// Portable filesystem authority facets accepted by D45 service policy.
+///
+/// This is an authoring vocabulary, not a classifier: constructing a facet
+/// set does not infer anything from a service or method name. Exact schema and
+/// requirement identity remain separate coordinates on the permission row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PortableFilesystemAuthorityFacet {
+    ContentRead,
+    ContentWrite,
+    MetadataQuery,
+    DirectoryEnumeration,
+    NamespaceMutation,
+    MetadataMutation,
+}
+
+impl PortableFilesystemAuthorityFacet {
+    pub const ALL: [Self; 6] = [
+        Self::ContentRead,
+        Self::ContentWrite,
+        Self::MetadataQuery,
+        Self::DirectoryEnumeration,
+        Self::NamespaceMutation,
+        Self::MetadataMutation,
+    ];
+
+    pub const fn terminal_authority_class(self) -> TerminalAuthorityClass {
+        match self {
+            Self::ContentRead => TerminalAuthorityClass::FilesystemContentRead,
+            Self::ContentWrite => TerminalAuthorityClass::FilesystemContentWrite,
+            Self::MetadataQuery => TerminalAuthorityClass::FilesystemMetadataQuery,
+            Self::DirectoryEnumeration => TerminalAuthorityClass::DirectoryEnumeration,
+            Self::NamespaceMutation => TerminalAuthorityClass::FilesystemNamespaceMutation,
+            Self::MetadataMutation => TerminalAuthorityClass::FilesystemMetadataMutation,
+        }
+    }
+}
+
+impl From<PortableFilesystemAuthorityFacet> for TerminalAuthorityClass {
+    fn from(facet: PortableFilesystemAuthorityFacet) -> Self {
+        facet.terminal_authority_class()
+    }
+}
+
 impl TerminalAuthorityClass {
     pub const ALL: [Self; 13] = [
         Self::FilesystemContentRead,
@@ -443,6 +486,14 @@ impl TerminalAuthorityDisposition {
             .into_iter()
             .collect();
         Self { classes }
+    }
+
+    /// Construct an explicit portable filesystem permission without admitting
+    /// non-filesystem classes into that authored facet set.
+    pub fn from_filesystem_facets(
+        facets: impl IntoIterator<Item = PortableFilesystemAuthorityFacet>,
+    ) -> Self {
+        Self::from_classes(facets.into_iter().map(TerminalAuthorityClass::from))
     }
 
     pub fn classes(&self) -> &[TerminalAuthorityClass] {
@@ -812,6 +863,24 @@ mod tests {
                 TerminalAuthorityClass::ProcessTermination,
                 TerminalAuthorityClass::MachineControl,
                 TerminalAuthorityClass::PortIo,
+            ]
+        );
+    }
+
+    #[test]
+    fn portable_filesystem_facets_cover_exact_closed_vocabulary() {
+        let disposition = TerminalAuthorityDisposition::from_filesystem_facets(
+            PortableFilesystemAuthorityFacet::ALL,
+        );
+        assert_eq!(
+            disposition.classes(),
+            &[
+                TerminalAuthorityClass::FilesystemContentRead,
+                TerminalAuthorityClass::FilesystemContentWrite,
+                TerminalAuthorityClass::FilesystemMetadataQuery,
+                TerminalAuthorityClass::DirectoryEnumeration,
+                TerminalAuthorityClass::FilesystemNamespaceMutation,
+                TerminalAuthorityClass::FilesystemMetadataMutation,
             ]
         );
     }
