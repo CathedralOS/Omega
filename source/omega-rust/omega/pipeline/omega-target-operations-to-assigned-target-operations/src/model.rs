@@ -66,6 +66,10 @@ pub enum AssignmentError {
         machine: MachineId,
         operation: OperationId,
     },
+    WriteOnlyPrimitiveStoreCustodyMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     EmptyStructuralScalarFieldStores(MachineId),
     StructuralScalarCallCustodyMismatch {
         machine: MachineId,

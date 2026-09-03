@@ -1030,6 +1030,11 @@ pub(super) fn emit_unit_body(
                     operation_ordinal,
                 });
             }
+            AssignedUnitOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
+                return Err(EmissionError::UnsupportedWriteOnlyPrimitiveStore(
+                    *psi_operation,
+                ));
+            }
             AssignedUnitOperation::StructuralScalarFieldStore { psi_operation, .. } => {
                 operation_site = Some(*psi_operation);
                 unit_structural_scalar_field_stores.push(emit_structural_scalar_field_store(

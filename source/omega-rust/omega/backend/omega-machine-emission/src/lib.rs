@@ -1435,6 +1435,7 @@ pub enum EmissionError {
     UnitCallStackAreaNotEncodable,
     InvalidUnitScalarCallCustody(psi_core::OperationId),
     InvalidInstalledProviderScalarCallCustody(psi_core::OperationId),
+    UnsupportedWriteOnlyPrimitiveStore(psi_core::OperationId),
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
     EmptyStructuralScalarFieldStores(psi_core::MachineId),
     InvalidStructuralScalarCallCustody(psi_core::OperationId),

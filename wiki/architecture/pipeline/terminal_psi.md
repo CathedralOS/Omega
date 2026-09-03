@@ -701,8 +701,10 @@ frames, so a callee replacement is caller-visible; fuel is consumed before the
 mutation and resumption cannot replay it. Broader projected/aggregate stores
 and opaque-provider realization remain gated. Native target lowering derives
 the exact primitive referent width/alignment and selects a borrowed-reference
-ABI on x86-64 and AArch64, then stops at the explicit physical-store fence;
-physical pointer-layout equivalence is not permission equivalence.
+ABI on x86-64 and AArch64 while retaining the complete declaration, placement,
+immediate, and operation identity. Physical assignment independently replays
+that custody, then stops at the machine-code store fence; physical
+pointer-layout equivalence is not permission equivalence.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

@@ -93,14 +93,15 @@ fn parameter_dynamic_unit_dispatch_retains_two_word_result_less_abi() {
 }
 
 #[test]
-fn write_only_primitive_store_selects_exact_borrowed_abi_before_store_fence() {
+fn write_only_primitive_store_reaches_exact_target_custody_on_both_linux_isas() {
     let machine = MachineId::new(61).unwrap();
     let block = BlockId::new(62).unwrap();
     let place = PlaceId::new(63).unwrap();
     let structural_type = StructuralTypeId::new(64).unwrap();
     let value = ValueId::new(65).unwrap();
     let store_operation = OperationId::new(66).unwrap();
-    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer_type);
     let destination = StructuralParameterDeclaration {
         place,
         position: 0,
@@ -144,7 +145,7 @@ fn write_only_primitive_store_selects_exact_borrowed_abi_before_store_fence() {
                 },
                 AbstractOperation::WriteOnlyPrimitiveStore {
                     psi_operation: store_operation,
-                    destination,
+                    destination: destination.clone(),
                     value: AbstractResult { value, scalar_type },
                 },
                 AbstractOperation::ReturnUnit {
@@ -156,13 +157,34 @@ fn write_only_primitive_store_selects_exact_borrowed_abi_before_store_fence() {
     };
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        assert_eq!(
-            lower_to_target_operations(&plan, target),
-            Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
-                machine,
-                operation: store_operation,
-            })
-        );
+        let lowered = lower_to_target_operations(&plan, target)
+            .expect("whole-root primitive store reaches exact target custody");
+        let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+            panic!("write-only primitive helper must remain an attached Unit body")
+        };
+        let TargetUnitOperation::WriteOnlyPrimitiveStore {
+            psi_operation,
+            destination: lowered_destination,
+            destination_type,
+            destination_placement,
+            source,
+        } = &body.operations[1]
+        else {
+            panic!("second operation must be the whole-root primitive store")
+        };
+        assert_eq!(*psi_operation, store_operation);
+        assert_eq!(lowered_destination, &destination);
+        assert_eq!(destination_type, &plan.structural_types[0]);
+        assert_eq!(destination_placement, &body.parameters[0].placement);
+        assert!(matches!(
+            source,
+            TargetUnitScalarArgumentSource::IntegerImmediate {
+                source_value,
+                scalar_type: source_type,
+                value: IntegerValue::Signed(2),
+                ..
+            } if *source_value == value && *source_type == integer_type
+        ));
 
         let mut interface_only = plan.clone();
         interface_only.functions[0].operations.remove(1);
