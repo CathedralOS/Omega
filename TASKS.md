@@ -12454,7 +12454,11 @@ checked-result arithmetic decision listed below.
   one parameter-forwarding direct call, and one final parameter-sourced
   indirect call through object/final-image validation for x86-64 and AArch64;
   on a matching Linux host it executes the emitted image and requires the
-  selected realization's result to drive exit status 70.
+  selected realization's result to drive exit status 70. A separate mutable
+  Unit canary verifies that an attached Unit receiver is planned as a borrowed
+  reference rather than a copied aggregate, retains all three descriptor-call
+  roles on both native architectures, and executes the hosted image to normal
+  return.
 
   The first control-flow join now has explicit checked descriptor custody.
   Exactly two independently counted syntactic predecessor calls may feed one

@@ -1482,6 +1482,77 @@ fn runtime_local_named_dyn_multi_hop_pass_through_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_named_dyn_unit_multi_hop_return_canary_runs() {
+    let canary = pass_canary("traits/runtime_local_named_dyn_unit_multi_hop_return");
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let report = compile_rooted_backend_canary_without_output_for_target(&canary, target)
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "Unit descriptor chain should reach native custody for {target}:\n{}",
+                    diagnostics
+                        .iter()
+                        .map(|diagnostic| diagnostic.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            });
+        let object = report
+            .retained_native_artifact()
+            .expect("Unit forwarding keeps native custody")
+            .object();
+        assert_eq!(
+            object
+                .functions()
+                .iter()
+                .flat_map(|function| &function.forwarded_dynamic_descriptor_calls)
+                .count(),
+            1,
+            "{target} must retain the selection-sourced Unit descriptor call"
+        );
+        let forwarded = object
+            .functions()
+            .iter()
+            .flat_map(|function| &function.forwarded_dynamic_parameter_calls)
+            .collect::<Vec<_>>();
+        let [call] = forwarded.as_slice() else {
+            panic!("{target} should retain one Unit parameter-forwarding call")
+        };
+        assert!(call.source_value.is_none());
+        assert!(call.scalar_type.is_none());
+        assert!(matches!(
+            call.call_stack,
+            omega_machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
+        ));
+        assert_eq!(
+            object
+                .functions()
+                .iter()
+                .flat_map(|function| &function.dynamic_parameter_calls)
+                .count(),
+            1,
+            "{target} must retain the final Unit parameter-sourced indirect call"
+        );
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-runtime-local-named-dyn-unit-multi-hop-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+        let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+            .expect("Unit descriptor chain should emit a native image");
+        assert_native_exit_code(
+            &compilation,
+            0,
+            "Unit descriptor multi-hop canary",
+            "the result-less descriptor must cross both helpers and return normally",
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
 fn runtime_local_named_dyn_rebound_direct_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_local_named_dyn_rebound_direct_exit");
     for target in ["linux_x86_64", "linux_arm64"] {

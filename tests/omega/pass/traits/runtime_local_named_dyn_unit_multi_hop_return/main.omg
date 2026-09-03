@@ -1,0 +1,28 @@
+trait Touch {
+    machine touch(&mut self);
+}
+
+data Item {
+    value: i32;
+}
+
+Primary: Item satisfies Touch {
+    machine touch(&mut self) {}
+}
+
+data Main {
+    selected: Item;
+}
+
+machine Main::main(&mut self) {
+    let erased: &mut dyn Touch = &mut self.selected as &mut dyn Item::Primary;
+    forward(erased);
+}
+
+machine forward(erased: &mut dyn Touch) {
+    finish(erased);
+}
+
+machine finish(erased: &mut dyn Touch) {
+    erased.touch();
+}
