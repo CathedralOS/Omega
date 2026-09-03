@@ -6,9 +6,57 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CompilerBuiltinExecution;
 use psi_core::{IntegerSign, IntegerType, ScalarType};
 
+pub(crate) fn inspected_linux_read_byte_roots(
+    settlements: &[BoundarySettlementRecord],
+) -> std::collections::BTreeSet<psi_core::PlaceId> {
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
+    settlements
+        .iter()
+        .filter_map(|read| {
+            let result = read.native_result.structural()?;
+            let exact_layout = result.layout.tag_byte_offset == 0
+                && result.layout.tag_shape == ValueShape::integer(4, 4)
+                && result.layout.shape == ValueShape::integer(8, 4)
+                && result.layout.payload_byte_offset == 4
+                && result.layout.common_fields.is_empty()
+                && result.layout.cases.len() == 2
+                && result.layout.cases[0].fields.is_empty()
+                && result.layout.cases[1].fields.as_slice()
+                    == [omega_calling_conventions::PackedFieldLayout {
+                        shape: ValueShape::integer(4, 4),
+                        byte_offset: 4,
+                    }];
+            let payload_offset = result.home_byte_offset.checked_add(4)?;
+            let exact_consumer = settlements.iter().any(|write| {
+                matches!(
+                    write.realization,
+                    omega_target_operations::BoundaryRealization::LinuxWriteByteI32(_)
+                ) && write.operation_ordinal > read.operation_ordinal
+                    && matches!(
+                        write.runtime_scalar_arguments.as_slice(),
+                        [omega_machine_code::ForeignCallScalarArgumentRecord {
+                            source: InternalUnitScalarArgumentSourceRecord::Home(home),
+                            ..
+                        }] if home.defining_operation == result.defining_operation
+                            && home.scalar_type == ScalarType::Integer(i32_type)
+                            && home.shape == ValueShape::integer(4, 4)
+                            && home.byte_offset == payload_offset
+                    )
+            });
+            (matches!(
+                read.realization,
+                omega_target_operations::BoundaryRealization::LinuxReadByte(_)
+            ) && exact_layout
+                && exact_consumer)
+                .then_some(result.result.place)
+        })
+        .collect()
+}
+
 pub(crate) fn linux_write_byte_custody_is_exact(
     target: NativeTarget,
     settlement: &BoundarySettlementRecord,
+    all_settlements: &[BoundarySettlementRecord],
     integer_constants: &[omega_machine_code::UnitIntegerConstantRecord],
     scalar_homes: &[omega_machine_code::UnitScalarHomeRecord],
     preceding_home_producer_count: impl Fn(
@@ -50,18 +98,26 @@ pub(crate) fn linux_write_byte_custody_is_exact(
                     == 1
         }
         InternalUnitScalarArgumentSourceRecord::Home(home) => {
-            home.scalar_type == ScalarType::Integer(i32_type)
-                && home.shape == ValueShape::integer(4, 4)
-                && scalar_homes
-                    .iter()
-                    .filter(|candidate| **candidate == home)
-                    .count()
-                    == 1
+            let ordinary_home = scalar_homes
+                .iter()
+                .filter(|candidate| **candidate == home)
+                .count()
+                == 1
                 && preceding_home_producer_count(
                     home,
                     settlement.operation_ordinal,
                     argument.code_offset,
-                ) == 1
+                ) == 1;
+            let inspected_payload = structural_payload_source_is_exact(
+                target,
+                settlement,
+                all_settlements,
+                home,
+                function_bytes,
+            );
+            home.scalar_type == ScalarType::Integer(i32_type)
+                && home.shape == ValueShape::integer(4, 4)
+                && (ordinary_home || inspected_payload)
         }
     };
     let Some(materialization) = super::expected_foreign_scalar_argument_bytes(target, argument, 0)
@@ -107,6 +163,114 @@ pub(crate) fn linux_write_byte_custody_is_exact(
                 .and_then(|(start, end)| bytes.get(start..end))
                 == Some(suffix.as_slice())
         })
+}
+
+fn structural_payload_source_is_exact(
+    target: NativeTarget,
+    write: &BoundarySettlementRecord,
+    settlements: &[BoundarySettlementRecord],
+    home: omega_machine_code::UnitScalarHomeRecord,
+    function_bytes: Option<&[u8]>,
+) -> bool {
+    let matching_reads = settlements
+        .iter()
+        .filter_map(|read| {
+            let result = read.native_result.structural()?;
+            (matches!(
+                read.realization,
+                omega_target_operations::BoundaryRealization::LinuxReadByte(_)
+            ) && read.operation_ordinal < write.operation_ordinal
+                && result.defining_operation == home.defining_operation
+                && result.layout.tag_byte_offset == 0
+                && result.layout.tag_shape == ValueShape::integer(4, 4)
+                && result.layout.shape == ValueShape::integer(8, 4)
+                && result.layout.payload_byte_offset == 4
+                && result.layout.common_fields.is_empty()
+                && result.layout.cases.len() == 2
+                && result.layout.cases[0].fields.is_empty()
+                && result.layout.cases[1].fields.as_slice()
+                    == [omega_calling_conventions::PackedFieldLayout {
+                        shape: ValueShape::integer(4, 4),
+                        byte_offset: 4,
+                    }]
+                && result.home_byte_offset.checked_add(4) == Some(home.byte_offset))
+            .then_some((read, result))
+        })
+        .collect::<Vec<_>>();
+    let [(read, result)] = matching_reads.as_slice() else {
+        return false;
+    };
+    let Some(bytes) = function_bytes else {
+        return true;
+    };
+    let Some(start) = read.code_offset.checked_add(read.byte_count) else {
+        return false;
+    };
+    let target_offset = settlements
+        .iter()
+        .filter(|candidate| {
+            matches!(
+                candidate.realization,
+                omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_)
+            ) && candidate.operation_ordinal > write.operation_ordinal
+        })
+        .max_by_key(|candidate| candidate.operation_ordinal)
+        .map(|candidate| candidate.code_offset);
+    let Some(target_offset) = target_offset else {
+        return false;
+    };
+    let tag_offset = result
+        .home_byte_offset
+        .checked_add(u32::from(result.layout.tag_byte_offset));
+    let Some(tag_offset) = tag_offset else {
+        return false;
+    };
+    let mut expected = Vec::new();
+    match target.architecture {
+        Architecture::X86_64 => {
+            if super::instruction_loads::x86_replay_rsp_load(&mut expected, 0, tag_offset, 4)
+                .is_none()
+            {
+                return false;
+            }
+            expected.push(0x3d);
+            expected.extend_from_slice(&1_i32.to_le_bytes());
+            let branch_offset = start + expected.len();
+            let Ok(target) = i64::try_from(target_offset) else {
+                return false;
+            };
+            let Ok(next) = i64::try_from(branch_offset + 6) else {
+                return false;
+            };
+            let Ok(displacement) = i32::try_from(target - next) else {
+                return false;
+            };
+            expected.extend_from_slice(&[0x0f, 0x85]);
+            expected.extend_from_slice(&displacement.to_le_bytes());
+        }
+        Architecture::Aarch64 => {
+            let Some(load) = super::instruction_loads::aarch64_replay_stack_load(9, tag_offset, 4)
+            else {
+                return false;
+            };
+            expected.extend_from_slice(&load.to_le_bytes());
+            expected.extend_from_slice(&(0x7100_001f_u32 | (1 << 10) | (9 << 5)).to_le_bytes());
+            let branch_offset = start + expected.len();
+            let Some(distance) = target_offset
+                .checked_sub(branch_offset)
+                .filter(|distance| distance.is_multiple_of(4))
+            else {
+                return false;
+            };
+            let words = distance / 4;
+            if words > 0x3ffff {
+                return false;
+            }
+            expected.extend_from_slice(&(0x5400_0001_u32 | ((words as u32) << 5)).to_le_bytes());
+        }
+    }
+    write.code_offset == start + expected.len()
+        && bytes.get(start..write.code_offset) == Some(expected.as_slice())
 }
 
 #[cfg(test)]
@@ -204,6 +368,7 @@ mod tests {
             assert!(linux_write_byte_custody_is_exact(
                 target,
                 &settlement,
+                &[],
                 &constants,
                 &[],
                 |_, _, _| 0,
@@ -215,6 +380,7 @@ mod tests {
             assert!(!linux_write_byte_custody_is_exact(
                 target,
                 &settlement,
+                &[],
                 &constants,
                 &[],
                 |_, _, _| 0,
@@ -226,6 +392,7 @@ mod tests {
             assert!(!linux_write_byte_custody_is_exact(
                 target,
                 &changed,
+                &[],
                 &constants,
                 &[],
                 |_, _, _| 0,
@@ -239,6 +406,7 @@ mod tests {
             assert!(!linux_write_byte_custody_is_exact(
                 target,
                 &changed,
+                &[],
                 &constants,
                 &[],
                 |_, _, _| 0,
@@ -274,6 +442,7 @@ mod tests {
             target,
             &settlement,
             &[],
+            &[],
             &[home],
             |candidate, consumer_ordinal, consumer_offset| {
                 usize::from(candidate == home && consumer_ordinal == 1 && consumer_offset == 0)
@@ -285,12 +454,14 @@ mod tests {
             &settlement,
             &[],
             &[],
+            &[],
             |_, _, _| 1,
             Some(&bytes),
         ));
         assert!(!linux_write_byte_custody_is_exact(
             target,
             &settlement,
+            &[],
             &[],
             &[home],
             |_, _, _| 0,
@@ -299,6 +470,7 @@ mod tests {
         assert!(!linux_write_byte_custody_is_exact(
             target,
             &settlement,
+            &[],
             &[],
             &[home],
             |_, _, _| 2,

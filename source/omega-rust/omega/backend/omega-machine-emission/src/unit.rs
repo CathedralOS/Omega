@@ -604,7 +604,12 @@ fn emit_foreign_integer_argument(
                     let source_offset = call_stack_bytes
                         .checked_add(home.byte_offset)
                         .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-                    emit_x86_64_stack_load_width(bytes, register, source_offset, 8)?;
+                    emit_x86_64_stack_load_width(
+                        bytes,
+                        register,
+                        source_offset,
+                        home.shape.byte_size,
+                    )?;
                 }
             }
             if let Some(destination) = destination_stack {
@@ -639,10 +644,10 @@ fn emit_foreign_integer_argument(
                         .checked_add(home.byte_offset)
                         .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
                     let instruction = aarch64_unit_stack_access(
-                        aarch64_load_base(8)?,
+                        aarch64_load_base(home.shape.byte_size)?,
                         register,
                         source_offset,
-                        8,
+                        home.shape.byte_size,
                     )?;
                     bytes.extend_from_slice(&instruction.to_le_bytes());
                 }
@@ -1415,6 +1420,70 @@ pub(super) fn emit_unit_body(
                     operation_ordinal,
                     code_offset,
                 )?);
+            }
+            AssignedUnitOperation::StructuralCase { source, cases } => {
+                let fallthrough = cases
+                    .iter()
+                    .find(|case| {
+                        usize::try_from(case.operation_ordinal).ok() == Some(operation_ordinal + 1)
+                    })
+                    .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?;
+                let branch = cases
+                    .iter()
+                    .find(|case| case.case != fallthrough.case)
+                    .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?;
+                let branch_ordinal = usize::try_from(branch.operation_ordinal)
+                    .map_err(|_| EmissionError::ConditionalBranchEncodingInvalid)?;
+                let exact_source = body.operations[..operation_ordinal]
+                    .iter()
+                    .filter(|producer| {
+                        matches!(producer,
+                            AssignedUnitOperation::BoundarySettlement {
+                                psi_operation,
+                                result: AssignedBoundaryResult::Structural(home),
+                                ..
+                            } if *psi_operation == source.requirement.defining_operation
+                                && home == source
+                        )
+                    })
+                    .count()
+                    == 1;
+                let exact_payloads = cases.iter().enumerate().all(|(case_index, case)| {
+                    case.case_tag == i32::try_from(case_index).unwrap_or(-1)
+                        && case.payloads.iter().all(|payload| {
+                            source.layout_field(case_index, payload.field_byte_offset)
+                                == Some(payload.home.shape)
+                                && payload.home.defining_operation
+                                    == source.requirement.defining_operation
+                                && payload.home.byte_offset
+                                    == source
+                                        .byte_offset
+                                        .checked_add(payload.field_byte_offset)
+                                        .unwrap_or(u32::MAX)
+                        })
+                });
+                if pending_conditional.is_some()
+                    || cases.len() != 2
+                    || !exact_source
+                    || !exact_payloads
+                    || branch_ordinal <= operation_ordinal + 1
+                    || branch_ordinal >= body.operations.len()
+                    || fallthrough.psi_edge == branch.psi_edge
+                    || fallthrough.nominal_return_edge == branch.nominal_return_edge
+                {
+                    return Err(EmissionError::ConditionalBranchEncodingInvalid);
+                }
+                edge_site = Some(fallthrough.psi_edge);
+                let branch_offset = emit_unit_structural_case_branch(
+                    &mut bytes,
+                    target.architecture,
+                    source
+                        .byte_offset
+                        .checked_add(u32::from(source.requirement.layout.tag_byte_offset))
+                        .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?,
+                    fallthrough.case_tag,
+                )?;
+                pending_conditional = Some((branch_ordinal, branch_offset, 1));
             }
             AssignedUnitOperation::ConditionalIntegerEqual {
                 psi_operation,
@@ -2253,6 +2322,15 @@ pub(super) fn emit_unit_body(
                     .filter(|copy| copy.path.is_empty())
                     .map(|copy| copy.place)
                     .collect::<std::collections::BTreeSet<_>>();
+                let inspected_roots = body.operations[..operation_ordinal]
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        AssignedUnitOperation::StructuralCase { source, .. } => {
+                            Some(source.requirement.result.place)
+                        }
+                        _ => None,
+                    })
+                    .collect::<std::collections::BTreeSet<_>>();
                 let structural_result_prefix = body.operations[..operation_ordinal]
                     .iter()
                     .rev()
@@ -2269,6 +2347,7 @@ pub(super) fn emit_unit_body(
                         } => Some(result.requirement.result.place),
                         _ => None,
                     })
+                    .filter(|place| !inspected_roots.contains(place))
                     .collect::<Vec<_>>();
                 let expected_local_prefix = established_affine_locals
                     .iter()
@@ -2647,6 +2726,37 @@ fn emit_unit_boolean_branch(
             bytes.extend_from_slice(&compare.to_le_bytes());
             let branch_offset = bytes.len();
             bytes.extend_from_slice(&0x5400_0000_u32.to_le_bytes()); // b.eq false arm
+            Ok(branch_offset)
+        }
+    }
+}
+
+fn emit_unit_structural_case_branch(
+    bytes: &mut Vec<u8>,
+    architecture: Architecture,
+    tag_byte_offset: u32,
+    fallthrough_tag: i32,
+) -> Result<usize, EmissionError> {
+    match architecture {
+        Architecture::X86_64 => {
+            emit_x86_64_stack_load_width(bytes, 0, tag_byte_offset, 4)?;
+            bytes.push(0x3d); // cmp eax, imm32
+            bytes.extend_from_slice(&fallthrough_tag.to_le_bytes());
+            let branch_offset = bytes.len();
+            bytes.extend_from_slice(&[0x0f, 0x85, 0, 0, 0, 0]); // jne other case
+            Ok(branch_offset)
+        }
+        Architecture::Aarch64 => {
+            let tag = u32::try_from(fallthrough_tag)
+                .ok()
+                .filter(|tag| *tag <= 0xfff)
+                .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?;
+            let load = aarch64_unit_stack_access(aarch64_load_base(4)?, 9, tag_byte_offset, 4)?;
+            bytes.extend_from_slice(&load.to_le_bytes());
+            let compare = 0x7100_001f_u32 | (tag << 10) | (9 << 5); // cmp w9, #tag
+            bytes.extend_from_slice(&compare.to_le_bytes());
+            let branch_offset = bytes.len();
+            bytes.extend_from_slice(&0x5400_0001_u32.to_le_bytes()); // b.ne other case
             Ok(branch_offset)
         }
     }
@@ -3354,6 +3464,25 @@ fn validate_assigned_unit_frame(
                 *cursor = cursor
                     .checked_add(u32::from(home.requirement.layout.shape.byte_size))
                     .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                None
+            }
+            AssignedUnitOperation::StructuralCase { source, cases } => {
+                if cases.len() != 2
+                    || cases.iter().enumerate().any(|(case_index, case)| {
+                        case.case_tag != i32::try_from(case_index).unwrap_or(-1)
+                            || case.payloads.iter().any(|payload| {
+                                source.layout_field(case_index, payload.field_byte_offset)
+                                    != Some(payload.home.shape)
+                                    || payload.home.byte_offset
+                                        != source
+                                            .byte_offset
+                                            .checked_add(payload.field_byte_offset)
+                                            .unwrap_or(u32::MAX)
+                            })
+                    })
+                {
+                    return Err(EmissionError::ConditionalBranchEncodingInvalid);
+                }
                 None
             }
             _ => None,

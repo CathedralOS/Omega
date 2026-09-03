@@ -2,6 +2,7 @@
 
 mod body;
 mod boundary_call;
+mod closed_sum;
 mod conditional_exit;
 mod dynamic;
 mod dynamic_join;
@@ -46,8 +47,9 @@ pub(super) fn lower_unit_function(
         return Ok(lowered);
     }
     let bounded_conditional_exit = conditional_exit::has_bounded_shape(function);
+    let bounded_closed_sum = closed_sum::has_bounded_shape(function);
     let dynamic_descriptor_join = dynamic_join::has_bounded_shape(function);
-    if !bounded_conditional_exit && !dynamic_descriptor_join {
+    if !bounded_conditional_exit && !bounded_closed_sum && !dynamic_descriptor_join {
         validate_unit_function_shape(function)?;
     }
     if !dynamic_descriptor_join {
@@ -62,6 +64,18 @@ pub(super) fn lower_unit_function(
             functions,
             structural_types,
             &prepared.scalar_parameters,
+            &prepared.parameters,
+        )?
+    } else if bounded_closed_sum {
+        closed_sum::lower(
+            function,
+            target,
+            functions,
+            structural_types,
+            boundary_machines,
+            settlements,
+            installed_calls,
+            native_callbacks,
             &prepared.parameters,
         )?
     } else if bounded_conditional_exit {

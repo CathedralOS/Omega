@@ -36,18 +36,7 @@ pub(super) fn expected_x86_stack_load(
     offset: u32,
     width: u16,
 ) -> Option<()> {
-    if width != 8 {
-        return None;
-    }
-    bytes.push(0x48 | (((register >> 3) & 1) << 2));
-    bytes.push(0x8b);
-    if offset <= i8::MAX as u32 {
-        bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, offset as u8]);
-    } else {
-        bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
-        bytes.extend_from_slice(&offset.to_le_bytes());
-    }
-    Some(())
+    x86_replay_rsp_load(bytes, register, offset, width)
 }
 
 pub(super) fn expected_x86_memory_load(
@@ -75,10 +64,7 @@ pub(super) fn expected_x86_memory_load(
 }
 
 pub(super) fn expected_aarch64_stack_load(register: u8, offset: u32, width: u16) -> Option<u32> {
-    if width != 8 || !offset.is_multiple_of(8) || offset / 8 > 0xfff {
-        return None;
-    }
-    Some(0xf940_0000 | ((offset / 8) << 10) | (31 << 5) | u32::from(register))
+    aarch64_replay_stack_load(register, offset, width)
 }
 
 pub(super) fn expected_aarch64_memory_load(
@@ -106,6 +92,10 @@ pub(super) fn x86_replay_rsp_load(
         }
         8 => {
             bytes.push(0x48 | (((register >> 3) & 1) << 2));
+            bytes.push(0x8b);
+        }
+        4 => {
+            bytes.push(0x40 | (((register >> 3) & 1) << 2));
             bytes.push(0x8b);
         }
         _ => return None,

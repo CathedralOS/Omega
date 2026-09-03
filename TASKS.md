@@ -47,13 +47,6 @@ These are the next product-level priorities for the maintained Rust
 implementation. They take precedence over adding another evidence carrier that
 has no exercising program.
 
-- **CLOSED-SUM-INSPECTION-E2E.** Complete target-neutral and native inspection
-  of conventional closed sums. The acceptance program reads
-  `Console::read_byte() -> ByteRead`, branches on `Eof | Byte(value)`, consumes
-  the affine result exactly once, writes the byte when present, and exits. It
-  must compile to validated Linux x86-64 and AArch64 native artifacts through
-  the ordinary product path.
-
 - **PORTABLE-PSI-RELOAD-E2E.** Prove that Terminal Psi is a real distributable
   compilation product. One invocation must serialize it, discard all frontend
   and build-process objects, and a separate invocation must decode, verify, and

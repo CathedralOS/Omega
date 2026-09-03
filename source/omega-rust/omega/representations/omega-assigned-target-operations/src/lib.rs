@@ -29,4 +29,5 @@ pub use unit::{
     AssignedIeeeFloatFmaOperand, AssignedNormalizedForeignScalarArgument,
     AssignedRankedU32Countdown, AssignedStructuralHome, AssignedUnitBody, AssignedUnitOperation,
     AssignedUnitScalarArgumentSource, AssignedUnitScalarCallArgument, AssignedUnitScalarHome,
+    AssignedUnitStructuralCasePayload, AssignedUnitStructuralCaseSuccessor,
 };

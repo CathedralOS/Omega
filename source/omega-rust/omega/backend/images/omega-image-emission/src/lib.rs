@@ -900,6 +900,7 @@ fn build_object_artifact_with_x86_feature_profile(
             linux_write_byte_custody_is_exact(
                 plan.target,
                 settlement,
+                &function.boundary_settlements,
                 &function.unit_integer_constants,
                 &function.unit_scalar_homes,
                 |home, consumer_ordinal, consumer_offset| {
@@ -1829,6 +1830,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     linux_write_byte_custody_is_exact(
                         plan.target,
                         settlement,
+                        &function.boundary_settlements,
                         &function.unit_integer_constants,
                         &function.unit_scalar_homes,
                         |home, consumer_ordinal, consumer_offset| {
@@ -3893,14 +3895,14 @@ fn expected_foreign_scalar_argument_bytes(
                         &mut bytes,
                         register,
                         outbound_bytes.checked_add(home.byte_offset)?,
-                        8,
+                        home.shape.byte_size,
                     )?;
                 }
                 Architecture::Aarch64 => {
                     let instruction = instruction_loads::expected_aarch64_stack_load(
                         register,
                         outbound_bytes.checked_add(home.byte_offset)?,
-                        8,
+                        home.shape.byte_size,
                     )?;
                     bytes.extend_from_slice(&instruction.to_le_bytes());
                 }

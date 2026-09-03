@@ -727,6 +727,27 @@ pub struct TargetUnitConditionalSuccessor {
     pub nominal_return_edge: EdgeId,
 }
 
+/// One scalar payload binding exposed only on the matching closed-sum arm.
+/// The home aliases the owning structural result; it is not a separately
+/// allocated scalar-call result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetUnitStructuralCasePayload {
+    pub field: StructuralFieldId,
+    pub field_byte_offset: u32,
+    pub home: TargetUnitScalarHomeRequirement,
+}
+
+/// One exact successor of the bounded closed-sum inspection lane.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetUnitStructuralCaseSuccessor {
+    pub psi_edge: EdgeId,
+    pub case: psi_core::StructuralCaseId,
+    pub case_tag: i32,
+    pub operation_ordinal: u32,
+    pub nominal_return_edge: EdgeId,
+    pub payloads: Vec<TargetUnitStructuralCasePayload>,
+}
+
 impl TargetUnitScalarCallArgument {
     pub const fn source_value(&self) -> ValueId {
         self.source.source_value()
@@ -926,6 +947,12 @@ pub enum TargetUnitOperation {
         rebound_argument: TargetStructuralArgument,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Inspect one exact structural boundary-result home and dispatch to the
+    /// physically laid-out arm matching its canonical signed-i32 case tag.
+    StructuralCase {
+        source: TargetStructuralHomeRequirement,
+        cases: Vec<TargetUnitStructuralCaseSuccessor>,
     },
     /// One bounded equality decision after a durable Unit scalar result.
     /// The true arm is laid out first and both arms must end in admitted

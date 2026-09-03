@@ -6,6 +6,7 @@ use crate::assignment::shared::*;
 mod boundary_settlement;
 mod conditional;
 mod ieee_float;
+mod structural_case;
 
 pub(super) fn assign(
     machine: MachineId,
@@ -450,6 +451,14 @@ pub(super) fn assign(
             requirement_obligations,
             crash_continuations,
             next_frame_home,
+        )?,
+        TargetUnitOperation::StructuralCase { .. } => structural_case::assign(
+            machine,
+            body,
+            operation,
+            preceding_operations,
+            assigned_scalar_homes,
+            assigned_structural_homes,
         )?,
         TargetUnitOperation::ConditionalIntegerEqual { .. }
         | TargetUnitOperation::ConditionalBoolean { .. }
