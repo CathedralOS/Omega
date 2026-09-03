@@ -989,6 +989,25 @@ pub enum TargetOperation {
         dispatch_call_plan: CallPlan,
         table_slot_byte_offset: u32,
     },
+    /// Return one scalar result obtained by forwarding the current function's
+    /// complete existential descriptor parameter to another helper. This is a
+    /// direct helper call, not a table dispatch: `argument` retains the exact
+    /// caller-parameter/callee-parameter interface join while the two call
+    /// plans retain both sides of the native ABI handoff.
+    ReturnForwardedDynamicParameterScalarCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: ScalarType,
+        callee: MachineId,
+        argument: AbstractDynamicDescriptorArgument,
+        parameter_abi: TargetDynamicDescriptorParameterAbi,
+        function_call_plan: CallPlan,
+        callee_call_plan: CallPlan,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// Invoke one Unit-result requirement through an existential descriptor
     /// parameter, then return Unit. This is a function-level carrier because
     /// the descriptor pair is the helper's complete incoming ABI.

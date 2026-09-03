@@ -12365,11 +12365,14 @@ checked-result arithmetic decision listed below.
   zero of the preceding helper, and only the final helper performs dynamic
   parameter dispatch. Terminal verification and canonical encoding retain the
   distinction and reject coordinate drift. Target-neutral abstract lowering
-  also preserves both calls. Target lowering remains fail closed because its
-  scalar function representation has no carrier for returning a structural
-  scalar call while forwarding an incoming dynamic-descriptor parameter.
-  Multi-hop Unit results and scalar callers with continuations remain outside
-  this bounded rung.
+  also preserves both calls. Target lowering and physical assignment now use
+  a distinct scalar-returning forwarding carrier. It retains the complete
+  parameter-source/target-interface join, both independently derived two-word
+  call plans, and exact incoming/outgoing registers; the bounded lane accepts
+  only an unchanged ABI handoff and rejects source or target drift. Machine
+  emission remains deliberately fail closed until it records the direct helper
+  call and its parameter-origin custody. Multi-hop Unit results and scalar
+  callers with continuations remain outside this bounded rung.
 
   Remaining work:
 
@@ -12389,10 +12392,10 @@ checked-result arithmetic decision listed below.
     rule; computed values, indexed/case projections, repeated destinations, and
     a fourth write still has no native carrier;
   - extend descriptors to within-artifact stored/joined/escaping and
-    aggregate-erased forms, beginning by adding the honest scalar target,
-    assigned-target, machine, and native carrier for the now-canonical
-    parameter-source forwarding path, then widening the same custody to Unit
-    results and continuations. Do not extend local
+    aggregate-erased forms, beginning by carrying the new scalar assigned-
+    target carrier through machine/object/image/installation replay and native
+    execution, then widening the same custody to Unit results and
+    continuations. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a

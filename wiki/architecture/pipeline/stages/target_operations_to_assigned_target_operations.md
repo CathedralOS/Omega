@@ -41,6 +41,11 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   plan, provider, and empty structural/claim rosters before binding the first
   native argument register. Zero-scalar installed providers remain routed to
   the distinct optimized structural continuation.
+- `assignment/function/dynamic_parameter.rs` owns both final descriptor-slot
+  dispatch and transparent scalar parameter forwarding. The forwarding form
+  independently replays both two-word call plans and requires the incoming
+  descriptor registers to be the exact outgoing helper registers; it does not
+  reauthenticate the parameter as a local selection.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is

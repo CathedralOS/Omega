@@ -7,6 +7,12 @@ pub(super) fn assign(
     operation: &TargetOperation,
     target: NativeTarget,
 ) -> Result<AssignedOperation, AssignmentError> {
+    if matches!(
+        operation,
+        TargetOperation::ReturnForwardedDynamicParameterScalarCall { .. }
+    ) {
+        return assign_forwarded(function, operation, target);
+    }
     let (
         psi_edge,
         psi_operation,
@@ -164,6 +170,118 @@ pub(super) fn assign(
             mechanism,
         }
     })
+}
+
+fn assign_forwarded(
+    function: &TargetFunction,
+    operation: &TargetOperation,
+    target: NativeTarget,
+) -> Result<AssignedOperation, AssignmentError> {
+    let TargetOperation::ReturnForwardedDynamicParameterScalarCall {
+        psi_edge,
+        psi_operation,
+        source_value,
+        scalar_type,
+        callee,
+        argument,
+        parameter_abi,
+        function_call_plan,
+        callee_call_plan,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = operation
+    else {
+        unreachable!("forwarded dynamic-parameter assignment receives its exact target role")
+    };
+    let invalid = || AssignmentError::DynamicDescriptorAssignmentMismatch {
+        machine: function.machine,
+        operation: *psi_operation,
+    };
+    let result_shape = match scalar_type {
+        psi_core::ScalarType::Boolean => ValueShape::integer(1, 1),
+        psi_core::ScalarType::Integer(integer) => ValueShape::integer(
+            integer.bits().div_ceil(8),
+            integer.bits().div_ceil(8).next_power_of_two().min(8),
+        ),
+        psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32) => {
+            ValueShape::float(4)
+        }
+        psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => {
+            ValueShape::float(8)
+        }
+    };
+    let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
+    let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
+    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+    let signature = CallSignature {
+        parameters: vec![pointer_shape, pointer_shape],
+        result: Some(result_shape),
+    };
+    if function.attachment.is_some()
+        || function.fixed_integer_scalar_abi.is_some()
+        || function.mixed_structural_scalar_abi.is_some()
+        || parameter_abi.parameter.owner != function.machine
+        || parameter_abi.parameter.ordinal != 0
+        || argument.target.owner != *callee
+        || argument.target.ordinal != 0
+        || !argument.has_complete_custody(function.machine, *psi_operation, *callee)
+        || !matches!(
+            &argument.source,
+            omega_target_operations::AbstractDynamicDescriptorSource::Parameter(source)
+                if source == &parameter_abi.parameter
+        )
+        || function_call_plan.policy != CallingPolicy::native_for_target(target)
+        || callee_call_plan.policy != CallingPolicy::native_for_target(target)
+        || omega_calling_conventions::validate_call_plan(function_call_plan, &signature).is_err()
+        || omega_calling_conventions::validate_call_plan(callee_call_plan, &signature).is_err()
+        || function_call_plan.parameters.as_slice()
+            != [parameter_abi.instance.clone(), parameter_abi.table.clone()]
+        || function_call_plan.result != callee_call_plan.result
+        || !claim_transfers.is_empty()
+        || !requirement_obligations.is_empty()
+        || !crash_continuations.is_empty()
+    {
+        return Err(invalid());
+    }
+    let instance =
+        pointer_register(&parameter_abi.instance, target.architecture).ok_or_else(invalid)?;
+    let table = pointer_register(&parameter_abi.table, target.architecture).ok_or_else(invalid)?;
+    let instance_destination = pointer_register(
+        callee_call_plan.parameters.first().ok_or_else(invalid)?,
+        target.architecture,
+    )
+    .ok_or_else(invalid)?;
+    let table_destination = pointer_register(
+        callee_call_plan.parameters.get(1).ok_or_else(invalid)?,
+        target.architecture,
+    )
+    .ok_or_else(invalid)?;
+    if instance != instance_destination || table != table_destination || instance == table {
+        return Err(invalid());
+    }
+    Ok(
+        AssignedOperation::ReturnForwardedDynamicParameterScalarCall {
+            psi_edge: *psi_edge,
+            psi_operation: *psi_operation,
+            source_value: *source_value,
+            scalar_type: *scalar_type,
+            callee: *callee,
+            argument: argument.clone(),
+            parameter_abi: AssignedDynamicDescriptorParameterAbi {
+                parameter: parameter_abi.parameter.clone(),
+                instance,
+                table,
+            },
+            instance_destination,
+            table_destination,
+            function_call_plan: function_call_plan.clone(),
+            callee_call_plan: callee_call_plan.clone(),
+            claim_transfers: claim_transfers.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
+        },
+    )
 }
 
 fn pointer_register(
