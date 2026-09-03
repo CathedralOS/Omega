@@ -128,6 +128,8 @@ pub(super) fn assign(
         TargetUnitOperation::Call {
             psi_operation,
             callee,
+            call_plan,
+            scalar_arguments,
             arguments,
             claim_transfers,
             requirement_obligations,
@@ -137,6 +139,29 @@ pub(super) fn assign(
                 machine,
                 operation: *psi_operation,
             };
+            if !scalar_arguments.is_empty() {
+                return Err(AssignmentError::UnsupportedUnitCallScalarArguments {
+                    machine,
+                    operation: *psi_operation,
+                });
+            }
+            let expected_call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: arguments.iter().map(|argument| argument.shape).collect(),
+                    result: None,
+                },
+            )
+            .map_err(|_| invalid())?;
+            if *call_plan != expected_call_plan
+                || call_plan.parameters.len() != arguments.len()
+                || arguments
+                    .iter()
+                    .zip(&call_plan.parameters)
+                    .any(|(argument, placement)| argument.destination != *placement)
+            {
+                return Err(invalid());
+            }
             if arguments.iter().any(|argument| {
                 let parameter_source = body.parameters.iter().any(|parameter| {
                     parameter.place == argument.place

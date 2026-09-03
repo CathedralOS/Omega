@@ -59,6 +59,8 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
                 operations: vec![TargetUnitOperation::Call {
                     psi_operation: OperationId::new(1).unwrap(),
                     callee: MachineId::new(2).unwrap(),
+                    call_plan: call_plan.clone(),
+                    scalar_arguments: Vec::new(),
                     arguments: vec![omega_target_operations::TargetStructuralArgument {
                         place,
                         access: psi_terminal::StructuralAccess::Owned,
@@ -105,6 +107,23 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
             alternatives: vec![CrashRouteGuard::Truth],
         }]
     );
+
+    let mut corrupted = plan;
+    let TargetOperation::UnitBody(body) = &mut corrupted.functions[0].operation else {
+        unreachable!()
+    };
+    let TargetUnitOperation::Call { call_plan, .. } = &mut body.operations[0] else {
+        unreachable!()
+    };
+    *call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature::default(),
+    )
+    .unwrap();
+    assert!(matches!(
+        assign_registers(&corrupted),
+        Err(AssignmentError::UnitCallCustodyMismatch { .. })
+    ));
 }
 
 fn trivial_affine_local_call_plan(target: NativeTarget) -> TargetOperationPlan {
@@ -168,6 +187,8 @@ fn trivial_affine_local_call_plan(target: NativeTarget) -> TargetOperationPlan {
                     TargetUnitOperation::Call {
                         psi_operation: OperationId::new(12).unwrap(),
                         callee,
+                        call_plan: callee_plan.clone(),
+                        scalar_arguments: Vec::new(),
                         arguments: vec![omega_target_operations::TargetStructuralArgument {
                             place,
                             access: psi_terminal::StructuralAccess::Owned,

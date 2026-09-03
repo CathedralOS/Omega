@@ -112,10 +112,6 @@ pub enum LoweringError {
     FunctionResultKindMismatch(MachineId),
     FixedIntegerScalarAbiPlanMissingResult(MachineId),
     UnitFunctionHasScalarParameters(MachineId),
-    UnsupportedUnitCallScalarArguments {
-        machine: MachineId,
-        operation: OperationId,
-    },
     UnitFunctionNotStraightLine(MachineId),
     UnitOperationInScalarFunction {
         machine: MachineId,

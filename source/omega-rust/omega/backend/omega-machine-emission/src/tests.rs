@@ -1363,6 +1363,8 @@ fn executable_nominal_cleanup_plan(
                             TargetUnitOperation::Call {
                                 psi_operation: cleanup_call,
                                 callee: helper,
+                                call_plan: empty_call_plan.clone(),
+                                scalar_arguments: Vec::new(),
                                 arguments: Vec::new(),
                                 claim_transfers: Vec::new(),
                                 requirement_obligations: Vec::new(),
@@ -1858,11 +1860,14 @@ fn two_call_executable_nominal_cleanup_plan(
     let TargetOperation::UnitBody(cleanup_body) = &mut cleanup.operation else {
         unreachable!("cleanup remains Unit")
     };
+    let second_call_plan = cleanup_body.call_plan.clone();
     cleanup_body.operations.insert(
         1,
         TargetUnitOperation::Call {
             psi_operation: second_call,
             callee: second_helper,
+            call_plan: second_call_plan,
+            scalar_arguments: Vec::new(),
             arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -2046,11 +2051,14 @@ fn two_nominal_cleanups_emit_the_exact_executable_action_owner() {
         let TargetOperation::UnitBody(second_body) = &mut distinct.functions[2].operation else {
             unreachable!("second cleanup remains Unit")
         };
+        let second_call_plan = second_body.call_plan.clone();
         second_body.operations.insert(
             0,
             TargetUnitOperation::Call {
                 psi_operation: second_call,
                 callee: helper_machine,
+                call_plan: second_call_plan,
+                scalar_arguments: Vec::new(),
                 arguments: Vec::new(),
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
@@ -2367,6 +2375,8 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                         TargetUnitOperation::Call {
                             psi_operation: call_operation,
                             callee: MachineId::new(2).expect("leaf"),
+                            call_plan: empty_call_plan.clone(),
+                            scalar_arguments: Vec::new(),
                             arguments: Vec::new(),
                             claim_transfers: Vec::new(),
                             requirement_obligations: Vec::new(),
@@ -2598,6 +2608,8 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
                             TargetUnitOperation::Call {
                                 psi_operation: OperationId::new(1).unwrap(),
                                 callee: MachineId::new(2).unwrap(),
+                                call_plan: call_plan.clone(),
+                                scalar_arguments: Vec::new(),
                                 arguments: vec![argument],
                                 claim_transfers: Vec::new(),
                                 requirement_obligations: Vec::new(),
@@ -2701,6 +2713,8 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
                         TargetUnitOperation::Call {
                             psi_operation: OperationId::new(2).unwrap(),
                             callee: MachineId::new(2).unwrap(),
+                            call_plan: call_plan.clone(),
+                            scalar_arguments: Vec::new(),
                             arguments: vec![argument(second, 1, 0), argument(first, 0, 1)],
                             claim_transfers: Vec::new(),
                             requirement_obligations: Vec::new(),
@@ -2804,6 +2818,8 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
                         TargetUnitOperation::Call {
                             psi_operation: OperationId::new(1).unwrap(),
                             callee: MachineId::new(2).unwrap(),
+                            call_plan: call_plan.clone(),
+                            scalar_arguments: Vec::new(),
                             arguments: vec![argument(second, 1, 0), argument(first, 0, 1)],
                             claim_transfers: Vec::new(),
                             requirement_obligations: Vec::new(),
@@ -2946,6 +2962,8 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
                             TargetUnitOperation::Call {
                                 psi_operation: OperationId::new(1).unwrap(),
                                 callee: MachineId::new(2).unwrap(),
+                                call_plan: call_plan.clone(),
+                                scalar_arguments: Vec::new(),
                                 arguments,
                                 claim_transfers: Vec::new(),
                                 requirement_obligations: Vec::new(),
@@ -3056,6 +3074,8 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                                 TargetUnitOperation::Call {
                                     psi_operation: OperationId::new(1).unwrap(),
                                     callee: MachineId::new(2).unwrap(),
+                                    call_plan: call_plan.clone(),
+                                    scalar_arguments: Vec::new(),
                                     arguments: vec![argument],
                                     claim_transfers: Vec::new(),
                                     requirement_obligations: Vec::new(),

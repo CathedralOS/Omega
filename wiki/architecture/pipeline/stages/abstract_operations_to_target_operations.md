@@ -98,10 +98,11 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   the function ABI, incoming `RDI`/`X0` register, destination home, native store
   bytes, and source record on both Linux targets. Other parameter types and
   general scalar-call transport remain fail closed. Terminal and Abstract IR
-  now verify, canonically bind, and retain scalar arguments on ordinary
-  `CallUnit`, including optimizer identity and dataflow. This stage deliberately
-  rejects that operation shape until a target call/ABI carrier preserves the
-  argument identity.
+  verify, canonically bind, and retain scalar arguments on ordinary `CallUnit`,
+  including optimizer identity and dataflow. This stage now derives the exact
+  target call plan, retaining scalar arguments as its prefix and structural
+  arguments as its suffix. Physical assignment remains explicitly fenced until
+  it can preserve the scalar source.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider

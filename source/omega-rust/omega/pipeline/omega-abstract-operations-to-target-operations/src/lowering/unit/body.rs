@@ -283,6 +283,7 @@ pub(super) fn lower_unit_body(
                 structural_types,
                 &parameters_by_place,
                 &established_affine_local_sources,
+                &scalar_values,
                 &mut shape_cache,
                 &mut active,
                 &mut operations,

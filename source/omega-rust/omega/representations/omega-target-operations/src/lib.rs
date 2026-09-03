@@ -888,9 +888,13 @@ pub enum TargetUnitOperation {
         value: IntegerValue,
         shape: ValueShape,
     },
+    /// One direct Unit-result call. Scalar arguments occupy the prefix of the
+    /// complete ABI plan; structural arguments retain the remaining placements.
     Call {
         psi_operation: OperationId,
         callee: MachineId,
+        call_plan: CallPlan,
+        scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         arguments: Vec<TargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,

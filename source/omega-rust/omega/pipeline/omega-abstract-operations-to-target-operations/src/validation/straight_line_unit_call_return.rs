@@ -123,6 +123,8 @@ pub(crate) fn validate(
         TargetUnitOperation::Call {
             psi_operation: target_operation,
             callee: target_callee,
+            call_plan: target_call_plan,
+            scalar_arguments: target_scalar_arguments,
             arguments,
             claim_transfers: target_claim_transfers,
             requirement_obligations: target_requirement_obligations,
@@ -138,6 +140,8 @@ pub(crate) fn validate(
     };
     if target_operation != psi_operation
         || target_callee != callee
+        || target_call_plan != &expected_call_plan
+        || !target_scalar_arguments.is_empty()
         || !arguments.is_empty()
         || !target_claim_transfers.is_empty()
         || target_requirement_obligations != requirement_obligations
