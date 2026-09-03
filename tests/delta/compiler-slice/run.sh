@@ -7,6 +7,7 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/artifact_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/artifact_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Delta macro-extension experiment: skipped (python3 absent)"
@@ -18,7 +19,7 @@ trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 ELABORATOR="$GATE_DIR/schema_elaborator.gamma"
 SOURCE="$GATE_DIR/../functional-compiler-experiment/scalar_recursive.delta"
 EXPANSION="$GATE_DIR/scalar_recursive.gamma"
-SCALAR_ELABORATOR="$GATE_DIR/scalar_elaborator.gamma"
+SCALAR_ELABORATOR="$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 SCALAR_RECURSIVE_EXPANSION="$GATE_DIR/generalized_scalar_recursive.gamma"
 SCALAR_SURFACE_SOURCE="$GATE_DIR/scalar_surface.delta"
 SCALAR_SURFACE_EXPANSION="$GATE_DIR/scalar_surface.gamma"
@@ -171,10 +172,10 @@ stamp_seed "$TMP/long-program.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
 LONG_OUTPUT=$("$TMP/long-program" < /dev/null | od -An -tx1 | tr -d ' \n')
 [ "$LONG_OUTPUT" = "14" ]
 
+materialize_delta_compiler "$TMP/scalar-elaborator" \
+    "$TMP/gamma-compiler" "$TMP/beta-compiler" >/dev/null
 compile_gamma_source_to_tape "$TMP/gamma-compiler" "$TMP/beta-compiler" \
     "$SCALAR_ELABORATOR" "$TMP/scalar-elaborator.tape"
-stamp_seed "$TMP/scalar-elaborator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
-    "$TMP/scalar-elaborator" >/dev/null
 
 SCALAR_ELABORATOR=$SCALAR_ELABORATOR \
     NATIVE_SCALAR_ELABORATOR="$TMP/scalar-elaborator" \
@@ -193,7 +194,7 @@ elaborator = Path(os.environ["SCALAR_ELABORATOR"]).read_bytes()
 elaborator_tape = Path(os.environ["SCALAR_ELABORATOR_TAPE"]).read_bytes()
 temporary = Path(os.environ["TMP"])
 
-if len(elaborator.splitlines()) != 548 or len(elaborator) != 21180:
+if len(elaborator.splitlines()) != 550 or len(elaborator) != 21336:
     raise SystemExit(
         f"general scalar elaborator is {len(elaborator.splitlines())} lines / "
         f"{len(elaborator)} bytes"
@@ -300,6 +301,10 @@ for name, subject in malformed.items():
 
 stamp_seed "$TMP/scalar-recursive.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/scalar-recursive" >/dev/null
+compile_delta_source_to_tape "$TMP/scalar-elaborator" \
+    "$TMP/gamma-compiler" "$TMP/beta-compiler" \
+    "$SOURCE" "$TMP/helper-recursive.tape"
+cmp "$TMP/scalar-recursive.tape" "$TMP/helper-recursive.tape"
 SCALAR_RECURSIVE_OUTPUT=$("$TMP/scalar-recursive" < /dev/null | od -An -tx1 | tr -d ' \n')
 [ "$SCALAR_RECURSIVE_OUTPUT" = "0f" ]
 
@@ -313,4 +318,4 @@ stamp_seed "$TMP/scalar-negative.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
 SCALAR_NEGATIVE_OUTPUT=$("$TMP/scalar-negative" < /dev/null | od -An -tx1 | tr -d ' \n')
 [ "$SCALAR_NEGATIVE_OUTPUT" = "ff" ]
 
-echo "Delta macro-extension experiment: schema proof passed; 548-line general elaborator emitted exact 1,267/4,324-byte Gamma and composed programs returned 15/21/255"
+echo "Delta compiler slice: selected 550-line compiler emitted exact 1,267/4,324-byte Gamma and composed programs returned 15/21/255; schema proof retained"

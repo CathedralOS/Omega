@@ -55,7 +55,9 @@ Delta, and the former Delta is Epsilon.
   direct Gamma-to-Alpha compiler remains comparator-only and agrees on Delta0,
   the retained corpus, and a 1,048,547-byte near-limit Alpha witness.
 - [ ] Gamma derivation checker is absent.
-- [ ] Gamma-written Delta compiler source and tape are absent.
+- [ ] The selected 550-line Gamma-written Delta compiler source implements the
+  scalar slice and emits canonical Gamma; its full-language admitted tape is
+  absent.
 - [x] A noncanonical 565-line current-Gamma compiler now emits Alpha directly
   for scalar Functional Delta: `Int` functions, parameters, lexical `let`,
   conditionals, arithmetic/comparison, nested calls, and direct recursion. Its
@@ -68,7 +70,7 @@ Delta, and the former Delta is Epsilon.
   resource outcomes remain absent.
 - [x] Functional-Delta-to-Gamma elaboration is executable without an Alpha
   backend. The 239-line schema proof emits an exact five-line Gamma program
-  with visible tail `jump`. A separate 548-line general scalar elaborator covers
+  with visible tail `jump`. The selected 550-line scalar compiler covers
   the direct scalar compiler's literals, bindings, conditionals, seven scalar
   operators, forward/nested calls, recursion, and arities through 13. Its
   19,238-byte tape is 2,976 bytes smaller than the 22,214-byte direct scalar

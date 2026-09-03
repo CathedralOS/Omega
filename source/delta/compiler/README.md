@@ -1,12 +1,15 @@
 # Delta compiler work
 
-The canonical Gamma-written Delta compiler and admitted tape remain absent. The
-selected architecture requires that compiler to emit canonical Gamma source;
-the promoted Gamma compiler then emits Beta, and Beta alone encodes Alpha.
+`delta_compiler.gamma` is the selected in-progress Gamma-written Delta compiler.
+It emits canonical Gamma source; the selected Gamma compiler then emits Beta,
+and Beta alone encodes Alpha. Its current executable slice covers `Int`, scalar
+operators, lexical `let`, `if`, mutually visible functions, zero through
+thirteen parameters, nested calls, and direct recursion.
 
-Noncanonical implementation evidence is test-owned under
-[`../../../tests/delta/`](../../../tests/delta/), not retained beside the
-selected source spine. None of those experiments defines a selected edge or
-amends [`../LANGUAGE.md`](../LANGUAGE.md). The canonical compiler still needs
+Its composed scalar gate lives under
+[`../../../tests/delta/compiler-slice/`](../../../tests/delta/compiler-slice/).
+The admitted tape remains absent because the implementation still needs
 algebraic data, exhaustive `match`, `Bytes`, complete checking, proper tail
-calls, profiles, and exact resource outcomes before it can compile Epsilon.
+calls, profiles, and exact resource outcomes before it implements
+[`../LANGUAGE.md`](../LANGUAGE.md) and can compile Epsilon. Noncanonical direct
+and state-machine comparisons remain test-owned under `tests/delta/`.

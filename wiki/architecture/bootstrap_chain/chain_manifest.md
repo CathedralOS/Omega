@@ -10,7 +10,7 @@ This ledger names only the selected chain. Missing artifacts remain explicit.
 | Beta compiler | admitted Alpha tape with addressed Beta self-reconstruction source | `beta_compiler_bytecode.tape` | 1,792-byte tape retained; reconstruction and differential gates pass |
 | Gamma evaluator | Beta source | `gamma_evaluator_bytecode.tape` | 753-line concatenative core; 4,312-byte derived tape measured but not admitted; Gamma reconstruction passes |
 | Gamma compiler | Gamma source to canonical Beta; Beta assembles the native tape | `gamma_compiler.beta`, `gamma_compiler_bytecode.tape` | 725-line source; 3,490-line Beta receipt; 26,674-byte tape reconstructs through evaluator and Beta |
-| Delta compiler | Gamma source to canonical Gamma, then selected lower compilers | `delta_compiler_bytecode.tape` | full source and tape absent; scalar elaboration experiment passes |
+| Delta compiler | Gamma source to canonical Gamma, then selected lower compilers | `delta_compiler_bytecode.tape` | selected 550-line scalar source passes composed execution; full contract and admitted tape remain open |
 | Epsilon compiler | Delta source to canonical Delta, then selected lower compilers | `epsilon_compiler_bytecode.tape` | incomplete `source/epsilon/compiler/epsilon_compiler.delta`; tape absent |
 | Omega `D` | Epsilon source to canonical Epsilon, then selected lower compilers | `omega0_compiler_bytecode.tape` | incomplete `source/omega/omega_compiler.epsilon`; tape absent |
 | Omega `C` | Omega source to canonical Epsilon, then selected lower compilers | `omega_compiler_bytecode.tape` | incomplete `source/omega/{build.omg,main.omg}`; tape absent |

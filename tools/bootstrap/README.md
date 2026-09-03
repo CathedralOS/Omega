@@ -40,6 +40,7 @@ remain under `source/<language>/compiler/`.
 | `alpha/` | Alpha seed selection and tape stamping used by current tests and tools. | Delete only when every caller has an equally direct canonical invocation. |
 | `beta/` | Trusted Beta compiler materialization and disposable program builds. | Delete only when every caller has an equally direct canonical invocation. |
 | `gamma/` | Selected Gamma-to-Beta compiler materialization and Gamma→Beta→Alpha composition used by downstream gates. | Delete only when every caller has an equally direct canonical invocation. |
+| `delta/` | Source-derived selected Delta compiler materialization and Delta→Gamma→Beta→Alpha composition for the implemented compiler slice. | Replace when the complete admitted Delta compiler artifact owns this invocation directly. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,
 future-artifact locators, root compiler cache, and receipt profiles had no
