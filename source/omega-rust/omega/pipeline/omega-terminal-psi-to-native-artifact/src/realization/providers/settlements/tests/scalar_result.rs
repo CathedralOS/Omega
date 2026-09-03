@@ -249,7 +249,7 @@ fn assert_exact_fixed_integer_foreign_result_flow(
     );
     assert_eq!(
         &function.bytes[argument.code_offset..argument.code_offset + argument.byte_count],
-        expected_argument_bytes(profile)
+        expected_argument_bytes(profile, integer)
     );
     match target.architecture {
         omega_target::Architecture::X86_64 => {
@@ -681,11 +681,38 @@ fn expected_result_bytes(
     }
 }
 
-fn expected_argument_bytes(profile: omega_target::TargetProfile) -> &'static [u8] {
+fn expected_argument_bytes(
+    profile: omega_target::TargetProfile,
+    integer: psi_core::IntegerType,
+) -> Vec<u8> {
+    let width = integer.bits() / 8;
     match profile {
-        omega_target::TargetProfile::LinuxX64 => &[0x48, 0x8b, 0x7c, 0x24, 0x08],
-        omega_target::TargetProfile::LinuxArm64 => &[0xe0, 0x03, 0x40, 0xf9],
-        omega_target::TargetProfile::WindowsX64 => &[0x48, 0x8b, 0x4c, 0x24, 0x28],
+        omega_target::TargetProfile::LinuxX64 | omega_target::TargetProfile::WindowsX64 => {
+            let (register, offset) = match profile {
+                omega_target::TargetProfile::LinuxX64 => (7_u8, 8_u8),
+                omega_target::TargetProfile::WindowsX64 => (1, 40),
+                _ => unreachable!(),
+            };
+            let mut bytes = match width {
+                1 => vec![0x40, 0x0f, 0xb6],
+                2 => vec![0x66, 0x40, 0x0f, 0xb7],
+                4 => vec![0x40, 0x8b],
+                8 => vec![0x48, 0x8b],
+                _ => unreachable!(),
+            };
+            bytes.extend_from_slice(&[0x44 | (register << 3), 0x24, offset]);
+            bytes
+        }
+        omega_target::TargetProfile::LinuxArm64 => {
+            let base: u32 = match width {
+                1 => 0x3940_0000,
+                2 => 0x7940_0000,
+                4 => 0xb940_0000,
+                8 => 0xf940_0000,
+                _ => unreachable!(),
+            };
+            (base | (31_u32 << 5)).to_le_bytes().to_vec()
+        }
         _ => unreachable!(),
     }
 }

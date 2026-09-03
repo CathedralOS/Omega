@@ -90,6 +90,11 @@ pub(super) fn x86_replay_rsp_load(
             bytes.push(0x40 | (((register >> 3) & 1) << 2));
             bytes.extend_from_slice(&[0x0f, 0xb6]);
         }
+        2 => {
+            bytes.push(0x66);
+            bytes.push(0x40 | (((register >> 3) & 1) << 2));
+            bytes.extend_from_slice(&[0x0f, 0xb7]);
+        }
         8 => {
             bytes.push(0x48 | (((register >> 3) & 1) << 2));
             bytes.push(0x8b);
