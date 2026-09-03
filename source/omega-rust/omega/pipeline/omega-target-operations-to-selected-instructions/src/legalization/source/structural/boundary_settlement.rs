@@ -13,6 +13,7 @@ pub(crate) fn derive_boundary_settlement(
     let TargetUnitOperation::BoundarySettlement {
         psi_operation: target_operation,
         boundary: target_boundary,
+        result: omega_target_operations::TargetBoundaryResult::Unit,
         execution,
         realization: omega_target_operations::BoundaryRealization::ClaimCompletionOnly(realization),
         scalar_arguments,

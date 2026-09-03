@@ -13,7 +13,8 @@ pub(super) fn assign(
     target: NativeTarget,
     native_callback: Option<&omega_target_operations::TargetNativeCallbackArgument>,
     assigned_scalar_homes: &mut BTreeMap<ValueId, AssignedUnitScalarHome>,
-    next_scalar_home: &mut u32,
+    assigned_structural_homes: &mut BTreeMap<PlaceId, AssignedStructuralHome>,
+    next_frame_home: &mut u32,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     Ok(match operation {
         TargetUnitOperation::EstablishByteSequenceLiteral {
@@ -308,7 +309,7 @@ pub(super) fn assign(
             preceding_operations,
             target,
             assigned_scalar_homes,
-            next_scalar_home,
+            next_frame_home,
         )?,
         TargetUnitOperation::StructuralScalarCall {
             psi_operation,
@@ -394,7 +395,7 @@ pub(super) fn assign(
             requirement_obligations,
             crash_continuations,
             assigned_scalar_homes,
-            next_scalar_home,
+            next_frame_home,
         )?,
         TargetUnitOperation::StructuralUnitCallWithDynamicArguments {
             psi_operation,
@@ -420,7 +421,7 @@ pub(super) fn assign(
             requirement_obligations,
             crash_continuations,
             assigned_scalar_homes,
-            next_scalar_home,
+            next_frame_home,
         )?,
         TargetUnitOperation::StoreDynamicDescriptor {
             psi_operation,
@@ -432,7 +433,7 @@ pub(super) fn assign(
             *psi_operation,
             stored,
             source_argument,
-            next_scalar_home,
+            next_frame_home,
         )?,
         TargetUnitOperation::StoredDynamicScalarCall {
             psi_operation,
@@ -456,7 +457,7 @@ pub(super) fn assign(
             crash_continuations,
             preceding_assigned_operations,
             assigned_scalar_homes,
-            next_scalar_home,
+            next_frame_home,
         )?,
         TargetUnitOperation::DynamicScalarCall {
             psi_operation,
@@ -481,7 +482,7 @@ pub(super) fn assign(
             requirement_obligations,
             crash_continuations,
             assigned_scalar_homes,
-            next_scalar_home,
+            next_frame_home,
         )?,
         TargetUnitOperation::DynamicUnitCall {
             psi_operation,
@@ -501,7 +502,7 @@ pub(super) fn assign(
             rebound_argument,
             requirement_obligations,
             crash_continuations,
-            next_scalar_home,
+            next_frame_home,
         )?,
         TargetUnitOperation::ConditionalIntegerEqual {
             psi_operation,
@@ -682,7 +683,7 @@ pub(super) fn assign(
                 preceding_operations,
                 native_callback,
                 assigned_scalar_homes,
-                next_scalar_home,
+                next_frame_home,
             )?;
             AssignedUnitOperation::NormalizedForeignCall {
                 psi_operation: *psi_operation,
@@ -707,6 +708,7 @@ pub(super) fn assign(
         TargetUnitOperation::BoundarySettlement {
             psi_operation,
             boundary,
+            result,
             execution,
             realization,
             scalar_arguments,
@@ -718,6 +720,12 @@ pub(super) fn assign(
         } => AssignedUnitOperation::BoundarySettlement {
             psi_operation: *psi_operation,
             boundary: *boundary,
+            result: assign_boundary_result(
+                *psi_operation,
+                result,
+                assigned_structural_homes,
+                next_frame_home,
+            )?,
             execution: *execution,
             realization: *realization,
             scalar_arguments: scalar_arguments.clone(),
@@ -740,6 +748,46 @@ pub(super) fn assign(
             cleanup_actions: cleanup_actions.clone(),
         },
     })
+}
+
+fn assign_boundary_result(
+    operation: OperationId,
+    result: &omega_target_operations::TargetBoundaryResult,
+    assigned_homes: &mut BTreeMap<PlaceId, AssignedStructuralHome>,
+    next_home: &mut u32,
+) -> Result<AssignedBoundaryResult, AssignmentError> {
+    let omega_target_operations::TargetBoundaryResult::Structural(requirement) = result else {
+        return Ok(AssignedBoundaryResult::Unit);
+    };
+    if requirement.defining_operation != operation
+        || requirement.layout.tag_byte_offset != 0
+        || requirement.layout.tag_shape != ValueShape::integer(4, 4)
+        || requirement.layout.shape.byte_size == 0
+        || requirement.layout.shape.alignment == 0
+    {
+        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
+    }
+    *next_home = scalar_call::align_unit_frame_offset(
+        *next_home,
+        u32::from(requirement.layout.shape.alignment),
+    )?;
+    let home = AssignedStructuralHome {
+        requirement: requirement.clone(),
+        byte_offset: *next_home,
+    };
+    *next_home = next_home
+        .checked_add(u32::from(requirement.layout.shape.byte_size))
+        .ok_or(AssignmentError::ExpressionStackFrameNotEncodable)?;
+    if assigned_homes
+        .insert(requirement.result.place, home.clone())
+        .is_some()
+    {
+        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
+    }
+    if &home.requirement != requirement {
+        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
+    }
+    Ok(AssignedBoundaryResult::Structural(home))
 }
 
 fn assign_boundary_runtime_scalar_arguments(

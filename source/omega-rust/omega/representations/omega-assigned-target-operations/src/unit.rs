@@ -100,6 +100,21 @@ pub struct AssignedUnitScalarHome {
     pub byte_offset: u32,
 }
 
+/// Durable caller-frame home assigned to one exact structural boundary
+/// result. The layout is retained whole so emission and artifact replay can
+/// validate tag, payload, size, and alignment without trusting the offset.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedStructuralHome {
+    pub requirement: omega_target_operations::TargetStructuralHomeRequirement,
+    pub byte_offset: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AssignedBoundaryResult {
+    Unit,
+    Structural(AssignedStructuralHome),
+}
+
 /// Target-resolved coordinates copied from the owning runtime ABI plan.
 ///
 /// This assigned carrier records the exact result of ABI planning without
@@ -431,6 +446,7 @@ pub enum AssignedUnitOperation {
     BoundarySettlement {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
+        result: AssignedBoundaryResult,
         execution: omega_target_operations::BoundaryExecutionBinding,
         realization: BoundaryRealization,
         scalar_arguments: Vec<BoundaryScalarArgument>,

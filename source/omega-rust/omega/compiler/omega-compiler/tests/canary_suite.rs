@@ -2781,9 +2781,16 @@ fn fixture_accepts_console_output(root_path: &Path) -> bool {
     })
 }
 
+fn fixture_accepts_console_input(root_path: &Path) -> bool {
+    fs::read_to_string(root_path).is_ok_and(|source| {
+        source.contains("omega_language_std::console") && source.contains(".read_byte(")
+    })
+}
+
 fn candidate_console_exit_binding(
     checked: &CheckedCompilation,
     accepts_console_output: bool,
+    accepts_console_input: bool,
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let standard_library = fixture_package_identity(2);
     let candidates = checked
@@ -2828,7 +2835,9 @@ fn candidate_console_exit_binding(
         .methods
         .iter()
         .filter(|method| {
-            method.name == "exit_process" || (accepts_console_output && method.name == "write_byte")
+            method.name == "exit_process"
+                || (accepts_console_output && method.name == "write_byte")
+                || (accepts_console_input && method.name == "read_byte")
         })
         .map(|method| {
             omega_effects::ServiceTerminalAuthorityPermission::new(
@@ -2841,6 +2850,9 @@ fn candidate_console_exit_binding(
                         }
                         "write_byte" => {
                             vec![omega_effects::TerminalAuthorityClass::ProcessOutput]
+                        }
+                        "read_byte" => {
+                            vec![omega_effects::TerminalAuthorityClass::ProcessInput]
                         }
                         _ => unreachable!("filtered above"),
                     },
@@ -2871,7 +2883,12 @@ fn reviewed_repository_fixture_package_inputs(
     let accepts_filesystem = fixture_accepts_filesystem_service(root_path);
     let accepts_console_exit = fixture_accepts_console_exit(root_path);
     let accepts_console_output = fixture_accepts_console_output(root_path);
-    if !accepts_filesystem && !accepts_console_exit && !accepts_console_output {
+    let accepts_console_input = fixture_accepts_console_input(root_path);
+    if !accepts_filesystem
+        && !accepts_console_exit
+        && !accepts_console_output
+        && !accepts_console_input
+    {
         return Ok(Some(package_inputs));
     }
 
@@ -2894,10 +2911,11 @@ fn reviewed_repository_fixture_package_inputs(
                 .map_err(|diagnostic| vec![diagnostic])?,
         );
     }
-    if accepts_console_exit || accepts_console_output {
+    if accepts_console_exit || accepts_console_output || accepts_console_input {
         bindings.push(candidate_console_exit_binding(
             &preliminary,
             accepts_console_output,
+            accepts_console_input,
         )?);
     }
     package_inputs

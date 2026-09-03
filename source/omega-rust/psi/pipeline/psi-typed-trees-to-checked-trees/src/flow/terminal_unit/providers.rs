@@ -96,6 +96,7 @@ pub(super) fn checked_provider_attachment_requirements(
             CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
             | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => coordinate,
             _ => return None,
         };
@@ -125,6 +126,7 @@ pub(super) fn checked_provider_attachment_requirements(
         if !matches!(operation,
             CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. }
                 if *target_machine == call.target_symbol)
         {
             return None;

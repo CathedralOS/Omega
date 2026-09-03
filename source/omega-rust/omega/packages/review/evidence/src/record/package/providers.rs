@@ -7,6 +7,7 @@ use psi_core::PackageKeyIdentity;
 pub enum PackageReviewCompilerIntrinsicExecution {
     LinuxExitGroupI32,
     LinuxWriteByteI32,
+    LinuxReadByte,
     BuiltinFunction(psi_symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
@@ -53,6 +54,7 @@ impl CheckedPackageProviderRowIdentity {
             Some(PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { .. })
             | Some(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32)
             | Some(PackageReviewCompilerIntrinsicExecution::LinuxWriteByteI32)
+            | Some(PackageReviewCompilerIntrinsicExecution::LinuxReadByte)
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_))
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatConversion { .. })
             | None => None,

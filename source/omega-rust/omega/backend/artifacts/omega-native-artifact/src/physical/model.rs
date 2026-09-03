@@ -207,6 +207,12 @@ pub enum BoundaryTraitSettlementRole {
         realization: BoundaryRealization,
         scalar_argument: omega_machine_code::ForeignCallScalarArgumentRecord,
     },
+    CompilerBuiltinStructural {
+        catalog: NativeCompilerBuiltinCatalogIdentity,
+        execution: omega_target_operations::CompilerBuiltinExecution,
+        realization: BoundaryRealization,
+        result: omega_machine_code::BoundaryStructuralResultRecord,
+    },
     AdmittedProvider {
         execution: ProviderExecutionBinding,
         realization: NormalizedForeignCallBinding,
@@ -220,6 +226,9 @@ impl BoundaryTraitSettlementRole {
                 BoundaryExecutionBinding::CompilerBuiltin(*execution)
             }
             Self::CompilerBuiltinRuntimeScalar { execution, .. } => {
+                BoundaryExecutionBinding::CompilerBuiltin(*execution)
+            }
+            Self::CompilerBuiltinStructural { execution, .. } => {
                 BoundaryExecutionBinding::CompilerBuiltin(*execution)
             }
             Self::AdmittedProvider { execution, .. } => {

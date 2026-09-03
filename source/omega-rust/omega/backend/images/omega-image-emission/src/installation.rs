@@ -93,7 +93,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 69;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 70;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -3420,7 +3420,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 installed.settlement.scalar_arguments.is_empty()
                     && installed.settlement.runtime_scalar_arguments.is_empty()
                     && installed.settlement.byte_sequence_arguments.is_empty()
-                    && installed.settlement.native_result.is_none()
+                    && installed.settlement.native_result.is_unit()
                     && installed.settlement.byte_count == 0
             }
             BoundaryRealization::DirectPortReadU8(_) => {
@@ -3428,7 +3428,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     installed
                         .settlement
                         .native_result
-                        .as_ref()
+                        .scalar()
                         .is_some_and(|result| {
                             let Some(return_ordinal) =
                                 installed.settlement.operation_ordinal.checked_add(1)
@@ -3555,7 +3555,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && expected_byte_count != 0
                     && installed.settlement.arguments.is_empty()
                     && installed.settlement.byte_sequence_arguments.is_empty()
-                    && installed.settlement.native_result.is_none()
+                    && installed.settlement.native_result.is_unit()
                     && function.scalar_stack.is_none()
                     && exact_nominal_tail
             }
@@ -3586,12 +3586,21 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 ) && function.unit_body
                     && function.scalar_stack.is_none()
             }
+            BoundaryRealization::LinuxReadByte(_) => {
+                installed.settlement.scalar_arguments.is_empty()
+                    && installed.settlement.runtime_scalar_arguments.is_empty()
+                    && installed.settlement.arguments.is_empty()
+                    && installed.settlement.byte_sequence_arguments.is_empty()
+                    && installed.settlement.byte_count != 0
+                    && function.unit_body
+                    && function.scalar_stack.is_none()
+            }
         };
         if !valid_realization
             || !boundary_result_is_exact(
                 record.target,
                 installed.settlement.realization,
-                installed.settlement.native_result.as_ref(),
+                &installed.settlement.native_result,
             )
         {
             return Err(InstallationError::BoundaryRealizationMismatch {

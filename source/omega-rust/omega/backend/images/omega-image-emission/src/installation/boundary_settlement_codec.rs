@@ -3,20 +3,29 @@
 //! The installation parent retains upfront count conversion, settlement order,
 //! validation, and admission replay. This child composes the exact row bytes.
 
+use omega_calling_conventions::{
+    ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,
+};
 use omega_machine_code::{
     BoundaryByteSequenceArgumentRecord, BoundaryExecutionRecord, BoundaryResultRecord,
-    BoundarySettlementRecord, CompletionProviderCustodyBinding, ForeignCallScalarArgumentRecord,
+    BoundaryScalarResultRecord, BoundarySettlementRecord, BoundaryStructuralResultRecord,
+    CompletionProviderCustodyBinding, ForeignCallScalarArgumentRecord,
     InternalUnitScalarArgumentSourceRecord, UnitScalarParameterLocationRecord,
 };
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, ClaimCompletionOnlyRealization,
     CompilerBuiltinExecution, DirectPortReadU8Realization, LinuxExitGroupI32Realization,
-    LinuxWriteByteI32Realization, LinuxWriteLineRealization, MetadataOnlyPortRealization,
+    LinuxReadByteRealization, LinuxWriteByteI32Realization, LinuxWriteLineRealization,
+    MetadataOnlyPortRealization,
 };
 use psi_core::{
-    BoundaryMachineId, ClaimId, EdgeId, IntegerValue, MachineId, OperationId, ServiceId, ValueId,
+    BoundaryMachineId, ClaimId, EdgeId, IntegerValue, MachineId, OperationId, PlaceId, ServiceId,
+    StructuralDomainId, StructuralTypeId, ValueId,
 };
-use psi_terminal::CompletionReceipt;
+use psi_terminal::{
+    CompletionReceipt, StructuralOperationResult, StructuralPathQualification,
+    StructuralPathSegment, StructuralResultClaimBinding,
+};
 
 use super::{
     InstallationError, ObjectBoundarySettlement, Reader,
@@ -24,15 +33,21 @@ use super::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
     completion_custody_codec::{decode_completion_claim_source, encode_completion_claim_source},
-    decode_boolean, decode_structural_types, encode_structural_types,
+    decode_structural_types, encode_structural_types,
     provider_execution_codec::{decode_provider_execution, encode_provider_execution},
     push_u16, push_u32, push_u64,
     structural_argument_codec::{decode_structural_argument, encode_structural_argument},
+    structural_scalar_codec::{
+        decode_domains, decode_multiplicity, encode_domains, multiplicity_tag,
+    },
     unit_scalar_codec::{
         decode_integer_type, decode_integer_value, decode_unit_scalar_home, encode_integer_type,
         encode_integer_value, encode_unit_scalar_home,
     },
-    value_placement_codec::{decode_placement, decode_register, encode_placement, register_tag},
+    value_placement_codec::{
+        decode_placement, decode_register, decode_shape, encode_placement, encode_shape,
+        register_tag,
+    },
 };
 
 pub(super) fn encode_boundary_settlements(
@@ -85,6 +100,13 @@ pub(super) fn encode_boundary_settlements(
             }
             BoundaryRealization::LinuxWriteByteI32(_) => {
                 bytes.push(5);
+                push_u64(bytes, 0);
+                push_u64(bytes, 0);
+                push_u16(bytes, 0);
+                bytes.push(0);
+            }
+            BoundaryRealization::LinuxReadByte(_) => {
+                bytes.push(6);
                 push_u64(bytes, 0);
                 push_u64(bytes, 0);
                 push_u16(bytes, 0);
@@ -219,17 +241,7 @@ pub(super) fn encode_boundary_settlements(
             push_u32(bytes, binding.receipt.argument_index);
             encode_provider_execution(bytes, binding.provider_execution);
         }
-        match &settlement.native_result {
-            Some(result) => {
-                bytes.push(1);
-                bytes.extend_from_slice(&[0; 3]);
-                push_u64(bytes, result.value.get());
-                push_u64(bytes, result.return_edge.get());
-                encode_boundary_result_scalar_type(bytes, result.scalar_type);
-                encode_placement(bytes, &result.placement)?;
-            }
-            None => bytes.extend_from_slice(&[0; 4]),
-        }
+        encode_boundary_result(bytes, &settlement.native_result)?;
     }
     Ok(())
 }
@@ -284,6 +296,9 @@ pub(super) fn decode_boundary_settlements(
             }
             5 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
                 BoundaryRealization::LinuxWriteByteI32(LinuxWriteByteI32Realization)
+            }
+            6 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
+                BoundaryRealization::LinuxReadByte(LinuxReadByteRealization)
             }
             _ => return Err(InstallationError::InvalidBoundaryRealizationTag),
         };
@@ -433,22 +448,7 @@ pub(super) fn decode_boundary_settlements(
                 provider_execution: decode_provider_execution(reader)?,
             });
         }
-        let native_result_present = decode_boolean(reader.u8()?)?;
-        if reader.take(3)? != [0; 3] {
-            return Err(InstallationError::NonzeroReservedField);
-        }
-        let native_result = if native_result_present {
-            Some(BoundaryResultRecord {
-                value: ValueId::new(reader.u64()?)
-                    .ok_or(InstallationError::InvalidBoundaryResult)?,
-                return_edge: EdgeId::new(reader.u64()?)
-                    .ok_or(InstallationError::InvalidBoundaryResult)?,
-                scalar_type: decode_boundary_result_scalar_type(reader)?,
-                placement: decode_placement(reader)?,
-            })
-        } else {
-            None
-        };
+        let native_result = decode_boundary_result(reader)?;
         boundary_settlements.push(ObjectBoundarySettlement {
             machine,
             settlement: BoundarySettlementRecord {
@@ -474,6 +474,299 @@ pub(super) fn decode_boundary_settlements(
     Ok(boundary_settlements)
 }
 
+fn encode_boundary_result(
+    bytes: &mut Vec<u8>,
+    result: &BoundaryResultRecord,
+) -> Result<(), InstallationError> {
+    match result {
+        BoundaryResultRecord::Unit => bytes.extend_from_slice(&[0; 4]),
+        BoundaryResultRecord::Scalar(result) => {
+            bytes.extend_from_slice(&[1, 0, 0, 0]);
+            push_u64(bytes, result.value.get());
+            push_u64(bytes, result.return_edge.get());
+            encode_boundary_result_scalar_type(bytes, result.scalar_type);
+            encode_placement(bytes, &result.placement)?;
+        }
+        BoundaryResultRecord::Structural(result) => {
+            bytes.extend_from_slice(&[2, 0, 0, 0]);
+            push_u64(bytes, result.defining_operation.get());
+            encode_structural_operation_result(bytes, &result.result)?;
+            encode_sum_layout(bytes, &result.layout)?;
+            push_u32(bytes, result.home_byte_offset);
+        }
+    }
+    Ok(())
+}
+
+fn decode_boundary_result(
+    reader: &mut Reader<'_>,
+) -> Result<BoundaryResultRecord, InstallationError> {
+    let tag = reader.u8()?;
+    if reader.take(3)? != [0; 3] {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    match tag {
+        0 => Ok(BoundaryResultRecord::Unit),
+        1 => Ok(BoundaryResultRecord::Scalar(BoundaryScalarResultRecord {
+            value: ValueId::new(reader.u64()?).ok_or(InstallationError::InvalidBoundaryResult)?,
+            return_edge: EdgeId::new(reader.u64()?)
+                .ok_or(InstallationError::InvalidBoundaryResult)?,
+            scalar_type: decode_boundary_result_scalar_type(reader)?,
+            placement: decode_placement(reader)?,
+        })),
+        2 => Ok(BoundaryResultRecord::Structural(
+            BoundaryStructuralResultRecord {
+                defining_operation: OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::InvalidBoundaryResult)?,
+                result: decode_structural_operation_result(reader)?,
+                layout: decode_sum_layout(reader)?,
+                home_byte_offset: reader.u32()?,
+            },
+        )),
+        _ => Err(InstallationError::InvalidBoundaryResult),
+    }
+}
+
+fn encode_structural_operation_result(
+    bytes: &mut Vec<u8>,
+    result: &StructuralOperationResult,
+) -> Result<(), InstallationError> {
+    push_u64(bytes, result.place.get());
+    push_u64(bytes, result.structural_type.get());
+    bytes.push(multiplicity_tag(result.multiplicity));
+    bytes.extend_from_slice(&[0; 3]);
+    encode_domains(bytes, &result.qualifications)?;
+    encode_projected_qualifications(bytes, &result.projected_qualifications)?;
+    push_u32(
+        bytes,
+        u32::try_from(result.claims.len())
+            .map_err(|_| InstallationError::TooManyInternalUnitCallClaims)?,
+    );
+    for claim in &result.claims {
+        push_u64(bytes, claim.claim.get());
+        encode_structural_path(bytes, &claim.path)?;
+    }
+    Ok(())
+}
+
+fn decode_structural_operation_result(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralOperationResult, InstallationError> {
+    let place = PlaceId::new(reader.u64()?).ok_or(InstallationError::InvalidBoundaryResult)?;
+    let structural_type =
+        StructuralTypeId::new(reader.u64()?).ok_or(InstallationError::InvalidBoundaryResult)?;
+    let multiplicity = decode_multiplicity(reader.u8()?)?;
+    if reader.take(3)? != [0; 3] {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    let qualifications = decode_domains(reader)?;
+    let projected_qualifications = decode_projected_qualifications(reader)?;
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyInternalUnitCallClaims)?;
+    if count > reader.remaining() / 12 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut claims = Vec::with_capacity(count);
+    for _ in 0..count {
+        claims.push(StructuralResultClaimBinding {
+            claim: ClaimId::new(reader.u64()?).ok_or(InstallationError::InvalidBoundaryResult)?,
+            path: decode_structural_path(reader)?,
+        });
+    }
+    Ok(StructuralOperationResult {
+        place,
+        structural_type,
+        multiplicity,
+        qualifications,
+        projected_qualifications,
+        claims,
+    })
+}
+
+fn encode_projected_qualifications(
+    bytes: &mut Vec<u8>,
+    rows: &[StructuralPathQualification],
+) -> Result<(), InstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(rows.len())
+            .map_err(|_| InstallationError::TooManyStructuralQualifications)?,
+    );
+    for row in rows {
+        encode_structural_path(bytes, &row.path)?;
+        push_u64(bytes, row.domain.get());
+    }
+    Ok(())
+}
+
+fn decode_projected_qualifications(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralPathQualification>, InstallationError> {
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyStructuralQualifications)?;
+    if count > reader.remaining() / 12 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut rows = Vec::with_capacity(count);
+    for _ in 0..count {
+        rows.push(StructuralPathQualification {
+            path: decode_structural_path(reader)?,
+            domain: StructuralDomainId::new(reader.u64()?)
+                .ok_or(InstallationError::InvalidBoundaryResult)?,
+        });
+    }
+    Ok(rows)
+}
+
+fn encode_structural_path(
+    bytes: &mut Vec<u8>,
+    path: &[StructuralPathSegment],
+) -> Result<(), InstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(path.len())
+            .map_err(|_| InstallationError::TooManySettlementArgumentPathSegments)?,
+    );
+    for segment in path {
+        match segment {
+            StructuralPathSegment::Field(identity) => {
+                if identity.is_empty() {
+                    return Err(InstallationError::InvalidBoundaryResult);
+                }
+                bytes.extend_from_slice(&[1, 0, 0, 0]);
+                push_u32(
+                    bytes,
+                    u32::try_from(identity.len())
+                        .map_err(|_| InstallationError::SettlementArgumentFieldTooLong)?,
+                );
+                bytes.extend_from_slice(identity.as_bytes());
+            }
+            StructuralPathSegment::FixedIndex(index) => {
+                bytes.extend_from_slice(&[2, 0, 0, 0]);
+                push_u64(bytes, *index);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn decode_structural_path(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralPathSegment>, InstallationError> {
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManySettlementArgumentPathSegments)?;
+    if count > reader.remaining() / 8 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut path = Vec::with_capacity(count);
+    for _ in 0..count {
+        let tag = reader.u8()?;
+        if reader.take(3)? != [0; 3] {
+            return Err(InstallationError::NonzeroReservedField);
+        }
+        path.push(match tag {
+            1 => {
+                let len = usize::try_from(reader.u32()?)
+                    .map_err(|_| InstallationError::SettlementArgumentFieldTooLong)?;
+                let identity = std::str::from_utf8(reader.take(len)?)
+                    .map_err(|_| InstallationError::InvalidBoundaryResult)?
+                    .to_owned();
+                if identity.is_empty() {
+                    return Err(InstallationError::InvalidBoundaryResult);
+                }
+                StructuralPathSegment::Field(identity)
+            }
+            2 => StructuralPathSegment::FixedIndex(reader.u64()?),
+            _ => return Err(InstallationError::InvalidBoundaryResult),
+        });
+    }
+    Ok(path)
+}
+
+fn encode_sum_layout(
+    bytes: &mut Vec<u8>,
+    layout: &ConventionalSumLayout,
+) -> Result<(), InstallationError> {
+    encode_shape(bytes, layout.shape)?;
+    push_u16(bytes, layout.tag_byte_offset);
+    push_u16(bytes, layout.payload_byte_offset);
+    encode_shape(bytes, layout.tag_shape)?;
+    encode_packed_fields(bytes, &layout.common_fields)?;
+    push_u32(
+        bytes,
+        u32::try_from(layout.cases.len()).map_err(|_| InstallationError::TooManyStructuralCases)?,
+    );
+    for case in &layout.cases {
+        encode_packed_fields(bytes, &case.fields)?;
+    }
+    Ok(())
+}
+
+fn decode_sum_layout(reader: &mut Reader<'_>) -> Result<ConventionalSumLayout, InstallationError> {
+    let shape = decode_shape(reader)?;
+    let tag_byte_offset = reader.u16()?;
+    let payload_byte_offset = reader.u16()?;
+    let tag_shape = decode_shape(reader)?;
+    let common_fields = decode_packed_fields(reader)?;
+    let count =
+        usize::try_from(reader.u32()?).map_err(|_| InstallationError::TooManyStructuralCases)?;
+    if count > reader.remaining() / 4 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut cases = Vec::with_capacity(count);
+    for _ in 0..count {
+        cases.push(ConventionalSumCaseLayout {
+            fields: decode_packed_fields(reader)?,
+        });
+    }
+    Ok(ConventionalSumLayout {
+        shape,
+        tag_byte_offset,
+        tag_shape,
+        common_fields,
+        payload_byte_offset,
+        cases,
+    })
+}
+
+fn encode_packed_fields(
+    bytes: &mut Vec<u8>,
+    fields: &[PackedFieldLayout],
+) -> Result<(), InstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(fields.len()).map_err(|_| InstallationError::TooManyStructuralFields)?,
+    );
+    for field in fields {
+        push_u16(bytes, field.byte_offset);
+        push_u16(bytes, 0);
+        encode_shape(bytes, field.shape)?;
+    }
+    Ok(())
+}
+
+fn decode_packed_fields(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<PackedFieldLayout>, InstallationError> {
+    let count =
+        usize::try_from(reader.u32()?).map_err(|_| InstallationError::TooManyStructuralFields)?;
+    if count > reader.remaining() / 12 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut fields = Vec::with_capacity(count);
+    for _ in 0..count {
+        let byte_offset = reader.u16()?;
+        if reader.u16()? != 0 {
+            return Err(InstallationError::NonzeroReservedField);
+        }
+        fields.push(PackedFieldLayout {
+            byte_offset,
+            shape: decode_shape(reader)?,
+        });
+    }
+    Ok(fields)
+}
+
 fn encode_boundary_execution(bytes: &mut Vec<u8>, execution: BoundaryExecutionRecord) {
     match execution {
         BoundaryExecutionRecord::AdmittedProvider(execution) => {
@@ -482,6 +775,9 @@ fn encode_boundary_execution(bytes: &mut Vec<u8>, execution: BoundaryExecutionRe
         }
         BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxExitGroupI32) => {
             bytes.push(1);
+        }
+        BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxReadByte) => {
+            bytes.push(3);
         }
         BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32) => {
             bytes.push(2);
@@ -501,6 +797,9 @@ fn decode_boundary_execution(
         )),
         2 => Ok(BoundaryExecutionRecord::CompilerBuiltin(
             CompilerBuiltinExecution::LinuxWriteByteI32,
+        )),
+        3 => Ok(BoundaryExecutionRecord::CompilerBuiltin(
+            CompilerBuiltinExecution::LinuxReadByte,
         )),
         _ => Err(InstallationError::InvalidBoundaryExecutionTag),
     }
@@ -601,5 +900,47 @@ fn decode_boundary_runtime_source(
             decode_unit_scalar_home(reader)?,
         )),
         _ => Err(InstallationError::InvalidBoundaryScalarArgument),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn structural_boundary_result_round_trips_with_exact_sum_layout() {
+        let layout = omega_calling_conventions::evaluate_conventional_sum_layout(
+            &[],
+            &[
+                vec![],
+                vec![omega_calling_conventions::ValueShape::integer(4, 4)],
+            ],
+        )
+        .expect("ByteRead layout");
+        let result = BoundaryResultRecord::Structural(BoundaryStructuralResultRecord {
+            defining_operation: OperationId::new(7).unwrap(),
+            result: StructuralOperationResult {
+                place: PlaceId::new(8).unwrap(),
+                structural_type: StructuralTypeId::new(9).unwrap(),
+                multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            layout,
+            home_byte_offset: 16,
+        });
+        let mut bytes = Vec::new();
+        encode_boundary_result(&mut bytes, &result).expect("encode structural result");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_boundary_result(&mut reader).unwrap(), result);
+        assert_eq!(reader.remaining(), 0);
+
+        let mut noncanonical = bytes;
+        noncanonical[1] = 1;
+        assert_eq!(
+            decode_boundary_result(&mut Reader::new(&noncanonical)),
+            Err(InstallationError::NonzeroReservedField),
+        );
     }
 }

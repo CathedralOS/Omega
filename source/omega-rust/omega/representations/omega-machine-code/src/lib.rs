@@ -13,7 +13,7 @@ use omega_abstract_operations::{
     AbstractDynamicDescriptorArgument, AbstractReboundDynamicDispatch, AbstractResult,
     AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, RankedU32CountdownCustody,
 };
-use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
+use omega_calling_conventions::{CallPlan, ConventionalSumLayout, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_target_operations::MachineRegister;
 use omega_target_operations::{
@@ -27,9 +27,9 @@ use psi_core::{
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, ProviderCandidateConformance, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalPsiIdentity,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -662,12 +662,49 @@ pub struct SemanticCodeAttribution {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundaryResultRecord {
+pub struct BoundaryScalarResultRecord {
     pub value: ValueId,
     pub scalar_type: ScalarType,
     pub placement: ValuePlacement,
     /// Exact terminal edge that returns this boundary-produced value.
     pub return_edge: EdgeId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundaryStructuralResultRecord {
+    pub defining_operation: OperationId,
+    pub result: StructuralOperationResult,
+    pub layout: ConventionalSumLayout,
+    /// Offset within the complete allocated Unit frame.
+    pub home_byte_offset: u32,
+}
+
+/// Closed physical result role for one emitted boundary settlement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoundaryResultRecord {
+    Unit,
+    Scalar(BoundaryScalarResultRecord),
+    Structural(BoundaryStructuralResultRecord),
+}
+
+impl BoundaryResultRecord {
+    pub const fn is_unit(&self) -> bool {
+        matches!(self, Self::Unit)
+    }
+
+    pub const fn scalar(&self) -> Option<&BoundaryScalarResultRecord> {
+        match self {
+            Self::Scalar(result) => Some(result),
+            Self::Unit | Self::Structural(_) => None,
+        }
+    }
+
+    pub const fn structural(&self) -> Option<&BoundaryStructuralResultRecord> {
+        match self {
+            Self::Structural(result) => Some(result),
+            Self::Unit | Self::Scalar(_) => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -699,11 +736,9 @@ pub struct BoundarySettlementRecord {
     /// this settlement. This is custody evidence only: it does not authorize
     /// content introduction, prove backing, or derive residual geometry.
     pub completion_provider_custody: Vec<CompletionProviderCustodyBinding>,
-    /// Exact terminal value identity, scalar type, native placement, and
-    /// returning edge consumed by a result-bearing realization. Metadata-only
-    /// settlements retain `None` and cannot manufacture a result after
-    /// lowering.
-    pub native_result: Option<BoundaryResultRecord>,
+    /// Exact closed physical result role. Unit settlements cannot manufacture
+    /// a scalar or structural result after lowering.
+    pub native_result: BoundaryResultRecord,
     /// Position in the verified Unit operation sequence. This remains the
     /// canonical tie-break when multiple metadata rows share a code offset.
     pub operation_ordinal: usize,

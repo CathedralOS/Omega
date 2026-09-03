@@ -144,7 +144,7 @@ pub(super) fn allocate_unit_scalar_home(
     next_home: &mut u32,
     duplicate_error: AssignmentError,
 ) -> Result<AssignedUnitScalarHome, AssignmentError> {
-    *next_home = align_unit_scalar_offset(*next_home, 8)?;
+    *next_home = align_unit_frame_offset(*next_home, 8)?;
     let result_home = AssignedUnitScalarHome {
         defining_operation: result.defining_operation,
         source_value: result.source_value,
@@ -259,7 +259,7 @@ pub(super) fn unit_scalar_home_start(
             Architecture::X86_64 => 8,
             Architecture::Aarch64 => u32::from(parameter.shape.alignment.clamp(8, 16)),
         };
-        cursor = align_unit_scalar_offset(cursor, alignment)?;
+        cursor = align_unit_frame_offset(cursor, alignment)?;
         let indirect = matches!(
             parameter.placement.locations.as_slice(),
             [ValueLocation::Indirect { .. }]
@@ -284,7 +284,7 @@ pub(super) fn unit_scalar_home_start(
     Ok(cursor)
 }
 
-fn align_unit_scalar_offset(value: u32, alignment: u32) -> Result<u32, AssignmentError> {
+pub(super) fn align_unit_frame_offset(value: u32, alignment: u32) -> Result<u32, AssignmentError> {
     value
         .checked_add(alignment.saturating_sub(1))
         .map(|value| value / alignment * alignment)

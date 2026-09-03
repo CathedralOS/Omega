@@ -1386,6 +1386,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.semantic_code_attribution,
                 &function.unit_parameter_homes,
                 &function.internal_unit_calls,
+                &function.boundary_settlements,
                 &attachments,
                 &machine_functions,
                 cleanup,
@@ -1413,6 +1414,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.semantic_code_attribution,
                 &function.scalar_structural_parameter_homes,
                 &function.internal_unit_calls,
+                &function.boundary_settlements,
                 &attachments,
                 &machine_functions,
                 cleanup,
@@ -1447,6 +1449,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     &function.semantic_code_attribution,
                     &function.scalar_structural_parameter_homes,
                     &function.internal_unit_calls,
+                    &function.boundary_settlements,
                     &attachments,
                     &machine_functions,
                     &record.cleanup,
@@ -1692,14 +1695,14 @@ fn build_object_artifact_with_x86_feature_profile(
                     settlement.scalar_arguments.is_empty()
                         && settlement.runtime_scalar_arguments.is_empty()
                         && settlement.byte_sequence_arguments.is_empty()
-                        && settlement.native_result.is_none()
+                        && settlement.native_result.is_unit()
                         && settlement.byte_count == 0
                 }
                 BoundaryRealization::DirectPortReadU8(realization) => {
                     let expected =
                         omega_x86_encoding::encode_immediate_port_read_u8(realization.port);
                     let exact_return_edge =
-                        settlement.native_result.as_ref().is_some_and(|result| {
+                        settlement.native_result.scalar().is_some_and(|result| {
                             let Some(return_ordinal) = settlement.operation_ordinal.checked_add(1)
                             else {
                                 return false;
@@ -1818,7 +1821,7 @@ fn build_object_artifact_with_x86_feature_profile(
                         && settlement.runtime_scalar_arguments.is_empty()
                         && settlement.arguments.is_empty()
                         && settlement.byte_sequence_arguments.is_empty()
-                        && settlement.native_result.is_none()
+                        && settlement.native_result.is_unit()
                         && function.scalar_stack.is_none()
                         && exact_nominal_tail
                 }
@@ -1840,12 +1843,49 @@ fn build_object_artifact_with_x86_feature_profile(
                     ) && function.unit_stack.is_some()
                         && function.scalar_stack.is_none()
                 }
+                BoundaryRealization::LinuxReadByte(_) => {
+                    let expected = settlement.native_result.structural().and_then(|result| {
+                        let payload = result
+                            .home_byte_offset
+                            .checked_add(u32::from(result.layout.payload_byte_offset))?;
+                        match plan.target.architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_linux_read_byte_to_stack(
+                                    result.home_byte_offset,
+                                    payload,
+                                )
+                                .ok()
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_linux_read_byte_to_stack(
+                                    result.home_byte_offset,
+                                    payload,
+                                )
+                                .ok()
+                            }
+                        }
+                    });
+                    settlement.scalar_arguments.is_empty()
+                        && settlement.runtime_scalar_arguments.is_empty()
+                        && settlement.arguments.is_empty()
+                        && settlement.byte_sequence_arguments.is_empty()
+                        && expected.as_ref().is_some_and(|expected| {
+                            settlement.byte_count == expected.len()
+                                && settlement
+                                    .code_offset
+                                    .checked_add(settlement.byte_count)
+                                    .and_then(|end| function.bytes.get(settlement.code_offset..end))
+                                    == Some(expected.as_slice())
+                        })
+                        && function.unit_stack.is_some()
+                        && function.scalar_stack.is_none()
+                }
             };
             if !valid_realization
                 || !boundary_result_is_exact(
                     plan.target,
                     settlement.realization,
-                    settlement.native_result.as_ref(),
+                    &settlement.native_result,
                 )
             {
                 return Err(ObjectError::BoundaryRealizationMismatch {

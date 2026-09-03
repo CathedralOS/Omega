@@ -1780,6 +1780,10 @@ fn linux_console_compiler_intrinsic_review_identities_are_exact() {
         .position(|row| row.method == "read_byte")
         .expect("Console plan must retain read_byte");
     assert_eq!(
+        retained.row_compiler_intrinsic_executions[read_byte],
+        Some(CompilerIntrinsicExecutionIdentity::LinuxReadByte),
+    );
+    assert_eq!(
         derive(
             retained.provider.row_requirements[exit],
             retained.provider.row_realizations[exit],
@@ -1811,7 +1815,7 @@ fn linux_console_compiler_intrinsic_review_identities_are_exact() {
             "requirement, realization, and selected target are independent catalog authority",
         );
     }
-    for method in ["read_line", "read_byte"] {
+    for method in ["read_line"] {
         let index = plan
             .rows
             .iter()
@@ -2380,6 +2384,30 @@ fn runtime_console_byte_literal_linux_catalog_replays_both_targets() {
         .unwrap_or_else(|error| {
             panic!("Linux write-byte catalog must compile for {target}: {error:?}")
         });
+    }
+}
+
+#[test]
+fn runtime_console_byte_read_return_catalog_replays_both_linux_targets() {
+    let canary = pass_canary("host/runtime_console_byte_read_return");
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let compilation =
+            compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
+                &canary, target,
+            )
+            .unwrap_or_else(|error| {
+                panic!("Linux read-byte catalog must compile for {target}: {error:?}")
+            });
+        let artifact = compilation
+            .retained_native_artifact()
+            .expect("read-byte compilation retains native artifact");
+        assert!(artifact.image().boundary_settlements().iter().any(|row| {
+            row.settlement.execution
+                == omega_terminal_psi_to_native_artifact::BoundaryExecutionRecord::CompilerBuiltin(
+                    omega_target_operations::CompilerBuiltinExecution::LinuxReadByte,
+                )
+                && row.settlement.native_result.structural().is_some()
+        }));
     }
 }
 

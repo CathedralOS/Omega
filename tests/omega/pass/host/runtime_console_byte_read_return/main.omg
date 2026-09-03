@@ -1,0 +1,11 @@
+use omega_language_std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self)
+reaches Console
+{
+    let observed: ByteRead = self.console.read_byte();
+}

@@ -17,6 +17,8 @@ omega-function-identity = { path = "../../../representations/omega-function-iden
 omega-target = { path = "../../../representations/omega-target" }
 omega-image = { path = "../../images/omega-image" }
 omega-image-emission = { path = "../../images/omega-image-emission" }
+omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarch64" }
+omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
 omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
 omega-machine-code = { path = "../../../representations/omega-machine-code" }
 omega-object-file = { path = "../../object/omega-object-file" }

@@ -20,9 +20,9 @@ use omega_machine_code::{
     ScalarStackMutationKind, StackAdjustmentPair, UnitCallStackEvidence, UnitStackEvidence,
 };
 use omega_machine_code::{
-    BoundaryResultRecord, BoundarySettlementRecord, MachineCodeFunction, MachineCodePlan,
-    ScalarControlFlowEvidence, SemanticCodeAttribution, SemanticCodeSite, StructuralReturnRecord,
-    derive_completion_provider_custody,
+    BoundaryResultRecord, BoundaryScalarResultRecord, BoundarySettlementRecord,
+    MachineCodeFunction, MachineCodePlan, ScalarControlFlowEvidence, SemanticCodeAttribution,
+    SemanticCodeSite, StructuralReturnRecord, derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 #[cfg(test)]
@@ -590,7 +590,7 @@ fn emit_function(
                 completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
                 completion_provider_custody,
-                native_result: Some(BoundaryResultRecord {
+                native_result: BoundaryResultRecord::Scalar(BoundaryScalarResultRecord {
                     value: *source_value,
                     scalar_type: psi_core::ScalarType::Integer(
                         psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8)
@@ -705,7 +705,7 @@ fn emit_function(
                 completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
                 completion_provider_custody,
-                native_result: None,
+                native_result: BoundaryResultRecord::Unit,
                 operation_ordinal: 1,
                 code_offset: 0,
                 byte_count: bytes.len(),
@@ -1458,6 +1458,8 @@ pub enum EmissionError {
     LinuxExitGroupUnsupported(NativeTarget),
     LinuxExitGroupArgumentMismatch(psi_core::BoundaryMachineId),
     LinuxExitGroupEncoding,
+    InvalidLinuxReadByteCustody(psi_core::BoundaryMachineId),
+    LinuxReadByteEncoding,
     LinuxWriteLineEncoding,
     InvalidLinuxWriteLineCustody,
     InvalidClaimCompletionOnlyCustody,

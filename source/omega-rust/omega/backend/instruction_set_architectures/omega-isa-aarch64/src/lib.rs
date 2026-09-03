@@ -88,6 +88,44 @@ pub fn encode_linux_write_byte_i32_from_w9() -> Result<Vec<u8>, Diagnostic> {
     Ok(bytes)
 }
 
+/// Import-free Linux `read(0, &byte, 1)` realization into one canonical
+/// `ByteRead = Eof | Byte(i32)` stack home.
+pub fn encode_linux_read_byte_to_stack(
+    home_byte_offset: u32,
+    payload_byte_offset: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !home_byte_offset.is_multiple_of(4)
+        || !payload_byte_offset.is_multiple_of(4)
+        || home_byte_offset / 4 > 0xfff
+        || payload_byte_offset / 4 > 0xfff
+        || payload_byte_offset > 0xfff
+    {
+        return Err(Diagnostic::error(
+            "Linux AArch64 read-byte home is not directly addressable",
+        ));
+    }
+
+    let mut words = Vec::with_capacity(14);
+    let str_w = |register: u8, offset: u32| {
+        0xb900_0000 | ((offset / 4) << 10) | (31 << 5) | u32::from(register)
+    };
+    words.push(str_w(31, home_byte_offset)); // canonical Eof tag
+    words.push(str_w(31, payload_byte_offset)); // zero unused payload bytes
+    words.push(0x9100_03e1 | (payload_byte_offset << 10)); // add x1, sp, #payload
+    words.push(u32::from_le_bytes(encode_movz(0, 0)));
+    words.push(u32::from_le_bytes(encode_movz(2, 1)));
+    words.push(u32::from_le_bytes(encode_movz(8, 63))); // SYS_read
+    words.push(u32::from_le_bytes(encode_svc(0)));
+    words.push(0xb400_0000 | (7 << 5)); // cbz x0, done
+    words.push(u32::from_le_bytes(encode_compare_x_immediate(0, 1)?));
+    words.push(0x5400_0001 | (4 << 5)); // b.ne trap
+    words.push(0x5280_0029); // mov w9, #1
+    words.push(str_w(9, home_byte_offset));
+    words.push(0x1400_0002); // b done
+    words.push(u32::from_le_bytes(encode_brk(0)));
+    Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
+}
+
 /// Import-free Linux `write_line` over one immutable literal.
 pub fn encode_linux_write_line_literal(
     literal: &[u8],
@@ -304,5 +342,10 @@ mod tests {
         assert_eq!(&byte_write[36..40], &0x9100_43ff_u32.to_le_bytes());
         assert_eq!(&byte_write[40..44], &0x1400_0002_u32.to_le_bytes());
         assert_eq!(&byte_write[44..], &0xd420_0000_u32.to_le_bytes());
+
+        let byte_read = encode_linux_read_byte_to_stack(16, 20).unwrap();
+        assert_eq!(byte_read.len(), 14 * 4);
+        assert_eq!(&byte_read[byte_read.len() - 4..], &encode_brk(0));
+        assert!(encode_linux_read_byte_to_stack(2, 6).is_err());
     }
 }

@@ -167,6 +167,36 @@ fn retains_owned_structural_result_for_static_bodyless_boundary() {
 }
 
 #[test]
+fn retains_owned_structural_result_for_attached_bodyless_boundary() {
+    let checked = checked(
+        r#"
+        data ByteRead {
+            case Eof;
+            case Byte(value: i32 [0..=255]);
+        }
+
+        boundary trait Console {
+            machine read_byte() -> ByteRead reaches Console;
+        }
+
+        data Main { console: Console; }
+        machine Main::main(&mut self) reaches Console {
+            let result: ByteRead = self.console.read_byte();
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let root = plans
+        .for_machine(machine_named(&checked, "main"))
+        .expect("attached structural boundary-result caller plan");
+    assert!(matches!(
+        root.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. },
+         CheckedUnitEffectOperationPlan::ReturnUnit { .. }]
+    ));
+}
+
+#[test]
 fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirements() {
     let checked = checked(
         r#"

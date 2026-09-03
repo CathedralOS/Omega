@@ -5,8 +5,8 @@
 //! It does not choose cleanup actions, infer layouts, or emit instructions.
 
 use omega_machine_code::{
-    InternalUnitCallRecord, MachineCodeFunction, SemanticCodeAttribution, SemanticCodeSite,
-    UnitAffineCleanupRecord, UnitParameterHomeRecord,
+    BoundaryResultRecord, BoundarySettlementRecord, InternalUnitCallRecord, MachineCodeFunction,
+    SemanticCodeAttribution, SemanticCodeSite, UnitAffineCleanupRecord, UnitParameterHomeRecord,
 };
 use omega_target_operations::{CallSiteOwner, TerminalPsiProvenance};
 use psi_core::{MachineId, StructuralTypeId};
@@ -96,6 +96,7 @@ pub(super) fn validate_unit_affine_cleanup(
     attribution: &[SemanticCodeAttribution],
     parameter_homes: &[UnitParameterHomeRecord],
     internal_unit_calls: &[InternalUnitCallRecord],
+    boundary_settlements: &[BoundarySettlementRecord],
     attachments: &std::collections::BTreeMap<MachineId, Option<StructuralTypeId>>,
     functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
     cleanup: &UnitAffineCleanupRecord,
@@ -139,9 +140,8 @@ pub(super) fn validate_unit_affine_cleanup(
         })
         .map(|home| home.place)
         .collect::<Vec<_>>();
-    let structural_result_prefix = internal_unit_calls
+    let mut structural_results = internal_unit_calls
         .iter()
-        .rev()
         .filter_map(|call| match call.structural_result.as_ref() {
             Some(result)
                 if result.operation_result.multiplicity
@@ -150,10 +150,23 @@ pub(super) fn validate_unit_affine_cleanup(
                     && result.returned_claim_transfers.is_empty()
                     && result.returned_claims.is_empty() =>
             {
-                Some(result.operation_result.place)
+                Some((call.operation_ordinal, result.operation_result.place))
             }
             _ => None,
         })
+        .chain(boundary_settlements.iter().filter_map(|settlement| {
+            let BoundaryResultRecord::Structural(result) = &settlement.native_result else {
+                return None;
+            };
+            (result.result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                && result.result.claims.is_empty())
+            .then_some((settlement.operation_ordinal, result.result.place))
+        }))
+        .collect::<Vec<_>>();
+    structural_results.sort_by_key(|(operation_ordinal, _)| std::cmp::Reverse(*operation_ordinal));
+    let structural_result_prefix = structural_results
+        .into_iter()
+        .map(|(_, place)| place)
         .collect::<Vec<_>>();
     let local_operations = cleanup
         .locals

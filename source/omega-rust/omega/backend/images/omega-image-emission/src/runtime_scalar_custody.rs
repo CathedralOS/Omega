@@ -85,7 +85,7 @@ pub(crate) fn linux_write_byte_custody_is_exact(
         && settlement.scalar_arguments.is_empty()
         && settlement.arguments.is_empty()
         && settlement.byte_sequence_arguments.is_empty()
-        && settlement.native_result.is_none()
+        && settlement.native_result.is_unit()
         && argument.parameter_index == 0
         && argument.placement.shape == ValueShape::integer(4, 4)
         && argument.placement.locations.as_slice()
@@ -181,7 +181,7 @@ mod tests {
                 completion_claim_sources: Vec::new(),
                 completion_receipts: Vec::new(),
                 completion_provider_custody: Vec::new(),
-                native_result: None,
+                native_result: omega_machine_code::BoundaryResultRecord::Unit,
                 operation_ordinal: 1,
                 code_offset: 0,
                 byte_count: bytes.len(),
