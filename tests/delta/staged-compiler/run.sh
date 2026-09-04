@@ -54,7 +54,7 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 1457, 56262, "2e27e24df277ce4e436a18356d81dcaf351b764e4fcd4e12f622ae8984944819"),
+    ("compiler", compiler, 1653, 64682, "b26fbd774d46535038f815e08c603c728c1fa47cdcd2796d36bf2927ac83fe44"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -182,6 +182,16 @@ homonym_status, homonym_receipt = evaluate(compiler, local_function_homonym)
 if homonym_status != 0 or evaluate(homonym_receipt) != (0, b"\x07"):
     raise SystemExit("local and function grammar namespaces were merged")
 
+nominal_types = (
+    b"(data Box (Box Int))\n"
+    b"(def get ((value Box)) Int "
+    b"(match value ((Box payload) (+ payload 1))))\n"
+    b"(def main () Int (get (Box 6)))\n"
+)
+nominal_status, nominal_receipt = evaluate(compiler, nominal_types)
+if nominal_status != 0 or evaluate(nominal_receipt) != (0, b"\x07"):
+    raise SystemExit("nominal constructor, pattern, call, or result types failed")
+
 malformed = {
     "unknown field type": b"(data Bad (Bad Missing))\n(def main () Int 0)\n",
     "missing payload argument": b"(data Option (None) (Some Int))\n(def main () Int (Some))\n",
@@ -213,6 +223,17 @@ malformed = {
     "duplicate pattern local": b"(data Pair (Pair Int Int))\n(def main () Int (match (Pair 1 2) ((Pair x x) x)))\n",
     "pattern duplicates outer local": b"(data Box (Box Int))\n(def f ((x Int)) Int (match (Box 1) ((Box x) x)))\n(def main () Int (f 7))\n",
     "escaped pattern local": b"(data Box (Box Int))\n(def main () Int (+ (match (Box 1) ((Box x) x)) x))\n",
+    "function argument type": b"(data Box (Box Int))\n(def f ((x Int)) Int x)\n(def main () Int (f (Box 1)))\n",
+    "constructor argument type": b"(data Box (Box Int))\n(def main () Box (Box (Box 1)))\n",
+    "let initializer type": b"(data Box (Box Int))\n(def main () Int (let x Int (Box 1) x))\n",
+    "declared result type": b"(data Box (Box Int))\n(def main () Int (Box 1))\n",
+    "if condition type": b"(data Box (Box Int))\n(def main () Int (if (Box 1) 1 2))\n",
+    "if branch agreement": b"(data Box (Box Int))\n(def main () Int (if 1 1 (Box 2)))\n",
+    "operator operand type": b"(data Box (Box Int))\n(def main () Int (+ (Box 1) 2))\n",
+    "match scrutinee type": b"(data Box (Box Int))\n(def main () Int (match 1 ((Box x) x)))\n",
+    "match constructor owner": b"(data A (A))\n(data B (B))\n(def main () Int (match A (B 1)))\n",
+    "match arm type agreement": b"(data Choice (Left) (Right))\n(data Box (Box Int))\n(def main () Int (match Left (Left 1) (Right (Box 2))))\n",
+    "unlowered Bytes builtin": b"(def main () Int (bytes_length (bytes_empty)))\n",
     "invalid result type": b"(def main () Missing 0)\n",
     "invalid let binder": b"(def main () Int (let Bad Int 0 0))\n",
     "invalid let type": b"(def main () Int (let x Missing 0 x))\n",
@@ -250,4 +271,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: source envelope, lexical atoms, globals, local scopes, and recursive ADTs pass"
+echo "Staged Delta compiler: source envelope, globals, scalar/nominal types, and recursive ADTs pass"

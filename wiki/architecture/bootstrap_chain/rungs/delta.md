@@ -11,13 +11,15 @@ The normative contract is
 [`source/delta/LANGUAGE.md`](../../../../source/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 1,457-line
+execute the resulting canonical Gamma receipt. The selected 1,653-line
 in-progress source enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
-resolution/arity. Its immutable exact-name environments reject unknown locals
-and duplicate active parameter, `let`, or pattern binders while preserving
-reuse across disjoint scopes. Generated Gamma names live outside Delta's
-identifier alphabet, so lowering cannot capture authored locals. It lowers
+signatures. Its immutable exact-name environments reject unknown locals and
+duplicate active parameter, `let`, or pattern binders while preserving reuse
+across disjoint scopes. The same pass checks the scalar/nominal expression,
+constructor, pattern, call, arm, and result type relation. Generated Gamma
+names live outside Delta's identifier alphabet, so lowering cannot capture
+authored locals. It lowers
 arbitrary-field recursive algebraic data and
 declaration-order exhaustive `match`, while a whole-program pass enforces
 global declaration order, nonempty data, unique namespaces, and exactly one

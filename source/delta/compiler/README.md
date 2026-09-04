@@ -44,29 +44,34 @@ redeclared. Decimal literals are scanned without overflow and admit exactly
 `INT64_MIN..INT64_MAX`. The global census also rejects repeated parameter names
 within a function before expression emission begins.
 
-A scope-validation pass builds each function's local environment from its
+A type-checking pass builds each function's local environment from its typed
 parameters, then extends the immutable exact-name trie for `let` bodies and
 individual match arms. It rejects unknown value atoms, self-reference from a
 `let` initializer, and any parameter, `let`, or pattern binder that duplicates
 an active local. Immutable roots give lexical pop without mutation: sibling
 expressions, branches, and disjoint match arms may reuse the same spelling.
-Function and local names remain grammar-distinguished namespaces.
+The pass checks every currently emitted scalar/nominal constructor field,
+pattern binder, call argument, `let` initializer, operator, conditional, match
+arm, and declared result. Function and local names remain
+grammar-distinguished namespaces.
 
-The global function trie carries declared arity as its terminal payload.
-Application heads resolve through that exact checked table, including forward
-and mutual calls, and every user call, operator, `if`, and closed Bytes builtin
-has an exact argument count. Undeclared Gamma effects such as `input`, `read`,
-and `pair` therefore cannot leak through as Delta calls; an ordinary Delta
-function may still deliberately use one of those spellings after declaring it.
-Every non-`main` function definition and call receives the injective `__d_`
-Gamma prefix, preventing such a declaration from being captured by Gamma's
-builtin dispatch. `main` alone retains the name required by the evaluator.
+The global function trie carries each exact declaration owner as its terminal
+payload. Application heads resolve through that checked table, including
+forward and mutual calls; arity, parameter types, and result type are recovered
+from the retained declaration. Every user call, operator, and `if` has an exact
+argument count. Undeclared Gamma effects such as `input`, `read`, and `pair`
+therefore cannot leak through as Delta calls; an ordinary Delta function may
+still deliberately use one of those spellings after declaring it. Every
+non-`main` function definition and call receives the injective `__d_` Gamma
+prefix, preventing such a declaration from being captured by Gamma's builtin
+dispatch. `main` alone retains the name required by the evaluator.
 
 This is a meaningful early stage, not the complete Delta compiler. It does not
-yet provide normative `Bytes`, checked arithmetic, complete type checking, production
-application profiles, or proper-tail guarantees beyond those available in
-Gamma. Scope resolution does not establish expression, argument, arm, or result
-types; staged acceptance is not language admission.
+yet provide normative `Bytes`, checked arithmetic, production application
+profiles, or proper-tail guarantees beyond those available in Gamma. Closed
+`bytes_*` forms reject until their representation and lowering exist; the stage
+never publishes an unexecutable Gamma call as a purported receipt. Static
+acceptance of the scalar/nominal slice is not full-language admission.
 
 The executable gate is
 [`../../../tests/delta/staged-compiler/`](../../../tests/delta/staged-compiler/).
@@ -76,7 +81,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-1,457-line / 56,262-byte Gamma source
+1,653-line / 64,682-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

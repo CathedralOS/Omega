@@ -398,6 +398,29 @@
             (find_constructor_arity_in_data
               (constructor_after constructor_end) name name_end)))))))
 
+(def find_constructor_declaration_end ((name Int) (name_end Int)) Int
+  (let owner Int (find_constructor_owner name name_end)
+    (if owner
+      (let form Int (- owner 1)
+        (let head Int (form_head form)
+          (let result Int
+            (find_constructor_declaration_end_in_data
+              (skip (token_end (skip (token_end head)))) name name_end)
+            (if result result (fail)))))
+      (fail))))
+
+(def find_constructor_declaration_end_in_data
+  ((index Int) (name Int) (name_end Int)) Int
+  (let item Int (skip index)
+    (if (eq (read item) 41)
+      0
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (if (same_span constructor constructor_end name name_end)
+            constructor_end
+            (find_constructor_declaration_end_in_data
+              (constructor_after constructor_end) name name_end)))))))
+
 (def find_constructor_tag ((name Int) (name_end Int)) Int
   (find_constructor_tag_forms 0 name name_end))
 
@@ -761,16 +784,47 @@
                 (let name Int (skip head_end)
                   (let name_end Int (token_end name)
                     (if (value_name_valid name name_end)
-                      (validate_global_program
-                        (skip_expression form) 1 (+ function_count 1)
-                        (+ main_count (token_main name name_end))
-                        type_rows constructor_rows
-                        (name_trie_insert
-                          function_rows name_end name
-                          (+ (function_arity_at name_end) 1)))
+                      (let checked_arity Int (function_arity_at name_end)
+                        (validate_global_program
+                          (skip_expression form) 1 (+ function_count 1)
+                          (+ main_count (token_main name name_end))
+                          type_rows constructor_rows
+                          (name_trie_insert
+                            function_rows name_end name (+ form 1))))
                       (fail))))
                 (fail)))))
         (fail)))))
+
+; Type -1 is Int. Positive types are exact nominal declaration owners. Zero is
+; reserved as an absent lookup or as the first-arm result sentinel.
+(def int_type () Int
+  -1)
+
+(def resolve_type ((start Int) (end Int)) Int
+  (if (token_int start end)
+    (int_type)
+    (if (upper_name_valid start end)
+      (let owner Int (find_type_owner start end)
+        (if owner owner (fail)))
+      (fail))))
+
+(def typed_after ((typed Int)) Int
+  (first typed))
+
+(def typed_value ((typed Int)) Int
+  (second typed))
+
+(def function_owner
+  ((name Int) (name_end Int) (globals Int)) Int
+  (name_trie_find (global_functions globals) name_end name))
+
+(def function_result_type ((owner Int)) Int
+  (let form Int (- owner 1)
+    (let head Int (form_head form)
+      (let name Int (skip (token_end head))
+        (let parameters Int (skip (token_end name))
+          (let result_type Int (skip (skip_expression parameters))
+            (resolve_type result_type (token_end result_type))))))))
 
 ; Local environments reuse the exact immutable name trie. Extending a scope
 ; returns a new root; sibling branches and match arms retain the outer root.
@@ -790,36 +844,30 @@
                         name name_end type_name type_end)
                       (collect_parameter_locals
                         (token_end close)
-                        (name_trie_insert locals name_end name 1)))
+                        (name_trie_insert
+                          locals name_end name
+                          (resolve_type type_name type_end))))
                     (fail)))))))
         (fail)))))
 
 (def collect_pattern_locals
-  ((index Int) (remaining Int) (locals Int)) Int
+  ((binder_index Int) (field_index Int) (remaining Int) (locals Int)) Int
   (if (eq remaining 0)
     locals
-    (let binder Int (skip index)
+    (let binder Int (skip binder_index)
       (let binder_end Int (token_end binder)
-        (let checked Int (require_value_name binder binder_end)
-          (collect_pattern_locals
-            binder_end (- remaining 1)
-            (name_trie_insert locals binder_end binder 1)))))))
+        (let field_type Int (skip field_index)
+          (let field_end Int (token_end field_type)
+            (let checked Int (require_value_name binder binder_end)
+              (collect_pattern_locals
+                binder_end field_end (- remaining 1)
+                (name_trie_insert
+                  locals binder_end binder
+                  (resolve_type field_type field_end))))))))))
 
-(def validate_scope_atom ((start Int) (locals Int)) Int
-  (let end Int (token_end start)
-    (let first Int (read start)
-      (if (is_upper first)
-        end
-        (if (is_digit first)
-          end
-          (if (eq first 45)
-            end
-            (if (value_name_valid start end)
-              (if (name_trie_find locals end start) end (fail))
-              (fail))))))))
-
-(def validate_scope_arguments
-  ((index Int) (remaining Int) (globals Int) (locals Int)) Int
+(def check_type_arguments
+  ((index Int) (remaining Int) (expected Int)
+   (globals Int) (locals Int)) Int
   (let next Int (skip index)
     (if (eq remaining 0)
       (if (eq (read next) 41)
@@ -827,11 +875,96 @@
         (fail))
       (if (eq (read next) 41)
         (fail)
-        (validate_scope_arguments
-          (validate_scope_expression next globals locals)
-          (- remaining 1) globals locals)))))
+        (let typed Int (check_type_expression next globals locals)
+          (if (eq (typed_value typed) expected)
+            (check_type_arguments
+              (typed_after typed) (- remaining 1) expected globals locals)
+            (fail)))))))
 
-(def validate_scope_let
+(def check_constructor_arguments
+  ((index Int) (field_index Int) (remaining Int)
+   (globals Int) (locals Int)) Int
+  (let next Int (skip index)
+    (if (eq remaining 0)
+      (if (eq (read next) 41)
+        (token_end next)
+        (fail))
+      (if (eq (read next) 41)
+        (fail)
+        (let field_type Int (skip field_index)
+          (let field_end Int (token_end field_type)
+            (let typed Int (check_type_expression next globals locals)
+              (if (eq (typed_value typed)
+                      (resolve_type field_type field_end))
+                (check_constructor_arguments
+                  (typed_after typed) field_end (- remaining 1)
+                  globals locals)
+                (fail)))))))))
+
+(def check_function_arguments
+  ((index Int) (parameter_index Int) (globals Int) (locals Int)) Int
+  (let next Int (skip index)
+    (let parameter Int (skip parameter_index)
+      (if (eq (read parameter) 41)
+        (if (eq (read next) 41)
+          (token_end next)
+          (fail))
+        (if (eq (read next) 41)
+          (fail)
+          (let name Int (skip (token_end parameter))
+            (let name_end Int (token_end name)
+              (let type_name Int (skip name_end)
+                (let type_end Int (token_end type_name)
+                  (let close Int (skip type_end)
+                    (if (eq (read close) 41)
+                      (let typed Int
+                        (check_type_expression next globals locals)
+                        (if (eq (typed_value typed)
+                                (resolve_type type_name type_end))
+                          (check_function_arguments
+                            (typed_after typed) (token_end close)
+                            globals locals)
+                          (fail)))
+                      (fail))))))))))))
+
+(def check_type_atom ((start Int) (locals Int)) Int
+  (let end Int (token_end start)
+    (let first Int (read start)
+      (if (is_upper first)
+        (let owner Int (find_constructor_owner start end)
+          (if (eq (find_constructor_arity start end) 0)
+            (pair end owner)
+            (fail)))
+        (if (is_digit first)
+          (if (integer_literal_valid start end)
+            (pair end (int_type))
+            (fail))
+          (if (eq first 45)
+            (if (integer_literal_valid start end)
+              (pair end (int_type))
+              (fail))
+            (if (value_name_valid start end)
+              (let local_type Int (name_trie_find locals end start)
+                (if local_type (pair end local_type) (fail)))
+              (fail))))))))
+
+(def check_type_if
+  ((index Int) (globals Int) (locals Int)) Int
+  (let condition Int (check_type_expression index globals locals)
+    (if (eq (typed_value condition) (int_type))
+      (let when_true Int
+        (check_type_expression (skip (typed_after condition)) globals locals)
+        (let when_false Int
+          (check_type_expression (skip (typed_after when_true)) globals locals)
+          (if (eq (typed_value when_true) (typed_value when_false))
+            (let close Int (skip (typed_after when_false))
+              (if (eq (read close) 41)
+                (pair (token_end close) (typed_value when_true))
+                (fail)))
+            (fail))))
+      (fail))))
+
+(def check_type_let
   ((index Int) (globals Int) (locals Int)) Int
   (let name Int (skip index)
     (let name_end Int (token_end name)
@@ -839,81 +972,135 @@
         (let type_end Int (token_end type_name)
           (let checked Int
             (validate_local_declaration name name_end type_name type_end)
-            (let body_locals Int
-              (name_trie_insert locals name_end name 1)
-              (let after_initializer Int
-                (validate_scope_expression
-                  (skip type_end) globals locals)
-                (let after_body Int
-                  (validate_scope_expression
-                    (skip after_initializer) globals body_locals)
-                  (let close Int (skip after_body)
-                    (if (eq (read close) 41)
-                      (token_end close)
-                      (fail))))))))))))
+            (let declared_type Int (resolve_type type_name type_end)
+              (let body_locals Int
+                (name_trie_insert locals name_end name declared_type)
+                (let initializer Int
+                  (check_type_expression (skip type_end) globals locals)
+                  (if (eq (typed_value initializer) declared_type)
+                    (let body Int
+                      (check_type_expression
+                        (skip (typed_after initializer)) globals body_locals)
+                      (let close Int (skip (typed_after body))
+                        (if (eq (read close) 41)
+                          (pair (token_end close) (typed_value body))
+                          (fail))))
+                    (fail)))))))))))
 
-(def validate_scope_arms
-  ((index Int) (globals Int) (locals Int)) Int
+(def check_type_arms
+  ((index Int) (owner Int) (globals Int) (locals Int) (arm_type Int)) Int
   (let arm Int (skip index)
     (if (eq (read arm) 40)
       (let pattern Int (skip (token_end arm))
         (let constructor Int (pattern_constructor pattern)
           (let constructor_end Int (token_end constructor)
-            (let arity Int
-              (find_constructor_arity constructor constructor_end)
-              (if (pattern_shape_valid pattern constructor_end arity)
-                (let arm_locals Int
-                  (if (eq arity 0)
-                    locals
-                    (collect_pattern_locals
-                      (skip constructor_end) arity locals))
-                  (let body Int
-                    (pattern_body pattern constructor_end arity)
-                    (let after_body Int
-                      (validate_scope_expression body globals arm_locals)
-                      (let arm_close Int (skip after_body)
-                        (if (eq (read arm_close) 41)
-                          (let next Int (skip (token_end arm_close))
-                            (if (eq (read next) 41)
-                              (token_end next)
-                              (validate_scope_arms next globals locals)))
-                          (fail))))))
-                (fail))))))
+            (let actual_owner Int
+              (find_constructor_owner constructor constructor_end)
+              (let arity Int
+                (find_constructor_arity constructor constructor_end)
+                (if (eq actual_owner owner)
+                  (if (pattern_shape_valid pattern constructor_end arity)
+                    (let arm_locals Int
+                      (if (eq arity 0)
+                        locals
+                        (collect_pattern_locals
+                          (skip constructor_end)
+                          (find_constructor_declaration_end
+                            constructor constructor_end)
+                          arity locals))
+                      (let body Int
+                        (check_type_expression
+                          (pattern_body pattern constructor_end arity)
+                          globals arm_locals)
+                        (let result_type Int
+                          (if (eq arm_type 0)
+                            (typed_value body)
+                            (if (eq arm_type (typed_value body))
+                              arm_type
+                              (fail)))
+                          (let arm_close Int (skip (typed_after body))
+                            (if (eq (read arm_close) 41)
+                              (let next Int (skip (token_end arm_close))
+                                (if (eq (read next) 41)
+                                  (pair (token_end next) result_type)
+                                  (check_type_arms
+                                    next owner globals locals result_type)))
+                              (fail))))))
+                    (fail))
+                  (fail)))))))
       (fail))))
 
-(def validate_scope_match
+(def check_type_match
   ((scrutinee Int) (globals Int) (locals Int)) Int
-  (let after_scrutinee Int
-    (validate_scope_expression scrutinee globals locals)
-    (validate_scope_arms after_scrutinee globals locals)))
+  (let typed Int (check_type_expression scrutinee globals locals)
+    (if (lt 0 (typed_value typed))
+      (check_type_arms
+        (typed_after typed) (typed_value typed) globals locals 0)
+      (fail))))
 
-(def validate_scope_list
+(def check_type_call
+  ((head Int) (head_end Int) (args Int) (globals Int) (locals Int)) Int
+  (let owner Int (function_owner head head_end globals)
+    (if owner
+      (let form Int (- owner 1)
+        (let definition_head Int (form_head form)
+          (let name Int (skip (token_end definition_head))
+            (let parameters Int (skip (token_end name))
+              (let after Int
+                (check_function_arguments
+                  args (token_end parameters) globals locals)
+                (pair after (function_result_type owner)))))))
+      (fail))))
+
+(def check_type_list
   ((open Int) (globals Int) (locals Int)) Int
   (let head Int (skip (token_end open))
     (let head_end Int (token_end head)
       (if (token_match head head_end)
-        (validate_scope_match (skip head_end) globals locals)
+        (check_type_match (skip head_end) globals locals)
         (if (token_let head head_end)
-          (validate_scope_let (skip head_end) globals locals)
-          (if (is_upper (read head))
-            (validate_scope_arguments
-              (skip head_end)
-              (find_constructor_arity head head_end)
-              globals locals)
-            (let arity Int (generic_head_arity head head_end globals)
-              (if arity
-                (validate_scope_arguments
-                  (skip head_end) (- arity 1) globals locals)
-                (fail)))))))))
+          (check_type_let (skip head_end) globals locals)
+          (if (token_if head head_end)
+            (check_type_if (skip head_end) globals locals)
+            (if (is_upper (read head))
+              (let owner Int (find_constructor_owner head head_end)
+                (let arity Int (find_constructor_arity head head_end)
+                  (let after Int
+                    (check_constructor_arguments
+                      (skip head_end)
+                      (find_constructor_declaration_end head head_end)
+                      arity globals locals)
+                    (pair after owner))))
+              (if (token_bytes_builtin head head_end)
+                (fail)
+                (if (token_eq head head_end)
+                  (let after Int
+                    (check_type_arguments
+                      (skip head_end) 2 (int_type) globals locals)
+                    (pair after (int_type)))
+                  (if (token_lt head head_end)
+                    (let after Int
+                      (check_type_arguments
+                        (skip head_end) 2 (int_type) globals locals)
+                      (pair after (int_type)))
+                    (if (operator_arity_plus_one head head_end)
+                      (let after Int
+                        (check_type_arguments
+                          (skip head_end) 2 (int_type) globals locals)
+                        (pair after (int_type)))
+                      (if (value_name_valid head head_end)
+                        (check_type_call
+                          head head_end (skip head_end) globals locals)
+                        (fail)))))))))))))
 
-(def validate_scope_expression
+(def check_type_expression
   ((index Int) (globals Int) (locals Int)) Int
   (let start Int (skip index)
     (if (eq (read start) 40)
-      (validate_scope_list start globals locals)
-      (validate_scope_atom start locals))))
+      (check_type_list start globals locals)
+      (check_type_atom start locals))))
 
-(def validate_definition_scope ((form Int) (globals Int)) Int
+(def check_definition_type ((form Int) (globals Int)) Int
   (let head Int (form_head form)
     (let name Int (skip (token_end head))
       (let name_end Int (token_end name)
@@ -924,28 +1111,30 @@
                 (token_end parameters) (empty_name_trie))
               (let result_type Int (skip (first collected))
                 (let result_end Int (token_end result_type)
-                  (if (field_type_valid result_type result_end)
-                    (let after_body Int
-                      (validate_scope_expression
+                  (let declared_type Int
+                    (resolve_type result_type result_end)
+                    (let body Int
+                      (check_type_expression
                         (skip result_end) globals (second collected))
-                      (let close Int (skip after_body)
-                        (if (eq (read close) 41)
-                          (token_end close)
-                          (fail))))
-                    (fail)))))
+                      (if (eq (typed_value body) declared_type)
+                        (let close Int (skip (typed_after body))
+                          (if (eq (read close) 41)
+                            (token_end close)
+                            (fail)))
+                        (fail)))))))
             (fail)))))))
 
-(def validate_program_scopes ((index Int) (globals Int)) Int
+(def check_program_types ((index Int) (globals Int)) Int
   (let form Int (skip index)
     (if (eq form (input))
       0
       (let head Int (form_head form)
         (let head_end Int (token_end head)
           (if (token_data head head_end)
-            (validate_program_scopes (skip_expression form) globals)
+            (check_program_types (skip_expression form) globals)
             (if (token_def head head_end)
-              (validate_program_scopes
-                (validate_definition_scope form globals) globals)
+              (check_program_types
+                (check_definition_type form globals) globals)
               (fail))))))))
 
 (def emit_program ((index Int) (globals Int)) Int
@@ -1150,7 +1339,14 @@
               (if operator_arity
                 operator_arity
                 (if (value_name_valid start end)
-                  (name_trie_find (global_functions globals) end start)
+                  (let owner Int
+                    (name_trie_find (global_functions globals) end start)
+                    (if owner
+                      (let form Int (- owner 1)
+                        (let head Int (form_head form)
+                          (let name Int (skip (token_end head))
+                            (+ (function_arity_at (token_end name)) 1))))
+                      0))
                   0)))))))))
 
 (def emit_generic_list
@@ -1453,5 +1649,5 @@
           (let checked Int
             (validate_global_program
               0 0 0 0 type_rows constructor_rows function_rows)
-            (let scopes Int (validate_program_scopes 0 checked)
+            (let types Int (check_program_types 0 checked)
               (emit_program 0 checked))))))))
