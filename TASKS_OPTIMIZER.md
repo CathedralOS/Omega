@@ -84,9 +84,10 @@ needed for independent replay through publication.
   fixed/precolored intervals, and rematerialization cost decisions while
   preserving exact register-unit aliases, liveness, and target custody.
 
-- **FRAME-LAYOUT.** Extend the replayed System V AMD64/AAPCS64 ordinary-call
-  frame geometry and packed target-owned save/restore encodings through
-  function-relative layout and emission, then add Microsoft shadow space,
+- **FRAME-LAYOUT.** Carry the landed replayed System V AMD64/AAPCS64 frame
+  geometry, packed save/restore encodings, and fail-closed single-block
+  fragment application through frame-aware whole-function exit and text
+  placement. Then add general CFG return placement, Microsoft shadow space,
   red-zone policy, probing, unwind information, stable-address loans, and
   dynamic-allocation constraints. Requirements artifacts remain
   non-authoritative until exact physical accesses replay.
