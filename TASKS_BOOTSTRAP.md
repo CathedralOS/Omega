@@ -46,7 +46,9 @@ Epsilon compiler.
   `source/delta/compiler/delta_compiler.gamma` against the full Delta contract,
   including nominal types, exhaustiveness, checked arithmetic, proper-tail
   lowering, sealed profiles, deterministic failure selection, and canonical
-  Gamma emission. Do not expand Gamma with Delta-specific primitives.
+  Gamma emission. Application-profile publication and boundary-failure closure
+  are **OWNER-BLOCKED on Q5**; all independent frontend and pure-lowering work
+  continues. Do not expand Gamma with Delta-specific primitives.
   Acceptance: conformance and malformed-source suites pass, the complete
   Epsilon compiler compiles, exact receipts compose to Alpha, and no host or
   retired compiler participates.

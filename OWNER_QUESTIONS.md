@@ -145,3 +145,38 @@ the explicit 36-requirement consumer-policy cohort, exact schema/requirement
 custody, or engineering work on syscall/import mechanism identities and target
 classification. Raw descriptors continue to establish operation classes only,
 never object confinement.
+
+## Q5 — Gamma composition cannot express Delta application outcomes
+
+The Gamma-written Delta compiler can now emit and execute pure constructed
+`Bytes`, but D19/D30 require its application profiles to publish exact buffered
+output and distinct terminal outcomes. The selected Gamma contract always
+appends `main`'s scalar return byte on success, so it cannot publish an empty
+`ConformanceBytesV1` result. Its evaluator alone selects statuses 0 through 4,
+collapses its private resource failures into status 3, and exposes no operation
+by which generated source can select DCOUT/ECOUT statuses 0 through 3 or the
+generated-program statuses 248 through 254. `GammaComposedV1` plumbing is
+explicitly forbidden to interpret statuses or recover nonzero output.
+
+Choose the explicit lower-edge boundary that represents these outcomes:
+
+- version the Beta-authored Gamma evaluator/composed profile with one generic,
+  reconstructible application-result convention that can publish empty output,
+  select declared terminal classes, and distinguish required resource classes,
+  without adding Delta-specific types or operations to Gamma source;
+- retain ordinary Gamma unchanged and add a separately named Beta-authored
+  Delta application driver that consumes one explicit encoded result from the
+  evaluated program, validates it, and owns exact buffering/status publication
+  as a selected manifest stage rather than host plumbing; or
+- revise the Gamma-to-Delta product so the checked Gamma transformation emits a
+  predecessor-owned executable construction consumed by the existing Beta/Alpha
+  edge, with the new product and refinement joint stated directly instead of
+  claiming an executable Gamma receipt can provide the boundary.
+
+Whichever route is selected must keep one binary-to-next-compiler chain, make
+the added trusted surface auditable, preserve exact empty/nonempty publication,
+and give every DCOUT/ECOUT or generated-program status one reconstructible
+owner. This blocks DCREQ application adapters, profile-specific publication,
+and deterministic boundary-failure closure in `DELTA-COMPILER`. It does not
+block Delta source checking, constructed `Bytes`, match conformance, canonical
+pure Gamma lowering, or the Gamma derivation checker.
