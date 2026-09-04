@@ -97,17 +97,17 @@ pub(crate) fn lower_realization_input(
         profile,
     )
     .map_err(|error| realization_error("native artifact lowering", error))?;
-    let optimization_continuation = if optimization_selections.is_empty() {
-        PostTerminalOptimizationContinuation::Identity
-    } else {
-        PostTerminalOptimizationContinuation::Selected(
-            omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-                semantic_bytes,
-                proof_bytes,
-                profile,
-            )
-            .map_err(|error| realization_error("verified optimizer artifact lowering", error))?,
+    let optimization_input =
+        omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            semantic_bytes,
+            proof_bytes,
+            profile,
         )
+        .map_err(|error| realization_error("verified optimizer artifact lowering", error))?;
+    let optimization_continuation = if optimization_selections.is_empty() {
+        PostTerminalOptimizationContinuation::Identity(optimization_input)
+    } else {
+        PostTerminalOptimizationContinuation::Selected(optimization_input)
     };
     NativeRealizationInput::new(native, optimization_continuation)
         .map_err(|error| realization_error("native abstract-stage join", error))
@@ -172,7 +172,7 @@ mod tests {
             .expect("prepare target-neutral input");
         assert!(matches!(
             prepared.input.optimization_continuation(),
-            PostTerminalOptimizationContinuation::Identity
+            PostTerminalOptimizationContinuation::Identity(_)
         ));
         assert!(prepared.matches(artifact.manifest().identity(), &profile, &empty));
         assert!(!prepared.matches(

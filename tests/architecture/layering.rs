@@ -2121,7 +2121,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && post_terminal_selection.contains("OptimizationExecutionPhase::CheckedTrees")
             && post_terminal_selection.contains("OptimizationExecutionPhase::Psi")
             && model.contains("enum PostTerminalOptimizationContinuation")
-            && model.contains("PostTerminalOptimizationContinuation::Identity")
+            && model.contains("PostTerminalOptimizationContinuation::Identity(_)")
             && model.contains("PostTerminalOptimizationContinuation::Selected")
             && !model.contains(
                 "optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>",
@@ -2167,6 +2167,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             })
             && optimization_stage.contains("enum NativeOptimizationStageResult")
             && optimization_stage.contains("optimize_verified_psi_input(")
+            && optimization_stage.contains("PostTerminalOptimizationContinuation::Identity(input)")
+            && optimization_stage.contains("empty selection changed the ordinary abstract-operation plan")
+            && optimization_stage.contains("empty selection changed the ranked native abstract-operation plan")
             && optimization_stage.contains(
                 "NativeArtifactOperationPlan::RankedU32Countdown(_),\n            PostTerminalOptimizationContinuation::Selected(_)"
             )
@@ -2200,12 +2203,16 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let explicit_optimization_continuation = input
         .find("let optimization_continuation = if optimization_selections.is_empty()")
         .expect("later optimization records explicit identity or selected continuation");
+    let verified_optimization_input = input
+        .find("let optimization_input =")
+        .expect("every continuation retains independently verified optimizer input");
     assert!(
-        native_stage < explicit_optimization_continuation
+        native_stage < verified_optimization_input
+            && verified_optimization_input < explicit_optimization_continuation
             && model.contains("pub(crate) struct NativeRealizationInput")
             && !model.contains("NativeRealizationInput::Unoptimized")
             && !model.contains("NativeRealizationInput::ExplicitOptimization"),
-        "optimization presence must not select the Terminal-to-abstract native authority entrance"
+        "optimization presence must not select the Terminal-to-abstract native authority entrance, and identity execution must retain verified stage input"
     );
     let (_, target_conveyor) = target_stage
         .split_once("match optimization_stage {")

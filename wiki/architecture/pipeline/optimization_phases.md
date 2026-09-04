@@ -184,7 +184,9 @@ selection presence is inspected. A closed `Identity | Selected` optimization
 continuation makes empty execution explicit instead of encoding it as a missing
 context. Both cases first enter one explicit post-Terminal optimization stage.
 That stage alone consumes the continuation and publishes ordinary identity,
-ranked identity, or validated optimized-ordinary custody. Target lowering
+ranked identity, or validated optimized-ordinary custody. Empty selection still
+retains the verified optimizer input, executes the abstract-stage identity
+validation, and rejects a changed plan. Target lowering
 consumes that closed result and cannot invoke the optimizer or inspect the
 earlier continuation. Machine emission sends the target result through one
 physical-routing stage and consumes its closed output. It no longer schedules
@@ -229,6 +231,8 @@ Migration proceeds in dependency order:
    and lowering produce one stage result regardless of selection presence. An
    explicit post-Terminal optimization stage consumes its closed continuation
    before target lowering; target lowering cannot schedule abstract optimization.
+   Identity continuation executes and validates the empty abstract-operation
+   phase rather than passing its plan through unchecked.
    Ranked execution remains role-specific authority and selected ranked input
    fails closed until a ranked-aware optimizer carrier exists. There are
    currently no cataloged abstract-operation rewrites to move.
