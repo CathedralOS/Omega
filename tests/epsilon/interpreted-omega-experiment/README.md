@@ -22,13 +22,14 @@ and adding the first execution slice reduces the current Epsilon source from
 
 The executable slice runs complete checking, locates the fixed `Main::main`,
 and executes an empty entry, scalar `let`, grouped/local scalar reads, `assert`,
-and direct `Console.write_byte` and `Console.exit_process` statements. It
-preserves output before exit, `ByteRange`, and `Assertion` traps; non-Boolean
-assertions trap separately. Every other entry statement remains explicitly
-`Unsupported`; that staging outcome is not an Epsilon observation and cannot
-survive in the final evaluator. The exact evaluator plus eight-line driver
-compiles to a 520,260-byte Gamma receipt. Six retained controls cover empty
-falloff, local exit status, output, and trap prefixes.
+checked `+`, `-`, `*`, unary negation, equality/order comparisons, and direct
+`Console.write_byte` and `Console.exit_process` statements. It preserves output
+before exit, overflow, `ByteRange`, and `Assertion` traps; non-Boolean assertions
+trap separately. Every other entry statement remains explicitly `Unsupported`;
+that staging outcome is not an Epsilon observation and cannot survive in the
+final evaluator. The exact evaluator plus eight-line driver compiles to a
+527,397-byte Gamma receipt. Ten retained controls cover success, local values,
+output, comparison, and trap prefixes.
 
 This is executable boundary evidence, not a completed interpreter edge.
 Acceptance still requires execution of all Epsilon statements, expressions,
