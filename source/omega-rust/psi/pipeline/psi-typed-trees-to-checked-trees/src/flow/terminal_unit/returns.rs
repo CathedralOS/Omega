@@ -1908,7 +1908,7 @@ pub(super) fn build_boundary_scalar_return_machine(
         &entry_claims,
         call,
         false,
-        Some(ExpectedBoundaryValueResult::Scalar(result_type)),
+        Some(ExpectedCallValueResult::Scalar(result_type)),
     )?;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         target_machine,

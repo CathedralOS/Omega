@@ -598,6 +598,7 @@ pub(super) fn lower_unit_services(
         for operation in &machine.operations {
             match operation {
                 CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. }
+                | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {

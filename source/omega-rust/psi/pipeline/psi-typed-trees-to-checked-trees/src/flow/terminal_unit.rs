@@ -237,6 +237,11 @@ pub(crate) fn build_checked_unit_effect_plans(
                 CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                     target_machine, ..
                 } => boundary_symbols.contains(target_machine),
+                CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } => facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .for_machine(*target_machine)
+                    .is_some(),
                 // Exact realization custody was already joined by selected
                 // execution before this plan was minted.
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }

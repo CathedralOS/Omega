@@ -754,9 +754,17 @@ independently rejoins the Unit callee ABI, caller parameter source, frame and
 call-stack evidence, structural copy, and exact bytes. Installation format 78
 transports and replays the same custody on both Linux targets. The ordinary
 call source may be either the caller's exact native-fixed-integer-or-Boolean
-parameter or an exact preceding Boolean literal definition. Computed
-nonliteral sources, IEEE runtime sources, and non-native integer carriers
-remain fail closed.
+parameter, an exact preceding Boolean literal definition, or the durable home
+of one exact preceding ordinary fixed-integer scalar call. The last form is
+rooted in an explicit checked `ScalarCall`: checked-to-Terminal lowering
+rejoins its original call coordinate, target state, full contract commitment,
+service reach, and every scalar argument fact before adding its scalar graph to
+the attached closure. Target assignment gives the result an ordinary durable
+home; later `CallUnit` assignment may source that home across register or stack
+boundaries, and machine/object/installation replay independently rejoin the
+home and materialization bytes before the callee stores it. Arithmetic locals,
+Boolean and IEEE call results, IEEE runtime sources, and non-native integer
+carriers remain fail closed.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

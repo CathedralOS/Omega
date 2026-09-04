@@ -138,7 +138,7 @@ pub(super) fn build(
         &[],
         result_call,
         false,
-        Some(ExpectedBoundaryValueResult::Structural(&result)),
+        Some(ExpectedCallValueResult::Structural(&result)),
     )?
     else {
         return None;

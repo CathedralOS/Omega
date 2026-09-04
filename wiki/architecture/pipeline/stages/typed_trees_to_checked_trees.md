@@ -165,7 +165,13 @@ Must own:
   and Boolean literals. It also retains one exact native fixed-integer or
   Boolean scalar parameter as a runtime replacement when the structural
   destination and scalar source are the machine's complete parameter partition
-  and have the same primitive type. Locals, computed replacements, IEEE runtime
+  and have the same primitive type. One immutable local may instead bind the
+  primitive result of an immediately preceding, scalar-only ordinary checked
+  call. The Unit plan retains that producer as an explicit `ScalarCall`, with
+  its dense result binding, exact target state, complete contract commitment,
+  service reach, and scalar arguments; a later Unit call may consume the local
+  without reconstructing its expression. Arithmetic locals, structural or
+  service-bearing scalar producers, Boolean and IEEE call results, IEEE runtime
   parameters, and additional parameters remain fenced.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Bounded installation-row facts keyed by exact boundary-requirement path,

@@ -1768,6 +1768,13 @@ transient call frame, and materializes every argument from the preserved
 source. Independent object and installation replay derive the same snapshots
 from the authoritative caller sources and callee plan; the snapshots do not
 become public ABI positions or semantic parameters.
+One exact preceding ordinary fixed-integer scalar call may also supply a later
+Unit-call argument from its durable result home. That source is neither an
+inbound ABI position nor a constant: checked planning binds the call
+coordinate, target state, strong contract commitment, reach, arguments, and
+dense result local, while assignment owns the physical home. Emission and
+independent object/installation replay rejoin the exact home and
+materialization before using it as an argument source.
 
 Registered nominal callback admission likewise joins its checked call-site and
 selected-machine identity to the one validated target `BoundaryEntryPlan`.

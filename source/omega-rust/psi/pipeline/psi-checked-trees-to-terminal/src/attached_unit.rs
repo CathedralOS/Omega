@@ -20,8 +20,8 @@ use parameters::lower_unit_scalar_parameter_types;
 pub(super) use parameters::validate_direct_unit_parameter_custody;
 
 use call_closure::{
-    checked_selected_scalar_call_closure, checked_terminal_machine_name,
-    reject_recursive_unit_closure, unique_unit_boundary, validate_unit_operation_sequence,
+    checked_scalar_call_closure, checked_terminal_machine_name, reject_recursive_unit_closure,
+    unique_unit_boundary, validate_unit_operation_sequence,
 };
 pub(super) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
@@ -249,26 +249,44 @@ pub(super) fn lower_attached_unit_closure_including(
     };
     reject_recursive_unit_closure(plans, &closure)?;
 
+    let mut ordinary_scalar_roots = Vec::new();
     let mut selected_scalar_roots = Vec::new();
     for machine_symbol in &closure {
         for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
-            if let CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                realization_machine,
-                ..
-            } = operation
-            {
-                selected_scalar_roots.push(*realization_machine);
+            match operation {
+                CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } => {
+                    if !ordinary_scalar_roots.contains(target_machine) {
+                        ordinary_scalar_roots.push(*target_machine);
+                    }
+                }
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                    realization_machine,
+                    ..
+                } => {
+                    if !selected_scalar_roots.contains(realization_machine) {
+                        selected_scalar_roots.push(*realization_machine);
+                    }
+                }
+                _ => {}
             }
         }
     }
-    let scalar_closure = checked_selected_scalar_call_closure(checked, &selected_scalar_roots)?;
+    let scalar_roots = ordinary_scalar_roots
+        .iter()
+        .chain(&selected_scalar_roots)
+        .copied()
+        .fold(Vec::new(), |mut roots, root| {
+            if !roots.contains(&root) {
+                roots.push(root);
+            }
+            roots
+        });
+    let scalar_closure = checked_scalar_call_closure(checked, &scalar_roots)?;
     if scalar_closure
         .iter()
         .any(|machine| closure.contains(machine))
     {
-        return unsupported(
-            "selected scalar realization overlaps the attached Unit machine closure",
-        );
+        return unsupported("embedded scalar call overlaps the attached Unit machine closure");
     }
     let prepared_scalar_machines = scalar_closure
         .iter()
@@ -279,10 +297,10 @@ pub(super) fn lower_attached_unit_closure_including(
                 .terminal_scalar_graphs
                 .for_machine(*machine)
                 .ok_or(LoweringError::Unsupported(
-                    "selected scalar realization closure has no checked scalar graph",
+                    "embedded scalar call closure has no checked scalar graph",
                 ))?;
-            if selected_scalar_roots.contains(machine) {
-                prepare_selected_scalar_graph_machine(checked, *machine, graph)
+            if scalar_roots.contains(machine) {
+                prepare_embedded_scalar_graph_machine(checked, *machine, graph)
             } else {
                 prepare_scalar_graph_machine(checked, *machine, graph)
             }
@@ -296,7 +314,7 @@ pub(super) fn lower_attached_unit_closure_including(
             || !machine.partition_compositions.compositions.is_empty()
     }) {
         return unsupported(
-            "selected scalar realization structural/content effects require a dedicated terminal slice",
+            "embedded scalar call structural/content effects require a dedicated terminal slice",
         );
     }
 
@@ -384,6 +402,112 @@ pub(super) fn lower_attached_unit_closure_including(
                     {
                         return unsupported(
                             "Unit call does not match the exact checked target state, contract, and reach",
+                        );
+                    }
+                }
+                CheckedUnitEffectOperationPlan::ScalarCall {
+                    coordinate,
+                    result,
+                    target_machine,
+                    target_state,
+                    target_contract_report_fingerprint,
+                    target_contract_commitment,
+                    service_reach,
+                    scalar_arguments,
+                } => {
+                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
+                    let graph = checked
+                        .facts
+                        .flow
+                        .terminal_scalar_graphs
+                        .for_machine(*target_machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "ordinary Unit scalar call target has no checked scalar graph",
+                        ))?;
+                    let entry_state = graph.states.first().ok_or(LoweringError::Unsupported(
+                        "ordinary Unit scalar call target has no checked entry state",
+                    ))?;
+                    let prepared = prepared_scalar_machines
+                        .iter()
+                        .find(|prepared| prepared.source_machine == *target_machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "ordinary Unit scalar call target is absent from the prepared closure",
+                        ))?;
+                    let contract = checked
+                        .facts
+                        .contract_plans
+                        .for_machine(*target_machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "ordinary Unit scalar call target has no checked contract",
+                        ))?;
+                    let target_reaches = checked
+                        .facts
+                        .flow
+                        .control
+                        .states
+                        .iter()
+                        .filter(|(_, state)| {
+                            state.machine_symbol == *target_machine
+                                && state.state_symbol == *target_state
+                        })
+                        .map(|(_, state)| state.service_reach)
+                        .collect::<Vec<_>>();
+                    if entry_state.state != *target_state
+                        || entry_state.parameter_types.len() != scalar_arguments.len()
+                        || prepared.result_type != terminal_scalar_type(result.primitive_type)?
+                        || contract.report_fingerprint != *target_contract_report_fingerprint
+                        || contract.commitment != *target_contract_commitment
+                        || target_reaches.as_slice() != [*service_reach]
+                    {
+                        return unsupported(
+                            "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach",
+                        );
+                    }
+                    let exact_arguments = scalar_arguments.iter().enumerate().all(
+                        |(argument_ordinal, argument)| {
+                            u32::try_from(argument_ordinal).ok().is_some_and(|argument_ordinal| {
+                                let matches = checked
+                                    .facts
+                                    .values
+                                    .scalar_expressions
+                                    .expressions
+                                    .iter()
+                                    .filter(|candidate| {
+                                        candidate.state == machine.state
+                                            && candidate.statement_ordinal
+                                                == coordinate.statement_index
+                                            && candidate.role
+                                                == psi_checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                                                    call_ordinal: coordinate.call_ordinal,
+                                                    argument_ordinal,
+                                                }
+                                    })
+                                    .collect::<Vec<_>>();
+                                matches!(matches.as_slice(), [candidate]
+                                    if &candidate.expression == argument)
+                            })
+                        },
+                    );
+                    if !exact_arguments {
+                        return unsupported(
+                            "ordinary Unit scalar call arguments drifted from checked value facts",
+                        );
+                    }
+                    if !checked
+                        .facts
+                        .service_reaches
+                        .rows
+                        .services(service_reach.direct)
+                        .is_empty()
+                        || !checked
+                            .facts
+                            .service_reaches
+                            .rows
+                            .services(service_reach.transitive)
+                            .is_empty()
+                    {
+                        return unsupported(
+                            "ordinary Unit scalar call with services requires scalar service lowering",
                         );
                     }
                 }
@@ -1255,7 +1379,15 @@ pub(super) fn lower_attached_unit_closure_including(
                         crash_continuations,
                     }
                 }
-                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                CheckedUnitEffectOperationPlan::ScalarCall {
+                    coordinate,
+                    result,
+                    target_machine: realization_machine,
+                    target_state: realization_state,
+                    scalar_arguments,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
                     coordinate,
                     result,
                     realization_machine,
@@ -1263,20 +1395,30 @@ pub(super) fn lower_attached_unit_closure_including(
                     scalar_arguments,
                     ..
                 } => {
+                    let source_target = match operation {
+                        CheckedUnitEffectOperationPlan::ScalarCall { target_state, .. } => {
+                            *target_state
+                        }
+                        CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                            realization_machine,
+                            ..
+                        } => *realization_machine,
+                        _ => unreachable!("combined Unit scalar call arm"),
+                    };
                     if usize::try_from(result.binding_ordinal)
                         .ok()
                         .and_then(|ordinal| ordinal.checked_add(scalar_parameter_count))
                         != Some(scalar_result_values.len())
                     {
                         return unsupported(
-                            "selected Unit operator result binding ordinal drifted from source order",
+                            "Unit scalar result binding ordinal drifted from source order",
                         );
                     }
                     let prepared_target = prepared_scalar_machines
                         .iter()
                         .find(|target| target.source_machine == *realization_machine)
                         .ok_or(LoweringError::Unsupported(
-                            "selected scalar call target is absent from the prepared closure",
+                            "Unit scalar call target is absent from the prepared closure",
                         ))?;
                     let target_graph = checked
                         .facts
@@ -1284,14 +1426,14 @@ pub(super) fn lower_attached_unit_closure_including(
                         .terminal_scalar_graphs
                         .for_machine(*realization_machine)
                         .ok_or(LoweringError::Unsupported(
-                            "selected scalar call target has no checked graph",
+                            "Unit scalar call target has no checked graph",
                         ))?;
                     let target_entry =
                         target_graph
                             .states
                             .first()
                             .ok_or(LoweringError::Unsupported(
-                                "selected scalar call target has no checked entry state",
+                                "Unit scalar call target has no checked entry state",
                             ))?;
                     if target_entry.state != *realization_state
                         || prepared_target.result_type
@@ -1299,7 +1441,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         || scalar_arguments.len() != target_entry.parameter_types.len()
                     {
                         return unsupported(
-                            "selected scalar call disagrees with its prepared target signature",
+                            "Unit scalar call disagrees with its prepared target signature",
                         );
                     }
                     let source_types = scalar_result_values
@@ -1313,13 +1455,13 @@ pub(super) fn lower_attached_unit_closure_including(
                             let argument = lower_checked_scalar_expression(argument)?;
                             if direct_expression_contains_short_circuit(&argument) {
                                 return unsupported(
-                                    "selected scalar call arguments do not yet admit short-circuit control",
+                                    "Unit scalar call arguments do not yet admit short-circuit control",
                                 );
                             }
                             let target_type = terminal_scalar_type(*target_type)?;
                             if argument.scalar_type() != target_type {
                                 return unsupported(
-                                    "selected Unit operator argument type disagrees with its realization",
+                                    "Unit scalar call argument type disagrees with its target",
                                 );
                             }
                             validate_direct_parameter_types(&argument, &source_types)?;
@@ -1340,7 +1482,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         .contract_plans
                         .for_machine(*realization_machine)
                         .ok_or(LoweringError::Unsupported(
-                            "selected scalar call target has no checked contract",
+                            "Unit scalar call target has no checked contract",
                         ))?;
                     let crash_continuations = lower_checked_crash_route_buckets(
                         target_contract.crash.published(),
@@ -1352,14 +1494,14 @@ pub(super) fn lower_attached_unit_closure_including(
                             (*source == *realization_machine).then_some(*count)
                         })
                         .ok_or(LoweringError::Unsupported(
-                            "selected scalar call target has no prepared contract",
+                            "Unit scalar call target has no prepared contract",
                         ))?;
                     let requirement_obligations = (0..requirement_count)
                         .map(|_| {
                             let obligation = obligation_id(next_call_obligation);
                             next_call_obligation = next_call_obligation.checked_add(1).ok_or(
                                 LoweringError::Unsupported(
-                                    "selected scalar call obligation identity space is exhausted",
+                                    "Unit scalar call obligation identity space is exhausted",
                                 ),
                             )?;
                             Ok(obligation)
@@ -1373,7 +1515,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         next_value_identity
                             .checked_add(1)
                             .ok_or(LoweringError::Unsupported(
-                                "selected scalar result value identity space is exhausted",
+                                "Unit scalar result value identity space is exhausted",
                             ))?;
                     let operation_id = operations.allocate();
                     operations.record_source_call(
@@ -1382,21 +1524,21 @@ pub(super) fn lower_attached_unit_closure_including(
                             statement_index: usize::try_from(coordinate.statement_index).map_err(
                                 |_| {
                                     LoweringError::Unsupported(
-                                        "selected scalar call statement coordinate exceeds usize",
+                                        "Unit scalar call statement coordinate exceeds usize",
                                     )
                                 },
                             )?,
                             call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(
                                 |_| {
                                     LoweringError::Unsupported(
-                                        "selected scalar call ordinal coordinate exceeds usize",
+                                        "Unit scalar call ordinal coordinate exceeds usize",
                                     )
                                 },
                             )?,
                         },
                         None,
                         operation_id,
-                        *realization_machine,
+                        source_target,
                     )?;
                     operations.push(Operation {
                         id: operation_id,

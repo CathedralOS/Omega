@@ -1382,6 +1382,20 @@ pub enum CheckedUnitEffectOperationPlan {
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },
+    /// Invoke one ordinary checked scalar machine from an attached Unit body
+    /// and bind its primitive result into the dense local scalar namespace.
+    /// The bounded first rung admits scalar-only callees; structural transfer
+    /// remains represented by the distinct structural-scalar call families.
+    ScalarCall {
+        coordinate: CheckedUnitCallCoordinate,
+        result: CheckedUnitScalarResultBindingPlan,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        target_contract_report_fingerprint: u64,
+        target_contract_commitment: crate::MachineContractCommitment,
+        service_reach: ServiceReachSummary,
+        scalar_arguments: Vec<CheckedScalarExpression>,
+    },
     BoundaryCall {
         coordinate: CheckedUnitCallCoordinate,
         /// Exact authored call site retained for target-owned occurrence joins.
