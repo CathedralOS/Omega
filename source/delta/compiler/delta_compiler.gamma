@@ -5,6 +5,23 @@
 (def fail () Int
   (read (input)))
 
+(def ascii_between ((byte Int) (low Int) (high Int)) Int
+  (if (lt byte low) 0
+    (if (lt high byte) 0 1)))
+
+(def source_byte_allowed ((byte Int)) Int
+  (if (eq byte 9) 1
+    (if (eq byte 10) 1
+      (if (eq byte 13) 1
+        (ascii_between byte 32 126)))))
+
+(def validate_source_envelope ((index Int)) Int
+  (if (eq index (input))
+    0
+    (if (source_byte_allowed (read index))
+      (validate_source_envelope (+ index 1))
+      (fail))))
+
 (def is_space ((byte Int)) Int
   (lt byte 33))
 
@@ -995,10 +1012,11 @@
       (fail))))
 
 (def main () Int
-  (let type_rows Int (empty_name_trie)
-    (let constructor_rows Int (empty_name_trie)
-      (let function_rows Int (empty_name_trie)
-        (let checked Int
-          (validate_global_program
-            0 0 0 0 type_rows constructor_rows function_rows)
-          (emit_program 0))))))
+  (let envelope Int (validate_source_envelope 0)
+    (let type_rows Int (empty_name_trie)
+      (let constructor_rows Int (empty_name_trie)
+        (let function_rows Int (empty_name_trie)
+          (let checked Int
+            (validate_global_program
+              0 0 0 0 type_rows constructor_rows function_rows)
+            (emit_program 0)))))))

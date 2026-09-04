@@ -23,7 +23,9 @@ with head and tail fields becomes `(pair tag (pair head tail))`. A match must co
 exactly one arm for every constructor in declaration order. Generated local
 names use the reserved `__m` prefix.
 
-Before emitting a byte, the stage now scans the complete declaration sequence.
+Before tokenization or emission, the stage rejects every source byte except HT,
+LF, CR, and printable ASCII, exactly matching Delta's textual envelope. It then
+scans the complete declaration sequence.
 It requires all nonempty `data` declarations before one or more functions,
 exactly one `main`, and unique type, constructor, and function declarations in
 their separate namespaces. Exact source-byte names are retained in persistent
@@ -48,7 +50,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-1,004-line / 39,769-byte Gamma source
+1,022-line / 40,278-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 159-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

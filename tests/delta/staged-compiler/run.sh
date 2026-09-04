@@ -54,7 +54,7 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 1004, 39769, "2bfb09f7d87d9448a691ffa573b75ce5dafc2b4c77925f0a620b1b41009b0082"),
+    ("compiler", compiler, 1022, 40278, "04e459a8407f559cdc55083b71c2ff4f5c8328dbc7ff05682009644e6150a836"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 159, "ace9d225806cd36712201fadd87031de99bd068cacde8b0140446122a3567663"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -120,6 +120,10 @@ identity = b"(def main () Int 7)\n"
 if evaluate(compiler, identity) != (0, identity + b"\n"):
     raise SystemExit("ordinary scalar Gamma was not preserved")
 
+textual_ascii_whitespace = b"\t(def main () Int 7)\r\n"
+if evaluate(compiler, textual_ascii_whitespace) != (0, identity + b"\n"):
+    raise SystemExit("admitted textual-ASCII whitespace did not compile")
+
 shared_namespace = b"(data Token (Token Int))\n(def main () Int 7)\n"
 if evaluate(compiler, shared_namespace) != (0, identity + b"\n"):
     raise SystemExit("type and constructor namespaces were incorrectly merged")
@@ -141,6 +145,10 @@ malformed = {
     "data after function": b"(def f () Int 0)\n(data A (X))\n(def main () Int 0)\n",
     "empty data": b"(data A)\n(def main () Int 0)\n",
     "missing main": b"(def f () Int 0)\n",
+    "nul source byte": b"(def main () Int 0)\x00\n",
+    "disallowed control byte": b"(def main () Int 0)\x08\n",
+    "del source byte": b"(def main () Int 0)\x7f\n",
+    "non-ASCII source byte": b"(def main () Int 0)\x80\n",
 }
 for name, candidate in malformed.items():
     status, _ = evaluate(compiler, candidate)
@@ -161,4 +169,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: recursive multi-field ADTs and Bytes-shaped ropes lowered to Gamma"
+echo "Staged Delta compiler: source envelope, globals, recursive ADTs, and Bytes-shaped ropes pass"

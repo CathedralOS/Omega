@@ -4266,3 +4266,20 @@ The old Forth-Gamma and direct-Beta experiments do not implement this new
 global census. Their historical matched comparisons remain valid at D92/D93,
 but current aggregate line totals are no longer matched evidence and do not
 reopen the selected topology.
+
+## D100 — The staged Delta edge enforces its source-byte envelope
+
+D100 moves Delta's normative textual-ASCII boundary into the selected
+Gamma-authored compiler. A constant-space prepass admits exactly HT, LF, CR,
+and bytes `0x20..0x7e` before tokenization or output. NUL, another control byte,
+DEL, and a high byte are retained rejection witnesses; admitted tab and CR/LF
+whitespace compile to the same canonical Gamma receipt as spaces and LF.
+
+This closes only the byte envelope. Identifier spelling, reserved words,
+integer-literal range, closed expression forms, and full static typing remain
+open compiler work. The exact selected subject is now 1,022 Gamma lines and
+40,278 bytes, with 93 definitions and 354 lexical `let` binders. The global
+census, 200-byte identifier, recursive products, Bytes-shaped rope, and
+3,001-function witnesses remain green. The retained Forth-Gamma and direct-Beta
+experiments do not implement this prepass and therefore remain unmatched
+historical evidence rather than alternate authority.

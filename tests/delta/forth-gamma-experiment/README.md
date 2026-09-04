@@ -23,16 +23,16 @@ retained Delta compiler.
 functional Gamma evaluator    1,325         1,065     165      479       6,934
 Forth-Gamma interpreter          890           723     122      312       5,145
 
-functional Delta compiler      1,004 source lines, 90 definitions
+functional Delta compiler      1,022 source lines, 93 definitions
 Forth-Gamma Delta compiler      1,451 source lines, 555 definitions
 
-total functional route         2,329 authored lines
+total functional route         2,347 authored lines
 total Forth route              2,341 authored lines
 ```
 
 The Forth compiler contains 49 named values, 5,860 executable source tokens,
 204 explicit branches, 171 explicit jumps, 77 stack-shuffle operations, and 20
-remaining dynamic cell operations. The functional compiler contains 353 named
+remaining dynamic cell operations. The functional compiler contains 354 named
 lexical `let` bindings and no source-level control-flow choreography. These
 current totals are no longer a matched-coverage comparison: the functional
 compiler also performs a complete declaration-order and exact namespace
@@ -73,8 +73,9 @@ boilerplate.
 It does not yet beat the selected architecture overall. The compiler is split
 across 555 tiny words, explicit stack effects remain difficult to reconstruct,
 and unreachable names or stack underflow are not statically rejected. Total
-source is 12 lines larger despite lacking the selected route's newer global
-census and any stack-effect checker, and large program compilation is
+source is now six lines smaller only because it lacks the selected route's
+source-envelope and global-census checks, as well as any stack-effect checker;
+this is not matched evidence. Large program compilation also remains
 impractically slow.
 
 The experiment is promising enough to retain, but not to select. A next attempt
