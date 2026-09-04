@@ -27,6 +27,48 @@ fn staged_call_encoding(
     (homes, post, encoding)
 }
 
+fn staged_frame(
+    homes: &StagedOptimizedRegisterHomes,
+    post: &StagedOptimizedPostAllocationMachinePlan,
+) -> (
+    ValidatedAllocatedCalleeSavedRequirements,
+    ValidatedNonAuthoritativeCalleeSaveStorage,
+    ValidatedTargetRegisterEnvironment,
+    ValidatedTargetFrameLayout,
+) {
+    let environment = homes
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .register_environment()
+        .clone();
+    let budget =
+        OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000).unwrap();
+    let requirements = stage_allocated_callee_saved_requirements(
+        homes,
+        AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
+        budget,
+    )
+    .unwrap();
+    let storage = stage_non_authoritative_callee_save_storage(
+        &requirements,
+        &environment,
+        NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1,
+        budget,
+    )
+    .unwrap();
+    let frame = stage_target_frame_layout(
+        post,
+        &requirements,
+        &storage,
+        &environment,
+        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+    )
+    .unwrap();
+    (requirements, storage, environment, frame)
+}
+
 #[test]
 fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -193,6 +235,79 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             assert!(row.branch.is_none());
         }
 
+        let (requirements, storage, environment, frame) = staged_frame(&homes, &post);
+        assert_eq!(frame.receipt().function_count(), 2);
+        assert_eq!(frame.receipt().calling_function_count(), 1);
+        assert!(frame.receipt().callee_save_slot_count() >= 1);
+        assert_eq!(frame.receipt().target(), target);
+        assert_eq!(
+            frame.receipt().identity(),
+            target_frame_layout_identity(frame.plan())
+        );
+        assert_eq!(
+            frame.receipt().post_allocation_machine(),
+            post.machine().receipt().identity()
+        );
+        assert_eq!(
+            frame.receipt().callee_save_storage(),
+            storage.receipt().identity()
+        );
+        let caller_frame = frame
+            .plan()
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine())
+            .unwrap();
+        let caller_storage = storage
+            .plan()
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine())
+            .unwrap();
+        assert!(caller_frame.contains_call);
+        assert_eq!(caller_frame.pre_call_stack_alignment, 16);
+        assert_eq!(
+            caller_frame.callee_save_slots.len(),
+            caller_storage.slots.len()
+        );
+        assert!(!caller_frame.callee_save_slots.is_empty());
+        assert_eq!(caller_frame.callee_save_slots[0].frame_offset_bytes, 0);
+        match target.architecture {
+            Architecture::X86_64 => {
+                assert!(caller_frame.frame_size_bytes >= caller_storage.abstract_area_bytes);
+                assert_eq!(caller_frame.frame_size_bytes % 16, 8);
+                assert_eq!(frame.receipt().saved_link_count(), 0);
+                assert_eq!(
+                    caller_frame.return_address,
+                    ReturnAddressFrameCustody::CallerActivationStack {
+                        post_prologue_offset_bytes: caller_frame.frame_size_bytes,
+                        size_bytes: 8,
+                    }
+                );
+            }
+            Architecture::Aarch64 => {
+                assert!(caller_frame.frame_size_bytes >= caller_storage.abstract_area_bytes + 8);
+                assert_eq!(caller_frame.frame_size_bytes % 16, 0);
+                assert_eq!(frame.receipt().saved_link_count(), 1);
+                assert!(matches!(
+                    caller_frame.return_address,
+                    ReturnAddressFrameCustody::SavedLinkRegister {
+                        frame_offset_bytes,
+                        size_bytes: 8,
+                        ..
+                    } if frame_offset_bytes == caller_storage.abstract_area_bytes
+                ));
+            }
+        }
+        validate_target_frame_layout(
+            &post,
+            &requirements,
+            &storage,
+            &environment,
+            frame.plan().clone(),
+        )
+        .unwrap();
+
         let error = stage_whole_function_exit_contract(
             selected_stage.selected(),
             &post,
@@ -280,5 +395,21 @@ fn selected_call_template_and_layout_corruption_fail_independent_replay() {
             ),
             Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
         ));
+
+        let (requirements, storage, environment, frame) = staged_frame(&homes, &post);
+        for corrupt in [
+            |plan: &mut TargetFrameLayoutPlan| plan.functions[0].frame_size_bytes += 8,
+            |plan: &mut TargetFrameLayoutPlan| {
+                plan.functions[0].callee_save_slots[0].frame_offset_bytes += 8
+            },
+            |plan: &mut TargetFrameLayoutPlan| plan.functions[0].contains_call = false,
+        ] {
+            let mut changed = frame.plan().clone();
+            corrupt(&mut changed);
+            assert_eq!(
+                validate_target_frame_layout(&post, &requirements, &storage, &environment, changed,),
+                Err(TargetFrameLayoutError::NonCanonicalLayout)
+            );
+        }
     }
 }
