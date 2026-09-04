@@ -84,6 +84,17 @@
       0)
     0))
 
+(def token_main ((start Int) (end Int)) Int
+  (if (eq (- end start) 4)
+    (if (eq (read start) 109)
+      (if (eq (read (+ start 1)) 97)
+        (if (eq (read (+ start 2)) 105)
+          (eq (read (+ start 3)) 110)
+          0)
+        0)
+      0)
+    0))
+
 (def token_match ((start Int) (end Int)) Int
   (if (eq (- end start) 5)
     (if (eq (read start) 109)
@@ -410,15 +421,150 @@
 (def validate_data ((form Int)) Int
   (let head Int (form_head form)
     (let type_name Int (skip (token_end head))
-      (validate_constructor_items (skip (token_end type_name))))))
+      (validate_constructor_items (skip (token_end type_name)) 0))))
 
-(def validate_constructor_items ((index Int)) Int
+(def validate_constructor_items ((index Int) (count Int)) Int
   (let item Int (skip index)
     (if (eq (read item) 41)
-      (token_end item)
+      (if (eq count 0)
+        (fail)
+        (token_end item))
       (let constructor Int (skip (token_end item))
-        (validate_constructor_items
-          (constructor_after (token_end constructor)))))))
+        (let constructor_end Int (token_end constructor)
+          (validate_constructor_items
+            (constructor_after constructor_end) (+ count 1)))))))
+
+; A name trie option is (pair present node). Each node is
+; (pair terminal children). Children form an eight-level immutable bit tree
+; indexed by one complete source byte, so duplicate detection has no hash
+; collision and name recursion advances once per byte.
+(def empty_name_trie () Int
+  (pair 0 0))
+
+(def empty_name_children () Int
+  (let empty Int (empty_name_trie)
+    (let level1 Int (pair empty empty)
+      (let level2 Int (pair level1 level1)
+        (let level3 Int (pair level2 level2)
+          (let level4 Int (pair level3 level3)
+            (let level5 Int (pair level4 level4)
+              (let level6 Int (pair level5 level5)
+                (let level7 Int (pair level6 level6)
+                  (pair level7 level7))))))))))
+
+(def name_child ((children Int) (byte Int) (power Int)) Int
+  (let bit Int (% (/ byte power) 2)
+    (if (eq power 128)
+      (if (eq bit 0) (first children) (second children))
+      (if (eq bit 0)
+        (name_child (first children) byte (* power 2))
+        (name_child (second children) byte (* power 2))))))
+
+(def name_children_replace
+  ((children Int) (byte Int) (power Int) (child Int)) Int
+  (let bit Int (% (/ byte power) 2)
+    (if (eq power 128)
+      (if (eq bit 0)
+        (pair child (second children))
+        (pair (first children) child))
+      (if (eq bit 0)
+        (pair
+          (name_children_replace
+            (first children) byte (* power 2) child)
+          (second children))
+        (pair
+          (first children)
+          (name_children_replace
+            (second children) byte (* power 2) child))))))
+
+(def name_trie_new_path ((end Int) (index Int)) Int
+  (if (eq index end)
+    (pair 1 (pair 1 (empty_name_children)))
+    (let child Int (name_trie_new_path end (+ index 1))
+      (let children Int
+        (name_children_replace
+          (empty_name_children) (read index) 1 child)
+        (pair 1 (pair 0 children))))))
+
+(def name_trie_insert ((trie Int) (end Int) (index Int)) Int
+  (if (eq (first trie) 0)
+    (name_trie_new_path end index)
+    (let node Int (second trie)
+      (let terminal Int (first node)
+        (let children Int (second node)
+          (if (eq index end)
+            (if terminal
+              (fail)
+              (pair 1 (pair 1 children)))
+            (let byte Int (read index)
+              (let child Int (name_child children byte 1)
+                (let next_child Int
+                  (name_trie_insert child end (+ index 1))
+                  (let next_children Int
+                    (name_children_replace children byte 1 next_child)
+                    (pair 1 (pair terminal next_children))))))))))))
+
+(def validate_global_data
+  ((form Int) (type_rows Int) (constructor_rows Int)) Int
+  (let head Int (form_head form)
+    (let type_name Int (skip (token_end head))
+      (let type_end Int (token_end type_name)
+        (let next_type_rows Int
+          (name_trie_insert type_rows type_end type_name)
+          (let result Int
+            (validate_global_constructors
+              (skip type_end) constructor_rows 0)
+            (pair (first result)
+              (pair next_type_rows (second result)))))))))
+
+(def validate_global_constructors
+  ((index Int) (constructor_rows Int) (count Int)) Int
+  (let item Int (skip index)
+    (if (eq (read item) 41)
+      (if (eq count 0)
+        (fail)
+        (pair (token_end item) constructor_rows))
+      (let constructor Int (skip (token_end item))
+        (let constructor_end Int (token_end constructor)
+          (validate_global_constructors
+            (constructor_after constructor_end)
+            (name_trie_insert
+              constructor_rows constructor_end constructor)
+            (+ count 1)))))))
+
+(def validate_global_program
+  ((index Int) (saw_function Int) (function_count Int) (main_count Int)
+   (type_rows Int) (constructor_rows Int) (function_rows Int)) Int
+  (let form Int (skip index)
+    (if (eq form (input))
+      (if (eq function_count 0)
+        (fail)
+        (if (eq main_count 1)
+          0
+          (fail)))
+      (if (eq (read form) 40)
+        (let head Int (form_head form)
+          (let head_end Int (token_end head)
+            (if (token_data head head_end)
+              (if saw_function
+                (fail)
+                (let result Int
+                  (validate_global_data form type_rows constructor_rows)
+                  (let rows Int (second result)
+                    (validate_global_program
+                      (first result) 0 function_count main_count
+                      (first rows) (second rows) function_rows))))
+              (if (token_def head head_end)
+                (let name Int (skip head_end)
+                  (let name_end Int (token_end name)
+                    (validate_global_program
+                      (skip_expression form) 1 (+ function_count 1)
+                      (+ main_count (token_main name name_end))
+                      type_rows constructor_rows
+                      (name_trie_insert
+                        function_rows name_end name))))
+                (fail)))))
+        (fail)))))
 
 (def emit_program ((index Int)) Int
   (let form Int (skip index)
@@ -849,4 +995,10 @@
       (fail))))
 
 (def main () Int
-  (emit_program 0))
+  (let type_rows Int (empty_name_trie)
+    (let constructor_rows Int (empty_name_trie)
+      (let function_rows Int (empty_name_trie)
+        (let checked Int
+          (validate_global_program
+            0 0 0 0 type_rows constructor_rows function_rows)
+          (emit_program 0))))))

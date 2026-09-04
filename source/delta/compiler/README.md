@@ -5,7 +5,7 @@ source transformer executed by the selected Beta-authored Gamma evaluator.
 `delta_compiler.composed` binds those exact source and evaluator-tape identities
 under `GammaComposedV1`.
 
-The current stage accepts ordinary scalar/effect Gamma plus finite data whose
+The current stage accepts the Gamma-shaped scalar core plus finite data whose
 constructors carry any finite number of `Int` or known nominal fields, and
 declaration-order exhaustive matches. It assigns constructor tags in declaration
 order. Payload-bearing nominal values become immutable `(pair tag product)`
@@ -23,10 +23,22 @@ with head and tail fields becomes `(pair tag (pair head tail))`. A match must co
 exactly one arm for every constructor in declaration order. Generated local
 names use the reserved `__m` prefix.
 
+Before emitting a byte, the stage now scans the complete declaration sequence.
+It requires all nonempty `data` declarations before one or more functions,
+exactly one `main`, and unique type, constructor, and function declarations in
+their separate namespaces. Exact source-byte names are retained in persistent
+bitwise tries, so this check has neither hash collisions nor repeated
+whole-source lookup. Type and constructor names may still share a spelling, as
+required by Delta's grammar-distinguished namespaces. Name recursion advances
+once per complete byte; a 200-byte identifier witness guards practical Gamma
+call-context headroom, while the Epsilon customer currently tops out at 56.
+
 This is a meaningful early stage, not the complete Delta compiler. It does not
 yet provide normative `Bytes`, checked arithmetic, complete type checking, production
 application profiles, or proper-tail guarantees beyond those available in
-Gamma.
+Gamma. In particular, the incomplete expression checker may still accept
+Gamma-only forms that are outside Delta; staged acceptance is not language
+admission.
 
 The executable gate is
 [`../../../tests/delta/staged-compiler/`](../../../tests/delta/staged-compiler/).
@@ -36,7 +48,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-852-line / 34,043-byte Gamma source
+1,004-line / 39,769-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 159-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -49,10 +61,11 @@ The downgraded full compiler remains separate under
 8-line / 221-byte two-field recursive List fixture
   -> 3-line / 324-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
-24-line / 789-byte three-field recursive Bytes-rope fixture
-  -> 7-line / 1,040-byte Gamma receipt
+24-line / 782-byte three-field recursive Bytes-rope fixture
+  -> 7-line / 1,033-byte Gamma receipt
   -> indexing produces byte 0x42; indexing empty traps
 3,001-function / 66,266-byte scale fixture
   -> 66,267-byte Gamma receipt
-  -> selected Gamma evaluation produces byte 199
+  -> selected Gamma evaluation produces byte 199; staged transformation is
+     about 8 seconds on the development host
 ```

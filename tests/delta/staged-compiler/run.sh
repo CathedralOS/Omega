@@ -54,7 +54,7 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 852, 34043, "e55cb4abf13b6977e2194adf639a0d8c41045bf9af903de2bf3db219225c66e4"),
+    ("compiler", compiler, 1004, 39769, "2bfb09f7d87d9448a691ffa573b75ce5dafc2b4c77925f0a620b1b41009b0082"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 159, "ace9d225806cd36712201fadd87031de99bd068cacde8b0140446122a3567663"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -63,8 +63,8 @@ for name, data, lines, size, digest in (
     ("recursive receipt", recursive_expected, 3, 246, "8725427391f6ec805adde6dbf9e8bd24b3049f63b54e2c1c9b980eb307c4600e"),
     ("list source", list_source, 8, 221, "a86dd12c78f488de2ba4adea71ba90ee29057e97d805ce627befe48c939e3ac3"),
     ("list receipt", list_expected, 3, 324, "64812b78fde8e1aee5fca648af7cfc3a46bff7cac010d91f166c8df4b9125b0e"),
-    ("bytes source", bytes_source, 24, 789, "359862ebd899c6fbeacb1b788eac71e1ea0ee2560c257e8a0c2726ae859451ae"),
-    ("bytes receipt", bytes_expected, 7, 1040, "66392ac383ccaf79698fb89c2a0c774c6be0f40031cec3cd19b20fa071f5df15"),
+    ("bytes source", bytes_source, 24, 782, "5bcc5e89ff630bb9d5012b275e5fec4157e1c0959be93f5f6b6e36ce7028e5da"),
+    ("bytes receipt", bytes_expected, 7, 1033, "dac8b39fa720de0bf4800c426ef7b0c69255d45643655f54dc847199115474df"),
 ):
     if len(data.splitlines()) != lines or len(data) != size:
         raise SystemExit(f"{name} size changed")
@@ -120,12 +120,27 @@ identity = b"(def main () Int 7)\n"
 if evaluate(compiler, identity) != (0, identity + b"\n"):
     raise SystemExit("ordinary scalar Gamma was not preserved")
 
+shared_namespace = b"(data Token (Token Int))\n(def main () Int 7)\n"
+if evaluate(compiler, shared_namespace) != (0, identity + b"\n"):
+    raise SystemExit("type and constructor namespaces were incorrectly merged")
+
+long_name = b"x" * 200
+long_identifier = b"(def " + long_name + b" () Int 0)\n" + identity
+if evaluate(compiler, long_identifier) != (0, long_identifier + b"\n"):
+    raise SystemExit("bytewise name trie exhausted context on a long identifier")
+
 malformed = {
     "unknown field type": b"(data Bad (Bad Missing))\n(def main () Int 0)\n",
     "missing payload argument": b"(data Option (None) (Some Int))\n(def main () Int (Some))\n",
     "missing payload binder": b"(data Option (None) (Some Int))\n(def main () Int (match None (None 0) (Some 1)))\n",
     "non-exhaustive match": b"(data Choice (Left) (Right))\n(def main () Int (match Left (Left 7)))\n",
     "out-of-order match": b"(data Choice (Left) (Right))\n(def main () Int (match Left (Right 9) (Left 7)))\n",
+    "duplicate type": b"(data A (X))\n(data A (Y))\n(def main () Int 0)\n",
+    "duplicate constructor": b"(data A (X))\n(data B (X))\n(def main () Int 0)\n",
+    "duplicate function": b"(def f () Int 0)\n(def f () Int 1)\n(def main () Int 0)\n",
+    "data after function": b"(def f () Int 0)\n(data A (X))\n(def main () Int 0)\n",
+    "empty data": b"(data A)\n(def main () Int 0)\n",
+    "missing main": b"(def f () Int 0)\n",
 }
 for name, candidate in malformed.items():
     status, _ = evaluate(compiler, candidate)

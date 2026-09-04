@@ -19,10 +19,10 @@ Delta source -> direct Beta evaluator -> result
 							  Lines  Instructions  Labels  Control  Tape bytes
 selected Gamma evaluator      1,325         1,065     165      479       6,934
 matched direct Delta evaluator 2,019         1,655     262      836      11,004
-selected Delta transformer      852 Gamma source lines
+selected Delta transformer    1,004 Gamma source lines
 ```
 
-The prototype matches the selected staged compiler's current structural
+The prototype matches the selected staged compiler's earlier D92 structural
 profile. It validates known nominal field types, constructor arity, exact
 payload binder counts, constructor-owner agreement, and exhaustive
 declaration-order arms before execution. The exact malformed suite rejects
@@ -30,12 +30,16 @@ quietly. Constructor-building and match-arm selection preserve inherited tail
 position; a 100,000-node List construction and traversal completes with constant
 function activation and call-context storage.
 
+The selected transformer has since added a complete declaration-order and
+exact namespace-uniqueness census. The retained direct prototype has not, so
+current total line counts are deliberately not presented as matched evidence.
+
 ## Finding
 
 Direct Delta execution is feasible, but it is not an obvious trust reduction.
-At matched current structural coverage, the prototype is 694 low-level lines
+At the D92 matched structural coverage, the prototype is 694 low-level lines
 and 4,070 tape bytes larger than the selected Gamma evaluator. It removes the
-852-line higher-level transformer at the cost of moving constructor and match
+then-852-line higher-level transformer at the cost of moving constructor and match
 semantics into the low-level root.
 
 Neither route yet implements Delta's complete nominal type relation, checked
