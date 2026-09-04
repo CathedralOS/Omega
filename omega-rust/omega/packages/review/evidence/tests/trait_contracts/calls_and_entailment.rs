@@ -332,6 +332,10 @@ ensures
 
     let results = reconstruct_ordinary_package_obligation_results(&checked)
         .expect("package evidence independently rechecks the compiler certificate");
+    omega_package_evidence::ledger::validate_ordinary_package_obligation_results(
+        &results, &checked,
+    )
+    .expect("public result validation accepts the exact checked discharge");
     assert!(results.open_contract_entailment_obligations().is_empty());
     let [discharge] = results.contract_entailment_assumption_discharges() else {
         panic!("one exact assumption discharge")
@@ -379,6 +383,19 @@ ensures
         missing_results.open_contract_entailment_obligations().len(),
         1
     );
+    for (candidate, compilation) in [(&results, &missing), (&missing_results, &checked)] {
+        let diagnostics =
+            omega_package_evidence::ledger::validate_ordinary_package_obligation_results(
+                candidate,
+                compilation,
+            )
+            .expect_err("public result validation must reject stale discharge status");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("obligation results do not match local reconstruction")
+        }));
+    }
 
     let certificate = checked
         .facts

@@ -46,6 +46,12 @@ compiler results. Live source custody, requested target, result metadata,
 generated-source identity, and exact project decisions retain their distinct
 checks. This does not replace the remaining install/update transaction work.
 
+Fresh review compilation constructs each ledger and result set without then
+reconstructing it solely to compare that output with itself. Result construction
+still rejoins and rechecks compiler contract-assumption certificates. Public
+validators continue to reconstruct independently for supplied or recovered
+evidence.
+
 Design and security references:
 
 - [`package_manager_first_draft.md`](../../../wiki/design_briefs/package_manager_first_draft.md)

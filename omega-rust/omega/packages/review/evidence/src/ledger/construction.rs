@@ -18,8 +18,10 @@ use psi_core::PackageKeyIdentity;
 /// Build a candidate ledger from compiler-issued in-memory rows.
 ///
 /// `PackageReviewCanonicalRow` has no public constructor, so this route cannot
-/// turn caller-authored bytes into compiler issuance. It is used to place the
-/// same local-reconstruction gate directly on fresh review publication.
+/// turn caller-authored bytes into compiler issuance. This route validates
+/// framing, package/target consistency, and structural limits. Supplied rows
+/// still require association with the intended checked compilation; rows just
+/// projected from that compilation need no duplicate reconstruction.
 pub fn ordinary_package_obligation_ledger_from_compiler_rows(
     dependency_closure: PackageDependencyClosure,
     rows: &[PackageReviewCanonicalRow],
