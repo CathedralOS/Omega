@@ -13,6 +13,27 @@ needed for independent replay through publication.
 
 ## Immediate gate
 
+- **PIPELINE-PHASE-INTEGRATION.** Implement the migration in
+  [`optimization_phases.md`](wiki/architecture/pipeline/optimization_phases.md):
+  establish phase-specific selections and identity execution; introduce the
+  target-neutral pre-Terminal Psi optimization entrance; make terminalization
+  consume its validated result; retarget current Psi passes; make
+  Terminal-to-abstract lowering unconditional; then remove the native
+  `Unoptimized | ExplicitOptimization` fork. Keep the same representation on
+  both sides of a phase unless vocabulary, interpretation, invariants, or
+  published-product identity change. Acceptance: empty and nonempty selections,
+  standalone Terminal production, resumed lowering under a separate authority,
+  and every native continuation traverse one stage graph with no optimization
+  bypass or fallback.
+
+- **CHECKED-TREE-PRODUCT-PRUNING.** After all authored code has been checked,
+  add an exact opt-in checked-tree phase for whole-product/root selection and
+  unreachable declaration pruning. Retain selected-product identity and all
+  ownership, proof, effect, boundary, and diagnostic obligations. Acceptance:
+  pruning cannot hide an invalid authored declaration; shared frontend work is
+  reusable before multi-target fan-out; each target/root-selected Psi product is
+  independently reproducible.
+
 - **WORKSPACE-ROLLOUT.** Keep every rule explicit opt-in until the frozen-tree
   command `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test --workspace
   --no-fail-fast` passes. Do not replace it with `--all-targets`, which omits

@@ -20,12 +20,13 @@ does not feed source-shaped data back into Psi.
 Psi
     source files
     -> tokens -> syntax -> resolved -> typed -> checked
-    -> lowered expressions, predicates, places, blocks, and edges
+    -> optimizable expressions, predicates, places, blocks, and edges
+    -> selected target-neutral Psi optimization
     -> terminal Psi
 
 Omega
     terminal Psi
-    -> verified optimizer unit -> optimized abstract operations
+    -> abstract operations -> selected abstract-operation optimization
     -> target operations
     -> bounded physical assignment -> machine code -> object -> executable image
 ```
@@ -74,10 +75,12 @@ replays the retained image bytes; installation is a separate authority-bearing
 operation again. The ordinary source-to-native path uses the same Psi consumer
 boundary and gains no hidden frontend-state shortcut.
 
-Optimization is not optional control flow. An empty selected set is its identity
-transformation: every native compile still reconstructs and validates the
-verified optimizer unit, runs the bounded pass manager, and projects the result
-before target lowering. The bounded assignment stage after target operations is
+Optimization is not optional control flow. An empty selected set is the identity
+transformation of each applicable phase: the phase validates its input and
+output but constructs no rule candidates, transformations, or pass manifests.
+Psi optimization completes before Terminal publication; later Omega phases
+optimize their own representations without mutating Terminal. The bounded
+assignment stage after target operations is
 the one acknowledged transitional defect in this chain. It cycles scratch homes
 for the small supported roster. The durable replacement is one in-line
 continuation—target legalization, selected virtual instructions,
@@ -325,9 +328,9 @@ schema-derived plan may enter Terminal only when its carrier and validator live 
 `representations` rank or below without backend-owned types and its content is
 independently reconstructible before assignment or emission. Assigned homes,
 final call placement, relocation, and emitted bytes remain later facts.
-Terminal is immutable through optimization; the validated transformed
-projection retains its canonical identity rather than minting a successor
-Terminal.
+Terminal is immutable after publication. Selected Psi optimization precedes
+terminalization. Later validated transformed projections retain the canonical
+Terminal identity rather than minting a successor Terminal.
 
 The first selected scalar-call continuation reaches machine-effect custody on
 Linux System V AMD64 and AAPCS64. Its exact target-owned rows survive current
@@ -354,10 +357,13 @@ verified eliminated occurrence needs no child. A byte digest, provider-plan
 fingerprint, asserted application string, or selected-dispatch rewrite alone
 establishes no physical coverage.
 
-The verified non-identity continuation admits Psi-phase optimization and one
-first selected-lowering publication cohort. Psi-phase optimization derives its
-survivor projection from the independently validated final abstract plan, then
-uses the ordinary target/assignment/emission backend. The selected-lowering
+The current transitional non-identity continuation admits the implemented
+target-neutral passes only after Terminal decoding, plus one first
+selected-lowering publication cohort. It derives its survivor projection from
+the independently validated final abstract plan, then uses the ordinary
+target/assignment/emission backend. Migration moves those target-neutral passes
+before terminalization as specified by `optimization_phases.md`; it does not
+change their semantic contracts. The selected-lowering
 cohort is narrower: x86-64, spill-free, frameless, provider-free,
 callback-free, FMA-free Unit functions containing exactly one validated return fragment. It
 projects those fragments into the existing machine-code/object/image path and
@@ -367,7 +373,7 @@ fragments, allocation recovery, post-allocation rewriting, and layout
 optimization remain fenced until each route's complete custody reaches the
 native artifact.
 
-The unoptimized admitted-provider continuation currently admits normalized
+The transitional empty-selection admitted-provider continuation currently admits normalized
 foreign calls containing fixed-width 8-, 16-, 32-, or 64-bit integer scalar
 arguments, either Unit or one such scalar result, and at most the one direct
 compiler-private callback parameter already closed by the callback lane. Its D41 parent
