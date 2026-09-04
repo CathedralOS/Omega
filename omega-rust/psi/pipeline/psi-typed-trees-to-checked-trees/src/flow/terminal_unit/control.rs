@@ -1063,6 +1063,12 @@ pub(super) fn build_checked_machine(
         && selected_ieee_float_fma_result_locals.is_none())
     .then(|| checked_unit_scalar_result_local(program, statements))
     .flatten();
+    let selected_write_only_scalar_result_local = selected_scalar_result_local
+        .as_ref()
+        .map(|(_, result)| result);
+    let write_only_scalar_result_local = scalar_result_local
+        .as_ref()
+        .or(selected_write_only_scalar_result_local);
     let write_only_store = build_write_only_primitive_store(
         program,
         facts,
@@ -1073,6 +1079,7 @@ pub(super) fn build_checked_machine(
         &scalar_parameters,
         statements,
         scalar_result_local.as_ref(),
+        selected_write_only_scalar_result_local,
     );
     let scalar_expression_locals =
         if selected_scalar_result_local.is_some() || scalar_result_local.is_some() {
@@ -1097,7 +1104,7 @@ pub(super) fn build_checked_machine(
     }
     if write_only_store.is_some()
         && has_scalar_result_local
-        && (scalar_result_local.is_none() || !scalar_expression_locals.is_empty())
+        && (write_only_scalar_result_local.is_none() || !scalar_expression_locals.is_empty())
     {
         return None;
     }
@@ -1130,6 +1137,8 @@ pub(super) fn build_checked_machine(
             || affine_scalar_record_local.is_some()
             || if scalar_result_local.is_some() {
                 local_count != 1 || calls.len() != 1 || statements.len() != 2
+            } else if selected_scalar_result_local.is_some() {
+                local_count != 1 || !calls.is_empty() || statements.len() != 2
             } else {
                 local_count != 0 || !calls.is_empty()
             }
@@ -1264,7 +1273,15 @@ pub(super) fn build_checked_machine(
     }
     operations.reserve(calls.len() + 1);
     if let Some(store) = write_only_store {
-        if let Some(result) = scalar_result_local {
+        if let Some((application, result)) = selected_scalar_result_local {
+            operations.push(build_selected_operator_scalar_call(
+                program,
+                facts,
+                state,
+                application,
+                result,
+            )?);
+        } else if let Some(result) = scalar_result_local {
             let call = calls.first()?;
             if call.statement_index != usize::try_from(result.statement_index).ok()?
                 || call.call_ordinal != 0
@@ -1842,8 +1859,10 @@ fn build_write_only_primitive_store(
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statements: &[StatementNode],
     scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
+    selected_scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let (statement_index, assignment) = match (scalar_result_local, statements) {
+    let result_local = scalar_result_local.or(selected_scalar_result_local);
+    let (statement_index, assignment) = match (result_local, statements) {
         (None, [StatementNode::Assignment(assignment)]) => (0, assignment),
         (
             Some(result),
@@ -1916,16 +1935,24 @@ fn build_write_only_primitive_store(
     {
         return None;
     }
-    let frame = facts
+    let frame = &facts
         .mutation
         .for_machine(machine.symbol)?
         .state_write_frames
         .iter()
         .find(|frame| frame.state == state.symbol)?
-        .frame
-        .complete_paths()?;
+        .frame;
     let expected_frame_path = format!("$P{}", destination.position);
-    if !matches!(frame, [path] if path == &expected_frame_path) {
+    let exact_frame =
+        matches!(frame.complete_paths(), Some([path]) if path == &expected_frame_path);
+    // Before provider selection, a boundary-operator initializer makes the
+    // source write frame opaque. The selected scalar lane replaces that one
+    // initializer with a checked-body call whose complete scalar-only shape is
+    // replayed below; the exact two-statement body leaves the destination
+    // assignment as its only caller-visible write.
+    let unresolved_selected_frame = selected_scalar_result_local.is_some()
+        && frame.completeness() == psi_facts::WriteFrameCompleteness::Opaque;
+    if !exact_frame && !unresolved_selected_frame {
         return None;
     }
     let value = facts.values.scalar_expressions.expression_at(
@@ -1963,7 +1990,7 @@ fn build_write_only_primitive_store(
             && *destination_type == primitive_type
     });
     let direct_result_is_exact = matches!(
-        (scalar_result_local, value),
+        (result_local, value),
         (
             Some(result),
             CheckedScalarExpression::Local {

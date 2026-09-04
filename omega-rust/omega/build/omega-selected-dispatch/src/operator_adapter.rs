@@ -1473,6 +1473,66 @@ mod tests {
     }
 
     #[test]
+    fn selected_integer_result_reaches_immediate_write_only_store() {
+        let source = SOURCE.replace(
+            "machine Main::main(&mut self) {\n            let result: i32 = CheckedMath::offset_zero(70);\n        }",
+            "machine Main::main(destination: &write i32) {\n            let result: i32 = CheckedMath::offset_zero(70);\n            destination = result;\n        }",
+        );
+        let mut fixture = fixture_from_source(&source);
+        let main = fixture
+            .checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Unit fixture machine");
+        let main_symbol = main.symbol;
+        let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
+        let (selected, _) = select_operator_use(&mut fixture, |origin| {
+            matches!(
+                origin,
+                CheckedValueOrigin::StateStatement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index: 0,
+                    role: CheckedValueStatementRole::LocalInitializer,
+                } if machine_symbol == main_symbol && state_symbol == main_state
+            )
+        });
+        let mut settled = Arc::new(fixture.checked);
+
+        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+            .expect("selected result and immediate write-only store settle");
+
+        let operations = &settled
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .find(|plan| plan.machine == main_symbol && plan.state == main_state)
+            .expect("selected Unit plan")
+            .operations;
+        assert!(matches!(
+            operations.as_slice(),
+            [
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { result, .. },
+                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    statement_index: 1,
+                    destination_parameter_index: 0,
+                    value: psi_checked_trees::CheckedScalarExpression::Local {
+                        position: 0,
+                        primitive_type: psi_typed_trees::types::PrimitiveType::I32,
+                    },
+                },
+                CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 2, .. },
+            ] if result.statement_index == 0 && result.binding_ordinal == 0
+        ));
+        validate_selected_operator_terminal_custody(&settled, &selected)
+            .expect("selected result store retains exact ProviderPlan custody");
+    }
+
+    #[test]
     fn selected_local_result_retains_dependent_branch_free_scalar_local() {
         let source = SOURCE.replace(
             "let result: i32 = CheckedMath::offset_zero(70);",

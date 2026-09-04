@@ -1,6 +1,86 @@
 //! Runtime scalar-result forwarding controls.
 
 use super::*;
+use std::sync::Arc;
+
+fn checked_with_selected_integer_operator_store() -> Arc<psi_checked_trees::CheckedTrees> {
+    let source = r#"
+        data CheckedMath {}
+        boundary operator CheckedMath::offset_zero(value: i32) -> i32
+        requires value == value
+        ensures result == value + 0 && value == value;
+
+        data CheckedMathProvider {}
+        machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+        satisfies CheckedMath::offset_zero
+        requires input == input
+        ensures result == input + 0 && input == input
+        {
+            transition { _ -> (input + 0) }
+        }
+
+        data Root {}
+        machine Root::enter(destination: &write i32) {
+            let replacement: i32 = CheckedMath::offset_zero(23);
+            destination = replacement;
+        }
+    "#;
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize selected-result store");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+        .expect("parse selected-result store");
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        .expect("resolve selected-result store");
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type selected-result store");
+    let plan = omega_provider_planning::plans::derive_satisfies_plans(&typed, None)
+        .into_iter()
+        .find(|plan| {
+            plan.schema.trait_name.contains("CheckedMath::offset_zero")
+                && plan.provider_type == "CheckedMathProvider"
+        })
+        .expect("selected checked-operator ProviderPlan");
+    let mut checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("check selected-result store");
+    let (use_handle, mut operator_use) = checked
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .map(|(handle, operator_use)| (handle, *operator_use))
+        .find(|(_, operator_use)| {
+            checked
+                .typed
+                .operators()
+                .iter()
+                .find(|operator| operator.symbol == operator_use.selected_operator_symbol)
+                .is_some_and(|operator| {
+                    checked
+                        .typed
+                        .operator_path_members(operator.name)
+                        .iter()
+                        .map(|member| member.as_str())
+                        .eq(["CheckedMath", "offset_zero"])
+                })
+        })
+        .expect("selected checked-operator use");
+    operator_use.provider_plan_report_fingerprint = plan.report_fingerprint();
+    operator_use.provider_plan_commitment =
+        psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
+            *plan.identity_digest().as_bytes(),
+        );
+    *checked.facts.operators.named_uses.get_mut(use_handle) = operator_use;
+    let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&plan.name),
+    )
+    .expect("select exact checked-operator plan");
+    let mut checked = Arc::new(checked);
+    omega_selected_dispatch::settle_selected_operator_adapter_dispatch(&mut checked, &selected)
+        .expect("settle selected-result store");
+    checked
+}
 
 #[test]
 fn scalar_result_home_reaches_a_write_only_store_and_canonical_installation() {
@@ -188,26 +268,10 @@ fn scalar_result_home_reaches_a_write_only_store_and_canonical_installation() {
     }
 }
 
-#[test]
-fn scalar_result_home_directly_reaches_a_write_only_store_and_canonical_installation() {
-    let checked = checked(
-        r#"
-            data Scalar {}
-            machine Scalar::identity(value: i32) -> i32
-            requires value == value
-            ensures result == value
-            {
-                transition { _ -> value }
-            }
-
-            data Root {}
-            machine Root::enter(destination: &mut i32) {
-                let replacement: i32 = Scalar::identity(23);
-                destination = replacement;
-            }
-        "#,
-    );
-    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+fn assert_scalar_result_home_directly_reaches_a_write_only_store_and_canonical_installation(
+    checked: &psi_checked_trees::CheckedTrees,
+) {
+    let lowered = psi_checked_trees_to_terminal::lower_machine(checked, "Root::enter")
         .expect("direct scalar-result store reaches verified Terminal production");
     let root = lowered
         .semantic_module
@@ -461,4 +525,36 @@ fn scalar_result_home_directly_reaches_a_write_only_store_and_canonical_installa
             ) if machine == emitted.entry
         ));
     }
+}
+
+#[test]
+fn scalar_result_home_directly_reaches_a_write_only_store_and_canonical_installation() {
+    let checked = checked(
+        r#"
+            data Scalar {}
+            machine Scalar::identity(value: i32) -> i32
+            requires value == value
+            ensures result == value
+            {
+                transition { _ -> value }
+            }
+
+            data Root {}
+            machine Root::enter(destination: &mut i32) {
+                let replacement: i32 = Scalar::identity(23);
+                destination = replacement;
+            }
+        "#,
+    );
+    assert_scalar_result_home_directly_reaches_a_write_only_store_and_canonical_installation(
+        &checked,
+    );
+}
+
+#[test]
+fn selected_result_home_directly_reaches_a_write_only_store_on_both_linux_targets() {
+    let checked = checked_with_selected_integer_operator_store();
+    assert_scalar_result_home_directly_reaches_a_write_only_store_and_canonical_installation(
+        &checked,
+    );
 }
