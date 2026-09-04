@@ -32,6 +32,8 @@ pub fn read_trust_admissions(
 
 /// Explicitly replace the project's admitted trust set with the exact set
 /// reconstructed by compilation. Ordinary compilation never calls this.
+/// Existing contents must be a supported trust-admission record; acceptance
+/// does not authorize replacing an unknown lock format or repairing corruption.
 pub fn accept_trust_admissions(
     root_path: &std::path::Path,
     admissions: &[TrustAdmission],
@@ -55,10 +57,23 @@ pub fn accept_trust_admissions(
         }
     }
     let output = render_trust_lock(&rows);
-    if std::fs::read_to_string(&lock_path).ok().as_deref() == Some(output.as_str()) {
+    let existing = match std::fs::read_to_string(&lock_path) {
+        Ok(input) => {
+            parse_trust_lock(&input, &lock_path)?;
+            Some(input)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(vec![Diagnostic::error(format!(
+                "failed to read {} during explicit trust acceptance: {error}",
+                lock_path.display()
+            ))]);
+        }
+    };
+    if existing.as_deref() == Some(output.as_str()) {
         return Ok(());
     }
-    if output.is_empty() && !lock_path.exists() {
+    if output.is_empty() && existing.is_none() {
         return Ok(());
     }
     std::fs::write(&lock_path, output).map_err(|error| {
@@ -206,6 +221,106 @@ mod tests {
         std::fs::write(&lock_path, malformed).unwrap();
         assert!(read_trust_admissions(&root_path).is_err());
         assert_eq!(std::fs::read_to_string(&lock_path).unwrap(), malformed);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn explicit_acceptance_preserves_unsupported_or_corrupt_existing_contents() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-lock-invalid-explicit-acceptance-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let root_path = root.join("main.omg");
+        let lock_path = root.join("omega.lock");
+        let admissions = [persisted("accepted fact: Alpha", 1)];
+        accept_trust_admissions(&root_path, &admissions).unwrap();
+        let canonical = std::fs::read_to_string(&lock_path).unwrap();
+        let invalid_contents = [
+            b"OMEGA-PACKAGE-LOCK 1\n".to_vec(),
+            b"not a trust receipt\n".to_vec(),
+            format!("{canonical}{canonical}").into_bytes(),
+            b"0000000000000001  accepted fact: Alpha\n".to_vec(),
+            format!("{}  accepted fact: Alpha\n", "0".repeat(64)).into_bytes(),
+            canonical.trim_end_matches('\n').as_bytes().to_vec(),
+            vec![0xff, b'\n'],
+        ];
+        for contents in invalid_contents {
+            for required in [admissions.as_slice(), &[]] {
+                std::fs::write(&lock_path, &contents).unwrap();
+                assert!(accept_trust_admissions(&root_path, required).is_err());
+                assert_eq!(std::fs::read(&lock_path).unwrap(), contents);
+            }
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn explicit_acceptance_replaces_and_clears_valid_admissions() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-lock-replace-explicit-acceptance-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let root_path = root.join("main.omg");
+        let lock_path = root.join("omega.lock");
+        accept_trust_admissions(&root_path, &[]).unwrap();
+        assert!(!lock_path.exists());
+
+        accept_trust_admissions(&root_path, &[persisted("accepted fact: Alpha", 1)]).unwrap();
+        let replacement = [persisted("accepted fact: Beta", 2)];
+        accept_trust_admissions(&root_path, &replacement).unwrap();
+        assert_eq!(read_trust_admissions(&root_path).unwrap(), replacement);
+        let canonical = std::fs::read(&lock_path).unwrap();
+        accept_trust_admissions(&root_path, &replacement).unwrap();
+        assert_eq!(std::fs::read(&lock_path).unwrap(), canonical);
+
+        accept_trust_admissions(&root_path, &[]).unwrap();
+        assert!(read_trust_admissions(&root_path).unwrap().is_empty());
+        assert!(std::fs::read(&lock_path).unwrap().is_empty());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn explicit_acceptance_rechecks_contents_after_an_earlier_policy_read() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-lock-edited-explicit-acceptance-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let root_path = root.join("main.omg");
+        let lock_path = root.join("omega.lock");
+        let admissions = [persisted("accepted fact: Alpha", 1)];
+        accept_trust_admissions(&root_path, &admissions).unwrap();
+        assert_eq!(read_trust_admissions(&root_path).unwrap(), admissions);
+
+        let changed = "OMEGA-PACKAGE-LOCK 1\n";
+        std::fs::write(&lock_path, changed).unwrap();
+        assert!(accept_trust_admissions(&root_path, &admissions).is_err());
+        assert_eq!(std::fs::read_to_string(&lock_path).unwrap(), changed);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn explicit_acceptance_propagates_existing_lock_read_errors() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-lock-unreadable-explicit-acceptance-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let lock_path = root.join("omega.lock");
+        std::fs::create_dir_all(&lock_path).unwrap();
+        let root_path = root.join("main.omg");
+        let admissions = [persisted("accepted fact: Alpha", 1)];
+        for required in [admissions.as_slice(), &[]] {
+            let diagnostics = accept_trust_admissions(&root_path, required)
+                .expect_err("a failed lock read must not be treated as an absent lock");
+            assert!(format!("{diagnostics:?}").contains("failed to read"));
+            assert!(lock_path.is_dir());
+        }
         std::fs::remove_dir_all(root).unwrap();
     }
 
