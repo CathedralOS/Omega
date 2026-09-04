@@ -52,7 +52,14 @@ The Psi product role owns this stage; its hosted source belongs under
   conversion from token text into syntax values.
 - `parser/file.rs` and `parser/item.rs` own top-level item sequencing.
 - Item modules such as `data.rs`, `domain.rs`, `machine.rs`, `trait_definition.rs`, `operator.rs`, `library.rs`, `platform.rs`, `target.rs`, `export_item.rs`, and `use_item.rs` own the grammar for their corresponding source forms.
-- `parser/expression.rs` owns expression precedence parsing.
+- `parser/expression.rs` owns expression precedence parsing. Ordinary binary
+  precedence uses an explicit pending-operator stack; unary prefixes are
+  collected and applied in reverse order. Membership remains a separate grammar
+  boundary between integer operators and comparison/logical operators, including
+  the restricted integer entrypoint used by const arguments. Postfix suffix
+  construction runs after its primary has returned, so its scratch storage does
+  not occupy every nested primary's native stack frame. Groups, aggregates,
+  arguments, and types still recurse; this is not a stackless whole parser.
 - `parser/expression/membership.rs` owns executable domain membership parsing,
   including `in`, domain intersections, and domain unions.
 - `parser/expression/primary.rs` owns literals, grouped expressions, array literals, path names, and struct literals.
@@ -103,6 +110,9 @@ The Psi product role owns this stage; its hosted source belongs under
   migration diagnostics must reject them rather than preserve syntax nodes.
 - `parser/diagnostics.rs` owns parse-time grammar diagnostics.
 - `parser/tests.rs` owns broad parser coverage; tests should not live in the entrypoint file.
+  `parser/tests/expression_stack.rs` pins operator precedence, source spans,
+  membership boundaries, prefix semantics, and default-stack parsing of 64
+  grouped unary expressions inside nine record and eight array literals.
 
 ## Semantic Ownership
 
