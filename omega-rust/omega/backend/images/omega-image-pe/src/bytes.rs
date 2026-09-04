@@ -1,3 +1,6 @@
+//! Little-endian appends and in-place patches, the latter bounds-checked because
+//! they write into already-emitted bytes.
+
 use psi_diagnostics::Diagnostic;
 
 pub(crate) fn write_u16(bytes: &mut Vec<u8>, value: u16) {

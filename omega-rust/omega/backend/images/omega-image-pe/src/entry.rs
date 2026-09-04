@@ -1,3 +1,5 @@
+//! The entry RVA, resolved from the final image's entry symbol.
+
 use crate::constants::TEXT_RVA;
 use omega_image::{FinalImage, FinalImageSection, final_image_symbol_name};
 use psi_diagnostics::Diagnostic;

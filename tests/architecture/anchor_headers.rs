@@ -27,10 +27,6 @@ const ANCHOR_HEADER_EXCEPTIONS: &[(&str, usize)] = &[
         0,
     ),
     (
-        "omega-rust/omega/backend/images/omega-image-pe/src/lib.rs",
-        0,
-    ),
-    (
         "omega-rust/omega/backend/instruction_set_architectures/omega-x86-encoding/src/lib.rs",
         2,
     ),
