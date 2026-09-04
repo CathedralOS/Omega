@@ -1,7 +1,7 @@
 use omega_optimization_core::PrePhysicalOptimizationManifestIdentity;
 use omega_regalloc::PostAllocationSelectedTransformation;
 
-use crate::{
+use omega_allocation_legality_to_literal_folds::{
     StagedOptimizedLiteralFoldCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
     StagedSelectedLoweringOptimizationRun,
 };

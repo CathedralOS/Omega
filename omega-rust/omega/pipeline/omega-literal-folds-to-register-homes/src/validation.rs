@@ -4,7 +4,7 @@ use omega_regalloc::{
     validate_register_homes,
 };
 
-use crate::{
+use omega_allocation_legality_to_literal_folds::{
     validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,
 };
 
