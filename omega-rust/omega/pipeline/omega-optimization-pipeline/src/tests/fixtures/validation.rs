@@ -38,7 +38,7 @@ pub(crate) fn validate_raw_post_allocation(
     let environment = selected.register_environment();
     omega_machine_optimizer::validate_post_allocation_machine_plan(
         selected.selected(),
-        staged.effects().effects(),
+        staged.effects(),
         source.legality_stage().live_range_stage().ranges(),
         source.legality_stage().legality(),
         source.homes(),

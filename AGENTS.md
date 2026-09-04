@@ -179,6 +179,15 @@ stage uses the form matching its resolution level while keeping stable links
 back to the shared semantic spine. Coordinators stay boring — sequence typed
 phases and stop. Do not add a crate until a module boundary has stopped moving.
 
+Each program representation has one named root file beside `lib.rs`; the root
+defines the current program and leads into subordinate concept-owned areas.
+Organize those areas around the representation's actual control flow, values,
+storage, calls, ownership, and evidence. Do not force an identical directory
+template onto different representations or collect unrelated types in `model/`.
+Pipeline crates own transformations and private working state, not public
+program structs containing previous stage objects. Optimization history is
+explicit evidence; it must not select a different downstream representation.
+
 `tests/architecture` (`omega-architecture-test`) enforces cross-crate
 dependency direction and semantic shape. A wrong-direction dependency fails
 there, not at `cargo check`.

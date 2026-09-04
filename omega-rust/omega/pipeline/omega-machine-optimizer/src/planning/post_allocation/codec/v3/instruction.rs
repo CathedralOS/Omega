@@ -1,10 +1,10 @@
 //! Physical instruction and operand vocabulary decoding.
 
-use crate::analyses::pre_allocation_effects::codec as effect_codec;
 use crate::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 use omega_register_model::{
     RegisterClassId, RegisterOperandAccess, RegisterViewId, RegisterWriteSemantics,
 };
+use omega_selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 use omega_selected_instructions::{SelectedInstructionId, VirtualRegisterId};
 
 use super::super::{

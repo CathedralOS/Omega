@@ -15,9 +15,9 @@ mod tests;
 use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
 
 use instruction::{encode_cfg_instruction, encode_ordinary_instruction};
-pub(crate) use ownership::encode_ownership;
-pub(crate) use provenance::encode_provenance;
-pub(crate) use structural::{encode_effect_link, encode_structural_call};
+pub use ownership::encode_ownership;
+pub use provenance::encode_provenance;
+pub use structural::{encode_effect_link, encode_structural_call};
 use values::{encode_len, encode_target};
 
 pub fn pre_allocation_machine_effect_identity(

@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) fn decode_ownership(
+pub fn decode_ownership(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<OwnershipEvent>, PreAllocationMachineEffectDecodeError> {
     let count = cursor.length()?;

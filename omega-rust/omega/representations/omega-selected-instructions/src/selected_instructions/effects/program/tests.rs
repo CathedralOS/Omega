@@ -1,12 +1,6 @@
 //! Pre-allocation machine-effect codec fixtures.
 
-use omega_optimization_core::OptimizationUnitIdentity;
-use omega_optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
-use omega_register_model::{
-    RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
-    RegisterUnitId, TargetRegisterEnvironmentIdentity,
-};
-use omega_selected_instructions::{
+use crate::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectCatalogIdentity, MachineEncodedControlEffect, MachineEncodedEffects,
@@ -18,12 +12,18 @@ use omega_selected_instructions::{
     StructuralUnitCallBarrier, StructuralUnitCallEffect, StructuralUnitCallEffectDeclaration,
     StructuralUnitCallFrameEffect, StructuralUnitCallMemoryEffect,
 };
+use omega_optimization_core::OptimizationUnitIdentity;
+use omega_optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
+use omega_register_model::{
+    RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
+    RegisterUnitId, TargetRegisterEnvironmentIdentity,
+};
 use omega_target::NativeTarget;
 use psi_core::{
     ClaimId, EdgeId, FuelScheduleIdentity, MachineId, ObligationId, OperationId, ValueId,
 };
 
-use super::codec::*;
+use super::encoding::*;
 use super::*;
 
 fn plan() -> PreAllocationMachineEffectPlan {

@@ -3,21 +3,43 @@
 use crate::tests::*;
 
 #[test]
+fn machine_effect_replay_rejects_a_different_program_or_environment() {
+    let selected = staged_exact_subtract_conditional(NativeTarget::linux_x64());
+    let other = staged_forwarded_conditional(NativeTarget::linux_x64());
+    let arm = staged_exact_subtract_conditional(NativeTarget::linux_arm64());
+    let effects =
+        analyze_machine_effects(selected.selected(), selected.register_environment()).unwrap();
+    assert!(
+        validate_machine_effects(other.selected(), other.register_environment(), &effects).is_err()
+    );
+    assert!(
+        validate_machine_effects(selected.selected(), arm.register_environment(), &effects)
+            .is_err()
+    );
+    assert_eq!(
+        effects,
+        analyze_machine_effects(selected.selected(), selected.register_environment()).unwrap()
+    );
+}
+
+#[test]
 fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let selected = staged_exact_subtract_conditional(target);
-        let staged = stage_optimized_machine_effects(&selected).unwrap();
-        assert_eq!(staged.custody().instruction_count(), 10);
+        let staged =
+            analyze_machine_effects(selected.selected(), selected.register_environment()).unwrap();
+        assert_eq!(staged.receipt().instruction_count(), 10);
         assert_eq!(
-            staged.custody().source(),
-            &StagedOptimizedMachineEffectSourceCustodyReceipt::Selected(selected.custody())
+            staged.receipt().selected(),
+            selected.selected().receipt().identity()
         );
-        assert_eq!(
-            &validate_optimized_machine_effect_custody(&selected, staged.effects()).unwrap(),
-            staged.custody()
-        );
+        validate_machine_effects(
+            selected.selected(),
+            selected.register_environment(),
+            &staged,
+        )
+        .unwrap();
         let instructions = staged
-            .effects()
             .plan()
             .functions
             .iter()
@@ -60,7 +82,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
             assert_eq!(subtract.provenance.fuel.len(), 1);
         }
 
-        let mut corrupted = staged.effects().plan().clone();
+        let mut corrupted = staged.plan().clone();
         corrupted.functions[0].blocks[1].instructions[2]
             .alternatives
             .clear();

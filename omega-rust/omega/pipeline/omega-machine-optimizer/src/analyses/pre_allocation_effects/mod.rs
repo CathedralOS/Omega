@@ -1,17 +1,16 @@
 //! Optimizer module role: executable entrance. Complete machine-effect analysis for one validated selected CFG.
 
-pub(crate) mod codec;
 mod compute;
-pub(crate) mod identity;
 mod model;
 mod validate;
 
-#[cfg(test)]
-mod codec_tests;
-
-pub use codec::PreAllocationMachineEffectDecodeError;
-pub use identity::pre_allocation_machine_effect_identity;
 pub use model::*;
+pub use omega_selected_instructions::{
+    BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
+    PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
+    PreAllocationMachineEffectPlan, StructuralUnitCallMachineEffects,
+    StructuralUnitFunctionMachineEffects, pre_allocation_machine_effect_identity,
+};
 pub use validate::validate_pre_allocation_machine_effects;
 
 use omega_regalloc::ValidatedSelectedAnalysis;

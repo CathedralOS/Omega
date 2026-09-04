@@ -24,7 +24,7 @@ pub(super) fn decode_structural_function(
     })
 }
 
-pub(crate) fn decode_structural_call(
+pub fn decode_structural_call(
     cursor: &mut Cursor<'_>,
 ) -> Result<StructuralUnitCallMachineEffects, PreAllocationMachineEffectDecodeError> {
     let instruction = SelectedInstructionId(cursor.u32()?);
@@ -121,7 +121,7 @@ fn decode_machine_register(
     })
 }
 
-pub(crate) fn decode_effect_link(
+pub fn decode_effect_link(
     cursor: &mut Cursor<'_>,
 ) -> Result<EffectLink, PreAllocationMachineEffectDecodeError> {
     Ok(EffectLink {

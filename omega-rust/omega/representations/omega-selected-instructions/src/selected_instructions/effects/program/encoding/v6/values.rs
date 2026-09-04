@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) fn decode_target(
+pub fn decode_target(
     cursor: &mut Cursor<'_>,
 ) -> Result<NativeTarget, PreAllocationMachineEffectDecodeError> {
     let architecture = match cursor.byte()? {
@@ -43,7 +43,7 @@ pub(super) fn decode_constraint_key(
     })
 }
 
-pub(crate) fn decode_units(
+pub fn decode_units(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<RegisterUnitId>, PreAllocationMachineEffectDecodeError> {
     let count = cursor.length()?;

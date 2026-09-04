@@ -37,26 +37,35 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
             budget(),
         )
         .unwrap();
-        let machine_effects =
-            stage_optimized_machine_effects_after_fixed_view_copies(&materialized).unwrap();
+        let machine_effects = analyze_machine_effects(
+            materialized.copies(),
+            materialized
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+        )
+        .unwrap();
         assert_eq!(
-            machine_effects.effects().receipt().selected(),
+            machine_effects.receipt().selected(),
             materialized.custody().transformed_selected()
         );
         assert_eq!(
-            machine_effects.custody().source(),
-            &StagedOptimizedMachineEffectSourceCustodyReceipt::FixedViewCopies(
-                materialized.custody()
-            )
+            machine_effects.receipt().selected(),
+            materialized.custody().transformed_selected()
         );
-        assert_eq!(
-            &validate_optimized_machine_effect_custody_after_fixed_view_copies(
-                &materialized,
-                machine_effects.effects(),
-            )
-            .unwrap(),
-            machine_effects.custody()
-        );
+        validate_machine_effects(
+            materialized.copies(),
+            materialized
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            &machine_effects,
+        )
+        .unwrap();
         let copy_plan = materialized.copies().plan();
         assert_eq!(copy_plan.copies.len(), 2);
         assert_eq!(materialized.custody().copy_count(), 2);

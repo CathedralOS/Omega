@@ -75,7 +75,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects/src/lib.rs",
-        coordination_marker: "fn admit_machine_effects",
+        coordination_marker: "pub fn analyze_machine_effects",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-allocation-legality-to-literal-folds/src/lib.rs",

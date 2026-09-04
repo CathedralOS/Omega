@@ -8,10 +8,10 @@ pub(super) fn analyze_and_allocate_structural_call(
         .as_ref()
         .expect("caller owns one atomic structural Unit call");
     let selected_call_uses = selected_call.implicit_uses.clone();
-    let effects = stage_optimized_machine_effects(&selected)
+    let effects = analyze_machine_effects(selected.selected(), selected.register_environment())
         .expect("structural call must reach pre-allocation effect custody");
-    assert_eq!(effects.effects().plan().structural_unit_functions.len(), 2);
-    let effect_call = effects.effects().plan().structural_unit_functions[0]
+    assert_eq!(effects.plan().structural_unit_functions.len(), 2);
+    let effect_call = effects.plan().structural_unit_functions[0]
         .call
         .as_ref()
         .expect("caller effect roster owns the atomic call");
@@ -27,12 +27,14 @@ pub(super) fn analyze_and_allocate_structural_call(
             pre_call_stack_alignment: 16,
         }
     );
-    assert_eq!(
-        &validate_optimized_machine_effect_custody(&selected, effects.effects()).unwrap(),
-        effects.custody()
-    );
+    validate_machine_effects(
+        selected.selected(),
+        selected.register_environment(),
+        &effects,
+    )
+    .unwrap();
 
-    let mut corrupted = effects.effects().plan().clone();
+    let mut corrupted = effects.plan().clone();
     corrupted.structural_unit_functions[0]
         .call
         .as_mut()

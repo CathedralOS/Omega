@@ -9,14 +9,11 @@ name = "omega_selected_instructions_to_machine_effects"
 path = "src/lib.rs"
 
 [dependencies]
-omega-allocation-legality-to-active-resident-rematerialization = { path = "../omega-allocation-legality-to-active-resident-rematerialization" }
-omega-allocation-legality-to-fixed-view-copies = { path = "../omega-allocation-legality-to-fixed-view-copies" }
-omega-allocation-legality-to-literal-folds = { path = "../omega-allocation-legality-to-literal-folds" }
+omega-register-model = { path = "../../representations/omega-register-model" }
 omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 omega-machine-optimizer = { path = "../omega-machine-optimizer" }
 omega-regalloc = { path = "../omega-regalloc" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
 omega-target = { path = "../../representations/omega-target" }
-omega-target-operations-to-selected-instructions = { path = "../omega-target-operations-to-selected-instructions" }
 omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }

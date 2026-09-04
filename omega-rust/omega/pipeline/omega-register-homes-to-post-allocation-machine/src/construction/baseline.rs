@@ -1,7 +1,6 @@
 use omega_allocation_legality_to_register_homes::{
     StagedOptimizedRegisterHomes, validate_optimized_register_home_custody,
 };
-use omega_selected_instructions_to_machine_effects::stage_optimized_machine_effects;
 
 use super::{
     OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
@@ -22,12 +21,9 @@ pub fn stage_optimized_post_allocation_machine_plan(
         .live_range_stage()
         .liveness_stage()
         .selected_stage();
-    let effects = stage_optimized_machine_effects(selected_stage)
-        .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
     analyze_and_seal(
         StagedOptimizedPostAllocationMachineSourceCustodyReceipt::RegisterHomes(source_receipt),
         selected_stage.selected(),
-        effects,
         source.legality_stage().live_range_stage().ranges(),
         source.legality_stage().legality(),
         source.homes(),

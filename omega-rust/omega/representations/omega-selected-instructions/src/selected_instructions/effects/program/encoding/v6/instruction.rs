@@ -116,7 +116,7 @@ fn decode_integer(
     }
 }
 
-pub(crate) fn decode_provenance(
+pub fn decode_provenance(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionProvenance, PreAllocationMachineEffectDecodeError> {
     let operations = decode_ids(cursor, OperationId::new)?;
@@ -151,19 +151,19 @@ pub(crate) fn decode_provenance(
     })
 }
 
-pub(crate) fn decode_alternative(
+pub fn decode_alternative(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     decode_alternative_for_version(cursor, true, true)
 }
 
-pub(crate) fn decode_alternative_legacy(
+pub fn decode_alternative_legacy(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     decode_alternative_for_version(cursor, false, false)
 }
 
-pub(crate) fn decode_alternative_without_scalar_call(
+pub fn decode_alternative_without_scalar_call(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     decode_alternative_for_version(cursor, true, false)

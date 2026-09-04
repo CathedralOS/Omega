@@ -24,7 +24,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let selected_plan = selected.selected_plan();
     let machine = staged.machine().plan();
-    let effects = staged.effects().effects().plan();
+    let effects = staged.effects().plan();
     let count = selected_plan.structural_unit_functions.len();
     if count != machine.structural_unit_functions.len()
         || count != effects.structural_unit_functions.len()

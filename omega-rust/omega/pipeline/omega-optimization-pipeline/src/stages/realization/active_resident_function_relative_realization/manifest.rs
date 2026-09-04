@@ -95,7 +95,6 @@ pub(super) fn expected_manifest(
         pre_allocation_machine_effects: artifacts
             .machine
             .effects()
-            .effects()
             .receipt()
             .identity(),
         post_allocation_machine: machine.identity(),

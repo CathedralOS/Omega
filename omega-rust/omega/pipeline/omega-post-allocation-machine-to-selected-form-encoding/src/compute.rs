@@ -222,7 +222,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             }
         }
     }
-    let effect_plan = staged.effects().effects().plan();
+    let effect_plan = staged.effects().plan();
     if selected_plan.structural_unit_functions.len() != machine.structural_unit_functions.len()
         || selected_plan.structural_unit_functions.len()
             != effect_plan.structural_unit_functions.len()

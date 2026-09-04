@@ -1,3 +1,4 @@
+use omega_machine_optimizer::ValidatedPreAllocationMachineEffects;
 use omega_machine_optimizer::{
     PostAllocationMachineError, PostAllocationMachineIdentity, ValidatedPostAllocationMachinePlan,
 };
@@ -15,21 +16,19 @@ use omega_literal_folds_to_register_homes::{
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
 };
-use omega_selected_instructions_to_machine_effects::{
-    OptimizedMachineEffectPipelineError, StagedOptimizedMachineEffects,
-};
+use omega_selected_instructions_to_machine_effects::MachineEffectStageError;
 
 /// Home-aware machine facts joined only through independently replayed source
 /// custody. This remains non-emission and non-publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedPostAllocationMachinePlan {
-    pub(super) effects: StagedOptimizedMachineEffects,
+    pub(super) effects: ValidatedPreAllocationMachineEffects,
     pub(super) machine: ValidatedPostAllocationMachinePlan,
     pub(super) custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
 }
 
 impl StagedOptimizedPostAllocationMachinePlan {
-    pub const fn effects(&self) -> &StagedOptimizedMachineEffects {
+    pub const fn effects(&self) -> &ValidatedPreAllocationMachineEffects {
         &self.effects
     }
 
@@ -97,7 +96,7 @@ pub enum OptimizedPostAllocationMachinePipelineError {
     LiteralFolds(OptimizedPostLiteralFoldHomeCustodyError),
     SelectedLowering(OptimizedPostSelectedLoweringHomeCustodyError),
     ActiveResidentRematerialization(OptimizedActiveResidentRematerializationError),
-    MachineEffects(OptimizedMachineEffectPipelineError),
+    MachineEffects(MachineEffectStageError),
     PostAllocation(PostAllocationMachineError),
     ReceiptMismatch,
 }

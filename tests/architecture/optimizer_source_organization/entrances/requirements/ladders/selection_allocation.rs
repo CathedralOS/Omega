@@ -372,11 +372,11 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "selected machine-effect carrier",
         paths: &[
-            "omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/mod.rs",
-            "omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/model.rs",
-            "omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/constraint_keys.rs",
-            "omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/validation.rs",
-            "omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/identity.rs",
+            "omega-rust/omega/representations/omega-selected-instructions/src/selected_instructions/effects/catalog.rs",
+            "omega-rust/omega/representations/omega-selected-instructions/src/selected_instructions/effects/catalog/model.rs",
+            "omega-rust/omega/representations/omega-selected-instructions/src/selected_instructions/effects/catalog/constraint_keys.rs",
+            "omega-rust/omega/representations/omega-selected-instructions/src/selected_instructions/effects/catalog/validation.rs",
+            "omega-rust/omega/representations/omega-selected-instructions/src/selected_instructions/effects/catalog/identity.rs",
         ],
     },
     SemanticLadder {
@@ -573,8 +573,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "projected structural call-return selection",
         paths: &[
-            "omega-rust/omega/representations/omega-selected-instructions/src/projected_structural_call_return/mod.rs",
-            "omega-rust/omega/representations/omega-selected-instructions/src/projected_structural_call_return/model.rs",
+            "omega-rust/omega/representations/omega-selected-instructions/src/selected_instructions/calls/projected_return/mod.rs",
+            "omega-rust/omega/representations/omega-selected-instructions/src/selected_instructions/calls/projected_return/model.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/mod.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/projection.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/constraints.rs",

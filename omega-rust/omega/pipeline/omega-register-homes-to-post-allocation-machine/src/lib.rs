@@ -16,14 +16,14 @@ pub use validation::*;
 
 use omega_machine_optimizer::ValidatedPostAllocationMachinePlan;
 
-use omega_selected_instructions_to_machine_effects::StagedOptimizedMachineEffects;
+use omega_machine_optimizer::ValidatedPreAllocationMachineEffects;
 
 fn seal_staged_post_allocation_machine(
     source: StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
-    effects: StagedOptimizedMachineEffects,
+    effects: ValidatedPreAllocationMachineEffects,
     machine: ValidatedPostAllocationMachinePlan,
 ) -> StagedOptimizedPostAllocationMachinePlan {
-    let custody = post_allocation_machine_custody(source, effects.effects(), &machine);
+    let custody = post_allocation_machine_custody(source, &effects, &machine);
     StagedOptimizedPostAllocationMachinePlan {
         effects,
         machine,

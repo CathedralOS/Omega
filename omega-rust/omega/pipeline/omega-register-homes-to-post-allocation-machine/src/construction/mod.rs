@@ -21,7 +21,7 @@ use omega_regalloc::{
     ValidatedRegisterHomes, ValidatedSelectedAnalysis,
 };
 
-use omega_selected_instructions_to_machine_effects::StagedOptimizedMachineEffects;
+use omega_selected_instructions_to_machine_effects::analyze_machine_effects;
 use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::{
@@ -33,16 +33,17 @@ use super::{
 fn analyze_and_seal<S: ValidatedSelectedAnalysis>(
     source: StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
     selected: &S,
-    effects: StagedOptimizedMachineEffects,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     homes: &ValidatedRegisterHomes,
     manifest: &ValidatedPostAllocationOptimizationManifest,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<StagedOptimizedPostAllocationMachinePlan, OptimizedPostAllocationMachinePipelineError> {
+    let effects = analyze_machine_effects(selected, environment)
+        .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
     let machine = analyze_post_allocation_machine_plan(
         selected,
-        effects.effects(),
+        &effects,
         ranges,
         legality,
         homes,
