@@ -17,6 +17,7 @@
 ; ra0 immutable-pair heap cursor, ra1 immutable-pair heap limit,
 ; ra2 result kind (zero scalar, one pair),
 ; rb0 buffered-output count, rb1 buffered-output limit.
+; rb2 is one only for a validated source whose first function is $application.
 ; Low registers are caller-clobbered scratch.
 
 0x0: ; main:
@@ -43,7 +44,7 @@
 0x9b: ; read_full:
         read r1
         jlt r1 r90 0xb1 ; -> read_done:
-        jmp 0x19fe ; -> incomplete:
+        jmp 0x1e08 ; -> request_extent_failure:
 0xb1: ; read_done:
         mov r80 r0
         mov r1 r92
@@ -68,7 +69,7 @@
         mov r8c r90
         mov r8a r96
         mov r8e r90
-        call 0xbfc ; -> validate_program:
+        call 0x1c87 ; -> validate_and_classify_program:
         mov r89 r90
         mov r8c r90
         mov r8a r96
@@ -402,7 +403,7 @@
         mov r1 r8a
         imm r2 0x10
         add r1 r2
-        jlt r97 r1 0x19fe ; -> incomplete:
+        jlt r97 r1 0x1dab ; -> stack_failure:
         store r8a r0
         imm r1 0x8
         add r8a r1
@@ -513,7 +514,7 @@
         call 0x8f9 ; -> find_environment:
         jnz r0 0x19e6 ; -> invalid:
         imm r1 0x10000
-        jeq r89 r1 0x19fe ; -> incomplete:
+        jeq r89 r1 0x1dab ; -> stack_failure:
         imm r0 0x20
         mul r0 r89
         add r0 r95
@@ -772,7 +773,7 @@
         mov r6 r0
         mov r5 r1
         imm r1 0x100
-        jeq r8e r1 0x19fe ; -> incomplete:
+        jeq r8e r1 0x1dab ; -> stack_failure:
         add r8e r91
 0xf36: ; begin_call_context_ready:
         call 0xefd ; -> call_context:
@@ -810,7 +811,7 @@
         imm r4 0x30
         add r4 r3
         imm r5 0x1f00000
-        jlt r5 r4 0x19fe ; -> incomplete:
+        jlt r5 r4 0x1dab ; -> stack_failure:
         store r3 r85
         imm r5 0x8
         add r3 r5
@@ -1190,7 +1191,7 @@
         mov r2 ra0
         imm r1 0x28
         add r2 r1
-        jlt ra1 r2 0x19fe ; -> incomplete:
+        jlt ra1 r2 0x1dca ; -> heap_failure:
         mov r0 ra0
         imm r1 0x50414952
         store r0 r1
@@ -1279,20 +1280,20 @@
         imm r0 0x1
         halt r0
 0x19f2: ; authored_trap:
-        imm r0 0x2
-        halt r0
+        jmp 0x1d45 ; -> authored_failure:
+        mov r0 r0
 0x19fe: ; incomplete:
-        imm r0 0x3
-        halt r0
+        jmp 0x1d67 ; -> incomplete_failure:
+        mov r0 r0
 0x1a0a: ; internal:
-        imm r0 0x4
-        halt r0
+        jmp 0x1d89 ; -> internal_failure:
+        mov r0 r0
 
 ; Scalar main preserves transformer behavior. Pair main is a generic
 ; application result and never exposes buffered bytes before validation.
 0x1a16: ; finish_main:
         jnz ra2 0x1a6c ; -> application_main:
-        call 0x820 ; -> require_scalar:
+        call 0x1e73 ; -> require_transformer_scalar:
         jlt r0 r90 0x19f2 ; -> authored_trap:
         imm r1 0x100
         jlt r0 r1 0x1a52 ; -> scalar_main_valid:
@@ -1305,7 +1306,7 @@
         halt r0
 
 0x1a6c: ; application_main:
-        call 0x1890 ; -> validate_pair:
+        call 0x1e87 ; -> validate_application_pair:
         mov r6 r0
         imm r1 0x8
         add r0 r1
@@ -1342,7 +1343,7 @@
         halt r0
 
 0x1b3b: ; buffer_output:
-        jeq rb0 rb1 0x19fe ; -> incomplete:
+        jeq rb0 rb1 0x1de9 ; -> output_failure:
         imm r1 0xe000000
         add r1 rb0
         storeb r1 r0
@@ -1396,3 +1397,113 @@
         dw 0xf06
         dw 0x0
         dw 0x0
+
+; Validate every body first, then classify the exact first function name.
+; `$application` is a generic evaluator convention, not a Delta profile name.
+0x1c87: ; validate_and_classify_program:
+        call 0xbfc ; -> validate_program:
+        mov rb2 r90
+        mov r85 r81
+        call 0x28c ; -> next_token:
+        call 0x576 ; -> is_open:
+        jz r0 0x1d44 ; -> classify_program_done:
+        call 0x492 ; -> need_token:
+        call 0x492 ; -> need_token:
+        imm r0 0xc
+        jeq r87 r0 0x1ce2 ; -> classify_marker_length:
+        jmp 0x1d44 ; -> classify_program_done:
+0x1ce2: ; classify_marker_length:
+        load r0 r86
+        imm r1 0x6163696c70706124
+        jeq r0 r1 0x1d03 ; -> classify_marker_tail:
+        jmp 0x1d44 ; -> classify_program_done:
+0x1d03: ; classify_marker_tail:
+        mov r0 r86
+        imm r1 0x8
+        add r0 r1
+        load r0 r0
+        imm r1 0x100000000
+        mod r0 r1
+        imm r1 0x6e6f6974
+        jeq r0 r1 0x1d41 ; -> classify_application:
+        jmp 0x1d44 ; -> classify_program_done:
+0x1d41: ; classify_application:
+        mov rb2 r91
+0x1d44: ; classify_program_done:
+        ret
+
+0x1d45: ; authored_failure:
+        jnz rb2 0x1d5b ; -> application_authored_failure:
+        imm r0 0x2
+        halt r0
+0x1d5b: ; application_authored_failure:
+        imm r0 0xf9
+        halt r0
+
+0x1d67: ; incomplete_failure:
+        jnz rb2 0x1d7d ; -> application_incomplete_failure:
+        imm r0 0x3
+        halt r0
+0x1d7d: ; application_incomplete_failure:
+        imm r0 0xf8
+        halt r0
+
+0x1d89: ; internal_failure:
+        jnz rb2 0x1d9f ; -> application_internal_failure:
+        imm r0 0x4
+        halt r0
+0x1d9f: ; application_internal_failure:
+        imm r0 0xf8
+        halt r0
+
+0x1dab: ; stack_failure:
+        jnz rb2 0x1dbe ; -> application_stack_failure:
+        jmp 0x19fe ; -> incomplete:
+0x1dbe: ; application_stack_failure:
+        imm r0 0xfa
+        halt r0
+
+0x1dca: ; heap_failure:
+        jnz rb2 0x1ddd ; -> application_heap_failure:
+        jmp 0x19fe ; -> incomplete:
+0x1ddd: ; application_heap_failure:
+        imm r0 0xfc
+        halt r0
+
+0x1de9: ; output_failure:
+        jnz rb2 0x1dfc ; -> application_output_failure:
+        jmp 0x19fe ; -> incomplete:
+0x1dfc: ; application_output_failure:
+        imm r0 0xfe
+        halt r0
+
+; Request overflow occurs before census. The generated marker is deliberately
+; first so this one pre-validation resource can still retain its owner.
+0x1e08: ; request_extent_failure:
+        mov r0 r92
+        imm r1 0x4
+        add r0 r1
+        load r2 r0
+        imm r3 0x7061242066656428
+        jeq r2 r3 0x1e39 ; -> request_marker_tail:
+        jmp 0x19fe ; -> incomplete:
+0x1e39: ; request_marker_tail:
+        imm r1 0x8
+        add r0 r1
+        load r2 r0
+        imm r3 0x6f69746163696c70
+        jeq r2 r3 0x1e67 ; -> application_input_failure:
+        jmp 0x19fe ; -> incomplete:
+0x1e67: ; application_input_failure:
+        imm r0 0xfd
+        halt r0
+
+0x1e73: ; require_transformer_scalar:
+        jnz rb2 0x19f2 ; -> authored_trap:
+        call 0x820 ; -> require_scalar:
+        ret
+
+0x1e87: ; validate_application_pair:
+        jz rb2 0x19f2 ; -> authored_trap:
+        call 0x1890 ; -> validate_pair:
+        ret

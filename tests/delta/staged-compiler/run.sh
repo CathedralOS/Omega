@@ -62,7 +62,7 @@ forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
 epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 1992, 79294, "5dfa3ae4d8de9378a9a849717e55aad3b3839f2f497c70872a91c91c4a35886c"),
+    ("compiler", compiler, 2206, 89429, "6fa37b5870ef375477650ca58edb9be6012b51799d823b994ac939f69394d75e"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -102,6 +102,59 @@ def evaluate(program, sealed_input=b""):
         process.wait()
         raise SystemExit("selected Gamma evaluation timed out")
     return process.returncode, output
+
+def dcreq(profile, delta_source):
+    return (
+        b"DCREQ\x01\x00\x00"
+        + struct.pack("<I", profile)
+        + struct.pack("<I", len(delta_source))
+        + delta_source
+    )
+
+conformance_identity = b"(def main ((source Bytes)) Bytes source)\n"
+profile_status, profile_receipt = evaluate(
+    compiler, dcreq(1, conformance_identity)
+)
+if profile_status != 0 or not profile_receipt.startswith(
+    b"(def $application () Int 1)\n"
+):
+    raise SystemExit("ConformanceBytesV1 did not emit a marked application")
+for payload in (b"", b"ABC"):
+    if evaluate(profile_receipt, payload) != (0, payload):
+        raise SystemExit("ConformanceBytesV1 did not preserve exact input bytes")
+
+conformance_trap = (
+    b"(def main ((source Bytes)) Bytes "
+    b"(let ignored Int (bytes_get source -1) source))\n"
+)
+trap_status, trap_receipt = evaluate(compiler, dcreq(1, conformance_trap))
+if trap_status != 0 or evaluate(trap_receipt) != (249, b""):
+    raise SystemExit("ConformanceBytesV1 did not map an authored trap")
+
+if evaluate(profile_receipt, b"A" * 4194305) != (253, b""):
+    raise SystemExit("ConformanceBytesV1 did not reject adjacent input extent")
+
+conformance_double = (
+    b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
+)
+double_status, double_receipt = evaluate(compiler, dcreq(1, conformance_double))
+if double_status != 0:
+    raise SystemExit("ConformanceBytesV1 output-extent fixture did not compile")
+if evaluate(double_receipt, b"A" * 2097153) != (254, b""):
+    raise SystemExit("ConformanceBytesV1 did not reject adjacent output extent")
+
+wrong_schema = b"(def main () Int 7)\n"
+if evaluate(compiler, dcreq(1, wrong_schema))[0] == 0:
+    raise SystemExit("ConformanceBytesV1 admitted the wrong main schema")
+
+malformed_requests = (
+    b"DCREQ\x01\x00\x00" + struct.pack("<I", 0) + struct.pack("<I", 0),
+    b"DCREQ\x01\x00\x00" + struct.pack("<I", 1) + struct.pack("<I", 1),
+    dcreq(1, conformance_identity) + b"x",
+)
+for malformed_request in malformed_requests:
+    if evaluate(compiler, malformed_request)[0] == 0:
+        raise SystemExit("malformed DCREQ unexpectedly compiled")
 
 if evaluate(compiler, source) != (0, expected):
     raise SystemExit("nullary ADT lowering disagrees with exact Gamma receipt")
@@ -480,4 +533,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: indexed declarations, typed Bytes, exhaustive matches, checked arithmetic, and proper tails pass"
+echo "Staged Delta compiler: checked lowering and ConformanceBytesV1 profiles pass"

@@ -36,8 +36,8 @@ import subprocess
 from pathlib import Path
 
 artifacts = (
-    ("BETA", 39299, "c41edb7fa686292b34b6cdf1698a8b9fadd39e99a886c6ef57acb5451b1d02bc"),
-    ("TAPE", 7303, "6d630367b9d472f4f17a4bc51e0c282f7ab0ff0129a81236e78a276751680bd2"),
+    ("BETA", 42776, "95e8771385a3f8779abcc8aed116327e5de1b350e3aeb93398db913dc3459a33"),
+    ("TAPE", 7835, "708b6725d3e5a1eff7837336afcc18c45c6f04d5e102148fd710f63fe9b44950"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -118,14 +118,21 @@ for name, (source, sealed_input, expected) in positive.items():
 
 application_results = {
     "empty publication": (
-        b"(def main () Int (pair 0 1))\n", (0, b""),
+        b"(def $application () Int 1)\n(def main () Int (pair 0 1))\n",
+        (0, b""),
     ),
     "published nonzero outcome": (
+        b"(def $application () Int 1)\n"
         b"(def main () Int (let emitted Int (write 65) (pair 2 1)))\n",
         (2, b"A"),
     ),
     "discarded failure output": (
+        b"(def $application () Int 1)\n"
         b"(def main () Int (let emitted Int (write 65) (pair 249 0)))\n",
+        (249, b""),
+    ),
+    "mapped authored trap": (
+        b"(def $application () Int 1)\n(def main () Int (/ 1 0))\n",
         (249, b""),
     ),
 }
@@ -174,20 +181,21 @@ negative = {
     "pair write value": (
         b"(def main () Int (write (pair 1 2)))\n", 2,
     ),
-    "invalid application publish flag": (
+    "unmarked pair main": (
         b"(def main () Int (pair 1 2))\n", 2,
     ),
     "pair application status": (
-        b"(def main () Int (pair (pair 1 2) 1))\n", 2,
+        b"(def $application () Int 1)\n"
+        b"(def main () Int (pair (pair 1 2) 1))\n", 249,
     ),
     "unassigned application status": (
-        b"(def main () Int (pair 255 0))\n", 2,
+        b"(def $application () Int 1)\n(def main () Int (pair 255 0))\n", 249,
     ),
     "discarded complete application": (
-        b"(def main () Int (pair 0 0))\n", 2,
+        b"(def $application () Int 1)\n(def main () Int (pair 0 0))\n", 249,
     ),
     "empty nonzero publication": (
-        b"(def main () Int (pair 2 1))\n", 2,
+        b"(def $application () Int 1)\n(def main () Int (pair 2 1))\n", 249,
     ),
     "division by zero": (
         b"(def main () Int (/ 1 0))\n", 2,

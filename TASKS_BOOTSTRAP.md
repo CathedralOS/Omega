@@ -46,9 +46,10 @@ Epsilon compiler.
   `source/delta/compiler/delta_compiler.gamma` against the full Delta contract,
   including nominal types, exhaustiveness, checked arithmetic, proper-tail
   lowering, sealed profiles, deterministic failure selection, and canonical
-  Gamma emission. D122 closes the generic lower application-result boundary;
-  implement DCREQ profile selection, generated adapters, and deterministic
-  boundary-failure closure without Delta-specific Gamma primitives.
+  Gamma emission. DCREQ framing and `ConformanceBytesV1` are executable;
+  implement canonical DCOUT boundary failures and `EpsilonCompilerV1` after
+  the Epsilon compiler exposes its final entry/result, without Delta-specific
+  Gamma primitives.
   The current 467,348-byte Epsilon source plus a diagnostic entry compiles in
   73.4 seconds after declaration metadata indexing and emission cleanup;
   continue reducing general transformation costs rather than admitting a

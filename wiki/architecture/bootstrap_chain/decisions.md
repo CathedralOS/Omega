@@ -5005,3 +5005,30 @@ the two observation-ambiguous shapes. A one-shot proper-tail witness published
 exactly 16,777,212 bytes; the adjacent 16,777,213-byte attempt returned evaluator
 status 3 with zero exposed bytes. The evaluator and composed-artifact gates both
 pass.
+
+## D123 — Marked Gamma applications retain runtime failure ownership
+
+A generic Gamma application begins with the exact first declaration
+`(def $application () Int 1)`. The selected evaluator recognizes this marker
+after validating the complete source and before execution. Unmarked sources
+retain transformer statuses 0 through 4 and cannot return a pair from `main`.
+Marked sources require the D122 pair result and map runtime failures to the
+generated-program block: internal 248, authored trap 249, stack 250, heap 252,
+input extent 253, and output extent 254. Memory-containment status 251 remains
+reserved because every current access is preflighted.
+
+The marker also appears at the beginning of generated source, so request
+overflow can classify input extent before source census. It carries no profile
+identity or Delta policy. The final evaluator is 1,509 addressed-Beta lines and
+42,776 bytes, assembling to a 7,835-byte tape.
+
+The Gamma-authored Delta compiler now validates canonical DCREQ framing before
+viewing its length-delimited source. `ConformanceBytesV1` requires exact
+`main : Bytes -> Bytes`, renames it to `__d_main`, represents sealed input as a
+private immutable rope leaf, and emits a nullary marked adapter. Empty and
+nonempty identity cases publish exactly, authored traps return 249, the
+4,194,305-byte adjacent input returns 253, and a 4,194,306-byte result returns
+254 before traversal. The compiler remains a 2,206-line / 89,429-byte Gamma
+source. Raw source is retained only for frontend development gates. Canonical
+DCOUT failure frames and `EpsilonCompilerV1` remain unfinished rather than being
+represented by host interpretation or a second lower route.
