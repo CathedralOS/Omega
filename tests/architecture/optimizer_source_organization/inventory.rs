@@ -10,24 +10,24 @@ use crate::Audit;
 /// Keep these roots explicit: silently losing a moved or renamed tree must
 /// fail this test rather than shrinking its jurisdiction.
 const GOVERNED_ROOTS: &[&str] = &[
-    "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry",
-    "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_wrapper",
-    "source/omega-rust/omega/build/omega-build-evaluation/src/optimization",
-    "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization",
-    "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/optimization",
-    "source/omega-rust/omega/pipeline/optimization",
-    "source/omega-rust/omega/tooling/omega-optimization-policy-offline",
-    "source/omega-rust/omega/representations/omega-legalized-operations",
-    "source/omega-rust/omega/representations/omega-assigned-target-operations",
-    "source/omega-rust/omega/representations/omega-optimization-core",
-    "source/omega-rust/omega/representations/omega-optimization-unit",
-    "source/omega-rust/omega/representations/omega-selected-instructions",
-    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
-    "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
-    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
-    "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
-    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
-    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact",
+    "omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry",
+    "omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_wrapper",
+    "omega-rust/omega/build/omega-build-evaluation/src/optimization",
+    "omega-rust/omega/compiler/omega-compiler/src/compiler/optimization",
+    "omega-rust/omega/compiler/omega-compiler/src/pipeline/optimization",
+    "omega-rust/omega/pipeline/optimization",
+    "omega-rust/omega/tooling/omega-optimization-policy-offline",
+    "omega-rust/omega/representations/omega-legalized-operations",
+    "omega-rust/omega/representations/omega-assigned-target-operations",
+    "omega-rust/omega/representations/omega-optimization-core",
+    "omega-rust/omega/representations/omega-optimization-unit",
+    "omega-rust/omega/representations/omega-selected-instructions",
+    "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
+    "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
+    "omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
+    "omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
+    "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
+    "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact",
 ];
 
 /// One rule-owning stage's complete navigation contract. Keeping these fields
@@ -43,62 +43,62 @@ pub(super) struct RuleStageDescriptor {
 
 pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
     RuleStageDescriptor {
-        entrance: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/mod.rs",
-        catalog: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/mod.rs",
+        catalog: "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/catalog.rs",
         coordination_marker: "pub fn legalize_target_operations",
         catalog_marker: "LEGALIZATION_FORMS",
         next_rungs: &[
-            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source",
-            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay",
+            "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source",
+            "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay",
         ],
     },
     RuleStageDescriptor {
-        entrance: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/mod.rs",
-        catalog: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/mod.rs",
+        catalog: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/catalog.rs",
         coordination_marker: "pub fn built_in_psi_registries",
         catalog_marker: "PSI_PASS_CATALOG",
         next_rungs: &[
-            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes",
+            "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes",
         ],
     },
     RuleStageDescriptor {
-        entrance: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/mod.rs",
-        catalog: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/mod.rs",
+        catalog: "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/catalog.rs",
         coordination_marker: "pub fn resolve_selected_lowering_rules",
         catalog_marker: "SELECTED_LOWERING_RULE_CATALOG",
         next_rungs: &[
-            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/literal_fold",
+            "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/literal_fold",
         ],
     },
     RuleStageDescriptor {
-        entrance: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/mod.rs",
-        catalog: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/mod.rs",
+        catalog: "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/catalog.rs",
         coordination_marker: "pub fn selected_allocation_recovery_rule",
         catalog_marker: "ALLOCATION_RECOVERY_RULE_CATALOG",
         next_rungs: &[
-            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy",
-            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/pressure_rematerialization",
+            "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy",
+            "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/pressure_rematerialization",
         ],
     },
     RuleStageDescriptor {
-        entrance: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/mod.rs",
-        catalog: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/mod.rs",
+        catalog: "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/catalog.rs",
         coordination_marker: "pub fn selected_post_allocation_machine_rule",
         catalog_marker: "POST_ALLOCATION_MACHINE_RULE_CATALOG",
         next_rungs: &[
-            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching",
-            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64",
-            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/x86_64",
+            "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching",
+            "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64",
+            "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/x86_64",
         ],
     },
     RuleStageDescriptor {
-        entrance: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs",
-        catalog: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs",
+        catalog: "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/catalog.rs",
         coordination_marker: "pub fn stage_optimized_x86_branch_relaxation",
         catalog_marker: "FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG",
         next_rungs: &[
-            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/compute.rs",
-            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/validation.rs",
+            "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/compute.rs",
+            "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/validation.rs",
         ],
     },
 ];
@@ -107,7 +107,7 @@ pub(super) fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .find(|candidate| {
-            candidate.join("Cargo.toml").is_file() && candidate.join("source/omega-rust").is_dir()
+            candidate.join("Cargo.toml").is_file() && candidate.join("omega-rust").is_dir()
         })
         .expect("architecture tests must run from within the Omega repository")
         .to_path_buf()

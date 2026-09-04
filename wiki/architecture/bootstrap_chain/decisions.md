@@ -5,7 +5,7 @@ only in [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
 
 ## D1 — Rust exits by role, not by rung
 
-The Rust implementation under `source/omega-rust/` may remain as a comparator,
+The Rust implementation under `omega-rust/` may remain as a comparator,
 migration aid, and working product while the lattice closes. It supplies no
 semantic authority. Meaning/checking dependencies leave the trusted path before
 convenient producers need to disappear.

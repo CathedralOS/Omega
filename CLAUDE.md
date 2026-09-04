@@ -35,7 +35,7 @@ The CLI package is **`omega`** (binary `omega`). The README's
 cargo run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
-Full surface (`source/omega-rust/omega/src/command.rs`):
+Full surface (`omega-rust/omega/src/command.rs`):
 
 ```text
 omega [--check] [--accept-admissions] [--output-only] [--package-root-policy <file>]
@@ -146,7 +146,7 @@ there, not at `cargo check`.
 
 ### Source trees
 
-- `source/omega-rust/` — the **Rust reference producer**. Working development
+- `omega-rust/` — the **Rust reference producer**. Working development
   compiler and differential comparator; explicitly not canonical, not a
   language rung, and it grants no authority.
 - `source/psi/` + `source/omega/` — the Omega-written product compiler, split

@@ -30,7 +30,7 @@ Epsilon-written source can run while compiling `C`, producing a better `omega`.
   `source/omega/`, even though its files end in `.epsilon`;
 - `source/{psi,omega}/` owns the Omega-written self-hosting closure `C` and the
   product target-neutral/target-specific split; and
-- `source/omega-rust/{psi,omega}/` remains the working Rust implementation and
+- `omega-rust/{psi,omega}/` remains the working Rust implementation and
   comparator without bootstrap authority.
 
 The former restricted Epsilon-written Darwin compiler prototype was deleted

@@ -41,7 +41,7 @@ fn workspace_root() -> PathBuf {
 }
 
 fn package_root() -> PathBuf {
-    workspace_root().join("source/omega-rust/omega/packages")
+    workspace_root().join("omega-rust/omega/packages")
 }
 
 fn directory_entries(root: &Path) -> BTreeSet<String> {
@@ -417,8 +417,7 @@ fn resolver_source_custody_excludes_ambient_executor_attestation() {
     let packages = package_root();
     let acquisition = packages.join("sources/acquisition");
     let execution = packages.join("sources/execution");
-    let bounded_process =
-        workspace_root().join("source/omega-rust/omega/tooling/omega-bounded-process");
+    let bounded_process = workspace_root().join("omega-rust/omega/tooling/omega-bounded-process");
     let forbidden = [
         "GitSourceReceipt",
         "ResolverExecutionGuarantee",

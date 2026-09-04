@@ -63,7 +63,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
-`source/omega-rust/` remains the production implementation until that contract
+`omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
 real bugs, but Rust agreement is not bootstrap authority and Rust-specific
 machinery must not migrate into the Omega-written compiler source.

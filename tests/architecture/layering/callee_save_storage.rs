@@ -4,7 +4,7 @@ use super::{recursive_rust_source, workspace_root};
 fn is_target_owned_independent_and_non_authoritative() {
     let root = workspace_root();
     let stage = root.join(
-        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/callee_save_storage",
+        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/callee_save_storage",
     );
     let entrance =
         std::fs::read_to_string(stage.join("mod.rs")).expect("read callee-save storage entrance");
@@ -35,14 +35,13 @@ fn is_target_owned_independent_and_non_authoritative() {
         "callee-save storage production must not consume replay mechanics",
     );
 
-    let register_catalog = root.join(
-        "source/omega-rust/omega/representations/omega-register-model/src/preservation_storage",
-    );
+    let register_catalog =
+        root.join("omega-rust/omega/representations/omega-register-model/src/preservation_storage");
     let x86_catalog = root.join(
-        "source/omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64/src/preservation_storage.rs",
+        "omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64/src/preservation_storage.rs",
     );
     let aarch64_catalog = root.join(
-        "source/omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64/src/preservation_storage.rs",
+        "omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64/src/preservation_storage.rs",
     );
     let catalog_source = [
         recursive_rust_source(&register_catalog),

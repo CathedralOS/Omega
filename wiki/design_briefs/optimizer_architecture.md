@@ -598,7 +598,7 @@ route:
 | Where does the non-authoritative reference policy train and evaluate? | `omega-optimization-policy-offline/src/reference_policy/mod.rs` -> `training/`, `evaluation/`, `codec/` |
 
 ```text
-source/omega-rust/omega/
+omega-rust/omega/
   backend/plans/
     omega-program-entry-plan/       # governed optimized semantic entry/wrapper carriers
   build/

@@ -41,7 +41,7 @@ Some finer-grained backend object/linker/image writers remain placement intent;
 the displayed Omega top-level directories are current and exhaustive.
 
 > **Ownership boundary.** The current Cargo implementation is explicitly an
-> external-language producer under `source/omega-rust/`. Its `psi/`
+> external-language producer under `omega-rust/`. Its `psi/`
 > half implements parsing and target-neutral semantics through terminal Psi;
 > its `omega/` half implements provider, ABI, target, artifact, and execution
 > machinery. The Omega-written product is split across sibling owners:
@@ -66,7 +66,7 @@ the displayed Omega top-level directories are current and exhaustive.
 Omega/
 |-- Cargo.toml
 |-- README.md
-|-- source/omega-rust/
+|-- omega-rust/
 |   |-- psi/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
 |   |   |   |-- [CRATE] psi-access-plans/               # Normalized placed-view access semantics.
@@ -179,7 +179,6 @@ Omega/
 |   |   |-- omega_compiler.epsilon                         # Epsilon-written full Omega compiler D.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
-|   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
 |-- tools/
 |   `-- bootstrap/                                        # Alpha/Beta materialization and path gates.
@@ -214,7 +213,7 @@ source/{alpha,beta,gamma,delta,epsilon}/ canonical language rungs
 source/library/                        core, allocation, and standard libraries
 source/psi/                            Omega-written target-neutral phases through terminal Psi
 source/omega/                          Terminal-Psi consumer and product root
-source/omega-rust/                     current Rust product implementation and comparator
+omega-rust/                            current Rust product implementation and comparator
 tests/{alpha,beta,gamma,bootstrap,omega,fixtures}/
                                       executable validation by subject
 tools/bootstrap/                       bootstrap invocation and artifact construction
@@ -243,7 +242,7 @@ keeps the compiler-owned build protocol independent of whether std exists.
 
 - Product entrypoints stay thin. `source/omega/{build.omg,main.omg}` owns the
   hosted product entrypoint; the current Rust product package and command are
-  rooted directly at `source/omega-rust/omega/`. The language-server and
+  rooted directly at `omega-rust/omega/`. The language-server and
   docs-generator are not separate products.
 - `compiler/omega-compiler` owns the top-level typed check/build coordinator.
   Its coordinator forwards one stage result into the next; it does not own
@@ -281,7 +280,7 @@ keeps the compiler-owned build protocol independent of whether std exists.
 
 - The Psi role owns Omega-file parsing and all target-neutral language meaning
   through terminal Psi. Its current Rust realization is
-  `source/omega-rust/psi/`. Psi crates must not depend on Omega
+  `omega-rust/psi/`. Psi crates must not depend on Omega
   crates; the architecture test enforces that firewall.
 - Existing target-neutral `omega-*` crates are migration inputs, not a second
   permanent frontend. Move or rename them under Psi ownership as terminal
@@ -289,7 +288,7 @@ keeps the compiler-owned build protocol independent of whether std exists.
 - The Omega backend role begins its long-term semantic consumption at terminal
   Psi and owns provider installation, ABI/storage realization, optimization,
   target lowering, and native execution machinery. Its current Rust realization
-  is `source/omega-rust/omega/`. Psi owns both transitional
+  is `omega-rust/omega/`. Psi owns both transitional
   checked-tree reference execution and canonical terminal-Psi interpretation;
   Omega contains only the cross-layer native differential-test harness. That
   harness keeps shared artifact decoding, verified lowering, and native image

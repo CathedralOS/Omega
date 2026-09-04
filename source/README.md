@@ -13,8 +13,11 @@ epsilon/        closed compiler-host language
 library/        core, allocation, and standard-library source
 psi/            target-neutral Omega product-compiler phases
 omega/          Epsilon-written compiler D and Omega-written compiler C
-omega-rust/     maintained implementation and nonauthoritative comparator
 ```
+
+The maintained Rust implementation and nonauthoritative comparator lives at
+the repository-root sibling [`omega-rust/`](../omega-rust/), outside this
+eventual self-hosted source tree.
 
 The selected compiler spine is:
 
@@ -55,7 +58,7 @@ The imperative tape-assembly language is trusted Beta. Typed scalar/effect Gamma
 is the first functional source-transformer rung, followed by richer Delta and
 the fixed-storage Epsilon compiler host.
 
-`source/omega-rust/` may build, compare, and accelerate development, but it
+`omega-rust/` may build, compare, and accelerate development, but it
 supplies no trusted bootstrap premise. Bootstrap invocation lives under
 [`tools/bootstrap/`](../tools/bootstrap/). Bootstrap-language and checker tests
 live under their subject in [`tests/`](../tests/), alongside Omega language
