@@ -1,7 +1,7 @@
 (def __d_rope_empty () Int (pair 0 0))
 (def __d_rope_single ((value Int)) Int (pair 1 value))
 (def __d_rope_length ((value Int)) Int (let $v203 Int value (let $m203 Int (first $v203) (let $p203 Int (second $v203) (if (eq $m203 0) 0 (if (eq $m203 1) (let byte Int $p203 1) (let length Int (first $p203) (let left Int (first (second $p203)) (let right Int (second (second $p203)) length)))))))))
-(def __d_rope_concat ((left Int) (right Int)) Int (pair 2 (pair (+ (__d_rope_length left) (__d_rope_length right)) (pair left right))))
-(def __d_rope_get ((value Int) (index Int)) Int (let $v468 Int value (let $m468 Int (first $v468) (let $p468 Int (second $v468) (if (eq $m468 0) (/ 1 0) (if (eq $m468 1) (let byte Int $p468 byte) (let length Int (first $p468) (let left Int (first (second $p468)) (let right Int (second (second $p468)) (if (lt index (__d_rope_length left)) (__d_rope_get left index) (__d_rope_get right (- index (__d_rope_length left)))))))))))))
+(def __d_rope_concat ((left Int) (right Int)) Int (pair 2 (pair (let $l362 Int (__d_rope_length left) (let $r362 Int (__d_rope_length right) (let $z362 Int (+ $l362 $r362) (if (lt 0 $r362) (if (lt $z362 $l362) (/ 1 0) $z362) (if (lt $r362 0) (if (lt $l362 $z362) (/ 1 0) $z362) $z362))))) (pair left right))))
+(def __d_rope_get ((value Int) (index Int)) Int (let $v468 Int value (let $m468 Int (first $v468) (let $p468 Int (second $v468) (if (eq $m468 0) (/ 1 0) (if (eq $m468 1) (let byte Int $p468 byte) (let length Int (first $p468) (let left Int (first (second $p468)) (let right Int (second (second $p468)) (if (lt index (__d_rope_length left)) (__d_rope_get left index) (__d_rope_get right (let $l652 Int index (let $r652 Int (__d_rope_length left) (let $z652 Int (- $l652 $r652) (if (lt 0 $r652) (if (lt $l652 $z652) (/ 1 0) $z652) (if (lt $r652 0) (if (lt $z652 $l652) (/ 1 0) $z652) $z652))))))))))))))))
 (def main () Int (__d_rope_get (__d_rope_concat (__d_rope_single 65) (__d_rope_single 66)) 1))
 

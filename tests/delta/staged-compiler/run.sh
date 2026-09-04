@@ -54,17 +54,17 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 1653, 64682, "b26fbd774d46535038f815e08c603c728c1fa47cdcd2796d36bf2927ac83fe44"),
+    ("compiler", compiler, 1821, 71629, "0b7e4fab3e096099c0e136107fc1f707e0153e9f1587bf8a78d5f0cc0a02e2ec"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
     ("payload receipt", payload_expected, 3, 230, "21e3f310ad474219c292308a6c88606f1bd1b57e6527adedfcd0c37565637c1e"),
     ("recursive source", recursive_source, 7, 187, "2122553bd7a2e7635df523eeaf0b7518fbaf71b4cfdbd1050aa190055182c3dd"),
-    ("recursive receipt", recursive_expected, 3, 251, "38d8eaa184ac8012317770c0bddcec1564b3ae5e95b06367d86ab175502937bf"),
+    ("recursive receipt", recursive_expected, 3, 425, "680509f225be307830afa921a23e31f0977b78f7d7f951da8f6167bc26f554fd"),
     ("list source", list_source, 8, 221, "a86dd12c78f488de2ba4adea71ba90ee29057e97d805ce627befe48c939e3ac3"),
-    ("list receipt", list_expected, 3, 328, "6502b4eae14e40f95a57b6b73057c826938ea751a98dac5679d25d79024d320d"),
+    ("list receipt", list_expected, 3, 502, "3f86a1436fa1c8f512476f27886a88d5e443f76974343532cf3a3d082b4509a0"),
     ("bytes source", bytes_source, 24, 767, "a4366165ddac1f1ffea603463ec9c3e04e91331b857d0b978b06863e62438b94"),
-    ("bytes receipt", bytes_expected, 7, 1056, "c135f242f1d2321dfc030abd00da0d138649f8d11a6820e98555d246112ef4f6"),
+    ("bytes receipt", bytes_expected, 7, 1404, "bd0675bcca501256724fb91ab366672db066ac449e94fb917c9fcfd0ea505bb1"),
 ):
     if len(data.splitlines()) != lines or len(data) != size:
         raise SystemExit(f"{name} size changed")
@@ -201,12 +201,41 @@ proper_tail = b"""(data List (Nil) (Cons Int List))
 (def main () Int (walk (make 100000 Nil)))
 """
 tail_status, tail_receipt = evaluate(compiler, proper_tail)
-if tail_status != 0 or len(tail_receipt) != 394:
+if tail_status != 0 or len(tail_receipt) != 568:
     raise SystemExit("proper-tail witness did not lower")
-if hashlib.sha256(tail_receipt).hexdigest() != "d188b2ce9899861832fe5e398fd28366ecc00954a17327b80da31990733e6049":
+if hashlib.sha256(tail_receipt).hexdigest() != "1d0bfd24332845ab7a1c483b53398a4a6fa7503b366a2cbb5cb5c922b1952f73":
     raise SystemExit("proper-tail receipt identity changed")
 if evaluate(tail_receipt) != (0, b"\x00"):
     raise SystemExit("tail calls through if, let, or match consumed context")
+
+for name, expression in (
+    ("maximum addition", b"(eq (+ 9223372036854775807 0) 9223372036854775807)"),
+    ("minimum subtraction", b"(eq (- -9223372036854775808 0) -9223372036854775808)"),
+    ("large multiplication", b"(eq (* 3037000499 3037000499) 9223372030926249001)"),
+    ("negative multiplication", b"(eq (* -3 4) -12)"),
+    ("zero multiplication", b"(eq (* -9223372036854775808 0) 0)"),
+):
+    arithmetic_source = b"(def main () Int " + expression + b")\n"
+    arithmetic_status, arithmetic_receipt = evaluate(compiler, arithmetic_source)
+    if arithmetic_status != 0 or evaluate(arithmetic_receipt) != (0, b"\x01"):
+        raise SystemExit(f"checked {name} changed a representable result")
+
+for name, expression in (
+    ("positive addition overflow", b"(+ 9223372036854775807 1)"),
+    ("negative addition overflow", b"(+ -9223372036854775808 -1)"),
+    ("positive subtraction overflow", b"(- 9223372036854775807 -1)"),
+    ("negative subtraction overflow", b"(- -9223372036854775808 1)"),
+    ("positive multiplication overflow", b"(* 3037000500 3037000500)"),
+    ("signed multiplication overflow", b"(* -9223372036854775808 -1)"),
+    ("division by zero", b"(/ 1 0)"),
+    ("signed division overflow", b"(/ -9223372036854775808 -1)"),
+    ("remainder by zero", b"(% 1 0)"),
+    ("signed remainder overflow", b"(% -9223372036854775808 -1)"),
+):
+    arithmetic_source = b"(def main () Int " + expression + b")\n"
+    arithmetic_status, arithmetic_receipt = evaluate(compiler, arithmetic_source)
+    if arithmetic_status != 0 or evaluate(arithmetic_receipt) != (2, b""):
+        raise SystemExit(f"checked {name} did not trap")
 
 malformed = {
     "unknown field type": b"(data Bad (Bad Missing))\n(def main () Int 0)\n",
@@ -287,4 +316,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: source envelope, scalar/nominal types, recursive ADTs, and proper tails pass"
+echo "Staged Delta compiler: scalar/nominal types, checked arithmetic, recursive ADTs, and proper tails pass"

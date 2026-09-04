@@ -4511,3 +4511,35 @@ it adds no runtime primitive, compiler helper, or alternate path.
 Later Bytes and application-profile adapters must retain the same property for
 their own generated contexts. That remaining work does not reopen the ordinary
 function, `if`, `let`, constructor, or match lowering established here.
+
+## D108 — Authored signed arithmetic is checked after one evaluation
+
+The selected compiler now distinguishes authored `+`, `-`, and `*` from the
+compiler's own structurally bounded tag/index arithmetic. Each authored form
+lowers inline to three hygienic Gamma lets for the left operand, right operand,
+and wrapping result. This preserves strict left-to-right single evaluation and
+keeps the check local to the operation without injecting an always-present
+runtime library.
+
+Addition and subtraction detect overflow from the direction in which the
+wrapped result crosses the left operand. Multiplication returns zero directly
+for a zero left operand; otherwise it divides the wrapped product by the left
+operand and requires the exact right operand. The sole problematic Gamma
+division pair, `INT64_MIN / -1`, is itself precisely an overflowing product and
+therefore takes the same trap path. Division and remainder already trap for a
+zero divisor and that signed overflow pair in the selected Gamma evaluator, so
+they remain direct operations.
+
+Every failed check emits the existing pure `(/ 1 0)` authored-trap expression.
+Exact witnesses cover representable extrema, the largest square below
+`INT64_MAX`, negative and zero products, both addition/subtraction directions,
+positive and mixed-sign multiplication overflow, division/remainder by zero,
+and `INT64_MIN / -1`. The 100,000-step witness retains its proper tail behavior
+with checked subtraction in its `let` initializer.
+
+The exact selected subject is now 1,821 Gamma lines and 71,629 bytes, with 156
+definitions and 578 lexical `let` binders. Checked inline lowering expands the
+recursive, List, rope, and proper-tail receipts to 425, 502, 1,404, and 568
+bytes respectively. Programs without authored checked arithmetic, including
+the nullary and payload fixtures and the 3,001-function scale witness, retain
+their exact receipts.
