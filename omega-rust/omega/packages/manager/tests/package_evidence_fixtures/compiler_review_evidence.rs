@@ -598,7 +598,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
 }
 
 #[test]
-fn process_exit_fixture_retains_closed_exit_and_unresolved_console_siblings() {
+fn process_exit_fixture_retains_exact_closed_console_leaves_and_unresolved_siblings() {
     let package = "process-exit";
     let fixtures = workspace_root().join("tests/fixtures/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
@@ -645,7 +645,17 @@ fn process_exit_fixture_retains_closed_exit_and_unresolved_console_siblings() {
         ),
         "process-exit retains the exact closed Linux execution identity",
     );
-    for method in ["read_line", "read_byte", "write_byte"] {
+    assert_eq!(
+        execution_for("read_byte"),
+        Some(
+            omega_package_evidence::record::PackageReviewCompilerIntrinsicExecution::LinuxReadByte,
+        ),
+        "Console read_byte retains its exact closed Linux execution identity",
+    );
+    // Unlike bundled std, host-services still declares write_byte with legacy
+    // `via` supply. Its I32ToUnit catalog shape requires inferred boundary
+    // supply, whereas the read_byte catalog admits the legacy declaration.
+    for method in ["read_line", "write_byte"] {
         assert_eq!(
             execution_for(method),
             None,
