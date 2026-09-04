@@ -1,3 +1,105 @@
+//! The compiler's outbound custody record: what a compilation produced, and
+//! the digest chain tying bytes on disk back to the artifact they came from.
+//!
+//! A `CompileReport` is one of five products - `CheckOnly`, `TerminalArtifact`,
+//! `RetainedNativeArtifact`, `NativeExecutable`, `ObjectContainer` - and each
+//! kind fixes exactly which of the report's six payload slots may be occupied.
+//! `has_consistent_executable_publication_custody` is that table written out.
+//! `NativeExecutable` is the only kind whose arm does not require
+//! `app_bundle_publication` to be `None`, which is the entire reason the bundle
+//! slot can exist at all; every other kind rejects it outright.
+//!
+//! Four SHA-256 domains carry the chain, each prefix NUL-terminated so no
+//! prefix can be a prefix of another, and each carrying a `.v1` suffix that
+//! makes a future change a new domain rather than a silent reinterpretation:
+//!
+//! ```text
+//!   artifact identity + target + image symbols + text/function validation
+//!        -> omega.native-publication-certificate.sha256.v1
+//!   certificate + validation digests + fingerprints + container
+//!        -> omega.native-publication-evidence.sha256.v1
+//!   the published bytes, length-prefixed
+//!        -> omega.published-executable-container.sha256.v1
+//!   evidence + destination tag + output path + container
+//!        -> omega.installed-executable-publication-evidence.sha256.v1
+//! ```
+//!
+//! A receipt verifies itself. `has_consistent_installation_identity` recomputes
+//! the evidence and installation digests from the receipt's own fields and
+//! compares, so a receipt with one field edited stops matching. Note the one
+//! field that does not appear in either recomputation directly:
+//! `boundary_contract_report_fingerprint` reaches the chain only through the
+//! certificate digest, so it is covered transitively rather than by name.
+//!
+//! `native_publication_evidence_digest` does not feed its parameters in
+//! parameter order. Four `u64`s go through one loop in the order
+//! `[callback_placement_identity_report_fingerprint, inventory_report_fingerprint,
+//! function_validation_report_fingerprint, container_byte_count]`, and the
+//! grouping is load-bearing: reorder that loop and every receipt ever stored
+//! stops replaying.
+//!
+//! `publish_exact_executable_bytes` writes once and reads back twice. It stages
+//! to `.{file_name}.{process_id}.tmp` beside the target, reads the staged file
+//! and compares byte-for-byte, removes any existing target, renames, sets mode
+//! 0o755 on unix, then reads the installed file and compares byte-for-byte
+//! again. Either replay failure deletes the file and returns an error, so a
+//! failed publication leaves nothing behind that looks installed.
+
+//! The four 32-byte digest newtypes are minted by a macro with four identical
+//! bodies rather than sharing one `Digest([u8; 32])`, and the duplication is
+//! the point. `executable_installation_evidence_digest` takes both a
+//! `NativePublicationEvidenceDigest` and an `ExecutableContainerDigest`; under
+//! one shared type, passing them in the wrong order compiles and produces a
+//! plausible digest that nothing will ever reproduce. Four types make that a
+//! type error, and the macro is what keeps the cost to four lines.
+//!
+//! `executable_publication_pair_matches` ends in an inequality, which reads
+//! like a mistake and is not. Twelve fields must be equal across the flat
+//! receipt and its app-bundle copy - certificate, inventory, both validation
+//! digests, publication evidence, artifact identity, container - and
+//! `installation_evidence_digest` must DIFFER. The installation digest mixes in
+//! the destination tag and the output path, so two receipts for the same bytes
+//! at two paths cannot agree there. Requiring full equality, the obvious
+//! reading of "the same executable in two places", would accept a bundle
+//! receipt that was a copy of the flat one instead of a receipt for a second
+//! installation that actually happened.
+//!
+//! Publication is a consuming method that returns a new report, not a compiler
+//! request kind. Compilation is over by the time `publish_retained_native_artifact`
+//! runs; path selection and filesystem mutation are a product operation, and
+//! routing them back through the driver is what the deleted legacy route did.
+//!
+//! Every constructor ends by replaying custody on the report it just built and
+//! returns `Err` if it fails, so a `CompileReport` that exists is one whose
+//! custody already passed. That is why the accessors can be cheap and why
+//! `checked_native_executable_path` can afford to replay again anyway.
+
+//! `omega/src/command/output.rs:12` is the only production caller of
+//! `publish_retained_native_artifact`; nine canary tests call it too.
+//! `omega-compiler/src/compiler/native_checked.rs:23` calls the custody check.
+//! The crate's own tests are 424 of its 1478 lines and only two functions:
+//! `rollback_receipt_is_custody_only_for_native_products` and
+//! `executable_publication_pair_rejects_every_cross_copy_drift`, the second of
+//! which walks every field of the pair rule one substitution at a time. Two
+//! names, not two cases - a `cargo test` count of 3 for this crate understates
+//! what runs by an order of magnitude.
+//!
+//! `ProductionCompilationSubject::from_checked` is `pub` and `#[doc(hidden)]`
+//! rather than `pub(crate)` because its only caller lives in another crate, at
+//! `omega-compiler/src/pipeline/reporting/production_subject.rs:36`.
+//!
+//! @Incomplete: nothing produces an app-bundle receipt.
+//! `publish_retained_native_artifact` hardcodes `app_bundle_publication: None`,
+//! and the only construction of `ExecutablePublicationDestination::MacOsAppBundle`
+//! outside its declaration is in this crate's test module. The producer was
+//! deleted with the legacy StateGraph route in `f6b3e65350` (2026-08-28), so the
+//! pair validator above takes its `bundle: None` early return on every real
+//! compilation and returns `true` without comparing anything. The contract it
+//! validates is still specified in the present tense in
+//! `wiki/design_briefs/calling_plans.md`. Q6 in `OWNER_QUESTIONS.md` asks
+//! whether the compiler publishes bundles or the brief is amended; do not
+//! resolve it by deleting the slot.
+
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 

@@ -61,10 +61,6 @@ const ANCHOR_HEADER_EXCEPTIONS: &[(&str, usize)] = &[
         "omega-rust/omega/build/omega-package-compilation/src/lib.rs",
         1,
     ),
-    (
-        "omega-rust/omega/compiler/omega-compilation-report/src/lib.rs",
-        0,
-    ),
     ("omega-rust/omega/compiler/omega-compiler/src/lib.rs", 1),
     (
         "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lib.rs",

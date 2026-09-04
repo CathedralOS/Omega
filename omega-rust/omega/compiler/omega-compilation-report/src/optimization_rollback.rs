@@ -1,3 +1,7 @@
+//! The three optimization sets a release rollback keeps apart: what the build
+//! selected, what a release asked to turn off, and the intersection that actually
+//! reached native realization.
+
 use omega_optimization_core::{Optimization, OptimizationSelections};
 
 /// Release-tooling custody for one subtractive exact-rule overlay.
