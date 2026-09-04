@@ -1,5 +1,8 @@
 # Pipeline Architecture
 
+For the remaining Rust implementation migration, see the
+[pipeline ownership audit and work breakdown](ownership_cleanup.md).
+
 Omega's compiler pipeline is a sequence of durable representation boundaries.
 Each stage should have one primary job, one input representation, and one output
 representation.
