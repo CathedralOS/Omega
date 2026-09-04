@@ -25,6 +25,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/representations/omega-optimization-unit",
     "omega-rust/omega/representations/omega-selected-instructions",
     "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
+    "omega-rust/omega/pipeline/omega-machine-optimizer",
     "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
     "omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
     "omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
@@ -90,14 +91,14 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/mod.rs",
-        catalog: "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/mod.rs",
+        catalog: "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/catalog.rs",
         coordination_marker: "pub fn selected_post_allocation_machine_rule",
         catalog_marker: "POST_ALLOCATION_MACHINE_RULE_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching",
-            "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64",
-            "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/x86_64",
+            "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/peephole_matching",
+            "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/aarch64",
+            "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/x86_64",
         ],
     },
     RuleStageDescriptor {

@@ -40,8 +40,8 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering.rs",
         "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_control.rs",
         "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements.rs",
-        "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec.rs",
-        "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute.rs",
+        "omega-rust/omega/pipeline/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec.rs",
+        "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute.rs",
         "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
         "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves.rs",
         "omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model.rs",
@@ -242,7 +242,7 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let cbnz_root = "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero";
+    let cbnz_root = "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero";
     let cbnz_compute = format!("{cbnz_root}/compute.rs");
     let cbnz_validate = format!("{cbnz_root}/validate.rs");
     match fs::read_to_string(repository.join(&cbnz_compute)) {
@@ -275,8 +275,7 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let machine_rule_root =
-        "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/";
+    let machine_rule_root = "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/";
     for path in source_lines.keys().filter(|path| {
         path.starts_with(machine_rule_root)
             && !is_test_source(path)

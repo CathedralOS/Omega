@@ -2102,7 +2102,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let physical_catalog_entrances = [
         "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/mod.rs",
         "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/mod.rs",
-        "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/mod.rs",
+        "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/mod.rs",
         "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/catalog.rs",
     ]
     .map(|relative| {
@@ -4597,7 +4597,7 @@ fn projected_structural_selection_replay_is_independent_and_downstream_is_fenced
             "ProjectedStructuralCallReturnUnsupported",
         ),
         (
-            "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/compute.rs",
+            "omega-rust/omega/pipeline/omega-machine-optimizer/src/analyses/pre_allocation_effects/compute.rs",
             "ProjectedStructuralCallReturnUnsupported",
         ),
     ] {
