@@ -227,8 +227,40 @@ release notes. Completed limitations are deleted, not retained as status.
 
 Owner decisions belong in `OWNER_QUESTIONS.md`, not on a board. Before starting
 work, fetch `main` and inspect recent commits in that lane to avoid overlapping
-an active change. Prefer small checkpoint commits after working improvements,
-matching the terse imperative subject style in `git log`.
+an active change. Prefer small checkpoint commits after working improvements.
+
+History on `main` stays linear. The Git for Windows system config sets
+`pull.rebase` to `false`, which turns a `git pull` behind `origin/main` into a
+merge commit; override it with `git config pull.rebase true`. Land a branch by
+rebasing it onto `main` and fast-forwarding, not by merging.
+
+Commit messages do not follow this repository's own `git log`. That history is
+capitalized, imperative, and bodiless: it restates what the diff already shows
+and drops the reasoning, which is the part no later reader can recover.
+
+The subject is `lane: statement`. The lane names the area touched — `psi`,
+`omega`, `delta`, `bootstrap`, `library`, `backend`, `docs`. The statement is
+lowercase and declarative, and gives the resulting behavior rather than the
+action taken. Around 68 characters, 85 at the outside. Two things landing
+together join with `and`.
+
+    delta: signed arithmetic traps at every overflow boundary
+
+The body is prose paragraphs after a blank line, with numbers in place of
+adjectives: `240.9 degrees against 194.8`, not `the phase varied`. Cover
+whichever of these apply.
+
+- What the previous behavior was and why it was wrong.
+- Which alternatives were rejected, and why.
+- Which constraint shaped the diff — the Psi/Omega firewall, a repository
+  convention, an existing test, ZII.
+- Which gates ran, named with their counts rather than the word `pass`, and
+  what stayed byte-identical.
+- What is known red, what was deliberately left undone, and — when one commit
+  carries several changes — why the hunks could not be split.
+
+Omit the body only when the subject already carries the full reasoning: a typo
+fix, a rename, a mechanical revert.
 
 ## Design references
 
