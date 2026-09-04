@@ -610,9 +610,10 @@ fn float_canaries_retain_only_the_known_compiler_compatibility_seams() {
 
 #[test]
 fn trait_canaries_retain_only_the_known_compiler_compatibility_seams() {
-    assert_partial_canary_category_standard_library_migration(
+    assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/traits"),
-        26,
+        30,
+        25,
         &[
             "runtime_generic_trait_default_exit",
             "runtime_inherited_trait_default_exit",
@@ -664,10 +665,10 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("versioning", 3, 3),
         ("termination", 4, 4),
         ("range", 6, 6),
-        ("core", 10, 7),
+        ("core", 13, 7),
         ("dungeon", 14, 7),
         ("domains", 22, 19),
-        ("host", 9, 8),
+        ("host", 11, 10),
     ] {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
