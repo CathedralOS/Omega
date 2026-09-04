@@ -53,7 +53,9 @@ is not a live evaluator-created pair. Pairs may contain pairs and therefore
 represent recursive trees without exposing addresses or mutation to source.
 Pair references may flow only through bindings, calls, pair fields, and
 projections. Conditions, integer operators, compiler effects, and `main`'s
-returned byte require an ordinary integer word and trap on a pair reference.
+scalar transformer result require an ordinary integer word. A pair returned by
+`main` is reserved for the application-result convention below; every other
+pair use at a scalar boundary traps.
 
 `+`, `-`, and `*` have Alpha's wrapping 64-bit behavior. `/` and `%`
 use Alpha's signed operations and trap for zero or `INT64_MIN / -1`. `eq` and
@@ -67,9 +69,17 @@ traps unless the index lies in the sealed input. `(write value)` appends the low
 byte after requiring `0 <= value < 256`, then returns the same value. These are
 Gamma's only effects.
 
-A successful `main` appends its returned value as one final byte after requiring
-that value to be in `0..255`. This deliberately lets a Gamma source transformer
-publish output bytes and select its final terminator explicitly.
+A scalar `main` appends its returned value as one final byte after requiring
+that value to be in `0..255`. This lets a Gamma source transformer publish bytes
+and select its final terminator explicitly.
+
+A pair-valued `main` is a generic application result `(pair status publish)`.
+Both fields must be scalar, status is `0..254`, and publish is zero or one. A
+status-zero result must publish; a nonzero published result must contain at
+least one buffered byte; and a discarded result must have nonzero status. The
+evaluator validates the complete pair before atomically publishing or
+discarding every preceding `write`. These fields carry no Delta-specific type,
+status name, output schema, or Bytes representation.
 
 ## Boundaries
 

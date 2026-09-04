@@ -4926,3 +4926,82 @@ The exact selected Epsilon source is now 9,119 lines and 452,145 bytes with 540
 definitions. Appending a scalar diagnostic entry compiles through the selected
 Delta stage to a 525,740-byte Gamma receipt in 72.6 seconds on the development
 host.
+
+## D121 — Epsilon block exits execute as five local effects
+
+D53's superseded three-state statement carrier is replaced by the five semantic
+block-exit effects `Falloff`, `ReturnNone`, `ReturnValue(type)`,
+`NoNormalReturn`, and `StateTransfer(state)`. A separate statement-sequence fact
+only tracks whether a successful standalone `never` call ended execution and
+whether its first invalid executable successor was seen. Statements and returns
+after that point now report `InvalidTerminal` at their semicolon; transitions
+report it at their closing brace. Return expressions remain checked after flow
+ends, but their enclosing return relation contributes no competing candidate.
+
+Every entry and state body checks its own local exits against the declared
+machine category. Empty value-returning and `never` blocks reject at the exact
+body-closing brace. A completed transition continuation to a state is compatible
+with every category. A completed machine continuation returning no value has
+`Falloff`, one returning `never` has `NoNormalReturn`, and one returning a value
+is `TypeMismatch` at the continuation expression start. The pass consumes the
+existing exact state-application, callable, and expression-result facts and
+introduces no graph traversal or reachability premise.
+
+An ephemeral fourteen-program matrix checked resultless falloff and `return;`,
+compatible value returns, valid `never` termination, incompatible value and
+`never` falloff, statements/returns/transitions after `never`, resultless/
+`never`/value machine continuations, and a state transfer. Exact semicolon,
+transition-brace, block-brace, and continuation-start coordinates all matched.
+Its combined predicate executed as byte `0x07`; the 598,240-byte temporary
+source compiled to a 608,715-byte Gamma receipt in 94.1 seconds. The generated
+matrix is not retained as a second semantic owner or default slow gate.
+
+One focused follow-up separated parent suppression from child checking after
+flow ended. An unknown continuation target contributed no candidate and left
+`InvalidTerminal` at the transition brace, while an unknown argument inside the
+same suppressed call still produced `UnknownName` at the argument. Its combined
+predicate executed as byte `0x07`; the temporary source compiled to a
+557,900-byte Gamma receipt in 77.4 seconds.
+
+Two adjacent controls preserved D52's argument-owned diagnostics inside the
+suppressed call: a resultless argument produced `TypeMismatch` at its expression
+start and a `never` argument produced `InvalidTerminal` at its call head. Their
+combined predicate executed as byte `0x07`; the temporary source compiled to a
+558,790-byte Gamma receipt in 77.7 seconds.
+
+The exact selected Epsilon source is now 9,432 lines and 467,348 bytes with 550
+definitions. Appending a scalar diagnostic entry compiles through the selected
+Delta stage to a 544,805-byte Gamma receipt in 73.4 seconds on the development
+host.
+
+## D122 — One Gamma result convention owns application publication
+
+The single selected Beta-authored Gamma evaluator replaces immediate output
+with a bounded buffer. Scalar `main` retains transformer behavior: its byte is
+appended and the complete buffer publishes at status zero. Pair-valued `main`
+is the generic application result `(pair status publish)`. Both fields are
+provenance-checked scalars, status is `0..254`, and publication is zero or one.
+Status zero requires publication; nonzero publication requires a nonempty
+buffer; discard requires nonzero status. These constraints make publication
+reconstructible from status and stdout without interpreting an application
+schema.
+
+This replaces the selected boundary atomically. There is no second evaluator,
+compatibility mode, profile negotiation, or parallel chain. Gamma gains no
+Delta-specific type, status name, Bytes representation, or application policy.
+Generated Delta adapters alone traverse their private values and select their
+declared DCOUT, ECOUT, or generated-program status. Composed plumbing publishes
+status-zero output, including empty output, and nonempty nonzero output; empty
+nonzero output leaves the destination unchanged.
+
+The output buffer occupies `0x0e000000..0x0efffffc`. Its 16,777,212-byte maximum
+admits the complete AlphaBootstrapV2 raw-tape payload. The conservative hidden
+Alpha stack bound remains 8,351,748 bytes below the initial stack pointer after
+the buffer reservation. The final evaluator is 1,398 addressed-Beta lines and
+39,299 source bytes, assembling to a 7,303-byte tape. Controls cover scalar
+transformation, empty success, published nonzero status, discarded output,
+late traps, malformed pair fields, status 255, invalid publication flags, and
+the two observation-ambiguous shapes. A one-shot proper-tail witness published
+exactly 16,777,212 bytes; the adjacent 16,777,213-byte attempt returned evaluator
+status 3 with zero exposed bytes. The evaluator and composed-artifact gates both
+pass.

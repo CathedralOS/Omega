@@ -1,6 +1,8 @@
 ; Direct Beta evaluator for the typed scalar/effect Gamma bootstrap profile.
 ; Request: u32 little-endian source length, source bytes, sealed input bytes.
-; Returning main's Int writes its low byte and completes with status zero.
+; Scalar main appends its low byte and completes with status zero. A pair main
+; is the generic application result `(pair status publish)`: both fields are
+; scalar, status is 0..254, and publish is zero or one.
 ;
 ; Persistent registers:
 ; r80 request end, r81 source start, r82 source end, r83 input start,
@@ -14,7 +16,7 @@
 ; r9a tail argument base, r9b tail argument count,
 ; ra0 immutable-pair heap cursor, ra1 immutable-pair heap limit,
 ; ra2 result kind (zero scalar, one pair),
-; rb0 output count, rb1 output limit.
+; rb0 buffered-output count, rb1 buffered-output limit.
 ; Low registers are caller-clobbered scratch.
 
 0x0: ; main:
@@ -29,7 +31,7 @@
         imm ra0 0x2000000
         imm ra1 0xe000000
         mov rb0 r90
-        imm rb1 0x4000000
+        imm rb1 0xfffffc
         mov r0 r92
 0x74: ; read_loop:
         jeq r0 r93 0x9b ; -> read_full:
@@ -76,21 +78,18 @@
         mov r1 r8a
         mov r2 r90
         call 0xfa9 ; -> enter_function:
-        call 0x820 ; -> require_scalar:
-        jlt r0 r90 0x19f2 ; -> authored_trap:
-        imm r1 0x100
-        jlt r0 r1 0x191 ; -> main_write:
-        jmp 0x19f2 ; -> authored_trap:
-0x191: ; main_write:
-        call 0x19f ; -> write_output:
-        mov r0 r90
+        jmp 0x1a16 ; -> finish_main:
+        imm r0 0x0
+        imm r0 0x0
+        imm r0 0x0
+        imm r0 0x0
+        imm r0 0x0
+        mov r0 r0
         halt r0
 
 0x19f: ; write_output:
-        jeq rb0 rb1 0x19fe ; -> incomplete:
-        write r0
-        add rb0 r91
-        ret
+        jmp 0x1b3b ; -> buffer_output:
+        dw 0x0
 
 ; r0 points to four little-endian bytes; returns u32 in r0.
 0x1b0: ; read_u32:
@@ -260,7 +259,7 @@
 
 ; Classify the current list head through the explicit table below. Zero is call.
 0x501: ; classify_list_head:
-        imm r8 0x1a16 ; -> list_head_table:
+        imm r8 0x1b87 ; -> list_head_table:
 0x50b: ; classify_list_head_loop:
         load r0 r8
         imm r1 0x8
@@ -1289,8 +1288,82 @@
         imm r0 0x4
         halt r0
 
+; Scalar main preserves transformer behavior. Pair main is a generic
+; application result and never exposes buffered bytes before validation.
+0x1a16: ; finish_main:
+        jnz ra2 0x1a6c ; -> application_main:
+        call 0x820 ; -> require_scalar:
+        jlt r0 r90 0x19f2 ; -> authored_trap:
+        imm r1 0x100
+        jlt r0 r1 0x1a52 ; -> scalar_main_valid:
+        jmp 0x19f2 ; -> authored_trap:
+0x1a52: ; scalar_main_valid:
+        call 0x1b3b ; -> buffer_output:
+        mov r4 r90
+        call 0x1b5a ; -> flush_output:
+        mov r0 r90
+        halt r0
+
+0x1a6c: ; application_main:
+        call 0x1890 ; -> validate_pair:
+        mov r6 r0
+        imm r1 0x8
+        add r0 r1
+        load r4 r0
+        add r0 r1
+        load r5 r0
+        add r0 r1
+        load r7 r0
+        add r0 r1
+        load r8 r0
+        jnz r5 0x19f2 ; -> authored_trap:
+        jnz r8 0x19f2 ; -> authored_trap:
+        jlt r4 r90 0x19f2 ; -> authored_trap:
+        imm r1 0xff
+        jlt r4 r1 0x1ad7 ; -> application_status_valid:
+        jmp 0x19f2 ; -> authored_trap:
+0x1ad7: ; application_status_valid:
+        jeq r7 r90 0x1b22 ; -> application_discard_check:
+        jeq r7 r91 0x1af6 ; -> application_publish_check:
+        jmp 0x19f2 ; -> authored_trap:
+0x1af6: ; application_publish_check:
+        jeq r4 r90 0x1b14 ; -> application_publish:
+        jz rb0 0x19f2 ; -> authored_trap:
+        jmp 0x1b14 ; -> application_publish:
+0x1b14: ; application_publish:
+        call 0x1b5a ; -> flush_output:
+        mov r0 r4
+        halt r0
+0x1b22: ; application_discard_check:
+        jeq r4 r90 0x19f2 ; -> authored_trap:
+        jmp 0x1b36 ; -> application_discard:
+0x1b36: ; application_discard:
+        mov r0 r4
+        halt r0
+
+0x1b3b: ; buffer_output:
+        jeq rb0 rb1 0x19fe ; -> incomplete:
+        imm r1 0xe000000
+        add r1 rb0
+        storeb r1 r0
+        add rb0 r91
+        ret
+
+0x1b5a: ; flush_output:
+        imm r0 0xe000000
+        mov r1 r0
+        add r1 rb0
+0x1b6a: ; flush_output_loop:
+        jlt r0 r1 0x1b76 ; -> flush_output_byte:
+        ret
+0x1b76: ; flush_output_byte:
+        loadb r2 r0
+        write r2
+        add r0 r91
+        jmp 0x1b6a ; -> flush_output_loop:
+
 ; Packed ASCII followed by (class * 256 + token length). Zero terminates.
-0x1a16: ; list_head_table:
+0x1b87: ; list_head_table:
         dw 0x6669             ; 1 if
         dw 0x102
         dw 0x74656c           ; 2 let

@@ -30,9 +30,13 @@ u32-le(source length) + exact source + sealed input
 
 Framing is replaceable host plumbing. It may read the two identified files,
 construct this byte sequence, execute the selected evaluator container, buffer
-stdout, and publish that buffer only when status is zero. It may not parse Gamma,
-change source bytes, interpret statuses, recover partial output, or select an
-alternate evaluator. Nonzero-status output is discarded.
+stdout, and atomically publish that buffer when status is zero or stdout is
+nonempty. Empty nonzero stdout leaves an existing destination unchanged. The
+evaluator's validated application-result convention makes this predicate exact:
+published nonzero results are nonempty, while evaluator failures and discarded
+application outcomes expose no stdout. Plumbing may not parse Gamma, change
+source bytes, decode application statuses or output, recover partial output, or
+select an alternate evaluator.
 
 This composition avoids rebuilding a Gamma-to-Alpha compiler while preserving
 three separately auditable facts: the fixed evaluator tape, readable program
