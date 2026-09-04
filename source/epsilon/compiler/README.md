@@ -52,7 +52,9 @@ final wildcard and four-stage pattern judgment are implemented: subject
 admission precedes semantic identity ownership, duplicate identity precedes
 payload arity, and coverage follows completed pattern premises. D50's bare-state
 judgment and D52's resultless-argument anchor are implemented within D37's
-premise-DAG composition; the remaining body/control judgments stay open.
+premise-DAG composition. D53's five local block-exit effects, exact after-`never`
+delimiters, falloff checks, and machine-continuation categories are implemented;
+the remaining body/control judgments stay open.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
@@ -101,8 +103,9 @@ formation entry subjudgment runs before that promotion: no authored
 `Main::main` owner/name candidate yields only `MissingEntry` at source extent;
 once one exists, every malformed or
 absent supporting component is `InvalidEntry`. Entry facts do not enter the
-later body/control candidate carrier. Remaining expression typing and
-body/control judgments are the next semantic phase.
+later body/control candidate carrier. The retained expression facts now support
+the implemented local block-exit pass; remaining body/control judgments and
+physical lowering stay in the next semantic phase.
 
 The resolution catalog retains one row per formed top-level declaration and
 keeps members, cases, bodies, and states inside their original AST owner. It
@@ -205,9 +208,8 @@ failures before dependent checking; same-spelled authored fields remain fields
 without call syntax. D50 requires authored argument syntax for every state
 transfer: a state-only bare spelling contributes `InvalidControlTarget` at the
 continuation start without entering the state-application ledger. That branch
-is implemented. D53 settles machine-continuation exit effects
-as local block facts and requires no reachability pass; its branch remains to
-be implemented.
+is implemented. D53's machine-continuation exit effects are implemented as
+local block facts and require no reachability pass.
 
 Each complete transition subject is retained once as scalar `i32` or one exact
 nominal sum owner after the ordinary result category relation. Pattern
@@ -279,13 +281,12 @@ its final application profile exists.
 The enclosing machine's optional return type now reaches entry, state, and arm
 returns. Explicit absence/value relations use D37's exact anchors and category
 premises without resolving the expression twice. A source-shaped statement
-flow fact retains a successful standalone `never` result, diagnoses only the
-first following ordinary statement, and still visits every later authored
-child. D53 supersedes that coordinate and settles later executable constructs
-after `never`, local falloff, and machine-continuation effects without a
-reachability/fixed-point pass; its five-effect carrier and checks remain
-implementation work. Remaining transition/control and terminal-flow candidates
-still require the rest of the D37 premise DAG. The
+flow fact retains a successful standalone `never` result, diagnoses its first
+following executable construct at the exact terminating delimiter, and still
+visits every later authored child. D53's five-effect carrier settles local
+falloff, explicit returns, machine continuations, `never` calls, and state
+transfers without a reachability/fixed-point pass. Remaining transition/control
+candidates still require the rest of the D37 premise DAG. The
 fact pass now
 implements D38's accepted receiver/result, exact contextual failures, and
 `array.as_slice()` value-call rejection; D37 still fixes how the remaining

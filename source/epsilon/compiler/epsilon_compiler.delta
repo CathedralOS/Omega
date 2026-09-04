@@ -712,16 +712,30 @@
     EpsilonTypedExpressionList
     EpsilonFinalCandidate))
 
-; Superseded by D53: the final compiler replaces this partial statement-flow
-; carrier with five local block-exit effects and no reachability fixed point.
-(data EpsilonStatementFlow
-  (EpsilonStatementFlowOpen)
-  (EpsilonStatementFlowEndedByNever)
-  (EpsilonStatementFlowInvalidAfterNever))
+; D53 checks each authored block edge locally. State transfers carry exact
+; state custody, while call continuations derive their effect from the existing
+; complete expression facts.
+(data EpsilonBlockExit
+  (EpsilonFalloff)
+  (EpsilonReturnNone)
+  (EpsilonReturnValue EpsilonType)
+  (EpsilonNoNormalReturn)
+  (EpsilonStateTransfer EpsilonState))
+
+(data EpsilonOptionalBlockExit
+  (NoEpsilonBlockExit)
+  (SomeEpsilonBlockExit EpsilonBlockExit))
+
+; Statement traversal separately remembers whether a `never` call has ended
+; the sequence and whether its first invalid executable successor was seen.
+(data EpsilonStatementSequenceFlow
+  (EpsilonStatementSequenceOpen)
+  (EpsilonStatementSequenceEndedByNever)
+  (EpsilonStatementSequenceInvalidAfterNever))
 
 (data EpsilonLocalBlockScan
   (EpsilonLocalBlockScanSyntax EpsilonLocalBindingList EpsilonLocalBindingList
-    EpsilonLocalResolutionScan))
+    EpsilonStatementSequenceFlow EpsilonLocalResolutionScan))
 
 (data EpsilonLocallyResolvedProgram
   (EpsilonLocallyResolvedProgramSyntax EpsilonCatalogedProgram
@@ -7710,50 +7724,53 @@
 ; its terminating delimiter. The final pass still visits every authored child
 ; but admits no later construct's block-exit parent relation.
 (def epsilon_local_scan_statement_after_never
-  ((statementValue EpsilonStatement) (flow EpsilonStatementFlow)
+  ((statementValue EpsilonStatement) (flow EpsilonStatementSequenceFlow)
    (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match flow
-    (EpsilonStatementFlowOpen scan)
-    (EpsilonStatementFlowEndedByNever
+    (EpsilonStatementSequenceOpen scan)
+    (EpsilonStatementSequenceEndedByNever
       (epsilon_local_scan_add_candidate InvalidTerminal
-        (epsilon_statement_start statementValue) scan))
-    (EpsilonStatementFlowInvalidAfterNever scan)))
+        (- (epsilon_statement_end statementValue) 1) scan))
+    (EpsilonStatementSequenceInvalidAfterNever scan)))
 
 (def epsilon_statement_flow_after ((statementValue EpsilonStatement)
-  (flow EpsilonStatementFlow) (scan EpsilonLocalResolutionScan))
-  EpsilonStatementFlow
+  (flow EpsilonStatementSequenceFlow) (scan EpsilonLocalResolutionScan))
+  EpsilonStatementSequenceFlow
   (match flow
-    (EpsilonStatementFlowEndedByNever EpsilonStatementFlowInvalidAfterNever)
-    (EpsilonStatementFlowInvalidAfterNever EpsilonStatementFlowInvalidAfterNever)
-    (EpsilonStatementFlowOpen
+    (EpsilonStatementSequenceEndedByNever
+      EpsilonStatementSequenceInvalidAfterNever)
+    (EpsilonStatementSequenceInvalidAfterNever
+      EpsilonStatementSequenceInvalidAfterNever)
+    (EpsilonStatementSequenceOpen
       (match statementValue
         ((EpsilonLetStatement start end name typeValue initializer)
-          EpsilonStatementFlowOpen)
+          EpsilonStatementSequenceOpen)
         ((EpsilonAssignmentStatement start end placeValue assignedValue)
-          EpsilonStatementFlowOpen)
+          EpsilonStatementSequenceOpen)
         ((EpsilonAssertStatement start end expressionValue)
-          EpsilonStatementFlowOpen)
+          EpsilonStatementSequenceOpen)
         ((EpsilonPostfixStatement start end expressionValue)
           (match scan
             ((EpsilonLocalResolutionScanSyntax catalog references fields
               callables stateApplications types candidate)
               (match (epsilon_find_expression_result expressionValue types)
-                (NoEpsilonExpressionResult EpsilonStatementFlowOpen)
+                (NoEpsilonExpressionResult EpsilonStatementSequenceOpen)
                 ((OneEpsilonExpressionResult resultValue)
                   (match resultValue
                     ((EpsilonValueExpressionResult typeValue placeType)
-                      EpsilonStatementFlowOpen)
-                    (EpsilonResultlessExpressionResult EpsilonStatementFlowOpen)
+                      EpsilonStatementSequenceOpen)
+                    (EpsilonResultlessExpressionResult
+                      EpsilonStatementSequenceOpen)
                     (EpsilonNeverExpressionResult
-                      EpsilonStatementFlowEndedByNever)))))))))))
+                      EpsilonStatementSequenceEndedByNever)))))))))))
 
 (def epsilon_resolve_local_statements_with_flow ((source Bytes)
   (statements EpsilonStatementList) (active EpsilonLocalBindingList)
-  (pending EpsilonLocalBindingList) (flow EpsilonStatementFlow)
+  (pending EpsilonLocalBindingList) (flow EpsilonStatementSequenceFlow)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalBlockScan
   (match statements
     (NoEpsilonStatements
-      (EpsilonLocalBlockScanSyntax active pending scan))
+      (EpsilonLocalBlockScanSyntax active pending flow scan))
     ((MoreEpsilonStatements item rest)
       (let candidateScan EpsilonLocalResolutionScan
         (epsilon_local_scan_statement_after_never item flow scan)
@@ -7771,7 +7788,7 @@
   (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
   EpsilonLocalBlockScan
   (epsilon_resolve_local_statements_with_flow source statements active pending
-    EpsilonStatementFlowOpen scan))
+    EpsilonStatementSequenceOpen scan))
 
 ; An explicit return is a relation against the enclosing machine signature.
 ; A resultless machine admits only `return;`. A value-returning machine
@@ -7785,7 +7802,9 @@
   (match returnType
     (NoEpsilonType
       (match expressionValue
-        (NoEpsilonExpression scan)
+        (NoEpsilonExpression
+          (epsilon_local_scan_block_exit source EpsilonReturnNone returnType
+            returnStart scan))
         ((SomeEpsilonExpression item)
           (let categoryScan EpsilonLocalResolutionScan
             (epsilon_local_scan_value_use_candidate item item scan)
@@ -7797,17 +7816,163 @@
                   ((OneEpsilonExpressionResult resultValue)
                     (match resultValue
                       ((EpsilonValueExpressionResult actualType placeType)
-                        (epsilon_local_scan_add_candidate TypeMismatch
+                        (epsilon_local_scan_block_exit source
+                          (EpsilonReturnValue actualType) returnType
                           (epsilon_expression_start item) categoryScan))
                       (EpsilonResultlessExpressionResult categoryScan)
                       (EpsilonNeverExpressionResult categoryScan))))))))))
     ((SomeEpsilonType typeStart typeEnd expectedType)
       (match expressionValue
         (NoEpsilonExpression
-          (epsilon_local_scan_add_candidate TypeMismatch returnStart scan))
+          (epsilon_local_scan_block_exit source EpsilonReturnNone returnType
+            returnStart scan))
         ((SomeEpsilonExpression item)
-          (epsilon_local_scan_statement_value_type_relation source item
-            expectedType 0 scan))))))
+          (let categoryScan EpsilonLocalResolutionScan
+            (epsilon_local_scan_value_use_candidate item item scan)
+            (match categoryScan
+              ((EpsilonLocalResolutionScanSyntax catalog references fields
+                callables stateApplications types candidate)
+                (match (epsilon_find_expression_result item types)
+                  (NoEpsilonExpressionResult categoryScan)
+                  ((OneEpsilonExpressionResult resultValue)
+                    (match resultValue
+                      ((EpsilonValueExpressionResult actualType placeType)
+                        (epsilon_local_scan_block_exit source
+                          (EpsilonReturnValue actualType) returnType
+                          (epsilon_expression_start item) categoryScan))
+                      (EpsilonResultlessExpressionResult categoryScan)
+                      (EpsilonNeverExpressionResult categoryScan))))))))))))
+
+(def epsilon_block_exit_compatible ((source Bytes) (effect EpsilonBlockExit)
+  (returnType EpsilonOptionalType)) Int
+  (match effect
+    (EpsilonFalloff
+      (match returnType
+        (NoEpsilonType 1)
+        ((SomeEpsilonType start end typeValue) 0)))
+    (EpsilonReturnNone
+      (match returnType
+        (NoEpsilonType 1)
+        ((SomeEpsilonType start end typeValue) 0)))
+    ((EpsilonReturnValue actualType)
+      (match returnType
+        (NoEpsilonType 0)
+        ((SomeEpsilonType start end expectedType)
+          (epsilon_types_equal source actualType expectedType))))
+    (EpsilonNoNormalReturn 1)
+    ((EpsilonStateTransfer stateValue) 1)))
+
+(def epsilon_local_scan_block_exit ((source Bytes) (effect EpsilonBlockExit)
+  (returnType EpsilonOptionalType) (failureOffset Int)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (if (epsilon_block_exit_compatible source effect returnType)
+    scan
+    (epsilon_local_scan_add_candidate TypeMismatch failureOffset scan)))
+
+(def epsilon_expression_result_block_exit
+  ((expressionValue EpsilonExpression) (types EpsilonTypedExpressionList))
+  EpsilonOptionalBlockExit
+  (match (epsilon_find_expression_result expressionValue types)
+    (NoEpsilonExpressionResult NoEpsilonBlockExit)
+    ((OneEpsilonExpressionResult resultValue)
+      (match resultValue
+        ((EpsilonValueExpressionResult typeValue placeType)
+          (SomeEpsilonBlockExit (EpsilonReturnValue typeValue)))
+        (EpsilonResultlessExpressionResult
+          (SomeEpsilonBlockExit EpsilonFalloff))
+        (EpsilonNeverExpressionResult
+          (SomeEpsilonBlockExit EpsilonNoNormalReturn))))))
+
+(def epsilon_machine_continuation_block_exit
+  ((expressionValue EpsilonExpression) (scan EpsilonLocalResolutionScan))
+  EpsilonOptionalBlockExit
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match (epsilon_control_find_state_application
+        (epsilon_call_head_core expressionValue) control)
+        ((OneEpsilonStateApplicationReference machineValue stateValue progress)
+          (match progress
+            (EpsilonStateApplicationResolved NoEpsilonBlockExit)
+            (EpsilonStateApplicationComplete
+              (SomeEpsilonBlockExit (EpsilonStateTransfer stateValue)))))
+        (NoEpsilonStateApplicationReference
+          (match (epsilon_find_resolved_callable_reference_normalized
+            expressionValue callables)
+            (NoEpsilonResolvedCallableReference NoEpsilonBlockExit)
+            ((OneEpsilonResolvedCallableReference callable)
+              (match callable
+                ((EpsilonResolvedConstructorCallable ownerDeclaration caseValue)
+                  NoEpsilonBlockExit)
+                ((EpsilonResolvedDataMachineCallable ownerDeclaration
+                  machineDeclaration)
+                  (if (epsilon_expression_has_authored_application
+                    expressionValue)
+                    (epsilon_expression_result_block_exit expressionValue types)
+                    NoEpsilonBlockExit))
+                ((EpsilonResolvedUnqualifiedMachineCallable machineDeclaration)
+                  (if (epsilon_expression_has_authored_application
+                    expressionValue)
+                    (epsilon_expression_result_block_exit expressionValue types)
+                    NoEpsilonBlockExit))
+                ((EpsilonResolvedBoundaryMachineCallable ownerDeclaration
+                  memberValue)
+                  (if (epsilon_expression_has_authored_application
+                    expressionValue)
+                    (epsilon_expression_result_block_exit expressionValue types)
+                    NoEpsilonBlockExit))))))))))
+
+(def epsilon_local_scan_continuation_block_exit ((source Bytes)
+  (continuation EpsilonContinuation) (bodyEnd Int)
+  (returnType EpsilonOptionalType) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match continuation
+    ((EpsilonReturnContinuation start end expressionValue) scan)
+    ((EpsilonExpressionContinuation start end expressionValue)
+      (match (epsilon_machine_continuation_block_exit expressionValue scan)
+        (NoEpsilonBlockExit scan)
+        ((SomeEpsilonBlockExit effect)
+          (match effect
+            ((EpsilonReturnValue typeValue)
+              (epsilon_local_scan_add_candidate TypeMismatch
+                (epsilon_expression_start expressionValue) scan))
+            (EpsilonFalloff
+              (epsilon_local_scan_block_exit source effect returnType
+                (- bodyEnd 1) scan))
+            (EpsilonReturnNone scan)
+            (EpsilonNoNormalReturn scan)
+            ((EpsilonStateTransfer stateValue) scan)))))))
+
+(def epsilon_local_scan_arm_block_exits ((source Bytes) (arms EpsilonArmList)
+  (bodyEnd Int) (returnType EpsilonOptionalType)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match arms
+    (NoEpsilonArms scan)
+    ((MoreEpsilonArms item rest)
+      (match item
+        ((EpsilonArmSyntax start end patternValue continuation)
+          (epsilon_local_scan_arm_block_exits source rest bodyEnd returnType
+            (epsilon_local_scan_continuation_block_exit source continuation
+              bodyEnd returnType scan)))))))
+
+(def epsilon_local_scan_terminal_block_exits ((source Bytes)
+  (terminalValue EpsilonOptionalTerminal) (bodyEnd Int)
+  (returnType EpsilonOptionalType) (flow EpsilonStatementSequenceFlow)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match flow
+    (EpsilonStatementSequenceEndedByNever scan)
+    (EpsilonStatementSequenceInvalidAfterNever scan)
+    (EpsilonStatementSequenceOpen
+      (match terminalValue
+        (NoEpsilonTerminal
+          (epsilon_local_scan_block_exit source EpsilonFalloff returnType
+            (- bodyEnd 1) scan))
+        ((SomeEpsilonTerminal terminal)
+          (match terminal
+            ((EpsilonReturnTerminal start end expressionValue) scan)
+            ((EpsilonTransitionTerminal start end subject arms)
+              (epsilon_local_scan_arm_block_exits source arms bodyEnd returnType
+                scan))))))))
 
 (def epsilon_local_scan_named_transition_subject ((source Bytes)
   (terminalValue EpsilonTerminal) (subject EpsilonExpression) (name EpsilonName)
@@ -8169,22 +8334,141 @@
                     (epsilon_local_scan_add_transition_coverage terminalValue
                       ownerValue EpsilonTransitionCoverageUnresolved scan)))))))))))
 
+(def epsilon_resolve_suppressed_continuation_call_base ((source Bytes)
+  (base EpsilonExpression) (active EpsilonLocalBindingList)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match base
+    ((EpsilonNameExpression start end name) scan)
+    ((EpsilonQualifiedExpression start end owner name argumentsValue)
+      (match argumentsValue
+        (NoEpsilonArguments scan)
+        ((SomeEpsilonArguments openStart closeEnd values)
+          (epsilon_local_scan_argument_terminal_candidates values
+            (epsilon_resolve_local_expression_list source values active
+              NoEpsilonLocalBindings scan)))))
+    ((EpsilonGroupedExpression start end inner)
+      (epsilon_resolve_suppressed_continuation_call_base source inner active
+        scan))
+    ((EpsilonFieldExpression start end receiver member)
+      (epsilon_resolve_local_expression source receiver active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonCallExpression start end innerBase arguments)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonIntegerExpression start end literal)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonCharacterExpression start end literal)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonStringExpression start end literal)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonTrueExpression start end)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonFalseExpression start end)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonIndexExpression start end receiver indexValue)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonSliceExpression start end receiver low high)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonNegateExpression start end operand)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right)
+      (epsilon_resolve_local_expression source base active
+        NoEpsilonLocalBindings scan))))
+
+(def epsilon_resolve_suppressed_continuation_expression ((source Bytes)
+  (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match expressionValue
+    ((EpsilonGroupedExpression start end inner)
+      (epsilon_resolve_suppressed_continuation_expression source inner active
+        scan))
+    ((EpsilonQualifiedExpression start end owner name argumentsValue)
+      (match argumentsValue
+        (NoEpsilonArguments scan)
+        ((SomeEpsilonArguments openStart closeEnd values)
+          (epsilon_local_scan_argument_terminal_candidates values
+            (epsilon_resolve_local_expression_list source values active
+              NoEpsilonLocalBindings scan)))))
+    ((EpsilonCallExpression start end base arguments)
+      (epsilon_local_scan_argument_terminal_candidates arguments
+        (epsilon_resolve_local_expression_list source arguments active
+          NoEpsilonLocalBindings
+          (epsilon_resolve_suppressed_continuation_call_base source base active
+            scan))))
+    ((EpsilonIntegerExpression start end literal)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonCharacterExpression start end literal)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonStringExpression start end literal)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonTrueExpression start end)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonFalseExpression start end)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonNameExpression start end name) scan)
+    ((EpsilonFieldExpression start end base member)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonIndexExpression start end base indexValue)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonSliceExpression start end base low high)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonNegateExpression start end operand)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
+      left right)
+      (epsilon_resolve_local_expression source expressionValue active
+        NoEpsilonLocalBindings scan))))
+
 (def epsilon_resolve_local_continuation ((source Bytes)
   (continuation EpsilonContinuation) (active EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (returnType EpsilonOptionalType)
+  (flow EpsilonStatementSequenceFlow)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match continuation
     ((EpsilonExpressionContinuation start end expressionValue)
-      (epsilon_resolve_local_transition_continuation_expression source
-        expressionValue active machineValue start scan))
+      (match flow
+        (EpsilonStatementSequenceOpen
+          (epsilon_resolve_local_transition_continuation_expression source
+            expressionValue active machineValue start scan))
+        (EpsilonStatementSequenceEndedByNever
+          (epsilon_resolve_suppressed_continuation_expression source
+            expressionValue active scan))
+        (EpsilonStatementSequenceInvalidAfterNever
+          (epsilon_resolve_suppressed_continuation_expression source
+            expressionValue active scan))))
     ((EpsilonReturnContinuation start end expressionValue)
-      (epsilon_local_scan_return_relation source start expressionValue returnType
+      (let expressionScan EpsilonLocalResolutionScan
         (epsilon_resolve_local_optional_expression source expressionValue active
-          NoEpsilonLocalBindings scan)))))
+          NoEpsilonLocalBindings scan)
+        (match flow
+          (EpsilonStatementSequenceOpen
+            (epsilon_local_scan_return_relation source start expressionValue
+              returnType expressionScan))
+          (EpsilonStatementSequenceEndedByNever expressionScan)
+          (EpsilonStatementSequenceInvalidAfterNever expressionScan))))))
 
 (def epsilon_resolve_local_arms ((source Bytes) (terminalValue EpsilonTerminal)
   (arms EpsilonArmList) (active EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (returnType EpsilonOptionalType)
+  (flow EpsilonStatementSequenceFlow)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match arms
     (NoEpsilonArms scan)
@@ -8195,15 +8479,16 @@
             (epsilon_local_scan_transition_pattern source terminalValue
               patternValue scan)
             (epsilon_resolve_local_arms source terminalValue rest active
-              machineValue returnType
+              machineValue returnType flow
               (epsilon_resolve_local_continuation source continuation
                 (epsilon_add_transition_pattern_bindings patternValue active)
-                machineValue returnType patternScan))))))))
+                machineValue returnType flow patternScan))))))))
 
 (def epsilon_resolve_local_terminal ((source Bytes)
   (terminalValue EpsilonOptionalTerminal) (active EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (returnType EpsilonOptionalType)
-  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (flow EpsilonStatementSequenceFlow) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
   (match terminalValue
     (NoEpsilonTerminal scan)
     ((SomeEpsilonTerminal terminal)
@@ -8217,12 +8502,32 @@
                 subjectScan)
               (epsilon_local_scan_transition_coverage terminal arms
                 (epsilon_resolve_local_arms source terminal arms active
-                  machineValue returnType classifiedScan)))))
+                  machineValue returnType flow classifiedScan)))))
         ((EpsilonReturnTerminal start end expressionValue)
-          (epsilon_local_scan_return_relation source start expressionValue
-            returnType
+          (let expressionScan EpsilonLocalResolutionScan
             (epsilon_resolve_local_optional_expression source expressionValue
-              active NoEpsilonLocalBindings scan)))))))
+              active NoEpsilonLocalBindings scan)
+            (match flow
+              (EpsilonStatementSequenceOpen
+                (epsilon_local_scan_return_relation source start expressionValue
+                  returnType expressionScan))
+              (EpsilonStatementSequenceEndedByNever expressionScan)
+              (EpsilonStatementSequenceInvalidAfterNever expressionScan))))))))
+
+; D53: after a never-returning statement, the first authored terminal is
+; invalid at its own delimiter. Its children are still checked separately.
+(def epsilon_local_scan_terminal_after_never
+  ((terminalValue EpsilonOptionalTerminal) (flow EpsilonStatementSequenceFlow)
+   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match flow
+    (EpsilonStatementSequenceOpen scan)
+    (EpsilonStatementSequenceInvalidAfterNever scan)
+    (EpsilonStatementSequenceEndedByNever
+      (match terminalValue
+        (NoEpsilonTerminal scan)
+        ((SomeEpsilonTerminal terminal)
+          (epsilon_local_scan_add_candidate InvalidTerminal
+            (- (epsilon_terminal_end terminal) 1) scan))))))
 
 (def epsilon_resolve_state_body_locals ((source Bytes)
   (bodyValue EpsilonStateBody) (active EpsilonLocalBindingList)
@@ -8232,9 +8537,13 @@
     ((EpsilonStateBodySyntax start end statements terminalValue)
       (match (epsilon_resolve_local_statements source statements active
         (epsilon_collect_pending_lets statements NoEpsilonLocalBindings) scan)
-        ((EpsilonLocalBlockScanSyntax finalActive finalPending nextScan)
-          (epsilon_resolve_local_terminal source terminalValue finalActive
-            machineValue returnType nextScan))))))
+        ((EpsilonLocalBlockScanSyntax finalActive finalPending flow nextScan)
+          (epsilon_local_scan_terminal_block_exits source terminalValue end
+            returnType flow
+            (epsilon_resolve_local_terminal source terminalValue finalActive
+                machineValue returnType flow
+              (epsilon_local_scan_terminal_after_never
+                terminalValue flow nextScan))))))))
 
 (def epsilon_resolve_state_locals ((source Bytes) (stateValue EpsilonState)
   (machineValue EpsilonDeclaration) (machineBindings EpsilonLocalBindingList)
@@ -8266,11 +8575,15 @@
     ((EpsilonMachineBodySyntax start end statements terminalValue states)
       (match (epsilon_resolve_local_statements source statements machineBindings
         (epsilon_collect_pending_lets statements NoEpsilonLocalBindings) scan)
-        ((EpsilonLocalBlockScanSyntax finalActive finalPending nextScan)
+        ((EpsilonLocalBlockScanSyntax finalActive finalPending flow nextScan)
           (epsilon_resolve_states_locals source states machineValue
             machineBindings returnType
-            (epsilon_resolve_local_terminal source terminalValue finalActive
-              machineValue returnType nextScan)))))))
+            (epsilon_local_scan_terminal_block_exits source terminalValue end
+              returnType flow
+              (epsilon_resolve_local_terminal source terminalValue finalActive
+                machineValue returnType flow
+                (epsilon_local_scan_terminal_after_never
+                  terminalValue flow nextScan)))))))))
 
 (def epsilon_resolve_catalog_declaration_locals ((source Bytes)
   (row EpsilonCatalogDeclaration) (scan EpsilonLocalResolutionScan))
