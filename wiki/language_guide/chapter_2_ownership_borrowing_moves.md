@@ -236,6 +236,11 @@ keeps one structural destination plus an ordered scalar roster and selects one
 exact source; target assignment, machine emission, object construction, and
 installed replay reconstruct its register, incoming-stack, or durable-result-home
 location and exact field offset on both Linux targets.
+These native tests establish store encoding and retained artifact evidence;
+they do not establish caller-visible mutation after return. Small structural
+borrows currently use shape-selected value placements and can be copied into
+local frame homes. General native projected mutation therefore remains blocked
+on the native structural-parameter identity decision in `OWNER_QUESTIONS.md`.
 Boolean sources retain their own one-byte ABI and definition custody without
 an integer surrogate.
 Bodyless boundary result homes, delayed uses, Boolean and IEEE results, and

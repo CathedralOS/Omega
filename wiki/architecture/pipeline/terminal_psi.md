@@ -864,6 +864,19 @@ delayed results, arithmetic locals, nested or dynamic indexes, ranges,
 aggregate array elements, cases, erased fields, constrained data, and opaque
 shapes remain fail-closed.
 
+This native coverage does not establish caller-visible structural mutation
+after return; the native structural-parameter identity decision remains open.
+Terminal interpretation does preserve the opaque referent identity and indexed
+path across calls and returns. Shared projected arguments from an unrestricted
+root retain unrestricted multiplicity through record-field paths, optionally
+followed by one literal index; indexing does not convert the referent into a
+linear value. Deeper shared array projections remain unsupported. Ordinary access
+checks still reject readable subloans from write-only roots. Interpreter
+regressions write distinct array elements in a write-only callee, read each
+after its return, and pause at every operation/return fuel boundary to check
+that committed writes are not replayed. This artifact-level execution coverage
+does not expand the checked source producer's single-store body grammar.
+
 Terminal format 62/vocabulary 65 carries the bounded one-reassignment dynamic
 scalar lane without devirtualizing it. The caller owns two dense conformance
 selections, one descriptor naming their initializer/latest relationship, one

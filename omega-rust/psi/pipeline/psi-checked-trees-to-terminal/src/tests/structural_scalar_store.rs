@@ -141,6 +141,59 @@ fn rejects_checked_literal_indexed_store_bound_corruption() {
 }
 
 #[test]
+fn rejects_checked_indexed_store_without_its_record_owner() {
+    let checked = checked_source(SOURCE);
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Sink::indexed")
+        .unwrap();
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == machine.symbol)
+        .unwrap();
+    let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = &plan.operations[0]
+    else {
+        panic!("indexed store plan")
+    };
+    let mut changed = store.clone();
+    changed.carrier_path.remove(0);
+    let lowered = lower_machine(&checked, "Sink::indexed").unwrap();
+    let module = &lowered.semantic_module;
+    let mut parameter = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap()
+        .structural_parameters[0]
+        .clone();
+    parameter.structural_type = module
+        .structural_types
+        .iter()
+        .find(|declaration| matches!(declaration.shape, StructuralTypeShape::FixedArray { .. }))
+        .unwrap()
+        .id;
+    assert!(matches!(
+        crate::structural_scalar_store::lower_structural_scalar_store_destination(
+            &changed,
+            changed.statement_index,
+            &parameter,
+            &module.structural_types,
+            &[],
+            &[],
+            crate::structural_scalar_store::StoreAccessPolicy::Exclusive,
+        ),
+        Err(LoweringError::Unsupported(
+            "structural scalar store carrier path is unsupported"
+        ))
+    ));
+}
+
+#[test]
 fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
     let checked = checked_source(RESULT_SOURCE);
     let lowered = lower_machine(&checked, "Root::enter")

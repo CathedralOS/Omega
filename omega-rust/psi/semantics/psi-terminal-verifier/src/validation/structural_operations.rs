@@ -1449,7 +1449,7 @@ fn is_unrestricted_shared_subloan(
     else {
         return false;
     };
-    is_nonempty_field_path(&argument.path)
+    psi_terminal::is_bounded_structural_scalar_store_path(&argument.path)
         && argument.access == StructuralAccess::SharedBorrow
         && expected.access == StructuralAccess::SharedBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted

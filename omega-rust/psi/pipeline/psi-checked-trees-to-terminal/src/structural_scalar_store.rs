@@ -83,7 +83,9 @@ pub(super) fn lower_structural_scalar_store_destination(
                 path.push(StructuralPathSegment::Field(identity.clone()));
                 nested
             }
-            CheckedUnitStructuralPathSegment::FixedIndex(index) if !reached_array => {
+            CheckedUnitStructuralPathSegment::FixedIndex(index)
+                if !reached_array && !path.is_empty() =>
+            {
                 reached_array = true;
                 let StructuralTypeShape::FixedArray { element, length } = &field_owner.shape else {
                     return unsupported("structural scalar store carrier is not a fixed array");

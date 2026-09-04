@@ -40,6 +40,9 @@ use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, VerificationError, verify_module,
 };
 
+#[path = "unit/indexed_structural_store.rs"]
+mod indexed_structural_store;
+
 #[test]
 fn unit_artifact_interprets_as_a_value_less_normal_result() {
     let (semantic, proof) = artifact_sections();
