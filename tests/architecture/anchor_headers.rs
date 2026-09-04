@@ -23,10 +23,6 @@ const MINIMUM_ANCHOR_HEADER_LINES: usize = 4;
 /// Exact no-growth ratchets for crate anchors that predate the bound.
 const ANCHOR_HEADER_EXCEPTIONS: &[(&str, usize)] = &[
     (
-        "omega-rust/omega/backend/images/omega-image-elf/src/lib.rs",
-        0,
-    ),
-    (
         "omega-rust/omega/backend/images/omega-image-macho/src/lib.rs",
         0,
     ),

@@ -1,3 +1,5 @@
+//! Alignment rounding shared by both lanes.
+
 pub(crate) fn align_to(value: usize, alignment: usize) -> usize {
     let alignment = alignment.max(1);
     value.div_ceil(alignment) * alignment

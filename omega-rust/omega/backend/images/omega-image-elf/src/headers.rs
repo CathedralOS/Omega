@@ -1,3 +1,6 @@
+//! The static lane's ELF header and its two program headers, written straight into
+//! the output buffer with no intermediate structure.
+
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::constants::{
     ELF_HEADER_SIZE, IMAGE_BASE, PAGE_SIZE, PROGRAM_HEADER_COUNT, PROGRAM_HEADER_SIZE,

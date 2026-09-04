@@ -1,3 +1,6 @@
+//! The static lane's whole layout decision: text at the first page boundary past
+//! the headers, data at the next, bss aligned after that.
+
 use crate::constants::{
     ELF_HEADER_SIZE, IMAGE_BASE, PAGE_SIZE, PROGRAM_HEADER_COUNT, PROGRAM_HEADER_SIZE,
 };

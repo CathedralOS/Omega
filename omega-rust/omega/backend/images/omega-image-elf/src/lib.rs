@@ -1,3 +1,95 @@
+//! Two ELF emitters in one crate. About 800 lines of static emitter that ships,
+//! and 22,000 lines of dynamic-linking pipeline that a different caller drives.
+//!
+//! `emit_elf_aarch64_executable` and `emit_elf_x86_64_executable` are the whole
+//! static lane, and they are deliberately small. The output has a 64-byte ELF
+//! header, exactly two program headers, and NO section headers at all:
+//!
+//! ```text
+//!   0x000000  ELF header (64) + 2 program headers (56 each) = 176 bytes
+//!   0x001000  .text   at the first PAGE_SIZE boundary, vaddr 0x401000
+//!   0x00N000  .data   at the next boundary, .bss aligned after it
+//!   IMAGE_BASE = 0x400000, PAGE_SIZE = 0x1000, PROGRAM_HEADER_COUNT = 2
+//! ```
+//!
+//! The container is architecture-agnostic apart from `e_machine` (62 for
+//! x86-64, 183 for AArch64) and which relocation applier is passed in, which is
+//! why one private `emit_elf_executable` serves both.
+//!
+//! That lane FAILS CLOSED the moment it sees a referenced import: any surviving
+//! entry from `canonical_referenced_imports` is an immediate error before the
+//! image is mutated at all. A statically emitted ELF here is one that needs no
+//! loader.
+//!
+//! Everything else in the crate is the dynamic lane, and it is a linear chain
+//! of 22 stages driven from `omega-image-emission/src/dynamic_elf.rs`:
+//!
+//! ```text
+//!   plan_elf_dynamic_link_inputs -> plan_elf_dynamic_sections
+//!   -> serialize_elf_dynamic_sections -> plan_elf_dynamic_section_descriptors
+//!   -> plan_elf_procedure_linkage_relocations
+//!   -> plan_elf_procedure_linkage_templates
+//!   -> plan_elf_procedure_linkage_section_descriptors
+//!   -> plan_elf_dynamic_tags -> serialize_elf_dynamic_table
+//!   -> plan_elf_dynamic_table_section_descriptor -> plan_elf_section_name_table
+//!   -> plan_elf_dynamic_section_roster -> serialize_elf_section_header_table
+//!   -> plan_elf_indexed_section_payloads
+//!   -> plan_elf_relative_section_payload_layout -> plan_elf_dynamic_load_layout
+//!   -> apply_elf_section_header_placements -> apply_elf_dynamic_address_fixups
+//!   -> serialize_elf_dynamic_file_envelope -> apply_elf_procedure_linkage_fixups
+//!   -> assemble_elf_dynamic_file -> admit_elf_dynamic_executable
+//! ```
+//!
+//! Each stage takes the previous stage's `ValidatedElf*` carrier as its only
+//! input. Not by convention - there is no way to call stage N without holding a
+//! value that only stage N-1 can construct.
+//!
+//! The three page-size constants look redundant and are not. The static lane
+//! writes `p_align` of `PAGE_SIZE` (0x1000). The dynamic lane aligns segments to
+//! `DYNAMIC_MAX_PAGE_SIZE` (0x1_0000), because AArch64 permits translation
+//! granules up to 64 KiB and a segment aligned only to 4 KiB is not portable
+//! across them. `AARCH64_RELOCATION_PAGE_SIZE` stays 0x1000 in the same file
+//! because ADRP's page is 4 KiB regardless of what the loader maps with. Two of
+//! the three are numerically equal and mean different things.
+
+//! One carrier type and one error enum per stage - 22 of each - instead of one
+//! `ElfDynamicImage` struct that every stage fills in a little more. The cost is
+//! roughly forty types that exist only to be passed once. What it buys is that
+//! running the stages out of order, or running one on half-planned input, is not
+//! something a caller can express: there is no constructor for stage N's input
+//! except stage N-1's success. A mutable shared struct would move all 22
+//! ordering constraints into review comments.
+//!
+//! The static emitter refuses an import rather than emitting an image that might
+//! load. A best-effort static link - resolve what we can, leave the rest - would
+//! produce a file that runs until it reaches the unbound call, which is the
+//! failure mode hardest to attribute back to the compiler.
+
+//! `omega-image-emission/src/dynamic_elf.rs` is the only driver of the dynamic
+//! lane; `omega-image` supplies `FinalImage`, `place_executable_regions` and the
+//! relocation appliers both lanes use.
+//!
+//! @Note: do not decide what is dead in this crate by grepping for type names.
+//! The driver binds every stage result with an inferred `let` and never spells a
+//! carrier type, so 21 of the 22 carriers have zero occurrences of their names
+//! anywhere outside this crate while being entirely load-bearing -
+//! `ValidatedElfDynamicLoadLayout` among them, which is the return type of a
+//! function the driver calls in production. A scouting pass over this crate
+//! called 18 such types dead on exactly that evidence.
+//!
+//! @Incomplete: the static lane's own error message is out of date and says so
+//! in the most misleading possible place - the text a user sees. It claims
+//! "no target-owned ELF loader plan carries the exact PT_INTERP bytes". One
+//! does: `omega_target::NormalizedElfInterpreterPlan::interpreter_path` carries
+//! exactly those bytes, `plan_elf_dynamic_link_inputs` takes that plan as its
+//! second argument, and `dynamic_file_envelope.rs` maps
+//! `ElfLoadProgramHeaderKind::Interpreter` to `PT_INTERP` (3). The claim in the
+//! other direction is stale too: `omega-target/src/elf_loader.rs` says dynamic
+//! ELF emission "remains unavailable until a later owner joins this input to the
+//! complete dynamic-link structures", and that owner is this crate. Each side
+//! documents the other's absence while the other is present. Fix them together
+//! or not at all.
+
 use omega_image::{
     ExecutableImageOutput, FinalImage, FinalImageLayout, apply_aarch64_relocations,
     apply_x86_64_relocations, place_executable_regions,
