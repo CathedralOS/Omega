@@ -15,10 +15,11 @@ The Rust toolchain is pinned in `rust-toolchain.toml`; `rustup` selects it.
 
 ### Mandatory Cargo wrapper
 
-Before the first Rust build command in a session, run `mbx --version`. It must
-report `mbx 1.7.0` or newer. If `mbx` is missing or older, stop and report the
-problem. Do not install, upgrade, or silently fall back to Cargo without
-explicit user authorization.
+Before the first Rust build command in a session, run `mbx --version`. When it
+is available, it must report `mbx 1.7.0` or newer. If `mbx` is missing or
+older, report the problem. Do not install, upgrade, or silently fall back to
+Cargo; direct Cargo build commands are allowed for the rest of that session
+only after explicit user authorization.
 
 Use this table literally:
 
@@ -62,8 +63,8 @@ are separate and must report an explicit skip when the host cannot run them.
 
 ### Driving the compiler
 
-The CLI package is **`omega`** (binary `omega`). The README's
-`cargo run -p omega-cli` is stale; that package does not exist.
+The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`
+package.
 
 ```bash
 mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
@@ -138,10 +139,11 @@ This is the load-bearing split, and the most common way to put code in the
 wrong place:
 
 - **Psi** operates on Omega source and owns everything target-neutral: lexing,
-  parsing, resolution, typing, checking, proof, and production of **Terminal
-  Psi**.
-- **Omega** consumes Terminal Psi and owns provider selection, optimization,
-  target realization, ABI, native emission, and execution machinery.
+  parsing, resolution, typing, checking, proof, selected target-neutral
+  optimization, and production of **Terminal Psi**.
+- **Omega** consumes Terminal Psi and owns provider selection, optimization of
+  Omega-side abstract and physical representations, target realization, ABI,
+  native emission, and execution machinery.
 - Target backends own only unavoidable ISA, ABI, object-format, and relocation
   detail.
 - Cathedral (the downstream OS) owns OS data structures, policies, protocols,
@@ -189,7 +191,7 @@ there, not at `cargo check`.
 - `source/psi/` + `source/omega/` — the Omega-written product compiler, split
   along the same firewall. This is the destination.
 - `source/{alpha,beta,gamma,delta,epsilon}/` — the trust-minimizing bootstrap
-  lattice Alpha → Beta → Gamma → Delta → Epsilon → Omega. Alpha is raw tape
+  chain Alpha → Beta → Gamma → Delta → Epsilon → Omega. Alpha is raw tape
   execution; Beta is the trusted imperative tape-assembly language; Gamma is
   the small typed functional evaluator; Delta authors the Epsilon compiler;
   Epsilon authors the first Omega compiler. Intermediate self-hosting is not a

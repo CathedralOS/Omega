@@ -79,14 +79,16 @@ passes. Target- or deployment-specific selections that have not run travel as
 strongly bound companion policy and remain subject to the receiving authority's
 accept/reject decision.
 
-The producer exposes the current construction/publication seam explicitly:
-`lower_machine` constructs an unsealed `LoweredTerminalPsi`, while
-`finalize_terminal_artifact` performs canonical Terminal publication. Merely
-delaying the codec call is not an optimizer integration. The existing optimizer
-unit is reconstructed from a verified Terminal module and an Omega abstract
-operation plan; it cannot be inserted at this seam until its target-neutral
-state is Psi-owned and its validated output can reconstruct the complete
-semantic module and proof bundle consumed by terminalization.
+The producer exposes the construction, optimization, and publication seam
+explicitly. `lower_machine` constructs an unsealed `LoweredTerminalPsi`;
+`run_psi_optimization` consumes that complete carrier and returns a validated
+`PsiOptimizationStageResult`; `finalize_terminal_artifact` accepts only that
+stage result. The identity execution is live and validates both sides. Named
+passes fail closed there until their rewrites and independent validators are
+ported. The existing post-Terminal optimizer unit is reconstructed from a
+verified Terminal module and an Omega abstract operation plan, so it cannot be
+inserted at this seam unchanged: its target-neutral state must move to Psi or
+its target/lowering-shaped fields must be replaced.
 
 ## Checked-tree pruning
 
@@ -158,23 +160,21 @@ Migration proceeds in dependency order:
 
 1. Make the phase model and phase-specific selections canonical. Empty
    selection becomes identity execution at every phase.
-2. Introduce the target-neutral pre-Terminal Psi optimization entrance. Reuse
-   the existing optimization-unit vocabulary where sound; move ownership to Psi
-   or replace target/lowering-shaped fields instead of preserving an Omega
-   dependency for convenience. The entrance consumes `LoweredTerminalPsi`
-   before `finalize_terminal_artifact`; it does not decode a Terminal artifact
-   that was already published.
-3. Make Terminal production consume the validated final Psi optimization unit.
-   Canonical Terminal encoding then necessarily contains the selected Psi result.
-4. Retarget existing target-neutral passes and their validators to that entrance.
-5. Make Terminal-to-abstract lowering unconditional and move any genuinely
+2. Retarget existing target-neutral passes and their validators to the live
+   pre-Terminal entrance. Reuse existing optimization-unit vocabulary where
+   sound; move ownership to Psi or replace target/lowering-shaped fields instead
+   of preserving an Omega dependency for convenience.
+3. Make build-selected Psi passes use that entrance. Canonical Terminal encoding
+   then necessarily contains the selected Psi result; no selected pass may
+   continue only in the post-Terminal compatibility route.
+4. Make Terminal-to-abstract lowering unconditional and move any genuinely
    abstract-operation rewrites to their own later phase.
-6. Replace the native `Unoptimized | ExplicitOptimization` entrance with one
+5. Replace the native `Unoptimized | ExplicitOptimization` entrance with one
    phase result. Preserve role-specific authority carriers such as ranked
    execution without using them as optimization bypasses.
-7. Add checked-tree pruning only after its product-root identity, ownership,
+6. Add checked-tree pruning only after its product-root identity, ownership,
    proof, effect, and boundary-retention rules are independently reconstructible.
-8. Remove transitional names, branches, and documentation only after ordinary,
+7. Remove transitional names, branches, and documentation only after ordinary,
    selected, standalone-Terminal, resumed-lowering, and multi-target controls all
    pass through the same graph.
 

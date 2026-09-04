@@ -404,8 +404,15 @@ fn produce_callback_thunk_artifact(
             "callback thunk Terminal lowering failed: {error}",
         ))]
     })?;
-    let artifact = psi_checked_trees_to_terminal::finalize_terminal_artifact(&lowered.terminal)
-        .map_err(|error| {
+    let optimized =
+        psi_checked_trees_to_terminal::run_psi_optimization(lowered.terminal, Default::default());
+    let optimized = optimized.map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "callback thunk Psi optimization failed: {error}",
+        ))]
+    })?;
+    let artifact =
+        psi_checked_trees_to_terminal::finalize_terminal_artifact(&optimized).map_err(|error| {
             vec![Diagnostic::error(format!(
                 "callback thunk canonicalization failed: {error}",
             ))]

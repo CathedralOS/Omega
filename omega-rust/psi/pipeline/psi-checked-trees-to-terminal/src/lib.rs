@@ -117,6 +117,7 @@ pub use nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 mod operation_emission;
 mod payloadless_case_return;
 mod payloadless_guarded_call_return;
+mod preterminal_optimization;
 mod proof_recursion;
 mod quotient_correspondence;
 mod reborrow_restored_call_use;
@@ -180,6 +181,10 @@ use operation_emission::{
     emit_staged_scalar_call_binding, finalize_operation_proofs,
 };
 use payloadless_case_return::lower_payloadless_case_return_machine;
+pub use preterminal_optimization::{
+    PsiOptimizationExecutionIdentity, PsiOptimizationExecutionRecord, PsiOptimizationStageError,
+    PsiOptimizationStageResult, run_psi_optimization,
+};
 use proof_recursion::lower_and_install_proof_recursion;
 pub use quotient_correspondence::install_non_executable_quotient_correspondences;
 use scalar_call_closure::checked_scalar_call_closure;
@@ -1674,11 +1679,12 @@ fn lower_placed_view_input(
 /// Unsupported checked constructs fail at lowering; there is no alternate
 /// checked-tree backend to select as a fallback.
 pub fn finalize_terminal_artifact(
-    lowered: &LoweredTerminalPsi,
+    optimized: &PsiOptimizationStageResult,
 ) -> Result<
     psi_terminal_codec::CanonicalTerminalArtifact,
     psi_terminal_codec::CanonicalTerminalArtifactError,
 > {
+    let lowered = optimized.lowered();
     psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -1686,17 +1692,20 @@ pub fn finalize_terminal_artifact(
     )
 }
 
-/// Lower one checked source product and then cross the explicit Terminal
-/// publication boundary. Pre-Terminal optimization belongs between these two
-/// operations; it must produce a complete [`LoweredTerminalPsi`] accepted by
-/// [`finalize_terminal_artifact`].
+/// Lower one checked source product, execute the identity Psi optimization
+/// phase, and then cross the explicit Terminal publication boundary.
 pub fn produce_terminal_artifact(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<psi_terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
     let lowered =
         lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    finalize_terminal_artifact(&lowered).map_err(TerminalArtifactProductionError::Artifact)
+    let optimized = run_psi_optimization(
+        lowered,
+        psi_optimization::PsiOptimizationSelections::default(),
+    )
+    .map_err(TerminalArtifactProductionError::Optimization)?;
+    finalize_terminal_artifact(&optimized).map_err(TerminalArtifactProductionError::Artifact)
 }
 
 /// Produce canonical Terminal semantics while preserving the exact checked
@@ -1707,8 +1716,14 @@ pub fn produce_terminal_artifact_with_checked_boundary_operator_scope(
 ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
     let lowered =
         lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    let artifact =
-        finalize_terminal_artifact(&lowered).map_err(TerminalArtifactProductionError::Artifact)?;
+    let optimized = run_psi_optimization(
+        lowered,
+        psi_optimization::PsiOptimizationSelections::default(),
+    )
+    .map_err(TerminalArtifactProductionError::Optimization)?;
+    let artifact = finalize_terminal_artifact(&optimized)
+        .map_err(TerminalArtifactProductionError::Artifact)?;
+    let lowered = optimized.into_lowered();
     let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
         .map_err(TerminalArtifactProductionError::Lowering)?;
     Ok(ProducedTerminalArtifact {
@@ -1753,7 +1768,19 @@ pub fn produce_terminal_artifact_with_callback_custody<C>(
             });
         }
     };
-    let artifact = match finalize_terminal_artifact(&lowered) {
+    let optimized = match run_psi_optimization(
+        lowered,
+        psi_optimization::PsiOptimizationSelections::default(),
+    ) {
+        Ok(optimized) => optimized,
+        Err(error) => {
+            return Err(CallbackCustodyTerminalArtifactProductionError {
+                error: TerminalArtifactProductionError::Optimization(error),
+                callback_custody,
+            });
+        }
+    };
+    let artifact = match finalize_terminal_artifact(&optimized) {
         Ok(artifact) => artifact,
         Err(error) => {
             return Err(CallbackCustodyTerminalArtifactProductionError {
@@ -1762,6 +1789,7 @@ pub fn produce_terminal_artifact_with_callback_custody<C>(
             });
         }
     };
+    let lowered = optimized.into_lowered();
     let boundary_operator_scope =
         match checked_boundary_operator_scope(checked, &artifact, &lowered) {
             Ok(scope) => scope,
@@ -1819,8 +1847,14 @@ pub fn produce_program_entry_terminal_artifact(
         .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)
         .map_err(TerminalArtifactProductionError::EntryReceipt)?;
     let terminal_entry = lowered.semantic_module.entry;
-    let artifact =
-        finalize_terminal_artifact(&lowered).map_err(TerminalArtifactProductionError::Artifact)?;
+    let optimized = run_psi_optimization(
+        lowered,
+        psi_optimization::PsiOptimizationSelections::default(),
+    )
+    .map_err(TerminalArtifactProductionError::Optimization)?;
+    let artifact = finalize_terminal_artifact(&optimized)
+        .map_err(TerminalArtifactProductionError::Artifact)?;
+    let lowered = optimized.into_lowered();
     if artifact.manifest().semantic() != terminal_psi_identity {
         return Err(TerminalArtifactProductionError::EntryReceipt(
             ProgramEntryTerminalReceiptError::ArtifactSemanticIdentityMismatch,
@@ -2019,6 +2053,7 @@ impl std::error::Error for LoweringError {}
 #[derive(Debug)]
 pub enum TerminalArtifactProductionError {
     Lowering(LoweringError),
+    Optimization(PsiOptimizationStageError),
     Artifact(psi_terminal_codec::CanonicalTerminalArtifactError),
     EntryReceipt(ProgramEntryTerminalReceiptError),
 }
