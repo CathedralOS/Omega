@@ -3,8 +3,69 @@
 ; into ordinary Gamma values. Generated names use a $ prefix that no authored
 ; Delta identifier can contain.
 
-(def fail () Int
+(def request_fail () Int
   (read (input)))
+
+(def request_u32 ((index Int)) Int
+  (+ (read index)
+    (+ (* (read (+ index 1)) 256)
+      (+ (* (read (+ index 2)) 65536)
+        (* (read (+ index 3)) 16777216)))))
+
+; Raw source remains a development-only pure-transform entry. A canonical
+; request is selected by the otherwise-invalid leading `D` and is fully
+; validated before any source byte is observed.
+(def request_is_profiled () Int
+  (if (eq (input) 0)
+    0
+    (eq (read 0) 68)))
+
+(def validate_compilation_request () Int
+  (if (request_is_profiled)
+    (if (lt (input) 16)
+      (request_fail)
+      (if (eq (read 1) 67)
+        (if (eq (read 2) 82)
+          (if (eq (read 3) 69)
+            (if (eq (read 4) 81)
+              (if (eq (read 5) 1)
+                (if (eq (read 6) 0)
+                  (if (eq (read 7) 0)
+                    (let profile Int (request_u32 8)
+                      (if (if (eq profile 1) 1 (eq profile 2))
+                        (let length Int (request_u32 12)
+                          (if (lt 4194304 length)
+                            (request_fail)
+                            (if (eq (input) (+ 16 length))
+                              profile
+                              (request_fail))))
+                        (request_fail)))
+                    (request_fail))
+                  (request_fail))
+                (request_fail))
+              (request_fail))
+            (request_fail))
+          (request_fail))
+        (request_fail)))
+    0))
+
+(def source_length () Int
+  (if (request_is_profiled)
+    (request_u32 12)
+    (input)))
+
+(def source_read ((index Int)) Int
+  (if (request_is_profiled)
+    (read (+ 16 index))
+    (read index)))
+
+(def compilation_profile () Int
+  (if (request_is_profiled)
+    (request_u32 8)
+    0))
+
+(def fail () Int
+  (request_fail))
 
 (def ascii_between ((byte Int) (low Int) (high Int)) Int
   (if (lt byte low) 0
@@ -17,9 +78,9 @@
         (ascii_between byte 32 126)))))
 
 (def validate_source_envelope ((index Int)) Int
-  (if (eq index (input))
+  (if (eq index (source_length))
     0
-    (if (source_byte_allowed (read index))
+    (if (source_byte_allowed (source_read index))
       (validate_source_envelope (+ index 1))
       (fail))))
 
@@ -27,9 +88,9 @@
   (lt byte 33))
 
 (def skip_comment ((index Int)) Int
-  (if (eq index (input))
+  (if (eq index (source_length))
     index
-    (let byte Int (read index)
+    (let byte Int (source_read index)
       (if (eq byte 10)
         (+ index 1)
         (if (eq byte 13)
@@ -37,9 +98,9 @@
           (skip_comment (+ index 1)))))))
 
 (def skip ((index Int)) Int
-  (if (eq index (input))
+  (if (eq index (source_length))
     index
-    (let byte Int (read index)
+    (let byte Int (source_read index)
       (if (is_space byte)
         (skip (+ index 1))
         (if (eq byte 59)
@@ -47,9 +108,9 @@
           index)))))
 
 (def token_end ((index Int)) Int
-  (if (eq index (input))
+  (if (eq index (source_length))
     index
-    (let byte Int (read index)
+    (let byte Int (source_read index)
       (if (eq byte 40)
         (+ index 1)
         (if (eq byte 41)
@@ -57,9 +118,9 @@
           (token_word_end index))))))
 
 (def token_word_end ((index Int)) Int
-  (if (eq index (input))
+  (if (eq index (source_length))
     index
-    (let byte Int (read index)
+    (let byte Int (source_read index)
       (if (is_space byte)
         index
         (if (eq byte 40)
@@ -78,14 +139,14 @@
 (def same_span_bytes ((left Int) (right Int) (remaining Int)) Int
   (if (eq remaining 0)
     1
-    (if (eq (read left) (read right))
+    (if (eq (source_read left) (source_read right))
       (same_span_bytes (+ left 1) (+ right 1) (- remaining 1))
       0)))
 
 (def packed_span_equal ((index Int) (remaining Int) (packed Int)) Int
   (if (eq remaining 0)
     1
-    (if (eq (read index) (% packed 256))
+    (if (eq (source_read index) (% packed 256))
       (packed_span_equal (+ index 1) (- remaining 1) (/ packed 256))
       0)))
 
@@ -97,10 +158,10 @@
 
 (def token_data ((start Int) (end Int)) Int
   (if (eq (- end start) 4)
-    (if (eq (read start) 100)
-      (if (eq (read (+ start 1)) 97)
-        (if (eq (read (+ start 2)) 116)
-          (eq (read (+ start 3)) 97)
+    (if (eq (source_read start) 100)
+      (if (eq (source_read (+ start 1)) 97)
+        (if (eq (source_read (+ start 2)) 116)
+          (eq (source_read (+ start 3)) 97)
           0)
         0)
       0)
@@ -108,19 +169,19 @@
 
 (def token_def ((start Int) (end Int)) Int
   (if (eq (- end start) 3)
-    (if (eq (read start) 100)
-      (if (eq (read (+ start 1)) 101)
-        (eq (read (+ start 2)) 102)
+    (if (eq (source_read start) 100)
+      (if (eq (source_read (+ start 1)) 101)
+        (eq (source_read (+ start 2)) 102)
         0)
       0)
     0))
 
 (def token_main ((start Int) (end Int)) Int
   (if (eq (- end start) 4)
-    (if (eq (read start) 109)
-      (if (eq (read (+ start 1)) 97)
-        (if (eq (read (+ start 2)) 105)
-          (eq (read (+ start 3)) 110)
+    (if (eq (source_read start) 109)
+      (if (eq (source_read (+ start 1)) 97)
+        (if (eq (source_read (+ start 2)) 105)
+          (eq (source_read (+ start 3)) 110)
           0)
         0)
       0)
@@ -128,11 +189,11 @@
 
 (def token_match ((start Int) (end Int)) Int
   (if (eq (- end start) 5)
-    (if (eq (read start) 109)
-      (if (eq (read (+ start 1)) 97)
-        (if (eq (read (+ start 2)) 116)
-          (if (eq (read (+ start 3)) 99)
-            (eq (read (+ start 4)) 104)
+    (if (eq (source_read start) 109)
+      (if (eq (source_read (+ start 1)) 97)
+        (if (eq (source_read (+ start 2)) 116)
+          (if (eq (source_read (+ start 3)) 99)
+            (eq (source_read (+ start 4)) 104)
             0)
           0)
         0)
@@ -141,18 +202,18 @@
 
 (def token_let ((start Int) (end Int)) Int
   (if (eq (- end start) 3)
-    (if (eq (read start) 108)
-      (if (eq (read (+ start 1)) 101)
-        (eq (read (+ start 2)) 116)
+    (if (eq (source_read start) 108)
+      (if (eq (source_read (+ start 1)) 101)
+        (eq (source_read (+ start 2)) 116)
         0)
       0)
     0))
 
 (def token_int ((start Int) (end Int)) Int
   (if (eq (- end start) 3)
-    (if (eq (read start) 73)
-      (if (eq (read (+ start 1)) 110)
-        (eq (read (+ start 2)) 116)
+    (if (eq (source_read start) 73)
+      (if (eq (source_read (+ start 1)) 110)
+        (eq (source_read (+ start 2)) 116)
         0)
       0)
     0))
@@ -204,7 +265,7 @@
 
 (def source_uses_bytes_builtin ((index Int)) Int
   (let start Int (skip index)
-    (if (eq start (input))
+    (if (eq start (source_length))
       0
       (let end Int (token_end start)
         (if (token_bytes_builtin start end)
@@ -237,7 +298,7 @@
 (def identifier_tail_valid ((index Int) (end Int)) Int
   (if (eq index end)
     1
-    (if (is_identifier_continue (read index))
+    (if (is_identifier_continue (source_read index))
       (identifier_tail_valid (+ index 1) end)
       0)))
 
@@ -258,9 +319,9 @@
     0
     (if (reserved_name start end)
       0
-      (if (is_lower (read start))
+      (if (is_lower (source_read start))
         (identifier_tail_valid (+ start 1) end)
-        (if (eq (read start) 95)
+        (if (eq (source_read start) 95)
           (identifier_tail_valid (+ start 1) end)
           0)))))
 
@@ -269,7 +330,7 @@
     0
     (if (reserved_name start end)
       0
-      (if (is_upper (read start))
+      (if (is_upper (source_read start))
         (identifier_tail_valid (+ start 1) end)
         0))))
 
@@ -288,7 +349,7 @@
     (if negative
       1
       (if (eq value -9223372036854775808) 0 1))
-    (let byte Int (read index)
+    (let byte Int (source_read index)
       (if (is_digit byte)
         (let digit Int (- byte 48)
           (if (lt value -922337203685477580)
@@ -305,7 +366,7 @@
 (def integer_literal_valid ((start Int) (end Int)) Int
   (if (eq start end)
     0
-    (if (eq (read start) 45)
+    (if (eq (source_read start) 45)
       (if (eq (+ start 1) end)
         0
         (integer_digits_valid (+ start 1) end 0 1))
@@ -313,13 +374,13 @@
 
 (def skip_expression ((index Int)) Int
   (let start Int (skip index)
-    (if (eq (read start) 40)
+    (if (eq (source_read start) 40)
       (skip_list (token_end start))
       (token_end start))))
 
 (def skip_list ((index Int)) Int
   (let start Int (skip index)
-    (if (eq (read start) 41)
+    (if (eq (source_read start) 41)
       (token_end start)
       (skip_list (skip_expression start)))))
 
@@ -341,7 +402,7 @@
 
 (def count_constructor_shape_fields ((index Int) (count Int)) Int
   (let next Int (skip index)
-    (if (eq (read next) 41)
+    (if (eq (source_read next) 41)
       count
       (let type_end Int (token_end next)
         (if (field_type_shape_valid next type_end)
@@ -362,7 +423,7 @@
 
 (def constructor_shape_fields_after ((index Int)) Int
   (let next Int (skip index)
-    (if (eq (read next) 41)
+    (if (eq (source_read next) 41)
       (token_end next)
       (let type_end Int (token_end next)
         (if (field_type_shape_valid next type_end)
@@ -375,7 +436,7 @@
 (def count_constructor_fields
   ((index Int) (count Int) (type_rows Int)) Int
   (let next Int (skip index)
-    (if (eq (read next) 41)
+    (if (eq (source_read next) 41)
       count
       (let type_end Int (token_end next)
         (if (field_type_valid next type_end type_rows)
@@ -387,7 +448,7 @@
 
 (def constructor_fields_after ((index Int) (type_rows Int)) Int
   (let next Int (skip index)
-    (if (eq (read next) 41)
+    (if (eq (source_read next) 41)
       (token_end next)
       (let type_end Int (token_end next)
         (if (field_type_valid next type_end type_rows)
@@ -397,7 +458,7 @@
 (def emit_span ((index Int) (end Int)) Int
   (if (eq index end)
     0
-    (let ignored Int (write (read index))
+    (let ignored Int (write (source_read index))
       (emit_span (+ index 1) end))))
 
 ; The readable emitted runtime is pinned verbatim in the staged compiler gate.
@@ -408,6 +469,13 @@
     0
     (let ignored Int (write (% packed 256))
       (emit_ascii (/ packed 256) (- remaining 1)))))
+
+(def emit_application_marker () Int
+  (let ignored0 Int (emit_ascii 8097793326564336680 8)
+    (let ignored1 Int (emit_ascii 8028075772393122928 8)
+      (let ignored2 Int (emit_ascii 8389723558316089454 8)
+        (let ignored3 Int (emit_ascii 170471712 4)
+          0)))))
 
 (def emit_bytes_runtime () Int
   (let ignored0 Int (emit_ascii 7089831434963477544 8)
@@ -496,14 +564,17 @@
     0))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 
+(def emit_prefixed_function_name ((start Int) (end Int)) Int
+  (let ignored0 Int (write '_')
+    (let ignored1 Int (write '_')
+      (let ignored2 Int (write 'd')
+        (let ignored3 Int (write '_')
+          (emit_span start end))))))
+
 (def emit_function_name ((start Int) (end Int)) Int
-  (if (token_main start end)
+  (if (if (token_main start end) (eq (compilation_profile) 0) 0)
     (emit_span start end)
-    (let ignored0 Int (write '_')
-      (let ignored1 Int (write '_')
-        (let ignored2 Int (write 'd')
-          (let ignored3 Int (write '_')
-            (emit_span start end)))))))
+    (emit_prefixed_function_name start end)))
 
 (def emit_int_word () Int
   (let ignored0 Int (write 'I')
@@ -673,12 +744,12 @@
         (let ignored2 Int (emit_binding_prefix open 114)
           (let after_right Int (emit_expression (skip after_left) globals)
             (let close Int (skip after_right)
-              (if (eq (read close) 41)
+              (if (eq (source_read close) 41)
                 (let ignored3 Int (write '\s')
                   (let ignored4 Int (emit_binding_prefix open 122)
                     (let ignored5 Int (emit_raw_arithmetic open head head_end)
                       (let ignored6 Int (write '\s')
-                        (let byte Int (read head)
+                        (let byte Int (source_read head)
                           (let ignored7 Int
                             (if (eq byte 42)
                               (emit_multiply_guard open)
@@ -801,7 +872,7 @@
     (pair 1 (pair (pair 1 payload) (empty_name_children)))
     (let child Int (name_trie_new_path end (+ index 1) payload)
       (let children Int
-        (name_children_prepend (empty_name_children) (read index) child)
+        (name_children_prepend (empty_name_children) (source_read index) child)
         (pair 1 (pair (pair 0 0) children))))))
 
 (def name_trie_insert
@@ -815,7 +886,7 @@
             (if (first terminal)
               (fail)
               (pair 1 (pair (pair 1 payload) children)))
-            (let byte Int (read index)
+            (let byte Int (source_read index)
               (let child Int (name_child children byte)
                 (let next_child Int
                   (name_trie_insert child end (+ index 1) payload)
@@ -832,7 +903,7 @@
       (if (eq index end)
         (first node)
         (name_trie_find_option
-          (name_child (second node) (read index))
+          (name_child (second node) (source_read index))
           end (+ index 1))))))
 
 (def name_trie_find ((trie Int) (end Int) (index Int)) Int
@@ -921,6 +992,40 @@
   (let found Int (find_function_metadata name name_end globals)
     (if (first found) (second found) (fail))))
 
+(def find_main_metadata ((index Int) (globals Int)) Int
+  (let form Int (skip index)
+    (if (eq form (source_length))
+      (fail)
+      (let head Int (form_head form)
+        (let head_end Int (token_end head)
+          (if (token_data head head_end)
+            (find_main_metadata (skip_expression form) globals)
+            (if (token_def head head_end)
+              (let name Int (skip head_end)
+                (let name_end Int (token_end name)
+                  (if (token_main name name_end)
+                    (require_function_metadata name name_end globals)
+                    (find_main_metadata (skip_expression form) globals))))
+              (fail))))))))
+
+(def validate_conformance_profile ((globals Int)) Int
+  (let metadata Int (find_main_metadata 0 globals)
+    (if (eq (function_metadata_arity metadata) 1)
+      (if (eq (function_metadata_result_type metadata) (bytes_type))
+        (if (eq (first (function_metadata_parameter_types metadata))
+                (bytes_type))
+          0
+          (fail))
+        (fail))
+      (fail))))
+
+(def validate_application_profile ((profile Int) (globals Int)) Int
+  (if (eq profile 0)
+    0
+    (if (eq profile 1)
+      (validate_conformance_profile globals)
+      (fail))))
+
 (def require_constructor_metadata
   ((name Int) (name_end Int) (globals Int)) Int
   (let found Int
@@ -930,7 +1035,7 @@
 (def catalog_type_constructors
   ((index Int) (count Int) (has_payload Int)) Int
   (let item Int (skip index)
-    (if (eq (read item) 41)
+    (if (eq (source_read item) 41)
       (if (eq count 0)
         (fail)
         (pair (token_end item) (pair count has_payload)))
@@ -961,9 +1066,9 @@
 (def catalog_global_types
   ((index Int) (type_rows Int)) Int
   (let form Int (skip index)
-    (if (eq form (input))
+    (if (eq form (source_length))
       type_rows
-      (if (eq (read form) 40)
+      (if (eq (source_read form) 40)
         (let head Int (form_head form)
           (let head_end Int (token_end head)
             (if (token_data head head_end)
@@ -978,16 +1083,16 @@
   ((index Int) (locals Int) (type_rows Int) (count Int)
    (reversed_types Int)) Int
   (let item Int (skip index)
-    (if (eq (read item) 41)
+    (if (eq (source_read item) 41)
       (pair (token_end item)
         (pair count (pair reversed_types locals)))
-      (if (eq (read item) 40)
+      (if (eq (source_read item) 40)
         (let name Int (skip (token_end item))
           (let name_end Int (token_end name)
             (let type_name Int (skip name_end)
               (let type_end Int (token_end type_name)
                 (let close Int (skip type_end)
-                  (if (eq (read close) 41)
+                  (if (eq (source_read close) 41)
                     (let checked Int
                       (validate_local_declaration
                         name name_end type_name type_end type_rows)
@@ -1006,7 +1111,7 @@
 (def catalog_function_signature
   ((form Int) (name_end Int) (type_rows Int)) Int
   (let open Int (skip name_end)
-    (if (eq (read open) 40)
+    (if (eq (source_read open) 40)
       (let parameters Int
         (catalog_function_parameters
           (token_end open) (empty_name_trie) type_rows 0
@@ -1042,7 +1147,7 @@
   ((index Int) (type_metadata Int) (type_rows Int)
    (constructor_rows Int) (count Int)) Int
   (let item Int (skip index)
-    (if (eq (read item) 41)
+    (if (eq (source_read item) 41)
       (if (eq count (type_metadata_constructor_count type_metadata))
         (pair (token_end item) constructor_rows)
         (fail))
@@ -1066,13 +1171,13 @@
   ((index Int) (saw_function Int) (function_count Int) (main_count Int)
    (type_rows Int) (constructor_rows Int) (function_rows Int)) Int
   (let form Int (skip index)
-    (if (eq form (input))
+    (if (eq form (source_length))
       (if (eq function_count 0)
         (fail)
         (if (eq main_count 1)
           (pair type_rows (pair constructor_rows function_rows))
           (fail)))
-      (if (eq (read form) 40)
+      (if (eq (source_read form) 40)
         (let head Int (form_head form)
           (let head_end Int (token_end head)
             (if (token_data head head_end)
@@ -1150,10 +1255,10 @@
    (globals Int) (locals Int)) Int
   (let next Int (skip index)
     (if (eq remaining 0)
-      (if (eq (read next) 41)
+      (if (eq (source_read next) 41)
         (token_end next)
         (fail))
-      (if (eq (read next) 41)
+      (if (eq (source_read next) 41)
         (fail)
         (let typed Int (check_type_expression next globals locals)
           (if (eq (typed_value typed) expected)
@@ -1166,10 +1271,10 @@
    (globals Int) (locals Int)) Int
   (let next Int (skip index)
     (if (eq remaining 0)
-      (if (eq (read next) 41)
+      (if (eq (source_read next) 41)
         (token_end next)
         (fail))
-      (if (eq (read next) 41)
+      (if (eq (source_read next) 41)
         (fail)
         (let field_type Int (skip field_index)
           (let field_end Int (token_end field_type)
@@ -1187,10 +1292,10 @@
    (globals Int) (locals Int)) Int
   (let next Int (skip index)
     (if (eq remaining 0)
-      (if (eq (read next) 41)
+      (if (eq (source_read next) 41)
         (token_end next)
         (fail))
-      (if (eq (read next) 41)
+      (if (eq (source_read next) 41)
         (fail)
         (let typed Int (check_type_expression next globals locals)
           (if (eq (typed_value typed) (first parameter_types))
@@ -1201,7 +1306,7 @@
 
 (def check_type_atom ((start Int) (globals Int) (locals Int)) Int
   (let end Int (token_end start)
-    (let first Int (read start)
+    (let first Int (source_read start)
       (if (is_upper first)
         (let metadata Int (require_constructor_metadata start end globals)
           (if (eq (constructor_metadata_arity metadata) 0)
@@ -1230,7 +1335,7 @@
           (check_type_expression (skip (typed_after when_true)) globals locals)
           (if (eq (typed_value when_true) (typed_value when_false))
             (let close Int (skip (typed_after when_false))
-              (if (eq (read close) 41)
+              (if (eq (source_read close) 41)
                 (pair (token_end close) (typed_value when_true))
                 (fail)))
             (fail))))
@@ -1256,7 +1361,7 @@
                       (check_type_expression
                         (skip (typed_after initializer)) globals body_locals)
                       (let close Int (skip (typed_after body))
-                        (if (eq (read close) 41)
+                        (if (eq (source_read close) 41)
                           (pair (token_end close) (typed_value body))
                           (fail))))
                     (fail)))))))))))
@@ -1265,7 +1370,7 @@
   ((index Int) (owner Int) (globals Int) (locals Int) (arm_type Int)
    (seen Int) (arm_count Int)) Int
   (let arm Int (skip index)
-    (if (eq (read arm) 40)
+    (if (eq (source_read arm) 40)
       (let pattern Int (skip (token_end arm))
         (let constructor Int (pattern_constructor pattern)
           (let constructor_end Int (token_end constructor)
@@ -1295,9 +1400,9 @@
                                 arm_type
                                 (fail)))
                             (let arm_close Int (skip (typed_after body))
-                              (if (eq (read arm_close) 41)
+                              (if (eq (source_read arm_close) 41)
                                 (let next Int (skip (token_end arm_close))
-                                  (if (eq (read next) 41)
+                                  (if (eq (source_read next) 41)
                                     (if (eq (+ arm_count 1)
                                             (type_metadata_constructor_count
                                               (constructor_metadata_type metadata)))
@@ -1339,7 +1444,7 @@
           (skip (typed_after first_value)) globals locals)
         (if (eq (typed_value second_value) second_type)
           (let close Int (skip (typed_after second_value))
-            (if (eq (read close) 41)
+            (if (eq (source_read close) 41)
               (token_end close)
               (fail)))
           (fail)))
@@ -1381,7 +1486,7 @@
           (check_type_let (skip head_end) globals locals)
           (if (token_if head head_end)
             (check_type_if (skip head_end) globals locals)
-            (if (is_upper (read head))
+            (if (is_upper (source_read head))
               (let metadata Int
                 (require_constructor_metadata head head_end globals)
                 (let arity Int (constructor_metadata_arity metadata)
@@ -1417,7 +1522,7 @@
 (def check_type_expression
   ((index Int) (globals Int) (locals Int)) Int
   (let start Int (skip index)
-    (if (eq (read start) 40)
+    (if (eq (source_read start) 40)
       (check_type_list start globals locals)
       (check_type_atom start globals locals))))
 
@@ -1434,14 +1539,14 @@
             (if (eq (typed_value body)
                     (function_metadata_result_type metadata))
               (let close Int (skip (typed_after body))
-                (if (eq (read close) 41)
+                (if (eq (source_read close) 41)
                   (token_end close)
                   (fail)))
               (fail))))))))
 
 (def check_program_types ((index Int) (globals Int)) Int
   (let form Int (skip index)
-    (if (eq form (input))
+    (if (eq form (source_length))
       0
       (let head Int (form_head form)
         (let head_end Int (token_end head)
@@ -1454,8 +1559,12 @@
 
 (def emit_program ((index Int) (globals Int)) Int
   (let form Int (skip index)
-    (if (eq form (input))
-      10
+    (if (eq form (source_length))
+      (if (eq (compilation_profile) 0)
+        10
+        (if (eq (compilation_profile) 1)
+          (emit_conformance_adapter)
+          (fail)))
       (let head Int (form_head form)
         (let head_end Int (token_end head)
           (if (token_data head head_end)
@@ -1487,20 +1596,20 @@
                                 (let after_body Int
                                   (emit_expression (skip after_type) globals)
                                   (let close Int (skip after_body)
-                                    (if (eq (read close) 41)
+                                    (if (eq (source_read close) 41)
                                       (let ignored8 Int (write ')')
                                         (token_end close))
                                       (fail))))))))))))))))))))
 
 (def emit_parameters ((open Int) (globals Int)) Int
-  (if (eq (read open) 40)
+  (if (eq (source_read open) 40)
     (let ignored Int (write '(')
       (emit_parameter_items (token_end open) globals))
     (fail)))
 
 (def emit_parameter_items ((index Int) (globals Int)) Int
   (let item Int (skip index)
-    (if (eq (read item) 41)
+    (if (eq (source_read item) 41)
       (let ignored Int (write ')')
         (token_end item))
       (let name Int (skip (token_end item))
@@ -1508,7 +1617,7 @@
           (let type_name Int (skip name_end)
             (let type_end Int (token_end type_name)
               (let close Int (skip type_end)
-                (if (eq (read close) 41)
+                (if (eq (source_read close) 41)
                   (let ignored Int
                     (emit_parameter name name_end)
                     (emit_parameter_tail (token_end close) globals))
@@ -1516,19 +1625,19 @@
 
 (def emit_parameter_tail ((next Int) (globals Int)) Int
   (let separated Int (skip next)
-    (if (eq (read separated) 41)
+    (if (eq (source_read separated) 41)
       (emit_parameter_items next globals)
       (let ignored Int (write '\s')
         (emit_parameter_items next globals)))))
 
 (def emit_expression ((index Int) (globals Int)) Int
-  (if (eq (read (skip index)) 40)
+  (if (eq (source_read (skip index)) 40)
     (emit_list_expression (skip index) globals)
     (emit_atom (skip index) globals)))
 
 (def emit_atom ((start Int) (globals Int)) Int
   (let end Int (token_end start)
-    (let first Int (read start)
+    (let first Int (source_read start)
       (if (is_upper first)
         (if (upper_name_valid start end)
           (let metadata Int (require_constructor_metadata start end globals)
@@ -1565,7 +1674,7 @@
         (emit_match open (skip head_end) globals)
         (if (token_let head head_end)
           (emit_let open (skip head_end) globals)
-          (if (is_upper (read head))
+          (if (is_upper (source_read head))
             (emit_constructor open head head_end globals)
             (emit_generic_list
               open head head_end (skip head_end) globals)))))))
@@ -1581,7 +1690,7 @@
                 (let ignored2 Int (write '\s')
                   (if (eq arity 0)
                     (let close Int (skip name_end)
-                      (if (eq (read close) 41)
+                      (if (eq (source_read close) 41)
                         (let ignored3 Int (write '0')
                           (let ignored4 Int (write ')')
                             (token_end close)))
@@ -1590,14 +1699,14 @@
                       (let after_argument Int
                         (emit_constructor_fields argument arity globals)
                         (let close Int (skip after_argument)
-                          (if (eq (read close) 41)
+                          (if (eq (source_read close) 41)
                             (let ignored3 Int (write ')')
                               (token_end close))
                             (fail)))))))))
             (if (eq arity 0)
               (let ignored0 Int (emit_decimal (- tag 1))
                 (let close Int (skip name_end)
-                  (if (eq (read close) 41)
+                  (if (eq (source_read close) 41)
                     (token_end close)
                     (fail))))
                     (fail)))))))
@@ -1617,7 +1726,7 @@
 
 (def operator_arity_plus_one ((start Int) (end Int)) Int
   (if (eq (- end start) 1)
-    (let byte Int (read start)
+    (let byte Int (source_read start)
       (if (eq byte 43) 3
         (if (eq byte 45) 3
           (if (eq byte 42) 3
@@ -1627,26 +1736,31 @@
 
 (def checked_arithmetic_head ((start Int) (end Int)) Int
   (if (eq (- end start) 1)
-    (let byte Int (read start)
+    (let byte Int (source_read start)
       (if (eq byte 43) 1
         (if (eq byte 45) 1
           (if (eq byte 42) 1 0))))
     0))
 
 (def emit_bytes_helper_name ((kind Int)) Int
-  (let ignored0 Int (write '$')
-    (let ignored1 Int (write 'd')
-      (let ignored2 Int (write 'b')
-        (write
-          (if (eq kind 1)
-            'e'
-            (if (eq kind 2)
-              's'
-              (if (eq kind 3)
-                'l'
-                (if (eq kind 4)
-                  'g'
-                  (if (eq kind 5) 'c' (fail)))))))))))
+  (if (if (eq (compilation_profile) 1) (eq kind 4) 0)
+    (let ignored0 Int (write '$')
+      (let ignored1 Int (write 'p')
+        (let ignored2 Int (write 'b')
+          (write 'g'))))
+    (let ignored0 Int (write '$')
+      (let ignored1 Int (write 'd')
+        (let ignored2 Int (write 'b')
+          (write
+            (if (eq kind 1)
+              'e'
+              (if (eq kind 2)
+                's'
+                (if (eq kind 3)
+                  'l'
+                  (if (eq kind 4)
+                    'g'
+                    (if (eq kind 5) 'c' (fail))))))))))))
 
 (def emit_bytes_builtin
   ((head Int) (head_end Int) (args Int) (globals Int)) Int
@@ -1699,11 +1813,11 @@
   ((index Int) (remaining Int) (globals Int)) Int
   (let next Int (skip index)
     (if (eq remaining 0)
-      (if (eq (read next) 41)
+      (if (eq (source_read next) 41)
         (let ignored Int (write ')')
           (token_end next))
         (fail))
-      (if (eq (read next) 41)
+      (if (eq (source_read next) 41)
         (fail)
         (let ignored0 Int (write '\s')
           (let after Int (emit_expression next globals)
@@ -1729,7 +1843,7 @@
                                 (let after_body Int
                                   (emit_expression (skip after_initializer) globals)
                                   (let close Int (skip after_body)
-                                    (if (eq (read close) 41)
+                                    (if (eq (source_read close) 41)
                                       (let ignored10 Int (write ')')
                                         (token_end close))
                                       (fail))))))))))))))))))))
@@ -1826,12 +1940,12 @@
                                                                                     after_arms))))))))))))))))))))))))))))))))))))))))))
 
 (def pattern_constructor ((pattern Int)) Int
-  (if (eq (read pattern) 40)
+  (if (eq (source_read pattern) 40)
     (skip (token_end pattern))
     pattern))
 
 (def pattern_body ((pattern Int) (constructor_end Int) (arity Int)) Int
-  (if (eq (read pattern) 40)
+  (if (eq (source_read pattern) 40)
     (let after_pattern Int (pattern_after_binders constructor_end arity)
       (if (eq after_pattern 0)
         (fail)
@@ -1843,16 +1957,16 @@
 (def pattern_after_binders ((index Int) (remaining Int)) Int
   (if (eq remaining 0)
     (let close Int (skip index)
-      (if (eq (read close) 41)
+      (if (eq (source_read close) 41)
         (token_end close)
         0))
     (let binder Int (skip index)
-      (if (eq (read binder) 41)
+      (if (eq (source_read binder) 41)
         0
         (pattern_after_binders (token_end binder) (- remaining 1))))))
 
 (def pattern_shape_valid ((pattern Int) (constructor_end Int) (arity Int)) Int
-  (if (eq (read pattern) 40)
+  (if (eq (source_read pattern) 40)
     (if (eq (pattern_after_binders constructor_end arity) 0) 0 1)
     (if (eq arity 0) 1 0)))
 
@@ -1920,7 +2034,7 @@
   ((index Int) (arm_index Int) (count Int) (owner Int) (match_start Int)
    (globals Int)) Int
   (let arm Int (skip index)
-    (if (eq (read arm) 40)
+    (if (eq (source_read arm) 40)
       (let pattern Int (skip (token_end arm))
         (let constructor Int (pattern_constructor pattern)
         (let constructor_end Int (token_end constructor)
@@ -1937,9 +2051,9 @@
                         (emit_arm_body
                           body pattern constructor_end arity match_start globals)
                         (let arm_close Int (skip after_body)
-                          (if (eq (read arm_close) 41)
+                          (if (eq (source_read arm_close) 41)
                             (let match_close Int (skip (token_end arm_close))
-                              (if (eq (read match_close) 41)
+                              (if (eq (source_read match_close) 41)
                                 (token_end match_close)
                                 (fail)))
                             (fail))))
@@ -1961,7 +2075,7 @@
                                                     body pattern constructor_end arity match_start
                                                     globals)
                                                   (let arm_close Int (skip after_body)
-                                                    (if (eq (read arm_close) 41)
+                                                    (if (eq (source_read arm_close) 41)
                                                       (let ignored13 Int (write '\s')
                                                         (let after_rest Int
                                                           (emit_match_arms
@@ -1975,7 +2089,100 @@
               (fail)))))))))
       (fail))))
 
+(def emit_conformance_runtime () Int
+    (let ignored0 Int (emit_ascii 7093209134684005416 8)
+    (let ignored1 Int (emit_ascii 7946918709323898983 8)
+    (let ignored2 Int (emit_ascii 7946918653488802164 8)
+    (let ignored3 Int (emit_ascii 2338615366863366516 8)
+    (let ignored4 Int (emit_ascii 2338613026110204200 8)
+    (let ignored5 Int (emit_ascii 2319116451714179177 8)
+    (let ignored6 Int (emit_ascii 7379473583018352689 8)
+    (let ignored7 Int (emit_ascii 2891426548884973600 8)
+    (let ignored8 Int (emit_ascii 2987611087332075878 8)
+    (let ignored9 Int (emit_ascii 7595147530366099497 8)
+    (let ignored10 Int (emit_ascii 3398001281080522272 8)
+    (let ignored11 Int (emit_ascii 2965947086477996320 8)
+    (let ignored12 Int (emit_ascii 8080619255569328138 8)
+    (let ignored13 Int (emit_ascii 2339101209273132898 8)
+    (let ignored14 Int (emit_ascii 2335442000367873609 8)
+    (let ignored15 Int (emit_ascii 7946918378633195081 8)
+    (let ignored16 Int (emit_ascii 7935470522381901940 8)
+    (let ignored17 Int (emit_ascii 7310230740009896224 8)
+    (let ignored18 Int (emit_ascii 2317513364754820963 8)
+    (let ignored19 Int (emit_ascii 5269339246764059688 8)
+    (let ignored20 Int (emit_ascii 8318827349187523694 8)
+    (let ignored21 Int (emit_ascii 7379473583022415988 8)
+    (let ignored22 Int (emit_ascii 3539956989803440160 8)
+    (let ignored23 Int (emit_ascii 7957688353961812009 8)
+    (let ignored24 Int (emit_ascii 7379473583022415972 8)
+    (let ignored25 Int (emit_ascii 3612014583841368096 8)
+    (let ignored26 Int (emit_ascii 7142836987964694569 8)
+    (let ignored27 Int (emit_ascii 7310230740009896224 8)
+    (let ignored28 Int (emit_ascii 2317504568661798755 8)
+    (let ignored29 Int (emit_ascii 5269330450671037480 8)
+    (let ignored30 Int (emit_ascii 8318827349187523694 8)
+    (let ignored31 Int (emit_ascii 7308260413913899124 8)
+    (let ignored32 Int (emit_ascii 2338615366868672628 8)
+    (let ignored33 Int (emit_ascii 7791355394540529192 8)
+    (let ignored34 Int (emit_ascii 7793514779387633705 8)
+    (let ignored35 Int (emit_ascii 2891356565278367860 8)
+    (let ignored36 Int (emit_ascii 2336277943776604196 8)
+    (let ignored37 Int (emit_ascii 7449640034218551657 8)
+    (let ignored38 Int (emit_ascii 7957688353961812073 8)
+    (let ignored39 Int (emit_ascii 2318553501764100196 8)
+    (let ignored40 Int (emit_ascii 2965947086366449769 8)
+    (let ignored41 Int (emit_ascii 7289111621122138153 8)
+    (let ignored42 Int (emit_ascii 2891356260336410737 8)
+    (let ignored43 Int (emit_ascii 2317499071102805362 8)
+    (let ignored44 Int (emit_ascii 2965954744421461800 8)
+    (let ignored45 Int (emit_ascii 7217029574761720105 8)
+    (let ignored46 Int (emit_ascii 2335506115550275173 8)
+    (let ignored47 Int (emit_ascii 2891438977793927464 8)
+    (let ignored48 Int (emit_ascii 7955934336550265200 8)
+    (let ignored49 Int (emit_ascii 7021155937670165872 8)
+    (let ignored50 Int (emit_ascii 2965954744455033449 8)
+    (let ignored51 Int (emit_ascii 2603193170278222377 8)
+    (let ignored52 Int (emit_ascii 2339101209274049136 8)
+    (let ignored53 Int (emit_ascii 2335442000367873609 8)
+    (let ignored54 Int (emit_ascii 2336849375251426889 8)
+    (let ignored55 Int (emit_ascii 7946918378633195081 8)
+    (let ignored56 Int (emit_ascii 7289111621122138228 8)
+    (let ignored57 Int (emit_ascii 2891356513738760305 8)
+    (let ignored58 Int (emit_ascii 3539882223029805424 8)
+    (let ignored59 Int (emit_ascii 8656046462761181225 8)
+    (let ignored60 Int (emit_ascii 8248105362409802016 8)
+    (let ignored61 Int (emit_ascii 7093209167869342825 8)
+    (let ignored62 Int (emit_ascii 2317429014751748199 8)
+    (let ignored63 Int (emit_ascii 2339092753590264872 8)
+    (let ignored64 Int (emit_ascii 2317437498531261224 8)
+    (let ignored65 Int (emit_ascii 11171900500334 6)
+      0)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+
+(def emit_conformance_adapter () Int
+    (let ignored0 Int (emit_ascii 7593470432647668776 8)
+    (let ignored1 Int (emit_ascii 8389723558316089454 8)
+    (let ignored2 Int (emit_ascii 8389124325506623520 8)
+    (let ignored3 Int (emit_ascii 3760561988245206048 8)
+    (let ignored4 Int (emit_ascii 2987141578602653728 8)
+    (let ignored5 Int (emit_ascii 2338047023773130793 8)
+    (let ignored6 Int (emit_ascii 2891356247447254322 8)
+    (let ignored7 Int (emit_ascii 7946918709194679660 8)
+    (let ignored8 Int (emit_ascii 7881128233702793332 8)
+    (let ignored9 Int (emit_ascii 7093209167869929825 8)
+    (let ignored10 Int (emit_ascii 8387228800641476969 8)
+    (let ignored11 Int (emit_ascii 2891438977793945120 8)
+    (let ignored12 Int (emit_ascii 2987611087332075878 8)
+    (let ignored13 Int (emit_ascii 8389124325506623520 8)
+    (let ignored14 Int (emit_ascii 3760561988245206048 8)
+    (let ignored15 Int (emit_ascii 7593473764363955744 8)
+    (let ignored16 Int (emit_ascii 2967907563040022642 8)
+    (let ignored17 Int (emit_ascii 8511934560402155552 8)
+    (let ignored18 Int (emit_ascii 2965947087518183456 8)
+    (let ignored19 Int (emit_ascii 10537 2)
+      10)))))))))))))))))))))
+
 (def main () Int
+  (let profile Int (validate_compilation_request)
   (let envelope Int (validate_source_envelope 0)
     (let type_rows Int
       (catalog_global_types 0 (empty_name_trie))
@@ -1985,8 +2192,15 @@
               (validate_global_program
                 0 0 0 0 type_rows constructor_rows function_rows)
               (let types Int (check_program_types 0 checked)
-                (let runtime Int
-                  (if (source_uses_bytes_builtin 0)
-                    (emit_bytes_runtime)
-                    0)
-                  (emit_program 0 checked)))))))))
+                (let schema Int (validate_application_profile profile checked)
+                  (let marker Int
+                    (if (eq profile 0) 0 (emit_application_marker))
+                    (let runtime Int
+                      (if (if (eq profile 1) 1 (source_uses_bytes_builtin 0))
+                        (emit_bytes_runtime)
+                        0)
+                      (let profile_runtime Int
+                        (if (eq profile 1)
+                          (emit_conformance_runtime)
+                          0)
+                        (emit_program 0 checked)))))))))))))

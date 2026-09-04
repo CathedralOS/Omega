@@ -19,13 +19,14 @@ Every `write` is buffered inside the evaluator. A scalar `main` preserves the
 Gamma transformer convention: its value must be `0..255`, is appended to the
 buffer, the complete buffer is published, and status zero is returned.
 
-A pair-valued `main` is the generic application convention
-`(pair status publish)`. Both fields must be scalar, `status` must be `0..254`,
-and `publish` must be zero or one. Status zero requires publication. A nonzero
-published result requires a nonempty buffer, making publication reconstructible
-from the process observation. A discarded result must have nonzero status. The
-evaluator validates the complete result before either flushing or discarding
-the buffer.
+An application source begins with the exact first declaration
+`(def $application () Int 1)` and returns `(pair status publish)` from `main`.
+The validated marker selects application failure ownership before execution.
+Both result fields must be scalar, `status` must be `0..254`, and `publish` must
+be zero or one. Status zero requires publication. A nonzero published result
+requires a nonempty buffer, making publication reconstructible from the process
+observation. A discarded result must have nonzero status. The evaluator
+validates the complete result before either flushing or discarding the buffer.
 
 Before a valid application result is returned, evaluator-owned statuses are:
 
@@ -42,6 +43,14 @@ declared status. Status-zero stdout, including empty stdout, and nonempty
 nonzero stdout are authoritative publication; empty nonzero stdout is a
 discarded outcome. Invocation plumbing applies only that generic predicate and
 does not decode application statuses or bytes.
+
+After a validated application marker, evaluator failures map to the generic
+generated-program block: internal or unclassified evaluator failure is 248,
+authored trap is 249, value/environment/call-stack exhaustion is 250, immutable
+pair exhaustion is 252, request extent is 253, and buffered-output extent is
+254. Status 251 is reserved for a detected memory-containment violation; no
+checked evaluator path currently produces it. Invalid Gamma source remains
+status 1 before application execution.
 
 ## Private partition
 
@@ -126,13 +135,13 @@ out-of-range memory behavior or exposes an Alpha arithmetic trap as a Gamma
 outcome. Gamma has no time or fuel bound; a nonterminating program diverges.
 
 The selected implementation is
-[`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,398-line
-addressed Beta program assembling to a 7,303-byte Alpha tape. Its current
+[`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,509-line
+addressed Beta program assembling to a 7,835-byte Alpha tape. Its current
 SHA-256 identities are:
 
 ```text
-Beta source  c41edb7fa686292b34b6cdf1698a8b9fadd39e99a886c6ef57acb5451b1d02bc
-Alpha tape   6d630367b9d472f4f17a4bc51e0c282f7ab0ff0129a81236e78a276751680bd2
+Beta source  95e8771385a3f8779abcc8aed116327e5de1b350e3aeb93398db913dc3459a33
+Alpha tape   708b6725d3e5a1eff7837336afcc18c45c6f04d5e102148fd710f63fe9b44950
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource

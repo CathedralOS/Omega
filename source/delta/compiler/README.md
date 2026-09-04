@@ -105,9 +105,12 @@ then traverses in proper tail position; concatenation computes and checks the
 logical-length sum before allocating its new rope descriptor. Programs that
 mention only the `Bytes` type receive no unused runtime helper.
 
-This is a meaningful early stage, not the complete Delta compiler. It does not
-yet provide production application profiles or canonical compiler-boundary
-failures. Calls emitted in tail position remain in Gamma tail position through
+`ConformanceBytesV1` now accepts canonical DCREQ framing, validates exact
+`main : Bytes -> Bytes`, emits a marked nullary Gamma application adapter, and
+owns empty/nonempty publication plus authored-trap, input-extent, and
+output-extent statuses. Raw source remains a development-only pure-transform
+entry for the existing frontend gates. `EpsilonCompilerV1` and canonical DCOUT
+compiler-failure frames remain open. Calls emitted in tail position remain in Gamma tail position through
 `if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
 construction and traversal in bounded call context. Static acceptance of the
 scalar/nominal slice is not full-language admission.
@@ -120,7 +123,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-1,992-line / 79,294-byte Gamma source
+2,206-line / 89,429-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

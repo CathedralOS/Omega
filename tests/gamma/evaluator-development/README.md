@@ -19,8 +19,8 @@ emits no Gamma or Alpha code.
 ## Measurements
 
 ```text
-1,398-line / 39,299-byte canonical addressed Beta with named control targets
-7,303-byte evaluator tape
+1,509-line / 42,776-byte canonical addressed Beta with named control targets
+7,835-byte evaluator tape
 ```
 
 The gate compiles that canonical Beta directly and pins the Beta and tape
@@ -57,7 +57,7 @@ The remaining admission work is outside evaluator semantics:
 - The Beta root and the eventual Gamma derivation checker retain their own
   independent admission obligations.
 
-The measured margin remains: the direct candidate is 1,398 Beta lines versus
+The measured margin remains: the direct candidate is 1,509 Beta lines versus
 2,337 lines across the former concatenative route. More importantly, its state
 is held in documented registers and explicit memory regions rather than hidden
 behind a generic stack-machine expansion.

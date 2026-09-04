@@ -40,6 +40,7 @@ python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$SOURCE" \
 cmp "$TMP/receipt.gamma" "$EXPECTED"
 
 cat > "$TMP/late-trap.gamma" <<'EOF'
+(def $application () Int 1)
 (def main () Int
   (let emitted Int (write 65)
     (read (input))))
@@ -50,10 +51,11 @@ python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$TMP/late-trap.gamma" \
     --output "$TMP/not-published" --timeout 10
 STATUS=$?
 set -e
-[ "$STATUS" -eq 2 ]
+[ "$STATUS" -eq 249 ]
 [ "$(cat "$TMP/not-published")" = unchanged ]
 
 cat > "$TMP/empty.gamma" <<'EOF'
+(def $application () Int 1)
 (def main () Int (pair 0 1))
 EOF
 printf 'unchanged' > "$TMP/empty-published"
@@ -62,6 +64,7 @@ python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$TMP/empty.gamma" \
 [ ! -s "$TMP/empty-published" ]
 
 cat > "$TMP/published-failure.gamma" <<'EOF'
+(def $application () Int 1)
 (def main () Int
     (let emitted Int (write 65)
         (pair 2 1)))
@@ -77,6 +80,7 @@ set -e
 [ "$(cat "$TMP/failure-published")" = A ]
 
 cat > "$TMP/discarded.gamma" <<'EOF'
+(def $application () Int 1)
 (def main () Int
     (let emitted Int (write 65)
         (pair 249 0)))

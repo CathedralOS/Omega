@@ -73,13 +73,16 @@ A scalar `main` appends its returned value as one final byte after requiring
 that value to be in `0..255`. This lets a Gamma source transformer publish bytes
 and select its final terminator explicitly.
 
-A pair-valued `main` is a generic application result `(pair status publish)`.
-Both fields must be scalar, status is `0..254`, and publish is zero or one. A
-status-zero result must publish; a nonzero published result must contain at
-least one buffered byte; and a discarded result must have nonzero status. The
-evaluator validates the complete pair before atomically publishing or
-discarding every preceding `write`. These fields carry no Delta-specific type,
-status name, output schema, or Bytes representation.
+An application source begins with the exact nullary marker declaration
+`(def $application () Int 1)`. `$application` is reserved to the evaluator and
+selects application failure mapping before execution. Its `main` must return the
+generic result `(pair status publish)`. Both fields must be scalar, status is
+`0..254`, and publish is zero or one. A status-zero result must publish; a
+nonzero published result must contain at least one buffered byte; and a
+discarded result must have nonzero status. The evaluator validates the complete
+pair before atomically publishing or discarding every preceding `write`.
+Without the marker, pair-valued `main` traps. These conventions carry no
+Delta-specific type, status name, output schema, or Bytes representation.
 
 ## Boundaries
 
