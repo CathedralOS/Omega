@@ -160,13 +160,13 @@ pub(crate) fn callable_exposes_service(
             .any(|invocation| invocation.service() == Some(service))
 }
 
-/// Compiler-owned risk classification for exact service declarations.
+/// Transitional compiler-owned risk classification for exact semantic bindings.
 ///
-/// Ordinary Console and FilesystemHost declarations enter only through exact
-/// compiler-resolved accepted semantic bindings. Remaining core catalog
-/// entries require both declaration path and immutable toolchain source
-/// coordinate. A package-authored lookalike therefore cannot acquire or
-/// suppress a risk class by choosing a declaration name.
+/// Physical terminal authority is classified independently from exact exercised
+/// mechanisms during realization. Package review retains only the broad legacy
+/// summaries backed by compiler-resolved Console and FilesystemHost bindings;
+/// service names, source paths, and toolchain provenance cannot manufacture a
+/// physical authority class.
 pub(crate) fn dangerous_authority_class(
     compilation: &CheckedCompilation,
     definition: &psi_language_semantics::ServiceReachDefinition,
@@ -188,41 +188,5 @@ pub(crate) fn dangerous_authority_class(
         return Some(PackageReviewDangerousAuthorityClass::Filesystem);
     }
 
-    let source_file = compilation
-        .typed
-        .symbols
-        .symbol_source_span(definition.symbol)
-        .and_then(|span| compilation.typed.symbols.source_file(span))?;
-    if source_file.origin != psi_source::SourceOrigin::Toolchain {
-        return None;
-    }
-    let relative_source = source_file
-        .path
-        .strip_prefix(&source_file.package_root)
-        .ok()?;
-    match (
-        relative_source,
-        compilation
-            .typed
-            .symbols
-            .display_path(definition.symbol, "::")
-            .as_str(),
-    ) {
-        (path, "MachineControl") if path == std::path::Path::new("assembly.omg") => {
-            Some(PackageReviewDangerousAuthorityClass::MachineControl)
-        }
-        (path, "PortIo") if path == std::path::Path::new("assembly.omg") => {
-            Some(PackageReviewDangerousAuthorityClass::PortIo)
-        }
-        (path, "InterruptMaskControl") if path == std::path::Path::new("interrupt.omg") => {
-            Some(PackageReviewDangerousAuthorityClass::InterruptControl)
-        }
-        (path, "InterruptEntry") if path == std::path::Path::new("interrupt.omg") => {
-            Some(PackageReviewDangerousAuthorityClass::InterruptEntry)
-        }
-        (path, "ExtentRootProvider") if path == std::path::Path::new("extent.omg") => {
-            Some(PackageReviewDangerousAuthorityClass::RootMemory)
-        }
-        _ => None,
-    }
+    None
 }

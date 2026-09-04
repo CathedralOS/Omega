@@ -616,15 +616,14 @@ disposition nor a filesystem class is inferred from their names. This policy
 partition is separate from target syscall/import mechanism classification and
 from any future descriptor-confinement claim.
 
-The current filename-and-trait keyed dangerous-authority classifier is a
-transitional implementation defect. Receiving target policy now classifies the
+The filename-and-trait keyed dangerous-authority classifier has been removed.
+Receiving target policy classifies the
 closed compiler-intrinsic family and direct normalized PE-by-name,
 PE-by-ordinal, versioned-ELF, and Mach-O imports without admitting string-backed
-bootstrap rows. This physical classification does not replace the transitional
-table by itself. The obsolete filename table is removed only when complete
-selected-provider-closure traversal joins those leaves to an exact
-service/schema permission table plus binding-derived containment, before
-filesystem faceting, so the migration never expands the filename classifier.
+bootstrap rows. Complete selected-provider-closure traversal joins those leaves
+to an exact service/schema permission table plus binding-derived containment.
+The broad `Process` and `Filesystem` review summaries remain separate legacy
+metadata and grant no realization authority.
 
 The first exact package-permission carrier is explicit consumer input, not
 discovery output. An accepted semantic binding may retain rows from its complete
@@ -641,10 +640,10 @@ service/requirement source custody. A broad `Process` row therefore cannot
 stand in for `Console::exit_process -> ProcessTermination`, and accepting the
 broad row does not create the exact permission. Direct native compilation
 cross-checks resolved package rows against the receiving permission policy;
-missing or changed rows and duplicates across bindings reject. Root-policy-to-
-native transport and complete legacy-row replacement remain separate unfinished
-joins, so the filename classifier is still present but cannot feed the exact
-table.
+missing or changed rows and duplicates across bindings reject. Complete legacy-
+row replacement remains separate unfinished work: Q4 blocks the last 14
+portable filesystem dispositions and retirement of the broad `Filesystem`
+summary, while no filename classifier feeds either table.
 
 The in-memory transport boundary is now explicit. Accepted ordinary closure
 evidence projects a canonical exact accepted-permission set solely from
