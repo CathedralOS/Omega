@@ -1164,10 +1164,11 @@ bounds remain fail-closed. Equal outputs deduplicate only after that exact
 rejoin, while retaining the original symbolic mapping and specialization for
 later source-row replay. This is a canonical demand-only set of validated
 supplied requests, not evidence that the list exhausts reachable
-specializations; it cannot construct realization, coverage, `PackageInstance`,
+specializations; it cannot construct realization, coverage,
 Terminal/native authority, or installation evidence. Reachability-derived
 complete-set wiring, source-occurrence replay, coverage, and authorization
 remain work of compiler-owned independently compiled artifact composition.
+This closing helper is not an install/update prerequisite.
 
 D32 keeps physical realization distinct. A validated optimization projection
 retains the immutable canonical Terminal identity and identifies the surviving

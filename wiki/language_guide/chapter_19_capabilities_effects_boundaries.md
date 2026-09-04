@@ -1282,7 +1282,7 @@ only after their exact selected artifact and plan digest match, and retain the
 symbolic mapping plus concrete substitution so later composition can rejoin
 the original package row and its authored use locations. This result is not a
 reachability-complete application set and cannot produce coverage,
-`PackageInstance`, Terminal/native authority, or installation issuance.
+Terminal/native authority, or installation issuance.
 
 For a checked generic body, the compiler creates an ordinary authoritative
 machine specialization per distinct closed application and rechecks the

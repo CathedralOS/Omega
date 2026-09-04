@@ -123,11 +123,7 @@ pub machine compare_bounded<Element [copy]>(value: Element) -> Element {
     .expect("write producer main");
     fs::write(
         producer.join("build.omg"),
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("producer"); }
+        r#"machine build(builder: &mut Build) { builder.package("producer"); }
 "#,
     )
     .expect("write producer build");
@@ -149,11 +145,7 @@ pub machine exercise_bounded(value: i32) -> i32 {
     .expect("write consumer main");
     fs::write(
         consumer.join("build.omg"),
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("consumer"); }
+        r#"machine build(builder: &mut Build) { builder.package("consumer"); }
 "#,
     )
     .expect("write consumer build");
