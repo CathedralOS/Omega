@@ -116,7 +116,7 @@ AArch64. Array-cleanup length/stride fields remain absent because this is an
 unrestricted subloan, not an affine element transfer. Assignment, object
 construction, and installation replay the declarations, path, leaf type,
 access, offset, ABI placement, and emitted pointer-adjustment bytes. The same
-call may carry checked scalar literals in the ABI prefix; those values neither
+call may carry checked scalar values in the ABI prefix; those values neither
 widen the projected loan nor replace independent replay of its path.
 
 Post-restoration call evidence now admits one direct exclusive child, one

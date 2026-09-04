@@ -1247,13 +1247,18 @@ pub(super) fn ordinary_projected_call_is_supported(
 
     let caller_source_parameters = program.state_parameters(caller_state);
     let target_source_parameters = program.state_parameters(target_state);
-    if caller_source_parameters.len() != 1
-        || caller_parameters.len() != 1
+    if caller_parameters.len() != 1
         || arguments.len() != 1
         || arguments[0].source_parameter_index() != Some(0)
     {
         return false;
     }
+    let Some(caller_source_parameter) = usize::try_from(caller_parameters[0].position)
+        .ok()
+        .and_then(|position| caller_source_parameters.get(position))
+    else {
+        return false;
+    };
 
     let field_path = checked_nonempty_field_path(&arguments[0].path);
     let literal_index_fields = checked_literal_index_path(&arguments[0].path);
@@ -1262,6 +1267,9 @@ pub(super) fn ordinary_projected_call_is_supported(
     let write_only_subloan_path = (field_path || literal_index_path)
         && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
         && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
+    if caller_source_parameters.len() != 1 && !write_only_subloan_path {
+        return false;
+    }
     if field_path && !allow_field_path_projection && !write_only_subloan_path {
         return false;
     }
@@ -1316,7 +1324,7 @@ pub(super) fn ordinary_projected_call_is_supported(
     }
 
     let bounded_affine_array_index_path = if allow_field_path_projection {
-        let mut type_reference = caller_source_parameters[0].type_reference;
+        let mut type_reference = caller_source_parameter.type_reference;
         while let TypeReferenceNode::Constrained { base_type, .. }
         | TypeReferenceNode::Reference {
             referee: base_type, ..

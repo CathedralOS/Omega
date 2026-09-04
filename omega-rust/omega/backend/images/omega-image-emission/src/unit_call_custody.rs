@@ -698,15 +698,32 @@ pub(super) fn validate_internal_unit_call_custody(
         {
             return Err(invalid());
         }
+        let caller_scalar_shapes = function.unit_scalar_abi.as_ref().map_or_else(
+            || Ok(Vec::new()),
+            |abi| {
+                abi.parameters
+                    .iter()
+                    .map(|parameter| unit_scalar_shape(parameter.scalar_type).ok_or_else(invalid))
+                    .collect::<Result<Vec<_>, _>>()
+            },
+        )?;
         let expected_caller_plan = omega_calling_conventions::evaluate_call_plan(
             omega_calling_conventions::CallingPolicy::native_for_target(target),
             &omega_calling_conventions::CallSignature {
-                parameters: vec![home.shape],
+                parameters: caller_scalar_shapes
+                    .into_iter()
+                    .chain(std::iter::once(home.shape))
+                    .collect(),
                 result: None,
             },
         )
         .map_err(|_| invalid())?;
-        if expected_caller_plan.parameters.as_slice() != [home.source.clone()] {
+        if function
+            .unit_scalar_abi
+            .as_ref()
+            .is_some_and(|abi| abi.call_plan != expected_caller_plan)
+            || expected_caller_plan.parameters.last() != Some(&home.source)
+        {
             return Err(invalid());
         }
         let stored_bytes = if home.indirect {
