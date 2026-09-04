@@ -14,15 +14,15 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn settle_provider_executions",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/register_environment/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-target-to-register-environment/src/lib.rs",
         coordination_marker: "pub fn baseline_target_register_environment",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/selection/selection/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/optimized/mod.rs",
         coordination_marker: "pub fn stage_optimized_instruction_selection",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/selection/optimized_target_operations/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/optimized.rs",
         coordination_marker: "validate_abstract_to_target_translation",
     },
     RequiredCoordinationEntrance {

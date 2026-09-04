@@ -1,17 +1,15 @@
+use omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
 };
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
-use omega_target_operations_to_selected_instructions::{
-    LegalizationError, SelectedInstructionError, ValidatedLegalizedOperations,
-    ValidatedSelectedInstructions,
-};
 use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
 use crate::{
-    TargetRegisterEnvironmentValidationError, ValidatedOptimizedTargetOperations,
+    LegalizationError, SelectedInstructionError, TargetRegisterEnvironmentValidationError,
+    ValidatedLegalizedOperations, ValidatedSelectedInstructions,
     ValidatedTargetRegisterEnvironment,
 };
 

@@ -609,7 +609,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/tests/legalization/scalar_call_unit.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar_call_unit.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/scalar_call_unit.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/register_environment/catalog.rs",
+            "omega-rust/omega/pipeline/omega-target-to-register-environment/src/catalog.rs",
             "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/fixtures/scalar_call_unit.rs",
             "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/runtime_scalar_call_chain/mod.rs",
             "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/runtime_scalar_call_chain/fixture.rs",

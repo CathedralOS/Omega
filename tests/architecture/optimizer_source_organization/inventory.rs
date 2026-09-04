@@ -34,6 +34,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/omega-regalloc",
     "omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
     "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
+    "omega-rust/omega/pipeline/omega-target-to-register-environment",
     "omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact",
 ];
 

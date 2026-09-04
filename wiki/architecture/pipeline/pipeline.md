@@ -368,6 +368,7 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Terminal Psi To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | metadata |
 | Abstract-Operation Optimization | optimized | optimized | validated metadata | assertion | optimized op | optimized op | optimized op | optimized op | preserved metadata | validated metadata |
 | Abstract Operations To Target Operations | target | target | metadata | assertion | target op | target op | target op | target op | target op | target metadata |
+| Target To Register Environment | none | none | target metadata | none | none | none | none | none | none | target metadata |
 | Target Operations To Selected Instructions | selected | selected | metadata | none | selected | selected | selected | selected | selected | selected metadata |
 | Selected Instructions Through Allocation | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
 | Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
@@ -399,6 +400,7 @@ Current deliberate gaps:
 - [Typed Trees To Checked Trees](stages/typed_trees_to_checked_trees.md)
 - [Optimization Run To Abstract Operations](stages/optimization_run_to_abstract_operations.md)
 - [Abstract Operations To Target Operations](stages/abstract_operations_to_target_operations.md)
+- [Target To Register Environment](stages/target_to_register_environment.md)
 - [Target Operations To Selected Instructions](stages/target_operations_to_selected_instructions.md)
 - [Selected Instructions To Liveness](stages/selected_instructions_to_liveness.md)
 - [Liveness To Live Ranges](stages/liveness_to_live_ranges.md)

@@ -16,6 +16,8 @@ omega-target = { path = "../../representations/omega-target" }
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-optimization-run-to-abstract-operations = { path = "../omega-optimization-run-to-abstract-operations" }
+omega-psi-to-abstract-operations = { path = "../omega-psi-to-abstract-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-access-plans = { path = "../../../psi/foundation/psi-access-plans" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }

@@ -88,8 +88,9 @@ no later physical authority follows from this selection boundary.
   the bounded atomic closure through named projection, constraint, and transfer
   leaves; its independent validator descends through separate source and target
   replay.
-- `pipeline/optimization/omega-optimization-pipeline/src/stages/selection/selection.rs` owns the opaque
-  cross-stage carrier, injects exact ISA/ABI constraints, and binds the physical
+- `pipeline/omega-target-operations-to-selected-instructions/src/optimized/mod.rs` owns the opaque
+  cross-stage carrier. The preceding `pipeline/omega-target-to-register-environment`
+  stage injects exact ISA/ABI constraints and binds the physical
   model, constraint catalog, active reservation profile, and selected keys into
   one environment identity.
 - `omega-isa-x86_64` and `omega-isa-aarch64` own the mapping

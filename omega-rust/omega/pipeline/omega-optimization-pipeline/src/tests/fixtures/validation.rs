@@ -9,7 +9,7 @@ pub(crate) fn validate_raw_selection(
     omega_target_operations_to_selected_instructions::ValidatedSelectedInstructions,
     SelectedInstructionError,
 > {
-    let constraints = crate::stages::selection::selection::selection_constraints(
+    let constraints = omega_target_operations_to_selected_instructions::selection_constraints(
         staged.legalized(),
         staged.register_environment(),
     );

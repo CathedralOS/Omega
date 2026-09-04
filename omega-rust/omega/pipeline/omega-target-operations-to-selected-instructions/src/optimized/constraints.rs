@@ -1,12 +1,12 @@
+use crate::ValidatedLegalizedOperations;
 use omega_legalized_operations::{LegalizedCondition, LegalizedLeafValue};
 use omega_selected_instructions::{SelectedFixedInputConstraint, SelectedSelectionConstraints};
 use omega_target_operations::MachineRegister;
-use omega_target_operations_to_selected_instructions::ValidatedLegalizedOperations;
 use psi_core::MachineId;
 
 use crate::ValidatedTargetRegisterEnvironment;
 
-pub(crate) fn selection_constraints(
+pub fn selection_constraints(
     legalized: &ValidatedLegalizedOperations,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> SelectedSelectionConstraints {

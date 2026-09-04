@@ -77,6 +77,7 @@ members = [
     "omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
     "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
     "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
+    "omega-rust/omega/pipeline/omega-target-to-register-environment",
     "omega-rust/omega/pipeline/omega-optimization-validation",
     "omega-rust/omega/pipeline/omega-optimization-policy",
     "omega-rust/omega/pipeline/omega-abstract-operations-optimizer",

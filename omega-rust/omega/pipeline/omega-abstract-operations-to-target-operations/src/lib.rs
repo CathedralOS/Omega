@@ -2,6 +2,7 @@
 //! Optimizer module role: crate map. Enter `lowering/mod.rs`, then descend by result family and semantic responsibility.
 mod lowering;
 mod model;
+mod optimized;
 mod placed_view_inputs;
 mod validation;
 
@@ -16,6 +17,12 @@ pub use model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedIeeeFloatFmaSettlement,
     AdmittedNativeCallbackArgument, LoweringError, PlacedViewInputTranslationError,
     SelectedPlacedViewInputPlan,
+};
+pub use optimized::{
+    ValidatedOptimizedTargetOperations, lower_optimized_to_target_operations,
+    lower_optimized_to_target_operations_with_ieee_float_fma_settlements,
+    lower_optimized_to_target_operations_with_provider_executions,
+    lower_optimized_to_target_operations_with_provider_executions_and_installation,
 };
 pub use placed_view_inputs::{
     lower_to_target_operations_with_placed_view_inputs, validate_placed_view_input_translation,
