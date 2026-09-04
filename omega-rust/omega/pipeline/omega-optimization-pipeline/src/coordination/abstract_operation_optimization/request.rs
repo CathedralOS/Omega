@@ -2,7 +2,7 @@ use omega_optimization_core::{
     OptimizationSelections, OptimizationWorkBudget, PsiOptimizationSelectionProjection,
 };
 
-/// Canonical input to the Psi optimization phase.
+/// Canonical input to the post-Terminal abstract-operation optimization phase.
 ///
 /// Empty selections are ordinary identity execution. The phase still admits
 /// and validates its input, publishes empty transformation custody, and hands

@@ -2167,7 +2167,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                     && !catalog.contains(".for_phase(")
             })
             && optimization_stage.contains("enum NativeOptimizationStageResult")
-            && optimization_stage.contains("optimize_verified_psi_input(")
+            && optimization_stage.contains("optimize_verified_abstract_input(")
             && optimization_stage.contains("PostTerminalOptimizationContinuation::Identity(input)")
             && optimization_stage.contains("empty selection changed the ordinary abstract-operation plan")
             && optimization_stage.contains("empty selection changed the ranked native abstract-operation plan")
@@ -2175,7 +2175,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 "NativeArtifactOperationPlan::RankedU32Countdown(_),\n            PostTerminalOptimizationContinuation::Selected(_)"
             )
             && target_stage.contains("match optimization_stage {")
-            && !target_stage.contains("optimize_verified_psi_input(")
+            && !target_stage.contains("optimize_verified_abstract_input(")
             && !target_stage.contains("PostTerminalOptimizationContinuation")
             && target_stage
                 .contains("lower_optimized_to_target_operations_with_provider_executions")
@@ -2192,7 +2192,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 .contains("physical.into_function_fragment_emission_source()")
             && optimized_fragment_projection
                 .contains("stage_optimized_function_fragment_emission(")
-            && !machine_code.contains("optimize_verified_psi_input(")
+            && !machine_code.contains("optimize_verified_abstract_input(")
             && !machine_code.contains("stage_optimized_verified_physical_pipeline(")
             && !machine_code
                 .contains("stage_optimized_native_continuation_with_provider_executions"),

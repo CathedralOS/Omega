@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Pipeline stage from validated liveness to validated live ranges.
+//! Optimizer module role: executable entrance. Validated liveness to validated live ranges.
 //!
 //! This crate owns the analysis-to-independent-replay join over complete
 //! liveness custody. No interval or interference fact escapes before replay.

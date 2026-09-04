@@ -30,27 +30,27 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn stage_optimized_assignment",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/allocation_legality/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-live-ranges-to-allocation-legality/src/lib.rs",
         coordination_marker: "pub fn stage_optimized_allocation_legality_with_availability",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/register_homes/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-allocation-legality-to-register-homes/src/lib.rs",
         coordination_marker: "pub fn stage_optimized_register_homes",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/liveness/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-liveness/src/lib.rs",
         coordination_marker: "pub fn stage_optimized_liveness",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/live_ranges/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-liveness-to-live-ranges/src/lib.rs",
         coordination_marker: "pub fn stage_optimized_live_ranges",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/fixed_view_copies/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-allocation-legality-to-fixed-view-copies/src/fixed_view_copies/mod.rs",
         coordination_marker: "pub fn stage_optimized_fixed_view_copies",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/selected_reanalysis/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-fixed-view-copies-to-reanalyzed-legality/src/lib.rs",
         coordination_marker: "pub fn stage_optimized_selected_reanalysis",
     },
     RequiredCoordinationEntrance {

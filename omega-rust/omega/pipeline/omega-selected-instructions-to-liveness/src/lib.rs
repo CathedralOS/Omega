@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Pipeline stage from selected instructions to validated liveness.
+//! Optimizer module role: executable entrance. Selected instructions to validated liveness.
 //!
 //! This crate owns the analysis-to-independent-replay join. No liveness
 //! result receives stage custody before replay reconstructs its exact receipt.

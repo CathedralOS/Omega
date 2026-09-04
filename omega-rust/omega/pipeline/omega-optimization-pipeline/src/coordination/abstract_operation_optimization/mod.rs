@@ -1,8 +1,8 @@
-//! Optimizer module role: executable entrance. Verified Psi optimization coordination.
+//! Optimizer module role: executable entrance. Verified post-Terminal abstract-operation optimization.
 //!
 //! [`request`] owns exact opt-in selections and bounded work. [`error`] owns
 //! the closed stage failures. This entrance visibly performs artifact
-//! admission, verified-unit construction, the selected Psi pass run, and
+//! admission, verified-unit construction, the selected abstract pass run, and
 //! independent abstract-plan projection in that order.
 
 mod error;
@@ -32,18 +32,18 @@ pub fn optimize_artifact_sections(
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
     let input = lower_artifact_sections_for_optimization(semantic_bytes, proof_bytes, profile)
         .map_err(OptimizationPipelineError::ArtifactLowering)?;
-    optimize_verified_psi_input(input, request)
+    optimize_verified_abstract_input(input, request)
 }
 
-pub fn optimize_verified_psi_input(
+pub fn optimize_verified_abstract_input(
     input: VerifiedPsiOptimizationInput,
     request: impl Into<OptimizationPipelineRequest>,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
     let request = request.into();
-    run_verified_psi_input(input, &request)
+    run_verified_abstract_input(input, &request)
 }
 
-fn run_verified_psi_input(
+fn run_verified_abstract_input(
     input: VerifiedPsiOptimizationInput,
     request: &OptimizationPipelineRequest,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {

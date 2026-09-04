@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Pipeline stage from live ranges to allocation availability and physical-view legality.
+//! Optimizer module role: executable entrance. Live ranges to allocation availability and physical-view legality.
 //!
 //! Each public route chooses one explicit availability policy. This entrance
 //! then owns the shared analysis-to-independent-replay join that grants
