@@ -2030,6 +2030,16 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 optimizer_physical_model_path.display()
             )
         });
+    let optimizer_physical_pipeline_path = root.join(
+        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs",
+    );
+    let optimizer_physical_pipeline = std::fs::read_to_string(&optimizer_physical_pipeline_path)
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                optimizer_physical_pipeline_path.display()
+            )
+        });
     assert!(
         realization.contains("pub fn realize_native_artifact(")
             && realization.contains("artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
@@ -2050,6 +2060,10 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && target_stage.contains("enum NativeTargetStageResult")
             && optimizer_physical_model.contains("PhysicalIdentity")
             && !optimizer_physical_model.contains("PsiOnly")
+            && optimizer_physical_pipeline.contains(
+                "post_terminal: &PostTerminalOptimizationSelections"
+            )
+            && optimizer_physical_pipeline.contains("PostTerminalSelectionMismatch")
             && target_stage.contains("optimize_verified_psi_input(")
             && target_stage
                 .contains("lower_optimized_to_target_operations_with_provider_executions")

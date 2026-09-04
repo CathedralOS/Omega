@@ -7,21 +7,21 @@
 mod model;
 #[cfg(test)]
 mod tests;
-
+use super::super::OptimizedVerifiedPhysicalPipelineError;
+use crate::stages::layout::x86_branch_relaxation::x86_rel8_selected;
+pub(crate) use model::{ResolvedNonAllocationComposition, ResolvedPhysicalPhaseComposition};
 use omega_machine_optimizer::selected_post_allocation_machine_rule;
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+use omega_optimization_core::{
+    Optimization, OptimizationExecutionPhase, PostTerminalOptimizationSelections,
+};
 use omega_regalloc::{resolve_selected_lowering_rules, selected_allocation_recovery_rule};
 use omega_target::Architecture;
 
-use crate::stages::layout::x86_branch_relaxation::x86_rel8_selected;
-
-use super::super::OptimizedVerifiedPhysicalPipelineError;
-pub(crate) use model::{ResolvedNonAllocationComposition, ResolvedPhysicalPhaseComposition};
-
 pub(crate) fn resolve_physical_phase_composition(
-    selections: &OptimizationSelections,
+    post_terminal: &PostTerminalOptimizationSelections,
     architecture: Architecture,
 ) -> Result<ResolvedPhysicalPhaseComposition, OptimizedVerifiedPhysicalPipelineError> {
+    let selections = post_terminal.selections();
     let selected_lowering = selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
     if !selected_lowering.is_empty() {
         resolve_selected_lowering_rules(selections)
