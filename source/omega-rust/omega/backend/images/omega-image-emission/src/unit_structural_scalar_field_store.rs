@@ -266,6 +266,42 @@ pub(crate) fn expected_incoming_parameter_store_bytes(
     }
 }
 
+pub(crate) fn expected_home_store_bytes(
+    target: NativeTarget,
+    destination: &omega_machine_code::UnitParameterHomeRecord,
+    field_byte_offset: u32,
+    byte_size: u16,
+    source: omega_machine_code::UnitScalarHomeRecord,
+) -> Option<Vec<u8>> {
+    match target.architecture {
+        Architecture::X86_64 => {
+            let mut bytes = Vec::new();
+            expected_x86_stack_load(&mut bytes, 11, source.byte_offset, 8)?;
+            bytes.extend(expected_parameter_store_bytes(
+                target,
+                destination,
+                field_byte_offset,
+                byte_size,
+                omega_target_operations::MachineRegister::X86R11,
+            )?);
+            Some(bytes)
+        }
+        Architecture::Aarch64 => {
+            let mut bytes = expected_aarch64_stack_load(16, source.byte_offset, 8)?
+                .to_le_bytes()
+                .to_vec();
+            bytes.extend(expected_parameter_store_bytes(
+                target,
+                destination,
+                field_byte_offset,
+                byte_size,
+                omega_target_operations::MachineRegister::Aarch64X(16),
+            )?);
+            Some(bytes)
+        }
+    }
+}
+
 fn expected_x86_store(
     home: &omega_machine_code::UnitParameterHomeRecord,
     field_byte_offset: u32,

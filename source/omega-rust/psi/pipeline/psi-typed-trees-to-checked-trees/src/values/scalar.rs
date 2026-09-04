@@ -200,9 +200,10 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         // custody. Retain the exact scalar spelling separately
                         // so structural effect planning never has to revisit a
                         // typed expression handle. This first consumer needs
-                        // only direct primitive literals or an exact scalar
-                        // parameter; wider assignment expressions remain
-                        // outside its admitted vocabulary.
+                        // only direct primitive literals, an exact scalar
+                        // parameter, or an earlier immutable primitive local;
+                        // wider assignment expressions remain outside its
+                        // admitted vocabulary.
                         if !matches!(
                             program.expression_table.expression(assignment.value),
                             ExpressionNode::Integer(_)
@@ -233,7 +234,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             assignment.value,
                             &scalar_parameters,
                             &parameter_types,
-                            &[],
+                            &locals,
                             target_type,
                             exact_integer_casts,
                         ) else {
@@ -254,7 +255,8 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                                 | CheckedBooleanExpression::Parameter { .. }
                                         )
                                 )
-                                || matches!(expression, CheckedScalarExpression::Parameter { .. });
+                                || matches!(expression, CheckedScalarExpression::Parameter { .. })
+                                || matches!(expression, CheckedScalarExpression::Local { .. });
                         if !direct_source {
                             continue;
                         }

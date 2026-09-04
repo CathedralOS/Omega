@@ -79,7 +79,7 @@ pub(super) fn lower_write_only_primitive_store(
                     scalar_type,
                     value: immediate,
                 },
-                KnownUnitInteger::Home(_) => return Err(invalid()),
+                KnownUnitInteger::Home(home) => TargetUnitWriteOnlyPrimitiveStoreSource::Home(home),
             };
             (
                 ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment),

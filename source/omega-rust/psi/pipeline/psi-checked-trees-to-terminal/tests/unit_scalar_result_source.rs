@@ -46,6 +46,24 @@ machine Main::main(&mut self) {
 }
 "#;
 
+const DIRECT_STORE_SOURCE: &str = r#"
+data Scalar {}
+
+machine Scalar::identity(value: i32) -> i32
+requires value == value
+ensures result == value
+{
+    transition { _ -> value }
+}
+
+data Main {}
+
+machine Main::main(destination: &write i32) {
+    let result: i32 = Scalar::identity(23);
+    destination = result;
+}
+"#;
+
 fn checked_from_source(source: &str) -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -60,6 +78,10 @@ fn checked() -> psi_checked_trees::CheckedTrees {
 
 fn ordinary_checked() -> psi_checked_trees::CheckedTrees {
     checked_from_source(ORDINARY_SOURCE)
+}
+
+fn direct_store_checked() -> psi_checked_trees::CheckedTrees {
+    checked_from_source(DIRECT_STORE_SOURCE)
 }
 
 fn checked_with_dependent_scalar_local() -> psi_checked_trees::CheckedTrees {
@@ -277,6 +299,66 @@ fn attached_unit_ordinary_scalar_result_rejects_contract_and_argument_fact_drift
         rejection_message(&argument),
         "ordinary Unit scalar call arguments drifted from checked value facts"
     );
+}
+
+#[test]
+fn attached_unit_ordinary_scalar_result_reaches_a_direct_write_only_store() {
+    let checked = direct_store_checked();
+    let operations = &checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == main_symbol(&checked))
+        .expect("Main::main Unit plan")
+        .operations;
+    assert!(matches!(
+        operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::ScalarCall { result, .. },
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                statement_index: 1,
+                value: CheckedScalarExpression::Local {
+                    position: 0,
+                    primitive_type: psi_typed_trees::types::PrimitiveType::I32,
+                },
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 2, .. },
+        ] if result.binding_ordinal == 0
+    ));
+
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::main")
+        .expect("direct scalar-result store should lower");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let producer = entry.blocks[0]
+        .operations
+        .iter()
+        .find(|operation| matches!(operation.kind, psi_terminal::OperationKind::Call { .. }))
+        .expect("ordinary scalar producer");
+    let psi_terminal::OperationResult::Scalar(result) = producer.result else {
+        panic!("ordinary scalar producer should publish a result")
+    };
+    let store = entry.blocks[0]
+        .operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                psi_terminal::OperationKind::WriteOnlyPrimitiveStore { .. }
+            )
+        })
+        .expect("direct write-only store");
+    let psi_terminal::OperationKind::WriteOnlyPrimitiveStore { value, .. } = store.kind else {
+        unreachable!()
+    };
+    assert_eq!(value, result.id);
 }
 
 #[test]

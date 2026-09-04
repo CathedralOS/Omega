@@ -12,8 +12,8 @@ use psi_core::ScalarType;
 use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 use super::unit_structural_scalar_field_store::{
-    expected_incoming_parameter_store_bytes, expected_parameter_store_bytes, expected_store_bytes,
-    integer_bits,
+    expected_home_store_bytes, expected_incoming_parameter_store_bytes,
+    expected_parameter_store_bytes, expected_store_bytes, integer_bits,
 };
 use super::{ObjectError, ObjectUnitStack};
 
@@ -216,6 +216,31 @@ fn validate_store(
                 Some(bits),
             )
         }
+        UnitWriteOnlyPrimitiveStoreSourceRecord::Home(source_home) => {
+            let source_count = function
+                .internal_unit_scalar_calls
+                .iter()
+                .filter(|call| {
+                    call.result.home == source_home
+                        && call.operation_ordinal < store.operation_ordinal
+                })
+                .count();
+            let home_count = function
+                .unit_scalar_homes
+                .iter()
+                .filter(|home| **home == source_home)
+                .count();
+            let ScalarType::Integer(integer) = source_home.scalar_type else {
+                return None;
+            };
+            let (shape, byte_size) = native_scalar_shape(source_home.scalar_type)?;
+            (
+                source_count == 1 && home_count == 1 && source_home.shape == shape,
+                ScalarType::Integer(integer),
+                byte_size,
+                None,
+            )
+        }
     };
     if store.destination_type.shape != StructuralTypeShape::PrimitiveScalar(destination_scalar_type)
     {
@@ -296,6 +321,9 @@ fn validate_store(
             byte_offset,
             validated_function_stack?.frame_bytes,
         )?,
+        UnitWriteOnlyPrimitiveStoreSourceRecord::Home(source_home) => {
+            expected_home_store_bytes(target, home, 0, byte_size, source_home)?
+        }
         _ => expected_store_bytes(target, home, 0, byte_size, bits?)?,
     };
     let end = store.code_offset.checked_add(store.byte_count)?;

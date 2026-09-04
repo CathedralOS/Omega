@@ -219,37 +219,46 @@ fn known_call_written_paths_for_parts_with_origins_and_summaries(
     {
         return None;
     }
-    let (callee_machine, callee_state) = if receiver_members.is_empty()
-        || matches!(receiver_members, [receiver] if receiver == "self")
-    {
-        machine_state_by_symbol(program, target_symbol)
-            .filter(|(machine, _)| machine.symbol != current_machine.symbol)
-            .or_else(|| {
-                machine_symbols
-                    .state(target)
-                    .map(|state| (current_machine, state))
-            })
-            .or_else(|| {
-                current_machine
-                    .attached_data
-                    .as_ref()
-                    .and_then(|attached_data| {
-                        symbols.attached_machine_state(program, attached_data.as_str(), target)
+    let (callee_machine, callee_state) = machine_state_by_symbol(program, target_symbol)
+        .or_else(|| {
+            (receiver_members.is_empty()
+                || matches!(receiver_members, [receiver] if receiver == "self"))
+            .then(|| {
+                machine_state_by_symbol(program, target_symbol)
+                    .filter(|(machine, _)| machine.symbol != current_machine.symbol)
+                    .or_else(|| {
+                        machine_symbols
+                            .state(target)
+                            .map(|state| (current_machine, state))
                     })
+                    .or_else(|| {
+                        current_machine
+                            .attached_data
+                            .as_ref()
+                            .and_then(|attached_data| {
+                                symbols.attached_machine_state(
+                                    program,
+                                    attached_data.as_str(),
+                                    target,
+                                )
+                            })
+                    })
+                    .or_else(|| free_machine_entry_state(program, symbols, target))
             })
-            .or_else(|| free_machine_entry_state(program, symbols, target))?
-    } else {
-        let receiver = receiver_members.last()?.as_str();
-        let machine = machine_symbols
-            .callable_field_type(receiver)
-            .and_then(|type_name| symbols.machine(type_name))
-            .or_else(|| symbols.machine(receiver))?;
-        let state = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.name.as_str() == target)?;
-        (machine, state)
-    };
+            .flatten()
+        })
+        .or_else(|| {
+            let receiver = receiver_members.last()?.as_str();
+            let machine = machine_symbols
+                .callable_field_type(receiver)
+                .and_then(|type_name| symbols.machine(type_name))
+                .or_else(|| symbols.machine(receiver))?;
+            let state = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.name.as_str() == target)?;
+            Some((machine, state))
+        })?;
 
     if active_states.contains(&callee_state.symbol) {
         return None;

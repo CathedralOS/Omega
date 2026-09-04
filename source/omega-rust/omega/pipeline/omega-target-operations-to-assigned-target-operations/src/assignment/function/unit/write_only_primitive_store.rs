@@ -17,6 +17,7 @@ pub(super) fn assign(
     destination_placement: &ValuePlacement,
     source: TargetUnitWriteOnlyPrimitiveStoreSource,
     preceding_operations: &[TargetUnitOperation],
+    preceding_assigned_operations: &[AssignedUnitOperation],
     target: NativeTarget,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     let invalid = || AssignmentError::WriteOnlyPrimitiveStoreCustodyMismatch {
@@ -62,6 +63,21 @@ pub(super) fn assign(
             (
                 ScalarType::IeeeFloat(value.format()),
                 ValueShape::borrowed_reference(byte_size, byte_size),
+            )
+        }
+        TargetUnitWriteOnlyPrimitiveStoreSource::Home(home) => {
+            let ScalarType::Integer(integer) = home.scalar_type else {
+                return Err(invalid());
+            };
+            let referent_shape =
+                super::scalar_call::fixed_integer_shape(home.source_value, integer)
+                    .map_err(|_| invalid())?;
+            if home.shape != referent_shape {
+                return Err(invalid());
+            }
+            (
+                home.scalar_type,
+                ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment),
             )
         }
     };
@@ -152,6 +168,7 @@ pub(super) fn assign(
     if !matches!(
         source,
         TargetUnitWriteOnlyPrimitiveStoreSource::Parameter { .. }
+            | TargetUnitWriteOnlyPrimitiveStoreSource::Home(_)
     ) && definition_matches != 1
     {
         return Err(invalid());
@@ -243,6 +260,39 @@ pub(super) fn assign(
             source_value,
             value,
         },
+        TargetUnitWriteOnlyPrimitiveStoreSource::Home(home) => {
+            let target_matches = preceding_operations
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        TargetUnitOperation::ScalarCall { result_home, .. }
+                            if *result_home == home
+                    )
+                })
+                .count();
+            let assigned = preceding_assigned_operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    AssignedUnitOperation::ScalarCall { result_home, .. }
+                        if result_home.defining_operation == home.defining_operation
+                            && result_home.source_value == home.source_value
+                            && result_home.scalar_type == home.scalar_type
+                            && result_home.shape == home.shape =>
+                    {
+                        Some(*result_home)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let [assigned] = assigned.as_slice() else {
+                return Err(invalid());
+            };
+            if target_matches != 1 {
+                return Err(invalid());
+            }
+            AssignedUnitWriteOnlyPrimitiveStoreSource::Home(*assigned)
+        }
     };
     if assigned_source.scalar_type() != expected_scalar_type {
         return Err(invalid());

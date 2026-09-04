@@ -123,6 +123,12 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   validation independently rejoin the Unit callee ABI, source definition or
   location, result home, scalar transfer,
   aggregate copy, stack evidence, and call bytes on Linux x86-64 and AArch64.
+  The same exact preceding fixed-integer result home may directly source a
+  later whole-root `WriteOnlyPrimitiveStore` in its owning Unit body. Target
+  custody keeps that home distinct from parameters and immediates; assignment
+  rejoins it to the one earlier scalar call, emission loads its normalized
+  eight-byte slot before storing the primitive referent width, and object plus
+  installation replay reconstruct both Linux encodings independently.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider
