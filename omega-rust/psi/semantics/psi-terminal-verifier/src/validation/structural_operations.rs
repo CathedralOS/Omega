@@ -392,8 +392,8 @@ pub(super) fn validate_unit_operation_static(
                 .iter()
                 .zip(&callee.structural_parameters)
                 .position(|(argument, expected)| {
-                    (is_bounded_literal_indexed_field_path(&argument.path)
-                        || (is_bounded_direct_literal_index_path(&argument.path)
+                    (is_literal_indexed_field_path(&argument.path)
+                        || (is_direct_literal_index_path(&argument.path)
                             && argument.access == StructuralAccess::WriteOnlyBorrow))
                         && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
                 })
@@ -1359,15 +1359,12 @@ fn structural_paths_may_overlap(
     left.iter().zip(right).all(|(left, right)| left == right)
 }
 
-const MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH: usize = 4;
-
-fn bounded_literal_index_path(path: &[StructuralPathSegment]) -> Option<&[StructuralPathSegment]> {
+fn literal_index_path(path: &[StructuralPathSegment]) -> Option<&[StructuralPathSegment]> {
     let field_count = path
         .iter()
         .position(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))?;
     let (fields, indexes) = path.split_at(field_count);
     (!indexes.is_empty()
-        && indexes.len() <= MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
         && fields
             .iter()
             .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
@@ -1377,25 +1374,23 @@ fn bounded_literal_index_path(path: &[StructuralPathSegment]) -> Option<&[Struct
     .then_some(fields)
 }
 
-fn is_bounded_direct_literal_index_path(path: &[StructuralPathSegment]) -> bool {
-    bounded_literal_index_path(path).is_some_and(|fields| fields.is_empty())
+fn is_direct_literal_index_path(path: &[StructuralPathSegment]) -> bool {
+    literal_index_path(path).is_some_and(|fields| fields.is_empty())
 }
 
-fn is_bounded_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
-    bounded_literal_index_path(path).is_some_and(|fields| !fields.is_empty())
+fn is_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
+    literal_index_path(path).is_some_and(|fields| !fields.is_empty())
 }
 
 fn is_admitted_unit_call_argument_path(argument: &StructuralArgument) -> bool {
     argument.path.is_empty()
         || is_nonempty_field_path(&argument.path)
-        || is_bounded_literal_indexed_field_path(&argument.path)
-        || (is_bounded_direct_literal_index_path(&argument.path)
-            && (argument.path.len() < MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
-                || argument.access == StructuralAccess::WriteOnlyBorrow))
+        || is_literal_indexed_field_path(&argument.path)
+        || is_direct_literal_index_path(&argument.path)
 }
 
 fn is_literal_indexed_write_only_path(path: &[StructuralPathSegment]) -> bool {
-    bounded_literal_index_path(path).is_some()
+    literal_index_path(path).is_some()
 }
 
 fn is_write_only_subloan_path(path: &[StructuralPathSegment]) -> bool {

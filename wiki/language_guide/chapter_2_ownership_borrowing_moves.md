@@ -159,17 +159,15 @@ storage containing no live `T` is a separate feature.
 > finite path of relevant unconstrained
 > common fields in plain invariant-free records, read a literal fixed-array
 > length as static metadata through the same eligible record paths, and forward
-> the loan explicitly. One bounded subloan form may pass
+> the loan explicitly. One projected subloan form may pass
 > `&write root.field...leaf` directly to a checked call when the complete field
 > path and leaf meet that same non-observation referee. That direct-call form may
-> finish with exactly one in-bounds literal index into a nonempty fixed-array
-> leaf of unrestricted primitive elements. Its bounded nested successor may use
-> two, three, or four ordered literal indexes through a recursively literal
-> fixed array, either directly or after the eligible field prefix, when the
-> ultimate leaf is
-> an unrestricted non-Atomic primitive. The ordered fields and one, two, three,
-> or four `FixedIndex` segments cross checked and Terminal replay.
-> It cannot be retained in a local alias. Dynamic, range, and fifth-index
+> finish with a finite nonempty suffix of ordered in-bounds literal indexes
+> through recursively literal fixed arrays, either directly or after the
+> eligible field prefix, when the ultimate leaf is an unrestricted non-Atomic
+> primitive. The ordered fields and `FixedIndex` suffix cross checked and
+> Terminal replay.
+> It cannot be retained in a local alias. Dynamic and range
 > subloans remain gated, as do whole nested-array and aggregate elements,
 > record-held slice descriptors, sum projection, and opaque providers.
 > Structural parameters and calls preserve

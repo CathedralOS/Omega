@@ -632,23 +632,21 @@ fn write_only_element_assignment_index(
 
 /// Admit one exact literal primitive element of either a direct fixed-array
 /// root or an already-admitted common-field path only at the direct checked-call
-/// boundary. The bounded nested successors admit at most four literal indexes
-/// through recursively literal fixed arrays. Dynamic indices, ranges,
-/// aggregate elements, and a fifth array projection remain excluded.
+/// boundary. A finite nonempty suffix of literal indexes may traverse
+/// recursively literal fixed arrays. Dynamic indices, ranges, and aggregate
+/// elements remain excluded.
 fn write_only_literal_indexed_direct_call_subloan(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
     let mut collection = expression;
-    let mut indices = Vec::with_capacity(4);
+    let mut indices = Vec::new();
     while let ExpressionNode::Indexed(indexed) = program.expression_table.expression(collection) {
-        if indices.len() == 4
-            || !matches!(
-                program.expression_table.expression(indexed.index),
-                ExpressionNode::Integer(_)
-            )
-        {
+        if !matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Integer(_)
+        ) {
             return false;
         }
         indices.push(indexed.index);
@@ -782,7 +780,7 @@ fn validate_expression(
             ReferenceAccess::WriteOnly => {
                 if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path optionally followed by one, two, three, or four in-bounds literal fixed-array indexes only as a direct checked-call argument"
+                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path optionally followed by a finite nonempty suffix of in-bounds literal fixed-array indexes only as a direct checked-call argument"
                     )));
                 }
             }
