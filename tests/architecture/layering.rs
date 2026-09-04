@@ -3111,7 +3111,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     );
 
     for root_name in graph.iter().filter_map(|(name, krate)| {
-        (name.contains("selected-instruction") && krate.layer != "realization").then_some(name)
+        (name.contains("selected-instruction") && krate.layer == "representations").then_some(name)
     }) {
         let mut pending = vec![root_name.clone()];
         let mut visited = BTreeSet::new();

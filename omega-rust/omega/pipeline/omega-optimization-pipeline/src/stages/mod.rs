@@ -13,5 +13,7 @@ pub use artifacts::*;
 pub use encoding::*;
 pub use layout::*;
 pub use machine::*;
+pub use omega_liveness_to_live_ranges::*;
+pub use omega_selected_instructions_to_liveness::*;
 pub use realization::*;
 pub use selection::*;

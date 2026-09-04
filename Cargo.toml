@@ -78,6 +78,8 @@ members = [
     "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
     "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
     "omega-rust/omega/pipeline/omega-target-to-register-environment",
+    "omega-rust/omega/pipeline/omega-selected-instructions-to-liveness",
+    "omega-rust/omega/pipeline/omega-liveness-to-live-ranges",
     "omega-rust/omega/pipeline/omega-optimization-validation",
     "omega-rust/omega/pipeline/omega-optimization-policy",
     "omega-rust/omega/pipeline/omega-abstract-operations-optimizer",

@@ -1,6 +1,8 @@
-//! Optimizer module role: executable entrance. CFG-aware live-range staging.
+#![forbid(unsafe_code)]
+
+//! Pipeline stage from validated liveness to validated live ranges.
 //!
-//! This entrance owns the analysis-to-independent-replay join over complete
+//! This crate owns the analysis-to-independent-replay join over complete
 //! liveness custody. No interval or interference fact escapes before replay.
 
 mod compute;
@@ -11,7 +13,7 @@ mod validation;
 pub use model::*;
 pub use validation::validate_optimized_live_range_custody;
 
-use crate::StagedOptimizedLiveness;
+use omega_selected_instructions_to_liveness::StagedOptimizedLiveness;
 
 pub fn stage_optimized_live_ranges(
     liveness: StagedOptimizedLiveness,

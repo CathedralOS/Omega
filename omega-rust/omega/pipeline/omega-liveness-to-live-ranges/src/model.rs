@@ -7,7 +7,9 @@ use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
-use crate::{OptimizedLivenessCustodyError, StagedOptimizedLiveness};
+use omega_selected_instructions_to_liveness::{
+    OptimizedLivenessCustodyError, StagedOptimizedLiveness,
+};
 
 /// Opt-in CFG-aware live-range staging over complete liveness custody. This
 /// grants no splitting, allocation, spill, frame, emission, or publication

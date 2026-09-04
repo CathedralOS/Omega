@@ -73,10 +73,10 @@ homes.
 
 ## Implementation Map
 
-- `pipeline/optimization/omega-regalloc` owns computation, the data-only liveness
+- `pipeline/omega-regalloc` owns computation, the data-only liveness
   shapes, content identity, and independent validation.
-- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/liveness.rs` owns nested
-  cross-stage custody.
+- `pipeline/omega-selected-instructions-to-liveness` owns the executable stage
+  and nested cross-stage custody.
 - `omega-selected-instructions` remains the selected-CFG
   representation owner.
 - Target ISA and register-model crates remain the authorities for canonical

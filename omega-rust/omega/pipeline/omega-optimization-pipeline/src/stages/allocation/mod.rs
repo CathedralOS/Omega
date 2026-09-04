@@ -7,8 +7,6 @@ pub(crate) mod callee_saved_requirements;
 pub(crate) mod fixed_precolored_segment_homes;
 pub(crate) mod fixed_view_copies;
 pub(crate) mod frame_requirements;
-pub(crate) mod live_ranges;
-pub(crate) mod liveness;
 pub(crate) mod register_homes;
 pub(crate) mod selected_reanalysis;
 
@@ -18,8 +16,6 @@ pub use callee_saved_requirements::*;
 pub use fixed_precolored_segment_homes::*;
 pub use fixed_view_copies::*;
 pub use frame_requirements::*;
-pub use live_ranges::*;
-pub use liveness::*;
 pub use omega_regalloc::ORDERED_ALLOCATION_RECOVERY_RULES;
 pub use register_homes::*;
 pub use selected_reanalysis::*;

@@ -1,6 +1,6 @@
 use omega_regalloc::LiveRangeValidationReceipt;
 
-use crate::StagedOptimizedLivenessCustodyReceipt;
+use omega_selected_instructions_to_liveness::StagedOptimizedLivenessCustodyReceipt;
 
 use super::model::StagedOptimizedLiveRangeCustodyReceipt;
 

@@ -28,6 +28,8 @@ omega-target-operations-to-assigned-target-operations = { path = "../omega-targe
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-target-operations-to-selected-instructions = { path = "../omega-target-operations-to-selected-instructions" }
 omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
+omega-selected-instructions-to-liveness = { path = "../omega-selected-instructions-to-liveness" }
+omega-liveness-to-live-ranges = { path = "../omega-liveness-to-live-ranges" }
 omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 omega-target = { path = "../../representations/omega-target" }
