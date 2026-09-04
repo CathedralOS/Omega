@@ -26,6 +26,7 @@ pub use omega_live_ranges_to_allocation_legality::*;
 pub use omega_liveness_to_live_ranges::*;
 pub use omega_post_allocation_machine_to_frame_layout::*;
 pub use omega_post_allocation_machine_to_optimized_machine::*;
+pub use omega_post_allocation_machine_to_selected_form_encoding::*;
 pub use omega_regalloc::ORDERED_ALLOCATION_RECOVERY_RULES;
 pub use omega_register_homes_to_callee_saved_requirements::*;
 pub use omega_register_homes_to_post_allocation_machine::*;

@@ -17,7 +17,7 @@ use psi_core::IntegerValue;
 
 use super::{SelectedFormEncodingState, encode_row};
 use crate::SelectedFormMachineDisposition;
-use crate::stages::encoding::post_allocation_selected_form_encoding::materialization::MaterializationDisposition;
+use crate::materialization::MaterializationDisposition;
 
 fn fixture() -> (
     ValidatedPhysicalRegisterModel,

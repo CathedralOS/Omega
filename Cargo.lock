@@ -1193,6 +1193,7 @@ dependencies = [
  "omega-optimization-validation",
  "omega-post-allocation-machine-to-frame-layout",
  "omega-post-allocation-machine-to-optimized-machine",
+ "omega-post-allocation-machine-to-selected-form-encoding",
  "omega-psi-to-abstract-operations",
  "omega-regalloc",
  "omega-register-homes-to-callee-saved-requirements",
@@ -1434,6 +1435,25 @@ dependencies = [
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-target",
+]
+
+[[package]]
+name = "omega-post-allocation-machine-to-selected-form-encoding"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
+ "omega-machine-optimizer",
+ "omega-optimization-core",
+ "omega-post-allocation-machine-to-optimized-machine",
+ "omega-regalloc",
+ "omega-register-homes-to-post-allocation-machine",
+ "omega-register-model",
+ "omega-selected-instructions",
+ "omega-target",
+ "psi-core",
+ "sha2",
 ]
 
 [[package]]

@@ -1,11 +1,18 @@
+#![forbid(unsafe_code)]
+
 //! Optimizer module role: executable entrance. Layout-independent selected-form encoding, replay, and optimization custody.
+//!
+//! This stage serializes selected instructions before any address-dependent
+//! layout and retains normalized custody for optional machine rewrites.
 
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
+use omega_post_allocation_machine_to_optimized_machine::{
+    PostAllocationMachineOptimizationCustody, StagedOptimizedAarch64CbnzFusion,
+    StagedOptimizedAarch64MovnMaterialization, StagedOptimizedPostAllocationMachineOptimization,
 };
+use omega_register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 mod compute;
 mod custody;

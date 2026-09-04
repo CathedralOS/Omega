@@ -43,6 +43,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
     "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine",
     "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout",
+    "omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding",
     "omega-rust/omega/pipeline/omega-regalloc",
     "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements",
     "omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine",
