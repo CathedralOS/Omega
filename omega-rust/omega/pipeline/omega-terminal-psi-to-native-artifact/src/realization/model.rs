@@ -47,14 +47,21 @@ pub(crate) struct NativeRealizationInput {
 }
 
 impl NativeRealizationInput {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
         optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, &'static str> {
+        if optimization.as_ref().is_some_and(|selected| {
+            selected.plan().psi != native.plan().psi || selected.plan().entry != native.plan().entry
+        }) {
+            return Err(
+                "native authority and selected physical-optimization context disagree on the Terminal program root",
+            );
+        }
+        Ok(Self {
             native,
             optimization,
-        }
+        })
     }
 
     pub(crate) fn plan(&self) -> &omega_abstract_operations::AbstractOperationPlan {
@@ -96,10 +103,10 @@ impl NativeRealizationInput {
 }
 
 fn physical_evidence_scope(
-    unoptimized: bool,
+    identity_physical_path: bool,
     checked_scope: Option<&psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope>,
 ) -> omega_native_artifact::NativePhysicalEvidenceScope {
-    if unoptimized && checked_scope.is_some() {
+    if identity_physical_path && checked_scope.is_some() {
         omega_native_artifact::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
     } else {
         omega_native_artifact::NativePhysicalEvidenceScope::Unavailable
@@ -338,7 +345,7 @@ mod tests {
     use omega_native_artifact::NativePhysicalEvidenceScope;
 
     #[test]
-    fn physical_evidence_requires_unoptimized_input_and_exact_d29_custody() {
+    fn physical_evidence_requires_identity_physical_path_and_exact_d29_custody() {
         let empty_checked = checked(
             r#"
                 data Main {}
