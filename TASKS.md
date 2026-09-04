@@ -308,10 +308,11 @@ Owners include
   transitional broad `Filesystem` review summary.
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
-  for unresolved receivers, boundary-call arguments, and other unsupported
-  expression shapes. Prefer shared fixpoint and alias reasoning over
-  syntax-shape exceptions. Acceptance: all supported finite source shapes
-  converge without widening permissions, and unsupported recursion fails explicitly.
+  for unresolved receivers, boundary result and reference-argument origins,
+  and other unsupported expression shapes. Prefer shared fixpoint and alias
+  reasoning over syntax-shape exceptions. Acceptance: all supported finite
+  source shapes converge without widening permissions, and unsupported
+  recursion fails explicitly.
 
 - **TPR6.** Finish subject-bearing progress-premise normalization through
   exported bodies, provider plans, recursive calls, and artifact evidence.

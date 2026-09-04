@@ -1077,7 +1077,14 @@ fn validate_state_statement_node(
                     call,
                 )
             })
-            .or_else(|| crate::calls::conservative_call_written_paths(program, call));
+            .or_else(|| {
+                crate::calls::conservative_call_written_paths(
+                    program,
+                    call,
+                    machine_symbols,
+                    symbols,
+                )
+            });
             if let Some(written) = written {
                 value_env.invalidate_written_paths(&written);
             } else {

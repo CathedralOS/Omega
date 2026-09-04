@@ -546,7 +546,13 @@ fn summarize_state_written_paths(
                     .flatten()
                 })
                 .or_else(|| {
-                    syntactic_call_written_paths(program, &nested_receiver_members, arguments)
+                    syntactic_call_written_paths(
+                        program,
+                        &nested_receiver_members,
+                        arguments,
+                        &machine_symbols,
+                        symbols,
+                    )
                 })?;
                 for relative in nested_writes {
                     let relative = rebase_local_alias_path(&relative, &local_alias_origins);
@@ -1353,11 +1359,18 @@ fn statement_call_preserves_transparent_result(
         return false;
     }
     let arguments = program.statement_table.expression_handles(call.arguments);
+    let receiver_members = program
+        .statement_table
+        .name_path_members(call.receiver)
+        .iter()
+        .map(|member| member.as_str().to_owned())
+        .collect::<Vec<_>>();
     let argument_types = call_targets::call_argument_types(
         program,
         call.target_symbol,
         call.target.as_str(),
-        call.receiver.is_empty(),
+        &receiver_members,
+        &machine_symbols,
         symbols,
     );
     // Every sibling must independently preserve the returned-place origin.
@@ -1377,12 +1390,6 @@ fn statement_call_preserves_transparent_result(
         return false;
     }
 
-    let receiver_members = program
-        .statement_table
-        .name_path_members(call.receiver)
-        .iter()
-        .map(|member| member.as_str().to_owned())
-        .collect::<Vec<_>>();
     let argument_origins = arguments
         .iter()
         .map(|argument| {
@@ -1965,7 +1972,15 @@ fn build_permuted_cycle_frame_equation<'program>(
                     })
                     .flatten()
                 })
-                .or_else(|| syntactic_call_written_paths(program, &receiver_members, arguments))?;
+                .or_else(|| {
+                    syntactic_call_written_paths(
+                        program,
+                        &receiver_members,
+                        arguments,
+                        machine_symbols,
+                        symbols,
+                    )
+                })?;
                 for relative in nested_writes {
                     let relative = rebase_local_alias_path(&relative, &local_alias_origins);
                     push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
