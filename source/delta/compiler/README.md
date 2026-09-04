@@ -21,7 +21,9 @@ becomes the scalar tag representation `Left = 0`, `Right = 1`. `Option` becomes
 `Some 9 = (pair 1 9)` and `None = (pair 0 0)`. A recursive `List` constructor
 with head and tail fields becomes `(pair tag (pair head tail))`. A match must contain
 exactly one arm for every constructor in declaration order. Generated local
-names use the reserved `__m` prefix.
+names use `$m`, `$p`, and `$v` prefixes. `$` is outside Delta's identifier
+alphabet but inside Gamma's, so generated binders cannot capture or be captured
+by an authored Delta name.
 
 Before tokenization or emission, the stage rejects every source byte except HT,
 LF, CR, and printable ASCII, exactly matching Delta's textual envelope. It then
@@ -39,7 +41,8 @@ The emitted slice also validates identifier spelling at declarations, types,
 parameters, local binders, constructor patterns, atoms, and application heads.
 Keywords, `Int`, `Bytes`, and the five closed `bytes_*` builtin names cannot be
 redeclared. Decimal literals are scanned without overflow and admit exactly
-`INT64_MIN..INT64_MAX`.
+`INT64_MIN..INT64_MAX`. The global census also rejects repeated parameter names
+within a function before expression emission begins.
 
 The global function trie carries declared arity as its terminal payload.
 Application heads resolve through that exact checked table, including forward
@@ -66,21 +69,21 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-1,276-line / 49,000-byte Gamma source
+1,280-line / 49,175-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
-  -> 3-line / 167-byte Gamma receipt
+  -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
 7-line / 186-byte payload-ADT Delta fixture
-  -> 3-line / 237-byte Gamma receipt
+  -> 3-line / 230-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
 7-line / 187-byte recursive-ADT Delta fixture
-  -> 3-line / 258-byte Gamma receipt
+  -> 3-line / 251-byte Gamma receipt
   -> selected Gamma evaluation produces byte 3
 8-line / 221-byte two-field recursive List fixture
-  -> 3-line / 336-byte Gamma receipt
+  -> 3-line / 328-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
 24-line / 767-byte three-field recursive rope fixture
-  -> 7-line / 1,078-byte Gamma receipt
+  -> 7-line / 1,056-byte Gamma receipt
   -> indexing produces byte 0x42; indexing empty traps
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt

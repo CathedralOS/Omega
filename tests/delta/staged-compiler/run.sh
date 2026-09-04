@@ -54,17 +54,17 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 1276, 49000, "773080b901d60d8e45f48056c0dd9592baf4daddee2f3cebe1fb55b02c849327"),
+    ("compiler", compiler, 1280, 49175, "cadb2d2761968c16a6a1ae0670598617e393c87375bd85014d13887b9488dce6"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
-    ("receipt", expected, 3, 167, "4029a78652f009270960d82e990f187c33e19b3dc65b808a9b9d9a045370e093"),
+    ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
-    ("payload receipt", payload_expected, 3, 237, "f47b425116ada111114d6339dc5ed1b26a2964ac1f44148184b79fb3c7254ccb"),
+    ("payload receipt", payload_expected, 3, 230, "21e3f310ad474219c292308a6c88606f1bd1b57e6527adedfcd0c37565637c1e"),
     ("recursive source", recursive_source, 7, 187, "2122553bd7a2e7635df523eeaf0b7518fbaf71b4cfdbd1050aa190055182c3dd"),
-    ("recursive receipt", recursive_expected, 3, 258, "03d3d43172d359c2c295342adff1c26944a3ebce1de9a6eff0062729744d0c96"),
+    ("recursive receipt", recursive_expected, 3, 251, "38d8eaa184ac8012317770c0bddcec1564b3ae5e95b06367d86ab175502937bf"),
     ("list source", list_source, 8, 221, "a86dd12c78f488de2ba4adea71ba90ee29057e97d805ce627befe48c939e3ac3"),
-    ("list receipt", list_expected, 3, 336, "d46f2f5450c578d9091bdcea57114407eae3ccb57b20af969774c03e1880fa8e"),
+    ("list receipt", list_expected, 3, 328, "6502b4eae14e40f95a57b6b73057c826938ea751a98dac5679d25d79024d320d"),
     ("bytes source", bytes_source, 24, 767, "a4366165ddac1f1ffea603463ec9c3e04e91331b857d0b978b06863e62438b94"),
-    ("bytes receipt", bytes_expected, 7, 1078, "8fb3d0e58438e877cf847daccdeff5494433c6c5b905952e43c457dfb24416a3"),
+    ("bytes receipt", bytes_expected, 7, 1056, "c135f242f1d2321dfc030abd00da0d138649f8d11a6820e98555d246112ef4f6"),
 ):
     if len(data.splitlines()) != lines or len(data) != size:
         raise SystemExit(f"{name} size changed")
@@ -147,6 +147,17 @@ user_read_status, user_read_receipt = evaluate(compiler, user_read)
 if user_read_status != 0 or evaluate(user_read_receipt) != (0, b"\x07"):
     raise SystemExit("declared function named read did not resolve exactly")
 
+authored_old_generated_prefix = (
+    b"(data Choice (Left) (Right))\n"
+    b"(def main () Int (let __m63 Int 7 "
+    b"(match Left (Left __m63) (Right 9))))\n"
+)
+old_prefix_status, old_prefix_receipt = evaluate(
+    compiler, authored_old_generated_prefix
+)
+if old_prefix_status != 0 or evaluate(old_prefix_receipt) != (0, b"\x07"):
+    raise SystemExit("generated match binder captured authored __m63 local")
+
 malformed = {
     "unknown field type": b"(data Bad (Bad Missing))\n(def main () Int 0)\n",
     "missing payload argument": b"(data Option (None) (Some Int))\n(def main () Int (Some))\n",
@@ -169,6 +180,7 @@ malformed = {
     "reserved type name": b"(data Int (X))\n(def main () Int 0)\n",
     "invalid constructor name": b"(data Bad (X!))\n(def main () Int 0)\n",
     "invalid parameter name": b"(def f ((9x Int)) Int 0)\n(def main () Int 0)\n",
+    "duplicate parameter": b"(def f ((x Int) (x Int)) Int x)\n(def main () Int 0)\n",
     "invalid result type": b"(def main () Missing 0)\n",
     "invalid let binder": b"(def main () Int (let Bad Int 0 0))\n",
     "invalid let type": b"(def main () Int (let x Missing 0 x))\n",
@@ -206,4 +218,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: source envelope, lexical atoms, globals, and recursive ADTs pass"
+echo "Staged Delta compiler: source envelope, lexical atoms, globals, binder hygiene, and recursive ADTs pass"
