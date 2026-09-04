@@ -69,6 +69,10 @@ adding machinery; do not invent proof-of-review or host-security requirements.
   Acceptance: complete supported graphs round-trip; malformed or inconsistent
   graphs reject; the baseline is available without the old checkout. The lock
   needs neither proof certificates nor build/native replay transcripts.
+  Project provider, external-supply, and opaque-representation policy from their
+  checked typed facts without embedding their evaluator/native receipts or the
+  existing replay-bearing review capsule. Historical decision recovery must not
+  require the old conflict to reappear in a fresh compiler review.
 
 - [ ] **LOCK-BASELINE-RECOVERY.** Integrate lock loading with resolution and
   checking. Locked use preserves exact pins and never silently updates a

@@ -2,6 +2,7 @@
 
 mod encoding;
 mod model;
+mod text;
 mod validation;
 
 pub use model::{
