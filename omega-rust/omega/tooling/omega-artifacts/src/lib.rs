@@ -1,3 +1,57 @@
+//! The writer behind `build/` - the numbered phase artifacts and the HTML index
+//! over them. AGENTS.md calls that directory the primary debugging surface, so
+//! this crate is what produces the thing everyone is told to read first.
+//!
+//! Every write is atomic. `write_text` and `write_bytes` both go to
+//! `.{file_name}.{process_id}.tmp` beside the target and then `rename`, so a
+//! name in `build/` is either absent or complete and never half-written. That
+//! is not defensiveness about crashes: agents and humans are explicitly told to
+//! read `06_validation.txt` and `12_emission.txt` while work is in progress, and
+//! a torn read of a phase artifact reads as a compiler defect rather than as a
+//! race.
+//!
+//! The HTML is about forty lines of string concatenation and one hand-written
+//! `escape_html` covering `&`, `<`, `>` and `"`. Those four are exactly what the
+//! escaped positions need - the title and the report body are text nodes, and
+//! the nav's only attribute is a double-quoted `href`. `'` is deliberately not
+//! escaped, which is correct here and would stop being correct the moment
+//! anything emits a single-quoted attribute.
+//!
+//! `REPORT_LINKS` is the index navigation and lists phases 00 and 02 through 12.
+
+//! No templating dependency for forty lines of markup, and none for the
+//! escaping either. A template crate would join the dependency graph of a
+//! tooling crate the compiler links, to save markup that has not changed shape
+//! since it was written and is read by exactly one audience with a browser
+//! already open on a local file.
+//!
+//! `external_root_report` is gated behind `#[cfg(any(test, feature =
+//! "external-root-report"))]`, which compiles it under every test run and keeps
+//! `omega-external-roots` out of the default dependency graph otherwise. The
+//! alternative - always compiling it - costs every ordinary build a dependency
+//! edge for a report almost nobody asks for. `write_executable_container` is
+//! `#[cfg(test)]` for the same reason and its own doc calls it a quarantined
+//! experiment.
+
+//! Driven by `omega-compiler`'s pipeline, which decides what to render;
+//! `omega-visualizations` produces the JSON this crate writes, and
+//! `omega-effects` owns the carriers behind that.
+//!
+//! @Incomplete: the index cannot link to everything the compiler writes.
+//! `REPORT_LINKS` ends at 12, and `13_executable_regions` is written by the
+//! pipeline, so it exists in `build/` with no way to reach it from
+//! `00_pipeline.html`. The gap at 01 is not a bug in the same way - no `01_*`
+//! artifact is written anywhere in the tree, so the numbering simply skips it.
+//! Note also that AGENTS.md describes the range as `00_timings.txt` through
+//! `14_finalization.txt`, and nothing in the tree writes a `14_*` artifact at
+//! all; whichever of the two is wrong, they currently disagree.
+//!
+//! @Note: `temp_path_for` here and `publish_exact_executable_bytes` in
+//! `omega-compilation-report` implement the same `.{name}.{pid}.tmp` staging
+//! convention independently, in two crates, with no shared helper. Neither is
+//! wrong and the convention is worth keeping; it is worth knowing there are two
+//! copies of it before changing either.
+
 use std::path::{Path, PathBuf};
 
 use omega_core::allocations::AllocationDelta;
