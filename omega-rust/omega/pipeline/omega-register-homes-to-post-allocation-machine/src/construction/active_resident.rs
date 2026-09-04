@@ -1,8 +1,8 @@
-use crate::{
+use omega_allocation_legality_to_active_resident_rematerialization::{
     StagedOptimizedActiveResidentRematerialization,
-    stage_optimized_machine_effects_after_active_resident_rematerialization,
     validate_optimized_active_resident_rematerialization,
 };
+use omega_selected_instructions_to_machine_effects::stage_optimized_machine_effects_after_active_resident_rematerialization;
 
 use super::{
     OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,

@@ -1,7 +1,7 @@
-use crate::{
-    StagedOptimizedRegisterHomes, stage_optimized_machine_effects,
-    validate_optimized_register_home_custody,
+use omega_allocation_legality_to_register_homes::{
+    StagedOptimizedRegisterHomes, validate_optimized_register_home_custody,
 };
+use omega_selected_instructions_to_machine_effects::stage_optimized_machine_effects;
 
 use super::{
     OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,

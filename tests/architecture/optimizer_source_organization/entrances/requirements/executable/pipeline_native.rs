@@ -58,7 +58,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "use execution::{stage_with_inputs, validate_with_inputs};",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/post_allocation_machine_effects/construction/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine/src/construction/mod.rs",
         coordination_marker: "fn analyze_and_seal",
     },
     RequiredCoordinationEntrance {

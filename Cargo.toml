@@ -89,6 +89,7 @@ members = [
     "omega-rust/omega/pipeline/omega-fixed-view-copies-to-reanalyzed-legality",
     "omega-rust/omega/pipeline/omega-allocation-legality-to-register-homes",
     "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements",
+    "omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine",
     "omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage",
     "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements",
     "omega-rust/omega/pipeline/omega-optimization-validation",

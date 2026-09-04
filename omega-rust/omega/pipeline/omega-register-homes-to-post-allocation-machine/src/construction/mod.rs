@@ -21,7 +21,8 @@ use omega_regalloc::{
     ValidatedRegisterHomes, ValidatedSelectedAnalysis,
 };
 
-use crate::{StagedOptimizedMachineEffects, ValidatedTargetRegisterEnvironment};
+use omega_selected_instructions_to_machine_effects::StagedOptimizedMachineEffects;
+use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::{
     OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,

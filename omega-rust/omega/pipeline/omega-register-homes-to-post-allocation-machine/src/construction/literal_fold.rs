@@ -1,8 +1,8 @@
-use crate::{
+use omega_literal_folds_to_register_homes::{
     StagedOptimizedRegisterHomesAfterLiteralFolds,
-    stage_optimized_machine_effects_after_literal_folds,
     validate_optimized_register_home_after_literal_fold_custody,
 };
+use omega_selected_instructions_to_machine_effects::stage_optimized_machine_effects_after_literal_folds;
 
 use super::{
     OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
