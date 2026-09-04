@@ -383,13 +383,13 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "assigned target-operation carrier",
         paths: &[
             "omega-rust/omega/representations/omega-assigned-target-operations/src/lib.rs",
-            "omega-rust/omega/representations/omega-assigned-target-operations/src/operation.rs",
-            "omega-rust/omega/representations/omega-assigned-target-operations/src/plan.rs",
-            "omega-rust/omega/representations/omega-assigned-target-operations/src/unit.rs",
-            "omega-rust/omega/representations/omega-assigned-target-operations/src/scalar/mod.rs",
-            "omega-rust/omega/representations/omega-assigned-target-operations/src/scalar/boolean.rs",
-            "omega-rust/omega/representations/omega-assigned-target-operations/src/scalar/integer.rs",
-            "omega-rust/omega/representations/omega-assigned-target-operations/src/scalar/calls_and_locations.rs",
+            "omega-rust/omega/representations/omega-assigned-target-operations/src/assigned_operations/operations/operation.rs",
+            "omega-rust/omega/representations/omega-assigned-target-operations/src/assigned_operations.rs",
+            "omega-rust/omega/representations/omega-assigned-target-operations/src/assigned_operations/operations/unit.rs",
+            "omega-rust/omega/representations/omega-assigned-target-operations/src/assigned_operations/values/mod.rs",
+            "omega-rust/omega/representations/omega-assigned-target-operations/src/assigned_operations/values/boolean.rs",
+            "omega-rust/omega/representations/omega-assigned-target-operations/src/assigned_operations/values/integer.rs",
+            "omega-rust/omega/representations/omega-assigned-target-operations/src/assigned_operations/storage.rs",
         ],
     },
     SemanticLadder {
@@ -590,8 +590,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "attached-Unit scalar-call selection and allocation",
         paths: &[
-            "omega-rust/omega/representations/omega-legalized-operations/src/model/scalar_call_unit.rs",
-            "omega-rust/omega/representations/omega-legalized-operations/src/identity/scalar_call_unit.rs",
+            "omega-rust/omega/representations/omega-legalized-operations/src/legalized_operations/calls/scalar.rs",
+            "omega-rust/omega/representations/omega-legalized-operations/src/legalized_operations/identity/scalar_call_unit.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/catalog.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/scalar_call_unit/mod.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/scalar_call_unit/grammar.rs",

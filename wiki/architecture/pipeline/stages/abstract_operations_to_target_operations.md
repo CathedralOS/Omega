@@ -172,7 +172,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   one Unit-result native call plan. The surrounding Unit coordinator admits
   only `[InstalledProviderCall, Return]`, so a caller-saved incoming register is
   never silently reused.
-- `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
+- `omega-target-operations/src/target_operations.rs` owns the target-aware
+  program root; its subordinate control, value, storage, call, and boundary
+  areas own the output vocabulary.
 - `tests.rs` owns exact stage-boundary and rejection canaries.
 
 ## Semantic Ownership

@@ -4,8 +4,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "projected structural call-return legalization custody",
         paths: &[
-            "omega-rust/omega/representations/omega-legalized-operations/src/model/plan.rs",
-            "omega-rust/omega/representations/omega-legalized-operations/src/identity/projected_structural_call_return.rs",
+            "omega-rust/omega/representations/omega-legalized-operations/src/legalized_operations.rs",
+            "omega-rust/omega/representations/omega-legalized-operations/src/legalized_operations/identity/projected_structural_call_return.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/mod.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/mod.rs",
             "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/source/mod.rs",

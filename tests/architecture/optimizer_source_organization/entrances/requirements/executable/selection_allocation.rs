@@ -10,7 +10,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn replay_live_ranges",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/representations/omega-legalized-operations/src/validation/mod.rs",
+        path: "omega-rust/omega/representations/omega-legalized-operations/src/legalized_operations/validation/mod.rs",
         coordination_marker: "impl LegalizedCallUnit",
     },
     RequiredCoordinationEntrance {
