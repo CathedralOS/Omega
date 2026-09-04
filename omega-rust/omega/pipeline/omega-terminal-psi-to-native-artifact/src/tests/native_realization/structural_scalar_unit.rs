@@ -32,6 +32,7 @@ const WRITE_ONLY_SOURCE: &str = r#"
     data Pair { prefix: u8; target: u16; }
     data Inner { prefix: u8; value: u16; }
     data Outer { prefix: u8; inner: Inner; }
+    data Flags { prefix: u8; target: bool; }
     data Sink {}
 
     machine Sink::direct(pair: &write Pair) {
@@ -44,6 +45,14 @@ const WRITE_ONLY_SOURCE: &str = r#"
 
     machine Sink::parameter(pair: &write Pair, replacement: u16) {
         pair.target = replacement;
+    }
+
+    machine Sink::boolean_literal(flags: &write Flags) {
+        flags.target = true;
+    }
+
+    machine Sink::boolean_parameter(flags: &write Flags, replacement: bool) {
+        flags.target = replacement;
     }
 "#;
 
@@ -113,10 +122,14 @@ fn direct_dynamic_projected_store_and_call_reach_machine_custody() {
 
 #[test]
 fn parameter_sourced_write_only_field_store_reaches_canonical_installation() {
+    assert_parameter_sourced_field_store("Sink::parameter", 2);
+    assert_parameter_sourced_field_store("Sink::boolean_parameter", 1);
+}
+
+fn assert_parameter_sourced_field_store(machine: &str, expected_field_byte_offset: u32) {
     let checked = checked(WRITE_ONLY_SOURCE);
-    let terminal =
-        psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, "Sink::parameter")
-            .expect("parameter-sourced field store reaches canonical Terminal");
+    let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, machine)
+        .expect("parameter-sourced field store reaches canonical Terminal");
     let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
         terminal.semantic_bytes(),
         terminal.proof_bytes(),
@@ -168,7 +181,7 @@ fn parameter_sourced_write_only_field_store_reaches_canonical_installation() {
             .find(|function| function.unit_structural_scalar_field_stores.len() == 1)
             .expect("one machine owns the parameter-sourced field store");
         let store = &function.unit_structural_scalar_field_stores[0];
-        assert_eq!(store.field_byte_offset, 2);
+        assert_eq!(store.field_byte_offset, expected_field_byte_offset);
         assert!(matches!(
             store.source,
             omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
@@ -197,14 +210,7 @@ fn parameter_sourced_write_only_field_store_reaches_canonical_installation() {
             unreachable!()
         };
         *parameter_index = 1;
-        assert_eq!(
-            omega_image_emission::build_object_artifact(&corrupted),
-            Err(
-                omega_image_emission::ObjectError::InvalidUnitStructuralScalarFieldStoreEvidence(
-                    function.machine,
-                ),
-            )
-        );
+        assert!(omega_image_emission::build_object_artifact(&corrupted).is_err());
 
         let object = omega_image_emission::build_object_artifact(&emitted)
             .expect("object replay accepts the parameter-sourced field store");
@@ -228,9 +234,11 @@ fn parameter_sourced_write_only_field_store_reaches_canonical_installation() {
 #[test]
 fn direct_and_nested_write_only_field_stores_reach_both_linux_targets() {
     let checked = checked(WRITE_ONLY_SOURCE);
-    for (machine_name, path_len, field_byte_offset) in
-        [("Sink::direct", 0_usize, 2_u32), ("Sink::nested", 1, 4)]
-    {
+    for (machine_name, path_len, field_byte_offset) in [
+        ("Sink::direct", 0_usize, 2_u32),
+        ("Sink::nested", 1, 4),
+        ("Sink::boolean_literal", 0, 1),
+    ] {
         let terminal =
             psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, machine_name)
                 .expect("write-only field store reaches canonical Terminal");

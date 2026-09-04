@@ -114,13 +114,20 @@ fn checked_store_source_matches(
         [parameter] => {
             parameter.source_position == 1
                 && parameter.primitive_type == primitive_type
-                && matches!(
-                    value,
+                && match value {
                     CheckedScalarExpression::Parameter {
                         position: 0,
                         primitive_type: source_type,
-                    } if *source_type == primitive_type
-                )
+                    } => *source_type == primitive_type,
+                    CheckedScalarExpression::Boolean(boolean) => {
+                        primitive_type == PrimitiveType::Bool
+                            && matches!(
+                                boolean.as_ref(),
+                                CheckedBooleanExpression::Parameter { position: 0 }
+                            )
+                    }
+                    _ => false,
+                }
         }
         _ => false,
     }

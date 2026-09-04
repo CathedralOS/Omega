@@ -59,18 +59,15 @@ pub(super) fn assign_field_store(
     {
         return Err(invalid());
     }
-    let ScalarType::Integer(scalar_type) = source.scalar_type() else {
-        return Err(invalid());
-    };
-    let expected_shape =
-        super::scalar_call::fixed_integer_shape(source.source_value(), scalar_type)
-            .map_err(|_| invalid())?;
+    let source_scalar_type = source.scalar_type();
+    let expected_shape = projected_store_scalar_shape(source.source_value(), source_scalar_type)
+        .map_err(|_| invalid())?;
     let declarations = declaration_map(&body.structural_types).ok_or_else(invalid)?;
     let expected_offset = scalar_field_offset_at_path(
         destination.structural_type,
         path,
         field,
-        ScalarType::Integer(scalar_type),
+        source_scalar_type,
         &declarations,
     )
     .ok_or_else(invalid)?;
@@ -96,11 +93,9 @@ pub(super) fn assign_field_store(
                 .scalar_parameters
                 .iter()
                 .map(|parameter| {
-                    let ScalarType::Integer(integer) = parameter.scalar_type else {
-                        return Err(invalid());
-                    };
-                    let shape = super::scalar_call::fixed_integer_shape(parameter.value, integer)
-                        .map_err(|_| invalid())?;
+                    let shape =
+                        projected_store_scalar_shape(parameter.value, parameter.scalar_type)
+                            .map_err(|_| invalid())?;
                     (parameter.placement.shape == shape)
                         .then_some(shape)
                         .ok_or_else(invalid)
@@ -163,7 +158,8 @@ pub(super) fn assign_field_store(
                 location,
             }
         }
-        TargetUnitScalarArgumentSource::IntegerImmediate { .. } => {
+        TargetUnitScalarArgumentSource::IntegerImmediate { .. }
+        | TargetUnitScalarArgumentSource::BooleanImmediate { .. } => {
             let assigned = super::scalar_call::assign_known_unit_scalar_source(
                 source,
                 preceding_operations,
@@ -171,8 +167,14 @@ pub(super) fn assign_field_store(
             )
             .ok_or_else(invalid)?;
             if !matches!(
-                assigned,
-                AssignedUnitScalarArgumentSource::IntegerImmediate { .. }
+                (source, assigned),
+                (
+                    TargetUnitScalarArgumentSource::IntegerImmediate { .. },
+                    AssignedUnitScalarArgumentSource::IntegerImmediate { .. },
+                ) | (
+                    TargetUnitScalarArgumentSource::BooleanImmediate { .. },
+                    AssignedUnitScalarArgumentSource::BooleanImmediate { .. },
+                )
             ) {
                 return Err(invalid());
             }
@@ -189,6 +191,17 @@ pub(super) fn assign_field_store(
         field_byte_offset,
         source: assigned_source,
     })
+}
+
+fn projected_store_scalar_shape(
+    value: ValueId,
+    scalar_type: ScalarType,
+) -> Result<ValueShape, AssignmentError> {
+    match scalar_type {
+        ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
+        ScalarType::Integer(integer) => super::scalar_call::fixed_integer_shape(value, integer),
+        ScalarType::IeeeFloat(_) => Err(AssignmentError::UnitScalarCallSourceMismatch(value)),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

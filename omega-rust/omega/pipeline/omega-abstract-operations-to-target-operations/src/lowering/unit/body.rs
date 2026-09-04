@@ -121,6 +121,7 @@ pub(super) fn lower_unit_body(
                 structural_types,
                 &parameters_by_place,
                 &scalar_values,
+                &boolean_constants,
                 &mut shape_cache,
                 &mut active,
                 &mut operations,

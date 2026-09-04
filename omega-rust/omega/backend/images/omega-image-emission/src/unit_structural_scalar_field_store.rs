@@ -75,9 +75,6 @@ fn validate_store(
             scalar_type,
             location,
         } => {
-            let psi_core::ScalarType::Integer(_) = scalar_type else {
-                return None;
-            };
             let abi = function.unit_scalar_abi.as_ref()?;
             let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
             let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
@@ -172,6 +169,45 @@ fn validate_store(
                 Some(integer_bits(scalar_type, value)?),
             )
         }
+        InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+            definition_ordinal,
+        } => {
+            let definition_count = function
+                .semantic_code_attribution
+                .iter()
+                .filter(|row| {
+                    row.site == SemanticCodeSite::Operation(defining_operation)
+                        && row.operation_ordinal == definition_ordinal
+                        && row.code_offset <= store.code_offset
+                        && row.byte_count == 0
+                })
+                .count();
+            (
+                definition_ordinal < store.operation_ordinal
+                    && definition_count == 1
+                    && function
+                        .provenance
+                        .operations
+                        .iter()
+                        .filter(|operation| **operation == defining_operation)
+                        .count()
+                        == 1
+                    && function.unit_integer_constants.iter().all(|constant| {
+                        constant.defining_operation != defining_operation
+                            && constant.source_value != source_value
+                    })
+                    && function.unit_scalar_homes.iter().all(|home| {
+                        home.defining_operation != defining_operation
+                            && home.source_value != source_value
+                    })
+                    && zero_code_source_is_consistent(function, store.source),
+                1,
+                Some(u64::from(value)),
+            )
+        }
         _ => return None,
     };
     if !source_is_exact
@@ -216,6 +252,38 @@ fn validate_store(
         return None;
     }
     Some(())
+}
+
+fn zero_code_source_is_consistent(
+    function: &MachineCodeFunction,
+    source: InternalUnitScalarArgumentSourceRecord,
+) -> bool {
+    let InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+        defining_operation,
+        source_value,
+        ..
+    } = source
+    else {
+        return false;
+    };
+    function
+        .unit_structural_scalar_field_stores
+        .iter()
+        .all(|candidate| {
+            let candidate_source = candidate.source;
+            if matches!(
+                candidate_source,
+                InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                    defining_operation: candidate_operation,
+                    source_value: candidate_value,
+                    ..
+                } if candidate_operation == defining_operation || candidate_value == source_value
+            ) {
+                candidate_source == source
+            } else {
+                true
+            }
+        })
 }
 
 fn exact_attribution_count(
