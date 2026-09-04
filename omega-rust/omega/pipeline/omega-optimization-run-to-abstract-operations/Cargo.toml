@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
-omega-optimization-policy = { path = "../optimization/omega-optimization-policy" }
+omega-optimization-policy = { path = "../omega-optimization-policy" }
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 omega-optimization-validation = { path = "../optimization/omega-optimization-validation" }
 omega-psi-optimizer = { path = "../optimization/omega-psi-optimizer" }
