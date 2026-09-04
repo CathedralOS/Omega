@@ -1124,7 +1124,7 @@ request and is never inferred from source, names, paths, or ambient flags.
 
 Both V1 generated applications admit at most 4,194,304 sealed input bytes.
 `ConformanceBytesV1` admits at most 4,194,304 successful output bytes;
-`EpsilonCompilerV1` admits at most 1,048,572 successful tape bytes, the committed
+`EpsilonCompilerV1` admits at most 16,777,212 successful tape bytes, the committed
 `AlphaBootstrapV2` raw-tape maximum. These are application-profile policies
 except for the derived tape maximum. The Gamma-written Delta compiler's own
 4,194,304-byte Delta-source ceiling is a distinct compiler resource even when
@@ -1150,18 +1150,18 @@ DCOUT: 0 none, 1 Delta source, 2 emitted payload, 3 internal row, 4 DCREQ
 ECOUT: 0 none, 1 Epsilon source, 2 emitted payload, 3 internal row
 ```
 
-The closed tables in `source/delta/compiler/dcout-v1.tsv` and
-`ecout-v1.tsv` are normative. `DCOUT` exposes authored semantic rejection
-classes rather than the compiler's private parser states or former one-bit
-failure flag. Its profile-context column is checked against the originating
-request; the detached frame does not carry that context. Its compiler-resource
-limits are 4,194,304 source bytes, 65,536
+The future compiler artifact owns the closed `DCOUT` and `ECOUT` tables; no
+detached host TSV is normative or currently retained. `DCOUT` exposes authored
+semantic rejection classes rather than the compiler's private parser states or
+former one-bit failure flag. Its profile context is checked against the
+originating request; the detached frame does not carry that context. Its
+compiler-resource limits are 4,194,304 source bytes, 65,536
 total type rows, 65,536 constructor rows, 32,768 function rows, 65,536 active
 environment rows, 65,536 coverage rows, 114,294,752 syntax-arena bytes, 1,024
 parse levels, 65,535 live local slots, 65,536 labels, 116,508 fixups, and
-1,048,572 payload bytes. `ECOUT` retains D17 rejection codes 1 through 26
+16,777,212 payload bytes. `ECOUT` retains D17 rejection codes 1 through 26
 unchanged and distinguishes its 4-MiB input, 15-MiB stack, 112-MiB heap,
-1,048,572-byte output, and D31/D34 application-static-storage resources. Limit
+16,777,212-byte output, and D31/D34 application-static-storage resources. Limit
 and requested fields carry exact selected values except that D34 explicitly
 defines the storage requested amount as a bounded canonical witness. Changing
 a producer layout does not silently renumber the stable resource classes.
@@ -1186,10 +1186,10 @@ InternalFailure. A returned `Complete` publishes only the fully preflighted raw
 tape, and a returned `Reject` publishes the corresponding D17 frame. No failure
 publishes a partial artifact.
 
-`profiles-v1.tsv`, `conformance-observations-v1.tsv`, `dcout-v1.tsv`, and
-`ecout-v1.tsv` are checked projections of constants embedded in the compiler
-artifact, not runtime host inputs. Gates compare every projected row with the
-embedded constants so documentation and executable meaning cannot drift. An
+Any future tabular files are checked projections of constants embedded in the
+compiler artifact, not runtime host inputs or independent authority. Gates must
+compare every retained projection row with the embedded constants so
+documentation and executable meaning cannot drift. An
 accidental implementation fact may be replaced, a profile fact may change
 through a coordinated version revision, and a semantic invariant changes only
 for an articulated language reason; settled records do not forbid a better
@@ -1366,9 +1366,9 @@ name. `ConformanceBytesV1` has no nominal profile schema beyond
 source remains the earlier ordinary `unknown_type` rejection, not a schema
 candidate.
 
-The normative `dcout-v1.tsv` records allowed coordinate spaces and request-
-profile contexts. `unselected` denotes a failure before one valid profile is
-known. `malformed_request` is legal while unselected or after either profile
+The future compiler artifact's normative DCOUT table records allowed coordinate
+spaces and request-profile contexts. `unselected` denotes a failure before one
+valid profile is known. `malformed_request` is legal while unselected or after either profile
 has been selected; `unknown_profile` is legal only while unselected; code 21 is
 legal only for profile 2. Every later code lists its selected profiles. The
 request/outcome join, not a detached DCOUT decoder, checks that availability
@@ -4215,8 +4215,9 @@ This audit corrects two stale written numbers: the source is 12,640 rather than
 12,639 bytes, and the current Beta compiler publishes `0xfffffc`, not the old
 `0xffffc`, output maximum. The current Alpha seeds and Alpha semantics likewise
 own a 16-MiB stamped hole and 16,777,212-byte raw-tape maximum. D98 supersedes
-only the obsolete one-MiB capacity clauses in D23 and D84; their topology and
-transport findings remain historical. No opcode or Beta language form changes.
+only the obsolete one-MiB capacity clauses in D23, D30, and D84; their topology
+and transport findings remain historical. No opcode or Beta language form
+changes.
 
 The retained gate independently binds and partitions the source, reconstructs
 the Beta relation, decodes the raw tape from Alpha's opcode table, checks the
@@ -4576,3 +4577,30 @@ construction, output publication, DCREQ, profile-specific entry/schema checks,
 DCOUT/ECOUT, and deterministic boundary failure selection remain part of the
 application-profile edge. The exact selected subject is now 2,020 Gamma lines
 and 80,194 bytes, with 165 definitions and 682 lexical `let` binders.
+
+## D110 — Delta match coverage is independent of authored arm order
+
+Delta's grammar and static semantics require one exhaustive arm set; they do
+not assign meaning to declaration-order sorting. The staged compiler had
+conflated its convenient tag order with source validity, rejecting complete
+reordered matches and the grammar's parenthesized nullary pattern.
+
+The type pass now inserts each same-owner constructor into an immutable
+exact-name trie local to that match. A duplicate insertion rejects, and the
+final distinct-arm count must equal the exact constructor count. Global
+constructor uniqueness and same-owner checking then establish complete
+coverage without a quadratic rescan or a source-order rule. Bare `Left` and
+parenthesized `(Left)` are the same nullary pattern; any binder on a nullary
+constructor still rejects.
+
+Emission follows authored arm order and compares the cached scrutinee tag with
+each arm's actual declaration tag. The last arm needs no comparison because the
+preceding type pass proved exact coverage. Existing declaration-ordered
+receipts therefore remain byte-identical, while a three-arm permutation
+executes all authored positions to the expected results. Missing and duplicate
+coverage both reject before any output.
+
+The exact selected subject is now 2,026 Gamma lines and 80,586 bytes, with 165
+definitions and 683 lexical `let` binders. This closes match-set conformance;
+Q5's application-outcome boundary remains separate and does not weaken the
+pure source judgment.

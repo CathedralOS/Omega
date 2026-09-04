@@ -54,7 +54,7 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 2020, 80194, "d45ebfa58208cb79c1fe2ce2d0a4e925dede87ad6e53b2514242870a9ee2987a"),
+    ("compiler", compiler, 2026, 80586, "4ae34e505e686345210608dc5f140b44483937bb9e0564a33040c2574268fa07"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -192,6 +192,26 @@ nominal_status, nominal_receipt = evaluate(compiler, nominal_types)
 if nominal_status != 0 or evaluate(nominal_receipt) != (0, b"\x07"):
     raise SystemExit("nominal constructor, pattern, call, or result types failed")
 
+reordered_match = b"""(data Choice (Left) (Middle) (Right))
+(def choose ((value Choice)) Int
+  (match value (Right 4) (Left 1) (Middle 2)))
+(def main () Int (+ (choose Left) (+ (choose Middle) (choose Right))))
+"""
+reordered_status, reordered_receipt = evaluate(compiler, reordered_match)
+if reordered_status != 0 or evaluate(reordered_receipt) != (0, b"\x07"):
+    raise SystemExit("exhaustive reordered match changed meaning")
+
+parenthesized_nullary = b"""(data Choice (Left) (Right))
+(def choose ((value Choice)) Int
+  (match value ((Left) 7) ((Right) 9)))
+(def main () Int (choose Left))
+"""
+parenthesized_status, parenthesized_receipt = evaluate(
+    compiler, parenthesized_nullary
+)
+if parenthesized_status != 0 or evaluate(parenthesized_receipt) != (0, b"\x07"):
+    raise SystemExit("parenthesized nullary pattern did not compile")
+
 proper_tail = b"""(data List (Nil) (Cons Int List))
 (def make ((n Int) (items List)) List
   (if (eq n 0) items
@@ -321,7 +341,8 @@ malformed = {
     "missing payload argument": b"(data Option (None) (Some Int))\n(def main () Int (Some))\n",
     "missing payload binder": b"(data Option (None) (Some Int))\n(def main () Int (match None (None 0) (Some 1)))\n",
     "non-exhaustive match": b"(data Choice (Left) (Right))\n(def main () Int (match Left (Left 7)))\n",
-    "out-of-order match": b"(data Choice (Left) (Right))\n(def main () Int (match Left (Right 9) (Left 7)))\n",
+    "duplicate match arm": b"(data Choice (Left) (Right))\n(def main () Int (match Left (Left 7) (Left 9)))\n",
+    "nullary pattern binder": b"(data Choice (Left) (Right))\n(def main () Int (match Left ((Left x) 7) (Right 9)))\n",
     "duplicate type": b"(data A (X))\n(data A (Y))\n(def main () Int 0)\n",
     "duplicate constructor": b"(data A (X))\n(data B (X))\n(def main () Int 0)\n",
     "duplicate function": b"(def f () Int 0)\n(def f () Int 1)\n(def main () Int 0)\n",
@@ -392,9 +413,11 @@ malformed = {
     "excess bytes_concat argument": b"(def main () Int (bytes_length (bytes_concat (bytes_empty) (bytes_empty) (bytes_empty))))\n",
 }
 for name, candidate in malformed.items():
-    status, _ = evaluate(compiler, candidate)
+    status, output = evaluate(compiler, candidate)
     if status != 2:
         raise SystemExit(f"{name} did not trap in the staged compiler")
+    if name in {"non-exhaustive match", "duplicate match arm"} and output:
+        raise SystemExit(f"{name} emitted before static rejection")
 
 stress = (
     b"".join(
@@ -410,4 +433,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: typed Bytes, checked arithmetic, recursive ADTs, and proper tails pass"
+echo "Staged Delta compiler: typed Bytes, unordered exhaustive matches, checked arithmetic, and proper tails pass"

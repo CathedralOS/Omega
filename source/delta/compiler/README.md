@@ -7,8 +7,8 @@ under `GammaComposedV1`.
 
 The current stage accepts the Gamma-shaped scalar core, immutable `Bytes`, and
 finite data whose constructors carry any finite number of `Int`, `Bytes`, or
-known nominal fields, plus declaration-order exhaustive matches. It assigns constructor tags in declaration
-order. Payload-bearing nominal values become immutable `(pair tag product)`
+known nominal fields, plus exhaustive matches in authored arm order. It assigns
+constructor tags in declaration order. Payload-bearing nominal values become immutable `(pair tag product)`
 nodes whose products are right-nested pairs. Nullary constructors in a payload
 type carry zero padding. Matches project the tag and product once and recover
 binders with ordinary generated Gamma lets.
@@ -20,7 +20,8 @@ binders with ordinary generated Gamma lets.
 becomes the scalar tag representation `Left = 0`, `Right = 1`. `Option` becomes
 `Some 9 = (pair 1 9)` and `None = (pair 0 0)`. A recursive `List` constructor
 with head and tail fields becomes `(pair tag (pair head tail))`. A match must contain
-exactly one arm for every constructor in declaration order. Generated local
+exactly one arm for every constructor, but arms may use any authored order and
+nullary patterns may be bare or parenthesized. Generated local
 names use `$m`, `$p`, and `$v` prefixes. `$` is outside Delta's identifier
 alphabet but inside Gamma's, so generated binders cannot capture or be captured
 by an authored Delta name.
@@ -54,6 +55,12 @@ The pass checks every currently emitted scalar, `Bytes`, and nominal constructor
 pattern binder, call argument, `let` initializer, operator, conditional, match
 arm, and declared result. Function and local names remain
 grammar-distinguished namespaces.
+
+Each match check retains its seen constructors in another immutable exact-name
+trie. Same-owner validation plus duplicate rejection and exact constructor-count
+agreement prove coverage without imposing declaration order. Emission compares
+the cached scrutinee tag with each authored arm's actual tag and uses the final
+exhaustive arm as the fallback, preserving the existing ordered receipts.
 
 The global function trie carries each exact declaration owner as its terminal
 payload. Application heads resolve through that checked table, including
@@ -96,7 +103,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,020-line / 80,194-byte Gamma source
+2,026-line / 80,586-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

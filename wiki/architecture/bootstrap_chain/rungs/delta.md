@@ -11,7 +11,7 @@ The normative contract is
 [`source/delta/LANGUAGE.md`](../../../../source/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 2,020-line
+execute the resulting canonical Gamma receipt. The selected 2,026-line
 in-progress source enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
 signatures. Its immutable exact-name environments reject unknown locals and
@@ -20,8 +20,8 @@ across disjoint scopes. The same pass checks the scalar/nominal expression,
 constructor, pattern, call, arm, and result type relation. Generated Gamma
 names live outside Delta's identifier alphabet, so lowering cannot capture
 authored locals. It lowers
-arbitrary-field recursive algebraic data and
-declaration-order exhaustive `match`, while a whole-program pass enforces
+arbitrary-field recursive algebraic data and exact arbitrary-order exhaustive
+`match`, while a whole-program pass enforces
 global declaration order, nonempty data, unique namespaces, and exactly one
 `main`. Tail calls remain in tail position through emitted `if`, `let`, and
 lowered `match`; a 100,000-node construction/traversal witness completes in the
