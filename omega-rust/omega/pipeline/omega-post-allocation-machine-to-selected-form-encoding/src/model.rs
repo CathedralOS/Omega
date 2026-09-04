@@ -153,7 +153,8 @@ pub struct SelectedFormMovnOptimizationCustody {
 }
 
 impl SelectedFormMovnOptimizationCustody {
-    pub(crate) const fn from_parts(
+    /// Reconstruct custody decoded from an independently validated layout artifact.
+    pub const fn from_parts(
         selections: OptimizationSelectionIdentity,
         post_allocation_machine_selections: OptimizationSelectionIdentity,
         materialization: Aarch64MovnMaterializationIdentity,
@@ -179,7 +180,8 @@ impl SelectedFormMovnOptimizationCustody {
 }
 
 impl SelectedFormMachineOptimizationCustody {
-    pub(crate) const fn from_parts(
+    /// Reconstruct custody decoded from an independently validated layout artifact.
+    pub const fn from_parts(
         selections: OptimizationSelectionIdentity,
         post_allocation_machine_selections: OptimizationSelectionIdentity,
         fusion: Aarch64CbnzFusionIdentity,
@@ -289,22 +291,25 @@ impl StagedOptimizedSelectedFormEncoding {
         self.counts
     }
 
-    #[cfg(test)]
-    pub(crate) fn rows_mut(&mut self) -> &mut [SelectedFormEncodingRow] {
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn rows_mut(&mut self) -> &mut [SelectedFormEncodingRow] {
         &mut self.rows
     }
 
-    #[cfg(test)]
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
     #[allow(dead_code)]
-    pub(crate) fn structural_unit_functions_mut(
+    pub fn structural_unit_functions_mut(
         &mut self,
     ) -> &mut [SelectedStructuralUnitFunctionEncoding] {
         &mut self.structural_unit_functions
     }
 
-    #[cfg(test)]
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
     #[allow(dead_code)]
-    pub(crate) fn counts_mut(&mut self) -> &mut SelectedFormEncodingCounts {
+    pub fn counts_mut(&mut self) -> &mut SelectedFormEncodingCounts {
         &mut self.counts
     }
 }

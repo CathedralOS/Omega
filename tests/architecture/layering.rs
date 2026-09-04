@@ -4754,9 +4754,9 @@ fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
 fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/encoding/post_allocation_selected_form_encoding",
+        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding/src",
     );
-    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+    let entrance = std::fs::read_to_string(stage.join("lib.rs"))
         .expect("read selected-form encoding entrance");
     assert!(
         entrance

@@ -90,7 +90,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_active_resident_rematerialization_selected_form_encoding",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/encoding/post_allocation_selected_form_encoding/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding/src/lib.rs",
         coordination_marker: "stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization",
     },
     RequiredCoordinationEntrance {
@@ -198,7 +198,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_verified_physical_pipeline",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/encoding/post_allocation_selected_form_encoding/validation/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding/src/validation/mod.rs",
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
