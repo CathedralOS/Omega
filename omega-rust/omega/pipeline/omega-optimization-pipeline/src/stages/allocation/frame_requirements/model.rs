@@ -4,7 +4,7 @@ use omega_register_model::TargetRegisterEnvironmentIdentity;
 use omega_target::NativeTarget;
 use psi_core::MachineId;
 
-pub use super::super::abi_preservation::FrameAbiPreservationConvention;
+pub use omega_target_to_register_environment::FrameAbiPreservationConvention;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NonAuthoritativeSpillFrameRequirementIdentity([u8; 32]);

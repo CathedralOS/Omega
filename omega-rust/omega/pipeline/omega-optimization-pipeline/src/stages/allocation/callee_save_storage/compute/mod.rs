@@ -5,11 +5,9 @@ mod work;
 
 use omega_optimization_core::OptimizationWorkBudget;
 
-use crate::{
-    ValidatedAllocatedCalleeSavedRequirements, ValidatedTargetRegisterEnvironment,
-    stages::allocation::abi_preservation::{
-        selected_abi_preservation, selected_preservation_storage_catalog,
-    },
+use crate::{ValidatedAllocatedCalleeSavedRequirements, ValidatedTargetRegisterEnvironment};
+use omega_target_to_register_environment::{
+    selected_abi_preservation, selected_preservation_storage_catalog,
 };
 
 use super::{

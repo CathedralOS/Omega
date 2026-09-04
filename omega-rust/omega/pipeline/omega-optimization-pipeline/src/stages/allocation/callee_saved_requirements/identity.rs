@@ -88,12 +88,12 @@ fn target(hasher: &mut Sha256, target: omega_target::NativeTarget) {
     hasher.update((target.pointer_alignment as u64).to_le_bytes());
 }
 
-fn abi_tag(abi: super::super::abi_preservation::FrameAbiPreservationConvention) -> u8 {
+fn abi_tag(abi: omega_target_to_register_environment::FrameAbiPreservationConvention) -> u8 {
     match abi {
-        super::super::abi_preservation::FrameAbiPreservationConvention::SystemVAMD64 => 0,
-        super::super::abi_preservation::FrameAbiPreservationConvention::MicrosoftX64 => 1,
-        super::super::abi_preservation::FrameAbiPreservationConvention::Aapcs64 => 2,
-        super::super::abi_preservation::FrameAbiPreservationConvention::DarwinAapcs64 => 3,
+        omega_target_to_register_environment::FrameAbiPreservationConvention::SystemVAMD64 => 0,
+        omega_target_to_register_environment::FrameAbiPreservationConvention::MicrosoftX64 => 1,
+        omega_target_to_register_environment::FrameAbiPreservationConvention::Aapcs64 => 2,
+        omega_target_to_register_environment::FrameAbiPreservationConvention::DarwinAapcs64 => 3,
     }
 }
 

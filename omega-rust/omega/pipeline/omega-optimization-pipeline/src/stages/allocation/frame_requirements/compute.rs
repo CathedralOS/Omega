@@ -1,11 +1,9 @@
 //! Direct traversal over authenticated abstract access rows.
 
-use crate::{
-    ValidatedTargetRegisterEnvironment,
-    stages::allocation::abi_preservation::selected_abi_preservation,
-};
+use crate::ValidatedTargetRegisterEnvironment;
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use omega_regalloc::ValidatedAbstractSpillAccessConstraints;
+use omega_target_to_register_environment::selected_abi_preservation;
 
 use super::{
     FrameAbiPreservationConvention, FunctionSpillFrameRequirements,

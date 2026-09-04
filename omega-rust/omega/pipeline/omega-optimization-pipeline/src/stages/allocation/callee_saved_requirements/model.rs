@@ -12,7 +12,7 @@ use omega_selected_instructions::{
 use omega_target::NativeTarget;
 use psi_core::MachineId;
 
-use super::super::abi_preservation::FrameAbiPreservationConvention;
+use omega_target_to_register_environment::FrameAbiPreservationConvention;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AllocatedCalleeSavedRequirementIdentity([u8; 32]);
