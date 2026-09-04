@@ -11,6 +11,7 @@ mod coordination;
 mod stages;
 
 pub use coordination::*;
+pub use omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 pub use stages::*;
 
 #[cfg(test)]

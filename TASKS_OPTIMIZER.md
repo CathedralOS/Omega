@@ -22,11 +22,13 @@ needed for independent replay through publication.
   Terminal-to-abstract native admission is now unconditional, resumed lowering
   accepts only the closed post-Terminal selection type, and the transitional
   optimization continuation is an explicit `Identity | Selected` result rather
-  than selection absence. Both cases now enter one target-lowering stage and
-  publish a closed target-stage result while retaining ordinary, ranked, and
-  selected authority separately. They then enter one physical-routing stage;
-  machine emission consumes its closed result and performs no assignment or
-  optimizer scheduling. The physical entrance now projects the closed
+  than selection absence. Both cases now enter an explicit post-Terminal
+  optimization stage before one target-lowering stage; target lowering cannot
+  schedule the optimizer or inspect the earlier continuation. Its closed result
+  retains ordinary, ranked, and optimized authority separately before entering
+  one physical-routing stage. Machine emission consumes that closed result and
+  performs no assignment or optimizer scheduling. The physical entrance now
+  projects the closed
   post-Terminal selection once into phase-local inputs; composition does not
   rescan the global set, and a post-Terminal phase with no implemented stage
   rejects instead of disappearing. Each executable physical catalog accepts

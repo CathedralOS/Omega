@@ -1982,6 +1982,14 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let machine_code_path = realization_root.join("machine_code.rs");
     let machine_code = std::fs::read_to_string(&machine_code_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", machine_code_path.display()));
+    let optimization_stage_path = realization_root.join("optimization_stage.rs");
+    let optimization_stage =
+        std::fs::read_to_string(&optimization_stage_path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                optimization_stage_path.display()
+            )
+        });
     let target_stage_path = realization_root.join("target_stage.rs");
     let target_stage = std::fs::read_to_string(&target_stage_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", target_stage_path.display()));
@@ -2013,7 +2021,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let model = std::fs::read_to_string(&model_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_path.display()));
     let production_realization = format!(
-        "{realization}\n{api}\n{input}\n{target_stage}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}\n{callback_machine_code}"
+        "{realization}\n{api}\n{input}\n{optimization_stage}\n{target_stage}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}\n{callback_machine_code}"
     );
     let selection_path =
         root.join("omega-rust/omega/representations/omega-optimization-core/src/selection.rs");
@@ -2157,13 +2165,16 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                     && catalog.contains(".require_phase(")
                     && !catalog.contains(".for_phase(")
             })
-            && target_stage.contains("optimize_verified_psi_input(")
-            && target_stage
-                .contains("lower_optimized_to_target_operations_with_provider_executions")
-            && target_stage.contains(
+            && optimization_stage.contains("enum NativeOptimizationStageResult")
+            && optimization_stage.contains("optimize_verified_psi_input(")
+            && optimization_stage.contains(
                 "NativeArtifactOperationPlan::RankedU32Countdown(_),\n            PostTerminalOptimizationContinuation::Selected(_)"
             )
-            && !target_stage.contains("(_, PostTerminalOptimizationContinuation::Selected(input))")
+            && target_stage.contains("match optimization_stage {")
+            && !target_stage.contains("optimize_verified_psi_input(")
+            && !target_stage.contains("PostTerminalOptimizationContinuation")
+            && target_stage
+                .contains("lower_optimized_to_target_operations_with_provider_executions")
             && physical_stage.contains("enum NativePhysicalStageResult")
             && physical_stage.contains("Optimized(Box<OptimizedNativePhysicalStage>)")
             && physical_stage.contains("stage_optimized_verified_physical_pipeline(")
@@ -2197,17 +2208,20 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "optimization presence must not select the Terminal-to-abstract native authority entrance"
     );
     let (_, target_conveyor) = target_stage
-        .split_once("match input.into_parts() {")
-        .expect("target realization consumes the one abstract-stage result");
+        .split_once("match optimization_stage {")
+        .expect("target realization consumes the completed optimization stage");
     let (identity_target_conveyor, selected_target_conveyor) = target_conveyor
-        .split_once("PostTerminalOptimizationContinuation::Selected(input),")
-        .expect("target realization retains an explicit selected-optimization arm");
+        .split_once("NativeOptimizationStageResult::OptimizedOrdinary(optimized)")
+        .expect("target realization retains an explicit optimized-ordinary arm");
     let selected_target_stage = selected_target_conveyor
         .find("let optimized_target = match provider_installation")
         .expect("optimized realization visibly constructs its validated target-stage result");
     let selected_target_result = selected_target_conveyor
-        .find("Ok(NativeTargetStageResult::Selected(Box::new(")
+        .find("Ok(NativeTargetStageResult::Optimized(Box::new(")
         .expect("optimized realization publishes its validated target-stage result");
+    let optimization_stage_entrance = machine_code
+        .find("let optimization_stage =")
+        .expect("machine realization enters post-Terminal optimization once");
     let target_stage_entrance = machine_code
         .find("let target_stage =")
         .expect("machine realization enters target lowering once");
@@ -2233,6 +2247,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !machine_code.contains(transitional_assignment)
             && selected_target_stage < selected_target_result
             && physical_target_consumption < selected_physical_stage
+            && optimization_stage_entrance < target_stage_entrance
             && target_stage_entrance < physical_stage_entrance
             && physical_stage_entrance < physical_stage_consumption,
         "every route must finish target lowering and physical routing before machine emission"

@@ -48,7 +48,7 @@ pub(crate) fn lower_realization_physical_stage(
                     .map_err(|error| realization_error("ranked physical assignment", error))?;
             Ok(NativePhysicalStageResult::IdentityRanked(assigned))
         }
-        NativeTargetStageResult::Selected(optimized_target) => {
+        NativeTargetStageResult::Optimized(optimized_target) => {
             let optimized_plan = optimized_target.optimized().plan().clone();
             let optimized_validation = optimized_target.optimized().validation();
             let has_provider_installation = optimized_target.provider_installation().is_some();

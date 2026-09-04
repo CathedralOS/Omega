@@ -1,9 +1,8 @@
-//! Optimizer module role: executable entrance. Complete target lowering before physical routing.
+//! Complete target lowering after the explicit post-Terminal optimization stage.
 
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{
-    NativeRealizationCoreRequest, NativeRealizationInput, PostTerminalOptimizationContinuation,
-};
+use crate::realization::model::NativeRealizationCoreRequest;
+use crate::realization::optimization_stage::NativeOptimizationStageResult;
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use omega_installation_evidence::ProviderInstallationEvidence;
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
@@ -18,20 +17,17 @@ use psi_diagnostics::Diagnostic;
 pub(crate) enum NativeTargetStageResult {
     IdentityOrdinary(omega_target_operations::TargetOperationPlanWithNativeCallbacks),
     IdentityRanked(omega_target_operations::TargetOperationPlan),
-    Selected(Box<omega_optimization_pipeline::ValidatedOptimizedTargetOperations>),
+    Optimized(Box<omega_optimization_pipeline::ValidatedOptimizedTargetOperations>),
 }
 
 pub(crate) fn lower_realization_target_stage(
-    input: NativeRealizationInput,
+    optimization_stage: NativeOptimizationStageResult,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<NativeTargetStageResult, Vec<Diagnostic>> {
-    match input.into_parts() {
-        (
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(plan),
-            PostTerminalOptimizationContinuation::Identity,
-        ) => {
+    match optimization_stage {
+        NativeOptimizationStageResult::IdentityOrdinary(plan) => {
             let installation = provider_installation
                 .as_ref()
                 .map(|installation| installation as &dyn ProviderInstallationEvidence);
@@ -47,12 +43,7 @@ pub(crate) fn lower_realization_target_stage(
                 .map_err(|error| realization_error("ordinary target lowering", error))?;
             Ok(NativeTargetStageResult::IdentityOrdinary(target))
         }
-        (
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(
-                ranked,
-            ),
-            PostTerminalOptimizationContinuation::Identity,
-        ) => {
+        NativeOptimizationStageResult::IdentityRanked(ranked) => {
             if provider_installation.is_some()
                 || !settlements.is_empty()
                 || !request.native_callbacks.is_empty()
@@ -71,37 +62,7 @@ pub(crate) fn lower_realization_target_stage(
                 .map_err(|error| realization_error("ranked target lowering", error))?;
             Ok(NativeTargetStageResult::IdentityRanked(target))
         }
-        (
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(_),
-            PostTerminalOptimizationContinuation::Selected(_),
-        ) => Err(realization_error(
-            "optimized ranked-native authority",
-            "the selected optimizer route does not yet retain ranked-countdown native authority; no ordinary optimized route was substituted",
-        )),
-        (
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_),
-            PostTerminalOptimizationContinuation::Selected(input),
-        ) => {
-            if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
-                return Err(realization_error(
-                    "optimized native callback custody",
-                    "retained callbacks require the ordinary custody-preserving pipeline",
-                ));
-            }
-            if !request.ieee_float_fma.is_empty() {
-                return Err(realization_error(
-                    "optimized nearest-FMA custody",
-                    "retained nearest-FMA occurrences require the ordinary custody-preserving pipeline",
-                ));
-            }
-            let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
-                request.optimization_selections.selections(),
-            );
-            let optimized = omega_optimization_pipeline::optimize_verified_psi_input(
-                input,
-                optimization_request,
-            )
-            .map_err(|error| realization_error("canonical optimization", error))?;
+        NativeOptimizationStageResult::OptimizedOrdinary(optimized) => {
             let optimized_target = match provider_installation {
                 Some(installation) => omega_optimization_pipeline::lower_optimized_to_target_operations_with_provider_executions_and_installation(
                     optimized,
@@ -116,7 +77,7 @@ pub(crate) fn lower_realization_target_stage(
                 ),
             }
             .map_err(|error| realization_error("optimized target lowering", error))?;
-            Ok(NativeTargetStageResult::Selected(Box::new(
+            Ok(NativeTargetStageResult::Optimized(Box::new(
                 optimized_target,
             )))
         }

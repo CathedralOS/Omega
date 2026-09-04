@@ -182,11 +182,14 @@ rejects either earlier-phase selection instead of rerunning it. Terminal-to-
 abstract native admission and lowering now run unconditionally before
 selection presence is inspected. A closed `Identity | Selected` optimization
 continuation makes empty execution explicit instead of encoding it as a missing
-context. Both cases enter one target-lowering stage, whose closed result retains
-ordinary identity, ranked identity, or validated selected custody. Machine
-emission sends that result through one physical-routing stage and consumes its
-closed output. It no longer schedules abstract optimization, target lowering,
-physical assignment, or physical optimization itself. The physical entrance
+context. Both cases first enter one explicit post-Terminal optimization stage.
+That stage alone consumes the continuation and publishes ordinary identity,
+ranked identity, or validated optimized-ordinary custody. Target lowering
+consumes that closed result and cannot invoke the optimizer or inspect the
+earlier continuation. Machine emission sends the target result through one
+physical-routing stage and consumes its closed output. It no longer schedules
+abstract optimization, target lowering, physical assignment, or physical
+optimization itself. The physical entrance
 projects its closed post-Terminal selection once into exact phase-local inputs;
 composition does not rescan the global set, and a post-Terminal phase without
 an implemented stage rejects rather than disappearing. Executable physical
@@ -223,9 +226,12 @@ Migration proceeds in dependency order:
    The currently unported named rewrites fail closed at that entrance. No
    selected Psi pass continues in the post-Terminal compatibility route.
 4. **Complete as a routing boundary.** Terminal-to-abstract native admission
-   and lowering produce one stage result regardless of selection presence.
-   Ranked execution remains role-specific authority inside that result. There
-   are currently no cataloged abstract-operation rewrites to move.
+   and lowering produce one stage result regardless of selection presence. An
+   explicit post-Terminal optimization stage consumes its closed continuation
+   before target lowering; target lowering cannot schedule abstract optimization.
+   Ranked execution remains role-specific authority and selected ranked input
+   fails closed until a ranked-aware optimizer carrier exists. There are
+   currently no cataloged abstract-operation rewrites to move.
 5. **Optimizer-owned physical routes now converge at function-relative
    realization; outer convergence remains.** Identity and selected execution
    enter one target-lowering stage and then one physical-routing stage. The
