@@ -1,3 +1,5 @@
+//! Process-wide service registrations and the atomic handover between two of them.
+
 /// Collision and handover semantics selected by one named process-static
 /// service. The component framework validates this contract but does not infer
 /// a policy from the service's implementation.

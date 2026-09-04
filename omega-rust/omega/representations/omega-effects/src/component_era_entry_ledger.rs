@@ -1,3 +1,6 @@
+//! Entry, quiescence, publication and retirement of one component era, as receipts
+//! rather than state transitions.
+
 use std::collections::BTreeSet;
 
 use omega_installation_evidence::InstalledArtifactOccurrenceDigest;

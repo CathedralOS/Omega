@@ -1,3 +1,6 @@
+//! Several executable eras sharing one process, and the containment evidence that
+//! lets them.
+
 #[cfg(test)]
 use crate::provider_plan::ProviderPlan;
 use crate::provider_plan::ProviderPlanDigest;
