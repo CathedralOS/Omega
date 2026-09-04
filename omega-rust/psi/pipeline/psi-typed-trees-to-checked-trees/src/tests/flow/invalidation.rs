@@ -481,8 +481,12 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
             password.score = 10;
         }
 
-        machine Main::touch_unrelated(&mut self) {
+        machine Main::bump_unrelated(&mut self) {
             self.unrelated = self.unrelated + 1;
+        }
+
+        machine Main::touch_unrelated(&mut self) {
+            self.bump_unrelated();
         }
 
         machine Main::accept(password: Password)
@@ -558,26 +562,6 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
     );
     let target_state = target_state.expect("target state");
     assert_eq!(target_state.name.as_str(), "touch_unrelated");
-    let touch_statement = typed
-        .statement_table
-        .statements(target_state.statement_nodes)
-        .first()
-        .expect("touch statement");
-    let StatementNode::Assignment(touch_assignment) = touch_statement else {
-        panic!("expected assignment, got {touch_statement:?}");
-    };
-    let target_place = crate::flow::canonical_place_from_expression_in_state(
-        &typed,
-        target_state.symbol,
-        0,
-        touch_assignment.target,
-    )
-    .expect("touch target place");
-    assert_eq!(
-        target_place.segments.len(),
-        1,
-        "touch target place: {target_place:?}"
-    );
     let mut cache = StateMutationSummaryCache::default();
     let mutated_places = call_mutated_places(
         &typed,

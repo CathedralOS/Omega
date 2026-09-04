@@ -636,6 +636,13 @@ Current ownership is:
   stable mutable-alias substitutions, and structurally transparent
   returned-place substitutions, while opaque replacement or a non-bijective
   write-capable backedge remains conservative.
+  Flow invalidation shares the validation layer's complete-or-opaque frame
+  verdict, then projects direct writes into structured symbol/range places and
+  propagates them through resolved internal calls to a finite fixed point. A
+  complete empty callee stays empty rather than widening to every mutable
+  argument; failed caller-place reconstruction or an opaque body uses the
+  ownership fallback. The structured consumer does not define a second SCC or
+  alias-admission rule.
   A direct stable alias replacement updates that binding's origin without
   redirecting aliases established from its prior value. Stable mutable-alias
   chains retain exact member projections; an indexed reborrow through an exact

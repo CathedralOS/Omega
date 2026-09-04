@@ -460,6 +460,14 @@ Non-bijective, computed, or otherwise
 unrepresentable cyclic rebinding retains only the coarse ownership ceiling;
 `TASKS.md` R5 owns further relational candidates.
 
+Checked-flow invalidation consumes that same complete-or-opaque resolver as its
+completeness oracle. A separate structured projection retains exact symbol and
+normalized range segments, propagates direct internal-call writes to a finite
+fixed point, and distinguishes a complete empty frame from opacity. It never
+reimplements the cycle-admission law: an opaque resolver result selects the
+ownership fallback, while a complete result may invalidate only the structured
+paths successfully reconstructed in the caller namespace.
+
 ## 6. Dynamic lowering — the runtime half
 
 Ada is the direct ancestor: discriminated records have shipped value-dependent

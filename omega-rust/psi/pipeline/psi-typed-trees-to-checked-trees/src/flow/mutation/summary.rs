@@ -1,52 +1,47 @@
+//! Structured caller-visible mutation summaries.
+//!
+//! `psi_validation::CallFrameResolver` remains the single owner of the
+//! complete-or-opaque call and cycle law. This module retains symbol-based
+//! field/range places for flow invalidation and propagates those places across
+//! the calls which the shared resolver admitted as complete.
+
 use super::*;
-use crate::flow::mutation::receiver::{
-    call_receiver_mutated_place, canonical_receiver_place_for_call_site,
-};
+use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StateMutationSummaryCache {
-    pub(crate) states: Vec<StateMutationSummary>,
+    initialized: bool,
+    states: Vec<StateMutationSummary>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct StateMutationSummary {
-    pub(crate) state_symbol: SymbolHandle,
-    pub(crate) writes: Vec<CanonicalPlace>,
+struct StateMutationSummary {
+    state_symbol: SymbolHandle,
+    complete: bool,
+    writes: Vec<CanonicalPlace>,
 }
 
 pub(crate) fn instantiate_known_call_mutation_summary_places(
     program: &psi_typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     cache: &mut StateMutationSummaryCache,
 ) -> Option<Vec<CanonicalPlace>> {
     let target_state = find_state(program, borrow_call.target_symbol)?;
-    let summary_places = state_mutation_summary_places(program, cache, target_state);
-    if summary_places.is_empty() {
-        if core_method_mutates_receiver(program, target_state) {
-            return call_receiver_mutated_place(
-                program,
-                caller_machine_symbol,
-                caller_state_symbol,
-                borrow_call,
-            )
-            .map(|place| vec![place])
-            .or_else(|| Some(Vec::new()));
-        }
-        return Some(Vec::new());
-    }
+    let summary_places = state_mutation_summary_places(program, borrow, cache, target_state)?;
 
     let mut instantiated = Vec::new();
     for summary_place in summary_places {
-        if let Some(place) = instantiate_call_relative_place(
+        let place = instantiate_call_relative_place(
             program,
             caller_machine_symbol,
             caller_state_symbol,
             borrow_call,
             summary_place,
-        ) && !instantiated.contains(&place)
-        {
+        )?;
+        if !instantiated.contains(&place) {
             instantiated.push(place);
         }
     }
@@ -88,27 +83,217 @@ fn core_method_mutates_receiver(
 
 fn state_mutation_summary_places<'cache>(
     program: &psi_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
     cache: &'cache mut StateMutationSummaryCache,
     state: &psi_typed_trees::state::State,
-) -> &'cache [CanonicalPlace] {
-    if !cache
-        .states
-        .iter()
-        .any(|entry| entry.state_symbol == state.symbol)
-    {
-        let writes = collect_state_mutation_summary_places(program, state);
-        cache.states.push(StateMutationSummary {
-            state_symbol: state.symbol,
-            writes,
-        });
-    }
+) -> Option<&'cache [CanonicalPlace]> {
+    ensure_state_mutation_summaries(program, borrow, cache);
 
     cache
         .states
         .iter()
         .find(|entry| entry.state_symbol == state.symbol)
+        .filter(|entry| entry.complete)
         .map(|entry| entry.writes.as_slice())
-        .unwrap_or(&[])
+}
+
+fn ensure_state_mutation_summaries(
+    program: &psi_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    cache: &mut StateMutationSummaryCache,
+) {
+    if cache.initialized {
+        return;
+    }
+    cache.initialized = true;
+
+    let mut inferred_completeness = Vec::new();
+    if let Some(resolver) = psi_validation::CallFrameResolver::new(program) {
+        for machine in program.machines() {
+            for (state, frame) in program
+                .machine_states(machine)
+                .iter()
+                .zip(resolver.inferred_machine_state_write_frames(machine))
+            {
+                inferred_completeness.push((state.symbol, frame.is_complete()));
+            }
+        }
+    }
+
+    for borrow_state in borrow.states.iter().map(|(_, state)| state) {
+        let Some(state) = find_state(program, borrow_state.state_symbol) else {
+            continue;
+        };
+        let mut writes = collect_state_mutation_summary_places(program, state);
+        let core_receiver_write = core_method_mutates_receiver(program, state);
+        if core_receiver_write
+            && let Some(receiver) = state_receiver_summary_place(program, state)
+            && !writes.contains(&receiver)
+        {
+            writes.push(receiver);
+        }
+        cache.states.push(StateMutationSummary {
+            state_symbol: state.symbol,
+            complete: core_receiver_write
+                || (state_has_concrete_body_signature(program, state)
+                    && inferred_completeness
+                        .iter()
+                        .find_map(|(symbol, complete)| {
+                            (*symbol == state.symbol).then_some(*complete)
+                        })
+                        .unwrap_or(false)),
+            writes,
+        });
+    }
+
+    loop {
+        let snapshot = cache.states.clone();
+        let mut changed = false;
+        for caller_index in 0..snapshot.len() {
+            if !snapshot[caller_index].complete {
+                continue;
+            }
+            let caller_symbol = snapshot[caller_index].state_symbol;
+            let Some(caller_state) = find_state(program, caller_symbol) else {
+                continue;
+            };
+            let caller_machine = machine_symbol_for_state(program, caller_state);
+            let Some(borrow_state) = borrow_state_for_symbol(borrow, caller_symbol) else {
+                continue;
+            };
+            let mut additions = Vec::new();
+            let mut complete = true;
+            for call in borrow.calls.span_or_empty(borrow_state.calls) {
+                let Some(target_index) = summary_index_from(&snapshot, call.target_symbol) else {
+                    complete = false;
+                    break;
+                };
+                let target = &snapshot[target_index];
+                if !target.complete {
+                    complete = false;
+                    break;
+                }
+                for write in &target.writes {
+                    let Some(instantiated) = instantiate_call_relative_place(
+                        program,
+                        caller_machine,
+                        caller_symbol,
+                        call,
+                        write,
+                    ) else {
+                        complete = false;
+                        break;
+                    };
+                    if state_summary_exposes_place(program, caller_state, &instantiated)
+                        && !snapshot[caller_index].writes.contains(&instantiated)
+                        && !additions.contains(&instantiated)
+                    {
+                        additions.push(instantiated);
+                    }
+                }
+                if !complete {
+                    break;
+                }
+            }
+            if !complete {
+                cache.states[caller_index].complete = false;
+                cache.states[caller_index].writes.clear();
+                changed = true;
+            } else if !additions.is_empty() {
+                cache.states[caller_index].writes.extend(additions);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+}
+
+fn borrow_state_for_symbol(
+    borrow: &BorrowFacts,
+    state_symbol: SymbolHandle,
+) -> Option<&StateBorrowFact> {
+    borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.state_symbol == state_symbol)
+}
+
+fn summary_index_from(
+    summaries: &[StateMutationSummary],
+    state_symbol: SymbolHandle,
+) -> Option<usize> {
+    summaries
+        .iter()
+        .position(|summary| summary.state_symbol == state_symbol)
+}
+
+fn machine_symbol_for_state(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+) -> SymbolHandle {
+    program
+        .machines()
+        .iter()
+        .find(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
+        })
+        .map(|machine| machine.symbol)
+        .unwrap_or_else(SymbolHandle::invalid)
+}
+
+fn state_has_concrete_body_signature(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+) -> bool {
+    program
+        .machines()
+        .iter()
+        .find(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
+        })
+        .is_some_and(|machine| {
+            machine.body_is_present
+                && program
+                    .state_parameters(state)
+                    .iter()
+                    .all(|parameter| parameter.type_reference.is_valid())
+        })
+}
+
+fn state_receiver_summary_place(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+) -> Option<CanonicalPlace> {
+    let receiver = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.is_self)?;
+    canonical_place_from_symbol(receiver.symbol)
+        .or_else(|| canonical_place_from_symbol(machine_symbol_for_state(program, state)))
+}
+
+fn state_summary_exposes_place(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    place: &CanonicalPlace,
+) -> bool {
+    let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+        return false;
+    };
+    root == machine_symbol_for_state(program, state)
+        || program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.symbol == root)
 }
 
 fn collect_state_mutation_summary_places(
