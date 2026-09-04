@@ -742,6 +742,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-frame-layout-to-frame-protocol"
+version = "0.1.0"
+dependencies = [
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
+ "omega-post-allocation-machine-to-frame-layout",
+ "omega-register-model",
+ "omega-target",
+ "omega-target-to-register-environment",
+ "psi-core",
+ "sha2",
+]
+
+[[package]]
 name = "omega-function-identity"
 version = "0.1.0"
 dependencies = [
@@ -1163,6 +1177,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-effects",
  "omega-fixed-view-copies-to-reanalyzed-legality",
+ "omega-frame-layout-to-frame-protocol",
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-legalized-operations",

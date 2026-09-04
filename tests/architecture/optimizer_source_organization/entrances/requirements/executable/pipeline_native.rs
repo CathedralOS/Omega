@@ -66,6 +66,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_target_frame_layout",
     },
     RequiredCoordinationEntrance {
+        path: "omega-rust/omega/pipeline/omega-frame-layout-to-frame-protocol/src/lib.rs",
+        coordination_marker: "pub fn stage_target_frame_protocol_encoding",
+    },
+    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-allocation-legality-to-active-resident-rematerialization/src/lib.rs",
         coordination_marker: "pub fn stage_optimized_active_resident_rematerialization",
     },

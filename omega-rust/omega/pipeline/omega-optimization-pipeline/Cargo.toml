@@ -40,6 +40,7 @@ omega-register-homes-to-callee-saved-requirements = { path = "../omega-register-
 omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
 omega-post-allocation-machine-to-optimized-machine = { path = "../omega-post-allocation-machine-to-optimized-machine" }
 omega-post-allocation-machine-to-frame-layout = { path = "../omega-post-allocation-machine-to-frame-layout" }
+omega-frame-layout-to-frame-protocol = { path = "../omega-frame-layout-to-frame-protocol" }
 omega-callee-saved-requirements-to-save-storage = { path = "../omega-callee-saved-requirements-to-save-storage" }
 omega-spill-access-constraints-to-frame-requirements = { path = "../omega-spill-access-constraints-to-frame-requirements" }
 omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
