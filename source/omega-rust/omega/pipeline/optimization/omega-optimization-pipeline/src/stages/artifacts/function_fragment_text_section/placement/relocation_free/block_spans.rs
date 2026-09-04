@@ -6,7 +6,7 @@ use super::super::super::RelocationFreeTextSectionPlacementError;
 use super::super::conversion::usize_to_u64;
 use super::alignment;
 
-pub(super) fn place(
+pub(crate) fn place(
     architecture: Architecture,
     function: &FunctionFragment,
     function_section_offset: u64,

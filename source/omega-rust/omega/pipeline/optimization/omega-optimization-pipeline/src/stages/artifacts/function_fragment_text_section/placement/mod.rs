@@ -4,6 +4,7 @@
 //! ordinary relocation-free placement or structural-Unit call resolution.
 
 mod conversion;
+mod fixed_frame;
 mod relocation_free;
 mod structural_unit;
 
@@ -66,3 +67,9 @@ pub(crate) fn place_structural_unit_fragments_for_test(
 }
 
 pub(super) use conversion::usize_to_u64;
+
+pub(super) fn place_fixed_frame_fragments(
+    source: &crate::StagedFunctionFragmentFrameApplication,
+) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
+    fixed_frame::place(source.fragments())
+}

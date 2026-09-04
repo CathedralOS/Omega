@@ -654,10 +654,11 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 assert_eq!(text.manifest().record().statistics.relocation_requirements, 0);
                 let text_manifest = text.manifest().record().clone();
                 let text_encoded = text_manifest.encode();
-                assert_eq!(&text_encoded[8..12], &10_u32.to_le_bytes());
-                assert_eq!(text_encoded[45], 2);
+                assert_eq!(&text_encoded[8..12], &11_u32.to_le_bytes());
+                assert_eq!(text_encoded[45], 1);
+                assert_eq!(text_encoded[46], 2);
                 assert_eq!(
-                    text_encoded[46],
+                    text_encoded[47],
                     Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 as u8
                 );
                 assert_eq!(
@@ -671,9 +672,10 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                     };
                 xor_text_manifest.identity = xor_text_manifest.recomputed_identity();
                 let xor_text_encoded = xor_text_manifest.encode();
-                assert_eq!(xor_text_encoded[45], 2);
+                assert_eq!(xor_text_encoded[45], 1);
+                assert_eq!(xor_text_encoded[46], 2);
                 assert_eq!(
-                    xor_text_encoded[46],
+                    xor_text_encoded[47],
                     Optimization::X86SelectXorZeroI64MaterializationV1 as u8
                 );
                 assert_eq!(
@@ -681,7 +683,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                     Ok(xor_text_manifest)
                 );
                 let mut unknown_text_optimization = text_encoded.clone();
-                unknown_text_optimization[46] = u8::MAX;
+                unknown_text_optimization[47] = u8::MAX;
                 assert_eq!(
                     FunctionFragmentTextSectionManifest::decode(&unknown_text_optimization),
                     Err(
@@ -691,7 +693,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                     )
                 );
                 let mut unknown_text_source = text_encoded;
-                unknown_text_source[45] = 8;
+                unknown_text_source[46] = 8;
                 assert_eq!(
                     FunctionFragmentTextSectionManifest::decode(&unknown_text_source),
                     Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(8))

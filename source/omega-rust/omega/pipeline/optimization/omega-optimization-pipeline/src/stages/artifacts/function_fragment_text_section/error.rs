@@ -4,10 +4,12 @@ use omega_isa_x86_64::{
 use psi_core::MachineId;
 
 use crate::FunctionFragmentEmissionError;
+use crate::FunctionFragmentFrameApplicationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RelocationFreeTextSectionPlacementError {
     Source(FunctionFragmentEmissionError),
+    FrameSource(FunctionFragmentFrameApplicationError),
     DuplicateFunction(MachineId),
     MissingSemanticEntry(MachineId),
     DuplicateSemanticEntry(MachineId),
@@ -18,6 +20,7 @@ pub enum RelocationFreeTextSectionPlacementError {
     UnsupportedRelocationShape,
     UnresolvedInternalMachineFixups,
     MissingInternalMachineTarget(MachineId),
+    InternalCallOutOfRange,
     StructuralUnitCallTemplate(MachineId, X86_64StructuralUnitCallTemplateError),
     StructuralUnitCallResolution(
         MachineId,
@@ -45,6 +48,8 @@ pub enum FunctionFragmentTextSectionManifestDecodeError {
     WrongMagic,
     UnsupportedVersion(u32),
     UnknownStage(u8),
+    UnknownSourceCustody(u8),
+    SourceCustodyMismatch,
     UnknownSourceKind(u8),
     UnknownPostAllocationMachineOptimization(u8),
     UnknownVocabulary(u16),

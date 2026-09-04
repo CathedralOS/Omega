@@ -88,8 +88,9 @@ needed for independent replay through publication.
   geometry, packed save/restore encodings, frame-aware exit admission, exact
   frame-bearing function-relative realization, body-fragment emission, and
   fail-closed single-block frame application through ordinary internal-call
-  fixup resolution and text placement. Then add general CFG return placement,
-  Microsoft shadow space,
+  fixup resolution and frame-application-bound text placement. Next carry that
+  role-specific text custody through object/container and callable publication;
+  then add general CFG return placement, Microsoft shadow space,
   red-zone policy, probing, unwind information, stable-address loans, and
   dynamic-allocation constraints. Requirements artifacts remain
   non-authoritative until exact physical accesses replay.

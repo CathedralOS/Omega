@@ -1,5 +1,5 @@
-mod alignment;
-mod block_spans;
+pub(super) mod alignment;
+pub(super) mod block_spans;
 mod relocation_custody;
 
 use std::collections::BTreeSet;

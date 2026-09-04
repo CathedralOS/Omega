@@ -4,7 +4,10 @@ use omega_optimization_core::{
     FunctionFragmentTextSectionManifestIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
 
-use crate::StagedOptimizedFunctionFragmentEmission;
+use crate::{
+    FunctionFragmentFrameApplicationIdentity, StagedFunctionFragmentFrameApplication,
+    StagedOptimizedFunctionFragmentEmission,
+};
 
 use super::model::FunctionFragmentTextSectionManifest;
 
@@ -90,6 +93,75 @@ pub struct StagedRelocationFreeTextSectionCustodyReceipt {
     pub(super) fragments: FunctionFragmentEmissionIdentity,
     pub(super) text_section: TerminalRelocationFreeTextSectionIdentity,
     pub(super) manifest: FunctionFragmentTextSectionManifestIdentity,
+}
+
+#[derive(Debug)]
+#[must_use = "a staged fixed-frame text section owns its exact frame-application custody"]
+pub struct StagedOptimizedFixedFrameTextSection {
+    pub(super) source: StagedFunctionFragmentFrameApplication,
+    pub(super) text_section: Box<RelocationFreeTextSectionPlacement>,
+    pub(super) manifest: ValidatedFunctionFragmentTextSectionManifest,
+    pub(super) custody: StagedFixedFrameTextSectionCustodyReceipt,
+}
+
+impl StagedOptimizedFixedFrameTextSection {
+    pub const fn source(&self) -> &StagedFunctionFragmentFrameApplication {
+        &self.source
+    }
+
+    pub fn text_section(&self) -> &RelocationFreeTextSectionPlacement {
+        self.text_section.as_ref()
+    }
+
+    pub const fn manifest(&self) -> &ValidatedFunctionFragmentTextSectionManifest {
+        &self.manifest
+    }
+
+    pub const fn custody(&self) -> StagedFixedFrameTextSectionCustodyReceipt {
+        self.custody
+    }
+
+    #[cfg(test)]
+    pub(crate) fn text_section_mut(&mut self) -> &mut RelocationFreeTextSectionPlacement {
+        self.text_section.as_mut()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn manifest_mut(&mut self) -> &mut ValidatedFunctionFragmentTextSectionManifest {
+        &mut self.manifest
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_frame_application_for_test(&mut self) {
+        self.custody.frame_application =
+            FunctionFragmentFrameApplicationIdentity::from_bytes([0xa5; 32]);
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StagedFixedFrameTextSectionCustodyReceipt {
+    pub(super) frame_application: FunctionFragmentFrameApplicationIdentity,
+    pub(super) fragments: FunctionFragmentEmissionIdentity,
+    pub(super) text_section: TerminalRelocationFreeTextSectionIdentity,
+    pub(super) manifest: FunctionFragmentTextSectionManifestIdentity,
+}
+
+impl StagedFixedFrameTextSectionCustodyReceipt {
+    pub const fn frame_application(self) -> FunctionFragmentFrameApplicationIdentity {
+        self.frame_application
+    }
+
+    pub const fn fragments(self) -> FunctionFragmentEmissionIdentity {
+        self.fragments
+    }
+
+    pub const fn text_section(self) -> TerminalRelocationFreeTextSectionIdentity {
+        self.text_section
+    }
+
+    pub const fn manifest(self) -> FunctionFragmentTextSectionManifestIdentity {
+        self.manifest
+    }
 }
 
 impl StagedRelocationFreeTextSectionCustodyReceipt {

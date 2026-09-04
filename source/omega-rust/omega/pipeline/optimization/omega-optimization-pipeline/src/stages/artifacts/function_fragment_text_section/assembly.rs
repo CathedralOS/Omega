@@ -2,14 +2,15 @@ use omega_machine_code::FunctionFragmentEmissionPlan;
 use omega_object_file::RelocationFreeTextSectionPlacement;
 use omega_optimization_core::FunctionFragmentTextSectionManifestIdentity;
 
-use crate::StagedOptimizedFunctionFragmentEmission;
+use crate::{StagedFunctionFragmentFrameApplication, StagedOptimizedFunctionFragmentEmission};
 
 use super::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
-    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
-    RelocationFreeTextSectionPlacementError, StagedRelocationFreeTextSectionCustodyReceipt,
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionSourceCustody,
+    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
+    FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError,
+    StagedFixedFrameTextSectionCustodyReceipt, StagedRelocationFreeTextSectionCustodyReceipt,
     ValidatedFunctionFragmentTextSectionManifest,
-    placement::{place_fragments, usize_to_u64},
+    placement::{place_fixed_frame_fragments, place_fragments, usize_to_u64},
 };
 
 pub(super) fn compute(
@@ -24,11 +25,53 @@ pub(super) fn compute(
     let fragments = source.fragments();
     let source_manifest = source.manifest().record();
     let text_section = place_fragments(source)?;
-    let statistics = statistics(&text_section, fragments)?;
+    let manifest = manifest(
+        source_manifest,
+        FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1,
+        FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1,
+        &text_section,
+        fragments,
+    )?;
+    Ok((text_section, manifest))
+}
+
+pub(super) fn compute_fixed_frame(
+    source: &StagedFunctionFragmentFrameApplication,
+) -> Result<
+    (
+        RelocationFreeTextSectionPlacement,
+        ValidatedFunctionFragmentTextSectionManifest,
+    ),
+    RelocationFreeTextSectionPlacementError,
+> {
+    let fragments = source.fragments();
+    let source_manifest = source.source().manifest().record();
+    let text_section = place_fixed_frame_fragments(source)?;
+    let manifest = manifest(
+        source_manifest,
+        FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
+        FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 {
+            application: source.receipt().identity(),
+        },
+        &text_section,
+        fragments,
+    )?;
+    Ok((text_section, manifest))
+}
+
+fn manifest(
+    source_manifest: &crate::FunctionFragmentEmissionManifest,
+    stage: FunctionFragmentTextSectionStage,
+    source_custody: FunctionFragmentTextSectionSourceCustody,
+    text_section: &RelocationFreeTextSectionPlacement,
+    fragments: &FunctionFragmentEmissionPlan,
+) -> Result<ValidatedFunctionFragmentTextSectionManifest, RelocationFreeTextSectionPlacementError> {
+    let statistics = statistics(text_section, fragments)?;
     let unavailable = FunctionFragmentTextSectionUnavailableData::Unavailable;
     let mut record = FunctionFragmentTextSectionManifest {
         identity: FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"pending"),
-        stage: FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1,
+        stage,
+        source_custody,
         source_kind: source_manifest.source_kind,
         source_fragment_manifest: source_manifest.identity,
         source_realization: source_manifest.source_realization,
@@ -41,7 +84,7 @@ pub(super) fn compute(
         final_pre_layout: source_manifest.final_pre_layout,
         final_resolved_layout: source_manifest.final_resolved_layout,
         whole_function_exit_contract: source_manifest.whole_function_exit_contract,
-        fragments: source_manifest.fragments,
+        fragments: fragments.identity,
         target: source_manifest.target,
         semantic_entry: text_section.semantic_entry,
         semantic_entry_offset: text_section.semantic_entry_offset,
@@ -57,10 +100,7 @@ pub(super) fn compute(
         publication: unavailable,
     };
     record.identity = record.recomputed_identity();
-    Ok((
-        text_section,
-        ValidatedFunctionFragmentTextSectionManifest { record },
-    ))
+    Ok(ValidatedFunctionFragmentTextSectionManifest { record })
 }
 
 fn statistics(
@@ -69,9 +109,6 @@ fn statistics(
 ) -> Result<FunctionFragmentTextSectionStatistics, RelocationFreeTextSectionPlacementError> {
     let mut result = FunctionFragmentTextSectionStatistics::default();
     if fragments.structural_unit_functions.is_empty() {
-        if !section.resolved_internal_machine_calls.is_empty() {
-            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
-        }
         result.functions = usize_to_u64(section.functions.len())?;
         result.bytes = section.byte_count;
         for function in &section.functions {
@@ -91,6 +128,24 @@ fn statistics(
                         .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
                 }
             }
+        }
+        result.source_internal_machine_fixups = fragments
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.instructions)
+            .filter(|instruction| instruction.internal_machine_fixup.is_some())
+            .count()
+            .try_into()
+            .map_err(|_| RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
+        result.resolved_internal_machine_fixups =
+            usize_to_u64(section.resolved_internal_machine_calls.len())?;
+        result.remaining_internal_machine_fixups = result
+            .source_internal_machine_fixups
+            .checked_sub(result.resolved_internal_machine_fixups)
+            .ok_or(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups)?;
+        if result.remaining_internal_machine_fixups != 0 {
+            return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
         }
         return Ok(result);
     }
@@ -142,6 +197,19 @@ fn statistics(
         return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
     }
     Ok(result)
+}
+
+pub(super) fn fixed_frame_receipt(
+    source: &StagedFunctionFragmentFrameApplication,
+    manifest: &ValidatedFunctionFragmentTextSectionManifest,
+    section: &RelocationFreeTextSectionPlacement,
+) -> StagedFixedFrameTextSectionCustodyReceipt {
+    StagedFixedFrameTextSectionCustodyReceipt {
+        frame_application: source.receipt().identity(),
+        fragments: section.source_fragments,
+        text_section: section.identity,
+        manifest: manifest.record.identity,
+    }
 }
 
 pub(super) fn receipt(

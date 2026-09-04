@@ -181,8 +181,9 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
             FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
         );
         let text_encoded = placed.manifest().record().encode();
-        assert_eq!(&text_encoded[8..12], &10_u32.to_le_bytes());
-        assert_eq!(text_encoded[45], 3);
+        assert_eq!(&text_encoded[8..12], &11_u32.to_le_bytes());
+        assert_eq!(text_encoded[45], 1);
+        assert_eq!(text_encoded[46], 3);
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&text_encoded),
             Ok(placed.manifest().record().clone())
