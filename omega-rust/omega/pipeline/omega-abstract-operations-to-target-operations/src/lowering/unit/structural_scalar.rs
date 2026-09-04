@@ -73,9 +73,25 @@ pub(super) fn lower_field_store(
         .get(&value.value)
         .copied()
         .ok_or(LoweringError::UnknownValue(value.value))?;
-    if known_value.scalar_type() != integer_type
-        || !matches!(known_value, KnownUnitInteger::Immediate { .. })
-    {
+    let exact_source = match known_value {
+        KnownUnitInteger::Parameter {
+            parameter_index: 0,
+            scalar_type,
+        } => {
+            scalar_type == integer_type
+                && matches!(
+                    function.parameters.as_slice(),
+                    [parameter]
+                        if parameter.value == value.value
+                            && parameter.scalar_type == value.scalar_type
+                )
+        }
+        KnownUnitInteger::Immediate { scalar_type, .. } => {
+            scalar_type == integer_type && function.parameters.is_empty()
+        }
+        _ => false,
+    };
+    if !exact_source || function.structural_parameters.len() != 1 {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));

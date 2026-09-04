@@ -2578,6 +2578,7 @@ pub(super) fn lower_attached_unit_closure_including(
                             store.statement_index,
                             destination,
                             &structural_types,
+                            &plan.scalar_parameters,
                             crate::structural_scalar_store::StoreAccessPolicy::Exclusive,
                         )?;
                     let value = lower_checked_scalar_expression(&store.value)?;
@@ -2586,6 +2587,11 @@ pub(super) fn lower_attached_unit_closure_including(
                             "structural scalar store value type disagrees with its field",
                         );
                     }
+                    let source_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
+                    validate_direct_parameter_types(&value, &source_types)?;
                     let value = emit_direct_expression(
                         &value,
                         &scalar_result_values,

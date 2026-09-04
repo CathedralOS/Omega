@@ -25,14 +25,17 @@ pub(super) fn build_structural_scalar_field_store(
             CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
         )
         || !destination.qualifications.is_empty()
-        || !scalar_parameters.is_empty()
+        || scalar_parameters.len() > 1
     {
         return None;
     }
-    let [parameter] = program.state_parameters(state) else {
-        return None;
-    };
-    if parameter.is_self || parameter.is_const || !parameter.is_mutable {
+    let source_parameters = program.state_parameters(state);
+    let parameter = source_parameters.first()?;
+    if source_parameters.len() != scalar_parameters.len() + 1
+        || parameter.is_self
+        || parameter.is_const
+        || !parameter.is_mutable
+    {
         return None;
     }
     let TypeReferenceNode::Reference {
@@ -125,9 +128,22 @@ pub(super) fn build_structural_scalar_field_store(
         0,
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
-    if !matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
-        || crate::values::scalar_expression_type(value) != Some(primitive_type)
-    {
+    let exact_source = match scalar_parameters {
+        [] => matches!(value, CheckedScalarExpression::IntegerLiteral { .. }),
+        [scalar_parameter] => {
+            scalar_parameter.source_position == 1
+                && scalar_parameter.primitive_type == primitive_type
+                && matches!(
+                    value,
+                    CheckedScalarExpression::Parameter {
+                        position: 0,
+                        primitive_type: source_type,
+                    } if *source_type == primitive_type
+                )
+        }
+        _ => false,
+    };
+    if !exact_source || crate::values::scalar_expression_type(value) != Some(primitive_type) {
         return None;
     }
     Some(CheckedStructuralScalarFieldStorePlan {

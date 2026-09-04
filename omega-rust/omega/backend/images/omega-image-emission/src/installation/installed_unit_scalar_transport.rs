@@ -383,37 +383,164 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                 .unit_parameter_homes
                 .get(parameter_index)
                 .ok_or_else(invalid)?;
-            let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-                defining_operation,
-                source_value,
-                scalar_type,
-                value,
-            } = store.source
-            else {
-                return Err(invalid());
+            let (source_is_exact, width, bits) = match store.source {
+                omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                    parameter_index,
+                    source_value,
+                    scalar_type,
+                    location,
+                } => {
+                    let psi_core::ScalarType::Integer(_) = scalar_type else {
+                        return Err(invalid());
+                    };
+                    let abi = function.unit_scalar_abi.as_ref().ok_or_else(invalid)?;
+                    let scalar_parameter_index =
+                        usize::try_from(parameter_index).map_err(|_| invalid())?;
+                    let scalar_parameter = abi
+                        .parameters
+                        .get(scalar_parameter_index)
+                        .ok_or_else(invalid)?;
+                    let (scalar_shape, width) =
+                        installed_native_scalar_shape(scalar_type).ok_or_else(invalid)?;
+                    let (expected_location, placed_byte_size) = match scalar_parameter
+                        .placement
+                        .locations
+                        .as_slice()
+                    {
+                        [
+                            ValueLocation::Register {
+                                register,
+                                value_byte_offset: 0,
+                                byte_size,
+                            },
+                        ] => (
+                            omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                                *register,
+                            ),
+                            *byte_size,
+                        ),
+                        [
+                            ValueLocation::Stack {
+                                stack_byte_offset,
+                                value_byte_offset: 0,
+                                byte_size,
+                                ..
+                            },
+                        ] => (
+                            omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                                byte_offset: *stack_byte_offset,
+                            },
+                            *byte_size,
+                        ),
+                        _ => return Err(invalid()),
+                    };
+                    let mut parameter_shapes = abi
+                        .parameters
+                        .iter()
+                        .map(|parameter| {
+                            let (shape, _) = installed_native_scalar_shape(parameter.scalar_type)?;
+                            (parameter.placement.shape == shape).then_some(shape)
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or_else(invalid)?;
+                    parameter_shapes.push(parameter.shape);
+                    let expected_plan = evaluate_call_plan(
+                        CallingPolicy::native_for_target(record.target),
+                        &CallSignature {
+                            parameters: parameter_shapes,
+                            result: None,
+                        },
+                    )
+                    .map_err(|_| invalid())?;
+                    (
+                        function.unit_parameters.len() == 1
+                            && abi.parameters.len() == 1
+                            && scalar_parameter_index == 0
+                            && scalar_parameter.value == source_value
+                            && scalar_parameter.scalar_type == scalar_type
+                            && scalar_parameter.placement.shape == scalar_shape
+                            && placed_byte_size == width
+                            && location == expected_location
+                            && abi.call_plan == expected_plan
+                            && abi.call_plan.parameters.first()
+                                == Some(&scalar_parameter.placement)
+                            && abi.call_plan.parameters.get(1) == Some(&home.source),
+                        width,
+                        None,
+                    )
+                }
+                omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                    defining_operation,
+                    source_value,
+                    scalar_type,
+                    value,
+                } => {
+                    let source_count = function
+                        .unit_integer_constants
+                        .iter()
+                        .filter(|constant| {
+                            constant.defining_operation == defining_operation
+                                && constant.source_value == source_value
+                                && constant.scalar_type == scalar_type
+                                && constant.value == value
+                                && constant.operation_ordinal < store.operation_ordinal
+                        })
+                        .count();
+                    let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
+                    (
+                        source_count == 1
+                            && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
+                            && !scalar_type.is_address()
+                            && scalar_type.admits(value),
+                        width,
+                        Some(
+                            crate::unit_structural_scalar_field_store::integer_bits(
+                                scalar_type,
+                                value,
+                            )
+                            .ok_or_else(invalid)?,
+                        ),
+                    )
+                }
+                _ => return Err(invalid()),
             };
-            let source_count = function
-                .unit_integer_constants
-                .iter()
-                .filter(|constant| {
-                    constant.defining_operation == defining_operation
-                        && constant.source_value == source_value
-                        && constant.scalar_type == scalar_type
-                        && constant.value == value
-                        && constant.operation_ordinal < store.operation_ordinal
-                })
-                .count();
-            let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
-            let bits = crate::unit_structural_scalar_field_store::integer_bits(scalar_type, value)
-                .ok_or_else(invalid)?;
-            let expected_bytes = crate::unit_structural_scalar_field_store::expected_store_bytes(
-                record.target,
-                home,
-                store.field_byte_offset,
-                width,
-                bits,
-            )
-            .ok_or_else(invalid)?;
+            let expected_bytes = match store.source {
+                omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+                    ..
+                } => crate::unit_structural_scalar_field_store::expected_parameter_store_bytes(
+                    record.target,
+                    home,
+                    store.field_byte_offset,
+                    width,
+                    register,
+                )
+                .ok_or_else(invalid)?,
+                omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset,
+                        },
+                    ..
+                } => crate::unit_structural_scalar_field_store::expected_incoming_parameter_store_bytes(
+                    record.target,
+                    home,
+                    store.field_byte_offset,
+                    width,
+                    byte_offset,
+                    function.unit_stack.as_ref().ok_or_else(invalid)?.frame_bytes,
+                )
+                .ok_or_else(invalid)?,
+                _ => crate::unit_structural_scalar_field_store::expected_store_bytes(
+                    record.target,
+                    home,
+                    store.field_byte_offset,
+                    width,
+                    bits.ok_or_else(invalid)?,
+                )
+                .ok_or_else(invalid)?,
+            };
             let end = store
                 .code_offset
                 .checked_add(store.byte_count)
@@ -449,10 +576,7 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                 || store.destination_placement != home.source
                 || store.parameter_home_byte_offset != home.byte_offset
                 || store.parameter_home_indirect != home.indirect
-                || source_count != 1
-                || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
-                || scalar_type.is_address()
-                || !scalar_type.admits(value)
+                || !source_is_exact
                 || store
                     .field_byte_offset
                     .checked_add(u32::from(width))

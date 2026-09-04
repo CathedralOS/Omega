@@ -19,6 +19,7 @@ pub(super) fn lower_structural_scalar_store_destination(
     expected_statement_index: u32,
     parameter: &StructuralParameterDeclaration,
     structural_types: &[StructuralTypeDeclaration],
+    scalar_parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
     access_policy: StoreAccessPolicy,
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
     let access_matches = match access_policy {
@@ -37,7 +38,7 @@ pub(super) fn lower_structural_scalar_store_destination(
         || !parameter.projected_qualifications.is_empty()
         || store.statement_index != expected_statement_index
         || store.destination_parameter_position != parameter.position
-        || !checked_store_literal_matches(&store.value, store.primitive_type)
+        || !checked_store_source_matches(&store.value, store.primitive_type, scalar_parameters)
     {
         return unsupported("structural scalar store lost exact exclusive custody");
     }
@@ -101,6 +102,28 @@ pub(super) fn lower_structural_scalar_store_destination(
         field: field.id,
         scalar_type,
     })
+}
+
+fn checked_store_source_matches(
+    value: &CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+    scalar_parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
+) -> bool {
+    match scalar_parameters {
+        [] => checked_store_literal_matches(value, primitive_type),
+        [parameter] => {
+            parameter.source_position == 1
+                && parameter.primitive_type == primitive_type
+                && matches!(
+                    value,
+                    CheckedScalarExpression::Parameter {
+                        position: 0,
+                        primitive_type: source_type,
+                    } if *source_type == primitive_type
+                )
+        }
+        _ => false,
+    }
 }
 
 pub(super) fn checked_store_literal_matches(

@@ -1392,7 +1392,11 @@ fn build_object_artifact_with_x86_feature_profile(
             function,
             validated_function_stack.as_ref(),
         )?;
-        validate_unit_structural_scalar_field_stores(plan.target, function)?;
+        validate_unit_structural_scalar_field_stores(
+            plan.target,
+            function,
+            validated_function_stack.as_ref(),
+        )?;
         validate_scalar_structural_scalar_field_stores(plan.target, function)?;
         match (&function.unit_stack, &function.unit_affine_cleanup) {
             (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(

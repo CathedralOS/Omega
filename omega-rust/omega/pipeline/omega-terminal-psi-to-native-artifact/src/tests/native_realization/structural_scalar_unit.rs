@@ -41,6 +41,10 @@ const WRITE_ONLY_SOURCE: &str = r#"
     machine Sink::nested(outer: &write Outer) {
         outer.inner.value = 19;
     }
+
+    machine Sink::parameter(pair: &write Pair, replacement: u16) {
+        pair.target = replacement;
+    }
 "#;
 
 #[test]
@@ -104,6 +108,120 @@ fn direct_dynamic_projected_store_and_call_reach_machine_custody() {
         assert_eq!(call.arguments.len(), 1);
         assert_eq!(call.arguments[0].path.len(), 1);
         assert_eq!(call.arguments[0].source_byte_offset, 0);
+    }
+}
+
+#[test]
+fn parameter_sourced_write_only_field_store_reaches_canonical_installation() {
+    let checked = checked(WRITE_ONLY_SOURCE);
+    let terminal =
+        psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, "Sink::parameter")
+            .expect("parameter-sourced field store reaches canonical Terminal");
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
+        terminal.semantic_bytes(),
+        terminal.proof_bytes(),
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("verified parameter-sourced field store reaches target-neutral Omega");
+
+    for native_target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstract_plan,
+            native_target,
+        )
+        .expect("parameter-sourced field store reaches target custody");
+        let body = target
+            .functions
+            .iter()
+            .find_map(|function| match &function.operation {
+                omega_target_operations::TargetOperation::UnitBody(body) => Some(body),
+                _ => None,
+            })
+            .expect("one target Unit body");
+        let [scalar_parameter] = body.scalar_parameters.as_slice() else {
+            panic!("one target scalar parameter")
+        };
+        assert!(body.operations.iter().any(|operation| matches!(
+            operation,
+            omega_target_operations::TargetUnitOperation::StructuralScalarFieldStore {
+                source: omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: 0,
+                    source_value,
+                    scalar_type,
+                },
+                ..
+            } if *source_value == scalar_parameter.value
+                && *scalar_type == scalar_parameter.scalar_type
+        )));
+
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target)
+                .expect("parameter-sourced field store reaches physical assignment");
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("parameter-sourced field store reaches machine emission");
+        let function = emitted
+            .functions
+            .iter()
+            .find(|function| function.unit_structural_scalar_field_stores.len() == 1)
+            .expect("one machine owns the parameter-sourced field store");
+        let store = &function.unit_structural_scalar_field_stores[0];
+        assert_eq!(store.field_byte_offset, 2);
+        assert!(matches!(
+            store.source,
+            omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                parameter_index: 0,
+                source_value,
+                scalar_type,
+                location: omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+            } if source_value == scalar_parameter.value
+                && scalar_type == scalar_parameter.scalar_type
+                && register.architecture() == native_target.architecture
+        ));
+
+        let mut corrupted = emitted.clone();
+        let corrupted_source = &mut corrupted
+            .functions
+            .iter_mut()
+            .find(|candidate| candidate.machine == function.machine)
+            .unwrap()
+            .unit_structural_scalar_field_stores[0]
+            .source;
+        let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            ..
+        } = corrupted_source
+        else {
+            unreachable!()
+        };
+        *parameter_index = 1;
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&corrupted),
+            Err(
+                omega_image_emission::ObjectError::InvalidUnitStructuralScalarFieldStoreEvidence(
+                    function.machine,
+                ),
+            )
+        );
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object replay accepts the parameter-sourced field store");
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("parameter-sourced field store reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains the parameter-sourced field store");
+        let encoded = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode parameter-sourced field-store custody");
+        let decoded = omega_image_emission::decode_installation_record(&encoded)
+            .expect("decode parameter-sourced field-store custody");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("installation independently replays the parameter-sourced field store");
     }
 }
 

@@ -337,7 +337,7 @@ fn validate_store(
     Some(())
 }
 
-fn native_scalar_shape(scalar_type: ScalarType) -> Option<(ValueShape, u16)> {
+pub(crate) fn native_scalar_shape(scalar_type: ScalarType) -> Option<(ValueShape, u16)> {
     match scalar_type {
         ScalarType::Boolean => Some((ValueShape::integer(1, 1), 1)),
         ScalarType::Integer(integer)

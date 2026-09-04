@@ -1,6 +1,7 @@
 //! Independent object replay for fixed-width immediate stores into staged
 //! attached-Unit structural parameter homes.
 
+use omega_calling_conventions::{CallSignature, CallingPolicy, ValueLocation, evaluate_call_plan};
 use omega_machine_code::{
     InternalUnitScalarArgumentSourceRecord, MachineCodeFunction, SemanticCodeSite,
     UnitStructuralScalarFieldStoreRecord,
@@ -9,15 +10,16 @@ use omega_target::{Architecture, NativeTarget};
 use psi_core::{IntegerSign, IntegerType, IntegerValue};
 use psi_terminal::StructuralAccess;
 
-use super::ObjectError;
 use super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_stack_load, expected_x86_stack_load,
     x86_terminal_register,
 };
+use super::{ObjectError, ObjectUnitStack};
 
 pub(super) fn validate_unit_structural_scalar_field_stores(
     target: NativeTarget,
     function: &MachineCodeFunction,
+    validated_function_stack: Option<&ObjectUnitStack>,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidUnitStructuralScalarFieldStoreEvidence(function.machine);
     let mut previous = None;
@@ -26,7 +28,7 @@ pub(super) fn validate_unit_structural_scalar_field_stores(
         if previous.is_some_and(|previous| previous >= key) {
             return Err(invalid());
         }
-        validate_store(target, function, store).ok_or_else(invalid)?;
+        validate_store(target, function, validated_function_stack, store).ok_or_else(invalid)?;
         previous = Some(key);
     }
     Ok(())
@@ -35,6 +37,7 @@ pub(super) fn validate_unit_structural_scalar_field_stores(
 fn validate_store(
     target: NativeTarget,
     function: &MachineCodeFunction,
+    validated_function_stack: Option<&ObjectUnitStack>,
     store: &UnitStructuralScalarFieldStoreRecord,
 ) -> Option<()> {
     let parameter_index = usize::try_from(store.destination.position).ok()?;
@@ -65,31 +68,113 @@ fn validate_store(
     {
         return None;
     }
-    let InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-        defining_operation,
-        source_value,
-        scalar_type,
-        value,
-    } = store.source
-    else {
-        return None;
+    let (source_is_exact, byte_size, bits) = match store.source {
+        InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } => {
+            let psi_core::ScalarType::Integer(_) = scalar_type else {
+                return None;
+            };
+            let abi = function.unit_scalar_abi.as_ref()?;
+            let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
+            let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
+            let (scalar_shape, byte_size) =
+                super::unit_write_only_primitive_store::native_scalar_shape(scalar_type)?;
+            let (expected_location, placed_byte_size) =
+                match scalar_parameter.placement.locations.as_slice() {
+                    [
+                        ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size,
+                        },
+                    ] => (
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(*register),
+                        *byte_size,
+                    ),
+                    [
+                        ValueLocation::Stack {
+                            stack_byte_offset,
+                            value_byte_offset: 0,
+                            byte_size,
+                            ..
+                        },
+                    ] => (
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset: *stack_byte_offset,
+                        },
+                        *byte_size,
+                    ),
+                    _ => return None,
+                };
+            let mut parameter_shapes = abi
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    let (shape, _) = super::unit_write_only_primitive_store::native_scalar_shape(
+                        parameter.scalar_type,
+                    )?;
+                    (parameter.placement.shape == shape).then_some(shape)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            parameter_shapes.push(parameter.shape);
+            let expected_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: parameter_shapes,
+                    result: None,
+                },
+            )
+            .ok()?;
+            (
+                function.unit_parameters.len() == 1
+                    && abi.parameters.len() == 1
+                    && scalar_parameter_index == 0
+                    && scalar_parameter.value == source_value
+                    && scalar_parameter.scalar_type == scalar_type
+                    && scalar_parameter.placement.shape == scalar_shape
+                    && placed_byte_size == byte_size
+                    && location == expected_location
+                    && abi.call_plan == expected_plan
+                    && abi.call_plan.parameters.first() == Some(&scalar_parameter.placement)
+                    && abi.call_plan.parameters.get(1) == Some(&home.source),
+                byte_size,
+                None,
+            )
+        }
+        InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => {
+            let source_count = function
+                .unit_integer_constants
+                .iter()
+                .filter(|constant| {
+                    constant.defining_operation == defining_operation
+                        && constant.source_value == source_value
+                        && constant.scalar_type == scalar_type
+                        && constant.value == value
+                        && constant.operation_ordinal < store.operation_ordinal
+                })
+                .count();
+            let byte_size = scalar_type.bits().checked_div(8)?;
+            (
+                source_count == 1
+                    && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
+                    && !scalar_type.is_address()
+                    && scalar_type.admits(value),
+                byte_size,
+                Some(integer_bits(scalar_type, value)?),
+            )
+        }
+        _ => return None,
     };
-    let source_count = function
-        .unit_integer_constants
-        .iter()
-        .filter(|constant| {
-            constant.defining_operation == defining_operation
-                && constant.source_value == source_value
-                && constant.scalar_type == scalar_type
-                && constant.value == value
-                && constant.operation_ordinal < store.operation_ordinal
-        })
-        .count();
-    let byte_size = scalar_type.bits().checked_div(8)?;
-    if source_count != 1
-        || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
-        || scalar_type.is_address()
-        || !scalar_type.admits(value)
+    if !source_is_exact
         || store
             .field_byte_offset
             .checked_add(u32::from(byte_size))
@@ -97,8 +182,31 @@ fn validate_store(
     {
         return None;
     }
-    let bits = integer_bits(scalar_type, value)?;
-    let expected = expected_store_bytes(target, home, store.field_byte_offset, byte_size, bits)?;
+    let expected = match store.source {
+        InternalUnitScalarArgumentSourceRecord::Parameter {
+            location: omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+            ..
+        } => expected_parameter_store_bytes(
+            target,
+            home,
+            store.field_byte_offset,
+            byte_size,
+            register,
+        )?,
+        InternalUnitScalarArgumentSourceRecord::Parameter {
+            location:
+                omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack { byte_offset },
+            ..
+        } => expected_incoming_parameter_store_bytes(
+            target,
+            home,
+            store.field_byte_offset,
+            byte_size,
+            byte_offset,
+            validated_function_stack?.frame_bytes,
+        )?,
+        _ => expected_store_bytes(target, home, store.field_byte_offset, byte_size, bits?)?,
+    };
     let end = store.code_offset.checked_add(store.byte_count)?;
     if store.byte_count == 0
         || store.byte_count != expected.len()

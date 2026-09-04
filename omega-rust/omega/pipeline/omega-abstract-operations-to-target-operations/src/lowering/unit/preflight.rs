@@ -54,15 +54,24 @@ fn has_parameter_sourced_unit_call_shape(function: &AbstractFunction) -> bool {
 }
 
 fn has_parameter_sourced_store_shape(function: &AbstractFunction) -> bool {
-    matches!(
-        function.operations.as_slice(),
+    match function.operations.as_slice() {
         [
             AbstractOperation::WriteOnlyPrimitiveStore { value, .. },
             AbstractOperation::ReturnUnit { .. },
-        ] if function.parameters.iter().any(|parameter| {
+        ] => function.parameters.iter().any(|parameter| {
             value.value == parameter.value && value.scalar_type == parameter.scalar_type
-        })
-    )
+        }),
+        [
+            AbstractOperation::StructuralScalarFieldStore { value, .. },
+            AbstractOperation::ReturnUnit { .. },
+        ] => matches!(
+            function.parameters.as_slice(),
+            [parameter]
+                if value.value == parameter.value
+                    && value.scalar_type == parameter.scalar_type
+        ),
+        _ => false,
+    }
 }
 
 fn has_bounded_scalar_parameter_shape(function: &AbstractFunction) -> bool {

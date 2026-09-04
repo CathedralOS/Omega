@@ -156,8 +156,9 @@ storage containing no live `T` is a separate feature.
 > range with a
 > same-width array literal when both bounds are integer literals or finite
 > immutable local-copy chains, replace an unrestricted primitive leaf through a
-> finite path of relevant unconstrained
-> common fields in plain invariant-free records, read a literal fixed-array
+> finite path of relevant unconstrained common fields in plain invariant-free
+> records from either a fixed-integer literal or one exact same-typed
+> fixed-integer parameter, read a literal fixed-array
 > length as static metadata through the same eligible record paths, and forward
 > the loan explicitly. One projected subloan form may pass
 > `&write root.field...leaf` directly to a checked call when the complete field
@@ -224,6 +225,13 @@ IEEE float literals retain their raw-bit source and definition ordinal through
 the same pipeline without requiring floating-register custody. Object
 construction and installation format 73 rejoin and transport all three
 families. Opaque-provider non-observation guarantees remain fail closed.
+The projected-record sibling carries one fixed-integer literal or one exact
+same-typed fixed-integer parameter into a relevant primitive field through a
+finite field-only path. The parameter form keeps a single structural
+destination followed by a single scalar source; target assignment, machine
+emission, object construction, and installed replay reconstruct its exact ABI
+location and field offset on both Linux targets.
+Wider scalar rosters and result-home sources remain gated for projected stores.
 
 A partial write must leave `T` valid at the ordinary invariant-window
 consumption points. The checker may prove that from the written inputs, static
