@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 129 and row schema version 87. This file
+The canonical review schema is version 130 and row schema version 88. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -20,7 +20,7 @@ for root admission, and compiler-retained contract-entailment stand-downs open
 for later discharge. The outer ledger encoding remains version 2; no new
 persistence authority is introduced.
 
-Schema v129 / row v87 / recovery v23 replaces the D29 symbolic-demand row's
+Schema v130 / row v88 / recovery v23 replaces the D29 symbolic-demand row's
 operator nominal with the complete reviewed operator-overload coordinate. The
 stable requirement identity remains independent and must rejoin that exact
 coordinate at final substitution. This prevents same-path overloads from

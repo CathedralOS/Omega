@@ -69,7 +69,14 @@ struct ReviewedArtifacts {
 }
 
 fn reviewed_fixture() -> Option<ReviewedArtifacts> {
-    let target = host_target_name()?;
+    let Some(target) = host_target_name() else {
+        eprintln!(
+            "SKIP symbolic boundary application fixture: unsupported host {}/{}",
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+        );
+        return None;
+    };
     let tree = TemporaryPackage::new();
     let producer = tree.0.join("producer");
     let consumer = tree.0.join("consumer");
