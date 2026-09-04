@@ -55,6 +55,7 @@ pub(super) fn assign_statement_reference_symbols(
             attached_data_symbol: machine.attached_data_symbol,
             inherited_data_members,
             owned_data: machine_owned_data.span_or_empty(*owned_data),
+            prior_statements: &[],
             data_definitions,
             data_members,
         };
@@ -62,16 +63,22 @@ pub(super) fn assign_statement_reference_symbols(
             let state = machine_states.get_mut(state);
             let state_symbol = state.symbol;
             let parameters = state_parameters.span_or_empty(state.parameters);
-            for statement in state_statements.span_mut_or_empty(state.statements) {
+            let statements = state_statements.span_mut_or_empty(state.statements);
+            for index in 0..statements.len() {
+                let (prior_statements, remaining) = statements.split_at_mut(index);
+                let scope = MachineScope {
+                    prior_statements,
+                    ..machine_scope
+                };
                 assign_statement_symbols(
-                    &machine_scope,
+                    &scope,
                     parameters,
                     state_symbol,
                     expression_table,
                     child_type_references,
                     type_constraints,
                     statement_path_members,
-                    statement,
+                    &mut remaining[0],
                     symbols,
                 );
             }

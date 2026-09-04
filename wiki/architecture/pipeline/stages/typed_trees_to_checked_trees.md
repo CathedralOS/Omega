@@ -687,8 +687,10 @@ Current ownership is:
   generic formal context does not authorize newly admitted computed values.
   Existing pure places and direct-call trees
   keep their prior admission; this is not an independent full typing check.
-  Attached calls on local receivers that still lack a resolved target symbol
-  remain opaque: a member spelling alone does not select an internal signature.
+  Attached calls on preceding declared locals consume the target symbol stamped
+  by name resolution. Their computed arguments use the same formal-type and
+  write-frame rules as other resolved internal calls; no frame-side member-name
+  lookup is needed. Receivers that still lack a resolved target remain opaque.
   A recursive or opaque call, binding reborrow, or
   unsupported expression rejects the whole tree, including when it occurs in
   just one sibling. Frame inference retains its active-state recursion checks.

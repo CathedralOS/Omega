@@ -1,4 +1,4 @@
-use psi_symbols::{SymbolHandle, SymbolTable};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::scope::MachineScope;
 use super::super::targets::resolve_call_target_symbol;
@@ -39,8 +39,10 @@ pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
         // top-level declaration. Preserve the call-shaped source surface by
         // resolving that declaration directly; content validation still
         // requires the exact compiler-owned projection plan.
-        if let psi_symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-            expression_table.expression(call.receiver)
+        if (!receiver_symbol.is_valid()
+            || matches!(symbols.get(receiver_symbol).kind, SymbolKind::Domain))
+            && let psi_symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+                expression_table.expression(call.receiver)
             && let [owner] = expression_table.name_path_members(path.members)
         {
             return super::super::lookup::call_target_for_attached_data(

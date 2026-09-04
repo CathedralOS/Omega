@@ -11,6 +11,10 @@ pub(super) struct MachineScope<'program> {
     pub(super) inherited_data_members:
         Option<&'program [psi_symbol_resolved_trees::data::DataMember]>,
     pub(super) owned_data: &'program [psi_symbol_resolved_trees::machine::OwnedData],
+    /// Only the already-stamped prefix of the current state's statements.
+    /// Local receiver types cannot come from a later declaration or from the
+    /// binding whose initializer is currently being resolved.
+    pub(super) prior_statements: &'program [psi_symbol_resolved_trees::statement::Statement],
     /// All top-level data definitions and the shared member arena -- lets the
     /// receiver walk resolve a NESTED member chain's declared field types
     /// (`self.p.a` -> `p: PairD` -> `a: BoxI`). Empty for scopes built outside

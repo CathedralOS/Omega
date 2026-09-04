@@ -45,6 +45,7 @@ pub(super) fn assign_contract_reference_symbols(
             inherited_data_members: data_definition
                 .map(|definition| data_members.span_or_empty(definition.members)),
             owned_data: machine_owned_data.span_or_empty(machine.owned_data),
+            prior_statements: &[],
             data_definitions,
             data_members,
         };
@@ -94,6 +95,7 @@ pub(super) fn assign_contract_reference_symbols(
             attached_data_symbol: SymbolHandle::invalid(),
             inherited_data_members: None,
             owned_data: &[],
+            prior_statements: &[],
             data_definitions,
             data_members,
         };

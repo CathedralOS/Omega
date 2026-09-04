@@ -147,15 +147,27 @@ fn computed_call_arguments_preserve_every_write_and_reject_hostile_siblings() {
             false,
         ),
         (
-            "unresolved_attached_statement",
+            "local_attached_statement",
             "let pair: Pair = Pair { first: 0, second: 0 }; pair.consume(compute(audit) + 1);",
-            false,
+            true,
             false,
         ),
         (
-            "unresolved_attached_expression",
+            "local_attached_expression",
             "let pair: Pair = Pair { first: 0, second: 0 }; value = pair.identity(compute(audit) + 1);",
+            true,
             false,
+        ),
+        (
+            "local_mutating_receiver",
+            "let mut pair: Pair = Pair { first: 0, second: 0 }; pair.overwrite(compute(audit) + 1);",
+            true,
+            false,
+        ),
+        (
+            "local_reference_receiver",
+            "let mut pair: Pair = Pair { first: 0, second: 0 }; let receiver: &mut Pair = &mut pair; receiver.overwrite(compute(audit) + 1);",
+            true,
             false,
         ),
         (
@@ -258,6 +270,7 @@ fn computed_call_arguments_preserve_every_write_and_reject_hostile_siblings() {
     machine consume_generic(value: GenericPair<u64>) {}
     machine Pair::consume(&self, value: u64) {}
     machine Pair::identity(&self, value: u64) -> u64 { value }
+    machine Pair::overwrite(&mut self, value: u64) { self.first = value; }
     machine make_reference_record(value: &mut u64) -> ReferenceRecord {
         ReferenceRecord { value: value, count: 0 }
     }

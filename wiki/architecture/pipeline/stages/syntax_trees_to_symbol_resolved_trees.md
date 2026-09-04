@@ -189,6 +189,13 @@ task:
   state parameters, machine children, attached data, and top-level symbols.
 - `symbols/scope.rs` owns `MachineScope`, the local identity context shared by
   statement, expression, call, and transition resolution.
+  Body resolution supplies only the already-stamped prefix of the current
+  state's statements. Calls through a local select their attached target from
+  that exact local symbol's declared type, peeling reference/constraint shells
+  without treating a whole array or slice as an element receiver. A missing
+  method, self-initializer, or later declaration remains unresolved; a local's
+  spelling cannot select a same-named field, free machine, or type/domain home.
+  This stamps a candidate, not evidence of call legality or runtime support.
 - `symbols/domain_facts.rs` stamps domain/proof fact references.
 - `symbols/statements.rs` walks machine states and constructs the machine/state
   context for statement reference stamping. `symbols/statements/routing.rs`
