@@ -220,7 +220,6 @@ fn build_action(
                 action,
                 point,
                 before_instruction,
-                destination_class: _,
                 ..
             } if action == choice.source_pressure && point == choice.point => {
                 if pressure_instruction.replace(before_instruction).is_some() {

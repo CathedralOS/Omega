@@ -11,7 +11,7 @@ pub(crate) fn local_schema_field_discriminator(schema: &str, field: &str) -> u64
     // schema structure supplies durable identity. Zero remains the unused-tail
     // sentinel.
     let mut hash = 0xcbf29ce484222325_u64;
-    for byte in schema.bytes().chain([b':', b':']).chain(field.bytes()) {
+    for byte in schema.bytes().chain(*b"::").chain(field.bytes()) {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x100000001b3);
     }

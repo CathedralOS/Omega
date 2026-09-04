@@ -19,7 +19,9 @@ fn canonical_bytes() -> Vec<u8> {
         .collect();
     let bytes: Vec<u8> = compact
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             u8::from_str_radix(std::str::from_utf8(pair).expect("ASCII fixture"), 16)
                 .expect("hex fixture")

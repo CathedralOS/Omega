@@ -1569,10 +1569,10 @@ fn record_sum_profile(
                     DataShapeKind::Empty => {}
                 }
             }
-            TypeReferenceNode::FixedArray { .. } => {
-                if reachability.type_contains_sum(field.type_reference)? {
-                    profile.array = true;
-                }
+            TypeReferenceNode::FixedArray { .. }
+                if reachability.type_contains_sum(field.type_reference)? =>
+            {
+                profile.array = true;
             }
             _ => {}
         }

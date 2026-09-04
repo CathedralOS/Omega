@@ -88,7 +88,7 @@ pub(super) fn decode_git_object_id(
         ));
     }
     let mut bytes = Vec::with_capacity(oid.len() / 2);
-    for pair in oid.as_bytes().chunks_exact(2) {
+    for pair in oid.as_bytes().as_chunks::<2>().0 {
         let high = hex_digit(pair[0])
             .ok_or_else(|| git_object_invalid(oid, "object ID contains a non-hexadecimal digit"))?;
         let low = hex_digit(pair[1])

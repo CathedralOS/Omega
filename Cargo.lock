@@ -369,15 +369,9 @@ dependencies = [
 name = "omega-backend-plan"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-operations",
- "omega-assigned-target-operations",
  "omega-calling-conventions",
- "omega-core",
  "omega-function-identity",
- "omega-layout",
- "omega-object-file",
  "omega-target",
- "omega-target-operations",
  "psi-arena",
  "psi-checked-trees",
  "psi-layout-plans",
@@ -784,7 +778,6 @@ dependencies = [
 name = "omega-installation-evidence"
 version = "0.1.0"
 dependencies = [
- "omega-calling-conventions",
  "omega-target",
  "psi-core",
  "psi-terminal",
@@ -866,7 +859,6 @@ dependencies = [
  "omega-abstract-operations",
  "omega-calling-conventions",
  "omega-function-identity",
- "omega-installation-evidence",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-register-model",

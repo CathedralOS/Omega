@@ -38,7 +38,7 @@ static NEXT_LEDGER_AUTHORITY: AtomicU64 = AtomicU64::new(1);
 
 fn claim_ledger_authority() -> Result<u64, ExternalRootDiagnostic> {
     NEXT_LEDGER_AUTHORITY
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
             current.checked_add(1)
         })
         .map_err(|_| {

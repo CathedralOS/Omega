@@ -88,7 +88,7 @@ pub fn validate_spill_choices(
         return Err(SpillChoiceError::UnsupportedPolicy);
     }
     let mut work = ReplayWork::default();
-    for function_index in 0..plan.functions.len() {
+    for (function_index, plan_function) in plan.functions.iter().enumerate() {
         if !ranges.plan().functions[function_index]
             .tied_pairs
             .is_empty()
@@ -112,7 +112,7 @@ pub fn validate_spill_choices(
             physical,
             &mut work,
         )?;
-        if plan.functions[function_index] != expected {
+        if plan_function != &expected {
             return Err(SpillChoiceError::ChoiceMismatch {
                 function: function_index,
             });

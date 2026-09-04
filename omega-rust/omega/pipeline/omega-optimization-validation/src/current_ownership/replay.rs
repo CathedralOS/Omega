@@ -400,16 +400,15 @@ pub(super) fn validate_current_ownership_cfg(
                 O::Crash {
                     frontier_lower_bound,
                     ..
-                } => {
-                    if frontier_lower_bound != &frontier.claims.keys().copied().collect::<Vec<_>>()
-                    {
-                        return Err(
-                            OptimizationUnitValidationError::CurrentCrashClaimFrontierMismatch {
-                                machine: function.machine,
-                                block: block_id,
-                            },
-                        );
-                    }
+                } if frontier_lower_bound
+                    != &frontier.claims.keys().copied().collect::<Vec<_>>() =>
+                {
+                    return Err(
+                        OptimizationUnitValidationError::CurrentCrashClaimFrontierMismatch {
+                            machine: function.machine,
+                            block: block_id,
+                        },
+                    );
                 }
                 _ => {}
             }

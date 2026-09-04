@@ -49,7 +49,7 @@ pub fn validate_recovery_classifications<S: ValidatedSelectedAnalysis>(
     if plan.policy != RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1 {
         return Err(RecoveryClassificationError::UnsupportedPolicy);
     }
-    for function in 0..plan.functions.len() {
+    for (function, plan_function) in plan.functions.iter().enumerate() {
         let expected = replay_function(
             function,
             &selected.selected_plan().functions[function],
@@ -57,7 +57,7 @@ pub fn validate_recovery_classifications<S: ValidatedSelectedAnalysis>(
             &legality.plan().functions[function],
             &spill_choices.plan().functions[function],
         )?;
-        if plan.functions[function] != expected {
+        if plan_function != &expected {
             return Err(RecoveryClassificationError::ClassificationMismatch { function });
         }
     }

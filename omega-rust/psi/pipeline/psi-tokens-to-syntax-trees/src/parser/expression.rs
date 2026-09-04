@@ -258,15 +258,11 @@ fn parse_binary_chain_handle<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     let (mut expression, mut input) = lower(syntax_trees, input, context)?;
 
-    loop {
-        let Some((punctuation, operator)) = operators
-            .iter()
-            .find(|(punctuation, _)| input.at_punctuation(*punctuation))
-            .copied()
-        else {
-            break;
-        };
-
+    while let Some((punctuation, operator)) = operators
+        .iter()
+        .find(|(punctuation, _)| input.at_punctuation(*punctuation))
+        .copied()
+    {
         let operator_span = input
             .tokens
             .first()

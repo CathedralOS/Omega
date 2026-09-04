@@ -190,14 +190,11 @@ pub(super) fn lower_structural_unit_control_machine(
     bindings[0] = Some(entry_places);
     let mut received_predecessors = vec![0_usize; plan.states.len()];
     let mut completed = BTreeSet::new();
-    loop {
-        let Some(index) = (0..plan.states.len()).find(|index| {
-            bindings[*index].is_some()
-                && !completed.contains(index)
-                && (*index == 0 || received_predecessors[*index] == predecessor_counts[*index])
-        }) else {
-            break;
-        };
+    while let Some(index) = (0..plan.states.len()).find(|index| {
+        bindings[*index].is_some()
+            && !completed.contains(index)
+            && (*index == 0 || received_predecessors[*index] == predecessor_counts[*index])
+    }) {
         completed.insert(index);
         let source = bindings[index]
             .as_ref()

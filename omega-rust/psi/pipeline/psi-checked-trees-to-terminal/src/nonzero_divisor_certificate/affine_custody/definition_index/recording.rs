@@ -104,10 +104,7 @@ impl DefinitionIndex {
     ) -> Option<(ScalarTerm, Vec<usize>)> {
         let mut current = target.clone();
         let mut reversed = Vec::new();
-        loop {
-            let Some(definition) = self.cast_definitions.get(&current) else {
-                break;
-            };
+        while let Some(definition) = self.cast_definitions.get(&current) {
             if reversed.len() >= self.cast_definitions.len() {
                 return None;
             }

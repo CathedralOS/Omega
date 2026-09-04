@@ -125,7 +125,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         })
         .collect();
     let mut combined = ExpressionHandle::invalid();
-    for (left, right) in subject.iter().copied().zip(patterns.into_iter()) {
+    for (left, right) in subject.iter().copied().zip(patterns) {
         let Some(right) = right else {
             continue;
         };

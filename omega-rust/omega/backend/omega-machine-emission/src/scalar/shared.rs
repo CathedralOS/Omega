@@ -978,10 +978,12 @@ pub(crate) fn collect_scalar_stack_evidence(
                 return Err(EmissionError::ScalarStackInstructionEncodingInvalid);
             }
             bytes
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .enumerate()
                 .filter_map(|(index, encoded)| {
-                    let encoded = u32::from_le_bytes(encoded.try_into().expect("four-byte word"));
+                    let encoded = u32::from_le_bytes(*encoded);
                     let base = encoded & !(0xfff << 10);
                     let kind = match base {
                         0xd100_03ff => ScalarStackMutationKind::Allocate {

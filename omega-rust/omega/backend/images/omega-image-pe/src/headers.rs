@@ -25,7 +25,7 @@ pub(crate) struct PeHeaderInput {
 }
 
 pub(crate) fn write_dos_header(bytes: &mut Vec<u8>) {
-    bytes.extend([b'M', b'Z']);
+    bytes.extend(*b"MZ");
     bytes.resize(0x3c, 0);
     write_u32(bytes, DOS_HEADER_SIZE as u32);
     bytes.resize(DOS_HEADER_SIZE, 0);

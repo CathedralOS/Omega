@@ -30,10 +30,8 @@ psi-terminal-fixed-fuel = { path = "../../omega-rust/psi/semantics/psi-terminal-
 psi-terminal-verifier = { path = "../../omega-rust/psi/semantics/psi-terminal-verifier" }
 psi-proof-admission = { path = "../../omega-rust/psi/semantics/psi-proof-admission" }
 psi-checked-trees-to-terminal = { path = "../../omega-rust/psi/pipeline/psi-checked-trees-to-terminal" }
-omega-compiler = { path = "../../omega-rust/omega/compiler/omega-compiler" }
 omega-artifacts = { path = "../../omega-rust/omega/tooling/omega-artifacts", features = ["external-root-report"] }
 omega-component-publication = { path = "../../omega-rust/omega/backend/runtime/omega-component-publication" }
-omega-component-deployment = { path = "../../omega-rust/omega/build/omega-component-deployment" }
 omega-provider-planning = { path = "../../omega-rust/omega/build/omega-provider-planning", features = ["installed-writer"] }
 omega-external-roots = { path = "../../omega-rust/omega/backend/runtime/omega-external-roots" }
 omega-executable-installation = { path = "../../omega-rust/omega/backend/runtime/omega-executable-installation" }
@@ -57,6 +55,8 @@ omega-program-entry-plan = { path = "../../omega-rust/omega/backend/plans/omega-
 omega-effects = { path = "../../omega-rust/omega/representations/omega-effects" }
 
 [dev-dependencies]
+omega-compiler = { path = "../../omega-rust/omega/compiler/omega-compiler" }
+omega-component-deployment = { path = "../../omega-rust/omega/build/omega-component-deployment" }
 omega-effects = { path = "../../omega-rust/omega/representations/omega-effects" }
 omega-isa-aarch64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64" }

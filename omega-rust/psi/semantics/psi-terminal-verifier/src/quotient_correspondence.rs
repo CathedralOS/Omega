@@ -213,7 +213,7 @@ fn validate_transport_roster(
     let mut previous_source = None;
     let mut actuals = BTreeSet::new();
     let mut previous_actual = None;
-    for pair in facts.chunks_exact(2) {
+    for pair in facts.as_chunks::<2>().0 {
         if pair[0].application != QuotientTheoremApplicationSide::Left
             || pair[1].application != QuotientTheoremApplicationSide::Right
             || pair[0].source != pair[1].source

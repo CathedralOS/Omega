@@ -902,7 +902,7 @@ impl RetainedTerminalArtifact {
                     "Terminal native proposal does not cover every retained callback placement",
                 );
             }
-            for placement_index in 0..self.callback_placements.len() {
+            for (placement_index, placement) in self.callback_placements.iter().enumerate() {
                 let matching = proposal
                     .callback_occurrences
                     .iter()
@@ -913,14 +913,15 @@ impl RetainedTerminalArtifact {
                         "Terminal native proposal does not uniquely bind a retained callback placement",
                     );
                 };
-                let expected_application = self.callback_placements[placement_index]
-                    .private_materialization
-                    .as_ref()
-                    .and_then(|materialization| {
-                        materialization
-                            .direct_registrar_parameter_application
-                            .as_ref()
-                    });
+                let expected_application =
+                    placement
+                        .private_materialization
+                        .as_ref()
+                        .and_then(|materialization| {
+                            materialization
+                                .direct_registrar_parameter_application
+                                .as_ref()
+                        });
                 if occurrence.direct_parameter_application() != expected_application {
                     return Err(
                         "Terminal callback occurrence native parameter application drifted from its retained placement",
@@ -928,7 +929,7 @@ impl RetainedTerminalArtifact {
                 }
                 let expected_thunk = omega_backend_plan::canonical_callback_thunk_identity(
                     placement_index,
-                    &self.callback_placements[placement_index],
+                    placement,
                 )
                 .ok_or(
                     "retained callback placement cannot derive one valid callback-thunk identity",
@@ -938,19 +939,16 @@ impl RetainedTerminalArtifact {
                         "Terminal callback occurrence thunk continuation drifted from its retained placement",
                     );
                 }
-                let expected_symbol = omega_backend_plan::canonical_callback_private_symbol(
-                    &self.callback_placements[placement_index],
-                );
+                let expected_symbol =
+                    omega_backend_plan::canonical_callback_private_symbol(placement);
                 if occurrence.callback_thunk_artifact().private_symbol() != &expected_symbol {
                     return Err(
                         "Terminal callback occurrence private symbol drifted from its retained placement",
                     );
                 }
                 let receipt = occurrence.callback_thunk_artifact().lowering_receipt();
-                if receipt.source_machine
-                    != self.callback_placements[placement_index].selected_machine
-                    || receipt.source_entry
-                        != self.callback_placements[placement_index].selected_entry
+                if receipt.source_machine != placement.selected_machine
+                    || receipt.source_entry != placement.selected_entry
                 {
                     return Err(
                         "Terminal callback occurrence lowering receipt drifted from its retained placement",

@@ -1396,7 +1396,6 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             ValueLocation::Indirect {
                 copy_stack_byte_offset,
                 byte_size,
-                alignment: _,
                 ..
             },
         ] = placement.locations.as_mut_slice()

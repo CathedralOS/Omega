@@ -351,7 +351,7 @@ impl FilesystemSponsor {
     ) -> Result<Self, FilesystemSponsorError> {
         let session_root = normalize_absolute(session_root.as_ref())?;
         let id = NEXT_ACCOUNT_ID
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
                 current.checked_add(1)
             })
             .map_err(|_| FilesystemSponsorError::AccountIdentityExhausted)?;

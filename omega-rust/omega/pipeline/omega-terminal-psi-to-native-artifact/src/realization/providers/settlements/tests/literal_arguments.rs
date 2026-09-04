@@ -402,11 +402,8 @@ fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
         ExpectedTailPlacement::Register {
             x86_prefix: None, ..
         } => {
-            for instruction in last_bytes.chunks_exact(4) {
-                assert_eq!(
-                    u32::from_le_bytes(instruction.try_into().unwrap()) & 0x1f,
-                    7
-                );
+            for instruction in last_bytes.as_chunks::<4>().0 {
+                assert_eq!(u32::from_le_bytes(*instruction) & 0x1f, 7);
             }
         }
         ExpectedTailPlacement::Stack { byte_offset, .. } => match target.architecture {
