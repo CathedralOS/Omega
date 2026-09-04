@@ -25,7 +25,8 @@ avoid overlapping an active change. Commit and push coherent milestones.
 Engineering difficulty is not a design blocker. Owner decisions belong in
 `OWNER_QUESTIONS.md`. Research without a current customer does not belong on
 the execution board; recover it from its design document or Git history when a
-real customer appears.
+real customer appears. Do not mirror owner-question or customer-gated indexes
+here.
 
 ## Ownership firewall
 
@@ -378,30 +379,6 @@ Owners include
   consumed placement authority, W^X/coherence, physical invocation, and
   uninstall/replacement joins. Keep arbitrary runtime bytes-to-code, JIT, and
   raw executable addresses unsupported.
-
-## Blocked or customer-gated
-
-These are pointers, not duplicate specifications.
-
-- **RANKED-RECEIVER-SUBPLACE:** owner decision on authored and semantic transfer
-  identity in `OWNER_QUESTIONS.md` Q3.
-- **SUM-MATERIALIZATION:** authorable tagged/untagged placement vocabulary in
-  `wiki/design_briefs/programmable_layouts.md`; conventional read-only layout
-  does not settle it.
-- **ATOMIC-EVENT-MODEL:** portable event axioms and x86-64/AArch64 refinement in
-  `wiki/language_guide/appendix_open_questions.md`. Existing placed atomics do
-  not imply a global model.
-- **CHECKED-RESULT-ARITHMETIC:** public carrier and diagnostics for
-  failure-returning checked arithmetic.
-- **IMPORTED-CRASH-CAPSULES:** imported realization/certificate identity in
-  `wiki/language_guide/appendix_open_questions.md`.
-- **MEMBER-REFLECTION:** `Self::fields`, splice syntax, constant positions, and
-  proof visibility in the `build-time-open` note of
-  `wiki/language_guide/chapter_14_traits.md`.
-- **DEVICE-OPERATION-COMPLETE-DMA-SLICE:** client-gated. Retain the existing
-  access-plan carrier as non-authorizing scaffolding until a named driver,
-  firmware service, or hosted/native customer requires one complete DMA
-  boundary. Do not synthesize source authority from it.
 
 ## Platform-gated verification
 

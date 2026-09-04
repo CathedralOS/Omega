@@ -120,20 +120,6 @@ needed for independent replay through publication.
 - **PROOF-DIRECTED-LOOPS.** Add loop-bound reasoning, induction
   simplification, and vectorization with exact lane semantics.
 
-## External policy experiments
-
-- **SANDBOXED-POLICY.** Finish a real platform sandbox and build-level
-  activation for the dormant external optimization-policy adapter. The landed
-  bounded-process layer supplies resource and cleanup controls only; it is not
-  a filesystem, executable, credential, or network sandbox. Fallback behavior
-  must remain explicit and ordinary builds must not acquire external policy.
-
-- **OFFLINE-OPTIMIZER-LEARNING.** Extend the landed canonical corpus,
-  deterministic reference trainer, evaluation, and regression-manifest tools
-  with measured objective labels and independently admitted external
-  trainers/models. ML may rank already-declared equal transformations; it may
-  not invent a rewrite or opt into lossy floating-point semantics.
-
 ## Verification and rollout
 
 - **PER-RULE-COVERAGE.** Finish positive, negative, boundary, disabled, budget,

@@ -1,6 +1,6 @@
 # Tasks: Package Manager
 
-Status: remaining work only, 2026-09-01.
+Status: remaining work only, 2026-09-03.
 
 This file is the forward queue for the Cargo-like source/package service under
 `omega`. Completed milestones live in Git history and in the subsystem notes;
@@ -39,53 +39,16 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining work:
 
-  - finish D29 cross-artifact final substitution for separately compiled
-    generic artifacts. The producer-side package projection now retains a
-    public generic callable's direct type-binder boundary demand under exact
-    package-qualified operator/callable identity, without claiming coverage;
-    `PackageInstance` composition must rejoin a foreign reachable
-    specialization and close every symbolic argument before coverage. Extend
-    the landed local
-    final-substitution fixed point beyond the proven type/const
-    single-instantiation scalar-helper, nested-expression, and
-    selected-provider-chain cohort only as another concrete language form
-    requires it;
-  - extend the landed verified Psi-phase D32 non-identity projection beyond
-    the first x86-64 selected-lowering return-only Unit cohort. That cohort now
-    rejoins validated optimizer fragments to the existing native artifact
-    path and proves exact empty D32 coverage without providers, callbacks,
-    FMA, frames, spills, calls, or a second backend. Next publish one
-    source-reachable applied selected-lowering operation with nonempty D32
-    custody, then allocation, post-allocation, and layout optimization. A
-    direct selected call followed by a source-ordered, branch-free immutable
-    scalar local now retains exact checked Unit custody and lowers through
-    Terminal Psi. On Linux System V AMD64 and AAPCS64, each selected `CallI64`
-    now enters exact target-owned machine-effect custody, target-owned
-    zero-placeholder call-template encoding, and typed unresolved fixup
-    custody. Independent replay rejects drift in its target, effects, bytes,
-    callee, or patch geometry. Mixed admitted function shapes now derive block
-    order per function, and ordinary call fixups remain row-relative through
-    layout so branch reflow cannot stale them. Function-fragment emission has
-    the generic target-neutral conversion to function-relative unresolved
-    custody, but no production call can reach that conversion yet: whole-
-    function exit validation correctly stops on unpreserved callee-saved
-    state, x86 call-site alignment/return-address lifecycle, or AArch64's
-    incoming link register. Add the target-owned frame, save/restore, and call-
-    site alignment plans first; then admit fragment emission, whole-text fixup
-    resolution, and the final native semantic call record. Establish a real
-    source path whose allocation pressure applies the fold; a test-only
-    reduced-register policy is not production coverage.
-    Extend admitted-provider D41 custody beyond the landed normalized-import
-    lane with fixed-width integer scalar arguments/results and one direct
-    compiler-private callback parameter to structural arguments/results,
-    ranked control, and port-bearing artifacts. Preserve the exact
-    survivor/child bijection and reconstructible D29/D41 parents. For the
-    structural lane, start with one source-rooted canary whose owned,
-    unrestricted flat-record argument reaches a normalized import through a
-    checked Unit plan; current natural receiver/forwarding shapes stop before
-    Terminal construction. Extend that earliest checked custody first, then
-    carry the same argument through lowering and physical replay. Do not land
-    a backend-only structural carrier that no Omega source can exercise;
+  - finish D29 cross-artifact substitution for separately compiled generics;
+    `PackageInstance` composition must close every symbolic argument before
+    claiming coverage;
+  - publish one source-reachable selected-lowering operation with nonempty D32
+    custody through allocation, layout, native emission, and replay. General
+    calls first need target-owned frame, callee-save, link-register, and call-
+    site alignment plans;
+  - extend D41 normalized-import custody from fixed-width scalar calls to one
+    source-rooted flat-record argument, then to ranked control and port-bearing
+    artifacts. Preserve the exact survivor/physical-child bijection; and
   - add external realization custody only when independently admitted concrete
     authority exists. Never substitute a self-issued commitment.
 
@@ -134,26 +97,11 @@ after the complete current-version lock payload exists.
 
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Complete the authority-bearing later-
   discharge/open-obligation result and locally recheck every retained
-  certificate required by an ordinary package claim.
-  The first compiler-owned class now kernel-checks an exact authored `ensures`
-  fact discharged by an identical immutable-scalar machine `requires`
-  assumption. Package evidence matches it to the stable reviewed callable,
-  coordinates, and strong contract commitment, independently rechecks it, and
-  emits a concrete in-memory discharged result; missing or duplicate evidence
-  remains open or rejects, and an end-to-end dependency canary proves only the
-  discharged row ceases to propagate as `OpenLaterDischarge`; both open and
-  discharged results now retain explicit transitive root-closure indexes with
-  their original package owners. Remaining work is to add any further classes
-  demanded by the supported package surface and finish required final-
-  realization joins. Preserve exact open-obligation propagation and pre-policy
-  rejection. Do not persist this partial lane, cite standalone `psi-proof` as
-  production enforcement, or add an empty generic certificate framework.
-
-  **Landed prerequisite:** `TASKS.md` `PROOF-CERTIFICATION-BRIDGE` owns the
-  first real checked-IR assumption-discharge certificate and local rechecker,
-  and package evidence consumes that exact compiler product. Current Terminal
-  modules still do not represent authored source stand-down goals, so a
-  coordinate sidecar must not pretend to establish other discharge classes.
+  certificate required by an ordinary package claim. Add only concrete classes
+  demanded by the supported package surface and finish their final-realization
+  joins. Preserve transitive package ownership, exact open-obligation
+  propagation, and pre-policy rejection. Do not persist the partial lane or
+  add an empty generic certificate framework.
 
 - [ ] **PACKAGE-KEY-AND-INSTANCE.** Introduce the final `PackageInstance` only
   after exact source and artifact subjects, obligation-semantics identity,
@@ -226,9 +174,6 @@ after the complete current-version lock payload exists.
   capability change, blocked missing baseline, and blocked provenance
   replacement—through lock and command transactions. Initial install is
   complete-graph fresh admission, not an unchanged update.
-  Recovered-baseline source-review assembly now preserves the same directional
-  package/application root-role blocker as standalone baseline triage; the
-  remaining work is lock and command transaction propagation.
 
 ## P5 — Commands
 
@@ -312,41 +257,13 @@ explicitly.
 
   - migrate remaining package-aware fixtures to explicit std dependency edges;
     freestanding UEFI package roots remain dependency-free, and standalone
-    source fixtures stay on the compatibility path until they acquire real
-    package roots. The remaining compatibility seams are:
-    - two synthesized trait-default roots now retain separate authored-
-      requirement, template-application, and executable-realization custody;
-      their remaining target-neutral gap is a composed-Unit plan for scalar
-      arguments and structural-field mutation. Their native
-      canaries additionally depend on `OWNER_QUESTIONS.md` Q2 because the
-      mutation must remain observable through the caller's mutable structural
-      parameter; a staged by-value copy is not a realization of that identity;
-    - the named-`dyn`/Console ordinary-package native canary, still needing
-      accepted Console semantic-binding replay from the future lock and
-      multi-block target continuation. The existing consumer-scoped Console
-      admission path now crosses package-qualified Fused root establishment
-      into a validated unpublished native artifact;
-    - two build/runtime float twins whose exact named-operator identity now
-      survives early build-time selection and call-closure authority, but whose
-      runtime entries still lack a Terminal composed-Unit plan for scalar
-      setup, indexed assignment, and guarded Console leaves;
-    - six nested/repeated wire roots whose package-aware schema identity and
-      public `FixedVec` carrier surface are now closed, but whose runtime
-      entries all still lack a Terminal composed-Unit plan for their attached
-      transitive machine closure;
-    - three arithmetic float-helper roots lacking a Terminal composed-Unit plan
-      for scalar setup and control; and
-    - three call roots: the guarded transition-argument root, whose copied
-      authored operators now retain exact source provenance through checked
-      selection finalization but which still lacks a Terminal composed-Unit
-      plan for its attached closure; the inline
-      subslice-member root, whose checked and Terminal composed-Unit custody is
-      now closed but whose ordinary-package native path still reaches the
-      deliberately Linux-only sealed `Console::exit_process` physical catalog
-      on non-Linux hosts; and the looping-cast root, whose constrained `u8`
-      argument no longer manufactures owned-transfer conflicts but which still
-      lacks a Terminal composed-Unit plan spanning borrowed-view setup, looping
-      scalar dispatch/result conversion, and guarded Console leaves;
+    source fixtures stay on the compatibility path until they acquire package
+    roots;
+  - close the remaining composed-Unit plans exercised by trait-default,
+    float, wire, arithmetic-helper, guarded-call, and looping-cast canaries.
+    Mutable structural-parameter realization remains blocked on
+    `OWNER_QUESTIONS.md` Q2; the non-Linux Console canary needs a target-correct
+    physical catalog entry;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived
