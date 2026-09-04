@@ -686,11 +686,12 @@ Current ownership is:
   of effect-free caller-isolated scratch locals and direct local `&mut` aliases,
   including mutable bindings and results of other structurally transparent
   helpers. A caller-isolated scratch local may be initialized by a direct-call
-  tree through depth two when every inferred frame is complete and all writes
-  resolve into previously established caller-isolated scratch locals. Deeper,
-  recursive, computed, opaque, or externally writing initializer calls remain
-  fences. A
-  validated mutable recast local with an effect-free source may write through
+  tree of any finite depth when every inferred frame is complete and all writes
+  resolve into previously established caller-isolated scratch locals. The
+  syntax check uses a worklist; call-frame inference retains its active-state
+  recursion checks. Recursive, computed, opaque, or externally writing
+  initializer calls remain fences. A validated mutable recast local with an
+  effect-free source may write through
   that source without obscuring a separately returned parameter origin.
   The same exact returned-place relation composes when such a result is supplied
   directly as a statement-call argument.

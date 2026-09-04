@@ -1,11 +1,11 @@
 //! Caller-isolated initializer admission for transparent returned-place
 //! analysis.
 //!
-//! This leaf owns the exact syntactic budget, symbol-table precondition, and
+//! This leaf owns the direct-call syntax check, symbol-table precondition, and
 //! caller-isolated write fence. Recursive expression-call frame collection
 //! remains in the parent and enters through one callback.
 
-use super::isolation::isolated_local_initializer_call_tree_is_bounded;
+use super::isolation::isolated_local_initializer_has_direct_call_tree;
 use super::place_paths::split_place_root;
 use super::transparent_effects::expression_is_effectful_for_transparent_result;
 use crate::symbols::MachineSymbols;
@@ -15,12 +15,11 @@ use psi_typed_trees::machine::Machine;
 
 /// A caller-isolated scratch local cannot itself redirect a returned place.
 /// Its initializer may therefore precede a transparent returned-place result
-/// when it is syntactically effect-free, or when it is a direct-call tree of
-/// maximum depth two whose inferred frames are complete and write only
-/// previously established caller-isolated scratch locals. Keep deeper or
-/// computed call shapes and every caller-visible or opaque call fenced: this
-/// predicate proves only that the initializer cannot perturb the returned-
-/// place relation.
+/// when it is syntactically effect-free, or when it is a finite direct-call
+/// tree whose inferred frames are complete and write only previously
+/// established caller-isolated scratch locals. Computed call shapes and
+/// caller-visible or opaque calls remain fenced. This predicate proves only
+/// that the initializer cannot perturb the returned-place relation.
 pub(super) fn isolated_local_initializer_preserves_transparent_result<'program, CollectWrites>(
     program: &'program TypedTrees,
     current_machine: &'program Machine,
@@ -34,7 +33,7 @@ where
     if !expression_is_effectful_for_transparent_result(program, expression) {
         return true;
     }
-    if !isolated_local_initializer_call_tree_is_bounded(program, expression, 2) {
+    if !isolated_local_initializer_has_direct_call_tree(program, expression) {
         return false;
     }
 

@@ -1137,7 +1137,7 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
 }
 
 #[test]
-fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
+fn transparent_returned_place_accepts_finite_isolated_scratch_call_trees() {
     let source = r#"
     data Main {
         value: u64;
@@ -1149,6 +1149,10 @@ fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
 
     machine scratch_from(value: u64) -> u64 {
         value
+    }
+
+    machine scratch_pair(first: u64, second: u64) -> u64 {
+        first
     }
 
     machine write_scratch(value: &mut u64) -> u64 {
@@ -1182,6 +1186,29 @@ fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
         value
     }
 
+    machine return_with_deep_write_scratch(value: &mut u64) -> &mut u64 {
+        let mut prior: u64 = 0;
+        let scratch: u64 = scratch_from(scratch_from(scratch_from(
+            write_scratch(&mut prior)
+        )));
+        value
+    }
+
+    machine return_with_sibling_scratch(value: &mut u64) -> &mut u64 {
+        let mut first: u64 = 0;
+        let mut second: u64 = 0;
+        let scratch: u64 = scratch_pair(
+            scratch_from(scratch_from(write_scratch(&mut first))),
+            scratch_from(scratch_from(write_scratch(&mut second)))
+        );
+        value
+    }
+
+    machine return_with_computed_scratch(value: &mut u64) -> &mut u64 {
+        let scratch: u64 = scratch_from(make_scratch()) + 1;
+        value
+    }
+
     machine return_with_external_write_scratch(value: &mut u64) -> &mut u64 {
         let mut prior: u64 = 0;
         let scratch: u64 = scratch_from(mixed_scratch(&mut prior, value));
@@ -1189,7 +1216,16 @@ fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
     }
 
     machine return_with_recursive_scratch(value: &mut u64) -> &mut u64 {
-        let scratch: u64 = recursive_scratch();
+        let scratch: u64 = scratch_from(scratch_from(recursive_scratch()));
+        value
+    }
+
+    machine return_with_mixed_sibling_scratch(value: &mut u64) -> &mut u64 {
+        let mut prior: u64 = 0;
+        let scratch: u64 = scratch_pair(
+            scratch_from(scratch_from(write_scratch(&mut prior))),
+            scratch_from(scratch_from(write_scratch(value)))
+        );
         value
     }
 
@@ -1208,6 +1244,21 @@ fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
         alias = 3;
     }
 
+    machine Main::deep_write_scratch_result(&mut self) {
+        let alias: &mut u64 = return_with_deep_write_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::sibling_scratch_result(&mut self) {
+        let alias: &mut u64 = return_with_sibling_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::computed_scratch_result(&mut self) {
+        let alias: &mut u64 = return_with_computed_scratch(&mut self.value);
+        alias = 3;
+    }
+
     machine Main::external_write_scratch_result(&mut self) {
         let alias: &mut u64 = return_with_external_write_scratch(&mut self.value);
         alias = 3;
@@ -1215,6 +1266,11 @@ fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
 
     machine Main::recursive_scratch_result(&mut self) {
         let alias: &mut u64 = return_with_recursive_scratch(&mut self.value);
+        alias = 3;
+    }
+
+    machine Main::mixed_sibling_scratch_result(&mut self) {
+        let alias: &mut u64 = return_with_mixed_sibling_scratch(&mut self.value);
         alias = 3;
     }
     "#;
@@ -1230,6 +1286,9 @@ fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
     for name in [
         "Main::nested_scratch_result",
         "Main::nested_write_scratch_result",
+        "Main::deep_scratch_result",
+        "Main::deep_write_scratch_result",
+        "Main::sibling_scratch_result",
     ] {
         let machine = typed
             .machines()
@@ -1250,9 +1309,10 @@ fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
     }
 
     for name in [
-        "Main::deep_scratch_result",
+        "Main::computed_scratch_result",
         "Main::external_write_scratch_result",
         "Main::recursive_scratch_result",
+        "Main::mixed_sibling_scratch_result",
     ] {
         let machine = typed
             .machines()
@@ -1267,7 +1327,7 @@ fn transparent_returned_place_accepts_bounded_isolated_scratch_initializers() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded isolated-scratch rung"
+            "{name} must remain opaque without an isolated direct-call tree"
         );
     }
 }

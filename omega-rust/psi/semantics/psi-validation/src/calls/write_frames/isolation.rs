@@ -3,7 +3,7 @@
 //!
 //! These queries decide whether an ordinary value is structurally incapable
 //! of carrying caller-visible aliasing. They inspect only checked typed shapes;
-//! the initializer query additionally admits only a bounded direct-call tree.
+//! the initializer query additionally admits only a finite direct-call tree.
 //! Frame traversal and complete-or-opaque fallback remain in the parent.
 
 use super::transparent_effects::expression_is_effectful_for_transparent_result;
@@ -14,40 +14,28 @@ use psi_typed_trees::data::DataMember;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// Count only direct calls along initializer receiver/argument edges. Pure
+/// Traverse direct calls along initializer receiver/argument edges. Pure
 /// leaves are neutral; calls hidden under operators, aggregates, or other
-/// computed expressions remain outside this deliberately small relation.
-pub(super) fn isolated_local_initializer_call_tree_is_bounded(
+/// computed expressions remain outside this relation. The typed expression
+/// tree is finite; a worklist handles call nesting without a depth limit.
+pub(super) fn isolated_local_initializer_has_direct_call_tree(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    remaining_call_depth: usize,
 ) -> bool {
-    if !expression_is_effectful_for_transparent_result(program, expression) {
-        return true;
+    let mut pending = vec![expression];
+    while let Some(expression) = pending.pop() {
+        if !expression_is_effectful_for_transparent_result(program, expression) {
+            continue;
+        }
+        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+            return false;
+        };
+        if call.receiver.is_valid() {
+            pending.push(call.receiver);
+        }
+        pending.extend_from_slice(program.expression_table.expression_handles(call.arguments));
     }
-    if remaining_call_depth == 0 {
-        return false;
-    }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    (!call.receiver.is_valid()
-        || isolated_local_initializer_call_tree_is_bounded(
-            program,
-            call.receiver,
-            remaining_call_depth - 1,
-        ))
-        && program
-            .expression_table
-            .expression_handles(call.arguments)
-            .iter()
-            .all(|argument| {
-                isolated_local_initializer_call_tree_is_bounded(
-                    program,
-                    *argument,
-                    remaining_call_depth - 1,
-                )
-            })
+    true
 }
 
 pub(super) fn struct_literal_field_is_primitive(
