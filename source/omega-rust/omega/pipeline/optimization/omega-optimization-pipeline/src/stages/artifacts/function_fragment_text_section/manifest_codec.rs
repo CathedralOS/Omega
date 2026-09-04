@@ -18,16 +18,16 @@ use crate::{
 
 use super::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
-    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
-    FunctionFragmentTextSectionUnavailableData,
+    FunctionFragmentTextSectionSourceCustody, FunctionFragmentTextSectionStage,
+    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 10;
+const MANIFEST_VERSION: u32 = 11;
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v10\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v11\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -56,7 +56,21 @@ impl FunctionFragmentTextSectionManifest {
         let identity = FunctionFragmentTextSectionManifestIdentity::from_bytes(cursor.array()?);
         let stage = match cursor.byte()? {
             1 => FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1,
+            2 => FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
             tag => return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownStage(tag)),
+        };
+        let source_custody = match cursor.byte()? {
+            1 => FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1,
+            2 => FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 {
+                application: crate::FunctionFragmentFrameApplicationIdentity::from_bytes(
+                    cursor.array()?,
+                ),
+            },
+            tag => {
+                return Err(
+                    FunctionFragmentTextSectionManifestDecodeError::UnknownSourceCustody(tag),
+                );
+            }
         };
         let source_kind = match cursor.byte()? {
             1 => FunctionFragmentEmissionSourceKind::X86Rel8V1,
@@ -72,6 +86,28 @@ impl FunctionFragmentTextSectionManifest {
                 return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(tag));
             }
         };
+        match (stage, source_custody, source_kind) {
+            (
+                FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1,
+                FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1,
+                FunctionFragmentEmissionSourceKind::X86Rel8V1
+                | FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
+                | FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
+                | FunctionFragmentEmissionSourceKind::UnitBaselineV1
+                | FunctionFragmentEmissionSourceKind::StructuralUnitV1
+                | FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
+            )
+            | (
+                FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
+                FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 { .. },
+                FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
+            ) => {}
+            _ => {
+                return Err(
+                    FunctionFragmentTextSectionManifestDecodeError::SourceCustodyMismatch,
+                );
+            }
+        }
         let source_fragment_manifest =
             FunctionFragmentEmissionManifestIdentity::from_bytes(cursor.array()?);
         let source_realization =
@@ -151,6 +187,7 @@ impl FunctionFragmentTextSectionManifest {
         let manifest = Self {
             identity,
             stage,
+            source_custody,
             source_kind,
             source_fragment_manifest,
             source_realization,
@@ -187,7 +224,19 @@ impl FunctionFragmentTextSectionManifest {
 
 fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.push(1);
+    bytes.push(match record.stage {
+        FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1 => 1,
+        FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1 => {
+            2
+        }
+    });
+    match record.source_custody {
+        FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1 => bytes.push(1),
+        FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 { application } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&application.bytes());
+        }
+    }
     match record.source_kind {
         FunctionFragmentEmissionSourceKind::X86Rel8V1 => bytes.push(1),
         FunctionFragmentEmissionSourceKind::SelectedLoweringV1 => bytes.push(6),

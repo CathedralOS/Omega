@@ -4830,19 +4830,22 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
             "selected-lowering fragment admission must not depend on exact layout rule `{forbidden}`",
         );
     }
-    for manifest in [
-        stage.join("manifest.rs"),
-        stage
-            .parent()
-            .expect("artifact stage parent")
-            .join("function_fragment_text_section/manifest_codec.rs"),
+    for (manifest, version) in [
+        (stage.join("manifest.rs"), 10),
+        (
+            stage
+                .parent()
+                .expect("artifact stage parent")
+                .join("function_fragment_text_section/manifest_codec.rs"),
+            11,
+        ),
     ] {
         let encoded = std::fs::read_to_string(&manifest)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
         assert!(
-            encoded.contains("const MANIFEST_VERSION: u32 = 10;")
+            encoded.contains(&format!("const MANIFEST_VERSION: u32 = {version};"))
                 && encoded.contains("SelectedLoweringV1"),
-            "generic selected-lowering source custody must be explicit in v10 manifest {}",
+            "generic selected-lowering source custody must be explicit in v{version} manifest {}",
             manifest.display(),
         );
     }

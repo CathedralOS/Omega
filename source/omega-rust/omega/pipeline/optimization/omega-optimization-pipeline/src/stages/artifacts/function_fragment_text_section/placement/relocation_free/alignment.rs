@@ -2,7 +2,7 @@ use omega_target::Architecture;
 
 use super::super::super::RelocationFreeTextSectionPlacementError;
 
-pub(super) fn validate(
+pub(crate) fn validate(
     architecture: Architecture,
     offset: u64,
     byte_count: u64,

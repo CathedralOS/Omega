@@ -481,6 +481,67 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
                 > source_bytes
         );
         assert_eq!(applied.receipt().framed_function_count(), 1);
+        let frame_application = applied.receipt().identity();
+        let mut text = stage_optimized_fixed_frame_text_section(applied).unwrap();
+        validate_optimized_fixed_frame_text_section(&text).unwrap();
+        assert_eq!(
+            text.manifest().record().source_custody,
+            FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 {
+                application: frame_application,
+            }
+        );
+        assert_eq!(text.text_section().resolved_internal_machine_calls.len(), 3);
+        assert_eq!(
+            text.manifest()
+                .record()
+                .statistics
+                .source_internal_machine_fixups,
+            3
+        );
+        assert_eq!(
+            text.manifest()
+                .record()
+                .statistics
+                .resolved_internal_machine_fixups,
+            3
+        );
+        assert_eq!(
+            text.manifest()
+                .record()
+                .statistics
+                .remaining_internal_machine_fixups,
+            0
+        );
+        assert_eq!(
+            FunctionFragmentTextSectionManifest::decode(&text.manifest().record().encode()),
+            Ok(text.manifest().record().clone())
+        );
+        for resolution in &text.text_section().resolved_internal_machine_calls {
+            assert_eq!(
+                i128::from(resolution.next_instruction_section_offset)
+                    + i128::from(resolution.displacement),
+                i128::from(resolution.callee_section_offset)
+            );
+        }
+        text.text_section_mut().resolved_internal_machine_calls[0].displacement += 1;
+        assert_eq!(
+            validate_optimized_fixed_frame_text_section(&text),
+            Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
+        );
+        text.text_section_mut().resolved_internal_machine_calls[0].displacement -= 1;
+        let source_custody = text.manifest().record().source_custody;
+        text.manifest_mut().record_mut().source_custody =
+            FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1;
+        assert_eq!(
+            validate_optimized_fixed_frame_text_section(&text),
+            Err(RelocationFreeTextSectionPlacementError::ManifestMismatch)
+        );
+        text.manifest_mut().record_mut().source_custody = source_custody;
+        text.corrupt_custody_frame_application_for_test();
+        assert_eq!(
+            validate_optimized_fixed_frame_text_section(&text),
+            Err(RelocationFreeTextSectionPlacementError::ReceiptMismatch)
+        );
     }
 }
 

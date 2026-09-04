@@ -91,6 +91,7 @@ pub struct PlacedInstructionSpan {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InternalMachineCallResolutionKind {
     X86Relative32FromNextInstructionToInternalMachineV1,
+    Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,6 +171,7 @@ pub fn relocation_free_text_section_identity(
     for resolution in &section.resolved_internal_machine_calls {
         hasher.update([match resolution.kind {
             InternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1 => 1,
+            InternalMachineCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 2,
         }]);
         hasher.update([match resolution.state {
             InternalMachineCallResolutionState::ResolvedInSectionV1 => 1,

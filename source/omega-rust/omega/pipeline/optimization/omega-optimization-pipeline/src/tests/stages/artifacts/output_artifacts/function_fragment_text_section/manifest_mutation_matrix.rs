@@ -47,7 +47,13 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
     let baseline = staged.manifest().record().clone();
     // Stage, vocabulary, placement, relocation, and unavailable-data values are
     // singleton in memory; the wire matrix below rejects every alternate tag.
-    let mutations: [(&str, ManifestMutation); 36] = [
+    let mutations: [(&str, ManifestMutation); 37] = [
+        ("source_custody", |record| {
+            record.source_custody =
+                FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 {
+                    application: FunctionFragmentFrameApplicationIdentity::from_bytes([0x80; 32]),
+                }
+        }),
         ("source_kind", |record| {
             record.source_kind = FunctionFragmentEmissionSourceKind::UnitBaselineV1
         }),
@@ -205,7 +211,7 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
 fn text_manifest_wire_rejects_every_closed_tag_and_envelope_mutation() {
     let staged = staged_text_section();
     let encoded = staged.manifest().record().encode();
-    assert_eq!(encoded.len(), 599, "post-allocation V9 layout is pinned");
+    assert_eq!(encoded.len(), 600, "post-allocation V11 layout is pinned");
 
     let mut wrong_magic = encoded.clone();
     wrong_magic[0] ^= 1;
@@ -235,15 +241,33 @@ fn text_manifest_wire_rejects_every_closed_tag_and_envelope_mutation() {
         Err(FunctionFragmentTextSectionManifestDecodeError::UnknownStage(99)),
     );
 
+    let mut unknown_source_custody = encoded.clone();
+    unknown_source_custody[45] = 99;
+    assert_eq!(
+        FunctionFragmentTextSectionManifest::decode(&unknown_source_custody),
+        Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceCustody(99)),
+    );
+
     let mut unknown_source = encoded.clone();
-    unknown_source[45] = 99;
+    unknown_source[46] = 99;
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&unknown_source),
         Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(99)),
     );
 
+    let mut mismatched_custody = staged.manifest().record().clone();
+    mismatched_custody.source_custody =
+        FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 {
+            application: FunctionFragmentFrameApplicationIdentity::from_bytes([0x91; 32]),
+        };
+    mismatched_custody.identity = mismatched_custody.recomputed_identity();
+    assert_eq!(
+        FunctionFragmentTextSectionManifest::decode(&mismatched_custody.encode()),
+        Err(FunctionFragmentTextSectionManifestDecodeError::SourceCustodyMismatch),
+    );
+
     let mut unknown_machine_rule = encoded.clone();
-    unknown_machine_rule[46] = 99;
+    unknown_machine_rule[47] = 99;
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&unknown_machine_rule),
         Err(
@@ -254,55 +278,55 @@ fn text_manifest_wire_rejects_every_closed_tag_and_envelope_mutation() {
     );
 
     let mut unknown_vocabulary = encoded.clone();
-    unknown_vocabulary[143..145].copy_from_slice(&59_u16.to_le_bytes());
+    unknown_vocabulary[144..146].copy_from_slice(&59_u16.to_le_bytes());
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&unknown_vocabulary),
         Err(FunctionFragmentTextSectionManifestDecodeError::UnknownVocabulary(59)),
     );
 
     let mut invalid_fuel = encoded.clone();
-    invalid_fuel[177..181].copy_from_slice(&0_u32.to_le_bytes());
+    invalid_fuel[178..182].copy_from_slice(&0_u32.to_le_bytes());
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&invalid_fuel),
         Err(FunctionFragmentTextSectionManifestDecodeError::InvalidFuelSchedule),
     );
 
     let mut unknown_architecture = encoded.clone();
-    unknown_architecture[405] = 99;
+    unknown_architecture[406] = 99;
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&unknown_architecture),
         Err(FunctionFragmentTextSectionManifestDecodeError::UnknownArchitecture(99)),
     );
 
     let mut unknown_object_format = encoded.clone();
-    unknown_object_format[406] = 99;
+    unknown_object_format[407] = 99;
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&unknown_object_format),
         Err(FunctionFragmentTextSectionManifestDecodeError::UnknownObjectFormat(99)),
     );
 
     let mut invalid_semantic_entry = encoded.clone();
-    invalid_semantic_entry[423..431].copy_from_slice(&0_u64.to_le_bytes());
+    invalid_semantic_entry[424..432].copy_from_slice(&0_u64.to_le_bytes());
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&invalid_semantic_entry),
         Err(FunctionFragmentTextSectionManifestDecodeError::InvalidSemanticEntry),
     );
 
     let mut unknown_placement = encoded.clone();
-    unknown_placement[439] = 99;
+    unknown_placement[440] = 99;
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&unknown_placement),
         Err(FunctionFragmentTextSectionManifestDecodeError::UnknownPlacementPolicy(99)),
     );
 
     let mut unknown_relocations = encoded.clone();
-    unknown_relocations[472] = 99;
+    unknown_relocations[473] = 99;
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&unknown_relocations),
         Err(FunctionFragmentTextSectionManifestDecodeError::UnknownRelocationRequirements(99),),
     );
 
-    for offset in 593..599 {
+    for offset in 594..600 {
         let mut unknown_unavailable = encoded.clone();
         unknown_unavailable[offset] = 99;
         assert_eq!(
