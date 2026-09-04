@@ -741,16 +741,22 @@ and binds the caller's scalar parameter to its exact incoming physical
 location. Machine emission admits the bounded same-register transfer and exact
 incoming-stack load/outgoing-stack store, rebasing the incoming slot across the
 Unit frame and transient call area before emitting the structural suffix and
-call. The callee may likewise load the selected stack-carried scalar and store
-it through the staged write-only destination. Records retain every scalar
-source, destination, interval, and relocation coordinate. Object construction
+call. When authored argument order would overwrite an incoming scalar register
+that remains a source, emission first snapshots the complete register-source
+set into deterministic compiler-private slots in that same transient area.
+Arguments then materialize in semantic order, covering cycles, duplicate
+sources, register-to-register, register-to-stack, and stack-to-register
+transfers without relying on sequential-move luck. The callee may likewise load
+the selected stack-carried scalar and store it through the staged write-only
+destination. Records retain every scalar source, destination, interval, and
+relocation coordinate. Object construction
 independently rejoins the Unit callee ABI, caller parameter source, frame and
 call-stack evidence, structural copy, and exact bytes. Installation format 78
 transports and replays the same custody on both Linux targets. The ordinary
 call source may be either the caller's exact native-fixed-integer-or-Boolean
 parameter or an exact preceding Boolean literal definition. Computed
-nonliteral sources, IEEE runtime sources, non-native integer carriers, and
-general register shuffles remain fail closed.
+nonliteral sources, IEEE runtime sources, and non-native integer carriers
+remain fail closed.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

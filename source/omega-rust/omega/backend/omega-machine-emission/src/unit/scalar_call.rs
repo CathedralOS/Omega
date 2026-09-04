@@ -3,7 +3,8 @@ use omega_assigned_target_operations::{
     AssignedUnitScalarHome,
 };
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, ValueLocation, ValuePlacement, evaluate_call_plan,
+    CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValuePlacement,
+    evaluate_call_plan,
 };
 use omega_machine_code::{
     InternalCallRelocation, InternalUnitScalarArgumentSourceRecord,
@@ -21,6 +22,113 @@ use super::{
     emit_x86_64_stack_store_width, outgoing_placement_extent, stack_adjustment_pair,
     unit_scalar_home_record, unit_scalar_shape, x86_unit_register,
 };
+
+#[derive(Debug, Clone)]
+pub(super) struct UnitScalarTransportPlan {
+    pub(super) call_stack_bytes: u32,
+    snapshot_slots: Vec<(MachineRegister, u32)>,
+}
+
+fn scalar_snapshot_registers(arguments: &[AssignedUnitScalarCallArgument]) -> Vec<MachineRegister> {
+    let source_registers = arguments
+        .iter()
+        .filter_map(|argument| match argument.source {
+            AssignedUnitScalarArgumentSource::Parameter {
+                location:
+                    omega_assigned_target_operations::AssignedScalarLocation::Register(register),
+                ..
+            } => Some(register),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let needs_snapshot = arguments.iter().any(|argument| {
+        let omega_assigned_target_operations::AssignedCallDestination::Register(destination) =
+            argument.destination
+        else {
+            return false;
+        };
+        source_registers.contains(&destination)
+            && !matches!(
+                argument.source,
+                AssignedUnitScalarArgumentSource::Parameter {
+                    location:
+                        omega_assigned_target_operations::AssignedScalarLocation::Register(source),
+                    ..
+                } if source == destination
+            )
+    });
+    if !needs_snapshot {
+        return Vec::new();
+    }
+    source_registers
+        .into_iter()
+        .fold(Vec::new(), |mut registers, register| {
+            if !registers.contains(&register) {
+                registers.push(register);
+            }
+            registers
+        })
+}
+
+fn scalar_transport_extent(
+    outgoing_bytes: u32,
+    arguments: &[AssignedUnitScalarCallArgument],
+) -> Result<(u32, Vec<(MachineRegister, u32)>), EmissionError> {
+    let registers = scalar_snapshot_registers(arguments);
+    if registers.is_empty() {
+        return Ok((outgoing_bytes, Vec::new()));
+    }
+    let mut cursor = align_u32(outgoing_bytes, 8)?;
+    let mut slots = Vec::with_capacity(registers.len());
+    for register in registers {
+        slots.push((register, cursor));
+        cursor = cursor
+            .checked_add(8)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    }
+    Ok((cursor, slots))
+}
+
+pub(super) fn x86_unit_scalar_transport_plan(
+    call_plan: &omega_calling_conventions::CallPlan,
+    arguments: &[AssignedUnitScalarCallArgument],
+    minimum_outgoing_bytes: u32,
+) -> Result<UnitScalarTransportPlan, EmissionError> {
+    let outgoing_bytes = call_plan
+        .parameters
+        .iter()
+        .map(outgoing_placement_extent)
+        .try_fold(
+            u32::from(call_plan.shadow_bytes).max(minimum_outgoing_bytes),
+            |extent, candidate| candidate.map(|value| extent.max(value)),
+        )?;
+    let (transport_bytes, snapshot_slots) = scalar_transport_extent(outgoing_bytes, arguments)?;
+    let padding = (8 + 16 - (transport_bytes % 16)) % 16;
+    Ok(UnitScalarTransportPlan {
+        call_stack_bytes: transport_bytes
+            .checked_add(padding)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?,
+        snapshot_slots,
+    })
+}
+
+pub(super) fn aarch64_unit_scalar_transport_plan(
+    call_plan: &omega_calling_conventions::CallPlan,
+    arguments: &[AssignedUnitScalarCallArgument],
+) -> Result<UnitScalarTransportPlan, EmissionError> {
+    let outgoing_bytes = call_plan
+        .parameters
+        .iter()
+        .map(aarch64_outgoing_placement_extent)
+        .try_fold(u32::from(call_plan.shadow_bytes), |extent, candidate| {
+            candidate.map(|value| extent.max(value))
+        })?;
+    let (transport_bytes, snapshot_slots) = scalar_transport_extent(outgoing_bytes, arguments)?;
+    Ok(UnitScalarTransportPlan {
+        call_stack_bytes: align_u32(transport_bytes, 16)?,
+        snapshot_slots,
+    })
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_unit_scalar_call(
@@ -121,22 +229,16 @@ fn emit_x86_64_unit_scalar_call(
     ),
     EmissionError,
 > {
-    let outgoing_bytes = arguments
-        .iter()
-        .zip(&call_plan.parameters)
-        .map(|(_, placement)| outgoing_placement_extent(placement))
-        .try_fold(0_u32, |extent, candidate| {
-            candidate.map(|value| extent.max(value))
-        })?
-        .max(if target.object_format == ObjectFormat::Coff {
+    let transport = x86_unit_scalar_transport_plan(
+        call_plan,
+        arguments,
+        if target.object_format == ObjectFormat::Coff {
             32
         } else {
             0
-        });
-    let padding = (8 + 16 - (outgoing_bytes % 16)) % 16;
-    let call_stack_bytes = outgoing_bytes
-        .checked_add(padding)
-        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+        },
+    )?;
+    let call_stack_bytes = transport.call_stack_bytes;
     let mut allocation = None;
     if call_stack_bytes != 0 {
         let offset = bytes.len();
@@ -154,7 +256,16 @@ fn emit_x86_64_unit_scalar_call(
             preceding_operations,
         )?;
         let code_offset = bytes.len();
-        emit_x86_64_unit_scalar_argument(bytes, argument, frame_bytes, call_stack_bytes)?;
+        if parameter_index == 0 {
+            emit_x86_64_scalar_snapshots(bytes, &transport)?;
+        }
+        emit_x86_64_unit_scalar_argument(
+            bytes,
+            argument,
+            frame_bytes,
+            call_stack_bytes,
+            &transport,
+        )?;
         argument_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
             source: unit_scalar_argument_source_record(
@@ -214,14 +325,8 @@ fn emit_aarch64_unit_scalar_call(
     ),
     EmissionError,
 > {
-    let outgoing_bytes = arguments
-        .iter()
-        .zip(&call_plan.parameters)
-        .map(|(_, placement)| aarch64_outgoing_placement_extent(placement))
-        .try_fold(0_u32, |extent, candidate| {
-            candidate.map(|value| extent.max(value))
-        })?;
-    let call_stack_bytes = align_u32(outgoing_bytes, 16)?;
+    let transport = aarch64_unit_scalar_transport_plan(call_plan, arguments)?;
+    let call_stack_bytes = transport.call_stack_bytes;
     let mut allocation = None;
     if call_stack_bytes != 0 {
         let mut instructions = Vec::new();
@@ -240,7 +345,16 @@ fn emit_aarch64_unit_scalar_call(
             preceding_operations,
         )?;
         let code_offset = bytes.len();
-        emit_aarch64_unit_scalar_argument(bytes, argument, frame_bytes, call_stack_bytes)?;
+        if parameter_index == 0 {
+            emit_aarch64_scalar_snapshots(bytes, &transport)?;
+        }
+        emit_aarch64_unit_scalar_argument(
+            bytes,
+            argument,
+            frame_bytes,
+            call_stack_bytes,
+            &transport,
+        )?;
         argument_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
             source: unit_scalar_argument_source_record(
@@ -587,11 +701,57 @@ pub(super) fn emit_unit_scalar_result(
     })
 }
 
+fn snapshot_offset(transport: &UnitScalarTransportPlan, register: MachineRegister) -> Option<u32> {
+    transport
+        .snapshot_slots
+        .iter()
+        .find_map(|(candidate, offset)| (*candidate == register).then_some(*offset))
+}
+
+pub(super) fn emit_x86_64_scalar_snapshots(
+    bytes: &mut Vec<u8>,
+    transport: &UnitScalarTransportPlan,
+) -> Result<(), EmissionError> {
+    for (register, offset) in &transport.snapshot_slots {
+        emit_x86_64_stack_store_width(bytes, x86_unit_register(*register)?, *offset, 8)?;
+    }
+    Ok(())
+}
+
+pub(super) fn emit_aarch64_scalar_snapshots(
+    bytes: &mut Vec<u8>,
+    transport: &UnitScalarTransportPlan,
+) -> Result<(), EmissionError> {
+    let mut instructions = Vec::with_capacity(transport.snapshot_slots.len());
+    for (register, offset) in &transport.snapshot_slots {
+        instructions.push(aarch64_unit_stack_access(
+            aarch64_store_base(8)?,
+            aarch64_unit_register(*register)?,
+            *offset,
+            8,
+        )?);
+    }
+    append_aarch64_instructions(bytes, instructions);
+    Ok(())
+}
+
+fn emit_x86_64_register_move(bytes: &mut Vec<u8>, source: u8, destination: u8) {
+    if source == destination {
+        return;
+    }
+    bytes.extend_from_slice(&[
+        0x48 | (((source >> 3) & 1) << 2) | ((destination >> 3) & 1),
+        0x89,
+        0xc0 | ((source & 7) << 3) | (destination & 7),
+    ]);
+}
+
 pub(super) fn emit_x86_64_unit_scalar_argument(
     bytes: &mut Vec<u8>,
     argument: &AssignedUnitScalarCallArgument,
     frame_bytes: u32,
     call_stack_bytes: u32,
+    transport: &UnitScalarTransportPlan,
 ) -> Result<(), EmissionError> {
     let (destination_register, destination_stack) = match argument.destination {
         omega_assigned_target_operations::AssignedCallDestination::Register(register) => {
@@ -601,22 +761,26 @@ pub(super) fn emit_x86_64_unit_scalar_argument(
             byte_offset,
         } => (11, Some(byte_offset)),
     };
+    let mut value_register = destination_register;
     match argument.source {
         AssignedUnitScalarArgumentSource::Parameter {
             source_value,
             location,
             ..
-        } => match (location, argument.destination) {
-            (
-                omega_assigned_target_operations::AssignedScalarLocation::Register(source),
-                omega_assigned_target_operations::AssignedCallDestination::Register(destination),
-            ) if source == destination => {}
-            (
-                omega_assigned_target_operations::AssignedScalarLocation::IncomingStack {
-                    byte_offset,
-                },
-                _,
-            ) => {
+        } => match location {
+            omega_assigned_target_operations::AssignedScalarLocation::Register(source) => {
+                let source_register = x86_unit_register(source)?;
+                if let Some(offset) = snapshot_offset(transport, source) {
+                    emit_x86_64_stack_load_width(bytes, destination_register, offset, 8)?;
+                } else if destination_stack.is_some() {
+                    value_register = source_register;
+                } else {
+                    emit_x86_64_register_move(bytes, source_register, destination_register);
+                }
+            }
+            omega_assigned_target_operations::AssignedScalarLocation::IncomingStack {
+                byte_offset,
+            } => {
                 let source_offset = call_stack_bytes
                     .checked_add(frame_bytes)
                     .and_then(|offset| offset.checked_add(8))
@@ -631,7 +795,9 @@ pub(super) fn emit_x86_64_unit_scalar_argument(
                     byte_size,
                 )?;
             }
-            _ => return Err(EmissionError::UnsupportedUnitScalarType(source_value)),
+            omega_assigned_target_operations::AssignedScalarLocation::FrameSpill { .. } => {
+                return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+            }
         },
         AssignedUnitScalarArgumentSource::IntegerImmediate {
             source_value,
@@ -654,7 +820,7 @@ pub(super) fn emit_x86_64_unit_scalar_argument(
         }
     }
     if let Some(destination) = destination_stack {
-        emit_x86_64_stack_store_width(bytes, destination_register, destination, 8)?;
+        emit_x86_64_stack_store_width(bytes, value_register, destination, 8)?;
     }
     Ok(())
 }
@@ -664,6 +830,7 @@ pub(super) fn emit_aarch64_unit_scalar_argument(
     argument: &AssignedUnitScalarCallArgument,
     frame_bytes: u32,
     call_stack_bytes: u32,
+    transport: &UnitScalarTransportPlan,
 ) -> Result<(), EmissionError> {
     let (destination_register, destination_stack) = match argument.destination {
         omega_assigned_target_operations::AssignedCallDestination::Register(register) => {
@@ -674,22 +841,35 @@ pub(super) fn emit_aarch64_unit_scalar_argument(
         } => (9, Some(byte_offset)),
     };
     let mut instructions = Vec::new();
+    let mut value_register = destination_register;
     match argument.source {
         AssignedUnitScalarArgumentSource::Parameter {
             source_value,
             location,
             ..
-        } => match (location, argument.destination) {
-            (
-                omega_assigned_target_operations::AssignedScalarLocation::Register(source),
-                omega_assigned_target_operations::AssignedCallDestination::Register(destination),
-            ) if source == destination => {}
-            (
-                omega_assigned_target_operations::AssignedScalarLocation::IncomingStack {
-                    byte_offset,
-                },
-                _,
-            ) => {
+        } => match location {
+            omega_assigned_target_operations::AssignedScalarLocation::Register(source) => {
+                let source_register = aarch64_unit_register(source)?;
+                if let Some(offset) = snapshot_offset(transport, source) {
+                    instructions.push(aarch64_unit_stack_access(
+                        aarch64_load_base(8)?,
+                        destination_register,
+                        offset,
+                        8,
+                    )?);
+                } else if destination_stack.is_some() {
+                    value_register = source_register;
+                } else if source_register != destination_register {
+                    instructions.push(
+                        0xaa00_03e0
+                            | (u32::from(source_register) << 16)
+                            | u32::from(destination_register),
+                    );
+                }
+            }
+            omega_assigned_target_operations::AssignedScalarLocation::IncomingStack {
+                byte_offset,
+            } => {
                 let source_offset = call_stack_bytes
                     .checked_add(frame_bytes)
                     .and_then(|offset| offset.checked_add(byte_offset))
@@ -703,7 +883,9 @@ pub(super) fn emit_aarch64_unit_scalar_argument(
                     byte_size,
                 )?);
             }
-            _ => return Err(EmissionError::UnsupportedUnitScalarType(source_value)),
+            omega_assigned_target_operations::AssignedScalarLocation::FrameSpill { .. } => {
+                return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+            }
         },
         AssignedUnitScalarArgumentSource::IntegerImmediate {
             source_value,
@@ -737,7 +919,7 @@ pub(super) fn emit_aarch64_unit_scalar_argument(
     if let Some(destination) = destination_stack {
         instructions.push(aarch64_unit_stack_access(
             aarch64_store_base(8)?,
-            destination_register,
+            value_register,
             destination,
             8,
         )?);

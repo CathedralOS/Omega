@@ -483,6 +483,7 @@ pub(super) fn validate_internal_unit_call_custody(
             target,
             function,
             validated_function_stack,
+            &expected_plan,
             relocation,
             custody,
         )?;
@@ -521,6 +522,7 @@ pub(super) fn validate_internal_unit_call_custody(
             target,
             function,
             validated_function_stack,
+            &expected_plan,
             relocation,
             custody,
         )?;
@@ -571,6 +573,7 @@ pub(super) fn validate_internal_unit_call_custody(
             target,
             function,
             validated_function_stack,
+            &expected_plan,
             relocation,
             custody,
         )?;
@@ -912,6 +915,7 @@ fn validate_mixed_argument_bytes_and_order(
     target: NativeTarget,
     function: &MachineCodeFunction,
     function_stack: &ObjectUnitStack,
+    call_plan: &omega_calling_conventions::CallPlan,
     relocation: &omega_machine_code::InternalCallRelocation,
     custody: &omega_machine_code::InternalUnitCallRecord,
 ) -> Result<(), ObjectError> {
@@ -929,7 +933,7 @@ fn validate_mixed_argument_bytes_and_order(
         }
         None => custody.code_offset,
     };
-    for argument in &custody.scalar_arguments {
+    for (argument_index, argument) in custody.scalar_arguments.iter().enumerate() {
         if argument.code_offset != cursor {
             return Err(invalid());
         }
@@ -940,9 +944,15 @@ fn validate_mixed_argument_bytes_and_order(
             argument.source,
         )
         .map_err(|_| invalid())?;
-        let expected =
-            expected_argument_bytes(target, argument, function_stack.frame_bytes, outbound_bytes)
-                .ok_or_else(invalid)?;
+        let expected = expected_argument_bytes(
+            target,
+            call_plan,
+            &custody.scalar_arguments,
+            argument_index,
+            function_stack.frame_bytes,
+            outbound_bytes,
+        )
+        .ok_or_else(invalid)?;
         let argument_end = cursor.checked_add(expected.len()).ok_or_else(invalid)?;
         if argument.byte_count != expected.len()
             || function.bytes.get(cursor..argument_end) != Some(expected.as_slice())

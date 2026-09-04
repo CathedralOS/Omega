@@ -6,7 +6,8 @@
 //! absent.
 
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,
+    ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use omega_machine_code::{
     InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallRecord, MachineCodeFunction,
@@ -397,9 +398,15 @@ fn validate_call(
             call.code_offset,
             argument.source,
         )?;
-        let expected =
-            expected_argument_bytes(target, argument, function_stack.frame_bytes, outbound_bytes)
-                .ok_or_else(invalid)?;
+        let expected = expected_argument_bytes(
+            target,
+            &call.call_plan,
+            &call.arguments,
+            index,
+            function_stack.frame_bytes,
+            outbound_bytes,
+        )
+        .ok_or_else(invalid)?;
         if argument.byte_count != expected.len()
             || function
                 .bytes
@@ -677,42 +684,209 @@ pub(super) fn exact_preceding_internal_unit_scalar_home_producer_count(
         .count()
 }
 
+struct ReplayScalarTransportPlan {
+    call_stack_bytes: u32,
+    snapshot_slots: Vec<(MachineRegister, u32)>,
+}
+
+impl ReplayScalarTransportPlan {
+    fn snapshot_offset(&self, register: MachineRegister) -> Option<u32> {
+        self.snapshot_slots
+            .iter()
+            .find_map(|(candidate, offset)| (*candidate == register).then_some(*offset))
+    }
+}
+
+fn replay_scalar_transport_plan(
+    target: NativeTarget,
+    call_plan: &omega_calling_conventions::CallPlan,
+    arguments: &[omega_machine_code::InternalUnitScalarCallArgumentRecord],
+) -> Option<ReplayScalarTransportPlan> {
+    let source_registers = arguments
+        .iter()
+        .filter_map(|argument| match argument.source {
+            InternalUnitScalarArgumentSourceRecord::Parameter {
+                location: omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+                ..
+            } => Some(register),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let needs_snapshot = arguments.iter().any(|argument| {
+        let Some((Some(destination), None)) =
+            placement_destination(&argument.destination, target.architecture)
+        else {
+            return false;
+        };
+        let destination_is_source = match target.architecture {
+            Architecture::X86_64 => source_registers
+                .iter()
+                .any(|source| x86_terminal_register(*source) == Some(destination)),
+            Architecture::Aarch64 => source_registers
+                .iter()
+                .any(|source| aarch64_terminal_register(*source) == Some(destination)),
+        };
+        destination_is_source
+            && !matches!(
+                argument.source,
+                InternalUnitScalarArgumentSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(source),
+                    ..
+                } if match target.architecture {
+                    Architecture::X86_64 => x86_terminal_register(source) == Some(destination),
+                    Architecture::Aarch64 => aarch64_terminal_register(source) == Some(destination),
+                }
+            )
+    });
+    let registers = if needs_snapshot {
+        source_registers
+            .into_iter()
+            .fold(Vec::new(), |mut registers, register| {
+                if !registers.contains(&register) {
+                    registers.push(register);
+                }
+                registers
+            })
+    } else {
+        Vec::new()
+    };
+    let outgoing_bytes = call_plan.parameters.iter().try_fold(
+        u32::from(call_plan.shadow_bytes),
+        |extent, placement| {
+            replay_outgoing_extent(placement, target.architecture).map(|end| extent.max(end))
+        },
+    )?;
+    let mut cursor = outgoing_bytes;
+    let mut snapshot_slots = Vec::new();
+    if !registers.is_empty() {
+        cursor = align_u32(cursor, 8)?;
+        for register in registers {
+            snapshot_slots.push((register, cursor));
+            cursor = cursor.checked_add(8)?;
+        }
+    }
+    let call_stack_bytes = match target.architecture {
+        Architecture::X86_64 => {
+            let padding = (8 + 16 - (cursor % 16)) % 16;
+            cursor.checked_add(padding)?
+        }
+        Architecture::Aarch64 => align_u32(cursor, 16)?,
+    };
+    Some(ReplayScalarTransportPlan {
+        call_stack_bytes,
+        snapshot_slots,
+    })
+}
+
+fn replay_outgoing_extent(placement: &ValuePlacement, architecture: Architecture) -> Option<u32> {
+    placement
+        .locations
+        .iter()
+        .try_fold(0_u32, |extent, location| {
+            let end = match *location {
+                ValueLocation::Register { .. } => 0,
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    byte_size,
+                    ..
+                } => stack_byte_offset.checked_add(u32::from(byte_size.max(8)))?,
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset,
+                    byte_size,
+                    ..
+                } => {
+                    let pointer_end = match pointer {
+                        IndirectPointerLocation::Register(_) => 0,
+                        IndirectPointerLocation::Stack {
+                            stack_byte_offset, ..
+                        } => stack_byte_offset.checked_add(8)?,
+                    };
+                    if architecture == Architecture::Aarch64 {
+                        match copy_stack_byte_offset {
+                            Some(offset) => pointer_end
+                                .max(offset.checked_add(u32::from(byte_size).next_multiple_of(8))?),
+                            None => pointer_end,
+                        }
+                    } else {
+                        pointer_end
+                    }
+                }
+            };
+            Some(extent.max(end))
+        })
+}
+
+fn align_u32(value: u32, alignment: u32) -> Option<u32> {
+    let remainder = value % alignment;
+    value.checked_add(if remainder == 0 {
+        0
+    } else {
+        alignment - remainder
+    })
+}
+
+fn expected_x86_register_move(bytes: &mut Vec<u8>, source: u8, destination: u8) {
+    if source == destination {
+        return;
+    }
+    bytes.extend_from_slice(&[
+        0x48 | (((source >> 3) & 1) << 2) | ((destination >> 3) & 1),
+        0x89,
+        0xc0 | ((source & 7) << 3) | (destination & 7),
+    ]);
+}
+
 pub(super) fn expected_argument_bytes(
     target: NativeTarget,
-    argument: &omega_machine_code::InternalUnitScalarCallArgumentRecord,
+    call_plan: &omega_calling_conventions::CallPlan,
+    arguments: &[omega_machine_code::InternalUnitScalarCallArgumentRecord],
+    argument_index: usize,
     frame_bytes: u32,
     outbound_bytes: u32,
 ) -> Option<Vec<u8>> {
+    let argument = arguments.get(argument_index)?;
+    let transport = replay_scalar_transport_plan(target, call_plan, arguments)?;
+    if transport.call_stack_bytes != outbound_bytes {
+        return None;
+    }
     match target.architecture {
         Architecture::X86_64 => {
             let (register, stack) =
                 placement_destination(&argument.destination, target.architecture)?;
             let register = register.unwrap_or(11);
             let mut bytes = Vec::new();
+            if argument_index == 0 {
+                for (source, offset) in &transport.snapshot_slots {
+                    expected_x86_stack_store(&mut bytes, x86_terminal_register(*source)?, *offset);
+                }
+            }
+            let mut value_register = register;
             match argument.source {
                 InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } => {
-                    match (location, register, stack) {
-                        (
-                            omega_machine_code::UnitScalarParameterLocationRecord::Register(source),
-                            destination,
-                            None,
-                        ) if x86_terminal_register(source)? == destination => {}
-                        (
-                            omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                                byte_offset,
-                            },
-                            destination,
-                            _,
-                        ) => expected_x86_stack_load(
+                    match location {
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(source) => {
+                            let source_register = x86_terminal_register(source)?;
+                            if let Some(offset) = transport.snapshot_offset(source) {
+                                expected_x86_stack_load(&mut bytes, register, offset, 8)?;
+                            } else if stack.is_some() {
+                                value_register = source_register;
+                            } else {
+                                expected_x86_register_move(&mut bytes, source_register, register);
+                            }
+                        }
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset,
+                        } => expected_x86_stack_load(
                             &mut bytes,
-                            destination,
+                            register,
                             outbound_bytes
                                 .checked_add(frame_bytes)?
                                 .checked_add(8)?
                                 .checked_add(byte_offset)?,
                             scalar_home_shape(argument.source.scalar_type())?.byte_size,
                         )?,
-                        _ => return None,
                     }
                 }
                 InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
@@ -735,7 +909,7 @@ pub(super) fn expected_argument_bytes(
                 )?,
             }
             if let Some(offset) = stack {
-                expected_x86_stack_store(&mut bytes, register, offset);
+                expected_x86_stack_store(&mut bytes, value_register, offset);
             }
             Some(bytes)
         }
@@ -744,28 +918,41 @@ pub(super) fn expected_argument_bytes(
                 placement_destination(&argument.destination, target.architecture)?;
             let register = register.unwrap_or(9);
             let mut words = Vec::new();
+            if argument_index == 0 {
+                for (source, offset) in &transport.snapshot_slots {
+                    words.push(expected_aarch64_stack_store(
+                        aarch64_terminal_register(*source)?,
+                        *offset,
+                    )?);
+                }
+            }
+            let mut value_register = register;
             match argument.source {
                 InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } => {
-                    match (location, register, stack) {
-                        (
-                            omega_machine_code::UnitScalarParameterLocationRecord::Register(source),
-                            destination,
-                            None,
-                        ) if aarch64_terminal_register(source)? == destination => {}
-                        (
-                            omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                                byte_offset,
-                            },
-                            destination,
-                            _,
-                        ) => words.push(expected_aarch64_stack_load(
-                            destination,
+                    match location {
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(source) => {
+                            let source_register = aarch64_terminal_register(source)?;
+                            if let Some(offset) = transport.snapshot_offset(source) {
+                                words.push(expected_aarch64_stack_load(register, offset, 8)?);
+                            } else if stack.is_some() {
+                                value_register = source_register;
+                            } else if source_register != register {
+                                words.push(
+                                    0xaa00_03e0
+                                        | (u32::from(source_register) << 16)
+                                        | u32::from(register),
+                                );
+                            }
+                        }
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset,
+                        } => words.push(expected_aarch64_stack_load(
+                            register,
                             outbound_bytes
                                 .checked_add(frame_bytes)?
                                 .checked_add(byte_offset)?,
                             scalar_home_shape(argument.source.scalar_type())?.byte_size,
                         )?),
-                        _ => return None,
                     }
                 }
                 InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
@@ -789,7 +976,7 @@ pub(super) fn expected_argument_bytes(
                 }
             }
             if let Some(offset) = stack {
-                words.push(expected_aarch64_stack_store(register, offset)?);
+                words.push(expected_aarch64_stack_store(value_register, offset)?);
             }
             Some(words.into_iter().flat_map(u32::to_le_bytes).collect())
         }

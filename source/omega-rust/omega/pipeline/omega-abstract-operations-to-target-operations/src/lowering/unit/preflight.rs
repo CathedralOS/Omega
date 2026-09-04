@@ -40,12 +40,12 @@ fn has_parameter_sourced_unit_call_shape(function: &AbstractFunction) -> bool {
                 ..
             },
             AbstractOperation::ReturnUnit { cleanup_actions, .. },
-        ] if arguments.as_slice()
-            == function
+        ] if arguments.iter().all(|argument| {
+            function
                 .parameters
                 .iter()
-                .map(|parameter| parameter.value)
-                .collect::<Vec<_>>()
+                .any(|parameter| parameter.value == *argument)
+        })
             && claim_transfers.is_empty()
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty()
