@@ -11,7 +11,7 @@ use crate::{
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_post_allocation_machine_optimization_for_catalog_entry,
     stage_optimized_post_allocation_machine_plan,
-    stage_post_allocation_machine_function_relative_realization_after_allocation_recovery,
+    stage_post_allocation_machine_function_relative_realization,
 };
 
 use super::super::super::OptimizedVerifiedPhysicalPipelineError;
@@ -46,15 +46,12 @@ pub(super) fn stage_active_resident(
             entry,
         )
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization)?;
-        let realization =
-            stage_post_allocation_machine_function_relative_realization_after_allocation_recovery(
-                StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-                    Box::new(rematerialization),
-                ),
-                machine,
-                optimization,
-            )
-            .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
+        let realization = stage_post_allocation_machine_function_relative_realization(
+            rematerialization,
+            machine,
+            optimization,
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
         return Ok(StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization });
     }
     let realization = stage_allocation_recovery_function_relative_realization(

@@ -1,5 +1,6 @@
 use super::{
-    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource, sealed,
+    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
+    ProjectAllocation, sealed,
 };
 use crate::{
     StagedOptimizedRegisterHomesAfterLiteralFolds,
@@ -18,6 +19,12 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterLiteralFolds {
         if &evidence != self.custody() {
             return Err(AllocationReplayError::ReceiptMismatch);
         }
+        Ok(self.project_allocation())
+    }
+}
+
+impl ProjectAllocation for StagedOptimizedRegisterHomesAfterLiteralFolds {
+    fn project_allocation(&self) -> AllocationOutput<'_> {
         let folds = self.fold_stage();
         let selected = folds
             .source_legality_stage()
@@ -25,7 +32,7 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterLiteralFolds {
             .liveness_stage()
             .selected_stage();
         let step = folds.final_step();
-        Ok(AllocationOutput {
+        AllocationOutput {
             selected: SelectedProgramRef::new(step.fold()),
             liveness: step.liveness(),
             ranges: step.ranges(),
@@ -33,10 +40,11 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterLiteralFolds {
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
             environment: selected.register_environment(),
+            target_input: selected.optimized_target(),
             selections: selected.optimized_target().optimized().selections(),
             budget: selected.optimized_target().optimized().budget_per_pass(),
-            evidence: AllocationEvidence::LiteralFolds(evidence),
-        })
+            evidence: AllocationEvidence::LiteralFolds(self.custody().to_owned()),
+        }
     }
 }
 
@@ -49,6 +57,12 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterSelectedLowering {
         if &evidence != self.custody() {
             return Err(AllocationReplayError::ReceiptMismatch);
         }
+        Ok(self.project_allocation())
+    }
+}
+
+impl ProjectAllocation for StagedOptimizedRegisterHomesAfterSelectedLowering {
+    fn project_allocation(&self) -> AllocationOutput<'_> {
         let run = self.selected_lowering_run();
         let source = run.source_legality_stage();
         let selected = source.live_range_stage().liveness_stage().selected_stage();
@@ -66,7 +80,7 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterSelectedLowering {
                 source.legality(),
             ),
         };
-        Ok(AllocationOutput {
+        AllocationOutput {
             selected: program,
             liveness,
             ranges,
@@ -74,9 +88,10 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterSelectedLowering {
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
             environment: selected.register_environment(),
+            target_input: selected.optimized_target(),
             selections: selected.optimized_target().optimized().selections(),
             budget: selected.optimized_target().optimized().budget_per_pass(),
-            evidence: AllocationEvidence::SelectedLowering(evidence),
-        })
+            evidence: AllocationEvidence::SelectedLowering(self.custody().to_owned()),
+        }
     }
 }

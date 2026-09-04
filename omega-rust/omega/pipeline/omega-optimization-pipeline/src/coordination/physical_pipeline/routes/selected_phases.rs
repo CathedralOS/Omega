@@ -8,7 +8,6 @@ use crate::{
     stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
     stage_optimized_register_homes_after_selected_lowering,
     stage_post_allocation_machine_function_relative_realization,
-    stage_post_allocation_machine_function_relative_realization_after_selected_lowering,
     stage_selected_lowering_function_relative_realization,
 };
 
@@ -77,13 +76,12 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_allocation_recovery_
                 .map_err(
                     OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization,
                 )?;
-            let realization =
-                stage_post_allocation_machine_function_relative_realization_after_selected_lowering(
-                    homes,
-                    machine,
-                    optimization,
-                )
-                .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
+            let realization = stage_post_allocation_machine_function_relative_realization(
+                homes,
+                machine,
+                optimization,
+            )
+            .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
             Ok(StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization })
         }
         ResolvedNonAllocationComposition::Identity => {

@@ -18,10 +18,12 @@ fn authenticated_action_corruption_rejects_after_plan_reauthentication() {
 
 fn assert_action_corruption_rejects(corrupt: impl FnOnce(&mut Aarch64MovnMaterializationAction)) {
     let realization = super::fixture::staged_realization();
-    let StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) = realization.source()
-    else {
-        panic!("the fixture must enter through direct register-home custody")
-    };
+    let allocation = realization.allocation().current();
+    assert!(matches!(
+        allocation.evidence(),
+        omega_selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
+    ));
+    let homes = &allocation;
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) =
         realization.optimization()
     else {
@@ -35,11 +37,7 @@ fn assert_action_corruption_rejects(corrupt: impl FnOnce(&mut Aarch64MovnMateria
     );
     plan.identity = aarch64_movn_materialization_identity(&plan);
 
-    let selected_stage = homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
+    let selected_stage = homes;
     assert_eq!(
         validate_aarch64_movn_materialization(
             selected_stage.selected(),

@@ -220,6 +220,8 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
     assert!(output.contains("pub trait AllocationSource: sealed::Sealed"));
     assert!(output.contains("pub struct AllocationOutput<'program>"));
     assert!(output.contains("pub enum AllocationEvidence"));
+    assert!(output.contains("pub struct RetainedAllocation"));
+    assert!(output.contains("impl TryFrom<StagedOptimizedRegisterHomes>"));
     for consumer in [
         "omega-register-homes-to-post-allocation-machine",
         "omega-post-allocation-machine-to-optimized-machine",
@@ -241,5 +243,40 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
                 "{consumer} depends on optimizer history: {forbidden}"
             );
         }
+    }
+}
+
+#[test]
+fn post_allocation_realization_and_emission_do_not_select_allocation_history() {
+    let root = repository().join("omega-rust/omega/pipeline/omega-optimization-pipeline/src");
+    let realization = root.join("stages/realization/function_relative_realization");
+    assert!(
+        !realization
+            .join("routes/post_allocation_machine/allocation_recovery.rs")
+            .exists()
+    );
+    let route =
+        std::fs::read_to_string(realization.join("routes/post_allocation_machine.rs")).unwrap();
+    assert!(route.contains("RetainedAllocation"));
+    assert!(route.contains("replay_allocation"));
+    for obsolete in [
+        "_after_",
+        "steps().last()",
+        "selected_stage()",
+        "source_legality_stage",
+    ] {
+        assert!(
+            !route.contains(obsolete),
+            "realization depends on allocation history: {obsolete}"
+        );
+    }
+    let consumers = rust_source(&root.join("stages/artifacts/function_fragment_emission"));
+    let carriers = std::fs::read_to_string(realization.join("carriers.rs")).unwrap();
+    for obsolete in [
+        "StagedPostAllocationMachineFunctionRelativeSource",
+        "PostAllocationMachineFunctionRelativeSourceCustody",
+    ] {
+        assert!(!consumers.contains(obsolete));
+        assert!(!carriers.contains(obsolete));
     }
 }

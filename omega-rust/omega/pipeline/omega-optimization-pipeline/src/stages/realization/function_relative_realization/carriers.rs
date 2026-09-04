@@ -1,15 +1,6 @@
 use super::prelude::*;
 use super::{assembly::final_layout, model::*};
-
-/// The custody origins admitted to the post-allocation realization join.
-/// Keeping this distinction inside the carrier avoids multiplying the public
-/// pipeline by source route and optimization rule.
-#[derive(Debug)]
-pub enum StagedPostAllocationMachineFunctionRelativeSource {
-    Direct(StagedOptimizedRegisterHomes),
-    AfterSelectedLowering(StagedOptimizedRegisterHomesAfterSelectedLowering),
-    AfterAllocationRecovery(StagedAllocationRecoveryFunctionRelativeSource),
-}
+use omega_selected_instructions_to_register_homes::{AllocationEvidence, RetainedAllocation};
 
 /// Direct ordinary realization whose call, preservation, and return effects
 /// are discharged by one exact canonical target frame. Frame requirements,
@@ -107,7 +98,7 @@ impl StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
 
 #[derive(Debug)]
 pub struct StagedPostAllocationMachineFunctionRelativeRealization {
-    pub(super) source: StagedPostAllocationMachineFunctionRelativeSource,
+    pub(super) allocation: RetainedAllocation,
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) optimization: crate::StagedOptimizedPostAllocationMachineOptimization,
     pub(super) baseline_encoding: StagedOptimizedSelectedFormEncoding,
@@ -120,8 +111,8 @@ pub struct StagedPostAllocationMachineFunctionRelativeRealization {
 }
 
 impl StagedPostAllocationMachineFunctionRelativeRealization {
-    pub const fn source(&self) -> &StagedPostAllocationMachineFunctionRelativeSource {
-        &self.source
+    pub const fn allocation(&self) -> &RetainedAllocation {
+        &self.allocation
     }
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         &self.machine
@@ -167,15 +158,8 @@ impl StagedPostAllocationMachineFunctionRelativeRealization {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PostAllocationMachineFunctionRelativeSourceCustody {
-    Direct(StagedOptimizedRegisterHomeCustodyReceipt),
-    AfterSelectedLowering(StagedOptimizedPostSelectedLoweringHomeCustodyReceipt),
-    AfterAllocationRecovery(StagedAllocationRecoverySourceCustodyReceipt),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
-    pub(super) source: PostAllocationMachineFunctionRelativeSourceCustody,
+    pub(super) source: AllocationEvidence,
     pub(super) machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
     pub(super) optimization: crate::PostAllocationMachineOptimizationCustody,
     pub(super) exit_contract: WholeFunctionExitContractIdentity,
@@ -183,7 +167,7 @@ pub struct StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt 
 }
 
 impl StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
-    pub const fn source(&self) -> &PostAllocationMachineFunctionRelativeSourceCustody {
+    pub const fn source(&self) -> &AllocationEvidence {
         &self.source
     }
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {

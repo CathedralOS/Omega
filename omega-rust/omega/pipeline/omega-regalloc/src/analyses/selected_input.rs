@@ -26,6 +26,10 @@ pub struct SelectedProgramRef<'program> {
 }
 
 impl<'program> SelectedProgramRef<'program> {
+    pub fn plan(self) -> &'program SelectedInstructionPlan {
+        self.program.selected_plan()
+    }
+
     pub fn new(program: &'program impl ValidatedSelectedAnalysis) -> Self {
         Self { program }
     }

@@ -1600,6 +1600,7 @@ dependencies = [
 name = "omega-selected-instructions-to-register-homes"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations-to-target-operations",
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-optimization-core",

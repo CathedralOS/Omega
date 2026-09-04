@@ -10,7 +10,6 @@ use crate::{
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     StagedOptimizedUnitFunctionRelativeRealization,
     StagedPostAllocationMachineFunctionRelativeRealization,
-    StagedPostAllocationMachineFunctionRelativeSource,
     StagedSelectedLoweringFunctionRelativeRealization,
     ValidatedFunctionRelativeOptimizationRealizationManifest,
 };
@@ -119,33 +118,12 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
-            Self::PostAllocationMachine { realization } => match realization.source() {
-                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes
-                    .legality_stage()
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .optimized_target()
-                    .optimized()
-                    .pre_physical_manifest(),
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-                    homes
-                        .selected_lowering_run()
-                        .source_legality_stage()
-                        .live_range_stage()
-                        .liveness_stage()
-                        .selected_stage()
-                        .optimized_target()
-                        .optimized()
-                        .pre_physical_manifest()
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
-                    source,
-                ) => source
-                    .optimized_target()
-                    .optimized()
-                    .pre_physical_manifest(),
-            },
+            Self::PostAllocationMachine { realization } => realization
+                .allocation()
+                .current()
+                .target_input()
+                .optimized()
+                .pre_physical_manifest(),
             Self::AllocationRecovery { realization } => realization
                 .source()
                 .optimized_target()
@@ -173,22 +151,15 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         }
     }
 
-    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
+    pub fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
         match self {
             Self::UnitBaseline { realization } => realization.homes().post_allocation_manifest(),
             Self::StructuralUnit { realization } => realization.homes().post_allocation_manifest(),
             Self::FixedFrame { realization } => realization.homes().post_allocation_manifest(),
-            Self::PostAllocationMachine { realization } => match realization.source() {
-                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => {
-                    homes.post_allocation_manifest()
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-                    homes.post_allocation_manifest()
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
-                    source,
-                ) => source.post_allocation_manifest(),
-            },
+            Self::PostAllocationMachine { realization } => realization
+                .allocation()
+                .current()
+                .post_allocation_manifest(),
             Self::AllocationRecovery { realization } => {
                 realization.source().post_allocation_manifest()
             }
@@ -298,7 +269,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         }
     }
 
-    pub const fn selected_lowering_completion(
+    pub fn selected_lowering_completion(
         &self,
     ) -> Option<omega_optimization_core::SelectedLoweringOptimizationCompletionIdentity> {
         match self {
@@ -307,15 +278,14 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             | Self::FixedFrame { .. }
             | Self::AllocationRecovery { .. }
             | Self::FunctionRelativeLayout { .. } => None,
-            Self::PostAllocationMachine { realization } => match realization.source() {
-                StagedPostAllocationMachineFunctionRelativeSource::Direct(_) => None,
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-                    Some(homes.selected_lowering_run().custody().identity())
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(_) => {
-                    None
-                }
-            },
+            Self::PostAllocationMachine { realization } => {
+                realization
+                    .allocation()
+                    .current()
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_lowering_completion
+            }
             Self::SelectedLowering { realization } => Some(
                 realization
                     .homes()

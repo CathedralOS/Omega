@@ -1,5 +1,6 @@
 use super::{
-    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource, sealed,
+    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
+    ProjectAllocation, sealed,
 };
 use crate::{StagedOptimizedRegisterHomes, validate_optimized_register_home_custody};
 use omega_regalloc::SelectedProgramRef;
@@ -17,10 +18,16 @@ impl AllocationSource for StagedOptimizedRegisterHomes {
         if evidence != self.custody() {
             return Err(AllocationReplayError::ReceiptMismatch);
         }
+        Ok(self.project_allocation())
+    }
+}
+
+impl ProjectAllocation for StagedOptimizedRegisterHomes {
+    fn project_allocation(&self) -> AllocationOutput<'_> {
         let ranges = self.legality_stage().live_range_stage();
         let liveness = ranges.liveness_stage();
         let selected = liveness.selected_stage();
-        Ok(AllocationOutput {
+        AllocationOutput {
             selected: SelectedProgramRef::new(selected.selected()),
             liveness: liveness.liveness(),
             ranges: ranges.ranges(),
@@ -28,9 +35,10 @@ impl AllocationSource for StagedOptimizedRegisterHomes {
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
             environment: selected.register_environment(),
+            target_input: selected.optimized_target(),
             selections: selected.optimized_target().optimized().selections(),
             budget: selected.optimized_target().optimized().budget_per_pass(),
-            evidence: AllocationEvidence::RegisterHomes(evidence),
-        })
+            evidence: AllocationEvidence::RegisterHomes(self.custody().to_owned()),
+        }
     }
 }

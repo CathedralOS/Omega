@@ -8,8 +8,10 @@ mod fixed_view;
 mod literal_folds;
 mod model;
 mod rematerialization;
+mod retained;
 
 pub use model::{AllocationEvidence, AllocationOutput, AllocationReplayError};
+pub use retained::RetainedAllocation;
 
 mod sealed {
     pub trait Sealed {}
@@ -37,4 +39,10 @@ impl<Source: AllocationSource + ?Sized> AllocationSource for Box<Source> {
     fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
         self.as_ref().replay_allocation()
     }
+}
+
+// Projection alone grants no admission. Only replay or the immutable retained
+// carrier's checked construction may expose these facts outside this owner.
+trait ProjectAllocation {
+    fn project_allocation(&self) -> AllocationOutput<'_>;
 }

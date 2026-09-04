@@ -6,10 +6,10 @@ use crate::tests::{
     FunctionRelativeOptimizationRealizationManifest, NativeTarget, Optimization,
     OptimizationSelections, OptimizedResolvedSelectedFormLayoutError,
     OptimizedSelectedFormEncodingError, StagedOptimizedPostAllocationMachineOptimization,
-    StagedOptimizedVerifiedPhysicalPipeline, StagedPostAllocationMachineFunctionRelativeSource,
-    WholeFunctionExitContractError, WholeFunctionExitLayoutCustody,
-    conditional_exact_binary_artifact, optimization_pipeline_report, optimize_artifact_sections,
-    selected_lowering_budget, stage_optimized_layout_independent_selected_form_encoding,
+    StagedOptimizedVerifiedPhysicalPipeline, WholeFunctionExitContractError,
+    WholeFunctionExitLayoutCustody, conditional_exact_binary_artifact,
+    optimization_pipeline_report, optimize_artifact_sections, selected_lowering_budget,
+    stage_optimized_layout_independent_selected_form_encoding,
     stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
     stage_optimized_resolved_selected_form_layout,
     stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
@@ -43,10 +43,12 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
     else {
         panic!("the exact post-allocation phase must use its symbolic machine route")
     };
-    let StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) = realization.source()
-    else {
-        panic!("the direct CBNZ route must retain direct register homes")
-    };
+    let allocation = realization.allocation().current();
+    assert!(matches!(
+        allocation.evidence(),
+        omega_selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
+    ));
+    let homes = &allocation;
     let machine = realization.machine();
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(optimization) =
         realization.optimization()
@@ -111,8 +113,7 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
         selections.identity()
     );
 
-    let ranges = homes.legality_stage().live_range_stage();
-    let selected_stage = ranges.liveness_stage().selected_stage();
+    let selected_stage = homes;
     let physical = selected_stage.register_environment().physical();
     let baseline_encoding = stage_optimized_layout_independent_selected_form_encoding(
         selected_stage.selected(),
@@ -324,7 +325,7 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
     assert_eq!(
         omega_machine_optimizer::validate_aarch64_cbnz_fusion(
             selected_stage.selected(),
-            ranges.liveness_stage().liveness(),
+            homes.liveness(),
             machine.machine(),
             physical,
             rehashed_corruption,
@@ -390,11 +391,12 @@ fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
     else {
         panic!("selected lowering must retain custody before post-allocation fusion")
     };
-    let StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) =
-        realization.source()
-    else {
-        panic!("selected lowering must remain the generic realization source")
-    };
+    let allocation = realization.allocation().current();
+    assert!(matches!(
+        allocation.evidence(),
+        omega_selected_instructions_to_register_homes::AllocationEvidence::SelectedLowering(_)
+    ));
+    let homes = &allocation;
     let machine = realization.machine();
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(optimization) =
         realization.optimization()
@@ -404,7 +406,10 @@ fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(
         staged.selected_lowering_completion(),
-        Some(homes.selected_lowering_run().custody().identity())
+        homes
+            .post_allocation_manifest()
+            .record()
+            .selected_lowering_completion
     );
     assert_eq!(optimization.fusion().receipt().action_count(), 1);
     assert_eq!(staged.function_relative_manifest(), realization.manifest());

@@ -19,7 +19,6 @@ pub(super) use crate::{
     OptimizedResolvedSelectedFormLayoutError, OptimizedSelectedFormEncodingError,
     OptimizedX86BranchRelaxationError, PostAllocationMachineOptimizationCustody,
     ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy,
-    StagedAllocationRecoveryFunctionRelativeSource, StagedAllocationRecoverySourceCustodyReceipt,
     StagedOptimizedPostAllocationMachineCustodyReceipt,
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,

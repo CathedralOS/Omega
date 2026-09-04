@@ -29,13 +29,27 @@ pub struct AllocationOutput<'program> {
     pub(super) manifest: &'program ValidatedPostAllocationOptimizationManifest,
     pub(super) environment: &'program ValidatedTargetRegisterEnvironment,
     pub(super) evidence: AllocationEvidence,
+    pub(super) target_input: &'program omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
     pub(super) selections: &'program OptimizationSelections,
     pub(super) budget: OptimizationWorkBudget,
 }
 
-impl AllocationOutput<'_> {
+impl<'program> AllocationOutput<'program> {
+    /// The selected program's borrow remains tied to the retained input, not this view.
+    pub fn selected_plan(&self) -> &'program omega_selected_instructions::SelectedInstructionPlan {
+        self.selected.plan()
+    }
+
+    /// Earlier target/proof input retained for independent downstream joins.
+    pub const fn target_input(
+        &self,
+    ) -> &'program omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations
+    {
+        self.target_input
+    }
+
     /// Exact retained build policy, independently joined during allocation replay.
-    pub const fn selections(&self) -> &OptimizationSelections {
+    pub const fn selections(&self) -> &'program OptimizationSelections {
         self.selections
     }
     pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
@@ -44,22 +58,24 @@ impl AllocationOutput<'_> {
     pub const fn selected(&self) -> &SelectedProgramRef<'_> {
         &self.selected
     }
-    pub const fn liveness(&self) -> &ValidatedLiveness {
+    pub const fn liveness(&self) -> &'program ValidatedLiveness {
         self.liveness
     }
-    pub const fn ranges(&self) -> &ValidatedLiveRanges {
+    pub const fn ranges(&self) -> &'program ValidatedLiveRanges {
         self.ranges
     }
-    pub const fn legality(&self) -> &ValidatedAllocationLegality {
+    pub const fn legality(&self) -> &'program ValidatedAllocationLegality {
         self.legality
     }
-    pub const fn homes(&self) -> &ValidatedRegisterHomes {
+    pub const fn homes(&self) -> &'program ValidatedRegisterHomes {
         self.homes
     }
-    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
+    pub const fn post_allocation_manifest(
+        &self,
+    ) -> &'program ValidatedPostAllocationOptimizationManifest {
         self.manifest
     }
-    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+    pub const fn register_environment(&self) -> &'program ValidatedTargetRegisterEnvironment {
         self.environment
     }
     pub const fn evidence(&self) -> &AllocationEvidence {
@@ -80,6 +96,7 @@ pub enum AllocationEvidence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationReplayError {
+    SelectionMismatch,
     RegisterHomes(OptimizedRegisterHomeCustodyError),
     FixedViewCopies(OptimizedPostCopyRegisterHomeCustodyError),
     LiteralFolds(OptimizedPostLiteralFoldHomeCustodyError),

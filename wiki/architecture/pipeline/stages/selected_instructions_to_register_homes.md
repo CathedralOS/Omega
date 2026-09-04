@@ -17,11 +17,26 @@ homes, manifest, target environment, and exact retained policy. A sealed
 `AllocationEvidence` separately retains the role-specific replay receipt.
 An existing view can be reused while its immutable input borrows remain live.
 
+`RetainedAllocation` owns the admitted replay inputs when a later stage needs
+to retain them. Its fallible construction replays the input before taking
+custody; its private immutable history cannot be modified by consumers.
+`current()` projects the same checked facts without rerunning analysis on each
+access. Independent replay remains available at subsequent proof gates. The
+retained target/proof input is separate from the current selected program.
+The owner also reconstructs the exercised allocation-recovery selection from
+replayed evidence and compares it with build policy; a copied selection alone
+cannot establish completion.
+
 Machine-plan construction and machine optimization accept this same boundary
 after baseline allocation, fixed-view copies, literal folding, or pressure
 rematerialization. Neither consumer walks upstream stage objects, looks for the
 last rewrite step, or chooses an `after_*` entrypoint. Rule catalog selection
 and target applicability still govern which machine rewrites may run.
+
+Post-allocation function realization and fragment emission use this same
+boundary. They do not carry a baseline/selected-lowering/recovery source enum,
+or construct separate manifests according to allocation history. The manifest
+binds the current allocation, selected policy, and actual optional completion.
 
 Retained histories inside allocation and in the remaining layout/realization
 adapters are transitional. Consolidation does not make those histories a new

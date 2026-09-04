@@ -6,7 +6,7 @@ use crate::tests::{
     OptimizationSelections, OptimizedResolvedSelectedFormLayoutError,
     OptimizedSelectedFormEncodingError, SelectedFormEncodingRow, SelectedFormEncodingState,
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedVerifiedPhysicalPipeline,
-    StagedPostAllocationMachineFunctionRelativeSource, WholeFunctionExitLayoutCustody,
+    WholeFunctionExitLayoutCustody,
     conditional_active_resident_exact_add_chain_artifact_with_false_literal,
     lower_optimized_to_target_operations, optimization_pipeline_report, optimize_artifact_sections,
     selected_lowering_budget, stage_optimized_aarch64_movn_materialization,
@@ -441,11 +441,12 @@ fn aarch64_movn_function_relative_realization_composes_after_exact_selected_lowe
     else {
         panic!("selected lowering must retain custody before MOVN realization")
     };
-    let StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) =
-        realization.source()
-    else {
-        panic!("selected lowering must remain the generic realization source")
-    };
+    let allocation = realization.allocation().current();
+    assert!(matches!(
+        allocation.evidence(),
+        omega_selected_instructions_to_register_homes::AllocationEvidence::SelectedLowering(_)
+    ));
+    let homes = &allocation;
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) =
         realization.optimization()
     else {
@@ -454,7 +455,10 @@ fn aarch64_movn_function_relative_realization_composes_after_exact_selected_lowe
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(
         staged.selected_lowering_completion(),
-        Some(homes.selected_lowering_run().custody().identity())
+        homes
+            .post_allocation_manifest()
+            .record()
+            .selected_lowering_completion
     );
     assert_eq!(staged.function_relative_manifest(), realization.manifest());
     assert_eq!(

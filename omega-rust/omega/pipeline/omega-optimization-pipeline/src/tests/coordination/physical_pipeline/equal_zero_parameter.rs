@@ -130,10 +130,12 @@ fn explicit_aarch64_cbnz_selection_crosses_allocation_and_elides_the_compare() {
     else {
         panic!("equal-zero selection must reach the post-allocation CBNZ route")
     };
-    let StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) = realization.source()
-    else {
-        panic!("mandatory equal-zero selection must retain direct allocated-home custody")
-    };
+    let allocation = realization.allocation().current();
+    assert!(matches!(
+        allocation.evidence(),
+        omega_selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
+    ));
+    let homes = &allocation;
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(optimization) =
         realization.optimization()
     else {
