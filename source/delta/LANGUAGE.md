@@ -177,89 +177,24 @@ The canonical version-1 request is one exact length-delimited byte sequence:
 ```
 
 The consuming compiler artifact's embedded metadata owns the profile-ID set.
-Version 1 assigns `1` to `ConformanceBytesV1` and `2` to
-`EpsilonCompilerV1`; zero and every ID unknown to that artifact reject. A later
-ID does not require a new envelope version, while a representation change does.
-The exact request and selected embedded metadata participate in compilation
-identity. Profile facts are never repeated as request claims or inferred from
-source, filenames, or ambient invocation state.
+Version 1 assigns `1` to `ConformanceBytesV1`; zero and every other ID reject.
+A later ID does not require a new envelope version, while a representation
+change does. The exact request and selected embedded metadata participate in
+compilation identity. Profile facts are never repeated as request claims or
+inferred from source, filenames, or ambient invocation state.
 
-Each profile declares one exact maximum sealed-input extent satisfying
-`0 <= maximum <= INT64_MAX`. Both version-1 profiles select 4,194,304 bytes.
-`ConformanceBytesV1` also selects a 4,194,304-byte maximum successful output;
-`EpsilonCompilerV1` selects AlphaBootstrapV2's 16,777,212-byte raw-tape maximum.
-The compiler validates those facts before adapter emission; an admitted input
-can therefore always become a valid Delta `Bytes`. An input or output exceeding
-the selected maximum is profile-owned `Incomplete`, not a Delta trap. These
-application limits are distinct from the implementing Gamma evaluator's source
-and sealed-input resources even where numeric values coincide.
+`ConformanceBytesV1` selects exact 4,194,304-byte maximum sealed-input and
+successful-output extents. It requires `main : Bytes -> Bytes`. Its adapter
+reads one sealed input, invokes `main`, preflights the complete returned value,
+and publishes exactly those bytes on success. An input or output exceeding the
+selected maximum is a profile-owned generated-program observation, not a Delta
+trap or compiler-boundary result. These limits are distinct from the
+implementing Gamma evaluator's source and sealed-input resources even where
+numeric values coincide.
 
-The two profiles are:
-
-- `ConformanceBytesV1` requires `main : Bytes -> Bytes`. Its adapter reads
-  one sealed input, invokes `main`, preflights the complete returned value, and
-  publishes exactly those bytes on success. Its runtime-containment outcomes
-  are profile-owned generated-program observations, not `DCOUT` or `ECOUT`.
-- `EpsilonCompilerV1` requires the Delta-written Epsilon compiler's exact entry and
-  result schema:
-
-```text
-(data EpsilonCompileOutcome
-  (Complete Bytes)
-  (Reject EpsilonRejectReason Int)
-  (StorageIncompleteAt Int Int Int)
-  (StorageIncompleteTotal Int Int))
-
-(def main ((source Bytes)) EpsilonCompileOutcome ...)
-```
-
-The `Int` in `Reject` is the source byte offset. The storage-refusal payloads
-are respectively `(limit, requested, source_offset)` and `(limit, requested)`;
-they report only D31/D34's selected application-static-storage capacity. D17 and
-`source/delta/LANGUAGE.md` own the source-declared closed
-`EpsilonRejectReason` and `EpsilonCompileOutcome` sums. `Int` and `Bytes` remain
-Delta's only built-in types; the profile injects no hidden nominal declaration.
-The selected `EpsilonCompilerV1` profile owns the explicit `ECOUT`
-constructor-to-wire-code table and its version. That deliberate coupling keeps
-the published wire boundary stable; codes never derive from declaration order.
-
-Before emission, the compiler resolves and retains the exact `main`, outcome
-type, outcome constructors, and reason constructors. It requires exactly the
-four displayed outcome cases and payloads. The `ECOUT` table must be a total
-checked bijection over the complete reason sum: every exact constructor has one
-unique in-range code, and every table entry identifies one exact constructor.
-Matching names or shapes never select the profile and do not make nominal types
-interchangeable. A schema, entry, or table mismatch is a `DCOUT` compilation
-rejection; adding or removing a reason requires an explicit D17/profile-version
-decision.
-
-Only the generated `EpsilonCompilerV1` Alpha adapter performs I/O. It reads sealed
-stdin, constructs the input `Bytes`, invokes `main`, and maps a returned value
-as follows:
-
-- `Complete(bytes)` validates and writes the exact raw artifact, then halts 0.
-- `Reject(reason, offset)` validates the exact reason and
-  `0 <= offset <= input length`, writes the accepted-edge diagnostic frame, and
-  halts 1.
-- `StorageIncompleteAt(limit, requested, offset)` validates the selected
-  application-static-storage limit in `0..INT64_MAX-1`, `requested > limit`,
-  and an in-range source offset, writes
-  `ECOUT::Incomplete(ApplicationStaticStorageBytes)` in
-  coordinate space 1, and halts 2. Any failed payload check is
-  `InternalFailure(InvalidReturnedOutcome)`.
-- `StorageIncompleteTotal(limit, requested)` performs the same limit checks,
-  writes that resource in coordinate space 0, and halts 2.
-- private source, heap, stack, output, or adapter exhaustion writes an
-  `Incomplete` frame and halts 2.
-- a Delta trap, impossible checked state, adapter contradiction, or replay
-  disagreement writes an `InternalFailure` frame and halts 3.
-
-The two storage constructors are the sole source-authored path to
-`Incomplete`; input, stack, heap, output, and every `InternalFailure` remain
-adapter-owned. For these constructors only, D34 defines `requested` as
-`min(exact_demand, INT64_MAX)`: exact while representable, otherwise the
-canonical exceeded-demand witness. The V1 frame and its zero-reserved bytes do
-not change. No failure path publishes partial artifact bytes.
+The former profile ID 2 and `EpsilonCompilerV1` schema are retired. The
+Delta-written Epsilon implementation executes Epsilon and does not request an
+Epsilon-to-Alpha adapter from this compiler.
 
 ### Conformance observation profile
 
@@ -296,17 +231,12 @@ Canonical compiler edges share one boundary discipline:
   with the halt value; and
 - unknown, malformed, noncanonical, or mismatched frames reject.
 
-Each accepted-language edge owns its magic, version, reason/resource/internal
-tables, and coordinate vocabulary. The Delta and Epsilon compiler edges use
-their own identities (`DCOUT` and `ECOUT`). One
-parameterized decoder may validate all profiles, but no profile may interpret
-another profile's frame. `DCOUT` V1 is
-`[FF 44 43 4F 55 54 01 00]`; `ECOUT` V1 is
-`[FF 45 43 4F 55 54 01 00]`. Their coordinate spaces are:
+Each accepted-language compiler edge owns its magic, version,
+reason/resource/internal tables, and coordinate vocabulary. The Delta compiler
+uses `DCOUT` V1, `[FF 44 43 4F 55 54 01 00]`, with coordinate spaces:
 
 ```text
-DCOUT  0 none, 1 Delta source, 2 emitted payload, 3 internal row, 4 DCREQ
-ECOUT  0 none, 1 Epsilon source, 2 emitted payload, 3 internal row
+0 none, 1 Delta source, 2 emitted payload, 3 internal row, 4 DCREQ
 ```
 
 `DCREQ` validation precedes Delta lexing, declaration/type/match checking,
@@ -319,15 +249,9 @@ a four-byte length cannot require attacker-selected input consumption before
 at request bytes 8 and 12 respectively. Body truncation and one trailing byte
 are `malformed_request` at the first missing or trailing request byte.
 
-After an otherwise valid frontend pass, profile-schema categories are ordered
-`missing_entry`, `entry_schema_mismatch`, then `profile_schema_mismatch`.
-Within one category an absent required declaration with coordinate space
-`none` precedes located defects, then located defects use their earliest Delta-
-source coordinate. Missing `main` has no coordinate; a wrong present `main`
-anchors at its declaration name. `EpsilonCompilerV1` uses
-`profile_schema_mismatch` with no coordinate for an absent required nominal
-member and with a source coordinate for a present malformed member or reason-
-code bijection. `ConformanceBytesV1` cannot emit that reason.
+After an otherwise valid frontend pass, an absent `main` has no coordinate and
+a wrong present `main : Bytes -> Bytes` anchors its schema rejection at the
+declaration name.
 
 The future compiler artifact embeds its closed tables. No host table is a
 runtime input or semantic authority. Generated-program statuses 248 through
@@ -350,7 +274,8 @@ call signatures, lexical local-scope resolution, and the complete
 scalar/nominal type relation. Authored signed arithmetic has checked runtime
 lowering, ordinary tail calls survive `if`, `let`, and `match`, and the five
 normative `Bytes` operations lower through a private length-bearing rope.
-Application profiles and canonical compiler-boundary failures remain outside
-this admitted stage. The complete compiler and tape remain absent. The former concatenative-Gamma
+`ConformanceBytesV1` framing, schema validation, and generated execution are
+implemented. Canonical DCOUT compiler-boundary failures remain outside this
+admitted stage. The complete compiler artifact remains absent. The former concatenative-Gamma
 implementation is retained only under Delta-owned bootstrap material and does
 not define a second route.

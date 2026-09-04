@@ -5,7 +5,7 @@
 Delta is the small typed pure functional language above Gamma. It adds
 static nominal algebraic data, exhaustive matching, checked signed integers,
 immutable bytes, monomorphic functions, mutual recursion, and proper tail
-calls. It exists to implement the Epsilon compiler.
+calls. It exists to implement the Epsilon evaluator.
 
 The normative contract is
 [`source/delta/LANGUAGE.md`](../../../../source/delta/LANGUAGE.md). The canonical
@@ -37,5 +37,5 @@ operands once and traps at every Delta overflow boundary. The five typed
 `Bytes` builtins use a private length-bearing rope, including checked logical
 concatenation and proper-tail lookup. Canonical DCREQ framing and
 `ConformanceBytesV1` are executable. The admitted complete edge remains absent
-while DCOUT failure frames, `EpsilonCompilerV1`, deterministic failure
-selection, and final edge closure remain open.
+while DCOUT failure frames, deterministic failure selection, and final edge
+closure remain open.

@@ -62,7 +62,7 @@ forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
 epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 2206, 89429, "6fa37b5870ef375477650ca58edb9be6012b51799d823b994ac939f69394d75e"),
+    ("compiler", compiler, 2206, 89407, "01cda8d7bd00fae0b9c9ebe135ad6dd825f6b274c95a92298363e3d4993955cf"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -149,6 +149,7 @@ if evaluate(compiler, dcreq(1, wrong_schema))[0] == 0:
 
 malformed_requests = (
     b"DCREQ\x01\x00\x00" + struct.pack("<I", 0) + struct.pack("<I", 0),
+    b"DCREQ\x01\x00\x00" + struct.pack("<I", 2) + struct.pack("<I", 0),
     b"DCREQ\x01\x00\x00" + struct.pack("<I", 1) + struct.pack("<I", 1),
     dcreq(1, conformance_identity) + b"x",
 )

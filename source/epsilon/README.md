@@ -1,7 +1,7 @@
 # Epsilon rung
 
-This directory owns the Epsilon language, its Delta-written compiler, and
-adjacent source-to-Alpha-tape validation.
+This directory owns the Epsilon language, its Delta-written evaluator, and
+adjacent execution validation.
 
 [`LANGUAGE.md`](LANGUAGE.md) is the normative Epsilon v1 contract fixed by D17.
 It is self-contained: a compiler, sample corpus, historical implementation, or
@@ -40,22 +40,23 @@ anchors at the transition subject.
 ## Canonical edges
 
 ```text
-Delta-written Epsilon compiler
-  └─ delta_compiler_bytecode.tape ─▶ epsilon_compiler_bytecode.tape
+Delta-written Epsilon evaluator + exact Epsilon-written Omega D
+  └─ selected Gamma execution ─▶ interpreted Omega compiler D
 
-Epsilon-written Omega compiler D
-  └─ epsilon_compiler_bytecode.tape ─▶ omega0_compiler_bytecode.tape
+Interpreted D + Omega-written C + alpha_bootstrap
+  └─ omega0_compiler_bytecode.tape
 ```
 
-The first artifact accepts Epsilon. The second accepts Omega. They are different
-compilers and must not both be called “the Epsilon compiler.”
+The first executable composition runs Epsilon. D accepts Omega and produces the
+first C tape only when its ordinary `alpha_bootstrap` target is selected.
 
 ## Contents and migration
 
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) records Epsilon feature rationale and
   change control.
-- `compiler/` owns the in-progress `epsilon_compiler.delta`, its eventual
-  canonical Alpha tape, and refinement evidence. The retained source currently
+- `compiler/` owns the in-progress Delta-written Epsilon evaluator and its
+  refinement evidence. The retained path is unchanged during the experiment;
+  it may be renamed after the execution boundary stabilizes. The source currently
   contains final compiler material through complete parsing, the D22/D24
   source-shaped identity census including D51's receiver-only qualified-machine
   syntax and removal of the superseded case/machine collision registry, D31
@@ -72,15 +73,15 @@ compilers and must not both be called “the Epsilon compiler.”
   resolved-case, complete payload-binder, and retained sum-coverage facts,
   settled field/index/slice projection failures, D37 scalar and argument-
   `never` category joins, let/assignment/assert and explicit-return relations,
-  first-following-statement terminal flow, and symbolic Alpha encoding.
+  first-following-statement terminal flow.
   D50 fixes bare-state-transfer spelling, D51 retires static qualified
   machines plus special `self` resolution, D52 fixes resultless-argument
   anchoring, D53 fixes local block exits, D56 fixes entry diagnostics, and D57
   fixes transition-pattern and coverage diagnostics. D50, D51, D52, D56, and
   D57 are implemented; the remaining rulings remain
   alongside final body/control checking, the remaining D37
-  control/terminal premise DAG, D38 executable controls, storage realization/
-  lowering, `main`, and publication are incomplete, so it exposes no compiler
+  control/terminal premise DAG, D38 executable controls, storage realization,
+  execution, `main`, and composition are incomplete, so it exposes no evaluator
   artifact yet. The
   current fact pass does enforce D38's contextual receiver/result relation and
   separate array-view extra-call rejection.
@@ -92,10 +93,10 @@ suite will be derived from D17 and owned by the real compiler edge.
 ## Boundaries
 
 - Epsilon is independent of Omega even when spelling overlaps.
-- The Epsilon compiler is written in Delta and emits canonical Delta source;
-  selected lower compilers compose that receipt into the exact Alpha tape.
-- Epsilon-written `D` implements full Omega and may generate a slow,
-  conservatively lowered `omega₀` tape.
+- The Epsilon evaluator is written in Delta and executes exact Epsilon source
+  under the selected Gamma evaluator.
+- Epsilon-written `D` implements full Omega and may slowly compile Omega C for
+  the ordinary `alpha_bootstrap` target.
 - All fixed capacities are source-visible bounds, explicit profile parameters,
   or private budgets whose exhaustion is `Incomplete` and publishes no tape.
 - Shell and Python may invoke tests or stamp tapes. They may not parse, lower,
@@ -110,7 +111,7 @@ Active work is tracked in
 
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `compiler/` | The sole owner of the in-progress Delta-written compiler accepting Epsilon and its exact Alpha-tape edge. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
+| `compiler/` | The sole owner of the in-progress Delta-written evaluator executing Epsilon. | Replace only atomically with an admitted immediate-predecessor evaluator edge. |
 
 The root retains only the normative contract, its feature/change ledger, and
 this owner map. Proposed programs without a compiler or a contract-derived test

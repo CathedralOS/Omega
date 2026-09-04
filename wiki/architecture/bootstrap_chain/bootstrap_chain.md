@@ -9,9 +9,9 @@ audited Alpha VM + admitted Beta compiler tape
   -> Beta-written Gamma evaluator -> gamma_evaluator_bytecode.tape
   -> Gamma-authored staged source transformers
   -> Delta compiler -> canonical Gamma source
-  -> Epsilon compiler -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
-  -> Omega compiler D -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
-  -> Omega compiler C -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
+  -> Epsilon evaluator -> canonical Delta -> interpreted Omega compiler D
+  -> D compiles Omega compiler C for alpha_bootstrap -> omega0_compiler_bytecode.tape
+  -> omega0 recompiles C for alpha_bootstrap -> omega_compiler_bytecode.tape
 ```
 
 Alpha is unchanged. Beta is the trusted imperative tape-assembly language whose
@@ -28,10 +28,10 @@ platform. Features require a concrete customer and a favorable whole-chain
 audit.
 
 Beta self-reconstruction binds its readable compiler source to the admitted
-cold-start tape. No later intermediate rung needs self-hosting: each validates
-its successor and emits canonical source for the selected lower compilers.
-Only Omega closes a further self-host edge because `omega0` must compile the
-production Omega-written compiler closure `C`.
+cold-start tape. Gamma evaluates the Delta compiler, and the resulting Gamma
+program evaluates the Delta-written Epsilon evaluator. Interpreted D then
+compiles the production Omega-written compiler closure C. Only Omega closes a
+self-host edge when `omega0` recompiles C.
 
 ## Edge discipline
 
@@ -65,9 +65,9 @@ static validation, provenance-tagged immutable pairs, and bounded output are
 implemented with exact profile outcomes. The selected Gamma-authored Delta compiler has a
 passing stage for finite arbitrary-field recursive ADTs plus exhaustive matches,
 including two-field List and three-field Bytes-rope witnesses; the
-complete edge remains open. The Delta-written Epsilon
-compiler and Epsilon-written Omega `D` are incomplete and have no canonical
-tapes. Omega-written `C` is also incomplete. No compatibility route fills these
+complete edge remains open. The Delta-written Epsilon evaluator and
+Epsilon-written Omega D are incomplete; D has no compiled tape. Omega-written C
+is also incomplete, so `omega0` remains absent. No compatibility route fills these
 gaps. The former concatenative Gamma implementation and its Delta compiler are
 nested bootstrap evidence under their language owners, not selected edges.
 

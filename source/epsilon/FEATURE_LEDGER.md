@@ -1,8 +1,8 @@
 # Epsilon feature ledger
 
 Epsilon is justified by the smallest robust surface needed to author the
-Epsilon-written full Omega compiler source closure `D` and compile it with the
-Delta-written Epsilon compiler.
+Epsilon-written full Omega compiler source closure `D` and execute it with the
+Delta-written Epsilon evaluator.
 
 [`LANGUAGE.md`](LANGUAGE.md) is the normative Epsilon v1 contract fixed by D17.
 This ledger is rationale and change control, not a second specification or a
@@ -34,7 +34,7 @@ least one of these holds and the normative contract is revised explicitly:
   is the owning mutable instance; reserved `self` is that ordinary receiver
   binding, not a second value model or an owner-qualified static facility;
 - enough source custody to consume the exact package-resolved closure `D`;
-- conservative lowering to canonical Alpha tape.
+- deterministic execution under the selected evaluator profile.
 
 ## Not implied
 
@@ -59,5 +59,6 @@ For each candidate:
 
 The former Epsilon-to-Delta bridge and versioned native-publication matrix are
 deleted. New progress is measured against the
-Delta-written Epsilon compiler, exact closure `D`, and one Alpha-tape edge—not a
-growing sequence of private snapshot formats.
+Delta-written Epsilon evaluator, exact closure `D`, and Omega's
+`alpha_bootstrap` product edge—not a growing sequence of private snapshot
+formats.

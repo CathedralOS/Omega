@@ -8,15 +8,15 @@ they are not tasks and have no compatibility requirement.
 audited Alpha VM + admitted Beta compiler tape
   -> Beta-written Gamma evaluator
   -> Gamma-authored Delta compiler
-  -> Delta-authored Epsilon compiler
-  -> Epsilon-authored Omega compiler D
-  -> Omega-written product compiler C
+  -> Delta-authored Epsilon evaluator
+  -> interpreted Epsilon-authored Omega compiler D
+  -> Omega-written product compiler C for alpha_bootstrap
 ```
 
 Alpha is unchanged. Beta is the trusted imperative tape-assembly language.
 Gamma is the small typed scalar/effect functional language evaluated directly
 by Beta. Delta is the richer typed functional language needed to write the
-Epsilon compiler.
+Epsilon evaluator.
 
 ## Rules
 
@@ -47,39 +47,40 @@ Epsilon compiler.
   including nominal types, exhaustiveness, checked arithmetic, proper-tail
   lowering, sealed profiles, deterministic failure selection, and canonical
   Gamma emission. DCREQ framing and `ConformanceBytesV1` are executable;
-  implement canonical DCOUT boundary failures and `EpsilonCompilerV1` after
-  the Epsilon compiler exposes its final entry/result, without Delta-specific
-  Gamma primitives.
-  The current 467,348-byte Epsilon source plus a diagnostic entry compiles in
-  73.4 seconds after declaration metadata indexing and emission cleanup;
+  implement canonical DCOUT boundary failures without Delta-specific Gamma
+  primitives. Direct Epsilon-to-Alpha profile ID 2 is retired.
+  The current 430,747-byte Epsilon evaluator source plus a diagnostic entry
+  compiles through the selected lower route;
   continue reducing general transformation costs rather than admitting a
   customer-specific shortcut.
   Acceptance: conformance and malformed-source suites pass, the complete
-  Epsilon compiler compiles, exact receipts compose to Alpha, and no host or
-  retired compiler participates.
+  Epsilon evaluator compiles, exact receipts execute D, and no host or retired
+  compiler participates.
 
 ## P3 - Delta to Epsilon
 
-- **EPSILON-COMPILER.** Complete
+- **EPSILON-EVALUATOR.** Complete
   `source/epsilon/compiler/epsilon_compiler.delta` against
   `source/epsilon/LANGUAGE.md`, deleting inherited structures with no current
   customer. Finish checking, fixed-storage realization, deterministic
-  diagnostics, canonical Delta emission, entry adaptation, and atomic
-  publication. Acceptance: it compiles the complete Omega-D source within its
-  profile and composes through the selected lower chain to Alpha.
+  diagnostics, execution, the evaluator entry, and exact composition with D.
+  Acceptance: exact Epsilon-written Omega D executes under the selected lower
+  chain and its behavior refines `RunEpsilon` without an Epsilon-owned Alpha
+  backend.
 
 ## P4 - Epsilon to Omega
 
 - **OMEGA-D.** Complete `source/omega/omega_compiler.epsilon` as the first full
-  Omega compiler. Conservative and slow lowering is acceptable; Epsilon
-  features are justified only by this source. Acceptance: the selected chain
-  produces `omega0_compiler_bytecode.tape`, and `omega0` accepts the complete
-  language, emits required artifacts, and passes product/refinement suites.
+  Omega compiler. Conservative and slow interpreted execution is acceptable;
+  Epsilon features are justified only by this source. Acceptance: interpreted D
+  compiles the exact Omega C closure for its ordinary `alpha_bootstrap` target
+  and produces `omega0_compiler_bytecode.tape`.
 
 - **OMEGA-C.** Compile the exact Omega-written product closure rooted at
-  `source/omega/{build.omg,main.omg}` with `omega0`. This is the only meaningful
-  self-host edge. Acceptance: `omega0 -> C -> omega` is deterministic, `omega`
-  recompiles C under the same source and target profiles, product suites pass,
+  `source/omega/{build.omg,main.omg}` with interpreted D for
+  `alpha_bootstrap`, then with `omega0`. This is the only meaningful self-host
+  edge. Acceptance: `D -> C/omega0 -> C/omega` is deterministic, `omega`
+  recompiles C under the same source and target profile, product suites pass,
   and the transitive manifest contains no Rust comparator or retired rung.
 
 ## P5 - Chain closure

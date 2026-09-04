@@ -1,0 +1,7 @@
+(def main ((source Bytes)) Bytes
+  (match (epsilon_evaluate_empty_entry source)
+    ((EpsilonEvaluatorSliceExit code output)
+      (if (eq code 0) (bytes_single 7) (bytes_single 1)))
+    ((EpsilonEvaluatorSliceRejected reasonValue errorOffset) (bytes_single 2))
+    ((EpsilonEvaluatorSliceInternal errorOffset) (bytes_single 3))
+    (EpsilonEvaluatorSliceUnsupported (bytes_single 4))))

@@ -3,7 +3,7 @@
 Delta is the typed, pure functional rung above Gamma. It supplies nominal
 algebraic data, exhaustive pattern matching, checked signed integers, immutable
 bytes, forward and mutual recursion, and proper tail calls. It is deliberately
-small and exists to implement the Epsilon compiler.
+small and exists to implement the Epsilon evaluator.
 
 [`LANGUAGE.md`](LANGUAGE.md) is normative. The canonical edge is:
 
@@ -20,8 +20,8 @@ language is preserved under
 `bootstrap/concatenative-compiler/`; it is expressiveness evidence, not the
 selected edge. Current staged-bootstrap experiments remain under `tests/delta/`.
 
-The Delta compiler may know only Gamma, Delta, and the exact Epsilon compiler
-application profile. It may not encode Alpha, parse Epsilon source itself,
+The Delta compiler may know only Gamma, Delta, and its exact application
+profiles. It may not encode Alpha, parse Epsilon source itself,
 invoke a host translator, serialize an interpreter as output, or acquire
 general-purpose runtime facilities.
 
