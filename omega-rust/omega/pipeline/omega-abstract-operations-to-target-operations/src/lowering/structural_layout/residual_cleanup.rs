@@ -132,7 +132,7 @@ pub(in crate::lowering) fn is_partial_cleanup_path(path: &[StructuralPathSegment
         [StructuralPathSegment::FixedIndex(0..=3)]
             | [
                 StructuralPathSegment::FixedIndex(0 | 1),
-                StructuralPathSegment::FixedIndex(0..=14),
+                StructuralPathSegment::FixedIndex(0..=15),
             ]
     )
 }
