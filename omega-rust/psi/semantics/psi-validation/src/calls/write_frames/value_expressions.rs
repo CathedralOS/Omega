@@ -9,20 +9,21 @@ use super::isolation::{
     struct_literal_type_is_caller_isolated, type_is_caller_isolated_local,
 };
 use super::{
-    ExpressionHandle, ExpressionNode, Machine, ParameterRelativeFrameOrigin, StateParameter,
-    SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    expression_is_effectful_for_transparent_result, free_machine_entry_state,
-    machine_state_by_symbol, value_call_preserves_transparent_result,
+    ExpressionHandle, ExpressionNode, Machine, MachineSymbols, ParameterRelativeFrameOrigin,
+    StateParameter, SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode,
+    TypedTrees, expression_is_effectful_for_transparent_result, free_machine_entry_state,
+    machine_state_by_symbol, statement_call_argument_preserves_transparent_result,
 };
 
 #[derive(Clone, Copy)]
-enum CallResultRequirement {
+pub(super) enum CallResultRequirement {
     NonReference,
     CallerIsolated,
 }
 
 #[derive(Clone, Copy)]
-enum ValuePosition {
+pub(super) enum ValuePosition {
+    CallArgument(TypeReferenceHandle),
     TypedRoot(TypeReferenceHandle),
     AggregateElement(TypeReferenceHandle),
     ComputedOperand(CallResultRequirement),
@@ -37,15 +38,16 @@ impl ValuePosition {
             Self::ComputedOperand(requirement)
             | Self::MemberReceiver(requirement)
             | Self::IndexCollection(requirement) => requirement,
-            Self::TypedRoot(_) | Self::AggregateElement(_) | Self::ProjectedArrayElement => {
-                CallResultRequirement::NonReference
-            }
+            Self::CallArgument(_)
+            | Self::TypedRoot(_)
+            | Self::AggregateElement(_)
+            | Self::ProjectedArrayElement => CallResultRequirement::NonReference,
         }
     }
 
     fn computed_operand_requirement(self, program: &TypedTrees) -> Option<CallResultRequirement> {
         match self {
-            Self::TypedRoot(expected_type) => program
+            Self::CallArgument(expected_type) | Self::TypedRoot(expected_type) => program
                 .primitive_type_reference(expected_type)
                 .map(|_| CallResultRequirement::CallerIsolated),
             Self::AggregateElement(expected_type) => program
@@ -56,7 +58,7 @@ impl ValuePosition {
     }
 }
 
-type PendingValue = (ExpressionHandle, ValuePosition);
+pub(super) type PendingValue = (ExpressionHandle, ValuePosition);
 
 /// Check every eagerly evaluated child of the finite value expression.
 /// Primitive computations and concrete aggregates compose without numeric
@@ -88,109 +90,154 @@ pub(super) fn value_expression_preserves_transparent_result(
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::Call(_) => {
-                let admitted = match position.call_result_requirement() {
-                    CallResultRequirement::NonReference => value_call_preserves_transparent_result(
+                if !value_call_result_is_admitted(program, expression, position, symbols) {
+                    return false;
+                }
+                let mut diagnostics = Vec::new();
+                let machine_symbols =
+                    MachineSymbols::build(program, current_machine, &mut diagnostics);
+                if !diagnostics.is_empty()
+                    || !statement_call_argument_preserves_transparent_result(
                         program,
                         current_machine,
                         expression,
+                        TypeReferenceHandle::invalid(),
+                        &machine_symbols,
                         symbols,
                         active_states,
                         parameters,
                         aliases,
-                    ),
-                    CallResultRequirement::CallerIsolated => {
-                        caller_isolated_value_call_preserves_transparent_result(
-                            program,
-                            current_machine,
-                            expression,
-                            symbols,
-                            active_states,
-                            parameters,
-                            aliases,
-                        )
-                    }
-                };
-                if !admitted {
-                    return false;
-                }
-            }
-            ExpressionNode::StructLiteral(literal) => {
-                match position {
-                    ValuePosition::TypedRoot(_) | ValuePosition::MemberReceiver(_) => {}
-                    ValuePosition::AggregateElement(expected_type)
-                        if struct_literal_matches_expected_type(
-                            program,
-                            literal,
-                            expected_type,
-                        ) => {}
-                    _ => return false,
-                }
-                // Includes all declared fields and variants, not only the
-                // authored active payload.
-                if !struct_literal_type_is_caller_isolated(program, literal) {
-                    return false;
-                }
-                for field in program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .rev()
+                    )
                 {
-                    if !expression_is_effectful_for_transparent_result(program, field.value) {
-                        continue;
-                    }
-                    let Some(field_type) =
-                        struct_literal_field_type(program, literal, field.name.as_str())
-                    else {
-                        return false;
-                    };
-                    pending.push((field.value, ValuePosition::AggregateElement(field_type)));
-                }
-            }
-            ExpressionNode::ArrayLiteral(elements) => {
-                let elements = program.expression_table.expression_handles(*elements);
-                let element_position = match position {
-                    ValuePosition::TypedRoot(expected_type)
-                    | ValuePosition::AggregateElement(expected_type) => {
-                        let Some(element_type) =
-                            typed_array_element_type(program, expected_type, elements.len())
-                        else {
-                            return false;
-                        };
-                        ValuePosition::AggregateElement(element_type)
-                    }
-                    ValuePosition::IndexCollection(_) | ValuePosition::ProjectedArrayElement => {
-                        // The enclosing primitive projection has no contextual
-                        // nominal element type. Do not guess one for record
-                        // literal elements; arrays, calls and computations keep
-                        // their existing independent admission rules.
-                        ValuePosition::ProjectedArrayElement
-                    }
-                    _ => return false,
-                };
-                pending.extend(
-                    elements
-                        .iter()
-                        .rev()
-                        .map(|element| (*element, element_position)),
-                );
-            }
-            ExpressionNode::Binary(_)
-            | ExpressionNode::Unary(_)
-            | ExpressionNode::Cast(_)
-            | ExpressionNode::Member(_)
-            | ExpressionNode::Indexed(_) => {
-                let Some(requirement) = position.computed_operand_requirement(program) else {
-                    return false;
-                };
-                if !push_computed_operands(program, expression, requirement, &mut pending) {
                     return false;
                 }
             }
-            _ => return false,
+            _ => {
+                if !push_value_children(program, expression, position, &mut pending) {
+                    return false;
+                }
+            }
         }
     }
     true
+}
+
+/// Expand value structure without resolving calls. Both callers enqueue the
+/// returned children on their own worklist, so alternating calls and computed
+/// values do not recursively re-enter the value traversal.
+pub(super) fn push_value_children(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    position: ValuePosition,
+    pending: &mut Vec<PendingValue>,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::StructLiteral(literal) => {
+            match position {
+                ValuePosition::TypedRoot(_) | ValuePosition::MemberReceiver(_) => {}
+                ValuePosition::CallArgument(expected_type)
+                | ValuePosition::AggregateElement(expected_type)
+                    if struct_literal_matches_expected_type(program, literal, expected_type) => {}
+                _ => return false,
+            }
+            // Includes all declared fields and variants, not only the
+            // authored active payload.
+            if !struct_literal_type_is_caller_isolated(program, literal) {
+                return false;
+            }
+            for field in program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .rev()
+            {
+                if !expression_is_effectful_for_transparent_result(program, field.value) {
+                    continue;
+                }
+                let Some(field_type) =
+                    struct_literal_field_type(program, literal, field.name.as_str())
+                else {
+                    return false;
+                };
+                pending.push((field.value, ValuePosition::AggregateElement(field_type)));
+            }
+        }
+        ExpressionNode::ArrayLiteral(elements) => {
+            let elements = program.expression_table.expression_handles(*elements);
+            let element_position = match position {
+                ValuePosition::CallArgument(expected_type)
+                | ValuePosition::TypedRoot(expected_type)
+                | ValuePosition::AggregateElement(expected_type) => {
+                    let Some(element_type) =
+                        typed_array_element_type(program, expected_type, elements.len())
+                    else {
+                        return false;
+                    };
+                    ValuePosition::AggregateElement(element_type)
+                }
+                ValuePosition::IndexCollection(_) | ValuePosition::ProjectedArrayElement => {
+                    // The enclosing primitive projection has no contextual
+                    // nominal element type. Do not guess one for record
+                    // literal elements; arrays, calls and computations keep
+                    // their existing independent admission rules.
+                    ValuePosition::ProjectedArrayElement
+                }
+                _ => return false,
+            };
+            pending.extend(
+                elements
+                    .iter()
+                    .rev()
+                    .map(|element| (*element, element_position)),
+            );
+        }
+        ExpressionNode::Binary(_)
+        | ExpressionNode::Unary(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Indexed(_) => {
+            let Some(requirement) = position.computed_operand_requirement(program) else {
+                return false;
+            };
+            if !push_computed_operands(program, expression, requirement, pending) {
+                return false;
+            }
+        }
+        _ => return false,
+    }
+    true
+}
+
+pub(super) fn value_call_result_is_admitted(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    position: ValuePosition,
+    symbols: &TopLevelSymbols<'_>,
+) -> bool {
+    // Direct arguments retain their reference-origin handling. Calls below a
+    // computed or aggregate value must satisfy that position's value rule.
+    if matches!(position, ValuePosition::CallArgument(_)) {
+        return true;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let Some((_, state)) = machine_state_by_symbol(program, call.target_symbol).or_else(|| {
+        (!call.receiver.is_valid())
+            .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
+            .flatten()
+    }) else {
+        return false;
+    };
+    match position.call_result_requirement() {
+        CallResultRequirement::NonReference => {
+            state.return_type.is_valid()
+                && !super::type_reference_is_reference(program, state.return_type)
+        }
+        CallResultRequirement::CallerIsolated => {
+            type_is_caller_isolated_local(program, state.return_type)
+        }
+    }
 }
 
 fn typed_array_element_type(
@@ -247,38 +294,4 @@ fn push_computed_operands(
         _ => return false,
     }
     true
-}
-
-#[allow(clippy::too_many_arguments)]
-fn caller_isolated_value_call_preserves_transparent_result(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    expression: ExpressionHandle,
-    symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
-) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    let Some((_, callee_state)) =
-        machine_state_by_symbol(program, call.target_symbol).or_else(|| {
-            (!call.receiver.is_valid())
-                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
-                .flatten()
-        })
-    else {
-        return false;
-    };
-    type_is_caller_isolated_local(program, callee_state.return_type)
-        && value_call_preserves_transparent_result(
-            program,
-            current_machine,
-            expression,
-            symbols,
-            active_states,
-            parameters,
-            aliases,
-        )
 }

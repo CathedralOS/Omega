@@ -1353,12 +1353,20 @@ fn statement_call_preserves_transparent_result(
         return false;
     }
     let arguments = program.statement_table.expression_handles(call.arguments);
+    let argument_types = call_targets::call_argument_types(
+        program,
+        call.target_symbol,
+        call.target.as_str(),
+        call.receiver.is_empty(),
+        symbols,
+    );
     // Every sibling must independently preserve the returned-place origin.
-    if arguments.iter().any(|argument| {
+    if arguments.iter().enumerate().any(|(index, argument)| {
         !statement_call_argument_preserves_transparent_result(
             program,
             current_machine,
             *argument,
+            argument_types.get(index).copied().unwrap_or_default(),
             &machine_symbols,
             symbols,
             active_states,
@@ -1422,47 +1430,6 @@ fn statement_call_preserves_transparent_result(
     .is_some()
 }
 
-fn value_call_preserves_transparent_result(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    expression: ExpressionHandle,
-    symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
-) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    let Some((_, callee_state)) =
-        machine_state_by_symbol(program, call.target_symbol).or_else(|| {
-            (!call.receiver.is_valid())
-                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
-                .flatten()
-        })
-    else {
-        return false;
-    };
-    if !callee_state.return_type.is_valid()
-        || type_reference_is_reference(program, callee_state.return_type)
-    {
-        return false;
-    }
-    let mut diagnostics = Vec::new();
-    let machine_symbols = MachineSymbols::build(program, current_machine, &mut diagnostics);
-    diagnostics.is_empty()
-        && statement_call_argument_preserves_transparent_result(
-            program,
-            current_machine,
-            expression,
-            &machine_symbols,
-            symbols,
-            active_states,
-            parameters,
-            aliases,
-        )
-}
-
 fn parameter_relative_place_origin(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -1492,6 +1459,7 @@ fn parameter_relative_place_origin(
                         program,
                         current_machine,
                         indexed.index,
+                        TypeReferenceHandle::invalid(),
                         &machine_symbols,
                         symbols,
                         active_states,

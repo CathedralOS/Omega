@@ -677,13 +677,26 @@ Current ownership is:
   sibling must pass independently: receivers must be effect-free member chains,
   no expression may reborrow a mutable-reference binding, and every internal or
   boundary call must have a complete inferred frame. Call nesting has no numeric
-  cutoff. Computed expression shells are not direct calls and need the separate
-  admission rules below. A recursive or opaque call, binding reborrow, or
+  cutoff. Computed arguments to resolved nongeneric internal calls carry the
+  formal parameter's type into the shared value rules below. Every nested call
+  supplies its own argument contexts, excluding the attached `self` parameter.
+  Direct reference-valued arguments retain their origin rules; calls beneath a
+  primitive computation require caller-isolated results. Effectful record and
+  selected-case arguments must match the formal nominal type, and fixed arrays
+  must match its element type and literal length. Missing or generic formal context,
+  including boundary calls without an internal signature, does not authorize
+  newly admitted computed values. Existing pure places and direct-call trees
+  keep their prior admission; this is not an independent full typing check.
+  Attached calls on local receivers that still lack a resolved target symbol
+  remain opaque: a member spelling alone does not select an internal signature.
+  A recursive or opaque call, binding reborrow, or
   unsupported expression rejects the whole tree, including when it occurs in
   just one sibling. Frame inference retains its active-state recursion checks.
   A mutable indexed statement argument additionally needs a parameter-relative
   origin proof at every position in the tree, not just at a particular nesting
-  depth. Stable-alias index expressions retain their stricter direct-call shape.
+  depth. A scalar projection of a computed aggregate can instead use its typed
+  value evidence; a borrowed indexed place cannot use that fallback.
+  Stable-alias index expressions retain their stricter direct-call shape.
   Complete frames remain may-write evidence; admission never suppresses nested
   call writes.
   An explicitly discarded concrete primitive result from a nongeneric internal
@@ -716,7 +729,10 @@ Current ownership is:
   the relation when the right-hand side is effect-free or a typed
   non-reference direct-call tree with complete frames. Reference-valued roots
   keep their existing relational handling.
-  `calls/write_frames/value_expressions.rs` uses a shared worklist to admit
+  `calls/write_frames/value_expressions.rs` supplies shared value expansion to
+  the assignment/initializer and call-argument worklists. Expansion enqueues one
+  level at a time; alternating calls and computations do not recursively invoke
+  the value walker. These worklists admit
   finite compositions of primitive computations and concrete caller-isolated
   aggregate literals. Root, field, element,
   member-receiver, and index-collection positions carry their available type
