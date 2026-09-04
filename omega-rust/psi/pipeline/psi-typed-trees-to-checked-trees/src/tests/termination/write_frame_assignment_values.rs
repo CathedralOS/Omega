@@ -1,7 +1,145 @@
 use super::*;
 
 #[test]
-fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
+fn finite_call_trees_preserve_deep_effects_and_reject_hostile_siblings() {
+    let nested = |callee: &str, leaf: &str| {
+        (0..16).fold(leaf.to_owned(), |expression, _| {
+            format!("{callee}({expression})")
+        })
+    };
+    let source = r#"
+    data Main { cells: [u64; 2]; value: u64; other: u64; }
+    machine identity_index(value: u64 [0..=1]) -> u64 [0..=1] { value }
+    machine write_index(value: &mut u64) -> u64 [0..=1] {
+        value = 1;
+        0
+    }
+    machine return_value(value: &mut u64) -> &mut u64 { value }
+    machine recursive_value(value: &mut u64) -> &mut u64 {
+        recursive_value(value)
+    }
+    machine write_value(value: &mut u64) { value = 1; }
+    machine write_pair(first: &mut u64, second: &mut u64) {
+        first = 1;
+        second = 2;
+    }
+    machine after_call(value: &mut u64) -> &mut u64 {
+        write_value($RETURN);
+        value
+    }
+    machine after_indexed<'value, 'cells>(
+        value: &'value mut u64, cells: &'cells mut [u64; 2]
+    ) -> &'value mut u64 {
+        write_value($PROJECTED);
+        value
+    }
+    machine after_reborrow<'value, 'other>(
+        value: &'value mut u64, other: &'other mut u64
+    ) -> &'value mut u64 {
+        write_pair($RETURN, $REBIND);
+        value
+    }
+    machine after_recursive<'value, 'other>(
+        value: &'value mut u64, other: &'other mut u64
+    ) -> &'value mut u64 {
+        write_pair($RETURN, $RECURSIVE);
+        value
+    }
+    machine Main::indexed(&mut self) {
+        let alias: &mut u64 = &mut self.cells[$INDEX];
+        alias = 3;
+    }
+    machine Main::returned(&mut self) {
+        let alias: &mut u64 = after_call(&mut self.value);
+        alias = 3;
+    }
+    machine Main::nested_indexed(&mut self) {
+        let alias: &mut u64 = after_indexed(&mut self.value, &mut self.cells);
+        alias = 3;
+    }
+    machine Main::nested_indexed_alias(&mut self) {
+        let alias: &mut u64 = $LOCAL_PROJECTED;
+        alias = 3;
+    }
+    machine Main::nested_indexed_reborrow(&mut self) {
+        let mut index: &mut u64 = &mut self.value;
+        let alias: &mut u64 = $LOCAL_REBIND;
+        alias = 3;
+    }
+    machine Main::reborrow(&mut self) {
+        let alias: &mut u64 = after_reborrow(&mut self.value, &mut self.other);
+        alias = 3;
+    }
+    machine Main::recursive(&mut self) {
+        let alias: &mut u64 = after_recursive(&mut self.value, &mut self.other);
+        alias = 3;
+    }
+    "#
+    .replace(
+        "$INDEX",
+        &nested("identity_index", "write_index(&mut self.value)"),
+    )
+    .replace("$RETURN", &nested("return_value", "value"))
+    .replace(
+        "$PROJECTED",
+        &nested("return_value", "&mut cells[write_index(value)]"),
+    )
+    .replace(
+        "$LOCAL_PROJECTED",
+        &nested(
+            "return_value",
+            "&mut self.cells[write_index(&mut self.value)]",
+        ),
+    )
+    .replace(
+        "$LOCAL_REBIND",
+        &nested("return_value", "&mut self.cells[write_index(&mut index)]"),
+    )
+    .replace("$REBIND", &nested("return_value", "&mut other"))
+    .replace(
+        "$RECURSIVE",
+        &nested("return_value", "recursive_value(other)"),
+    );
+    let tokens = Lexer::new(&source).tokenize().expect("source tokenizes");
+    let syntax = parse_syntax_trees(&tokens).expect("source parses");
+    let resolved = lower_syntax_trees(&syntax).expect("source resolves");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("source types");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    for (name, expected) in [
+        ("Main::indexed", Some(vec!["self.cells", "self.value"])),
+        ("Main::returned", Some(vec!["self.value"])),
+        (
+            "Main::nested_indexed",
+            Some(vec!["self.cells", "self.value"]),
+        ),
+        (
+            "Main::nested_indexed_alias",
+            Some(vec!["self.cells", "self.value"]),
+        ),
+        ("Main::reborrow", None),
+        ("Main::nested_indexed_reborrow", None),
+        ("Main::recursive", None),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let state = typed.machine_states(machine).first().expect("entry state");
+        let expected =
+            expected.map(|paths| paths.into_iter().map(str::to_owned).collect::<Vec<_>>());
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, state)
+                .complete_paths(),
+            expected.as_deref(),
+            "{name} must retain deep call effects and binding provenance"
+        );
+    }
+}
+
+#[test]
+fn transparent_returned_place_accepts_complete_indexed_statement_arguments() {
     let source = r#"
     data Bucket {
         cells: [u64; 2];
@@ -1064,6 +1202,54 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
                 "self.second_index_write",
             ],
         ),
+        (
+            "Main::deep_indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::deep_alias_indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::deep_slice_view_indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::deep_alias_slice_view_indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::deep_member_alias_slice_view_indexed_statement_result",
+            vec!["self.bucket.cells", "self.result"],
+        ),
+        (
+            "Main::deep_helper_slice_view_indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::deep_attached_slice_view_indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::deep_attached_projected_slice_view_indexed_statement_result",
+            vec!["self.bucket.cells", "self.result"],
+        ),
+        (
+            "Main::deep_projected_helper_slice_view_indexed_statement_result",
+            vec!["self.bucket.cells", "self.result"],
+        ),
+        (
+            "Main::deep_slice_view_member_after_index_statement_result",
+            vec!["self.cell_bucket.cells", "self.result"],
+        ),
+        (
+            "Main::deep_repeated_index_statement_result",
+            vec!["self.grid_bucket.rows", "self.index_write", "self.result"],
+        ),
+        (
+            "Main::deep_slice_view_repeated_index_statement_result",
+            vec!["self.grid_bucket.rows", "self.result"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -1090,32 +1276,20 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
     }
 
     for name in [
-        "Main::deep_indexed_statement_result",
-        "Main::deep_alias_indexed_statement_result",
         "Main::reborrow_indexed_statement_result",
         "Main::recursive_indexed_statement_result",
-        "Main::deep_slice_view_indexed_statement_result",
         "Main::recursive_slice_view_indexed_statement_result",
-        "Main::deep_alias_slice_view_indexed_statement_result",
         "Main::recursive_alias_slice_view_indexed_statement_result",
-        "Main::deep_member_alias_slice_view_indexed_statement_result",
         "Main::recursive_member_alias_slice_view_indexed_statement_result",
-        "Main::deep_helper_slice_view_indexed_statement_result",
         "Main::recursive_helper_slice_view_indexed_statement_result",
         "Main::recursive_helper_indexed_statement_result",
         "Main::recursive_attached_indexed_statement_result",
-        "Main::deep_attached_slice_view_indexed_statement_result",
         "Main::recursive_attached_slice_view_indexed_statement_result",
-        "Main::deep_attached_projected_slice_view_indexed_statement_result",
         "Main::recursive_attached_projected_slice_view_indexed_statement_result",
         "Main::recursive_projected_helper_statement_result",
-        "Main::deep_projected_helper_slice_view_indexed_statement_result",
         "Main::recursive_projected_helper_slice_view_indexed_statement_result",
-        "Main::deep_slice_view_member_after_index_statement_result",
         "Main::recursive_slice_view_member_after_index_statement_result",
         "Main::recursive_member_after_index_statement_result",
-        "Main::deep_repeated_index_statement_result",
-        "Main::deep_slice_view_repeated_index_statement_result",
         "Main::recursive_slice_view_repeated_index_statement_result",
     ] {
         let machine = typed
@@ -1131,7 +1305,7 @@ fn transparent_returned_place_accepts_bounded_indexed_statement_arguments() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded indexed-argument rung"
+            "{name} must remain opaque without a complete non-rebinding indexed argument"
         );
     }
 }
@@ -1711,14 +1885,15 @@ fn mutable_slice_views_preserve_array_storage_origins() {
         .machine_states(too_deep_call_argument_statement_call)
         .first()
         .expect("too-deep call-argument statement caller entry state");
-    assert!(
-        !resolver
+    assert_eq!(
+        resolver
             .inferred_state_write_frame(
                 too_deep_call_argument_statement_call,
                 too_deep_call_argument_statement_call_entry,
             )
-            .is_complete(),
-        "a value-call argument tree deeper than two calls must remain opaque"
+            .complete_paths(),
+        Some(["self.value".to_owned()].as_slice()),
+        "a finite value-call argument tree preserves the returned origin"
     );
 
     let sibling_call_arguments_statement_call = typed

@@ -671,14 +671,25 @@ Current ownership is:
   returned-place relation. One direct Unit statement call with a complete frame
   is likewise neutral when its arguments do not expose a mutable-reference
   binding for rebinding: writes through references passed by value change their
-  contents without redirecting their origins. Sibling direct value-call
-  arguments are independently admitted when each one's receiver and arguments
-  are non-rebinding and every call frame is complete, including nested direct
-  calls to a maximum call-tree depth of two. An explicitly discarded concrete
-  primitive result from a nongeneric internal checked-body call is likewise
-  neutral under that complete-frame rule. Other discarded call results,
-  explicit binding reborrows, deeper computed arguments, and any opaque node
-  remain fences.
+  contents without redirecting their origins.
+  Direct-call expression trees use one finite worklist, shared by statement
+  arguments, non-reference assignment values, and effectful indexes. Every
+  sibling must pass independently: receivers must be effect-free member chains,
+  no expression may reborrow a mutable-reference binding, and every internal or
+  boundary call must have a complete inferred frame. Call nesting has no numeric
+  cutoff. Computed expression shells are not direct calls and need the separate
+  admission rules below. A recursive or opaque call, binding reborrow, or
+  unsupported expression rejects the whole tree, including when it occurs in
+  just one sibling. Frame inference retains its active-state recursion checks.
+  A mutable indexed statement argument additionally needs a parameter-relative
+  origin proof at every position in the tree, not just at a particular nesting
+  depth. Stable-alias index expressions retain their stricter direct-call shape.
+  Complete frames remain may-write evidence; admission never suppresses nested
+  call writes.
+  An explicitly discarded concrete primitive result from a nongeneric internal
+  checked-body call is neutral under the same non-rebinding complete-frame
+  rule. Discarded reference-bearing or aggregate results, boundary or generic
+  statement calls, and other unsupported discarded expressions remain opaque.
   A free or attached helper whose terminal place is rooted in one
   mutable-reference parameter composes exact member suffixes or absorbing
   collection-coarse indexing onto that argument's origin through its call
@@ -687,133 +698,58 @@ Current ownership is:
   including mutable bindings and results of other structurally transparent
   helpers. A caller-isolated scratch local may be initialized by a direct-call
   tree of any finite depth when every inferred frame is complete and all writes
-  resolve into previously established caller-isolated scratch locals. The
-  syntax check uses a worklist; call-frame inference retains its active-state
-  recursion checks. Recursive, computed, opaque, or externally writing
-  initializer calls remain fences. A validated mutable recast local with an
-  effect-free source may write through
-  that source without obscuring a separately returned parameter origin.
-  The same exact returned-place relation composes when such a result is supplied
+  resolve into previously established caller-isolated scratch locals. Its
+  syntax check also uses a worklist. Recursive, computed, opaque, or externally
+  writing initializer calls remain fences. A validated mutable recast local
+  with an effect-free source may write through that source without obscuring a
+  separately returned parameter origin.
+  The exact returned-place relation also composes when such a result is supplied
   directly as a statement-call argument.
   Value-shaped assignments may write through those origins without changing
   the relation when the right-hand side is effect-free or a typed
-  non-reference direct-call tree through depth four with complete frames;
-  sibling branches are admitted independently and all nested-call writes remain
-  published. One deeper, binding-reborrow, recursive, or opaque branch fences
-  the whole right-hand side; reference-valued roots keep their existing
-  relational handling. A direct primitive scalar assignment value may wrap
-  complete caller-isolated call producers in up to thirty-three unary, binary,
-  primitive-cast, member-projection, or indexing shells under the same call
-  budget; a thirty-fourth shell and generic/reference/unknown call results remain
+  non-reference direct-call tree with complete frames. Reference-valued roots
+  keep their existing relational handling. A direct primitive scalar assignment
+  value may wrap complete caller-isolated call producers in up to thirty-three
+  unary, binary, primitive-cast, member-projection, or indexing shells; a
+  thirty-fourth shell and generic/reference/unknown call results remain
   conservative. Aggregate fields and projected concrete record, selected-case,
   or fixed-array literals retain their separate two-shell computation budget.
-  One top-level concrete primitive-only record or
-  selected-case literal may likewise contain an independently bounded call
-  tree in each direct common or payload field. Direct typed assignment values
-  may nest concrete primitive-only record, selected-case, and literal
-  fixed-array aggregates through depth three, with the same rule at every
-  primitive leaf. A declared primitive field at any admitted aggregate level
-  may also contain up to two nested scalar
-  computation shells made from unary or binary operators, primitive value
-  casts, member projections, or indexing; their effectful leaves are
-  independently bounded non-reference call trees. This direct aggregate
-  depth-three rail and computed depth-two rail do not change the depth-four call
-  budget. A fourth direct aggregate level, generic, recursive, or
-  reference-bearing call result, and other computed field shapes remain
-  fences. Projected record/case fields and direct fixed-array indexing retain
-  their separate aggregate-depth-two rail, so a third projected aggregate also
-  remains conservative.
-  A primitive assignment may also project one direct field from a concrete
-  caller-isolated record or selected-case literal whose effectful fields are
-  bounded direct-call trees. That projection may sit below one further unary,
-  binary, primitive-cast, member-projection, or indexing shell: the projection
-  consumes one of the existing two computation shells, so a third shell still
-  fails closed. A direct primitive index projection from a fixed-array literal
-  follows the same shared budget. Every eagerly evaluated element publishes
-  its bounded call writes; either one element computation shell or one outer
-  scalar shell may use the remaining depth, while combining both remains a
-  third-shell fence. A third aggregate level remains conservative at this
-  projection site.
-  Targets may project through a stable helper-local
-  mutable alias or an exact transparent call-produced place. An indexed target
-  may contain one or more indexes whose non-rebinding direct-call trees are
-  independently complete through depth two; the first index fixes the
-  collection-coarse write, later indexes are absorbing, and every index-call
-  write remains published. The compiler-owned `as_mut_slice()` view may occur
-  on the collection spine, including after a stable helper-local alias, a
-  transparent free helper result, or an attached helper result rooted in its
-  actual `self` receiver: it preserves that source's backing array origin before
-  the first of one or more indexes coarsens it; later indexes stay absorbed and
-  each bounded index frame publishes. Recursive or opaque free/attached view
-  producers remain fences. An exact member projection carried by a stable alias
-  or produced by a helper may precede the view: its suffix composes before the
-  view preserves that exact origin for later indexing; any member after that
-  index remains absorbed by the coarse backing collection. A transparent free
-  helper result or an attached helper result rooted in its actual `self`
-  receiver likewise supplies the collection origin without an intermediate
-  binding. An exact member
-  projection may follow that result before one or more indexes:
-  the suffix composes first, the first index coarsens to that nearest
-  collection, and later indexes or members remain absorbed while every
-  independently bounded index frame publishes. Deeper or binding-reborrow
-  index trees and recursive
-  or opaque free/attached collection producers remain fences. The
-  bounded indexed target and bounded non-reference value tree may coexist on
-  one assignment; their frames compose independently, while either side
-  exceeding its rail fences the relation. A compiler-owned mutable-slice view
-  on the target collection is neutral to that composition: the target index
-  and value tree retain independent depth-two and depth-four budgets,
-  respectively, and publish all call writes. Other ordinary exact frames
-  remain published, and effect-free
-  discarded expressions and direct Unit statement calls with complete
-  non-rebinding frames are neutral, including exact sibling direct value-call
-  arguments and their bounded two-level direct-call trees. An
-  internal statement call may also take a mutable indexed argument whose index
-  is such a tree: caller-alias-aware instantiation coarsens callee writes to the
-  argument's collection and publishes index-call writes. The compiler-owned
-  `as_mut_slice()` view is neutral on that argument spine, including after a
-  stable helper-local mutable alias, a transparent free helper result, or an
-  attached helper result rooted in its actual `self` receiver: the callee write
-  rebases through the alias or helper and view to its backing array before the
-  index coarsens it. Deeper index trees and
-  recursive or opaque free/attached view producers remain fences. An exact
-  member projection may be carried by the stable alias or follow a free or
-  attached helper result before the view; the suffix composes before view
-  preservation and index coarsening, while a member after the index remains
-  absorbed by the coarse backing collection. With repeated indexes, the first
-  fixes that coarse collection, later indexes stay absorbed, and every
-  independently bounded index frame publishes. The indexed argument may
-  project through a stable helper-local mutable alias; that alias's established
-  origin supplies the collection. It may also index a
-  structurally transparent helper result directly; the helper's returned-place
-  relation
-  supplies the collection without an intermediate binding. This includes an
-  attached helper rooted in its actual `self` receiver. An exact member
-  projection may follow the helper result before one or more indexes. The
-  member suffix composes first, the first index coarsens to that nearest
-  collection, and later indexes or members are absorbed; each index expression
-  independently satisfies the same bounded-call rule.
-  Recursive or opaque free/attached collection producers, boundary calls, and
-  deeper or binding-reborrow index trees remain fences. A direct
-  helper-local alias rebind updates that local's origin while
-  prior reborrows retain theirs; a structurally transparent helper result may
-  supply the replacement through the same origin algebra. Other computed
-  rebinding and other computed initializers remain opaque. An explicitly
-  discarded concrete primitive result from a nongeneric internal checked-body
-  statement call is neutral when its inferred frame is complete and its
-  receiver and arguments obey the same bounded non-rebinding rule; the frame's
-  side writes remain published. Discarded reference-bearing or aggregate
-  results, boundary or generic calls, statement calls with binding reborrows or
-  opaque frames, and opaque or recursive result producers remain opaque.
-  Terminal returned places, stable local mutable aliases, and direct alias
-  rebind replacements may contain one or more indexes whose non-rebinding call
-  trees are independently complete through depth two. The first index fixes
-  the coarse collection origin; later indexes are absorbing, every index frame
-  publishes, and only the rebound name moves while prior reborrows retain their
-  origins. A compiler-owned `as_mut_slice()` view before the first index
-  preserves the returned, initializer, or replacement collection's backing
-  origin. Deeper, binding-reborrow, recursive, or opaque index forms remain
-  fences.
+  Direct typed assignment values may nest concrete primitive-only record,
+  selected-case, and literal fixed-array aggregates through depth three. Each
+  primitive leaf may contain a finite non-reference direct-call tree, with up
+  to two scalar computation shells around it. A fourth direct aggregate level,
+  generic, recursive, or reference-bearing call result, and other computed
+  field shapes remain fences. Projected record/case fields and direct
+  fixed-array indexing retain their separate aggregate-depth-two rule.
+  A primitive assignment may project one direct field from an admitted
+  caller-isolated record or selected-case literal, or index an admitted
+  fixed-array literal. That projection consumes one of the existing two
+  computation shells; either one element computation shell or one outer
+  scalar shell may use the remainder, but combining both remains a third-shell
+  fence. Every eagerly evaluated field or element publishes its call writes.
+  A third aggregate level remains conservative at these projection sites.
+  Indexed assignment targets, statement arguments, terminal returned places,
+  stable mutable-alias initializers, and direct alias replacements share the
+  origin algebra: exact member suffixes compose before the first index; that
+  index fixes the nearest collection-coarse origin; later indexes or members
+  remain absorbed. Each effectful index must independently satisfy the finite
+  non-rebinding direct-call rule and publishes all of its call writes.
+  A compiler-owned `as_mut_slice()` view on the collection spine preserves its
+  backing array origin. That origin may come from a parameter, a stable local
+  alias, or a transparent free or attached helper result; an attached helper
+  uses its actual `self` receiver. A transparent helper's selected actual keeps
+  the caller's effect-aware indexed-origin checks through nested helper calls;
+  wrapping an indexed borrow cannot discard its index writes or bypass binding
+  reborrow rejection. Member projections before the view retain
+  their exact suffixes until indexing coarsens them. Recursive or opaque
+  collection/view producers remain fences, as do binding-reborrow or
+  unsupported computed indexes. Boundary statement calls with effectful
+  indexed arguments remain unsupported.
+  Indexed targets and non-reference assignment values compose independently
+  under these rules and publish both sets of writes. A direct alias replacement
+  changes only that local's origin; aliases established from its prior value
+  retain their origins. A transparent helper may supply the replacement.
+  Other computed rebinding and unsupported initializers remain opaque.
   For an
   attached helper, its actual receiver supplies the caller origin when the
   result is rooted in `self`. Other

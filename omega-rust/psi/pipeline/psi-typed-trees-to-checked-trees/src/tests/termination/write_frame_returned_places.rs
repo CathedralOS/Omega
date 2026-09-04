@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
+fn transparent_returned_place_accepts_complete_indexed_target_calls() {
     let source = r#"
     data Bucket {
         cells: [u64; 2];
@@ -921,6 +921,56 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             "Main::repeated_index_target_result",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
+        ("Main::deep_index_target_result", vec!["self.cells"]),
+        ("Main::deep_alias_index_target_result", vec!["self.cells"]),
+        (
+            "Main::deep_slice_view_index_target_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::deep_alias_slice_view_index_target_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::deep_member_alias_slice_view_index_target_result",
+            vec!["self.bucket.cells", "self.result"],
+        ),
+        (
+            "Main::deep_helper_slice_view_index_target_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::deep_projected_helper_index_target_result",
+            vec!["self.bucket.cells", "self.result"],
+        ),
+        (
+            "Main::deep_projected_helper_slice_view_index_target_result",
+            vec!["self.bucket.cells", "self.result"],
+        ),
+        (
+            "Main::deep_slice_view_member_after_index_target_result",
+            vec!["self.cell_bucket.cells", "self.result"],
+        ),
+        (
+            "Main::deep_member_after_index_target_result",
+            vec!["self.cell_bucket.cells", "self.result"],
+        ),
+        (
+            "Main::deep_projected_repeated_index_target_result",
+            vec!["self.grid_bucket.rows", "self.result"],
+        ),
+        (
+            "Main::deep_slice_view_repeated_index_target_result",
+            vec!["self.matrix"],
+        ),
+        (
+            "Main::deep_attached_slice_view_index_target_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::deep_repeated_index_target_result",
+            vec!["self.matrix"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -947,35 +997,21 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
     }
 
     for name in [
-        "Main::deep_index_target_result",
-        "Main::deep_alias_index_target_result",
         "Main::binding_reborrow_index_target_result",
         "Main::recursive_index_target_result",
         "Main::recursive_helper_index_target_result",
-        "Main::deep_slice_view_index_target_result",
         "Main::recursive_slice_view_index_target_result",
-        "Main::deep_alias_slice_view_index_target_result",
         "Main::recursive_alias_slice_view_index_target_result",
-        "Main::deep_member_alias_slice_view_index_target_result",
         "Main::recursive_member_alias_slice_view_index_target_result",
-        "Main::deep_helper_slice_view_index_target_result",
         "Main::recursive_helper_slice_view_index_target_result",
-        "Main::deep_projected_helper_index_target_result",
         "Main::recursive_projected_helper_index_target_result",
-        "Main::deep_projected_helper_slice_view_index_target_result",
         "Main::recursive_projected_helper_slice_view_index_target_result",
-        "Main::deep_slice_view_member_after_index_target_result",
         "Main::recursive_slice_view_member_after_index_target_result",
-        "Main::deep_member_after_index_target_result",
         "Main::recursive_member_after_index_target_result",
-        "Main::deep_projected_repeated_index_target_result",
         "Main::recursive_projected_repeated_index_target_result",
-        "Main::deep_slice_view_repeated_index_target_result",
         "Main::recursive_slice_view_repeated_index_target_result",
         "Main::recursive_attached_index_target_result",
-        "Main::deep_attached_slice_view_index_target_result",
         "Main::recursive_attached_slice_view_index_target_result",
-        "Main::deep_repeated_index_target_result",
     ] {
         let machine = typed
             .machines()
@@ -990,13 +1026,13 @@ fn transparent_returned_place_accepts_bounded_indexed_target_calls() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded indexed-target rung"
+            "{name} must remain opaque without a complete non-rebinding target index"
         );
     }
 }
 
 #[test]
-fn transparent_returned_place_accepts_bounded_value_call_assignments() {
+fn transparent_returned_place_accepts_finite_value_call_assignments() {
     let source = r#"
     data Pair {
         first: u64;
@@ -1778,6 +1814,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             vec!["self.cells", "self.value"],
         ),
         (
+            "Main::too_deep_value_call_assignment_result",
+            vec!["self.cells", "self.value"],
+        ),
+        (
             "Main::deep_sibling_value_call_assignment_result",
             vec!["self.cells", "self.other", "self.value"],
         ),
@@ -1791,6 +1831,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         ),
         (
             "Main::computed_record_field_assignment_result",
+            vec!["self.cells", "self.pair", "self.value"],
+        ),
+        (
+            "Main::deep_computed_record_field_assignment_result",
             vec!["self.cells", "self.pair", "self.value"],
         ),
         (
@@ -1876,12 +1920,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
     }
 
     for name in [
-        "Main::too_deep_value_call_assignment_result",
         "Main::reborrow_sibling_value_call_assignment_result",
         "Main::binding_reborrow_value_call_assignment_result",
         "Main::recursive_value_call_assignment_result",
         "Main::generic_record_value_call_assignment_result",
-        "Main::deep_computed_record_field_assignment_result",
         "Main::three_computed_record_field_assignment_result",
         "Main::reference_projected_record_field_assignment_result",
         "Main::generic_case_value_call_assignment_result",
@@ -1901,7 +1943,7 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded value-call assignment rung"
+            "{name} must remain opaque for unsupported assignment value shapes"
         );
     }
 }
@@ -2905,6 +2947,10 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
             "Main::three_array_levels_result",
             vec!["self.cells", "self.cube", "self.first"],
         ),
+        (
+            "Main::five_array_calls_result",
+            vec!["self.cells", "self.first", "self.values"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -2933,7 +2979,6 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
     for name in [
         "Main::four_array_levels_result",
         "Main::three_array_computations_result",
-        "Main::five_array_calls_result",
         "Main::array_binding_reborrow_result",
         "Main::recursive_array_value_result",
         "ReferenceMain::reference_array_result",
@@ -3910,7 +3955,7 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
 }
 
 #[test]
-fn transparent_returned_place_composes_bounded_assignment_call_trees() {
+fn transparent_returned_place_composes_finite_assignment_call_trees() {
     let source = r#"
     data Main {
         target_value: u64;
@@ -4100,6 +4145,8 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
         "Main::composed_assignment_result",
         "Main::slice_view_composed_assignment_result",
         "Main::deep_value_assignment_result",
+        "Main::deep_target_assignment_result",
+        "Main::deep_slice_view_target_assignment_result",
     ] {
         let machine = typed
             .machines()
@@ -4124,10 +4171,8 @@ fn transparent_returned_place_composes_bounded_assignment_call_trees() {
     }
 
     for name in [
-        "Main::deep_target_assignment_result",
         "Main::reborrow_target_assignment_result",
         "Main::reborrow_value_assignment_result",
-        "Main::deep_slice_view_target_assignment_result",
         "Main::recursive_slice_view_value_assignment_result",
     ] {
         let machine = typed
