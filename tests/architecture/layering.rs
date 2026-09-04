@@ -2160,6 +2160,10 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && target_stage.contains("optimize_verified_psi_input(")
             && target_stage
                 .contains("lower_optimized_to_target_operations_with_provider_executions")
+            && target_stage.contains(
+                "NativeArtifactOperationPlan::RankedU32Countdown(_),\n            PostTerminalOptimizationContinuation::Selected(_)"
+            )
+            && !target_stage.contains("(_, PostTerminalOptimizationContinuation::Selected(input))")
             && physical_stage.contains("enum NativePhysicalStageResult")
             && physical_stage.contains("Optimized(Box<OptimizedNativePhysicalStage>)")
             && physical_stage.contains("stage_optimized_verified_physical_pipeline(")
@@ -2196,7 +2200,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .split_once("match input.into_parts() {")
         .expect("target realization consumes the one abstract-stage result");
     let (identity_target_conveyor, selected_target_conveyor) = target_conveyor
-        .split_once("(_, PostTerminalOptimizationContinuation::Selected(input))")
+        .split_once("PostTerminalOptimizationContinuation::Selected(input),")
         .expect("target realization retains an explicit selected-optimization arm");
     let selected_target_stage = selected_target_conveyor
         .find("let optimized_target = match provider_installation")

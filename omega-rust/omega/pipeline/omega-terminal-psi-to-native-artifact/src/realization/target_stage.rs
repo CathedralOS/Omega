@@ -71,7 +71,17 @@ pub(crate) fn lower_realization_target_stage(
                 .map_err(|error| realization_error("ranked target lowering", error))?;
             Ok(NativeTargetStageResult::IdentityRanked(target))
         }
-        (_, PostTerminalOptimizationContinuation::Selected(input)) => {
+        (
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(_),
+            PostTerminalOptimizationContinuation::Selected(_),
+        ) => Err(realization_error(
+            "optimized ranked-native authority",
+            "the selected optimizer route does not yet retain ranked-countdown native authority; no ordinary optimized route was substituted",
+        )),
+        (
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_),
+            PostTerminalOptimizationContinuation::Selected(input),
+        ) => {
             if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
                 return Err(realization_error(
                     "optimized native callback custody",
