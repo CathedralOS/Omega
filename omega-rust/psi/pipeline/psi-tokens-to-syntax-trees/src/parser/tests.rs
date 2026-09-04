@@ -2097,6 +2097,30 @@ fn linear_property_is_first_class_on_data_and_type_parameters() {
 }
 
 #[test]
+fn multiplicity_property_lists_accept_trailing_commas() {
+    let source = "data Copy [copy,] {} data Linear [linear,] {}";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("trailing property commas should parse");
+    let multiplicities = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Data(data) => Some(data.properties.multiplicity),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        multiplicities,
+        vec![
+            psi_language_core::Multiplicity::Unrestricted,
+            psi_language_core::Multiplicity::Linear,
+        ]
+    );
+}
+
+#[test]
 fn copy_and_linear_properties_are_mutually_exclusive() {
     for source in ["data Bad [copy, linear] {}", "data Bad [linear, copy] {}"] {
         let tokens = Lexer::new(source)

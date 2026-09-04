@@ -70,8 +70,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR5\0"
-    assert reader.u64() == 5
+    assert reader.bytes(8) == b"OMGPAR6\0"
+    assert reader.u64() == 6
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -379,6 +379,24 @@ def main() -> None:
     )
     accepted(
         program,
+        "copy-property-trailing-comma-with-trivia",
+        b"data X [copy , ] {}",
+        ((2, 0, 1, 0, 19),),
+        (),
+        (),
+        ((1, 5, 6, 0, 0, 0, 0, 0, 0, 1, False, 1, 0, 19),),
+    )
+    accepted(
+        program,
+        "linear-property-trailing-comma",
+        b"data X [linear,] {}",
+        ((2, 0, 1, 0, 19),),
+        (),
+        (),
+        ((1, 5, 6, 0, 0, 0, 0, 0, 0, 2, False, 1, 0, 19),),
+    )
+    accepted(
+        program,
         "linear-sum",
         b"data Sum [linear] { case Empty; }",
         ((2, 0, 1, 0, 33),),
@@ -582,9 +600,13 @@ def main() -> None:
         ("missing-field-type", b"data X { field: ; }", 13, (16, 17)),
         ("missing-field-semicolon", b"data X { field: T }", 14, (18, 19)),
         ("unknown-data-property", b"data X [unknown] {}", 18, (8, 15)),
-        ("property-list-not-yet-supported", b"data X [copy,] {}", 19, (12, 13)),
-        ("linear-property-list-not-yet-supported", b"data Bad [linear,] {}", 19, (16, 17)),
-        ("duplicate-copy-property", b"data X [copy copy] {}", 19, (13, 17)),
+        ("duplicate-copy-property", b"data X [copy, copy] {}", 29, (14, 18)),
+        ("duplicate-linear-property", b"data X [linear, linear] {}", 29, (16, 22)),
+        ("conflicting-copy-linear", b"data X [copy, linear] {}", 30, (14, 20)),
+        ("conflicting-linear-copy", b"data X [linear, copy] {}", 30, (16, 20)),
+        ("malformed-property-comma", b"data X [copy,,] {}", 18, (13, 14)),
+        ("unknown-second-property", b"data X [copy, unknown] {}", 18, (14, 21)),
+        ("missing-property-comma", b"data X [copy copy] {}", 19, (13, 17)),
         ("missing-case-name", b"data X { case ; }", 20, (14, 15)),
         ("missing-case-semicolon", b"data X { case A }", 21, (16, 17)),
         ("case-discriminant-is-retired", b"data X { case A = 1; }", 21, (16, 17)),
@@ -814,7 +836,7 @@ def main() -> None:
     assert first == second, "parser observation is not deterministic"
 
     print(
-        "Psi parser slices: 62 cases passed; "
+        "Psi parser slices: 68 cases passed; "
         f"lexical profile parity: {len(lexical_cases)} cases passed"
     )
 
