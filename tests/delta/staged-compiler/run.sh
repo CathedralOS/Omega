@@ -54,7 +54,7 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 1280, 49175, "cadb2d2761968c16a6a1ae0670598617e393c87375bd85014d13887b9488dce6"),
+    ("compiler", compiler, 1457, 56262, "2e27e24df277ce4e436a18356d81dcaf351b764e4fcd4e12f622ae8984944819"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -158,6 +158,30 @@ old_prefix_status, old_prefix_receipt = evaluate(
 if old_prefix_status != 0 or evaluate(old_prefix_receipt) != (0, b"\x07"):
     raise SystemExit("generated match binder captured authored __m63 local")
 
+sibling_locals = b"(def main () Int (+ (let x Int 3 x) (let x Int 4 x)))\n"
+sibling_status, sibling_receipt = evaluate(compiler, sibling_locals)
+if sibling_status != 0 or evaluate(sibling_receipt) != (0, b"\x07"):
+    raise SystemExit("disjoint sibling lets could not reuse a local name")
+
+arm_locals = (
+    b"(data Choice (Left Int) (Right Int))\n"
+    b"(def choose ((value Choice)) Int "
+    b"(match value ((Left x) x) ((Right x) x)))\n"
+    b"(def main () Int (choose (Right 7)))\n"
+)
+arm_status, arm_receipt = evaluate(compiler, arm_locals)
+if arm_status != 0 or evaluate(arm_receipt) != (0, b"\x07"):
+    raise SystemExit("disjoint match arms could not reuse a local name")
+
+local_function_homonym = (
+    b"(def f ((x Int)) Int x)\n"
+    b"(def apply ((f Int)) Int (f f))\n"
+    b"(def main () Int (apply 7))\n"
+)
+homonym_status, homonym_receipt = evaluate(compiler, local_function_homonym)
+if homonym_status != 0 or evaluate(homonym_receipt) != (0, b"\x07"):
+    raise SystemExit("local and function grammar namespaces were merged")
+
 malformed = {
     "unknown field type": b"(data Bad (Bad Missing))\n(def main () Int 0)\n",
     "missing payload argument": b"(data Option (None) (Some Int))\n(def main () Int (Some))\n",
@@ -181,6 +205,14 @@ malformed = {
     "invalid constructor name": b"(data Bad (X!))\n(def main () Int 0)\n",
     "invalid parameter name": b"(def f ((9x Int)) Int 0)\n(def main () Int 0)\n",
     "duplicate parameter": b"(def f ((x Int) (x Int)) Int x)\n(def main () Int 0)\n",
+    "unknown local": b"(def main () Int missing)\n",
+    "function used as value": b"(def f () Int 7)\n(def main () Int f)\n",
+    "self reference in let initializer": b"(def main () Int (let x Int x x))\n",
+    "duplicate active let": b"(def main ((x Int)) Int (let x Int 1 x))\n",
+    "escaped let local": b"(def main () Int (+ (let x Int 1 x) x))\n",
+    "duplicate pattern local": b"(data Pair (Pair Int Int))\n(def main () Int (match (Pair 1 2) ((Pair x x) x)))\n",
+    "pattern duplicates outer local": b"(data Box (Box Int))\n(def f ((x Int)) Int (match (Box 1) ((Box x) x)))\n(def main () Int (f 7))\n",
+    "escaped pattern local": b"(data Box (Box Int))\n(def main () Int (+ (match (Box 1) ((Box x) x)) x))\n",
     "invalid result type": b"(def main () Missing 0)\n",
     "invalid let binder": b"(def main () Int (let Bad Int 0 0))\n",
     "invalid let type": b"(def main () Int (let x Missing 0 x))\n",
@@ -218,4 +250,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: source envelope, lexical atoms, globals, binder hygiene, and recursive ADTs pass"
+echo "Staged Delta compiler: source envelope, lexical atoms, globals, local scopes, and recursive ADTs pass"

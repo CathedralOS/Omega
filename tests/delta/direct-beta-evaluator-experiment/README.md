@@ -19,7 +19,7 @@ Delta source -> direct Beta evaluator -> result
 							  Lines  Instructions  Labels  Control  Tape bytes
 selected Gamma evaluator      1,325         1,065     165      479       6,934
 matched direct Delta evaluator 2,019         1,655     262      836      11,004
-selected Delta transformer    1,280 Gamma source lines
+selected Delta transformer    1,457 Gamma source lines
 ```
 
 The prototype matches the selected staged compiler's earlier D92 structural
@@ -31,8 +31,9 @@ position; a 100,000-node List construction and traversal completes with constant
 function activation and call-context storage.
 
 The selected transformer has since added a complete declaration-order and
-exact namespace-uniqueness census. The retained direct prototype has not, so
-current total line counts are deliberately not presented as matched evidence.
+exact namespace-uniqueness census plus lexical-scope validation. The retained
+direct prototype has not, so current total line counts are deliberately not
+presented as matched evidence.
 
 ## Finding
 

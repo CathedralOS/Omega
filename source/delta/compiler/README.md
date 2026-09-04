@@ -44,6 +44,14 @@ redeclared. Decimal literals are scanned without overflow and admit exactly
 `INT64_MIN..INT64_MAX`. The global census also rejects repeated parameter names
 within a function before expression emission begins.
 
+A scope-validation pass builds each function's local environment from its
+parameters, then extends the immutable exact-name trie for `let` bodies and
+individual match arms. It rejects unknown value atoms, self-reference from a
+`let` initializer, and any parameter, `let`, or pattern binder that duplicates
+an active local. Immutable roots give lexical pop without mutation: sibling
+expressions, branches, and disjoint match arms may reuse the same spelling.
+Function and local names remain grammar-distinguished namespaces.
+
 The global function trie carries declared arity as its terminal payload.
 Application heads resolve through that exact checked table, including forward
 and mutual calls, and every user call, operator, `if`, and closed Bytes builtin
@@ -57,9 +65,8 @@ builtin dispatch. `main` alone retains the name required by the evaluator.
 This is a meaningful early stage, not the complete Delta compiler. It does not
 yet provide normative `Bytes`, checked arithmetic, complete type checking, production
 application profiles, or proper-tail guarantees beyond those available in
-Gamma. In particular, the incomplete expression checker may still accept
-Gamma-only forms that are outside Delta; staged acceptance is not language
-admission.
+Gamma. Scope resolution does not establish expression, argument, arm, or result
+types; staged acceptance is not language admission.
 
 The executable gate is
 [`../../../tests/delta/staged-compiler/`](../../../tests/delta/staged-compiler/).
@@ -69,7 +76,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-1,280-line / 49,175-byte Gamma source
+1,457-line / 56,262-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

@@ -4434,3 +4434,29 @@ definitions and 377 lexical `let` binders. Generated-name shortening changes
 only canonical receipt text: the nullary, payload, recursive, List, and rope
 receipts are respectively 165, 230, 251, 328, and 1,056 bytes. Their evaluated
 outcomes are unchanged, and the 3,001-function witness remains 78,271 bytes.
+
+## D105 — Delta local names resolve in immutable lexical environments
+
+The selected compiler now performs a scope-validation pass after the complete
+global census and before emitting any Gamma. Each function starts with an exact
+byte-indexed trie of its parameters. A `let` initializer is validated against
+the outer root and its body against a newly extended root. Each match arm is
+likewise checked against its own extension of the outer root. The persistent
+structure makes lexical pop structural: siblings, conditional branches, and
+disjoint arms retain the unextended root and may reuse a spelling.
+
+Every bare value atom must resolve in the active local environment. A global
+function name used as a value therefore rejects, while `(f f)` remains valid
+when the head resolves to the global function and the argument resolves to an
+active local. A later parameter, `let`, or pattern binder may not duplicate an
+active local. Retained witnesses cover an invisible self-reference in a `let`
+initializer, nested conflicts, duplicate pattern binders, outer/pattern
+conflicts, escaped binders, legal sibling reuse, legal arm reuse, and the
+function/local grammar distinction.
+
+This closes name scope only. The environment does not yet carry types, so
+argument, initializer, branch, match-arm, and declared-result type relations
+remain open. The exact selected subject is now 1,457 Gamma lines and 56,262
+bytes, with 131 definitions and 427 lexical `let` binders. The 3,001-function
+transformation remains below 14 seconds on the development host and produces
+the unchanged 78,271-byte receipt.

@@ -344,8 +344,8 @@ Delta compiler may not invoke an external evaluator, add Delta operations to
 Gamma or Alpha, interleave direct Alpha emission with Delta checking, or make a
 private capacity into Delta semantics.
 
-The selected compiler source has a staged implementation for finite ADTs whose
-constructors carry zero or one `Int` or nominal field, including recursive unary
-data, plus exhaustive matches; the
-complete compiler and tape remain absent. The former concatenative-Gamma implementation is retained only under
-Delta-owned bootstrap material and does not define a second route.
+The selected compiler source has a staged implementation for arbitrary-field
+finite ADTs, including recursive data, plus exhaustive matches, exact global
+call arities, and lexical local-scope resolution. The complete compiler and
+tape remain absent. The former concatenative-Gamma implementation is retained
+only under Delta-owned bootstrap material and does not define a second route.
