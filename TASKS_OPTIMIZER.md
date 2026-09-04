@@ -26,11 +26,12 @@ needed for independent replay through publication.
   publish a closed target-stage result while retaining ordinary, ranked, and
   selected authority separately. They then enter one physical-routing stage;
   machine emission consumes its closed result and performs no assignment or
-  optimizer scheduling. Physical composition now consumes a closed
-  post-Terminal projection and cannot silently ignore checked-tree or Psi
-  selections. Those physical variants still represent different
-  phase depths and must converge into explicit later-stage results. Keep
-  the same representation on both sides of a phase unless vocabulary,
+  optimizer scheduling. The physical entrance now projects the closed
+  post-Terminal selection once into phase-local inputs; composition does not
+  rescan the global set, and a post-Terminal phase with no implemented stage
+  rejects instead of disappearing. Those physical variants still represent
+  different phase depths and must converge into explicit later-stage results.
+  Keep the same representation on both sides of a phase unless vocabulary,
   interpretation, invariants, or published-product identity change.
   Acceptance: empty and nonempty selections, standalone Terminal production,
   resumed lowering under a separate authority, and every native continuation

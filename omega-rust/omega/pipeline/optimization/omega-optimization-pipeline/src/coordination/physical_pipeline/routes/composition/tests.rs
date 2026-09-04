@@ -38,6 +38,13 @@ fn post_allocation_entry(optimization: Optimization) -> PostAllocationMachineRul
         .expect("every post-allocation rule has one canonical catalog row")
 }
 
+fn physical_phases(selections: OptimizationSelections) -> PhysicalOptimizationPhaseSelections {
+    let post_terminal = PostTerminalOptimizationSelections::new(selections)
+        .expect("physical composition test selection must be post-Terminal");
+    PhysicalOptimizationPhaseSelections::project(&post_terminal)
+        .expect("every current post-Terminal rule belongs to an implemented physical phase")
+}
+
 fn expected_pair(
     first: Optimization,
     second: Optimization,
@@ -174,8 +181,7 @@ fn actual_disposition(
     selections: &OptimizationSelections,
     architecture: Architecture,
 ) -> ExpectedDisposition {
-    let selections = PostTerminalOptimizationSelections::new(selections.clone())
-        .expect("physical composition test selection must be post-Terminal");
+    let selections = physical_phases(selections.clone());
     match resolve_physical_phase_composition(&selections, architecture) {
         Ok(route) => ExpectedDisposition::Route(route),
         Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition) => {
@@ -288,7 +294,7 @@ fn selected_lowering_triples_have_explicit_supported_and_rejected_routes() {
     ] {
         let selections =
             OptimizationSelections::new(selected.into_iter().chain([machine])).unwrap();
-        let selections = PostTerminalOptimizationSelections::new(selections).unwrap();
+        let selections = physical_phases(selections);
         assert_eq!(
             resolve_physical_phase_composition(&selections, architecture).unwrap(),
             ResolvedPhysicalPhaseComposition::NonAllocation(
@@ -306,7 +312,7 @@ fn selected_lowering_triples_have_explicit_supported_and_rejected_routes() {
             .chain([Optimization::X86RelaxConditionalBranchesToRel8V1]),
     )
     .unwrap();
-    let with_layout = PostTerminalOptimizationSelections::new(with_layout).unwrap();
+    let with_layout = physical_phases(with_layout);
     assert_eq!(
         resolve_physical_phase_composition(&with_layout, Architecture::X86_64).unwrap(),
         ResolvedPhysicalPhaseComposition::NonAllocation(
@@ -320,7 +326,7 @@ fn selected_lowering_triples_have_explicit_supported_and_rejected_routes() {
         Optimization::X86RelaxConditionalBranchesToRel8V1,
     ])
     .unwrap();
-    let machine_and_layout = PostTerminalOptimizationSelections::new(machine_and_layout).unwrap();
+    let machine_and_layout = physical_phases(machine_and_layout);
     assert!(matches!(
         resolve_physical_phase_composition(&machine_and_layout, Architecture::Aarch64),
         Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)

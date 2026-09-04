@@ -186,9 +186,10 @@ context. Both cases enter one target-lowering stage, whose closed result retains
 ordinary identity, ranked identity, or validated selected custody. Machine
 emission sends that result through one physical-routing stage and consumes its
 closed output. It no longer schedules abstract optimization, target lowering,
-physical assignment, or physical optimization itself. Physical composition
-accepts only a closed post-Terminal projection, so it cannot rescan and ignore
-checked-tree or Psi selections. The physical result is
+physical assignment, or physical optimization itself. The physical entrance
+projects its closed post-Terminal selection once into exact phase-local inputs;
+composition does not rescan the global set, and a post-Terminal phase without
+an implemented stage rejects rather than disappearing. The physical result is
 still transitional: its identity variants contain assigned operations while its
 selected variant may contain a result from a later phase, because the selected
 side still groups several Omega-owned phases into one optimizer unit. The public

@@ -6,7 +6,8 @@ use omega_optimization_core::{OptimizationSelections, PostTerminalOptimizationSe
 use omega_target::Architecture;
 
 use crate::coordination::physical_pipeline::{
-    OptimizedVerifiedPhysicalPipelineError, resolve_physical_phase_composition,
+    OptimizedVerifiedPhysicalPipelineError, PhysicalOptimizationPhaseSelections,
+    resolve_physical_phase_composition,
 };
 
 #[test]
@@ -24,6 +25,7 @@ fn every_machine_rule_rejects_the_wrong_architecture_before_execution() {
         };
         let selections = OptimizationSelections::new([rule]).unwrap();
         let selections = PostTerminalOptimizationSelections::new(selections).unwrap();
+        let selections = PhysicalOptimizationPhaseSelections::project(&selections).unwrap();
         assert!(matches!(
             resolve_physical_phase_composition(&selections, actual),
             Err(
