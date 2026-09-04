@@ -2637,6 +2637,7 @@ fn lower_realization_store_operation(
         parameter,
         structural_types,
         &[],
+        &[],
         crate::structural_scalar_store::StoreAccessPolicy::MutableOnly,
     )?;
     let scalar_type = lowered.scalar_type;

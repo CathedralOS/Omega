@@ -10,9 +10,18 @@ pub(super) fn build_structural_scalar_field_store(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statements: &[StatementNode],
+    scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
 ) -> Option<CheckedStructuralScalarFieldStorePlan> {
-    let [StatementNode::Assignment(assignment)] = statements else {
-        return None;
+    let (statement_index, assignment) = match (scalar_result_local, statements) {
+        (None, [StatementNode::Assignment(assignment)]) => (0, assignment),
+        (
+            Some(result),
+            [
+                StatementNode::LocalData(_),
+                StatementNode::Assignment(assignment),
+            ],
+        ) if result.statement_index == 0 && result.binding_ordinal == 0 => (1, assignment),
+        _ => return None,
     };
     let [destination] = structural_parameters else {
         return None;
@@ -62,7 +71,7 @@ pub(super) fn build_structural_scalar_field_store(
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
-        0,
+        usize::try_from(statement_index).ok()?,
         assignment.target,
     )?;
     if place.root != psi_facts::PlaceRoot::Symbol(parameter.symbol) {
@@ -126,10 +135,35 @@ pub(super) fn build_structural_scalar_field_store(
     }
     let value = facts.values.scalar_expressions.expression_at(
         state.symbol,
-        0,
+        statement_index,
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
-    let exact_source = if scalar_parameters.is_empty() {
+    let direct_result_is_exact = matches!(
+        (scalar_result_local, value),
+        (
+            Some(result),
+            CheckedScalarExpression::Local {
+                position: 0,
+                primitive_type: source_type,
+            },
+        ) if *source_type == result.primitive_type
+            && primitive_type == result.primitive_type
+            && matches!(
+                result.primitive_type,
+                PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+            )
+            && scalar_parameters.is_empty()
+    );
+    let exact_source = if direct_result_is_exact {
+        true
+    } else if scalar_parameters.is_empty() {
         match value {
             CheckedScalarExpression::IntegerLiteral { .. } => {
                 primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
@@ -160,7 +194,7 @@ pub(super) fn build_structural_scalar_field_store(
         return None;
     }
     Some(CheckedStructuralScalarFieldStorePlan {
-        statement_index: 0,
+        statement_index,
         destination_parameter_position: destination.position,
         carrier_path,
         field_identity: terminal_field_identity(program, field.symbol)?,

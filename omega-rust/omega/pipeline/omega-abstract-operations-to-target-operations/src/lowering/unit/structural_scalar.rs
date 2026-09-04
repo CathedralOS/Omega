@@ -94,7 +94,15 @@ pub(super) fn lower_field_store(
                 KnownUnitInteger::Immediate { scalar_type, .. } => {
                     scalar_type == integer_type && function.parameters.is_empty()
                 }
-                _ => false,
+                KnownUnitInteger::Home(home) => {
+                    home.scalar_type == value.scalar_type
+                        && home.source_value == value.value
+                        && home.shape
+                            == fixed_native_integer_shape(integer_type).ok_or(
+                                LoweringError::UnsupportedOperationInUnitFunction(function.machine),
+                            )?
+                        && function.parameters.is_empty()
+                }
             };
             if !exact_source {
                 return Err(LoweringError::UnsupportedOperationInUnitFunction(

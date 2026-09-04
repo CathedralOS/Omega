@@ -20,7 +20,8 @@ use psi_core::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 use super::{
     Aarch64UnitParameterHome, X86UnitParameterHome, emit_aarch64_adjust_sp,
     emit_aarch64_aggregate_copy_from_home, emit_x86_64_adjust_sp,
-    emit_x86_64_aggregate_copy_from_home, stack_adjustment_pair, unit_scalar_shape,
+    emit_x86_64_aggregate_copy_from_home, stack_adjustment_pair, unit_scalar_home_record,
+    unit_scalar_shape,
 };
 use crate::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
@@ -201,7 +202,31 @@ pub(super) fn emit_structural_scalar_field_store(
                 Some(u64::from(value)),
             )
         }
-        _ => return Err(invalid()),
+        AssignedUnitScalarArgumentSource::Home(home) => {
+            let exact_source_count = body.operations[..operation_ordinal]
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        AssignedUnitOperation::ScalarCall { result_home, .. }
+                            if *result_home == home
+                    )
+                })
+                .count();
+            let ScalarType::Integer(integer) = home.scalar_type else {
+                return Err(invalid());
+            };
+            if exact_source_count != 1
+                || home.shape != unit_scalar_shape(home.source_value, home.scalar_type)?
+            {
+                return Err(invalid());
+            }
+            (
+                InternalUnitScalarArgumentSourceRecord::Home(unit_scalar_home_record(home)),
+                require_native_integer_width(home.source_value, integer)? / 8,
+                None,
+            )
+        }
     };
     if destination.is_self && attachment != Some(destination.structural_type) {
         return Err(invalid());
@@ -271,6 +296,16 @@ pub(super) fn emit_structural_scalar_field_store(
                         omega_target_operations::MachineRegister::X86R11,
                     )?;
                 }
+                InternalUnitScalarArgumentSourceRecord::Home(source_home) => {
+                    emit_x86_64_stack_load_width(bytes, 11, source_home.byte_offset, 8)?;
+                    emit_x86_64_unit_store_register(
+                        bytes,
+                        home,
+                        *field_byte_offset,
+                        width,
+                        omega_target_operations::MachineRegister::X86R11,
+                    )?;
+                }
                 _ => emit_x86_64_unit_store_immediate(
                     bytes,
                     home,
@@ -316,6 +351,22 @@ pub(super) fn emit_structural_scalar_field_store(
                         16,
                         source_offset,
                         width,
+                    )?;
+                    append_aarch64_instructions(bytes, vec![instruction]);
+                    emit_aarch64_unit_store_register(
+                        bytes,
+                        home,
+                        *field_byte_offset,
+                        width,
+                        omega_target_operations::MachineRegister::Aarch64X(16),
+                    )?;
+                }
+                InternalUnitScalarArgumentSourceRecord::Home(source_home) => {
+                    let instruction = aarch64_unit_stack_access(
+                        aarch64_load_base(8)?,
+                        16,
+                        source_home.byte_offset,
+                        8,
                     )?;
                     append_aarch64_instructions(bytes, vec![instruction]);
                     emit_aarch64_unit_store_register(

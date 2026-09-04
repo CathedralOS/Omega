@@ -35,6 +35,7 @@ pub(super) fn assign_field_store(
     field_byte_offset: u32,
     source: TargetUnitScalarArgumentSource,
     preceding_operations: &[TargetUnitOperation],
+    preceding_assigned_operations: &[AssignedUnitOperation],
     target: NativeTarget,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     let invalid = || AssignmentError::StructuralScalarFieldStoreCustodyMismatch {
@@ -180,7 +181,42 @@ pub(super) fn assign_field_store(
             }
             assigned
         }
-        _ => return Err(invalid()),
+        TargetUnitScalarArgumentSource::Home(home) => {
+            let target_matches = preceding_operations
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        TargetUnitOperation::ScalarCall { result_home, .. }
+                            if *result_home == home
+                    )
+                })
+                .count();
+            let assigned = preceding_assigned_operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    AssignedUnitOperation::ScalarCall { result_home, .. }
+                        if result_home.defining_operation == home.defining_operation
+                            && result_home.source_value == home.source_value
+                            && result_home.scalar_type == home.scalar_type
+                            && result_home.shape == home.shape =>
+                    {
+                        Some(*result_home)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let [assigned] = assigned.as_slice() else {
+                return Err(invalid());
+            };
+            if target_matches != 1
+                || assigned.scalar_type != source_scalar_type
+                || assigned.shape != expected_shape
+            {
+                return Err(invalid());
+            }
+            AssignedUnitScalarArgumentSource::Home(*assigned)
+        }
     };
     Ok(AssignedUnitOperation::StructuralScalarFieldStore {
         psi_operation,

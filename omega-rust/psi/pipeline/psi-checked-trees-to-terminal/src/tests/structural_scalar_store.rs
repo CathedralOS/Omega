@@ -15,6 +15,23 @@ const SOURCE: &str = r#"
     }
 "#;
 
+const RESULT_SOURCE: &str = r#"
+    data Scalar {}
+    machine Scalar::identity(value: i32) -> i32
+    requires value == value
+    ensures result == value
+    {
+        transition { _ -> value }
+    }
+
+    data Pair { prefix: u8; target: i32; }
+    data Root {}
+    machine Root::enter(destination: &write Pair) {
+        let replacement: i32 = Scalar::identity(23);
+        destination.target = replacement;
+    }
+"#;
+
 #[test]
 fn lowers_direct_and_nested_write_only_record_field_stores() {
     let checked = checked_source(SOURCE);
@@ -78,6 +95,61 @@ fn rejects_checked_record_field_store_path_corruption() {
         lower_machine(&checked, "Sink::nested"),
         Err(LoweringError::Unsupported(
             "structural scalar store field is absent or ambiguous"
+        ))
+    ));
+}
+
+#[test]
+fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
+    let checked = checked_source(RESULT_SOURCE);
+    let lowered = lower_machine(&checked, "Root::enter")
+        .expect("scalar result reaches one projected field store");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let producer = entry.blocks[0]
+        .operations
+        .iter()
+        .find(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+        .expect("ordinary scalar producer");
+    let OperationResult::Scalar(result) = producer.result else {
+        panic!("ordinary producer returns one scalar")
+    };
+    assert!(entry.blocks[0].operations.iter().any(|operation| matches!(
+        operation.kind,
+        OperationKind::StructuralScalarFieldStore { value, .. } if value == result.id
+    )));
+
+    let mut drifted = checked;
+    let machine = drifted
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::enter")
+        .expect("projected result-store machine")
+        .symbol;
+    let plan = drifted
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == machine)
+        .expect("projected result-store plan");
+    let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = &mut plan.operations[1]
+    else {
+        panic!("checked projected store")
+    };
+    let CheckedScalarExpression::Local { position, .. } = &mut store.value else {
+        panic!("projected store reads the scalar result local")
+    };
+    *position = 1;
+    assert!(matches!(
+        lower_machine(&drifted, "Root::enter"),
+        Err(LoweringError::Unsupported(
+            "structural scalar store lost exact exclusive custody"
         ))
     ));
 }
