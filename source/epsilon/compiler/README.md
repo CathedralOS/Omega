@@ -48,9 +48,9 @@ sealed-boundary applications now retain source identity and settled result
 facts; explicit state applications and state/machine collision classification
 are retained separately. Transition subjects, resolved patterns, typed payload
 binders, and sum coverage now have separate exact custody. D57's grammar-owned
-final wildcard is implemented; the ruling also settles subject admission before
-semantic duplicate identity, duplicate identity before payload arity, and
-coverage after completed pattern premises. D50's bare-state
+final wildcard and four-stage pattern judgment are implemented: subject
+admission precedes semantic identity ownership, duplicate identity precedes
+payload arity, and coverage follows completed pattern premises. D50's bare-state
 judgment and D52's resultless-argument anchor are implemented within D37's
 premise-DAG composition; the remaining body/control judgments stay open.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
@@ -219,14 +219,14 @@ arity gates complete pattern custody. A later repeated admitted identity is
 `1` are one selector, as are `false` and `0`, independent of leading zeros.
 Only a complete case pattern supplies positional payload types and places to
 its D24 binder locals; `u8` payloads therefore read as `i32` while retaining
-their storage type. D57 requires distinct name-resolved, subject-admitted,
-semantic-identity, and complete stages instead of the current broad
-`Resolved | Complete` progress. Every continuation remains independently
+their storage type. D57's distinct name-resolved, subject-admitted, identity-
+owned, and complete facts replace the former broad `Resolved | Complete`
+progress. Every continuation remains independently
 checked, and each sum transition retains complete, missing, or unresolved
 coverage. Transition grammar admits one optional final wildcard; a following
 pattern is `UnexpectedToken`, while a redundant final wildcard remains legal.
 Missing complete sum coverage is `NonexhaustiveSum` at the subject after every
-pattern premise completes. These D57 branches remain implementation work.
+pattern premise completes. These D57 branches are implemented.
 
 Named-record projection retains both the exact owner declaration and authored
 field for later ordinal/layout recovery. A field inherits a place only from a
@@ -390,8 +390,15 @@ ordinary pattern or second wildcard is `UnexpectedToken` at that pattern; an
 empty transition body is `UnexpectedToken` at `}`; and EOF after a wildcard
 continuation is `UnexpectedEnd` at source extent. The combined probe returned
 byte `0x3f`. The common pattern parser no longer accepts `_`, and the later
-nonfinal-wildcard semantic recovery path is deleted. D57's remaining staged
-pattern-judgment work is unchanged.
+nonfinal-wildcard semantic recovery path is deleted.
+
+D57's semantic ordering has also executed as a six-program ephemeral matrix.
+It checks `false`/`00` identity, duplicate-before-arity, unique arity failure,
+missing sum coverage at the subject, scalar-pattern rejection against a sum,
+and an exhaustive payload-binder transition with a redundant wildcard. The
+positive program retains exactly three complete-pattern facts, and the combined
+matrix returned byte `0x3f`. The 485,777-byte temporary source compiled to a
+548,542-byte receipt in 76.8 seconds.
 
 D57 transition controls cover a pattern after `_`, a repeated `_`, and an
 exhaustive sum with a redundant final wildcard; category-incompatible scalar
