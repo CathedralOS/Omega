@@ -82,6 +82,7 @@ members = [
     "omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects",
     "omega-rust/omega/pipeline/omega-liveness-to-live-ranges",
     "omega-rust/omega/pipeline/omega-live-ranges-to-allocation-legality",
+    "omega-rust/omega/pipeline/omega-literal-folds-to-register-homes",
     "omega-rust/omega/pipeline/omega-allocation-legality-to-active-resident-rematerialization",
     "omega-rust/omega/pipeline/omega-allocation-legality-to-literal-folds",
     "omega-rust/omega/pipeline/omega-allocation-legality-to-fixed-view-copies",

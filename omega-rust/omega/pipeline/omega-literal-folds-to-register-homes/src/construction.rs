@@ -4,7 +4,7 @@ use omega_regalloc::{
     project_post_allocation_optimization_manifest_after_selected_lowering,
 };
 
-use crate::{
+use omega_allocation_legality_to_literal_folds::{
     StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds,
     StagedSelectedLoweringOptimizationRun, validate_optimized_literal_fold_custody,
     validate_selected_lowering_optimization_custody,

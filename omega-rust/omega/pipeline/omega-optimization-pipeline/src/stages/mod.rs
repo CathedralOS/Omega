@@ -22,6 +22,7 @@ pub use omega_allocation_legality_to_literal_folds::*;
 pub use omega_allocation_legality_to_register_homes::*;
 pub use omega_callee_saved_requirements_to_save_storage::*;
 pub use omega_fixed_view_copies_to_reanalyzed_legality::*;
+pub use omega_literal_folds_to_register_homes::*;
 pub use omega_live_ranges_to_allocation_legality::*;
 pub use omega_liveness_to_live_ranges::*;
 pub use omega_regalloc::ORDERED_ALLOCATION_RECOVERY_RULES;

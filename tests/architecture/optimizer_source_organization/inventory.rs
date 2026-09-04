@@ -33,6 +33,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/omega-allocation-legality-to-register-homes",
     "omega-rust/omega/pipeline/omega-fixed-view-copies-to-reanalyzed-legality",
     "omega-rust/omega/pipeline/omega-live-ranges-to-allocation-legality",
+    "omega-rust/omega/pipeline/omega-literal-folds-to-register-homes",
     "omega-rust/omega/pipeline/omega-liveness-to-live-ranges",
     "omega-rust/omega/pipeline/omega-machine-optimizer",
     "omega-rust/omega/pipeline/omega-optimization-policy",

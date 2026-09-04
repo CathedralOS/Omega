@@ -923,6 +923,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-literal-folds-to-register-homes"
+version = "0.1.0"
+dependencies = [
+ "omega-allocation-legality-to-literal-folds",
+ "omega-optimization-core",
+ "omega-regalloc",
+]
+
+[[package]]
 name = "omega-live-ranges-to-allocation-legality"
 version = "0.1.0"
 dependencies = [
@@ -1157,6 +1166,7 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-legalized-operations",
+ "omega-literal-folds-to-register-homes",
  "omega-live-ranges-to-allocation-legality",
  "omega-liveness-to-live-ranges",
  "omega-machine-code",

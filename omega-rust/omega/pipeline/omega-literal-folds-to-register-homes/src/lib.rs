@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Optimizer module role: executable entrance. Register-home staging after selected-lowering transformations.
 //!
 //! One-step literal-fold chains and complete selected-lowering runs retain
@@ -16,7 +18,9 @@ pub use validation::{
     validate_optimized_register_home_after_selected_lowering_custody,
 };
 
-use crate::{StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationRun};
+use omega_allocation_legality_to_literal_folds::{
+    StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationRun,
+};
 
 pub fn stage_optimized_register_homes_after_literal_folds(
     folds: StagedOptimizedLiteralFolds,

@@ -30,6 +30,7 @@ omega-selected-instructions-to-liveness = { path = "../omega-selected-instructio
 omega-selected-instructions-to-machine-effects = { path = "../omega-selected-instructions-to-machine-effects" }
 omega-liveness-to-live-ranges = { path = "../omega-liveness-to-live-ranges" }
 omega-live-ranges-to-allocation-legality = { path = "../omega-live-ranges-to-allocation-legality" }
+omega-literal-folds-to-register-homes = { path = "../omega-literal-folds-to-register-homes" }
 omega-allocation-legality-to-active-resident-rematerialization = { path = "../omega-allocation-legality-to-active-resident-rematerialization" }
 omega-allocation-legality-to-literal-folds = { path = "../omega-allocation-legality-to-literal-folds" }
 omega-allocation-legality-to-fixed-view-copies = { path = "../omega-allocation-legality-to-fixed-view-copies" }

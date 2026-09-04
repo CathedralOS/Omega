@@ -1,6 +1,6 @@
 use omega_regalloc::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
 
-use crate::{
+use omega_allocation_legality_to_literal_folds::{
     StagedOptimizedLiteralFoldCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
 };
 
