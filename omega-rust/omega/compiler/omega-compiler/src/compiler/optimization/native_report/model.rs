@@ -42,10 +42,11 @@ impl PreparedNativeReport {
     }
 
     pub(in crate::compiler) fn reuse_key(&self) -> NativeInputReuseKey {
+        let post_terminal = self.rollback.effective().project_post_terminal();
         NativeInputReuseKey {
             terminal_artifact_identity: self.terminal.artifact().manifest().identity(),
             admission_profile: self.request.terminal_admission_profile.clone(),
-            optimized: !self.rollback.effective().is_empty(),
+            optimized: !post_terminal.selections().is_empty(),
         }
     }
 }

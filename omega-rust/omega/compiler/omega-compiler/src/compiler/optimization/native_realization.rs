@@ -29,12 +29,15 @@ pub(super) fn validate_terminal_authority_permissions(
 pub(super) fn prepare_terminal_artifact(
     checked: &crate::pipeline::CheckedCompilation,
     admission: &super::admission::NativeOptimizationAdmission,
+    optimization_selections: &OptimizationSelections,
 ) -> Result<PreparedTerminalNativeArtifact, Vec<Diagnostic>> {
     let entry_machine = admission.program_entry.machine_name().to_owned();
+    let psi_optimizations = optimization_selections.project_psi();
     let produced =
-        psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+        psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope_and_optimizations(
             checked,
             &entry_machine,
+            psi_optimizations.selections().clone(),
         ).map_err(
             |error| {
                 vec![Diagnostic::error(format!(

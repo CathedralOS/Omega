@@ -101,12 +101,34 @@ pub fn prepare_native_realization_input(
     })
 }
 
+fn reject_pre_terminal_selections(
+    optimization_selections: &omega_optimization_core::OptimizationSelections,
+) -> Result<(), Vec<Diagnostic>> {
+    if let Some(selection) = optimization_selections.as_slice().iter().find(|selection| {
+        matches!(
+            selection.execution_phase(),
+            omega_optimization_core::OptimizationExecutionPhase::CheckedTrees
+                | omega_optimization_core::OptimizationExecutionPhase::Psi
+        )
+    }) {
+        return Err(realization_error(
+            "sealed Terminal optimization custody",
+            format!(
+                "pre-Terminal optimization `{}` cannot be selected by a Terminal-to-native lowerer; consume the sealed artifact's optimization execution record",
+                selection.build_case_name()
+            ),
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn lower_realization_input(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &psi_proof_admission::AdmissionProfile,
     optimization_selections: &omega_optimization_core::OptimizationSelections,
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
+    reject_pre_terminal_selections(optimization_selections)?;
     if optimization_selections.is_empty() {
         Ok(NativeRealizationInput::Unoptimized(
             omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
@@ -197,5 +219,20 @@ mod tests {
         ])
         .expect("one optimization");
         assert!(!prepared.matches(artifact.manifest().identity(), &profile, &selected,));
+    }
+
+    #[test]
+    fn sealed_terminal_artifact_rejects_preterminal_reselection() {
+        let artifact = artifact_fixture();
+        let selections = omega_optimization_core::OptimizationSelections::new([
+            omega_optimization_core::Optimization::ControlFlowCleanup,
+        ])
+        .expect("one optimization");
+        let diagnostics =
+            prepare_native_realization_input(&artifact, &AdmissionProfile::default(), &selections)
+                .expect_err("a resumed lowerer must not rerun a Psi optimization");
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("pre-Terminal optimization"));
+        assert!(diagnostics[0].message.contains("ControlFlowCleanup"));
     }
 }

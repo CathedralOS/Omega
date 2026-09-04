@@ -2219,10 +2219,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         )
         .collect::<Vec<_>>();
     let profile = psi_proof_admission::AdmissionProfile::default();
-    let optimizations = omega_optimization_core::OptimizationSelections::new([
-        omega_optimization_core::Optimization::ControlFlowCleanup,
-    ])
-    .expect("one verified Psi optimization selection");
+    let optimizations = omega_optimization_core::OptimizationSelections::default();
     let permission_policy =
         omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
             proposal
@@ -2264,9 +2261,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             callback_thunks: &[],
         },
     )
-    .expect(
-        "retained Terminal product and verified Psi optimization should realize natively",
-    );
+    .expect("retained Terminal product should realize natively without frontend state");
     assert!(native.image().output().bytes.starts_with(b"\x7fELF"));
     assert_eq!(native.provider_executions().len(), 0);
     assert_eq!(
@@ -2288,18 +2283,18 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
     );
     assert!(matches!(
         native.physical_evidence_scope(),
-        omega_terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        omega_terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
     ));
     let replayed = omega_terminal_psi_to_native_artifact::NativeArtifact::from_replayed_parts(
         native.into_parts(),
     )
-    .expect("optimized D32 artifact should replay from retained custody");
+    .expect("reloaded D32 artifact should replay from retained custody");
     let mut missing_child = replayed.into_parts();
     missing_child.physical_evidence = None;
     assert!(
         omega_terminal_psi_to_native_artifact::NativeArtifact::from_replayed_parts(missing_child)
             .is_err(),
-        "optimized D32 replay must reject removal of its surviving physical child",
+        "reloaded D32 replay must reject removal of its surviving physical child",
     );
 }
 
