@@ -67,7 +67,7 @@ omega-psi-optimizer = { path = "../../omega-rust/omega/pipeline/optimization/ome
 omega-regalloc = { path = "../../omega-rust/omega/pipeline/omega-regalloc" }
 omega-register-model = { path = "../../omega-rust/omega/representations/omega-register-model" }
 omega-optimization-unit = { path = "../../omega-rust/omega/representations/omega-optimization-unit" }
-omega-optimization-validation = { path = "../../omega-rust/omega/pipeline/optimization/omega-optimization-validation" }
+omega-optimization-validation = { path = "../../omega-rust/omega/pipeline/omega-optimization-validation" }
 omega-selected-instructions = { path = "../../omega-rust/omega/representations/omega-selected-instructions" }
 psi-source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
