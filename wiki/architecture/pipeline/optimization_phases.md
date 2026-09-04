@@ -183,10 +183,12 @@ abstract native admission and lowering now run unconditionally before
 selection presence is inspected. The remaining physical-optimizer continuation
 is transitional: a closed `Identity | Selected` result makes empty execution
 explicit instead of encoding it as a missing context, but the two variants still
-enter different physical continuations and the selected side still groups
-several later Omega-owned phases into one optimizer unit. Its public request
-surface uses the closed post-Terminal selection type, so this transitional
-branch cannot reopen an earlier phase.
+enter different target/physical continuations. The selected side now returns a
+validated target-operation result before entering physical optimization; it no
+longer hides target lowering and physical routing behind one continuation call.
+It still groups several later Omega-owned phases into one optimizer unit. Its
+public request surface uses the closed post-Terminal selection type, so this
+transitional branch cannot reopen an earlier phase.
 
 Migration proceeds in dependency order:
 
@@ -204,10 +206,13 @@ Migration proceeds in dependency order:
    and lowering produce one stage result regardless of selection presence.
    Ranked execution remains role-specific authority inside that result. There
    are currently no cataloged abstract-operation rewrites to move.
-5. **Identity execution is explicit; continuation convergence remains.**
+5. **Identity execution and the selected target boundary are explicit;
+   continuation convergence remains.**
    Replace the remaining identity/selected physical fork with one sequence of
-   explicit phase results. Preserve role-specific authority carriers such as
-   ranked execution without using them as optimization bypasses.
+   explicit phase results. Selected execution already exposes its validated
+   target-operation result before physical routing; identity execution must
+   converge on the same target-stage boundary. Preserve role-specific authority
+   carriers such as ranked execution without using them as optimization bypasses.
 6. Add checked-tree pruning only after its product-root identity, ownership,
    proof, effect, and boundary-retention rules are independently reconstructible.
 7. Remove transitional names, branches, and documentation only after ordinary,

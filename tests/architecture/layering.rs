@@ -2031,8 +2031,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !input.contains("reject_pre_terminal_selections(")
             && machine_code.contains("optimize_verified_psi_input(")
             && machine_code
+                .contains("lower_optimized_to_target_operations_with_provider_executions")
+            && machine_code.contains("stage_optimized_verified_physical_pipeline(")
+            && !machine_code
                 .contains("stage_optimized_native_continuation_with_provider_executions"),
-        "a resumed lowerer must make pre-Terminal selections unrepresentable and route only later selected work through its verified physical continuation"
+        "a resumed lowerer must make pre-Terminal selections unrepresentable and expose target lowering before later selected physical work"
     );
     let native_stage = input
         .find("let native = omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization")
@@ -2053,23 +2056,26 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let (baseline_conveyor, optimized_conveyor) = native_conveyor
         .split_once("(_, PostTerminalPhysicalContinuation::Selected(input))")
         .expect("native realization retains a transitional later physical-selection arm");
-    let (_, selected_physical_conveyor) = optimized_conveyor
-        .split_once("let continuation = match provider_installation")
-        .expect("optimized realization visibly enters the selected physical continuation");
+    let selected_target_stage = optimized_conveyor
+        .find("let optimized_target = match provider_installation")
+        .expect("optimized realization visibly constructs its validated target-stage result");
+    let selected_physical_stage = optimized_conveyor
+        .find("let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline")
+        .expect("optimized realization visibly enters physical optimization after target lowering");
     let transitional_assignment =
         "omega_target_operations_to_assigned_target_operations::assign_registers";
     assert!(
         baseline_conveyor.contains(transitional_assignment)
             && !optimized_conveyor.contains("if psi_only {")
-            && !selected_physical_conveyor.contains(transitional_assignment),
-        "only the publishable baseline may retain transitional assignment; sealed Terminal Psi has no post-publication Psi-only route"
+            && !optimized_conveyor.contains(transitional_assignment)
+            && selected_target_stage < selected_physical_stage,
+        "only the publishable baseline may retain transitional assignment; selected lowering must expose its target result before physical routing"
     );
     for forbidden in [
         "CheckedCompilation",
         "lower_machine(",
         "encode_module(",
         "encode_proof_bundle(",
-        "lower_optimized_to_target_operations_with_provider_executions(",
     ] {
         assert!(
             !production_realization.contains(forbidden) && !machine_code.contains(forbidden),

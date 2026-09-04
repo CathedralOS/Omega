@@ -134,71 +134,57 @@ pub(crate) fn emit_realization_machine_code(
             let optimized_plan = optimized.plan().clone();
             let optimized_validation = optimized.validation();
             let has_provider_installation = provider_installation.is_some();
-            let continuation = match provider_installation {
-                Some(installation) => omega_optimization_pipeline::stage_optimized_native_continuation_with_provider_executions_and_installation(
+            let optimized_target = match provider_installation {
+                Some(installation) => omega_optimization_pipeline::lower_optimized_to_target_operations_with_provider_executions_and_installation(
                     optimized,
                     request.target,
                     settlements,
                     installation,
                 ),
-                None => omega_optimization_pipeline::stage_optimized_native_continuation_with_provider_executions(
+                None => omega_optimization_pipeline::lower_optimized_to_target_operations_with_provider_executions(
                     optimized,
                     request.target,
                     settlements,
                 ),
             }
-            .map_err(|error| match error {
-                omega_optimization_pipeline::OptimizedNativeContinuationError::CoverageFallbackAssigned(
-                    error,
-                ) => realization_error("optimized physical assignment", error),
-                omega_optimization_pipeline::OptimizedNativeContinuationError::SelectedPhysical(
-                    error,
-                ) => selected_physical_pipeline_failed(
+            .map_err(|error| realization_error("optimized target lowering", error))?;
+            let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline(
+                optimized_target,
+            )
+            .map_err(|error| {
+                selected_physical_pipeline_failed(
                     request.optimization_selections.selections(),
                     error,
-                ),
+                )
             })?;
-            match continuation {
-                omega_optimization_pipeline::StagedOptimizedNativeContinuation::CoverageFallbackAssigned(
-                    _,
-                ) => {
-                    Err(realization_error(
-                        "optimized native continuation",
-                        "a nonempty optimization selection unexpectedly used the coverage fallback",
-                    ))
-                }
-                omega_optimization_pipeline::StagedOptimizedNativeContinuation::SelectedPhysical(
-                    physical,
-                ) => match *physical {
-                    omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering {
+            match physical {
+                omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering {
+                    realization,
+                } => {
+                    let (plan, physical_evidence_scope) = emit_return_only_selected_lowering(
                         realization,
-                    } => {
-                        let (plan, physical_evidence_scope) =
-                            emit_return_only_selected_lowering(
-                                realization,
-                                SelectedLoweringPublicationRequest {
-                                    has_provider_installation,
-                                    has_boundary_settlements: !settlements.is_empty(),
-                                    boundary_application_coverage,
-                                    optimized_plan: &optimized_plan,
-                                    terminal: optimized_validation.psi(),
-                                    validation: optimized_validation.identity(),
-                                    final_unit: optimized_validation.final_unit(),
-                                },
-                            )?;
-                        Ok(EmittedRealizationMachineCode {
-                            machine_code: MachineCodePlanWithPrivateFunctions {
-                                plan,
-                                private_functions: Vec::new(),
-                            },
-                            physical_evidence_scope,
-                        })
-                    }
-                    other => Err(selected_physical_pipeline_not_publishable(
-                        request.optimization_selections.selections(),
-                        &other,
-                    )),
-                },
+                        SelectedLoweringPublicationRequest {
+                            has_provider_installation,
+                            has_boundary_settlements: !settlements.is_empty(),
+                            boundary_application_coverage,
+                            optimized_plan: &optimized_plan,
+                            terminal: optimized_validation.psi(),
+                            validation: optimized_validation.identity(),
+                            final_unit: optimized_validation.final_unit(),
+                        },
+                    )?;
+                    Ok(EmittedRealizationMachineCode {
+                        machine_code: MachineCodePlanWithPrivateFunctions {
+                            plan,
+                            private_functions: Vec::new(),
+                        },
+                        physical_evidence_scope,
+                    })
+                }
+                other => Err(selected_physical_pipeline_not_publishable(
+                    request.optimization_selections.selections(),
+                    &other,
+                )),
             }
         }
     }
