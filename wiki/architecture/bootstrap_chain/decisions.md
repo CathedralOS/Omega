@@ -4460,3 +4460,35 @@ remain open. The exact selected subject is now 1,457 Gamma lines and 56,262
 bytes, with 131 definitions and 427 lexical `let` binders. The 3,001-function
 transformation remains below 14 seconds on the development host and produces
 the unchanged 78,271-byte receipt.
+
+## D106 — The emitted scalar and nominal slice is fully type checked
+
+The pre-emission local-scope pass now carries types rather than mere presence.
+`Int` is represented internally by `-1`; each nominal type is represented by
+the positive source owner of its exact declaration; zero remains the absent
+lookup sentinel. These values never enter emitted Gamma or Delta semantics.
+Persistent local tries therefore retain both exact name resolution and the
+declared type of each active parameter, `let`, or constructor-pattern binder.
+
+The global function trie now stores the exact function declaration owner
+instead of only its arity. A call resolves that owner once and checks each
+argument against the annotated parameter sequence before recovering the
+declared result. Constructor applications perform the analogous walk over the
+exact constructor declaration fields. The checker also enforces `Int`
+operands and conditions, equal conditional branches, `let` initializer
+annotations, nominal match scrutinees, constructor ownership, equal match-arm
+results, and each function's declared result. Forward and mutual declarations
+remain visible because the complete global census still precedes checking.
+
+This is the complete type relation for the emitted scalar/nominal slice, not a
+claim that full Delta is admitted. Normative `Bytes` representation and
+lowering remain open. Until that implementation exists, every closed
+`bytes_*` form rejects before emission; the compiler no longer publishes a
+Gamma receipt containing an unknown inherited `bytes_*` call. Retained
+malformed witnesses cover every relation above, including equally shaped but
+distinct nominal owners.
+
+The exact selected subject is now 1,653 Gamma lines and 64,682 bytes, with 143
+definitions and 480 lexical `let` binders. The additional signature checking
+keeps the 3,001-function transformation below 15 seconds on the development
+host and preserves its exact 78,271-byte output.
