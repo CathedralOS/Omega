@@ -632,3 +632,15 @@ replay reject missing-machine, duplicate, reordered, malformed, or
 zero-commitment rows, while canonical artifact identity binds every retained
 identity string. The carrier grants no runtime or access authority. Value-form
 inputs and per-outcome dispositions remain fail-closed.
+
+The first Omega-side continuation now carries that exact verified Terminal row
+beside the ordinary Abstract plan rather than recasting it as a structural
+parameter. For one direct program-entry view on an otherwise parameterless,
+one-block Unit function, target lowering rejoins the compiler-held complete
+validated placement by both compatibility fingerprint and domain-separated
+commitment, retains its referent geometry, and derives the one-pointer native
+entry placement independently on Linux x86-64 and AArch64. Ordinary,
+optimizer, replay, and native entrances that do not own this sidecar reject the
+row instead of silently dropping it. This is ABI custody only: backing,
+lifetime establishment, access-event emission, subordinate-state forwarding,
+and assignment/native consumption remain fenced.

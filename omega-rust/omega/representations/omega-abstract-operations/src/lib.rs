@@ -21,8 +21,9 @@ use psi_terminal::{
     StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalDynamicConformanceSelection,
     TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
     TerminalIndirectDynamicDispatch, TerminalModule, TerminalParameterDynamicDispatch,
-    TerminalPsiIdentity, TerminalRankedScc, TerminalReboundDynamicDescriptor,
-    TerminalStoredDynamicDescriptor, TerminalStoredDynamicDispatch,
+    TerminalPlacedViewInput, TerminalPsiIdentity, TerminalRankedScc,
+    TerminalReboundDynamicDescriptor, TerminalStoredDynamicDescriptor,
+    TerminalStoredDynamicDispatch,
 };
 
 /// Exact caller claim source needed to replay boundary-completion custody after
@@ -71,6 +72,20 @@ pub struct AbstractOperationPlan {
     /// terminal-Psi semantic identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub functions: Vec<AbstractFunction>,
+}
+
+/// Exact semantic custody for plan-laid inputs retained beside ordinary
+/// abstract operations.
+///
+/// A `Placed<P, T>` input is deliberately not a structural parameter: its
+/// pointer-shaped runtime representation does not grant ownership of `T`, and
+/// its sealed placement commitment is not a substitute for installed backing.
+/// Keeping this carrier separate prevents ordinary lowering consumers from
+/// silently interpreting the view as structural authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractOperationPlanWithPlacedViewInputs {
+    pub plan: AbstractOperationPlan,
+    pub placed_view_inputs: Vec<TerminalPlacedViewInput>,
 }
 
 /// Native-ranked admission kept beside, rather than inside, the ordinary

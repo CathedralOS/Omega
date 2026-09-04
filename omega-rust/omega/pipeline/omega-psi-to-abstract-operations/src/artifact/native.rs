@@ -36,6 +36,9 @@ pub fn lower_artifact_sections_for_native_realization(
         .map_err(ArtifactLoweringError::SemanticDecode)?;
     let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)?;
+    if !module.placed_view_inputs.is_empty() {
+        return Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering);
+    }
     if module
         .machines
         .iter()

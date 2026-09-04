@@ -12,6 +12,9 @@ pub enum ArtifactLoweringError {
     Verification(psi_terminal_verifier::VerificationError),
     FixedFuel(psi_terminal_fixed_fuel::FixedFuelError),
     RankedNativeCustody(&'static str),
+    /// Ordinary/optimizer entrances do not own the separate plan-laid input
+    /// carrier and therefore may not silently discard it.
+    PlacedViewInputsRequireCustodyLowering,
     Lowering(LoweringError),
 }
 

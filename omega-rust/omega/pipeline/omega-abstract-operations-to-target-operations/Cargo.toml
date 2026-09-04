@@ -17,6 +17,7 @@ omega-abstract-operations = { path = "../../representations/omega-abstract-opera
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-access-plans = { path = "../../../psi/foundation/psi-access-plans" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 
 [dev-dependencies]

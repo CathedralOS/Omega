@@ -29,6 +29,9 @@ pub fn lower_replay_artifact_sections(
     .map_err(ArtifactLoweringError::ObligationReplay)?;
     let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)?;
+    if !module.placed_view_inputs.is_empty() {
+        return Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering);
+    }
     let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     lower_decoded_verified_module(&verified, false).map_err(ArtifactLoweringError::Lowering)
@@ -57,6 +60,9 @@ pub fn lower_replay_artifact_sections_for_optimization(
     .map_err(ArtifactLoweringError::ObligationReplay)?;
     let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)?;
+    if !module.placed_view_inputs.is_empty() {
+        return Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering);
+    }
     let verified = psi_terminal_verifier::verify_module_for_optimization(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     retain_verified_optimization_input(&verified)
