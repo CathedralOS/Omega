@@ -1,3 +1,6 @@
+//! The capability manifest, and the composition and selection variants that differ
+//! only in what they are given to resolve against.
+
 use super::push_json_string;
 use psi_checked_trees::CheckedTrees;
 use psi_effects::CapabilityFlowKind;

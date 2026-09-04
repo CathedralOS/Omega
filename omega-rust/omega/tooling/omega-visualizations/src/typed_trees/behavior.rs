@@ -1,3 +1,6 @@
+//! NOT COMPILED - no `mod typed_trees` declaration exists anywhere in this crate,
+//! so rustc never sees this file. See the @Cleanup in lib.rs.
+
 use psi_effects::{OperationalPlan, ServiceReachInferencePlan};
 use psi_language_semantics::{
     BlockingSummary, ServiceReachRowTable, ServiceReachSummary, SuspensionSummary,
