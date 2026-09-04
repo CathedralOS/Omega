@@ -1,3 +1,6 @@
+//! Every file offset and VM address in one pass, once the thunk, rebase and bind
+//! sizes are all known.
+
 use crate::code_signature::code_signature_size;
 use crate::constants::{
     MACHO_ARM64_PAGE_SIZE, MACHO_CODE_SIGNATURE_COMMAND_SIZE, MACHO_DYLD_INFO_COMMAND_SIZE,

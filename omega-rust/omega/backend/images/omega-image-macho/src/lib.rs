@@ -1,3 +1,85 @@
+//! A PIE, ad-hoc-signed, dyld-linked Mach-O arm64 MH_EXECUTE, bound eagerly at
+//! load with no lazy stubs anywhere in it.
+//!
+//! The load base is 0x1_0000_0000 - four gigabytes of `__PAGEZERO` below
+//! anything real, so a null dereference faults on an unmapped page rather than
+//! reading the header. Pages are `MACHO_ARM64_PAGE_SIZE` = 0x4000, sixteen
+//! kilobytes, and `CODE_SIGNATURE_PAGE_SIZE_POWER` is 14 because the code
+//! directory stores that page size as a log2 exponent; the two constants must
+//! move together or every signed page hashes at the wrong stride. Note this is
+//! NOT the ADRP page: ADRP's page is four kilobytes and lives in `omega-image`'s
+//! relocation patcher. Two page sizes, adjacent in the same emitter, meaning
+//! different things.
+//!
+//! `emit_macho_aarch64_executable` runs in an order most of which is forced:
+//!
+//! ```text
+//!   install_import_thunks     preflights the dylib roster, THEN mutates .text
+//!   macho_bind_info           the bind opcode stream for those thunks
+//!   macho_rebase_info         the pointers dyld must slide for a PIE
+//!   plan_macho_image          every offset, now that all four sizes are known
+//!   patch_import_thunks / apply_aarch64_relocations
+//!   validate_patched_preferred_pointers   rebased pointers still point right
+//!   validate_import_thunk_footprints      thunk opcodes survived relocation
+//!   ... write header, load commands, segments, linkedit ...
+//!   macho_ad_hoc_code_signature           hashes the finished file, so LAST
+//! ```
+//!
+//! The signature has to be last because it hashes every byte before it, and its
+//! size has to be known before that because `LC_CODE_SIGNATURE` and the
+//! `__LINKEDIT` extent are written earlier. That is why the blob length is
+//! computed twice - see the @Cleanup below.
+//!
+//! Binding is eager and total. `write_macho_dyld_info_command` writes rebase and
+//! bind offsets and then six zero words: weak bind offset and size, lazy bind
+//! offset and size, export trie offset and size, all literally zero. The bind
+//! stream is `0x51` (`SET_TYPE_IMM | BIND_TYPE_POINTER`) followed by `0x90`
+//! (`DO_BIND`) per symbol. There is no `dyld_stub_binder` and no
+//! `__la_symbol_ptr` section, because there is nothing left to resolve after
+//! load.
+
+//! Only imports an actual relocation points at get a thunk, a slot and a bind
+//! entry; the rest of the host binding catalog is dropped. Emitting one per
+//! catalog row is simpler and would make a program that touches only the
+//! filesystem drag in libobjc, Foundation, AppKit and CoreGraphics as load-time
+//! dependencies, because a bind entry naming a dylib is a reason to map it.
+//!
+//! The dylib roster is a `Vec` scanned linearly - `ensure_dylib` with `.any`,
+//! ordinal assignment with `.position` - where a `HashMap` keyed by install name
+//! is the obvious choice. Two things make the scan right. The roster is hard
+//! capped at 15 entries, because the bind opcode carries the dylib ordinal in a
+//! four-bit immediate, so the scan is bounded by the format itself. And the
+//! ordinal IS the vector index plus one, with libSystem deliberately first at
+//! ordinal 1 - an ordering a hash map would not preserve.
+//!
+//! `plan_dylibs` runs to completion before the first `image.memory.text.extend`,
+//! and that is a transaction boundary rather than an accident of reading order.
+//! A rejection discovered midway through installation would otherwise leave the
+//! `FinalImage` with text extended, symbols rewritten and executable regions
+//! pushed - a half-mutated value the caller has no way to roll back.
+
+//! `omega-image` supplies `FinalImage`, `apply_aarch64_relocations` and
+//! `place_executable_regions`. This is the only emitter in the tree that both
+//! binds imports and signs its output.
+//!
+//! @Cleanup: the 88-byte code directory header size is written as a literal in
+//! two places, `code_signature_size` and `macho_ad_hoc_code_signature`, which
+//! independently recompute the same offset arithmetic over identifier length,
+//! special slots and page count. Nothing derives 88 from the field widths it
+//! stands for. The only check that the two agree is
+//! `debug_assert_eq!(code_signature.len(), plan.code_signature_size)` in
+//! `emit_macho_aarch64_executable` - a DEBUG assert, compiled out of a release
+//! build, where a disagreement would instead ship an executable whose
+//! `LC_CODE_SIGNATURE` length does not match its actual signature blob.
+//!
+//! @Note: "lazy binding" is the wrong term for what this emitter produces, and
+//! it appears in at least two places that describe it -
+//! `omega-image-emission/src/final_image_validation.rs:214` and the terminal-Psi
+//! wiki page. In Mach-O that phrase names a specific mechanism, `dyld_stub_binder`
+//! resolving through `__la_symbol_ptr` on first call, and this emitter uses none
+//! of it. A reader who takes the phrase literally goes looking for a section
+//! that is not there.
+
 use omega_image::{
     ExecutableImageOutput, FinalImage, apply_aarch64_relocations, place_executable_regions,
 };
