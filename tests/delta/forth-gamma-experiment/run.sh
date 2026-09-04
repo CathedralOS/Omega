@@ -48,9 +48,9 @@ forth_compiler_jumps=171
 forth_compiler_stack_ops=77
 forth_compiler_cell_ops=20
 functional_beta=1325,1065,165,479,208,203
-functional_compiler_lines=1022
-functional_compiler_definitions=93
-functional_compiler_lets=354'
+functional_compiler_lines=1192
+functional_compiler_definitions=113
+functional_compiler_lets=364'
 [ "$METRICS" = "$EXPECTED_METRICS" ] || {
     printf '%s\n' "$METRICS"
     echo "Forth-Gamma audit metrics changed" >&2
@@ -116,7 +116,6 @@ for name, (source, status, output) in primitive_cases.items():
 compiler = Path(os.environ["COMPILER"]).read_bytes()
 fixture_root = Path(os.environ["GATE_DIR"]).parent / "staged-compiler"
 rope = (fixture_root / "bytes_rope.delta").read_bytes()
-rope = rope.replace(b"bytes_", b"rope_").replace(b"(read (input))", b"(/ 1 0)")
 fixtures = {
     "nat": (
         (fixture_root / "recursive_match.delta").read_bytes(), b"\x03", 2868,
@@ -189,4 +188,4 @@ if invoke(b": bad absent ; : main ;") != (0, b""):
     raise SystemExit("expected unreachable-name validation gap changed")
 PY
 
-echo "Forth-Gamma experiment: 890-line / 5,145-byte interpreter and 1,451-line Delta compiler passed matched semantics; 3,001 functions exceed 600s"
+echo "Forth-Gamma experiment: retained structural cases pass; selected lexical/global coverage remains unmatched and 3,001 functions exceed 600s"

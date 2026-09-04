@@ -5,7 +5,7 @@ that led to typed scalar/effect Gamma. The selected Delta compiler remains open.
 
 | Retained child | Role | Deletion condition |
 | --- | --- | --- |
-| `staged-compiler/` | Exercises selected nullary, recursive multi-field, Bytes-rope, exhaustive-match, malformed-source, and scale stages through the selected Gamma evaluator. | Extend with each admitted Delta stage and replace with complete Delta conformance. |
+| `staged-compiler/` | Exercises selected source-envelope, lexical-atom, global-census, recursive multi-field, rope, exhaustive-match, malformed-source, and scale stages through the selected Gamma evaluator. | Extend with each admitted Delta stage and replace with complete Delta conformance. |
 | `direct-beta-evaluator-experiment/` | Compares matched recursive-data, staged-validation, proper-tail, and scale evidence under one direct Beta Delta evaluator. | Delete after the Gamma rung decision is ratified or a direct evaluator is selected. |
 | `forth-gamma-experiment/` | Compares a fixed interpreted Forth-Gamma plus Forth-authored Delta compiler against selected functional Gamma, including named values, readable text emission, recursive data, malformed cases, tails, and scale. | Delete after a statically checked Forth profile either displaces functional Gamma or fails its final earned-rung test. |
 | `compiler-slice/` | Reconstructs and executes the downgraded concatenative-Gamma-written Delta compiler across its retained surface. | Delete after the selected staged Delta edge supersedes its evidence. |

@@ -54,7 +54,7 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 1022, 40278, "04e459a8407f559cdc55083b71c2ff4f5c8328dbc7ff05682009644e6150a836"),
+    ("compiler", compiler, 1192, 45840, "67aa529276b9212bbb104f4536a176e6ba86ae41fbce6171bca36848c9113249"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 159, "ace9d225806cd36712201fadd87031de99bd068cacde8b0140446122a3567663"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -63,8 +63,8 @@ for name, data, lines, size, digest in (
     ("recursive receipt", recursive_expected, 3, 246, "8725427391f6ec805adde6dbf9e8bd24b3049f63b54e2c1c9b980eb307c4600e"),
     ("list source", list_source, 8, 221, "a86dd12c78f488de2ba4adea71ba90ee29057e97d805ce627befe48c939e3ac3"),
     ("list receipt", list_expected, 3, 324, "64812b78fde8e1aee5fca648af7cfc3a46bff7cac010d91f166c8df4b9125b0e"),
-    ("bytes source", bytes_source, 24, 782, "5bcc5e89ff630bb9d5012b275e5fec4157e1c0959be93f5f6b6e36ce7028e5da"),
-    ("bytes receipt", bytes_expected, 7, 1033, "dac8b39fa720de0bf4800c426ef7b0c69255d45643655f54dc847199115474df"),
+    ("bytes source", bytes_source, 24, 767, "a4366165ddac1f1ffea603463ec9c3e04e91331b857d0b978b06863e62438b94"),
+    ("bytes receipt", bytes_expected, 7, 1018, "044c1886d7e3ae07cadaf7d0271dfabf1235bba4e83bf3890d18b66e0374ead5"),
 ):
     if len(data.splitlines()) != lines or len(data) != size:
         raise SystemExit(f"{name} size changed")
@@ -102,15 +102,15 @@ if evaluate(compiler, list_source) != (0, list_expected):
 if evaluate(list_expected) != (0, b"\x09"):
     raise SystemExit("lowered List match did not produce sum 9")
 if evaluate(compiler, bytes_source) != (0, bytes_expected):
-    raise SystemExit("Bytes-rope lowering disagrees with exact Gamma receipt")
+    raise SystemExit("recursive rope lowering disagrees with exact Gamma receipt")
 if evaluate(bytes_expected) != (0, b"B"):
-    raise SystemExit("Bytes-rope indexing did not produce 0x42")
+    raise SystemExit("recursive rope indexing did not produce 0x42")
 empty_bytes = bytes_expected.replace(
-    b"(bytes_get (bytes_concat (bytes_single 65) (bytes_single 66)) 1)",
-    b"(bytes_get (bytes_empty) 0)",
+    b"(rope_get (rope_concat (rope_single 65) (rope_single 66)) 1)",
+    b"(rope_get (rope_empty) 0)",
 )
 if evaluate(empty_bytes) != (2, b""):
-    raise SystemExit("empty Bytes-rope indexing did not trap")
+    raise SystemExit("empty recursive rope indexing did not trap")
 none_source = payload_source.replace(b"(Some 9)", b"None")
 none_status, none_receipt = evaluate(compiler, none_source)
 if none_status != 0 or evaluate(none_receipt) != (0, b"\x07"):
@@ -133,6 +133,14 @@ long_identifier = b"(def " + long_name + b" () Int 0)\n" + identity
 if evaluate(compiler, long_identifier) != (0, long_identifier + b"\n"):
     raise SystemExit("bytewise name trie exhausted context on a long identifier")
 
+for name, literal in (
+    ("maximum Int", b"9223372036854775807"),
+    ("minimum Int", b"-9223372036854775808"),
+):
+    boundary = b"(def main () Int " + literal + b")\n"
+    if evaluate(compiler, boundary) != (0, boundary + b"\n"):
+        raise SystemExit(f"{name} literal did not compile")
+
 malformed = {
     "unknown field type": b"(data Bad (Bad Missing))\n(def main () Int 0)\n",
     "missing payload argument": b"(data Option (None) (Some Int))\n(def main () Int (Some))\n",
@@ -149,6 +157,20 @@ malformed = {
     "disallowed control byte": b"(def main () Int 0)\x08\n",
     "del source byte": b"(def main () Int 0)\x7f\n",
     "non-ASCII source byte": b"(def main () Int 0)\x80\n",
+    "uppercase function": b"(def Bad () Int 0)\n(def main () Int 0)\n",
+    "reserved function": b"(def bytes_get () Int 0)\n(def main () Int 0)\n",
+    "invalid type name": b"(data Bad-Type (X))\n(def main () Int 0)\n",
+    "reserved type name": b"(data Int (X))\n(def main () Int 0)\n",
+    "invalid constructor name": b"(data Bad (X!))\n(def main () Int 0)\n",
+    "invalid parameter name": b"(def f ((9x Int)) Int 0)\n(def main () Int 0)\n",
+    "invalid result type": b"(def main () Missing 0)\n",
+    "invalid let binder": b"(def main () Int (let Bad Int 0 0))\n",
+    "invalid let type": b"(def main () Int (let x Missing 0 x))\n",
+    "invalid pattern binder": b"(data O (S Int))\n(def main () Int (match (S 1) ((S Bad) Bad)))\n",
+    "invalid application head": b"(def main () Int (foo-bar 1))\n",
+    "malformed integer": b"(def main () Int 12x)\n",
+    "positive integer overflow": b"(def main () Int 9223372036854775808)\n",
+    "negative integer overflow": b"(def main () Int -9223372036854775809)\n",
 }
 for name, candidate in malformed.items():
     status, _ = evaluate(compiler, candidate)
@@ -169,4 +191,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: source envelope, globals, recursive ADTs, and Bytes-shaped ropes pass"
+echo "Staged Delta compiler: source envelope, lexical atoms, globals, and recursive ADTs pass"

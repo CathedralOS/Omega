@@ -81,6 +81,19 @@
       (same_span_bytes (+ left 1) (+ right 1) (- remaining 1))
       0)))
 
+(def packed_span_equal ((index Int) (remaining Int) (packed Int)) Int
+  (if (eq remaining 0)
+    1
+    (if (eq (read index) (% packed 256))
+      (packed_span_equal (+ index 1) (- remaining 1) (/ packed 256))
+      0)))
+
+(def token_packed
+  ((start Int) (end Int) (length Int) (packed Int)) Int
+  (if (eq (- end start) length)
+    (packed_span_equal start length packed)
+    0))
+
 (def token_data ((start Int) (end Int)) Int
   (if (eq (- end start) 4)
     (if (eq (read start) 100)
@@ -143,6 +156,34 @@
       0)
     0))
 
+(def token_if ((start Int) (end Int)) Int
+  (token_packed start end 2 26217))
+
+(def token_eq ((start Int) (end Int)) Int
+  (token_packed start end 2 29029))
+
+(def token_lt ((start Int) (end Int)) Int
+  (token_packed start end 2 29804))
+
+(def token_bytes ((start Int) (end Int)) Int
+  (token_packed start end 5 495623371074))
+
+(def token_bytes_builtin ((start Int) (end Int)) Int
+  (if (lt (- end start) 9)
+    0
+    (if (token_packed start (+ start 6) 6 104949228009826)
+      (let suffix Int (+ start 6)
+        (if (token_packed suffix end 5 521644567909)
+          1
+          (if (token_packed suffix end 6 111516266162547)
+            1
+            (if (token_packed suffix end 6 114849160783212)
+              1
+              (if (token_packed suffix end 3 7628135)
+                1
+                (token_packed suffix end 6 127961628831587))))))
+      0)))
+
 (def is_upper ((byte Int)) Int
   (if (lt byte 65)
     0
@@ -152,6 +193,95 @@
   (if (lt byte 48)
     0
     (lt byte 58)))
+
+(def is_lower ((byte Int)) Int
+  (if (lt byte 97)
+    0
+    (lt byte 123)))
+
+(def is_identifier_start ((byte Int)) Int
+  (if (is_upper byte)
+    1
+    (if (is_lower byte) 1 (eq byte 95))))
+
+(def is_identifier_continue ((byte Int)) Int
+  (if (is_identifier_start byte) 1 (is_digit byte)))
+
+(def identifier_tail_valid ((index Int) (end Int)) Int
+  (if (eq index end)
+    1
+    (if (is_identifier_continue (read index))
+      (identifier_tail_valid (+ index 1) end)
+      0)))
+
+(def reserved_name ((start Int) (end Int)) Int
+  (if (token_data start end) 1
+    (if (token_def start end) 1
+      (if (token_match start end) 1
+        (if (token_let start end) 1
+          (if (token_if start end) 1
+            (if (token_eq start end) 1
+              (if (token_lt start end) 1
+                (if (token_int start end) 1
+                  (if (token_bytes start end) 1
+                    (token_bytes_builtin start end)))))))))))
+
+(def value_name_valid ((start Int) (end Int)) Int
+  (if (eq start end)
+    0
+    (if (reserved_name start end)
+      0
+      (if (is_lower (read start))
+        (identifier_tail_valid (+ start 1) end)
+        (if (eq (read start) 95)
+          (identifier_tail_valid (+ start 1) end)
+          0)))))
+
+(def upper_name_valid ((start Int) (end Int)) Int
+  (if (eq start end)
+    0
+    (if (reserved_name start end)
+      0
+      (if (is_upper (read start))
+        (identifier_tail_valid (+ start 1) end)
+        0))))
+
+(def require_value_name ((start Int) (end Int)) Int
+  (if (value_name_valid start end) 0 (fail)))
+
+(def validate_local_declaration
+  ((name Int) (name_end Int) (type_name Int) (type_end Int)) Int
+  (let checked_name Int (require_value_name name name_end)
+    (if (field_type_valid type_name type_end) 0 (fail))))
+
+(def integer_digits_valid
+  ((index Int) (end Int) (value Int) (negative Int)) Int
+  (if (eq index end)
+    (if negative
+      1
+      (if (eq value -9223372036854775808) 0 1))
+    (let byte Int (read index)
+      (if (is_digit byte)
+        (let digit Int (- byte 48)
+          (if (lt value -922337203685477580)
+            0
+            (if (eq value -922337203685477580)
+              (if (lt 8 digit)
+                0
+                (integer_digits_valid
+                  (+ index 1) end (- (* value 10) digit) negative))
+              (integer_digits_valid
+                (+ index 1) end (- (* value 10) digit) negative))))
+        0))))
+
+(def integer_literal_valid ((start Int) (end Int)) Int
+  (if (eq start end)
+    0
+    (if (eq (read start) 45)
+      (if (eq (+ start 1) end)
+        0
+        (integer_digits_valid (+ start 1) end 0 1))
+      (integer_digits_valid start end 0 0))))
 
 (def skip_expression ((index Int)) Int
   (let start Int (skip index)
@@ -205,7 +335,7 @@
 (def field_type_valid ((start Int) (end Int)) Int
   (if (token_int start end)
     1
-    (if (is_upper (read start))
+    (if (upper_name_valid start end)
       (if (eq (find_type_owner start end) 0) 0 1)
       0)))
 
@@ -526,13 +656,15 @@
   (let head Int (form_head form)
     (let type_name Int (skip (token_end head))
       (let type_end Int (token_end type_name)
-        (let next_type_rows Int
-          (name_trie_insert type_rows type_end type_name)
-          (let result Int
-            (validate_global_constructors
-              (skip type_end) constructor_rows 0)
-            (pair (first result)
-              (pair next_type_rows (second result)))))))))
+        (if (upper_name_valid type_name type_end)
+          (let next_type_rows Int
+            (name_trie_insert type_rows type_end type_name)
+            (let result Int
+              (validate_global_constructors
+                (skip type_end) constructor_rows 0)
+              (pair (first result)
+                (pair next_type_rows (second result)))))
+          (fail))))))
 
 (def validate_global_constructors
   ((index Int) (constructor_rows Int) (count Int)) Int
@@ -543,11 +675,13 @@
         (pair (token_end item) constructor_rows))
       (let constructor Int (skip (token_end item))
         (let constructor_end Int (token_end constructor)
-          (validate_global_constructors
-            (constructor_after constructor_end)
-            (name_trie_insert
-              constructor_rows constructor_end constructor)
-            (+ count 1)))))))
+          (if (upper_name_valid constructor constructor_end)
+            (validate_global_constructors
+              (constructor_after constructor_end)
+              (name_trie_insert
+                constructor_rows constructor_end constructor)
+              (+ count 1))
+            (fail)))))))
 
 (def validate_global_program
   ((index Int) (saw_function Int) (function_count Int) (main_count Int)
@@ -574,12 +708,14 @@
               (if (token_def head head_end)
                 (let name Int (skip head_end)
                   (let name_end Int (token_end name)
-                    (validate_global_program
-                      (skip_expression form) 1 (+ function_count 1)
-                      (+ main_count (token_main name name_end))
-                      type_rows constructor_rows
-                      (name_trie_insert
-                        function_rows name_end name))))
+                    (if (value_name_valid name name_end)
+                      (validate_global_program
+                        (skip_expression form) 1 (+ function_count 1)
+                        (+ main_count (token_main name name_end))
+                        type_rows constructor_rows
+                        (name_trie_insert
+                          function_rows name_end name))
+                      (fail))))
                 (fail)))))
         (fail)))))
 
@@ -611,14 +747,18 @@
                       (let ignored5 Int (write '\s')
                         (let result_type Int (skip after_parameters)
                           (let after_type Int (token_end result_type)
-                            (let ignored6 Int (emit_int_word)
-                              (let ignored7 Int (write '\s')
-                                (let after_body Int (emit_expression (skip after_type))
-                                  (let close Int (skip after_body)
-                                    (if (eq (read close) 41)
-                                      (let ignored8 Int (write ')')
-                                        (token_end close))
-                                      (fail))))))))))))))))))))
+                            (let checked_result Int
+                              (if (field_type_valid result_type after_type)
+                                0
+                                (fail))
+                              (let ignored6 Int (emit_int_word)
+                                (let ignored7 Int (write '\s')
+                                  (let after_body Int (emit_expression (skip after_type))
+                                    (let close Int (skip after_body)
+                                      (if (eq (read close) 41)
+                                        (let ignored8 Int (write ')')
+                                          (token_end close))
+                                        (fail)))))))))))))))))))))
 
 (def emit_parameters ((open Int)) Int
   (if (eq (read open) 40)
@@ -644,14 +784,9 @@
 
 (def emit_parameter_type
   ((name Int) (name_end Int) (type_name Int) (type_end Int)) Int
-  (if (token_int type_name type_end)
-    (emit_parameter name name_end)
-    (if (is_upper (read type_name))
-      (let owner Int (find_type_owner type_name type_end)
-        (if (eq owner 0)
-          (fail)
-          (emit_parameter name name_end)))
-      (fail))))
+  (let checked Int
+    (validate_local_declaration name name_end type_name type_end)
+    (emit_parameter name name_end)))
 
 (def emit_parameter_tail ((next Int)) Int
   (let separated Int (skip next)
@@ -669,23 +804,34 @@
   (let end Int (token_end start)
     (let first Int (read start)
       (if (is_upper first)
-        (let tag Int (find_constructor_tag start end)
-          (if (eq tag 0)
-            (fail)
-            (let owner Int (find_constructor_owner start end)
-              (if (eq (find_constructor_arity start end) 0)
-                (if (data_has_payload owner)
-                  (let ignored0 Int (emit_pair_prefix)
-                    (let ignored1 Int (emit_decimal (- tag 1))
-                      (let ignored2 Int (write '\s')
-                        (let ignored3 Int (write '0')
-                          (let ignored4 Int (write ')')
-                            end)))))
-                  (let ignored Int (emit_decimal (- tag 1))
-                    end))
-                (fail)))))
-        (let ignored Int (emit_span start end)
-          end)))))
+        (if (upper_name_valid start end)
+          (let tag Int (find_constructor_tag start end)
+            (if (eq tag 0)
+              (fail)
+              (let owner Int (find_constructor_owner start end)
+                (if (eq (find_constructor_arity start end) 0)
+                  (if (data_has_payload owner)
+                    (let ignored0 Int (emit_pair_prefix)
+                      (let ignored1 Int (emit_decimal (- tag 1))
+                        (let ignored2 Int (write '\s')
+                          (let ignored3 Int (write '0')
+                            (let ignored4 Int (write ')')
+                              end)))))
+                    (let ignored Int (emit_decimal (- tag 1))
+                      end))
+                  (fail)))))
+          (fail))
+        (if (is_digit first)
+          (if (integer_literal_valid start end)
+            (let ignored Int (emit_span start end) end)
+            (fail))
+          (if (eq first 45)
+            (if (integer_literal_valid start end)
+              (let ignored Int (emit_span start end) end)
+              (fail))
+            (if (value_name_valid start end)
+              (let ignored Int (emit_span start end) end)
+              (fail))))))))
 
 (def emit_list_expression ((open Int)) Int
   (let head Int (skip (token_end open))
@@ -731,7 +877,7 @@
                     (fail))))
                     (fail))))))))
 
-      (def emit_constructor_fields ((index Int) (remaining Int)) Int
+(def emit_constructor_fields ((index Int) (remaining Int)) Int
         (if (eq remaining 1)
           (emit_expression index)
           (let ignored0 Int (emit_pair_prefix)
@@ -742,10 +888,31 @@
                   (let ignored2 Int (write ')')
                     after_rest)))))))
 
+(def generic_head_valid ((start Int) (end Int)) Int
+  (if (value_name_valid start end)
+    1
+    (if (token_if start end)
+      1
+      (if (token_eq start end)
+        1
+        (if (token_lt start end)
+          1
+          (if (token_bytes_builtin start end)
+            1
+            (if (eq (- end start) 1)
+              (let byte Int (read start)
+                (if (eq byte 43) 1
+                  (if (eq byte 45) 1
+                    (if (eq byte 42) 1
+                      (if (eq byte 47) 1 (eq byte 37))))))
+              0)))))))
+
 (def emit_generic_list ((open Int) (head Int) (head_end Int) (args Int)) Int
-  (let ignored0 Int (write '(')
-    (let ignored1 Int (emit_span head head_end)
-      (emit_generic_arguments args))))
+  (if (generic_head_valid head head_end)
+    (let ignored0 Int (write '(')
+      (let ignored1 Int (emit_span head head_end)
+        (emit_generic_arguments args)))
+    (fail)))
 
 (def emit_generic_arguments ((index Int)) Int
   (let next Int (skip index)
@@ -761,23 +928,25 @@
     (let name_end Int (token_end name)
       (let type_name Int (skip name_end)
         (let type_end Int (token_end type_name)
-          (let ignored0 Int (write '(')
-            (let ignored1 Int (write 'l')
-              (let ignored2 Int (write 'e')
-                (let ignored3 Int (write 't')
-                  (let ignored4 Int (write '\s')
-                    (let ignored5 Int (emit_span name name_end)
-                      (let ignored6 Int (write '\s')
-                        (let ignored7 Int (emit_int_word)
-                          (let ignored8 Int (write '\s')
-                            (let after_initializer Int (emit_expression (skip type_end))
-                              (let ignored9 Int (write '\s')
-                                (let after_body Int (emit_expression (skip after_initializer))
-                                  (let close Int (skip after_body)
-                                    (if (eq (read close) 41)
-                                      (let ignored10 Int (write ')')
-                                        (token_end close))
-                                      (fail))))))))))))))))))))
+          (let checked Int
+            (validate_local_declaration name name_end type_name type_end)
+            (let ignored0 Int (write '(')
+              (let ignored1 Int (write 'l')
+                (let ignored2 Int (write 'e')
+                  (let ignored3 Int (write 't')
+                    (let ignored4 Int (write '\s')
+                      (let ignored5 Int (emit_span name name_end)
+                        (let ignored6 Int (write '\s')
+                          (let ignored7 Int (emit_int_word)
+                            (let ignored8 Int (write '\s')
+                              (let after_initializer Int (emit_expression (skip type_end))
+                                (let ignored9 Int (write '\s')
+                                  (let after_body Int (emit_expression (skip after_initializer))
+                                    (let close Int (skip after_body)
+                                      (if (eq (read close) 41)
+                                        (let ignored10 Int (write ')')
+                                          (token_end close))
+                                        (fail)))))))))))))))))))))
 
 (def emit_match ((match_start Int) (scrutinee Int)) Int
   (let scrutinee_end Int (skip_expression scrutinee)
@@ -936,24 +1105,25 @@
     (emit_expression body)
     (let binder Int (skip binder_index)
       (let binder_end Int (token_end binder)
-        (let ignored0 Int (write '(')
-          (let ignored1 Int (write 'l')
-            (let ignored2 Int (write 'e')
-              (let ignored3 Int (write 't')
-                (let ignored4 Int (write '\s')
-                  (let ignored5 Int (emit_span binder binder_end)
-                    (let ignored6 Int (write '\s')
-                      (let ignored7 Int (emit_int_word)
-                        (let ignored8 Int (write '\s')
-                          (let ignored9 Int
-                            (emit_payload_projection field_index arity match_start)
-                            (let ignored10 Int (write '\s')
-                              (let after_body Int
-                                (emit_pattern_bindings
-                                  body binder_end (+ field_index 1)
-                                  arity match_start)
-                                (let ignored11 Int (write ')')
-                                  after_body)))))))))))))))))
+        (let checked Int (require_value_name binder binder_end)
+          (let ignored0 Int (write '(')
+            (let ignored1 Int (write 'l')
+              (let ignored2 Int (write 'e')
+                (let ignored3 Int (write 't')
+                  (let ignored4 Int (write '\s')
+                    (let ignored5 Int (emit_span binder binder_end)
+                      (let ignored6 Int (write '\s')
+                        (let ignored7 Int (emit_int_word)
+                          (let ignored8 Int (write '\s')
+                            (let ignored9 Int
+                              (emit_payload_projection field_index arity match_start)
+                              (let ignored10 Int (write '\s')
+                                (let after_body Int
+                                  (emit_pattern_bindings
+                                    body binder_end (+ field_index 1)
+                                    arity match_start)
+                                  (let ignored11 Int (write ')')
+                                    after_body))))))))))))))))))
 
 (def emit_match_arms
   ((index Int) (expected_tag Int) (count Int) (owner Int) (match_start Int)) Int

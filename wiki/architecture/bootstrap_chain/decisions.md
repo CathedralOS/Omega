@@ -4283,3 +4283,39 @@ census, 200-byte identifier, recursive products, Bytes-shaped rope, and
 3,001-function witnesses remain green. The retained Forth-Gamma and direct-Beta
 experiments do not implement this prepass and therefore remain unmatched
 historical evidence rather than alternate authority.
+
+## D101 — Delta names and signed literals stop inheriting Gamma syntax
+
+D101 gives the selected stage Delta's own lexical atoms instead of passing any
+Gamma token through. Type and constructor names must begin uppercase; function,
+parameter, `let`, pattern-binder, and value names must begin lowercase or `_`;
+all remaining bytes are ASCII letters, digits, or `_`. The rule is enforced at
+global declarations, nominal field and result types, parameters, local binders,
+patterns, expression atoms, and application heads.
+
+`data`, `def`, `if`, `let`, `match`, `eq`, `lt`, `Int`, `Bytes`, and the five
+closed `bytes_*` builtin names are reserved rather than available for authored
+declarations or locals. A small exact packed-byte predicate centralizes these
+fixed spellings; every candidate's length and every byte are compared, so the
+encoding is not a hash admission. Arithmetic punctuation remains admissible
+only as a one-byte application head.
+
+Decimal atoms are now scanned into a negative accumulator with a preflight at
+`-922337203685477580` and final digit 8. This admits exactly
+`-9223372036854775808..9223372036854775807` without overflowing Gamma while
+checking, and rejects a sign without digits, nondigit suffixes, and either
+adjacent out-of-range value. Exact minimum and maximum witnesses compile.
+
+The change exposes and removes a second invalid rope fixture assumption. Its
+user-defined helpers had occupied the reserved `bytes_empty`, `bytes_single`,
+`bytes_length`, `bytes_concat`, and `bytes_get` names. They are now `rope_*`,
+matching the already-correct Forth comparison, and the pure authored
+division-by-zero trap remains. The exact source/receipt pair is 767/1,018 bytes.
+
+The selected compiler is now 1,192 Gamma lines and 45,840 bytes, with 113
+definitions and 364 lexical `let` binders. This is still a staged subset:
+scope resolution and duplicate-local checks, closed form arities, static type
+relations, checked runtime arithmetic, normative `Bytes`, application profiles,
+failure ordering, and proper-tail closure remain open. The Forth and direct-Beta
+experiments lack the new lexical contract; their smaller current aggregate is
+not a matched architectural comparison.

@@ -6,7 +6,7 @@ adds data-declaration census, arbitrary-arity constructor values, and match arm
 selection/binding directly in Beta.
 
 The prototype executes the retained recursive `Nat`, two-field `List`,
-three-field Bytes-rope, and 3,001-function sources without first transforming
+three-field rope, and 3,001-function sources without first transforming
 them to Gamma:
 
 ```text
@@ -19,7 +19,7 @@ Delta source -> direct Beta evaluator -> result
 							  Lines  Instructions  Labels  Control  Tape bytes
 selected Gamma evaluator      1,325         1,065     165      479       6,934
 matched direct Delta evaluator 2,019         1,655     262      836      11,004
-selected Delta transformer    1,022 Gamma source lines
+selected Delta transformer    1,192 Gamma source lines
 ```
 
 The prototype matches the selected staged compiler's earlier D92 structural
