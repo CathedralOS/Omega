@@ -44,6 +44,10 @@ path = "compact_identity_inventory.rs"
 name = "native_image_identity"
 path = "native_image_identity.rs"
 
+[[test]]
+name = "anchor_headers"
+path = "anchor_headers.rs"
+
 [dev-dependencies]
 psi-arena = { path = "../../omega-rust/psi/foundation/psi-arena" }
 psi-symbols = { path = "../../omega-rust/psi/foundation/psi-symbols" }
