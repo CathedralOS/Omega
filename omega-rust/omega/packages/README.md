@@ -52,6 +52,20 @@ still rejoins and rechecks compiler contract-assumption certificates. Public
 validators continue to reconstruct independently for supplied or recovered
 evidence.
 
+`CanonicalSourceClosureSubject` has binary and line-oriented text encodings of
+the same resolved graph. The text names the exact target, root role and request,
+source-qualified packages and immutable revisions/content, workspace navigation,
+authored dependency requests, and selected alias edges. Recovery applies the
+same graph checks and requires neither the source checkout nor a compiler run.
+This source record is not an accepted lock: accepted policy baselines and
+decisions, locked resolution, and transaction publication remain separate work.
+
+An accepted policy baseline must not embed the existing review capsule. That
+capsule includes compiler proof and build-replay data. Provider selections,
+external executable supplies, and opaque-representation disclosures need
+policy-only projections of their typed facts; dropping those audit-relevant
+families or retaining their reconstruction receipts would both be incorrect.
+
 Design and security references:
 
 - [`package_manager_first_draft.md`](../../../wiki/design_briefs/package_manager_first_draft.md)

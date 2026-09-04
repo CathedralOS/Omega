@@ -153,7 +153,7 @@ impl CanonicalSourceClosureSubject {
         Ok(self == &Self::from_resolved(target_closure, limits)?)
     }
 
-    pub(super) fn finish_with_projections(
+    pub(in super::super) fn finish_with_projections(
         target_profile: TargetProfile,
         root: CanonicalRootSourceSelection,
         packages: Vec<ResolvedSourceIdentity>,
