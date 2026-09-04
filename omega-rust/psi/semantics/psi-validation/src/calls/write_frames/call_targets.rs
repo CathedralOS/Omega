@@ -1,12 +1,14 @@
-//! Read-only internal call-target and result-shape queries for write-frame
+//! Read-only call-target, formal-type, and result-shape queries for write-frame
 //! analysis.
 //!
 //! This leaf selects a free machine's source entry state and resolves exact
-//! state symbols. It also classifies the one concrete discarded-result shape
+//! state symbols, sharing boundary signature selection with the frame owner.
+//! It also classifies the one concrete discarded-result shape
 //! that cannot redirect a returned-place relation. It does not infer write
 //! frames.
 
-use crate::symbols::TopLevelSymbols;
+use super::boundary_calls::boundary_trait_signature_for_parts;
+use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
@@ -21,17 +23,34 @@ pub(super) fn call_argument_types(
     program: &TypedTrees,
     target_symbol: SymbolHandle,
     target_name: &str,
-    free_call: bool,
+    receiver: &[String],
+    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Vec<TypeReferenceHandle> {
     let Some((machine, state)) = machine_state_by_symbol(program, target_symbol).or_else(|| {
-        free_call
+        receiver
+            .is_empty()
             .then(|| free_machine_entry_state(program, symbols, target_name))
             .flatten()
     }) else {
-        return Vec::new();
+        return boundary_trait_signature_for_parts(
+            program,
+            machine_symbols,
+            symbols,
+            receiver,
+            target_name,
+        )
+        .map(|signature| {
+            program
+                .state_signature_parameters(signature)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .map(|parameter| parameter.type_reference)
+                .collect()
+        })
+        .unwrap_or_default();
     };
-    if free_call == machine.attached_data.is_some()
+    if receiver.is_empty() == machine.attached_data.is_some()
         || !program.machine_type_parameters(machine).is_empty()
     {
         return Vec::new();

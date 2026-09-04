@@ -180,6 +180,14 @@ fn complete_expression_tree(
             return false;
         };
         let arguments = program.expression_table.expression_handles(call.arguments);
+        let receiver_members = if call.receiver.is_valid() {
+            let Some(receiver) = receiver_member_chain(program, call.receiver) else {
+                return false;
+            };
+            receiver
+        } else {
+            Vec::new()
+        };
         if matches!(node, PendingNode::Expression(..)) {
             if call.receiver.is_valid()
                 && expression_is_effectful_for_transparent_result(program, call.receiver)
@@ -192,7 +200,8 @@ fn complete_expression_tree(
                 program,
                 call.target_symbol,
                 call.target.as_str(),
-                !call.receiver.is_valid(),
+                &receiver_members,
+                machine_symbols,
                 symbols,
             );
             pending.extend(arguments.iter().enumerate().rev().map(|(index, argument)| {
@@ -201,14 +210,6 @@ fn complete_expression_tree(
             }));
             continue;
         }
-        let receiver_members = if call.receiver.is_valid() {
-            let Some(receiver) = receiver_member_chain(program, call.receiver) else {
-                return false;
-            };
-            receiver
-        } else {
-            Vec::new()
-        };
         if known_call_written_paths_for_parts(
             program,
             call.target_symbol,

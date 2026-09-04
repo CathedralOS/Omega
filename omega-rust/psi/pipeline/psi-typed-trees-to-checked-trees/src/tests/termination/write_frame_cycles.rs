@@ -873,6 +873,10 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         write_argument(opaque_choose(&mut self.value, &mut self.other));
     }
 
+    machine opaque_parameter_result(first: &mut u64, second: &mut u64) {
+        write_argument(opaque_choose(first, second));
+    }
+
     machine Main::effectful_index_statement_argument(&mut self) {
         write_argument(&mut self.cells[make_index()]);
     }
@@ -1355,22 +1359,23 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         );
     }
 
-    let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::opaque_result_statement_argument")
-        .expect("opaque nested-result argument caller");
-    let entry = typed
-        .machine_states(machine)
-        .first()
-        .expect("opaque nested-result argument caller entry state");
-    assert_eq!(
-        resolver
-            .inferred_state_write_frame(machine, entry)
-            .complete_paths(),
-        Some(["self".to_owned(), "self.value".to_owned()].as_slice()),
-        "an opaque nested result must retain its conservative whole-receiver fence"
-    );
+    for name in [
+        "Main::opaque_result_statement_argument",
+        "opaque_parameter_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("opaque nested-result caller");
+        let entry = typed.machine_states(machine).first().expect("entry");
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "{name}: producer writes do not prove the returned reference's reach; a whole-self fallback can mask untracked parameter origins"
+        );
+    }
 
     let machine = typed
         .machines()

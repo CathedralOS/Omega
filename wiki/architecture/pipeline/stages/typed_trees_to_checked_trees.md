@@ -677,15 +677,15 @@ Current ownership is:
   sibling must pass independently: receivers must be effect-free member chains,
   no expression may reborrow a mutable-reference binding, and every internal or
   boundary call must have a complete inferred frame. Call nesting has no numeric
-  cutoff. Computed arguments to resolved nongeneric internal calls carry the
-  formal parameter's type into the shared value rules below. Every nested call
+  cutoff. Computed arguments to resolved nongeneric internal or boundary calls
+  carry the formal parameter's type into the shared value rules below. Every nested call
   supplies its own argument contexts, excluding the attached `self` parameter.
   Direct reference-valued arguments retain their origin rules; calls beneath a
   primitive computation require caller-isolated results. Effectful record and
   selected-case arguments must match the formal nominal type, and fixed arrays
-  must match its element type and literal length. Missing or generic formal context,
-  including boundary calls without an internal signature, does not authorize
-  newly admitted computed values. Existing pure places and direct-call trees
+  must match its element type and literal length. Missing, ambiguous, or
+  generic formal context does not authorize newly admitted computed values.
+  Existing pure places and direct-call trees
   keep their prior admission; this is not an independent full typing check.
   Attached calls on local receivers that still lack a resolved target symbol
   remain opaque: a member spelling alone does not select an internal signature.
@@ -700,6 +700,24 @@ Current ownership is:
   expansion, with their respective binding-reborrow checks.
   Complete frames remain may-write evidence; admission never suppresses nested
   call writes.
+  Boundary argument contexts and frame inference share the same unique,
+  nongeneric boundary-trait signature on a canonical `self.field` receiver.
+  A same-named field beneath another receiver prefix cannot select that cached
+  signature. Exact actual/formal arity is required. The receiver is always in
+  the may-write set, and exclusive parameters add their direct mutable-borrow
+  places. Constraint wrappers are peeled without erasing reference access.
+  Primitive and concrete caller-isolated by-value parameters add no caller
+  writes, but a reference-bearing aggregate remains opaque until its reachable
+  leaf origins can be transported; passing it by value does not erase its
+  mutable references. The same restriction applies to exclusive references to
+  reference-bearing carriers; primitive slices retain their collection reach.
+  A rejected trait-receiver call stays opaque through every fallback consumer,
+  including direct-call queries and state-summary equations. It cannot regain
+  a receiver-only complete frame from signature-free syntax.
+  A recognized trait receiver also prevents builtin-name exemptions from
+  erasing a boundary member's receiver writes in value-expression queries.
+  The boundary signature supplies argument typing context,
+  not a checked implementation body or a returned-place relation.
   An explicitly discarded concrete primitive result from a nongeneric internal
   checked-body call is neutral under the same non-rebinding complete-frame
   rule. Discarded reference-bearing or aggregate results, boundary or generic
@@ -791,8 +809,11 @@ Current ownership is:
   attached helper, its actual receiver supplies the caller origin when the
   result is rooted in `self`. Other
   nontrivial results remain opaque; signature lifetime elision alone is not
-  relational frame evidence. An unsummarized body falls back to its receiver
-  plus every potentially exclusive place argument.
+  relational frame evidence. A signature-free call may fall back to its
+  receiver plus every potentially exclusive place argument only when those
+  arguments are directly representable. Aggregate literals and unproven nested
+  call results remain opaque: producer writes do not prove returned-reference
+  reach, and a whole-receiver path does not cover unrelated parameter roots.
   Frames whose places cannot be represented remain all-facts fences. Other
   writes into attached or machine-owned persistent storage remain fail-closed
   until

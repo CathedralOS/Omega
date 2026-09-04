@@ -5,19 +5,33 @@
 //! frame, failing closed when a mutable argument is not a direct place.
 
 use super::coarse_place_path;
+use super::isolation::type_is_caller_isolated_local;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::statement::TableCall;
-use psi_typed_trees::types::TypeReferenceNode;
+use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Recognition is deliberately broader than signature selection: even an
+/// invalid prefix or ambiguous member on a cached trait receiver must not
+/// regain a complete frame through the signature-free fallback.
+pub(super) fn receiver_requires_boundary_frame(
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    receiver: &[String],
+) -> bool {
+    receiver
+        .last()
+        .and_then(|name| machine_symbols.callable_field_type(name))
+        .and_then(|name| symbols.trait_definition(name))
+        .is_some()
+}
 
 /// The boundary-trait signature a call statement resolves to (`self.fw.
 /// get_size(..)` -> trait `Firmware`'s `get_size`), or None for every other
-/// receiver class. Mirrors `validate_call_node`'s trait branch; used by the
-/// R4 witness mint (out-param ensures seeding the value env). Kept
-/// cache-based (vs the shared `psi_typed_trees::boundary` chain the
-/// checker/proof consumers use) because `contained_type` also resolves
-/// `contains`-clause receivers, not just attached-data fields.
+/// receiver class. Used by the R4 witness mint (out-param ensures seeding the
+/// value env). Resolution uses the current machine's attached-field cache;
+/// arbitrary receiver prefixes cannot select a same-named cached field.
 pub(crate) fn boundary_trait_signature<'program>(
     program: &'program TypedTrees,
     machine_symbols: &MachineSymbols<'_>,
@@ -39,27 +53,37 @@ pub(crate) fn boundary_trait_signature<'program>(
     )
 }
 
-fn boundary_trait_signature_for_parts<'program>(
+pub(super) fn boundary_trait_signature_for_parts<'program>(
     program: &'program TypedTrees,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'program>,
     receiver_members: &[String],
     target: &str,
 ) -> Option<&'program psi_typed_trees::signature::StateSignature> {
-    let receiver = receiver_members.last()?.as_str();
+    let [root, receiver] = receiver_members else {
+        return None;
+    };
+    if root != "self" {
+        return None;
+    }
     let receiver_type = machine_symbols.callable_field_type(receiver)?;
     let trait_definition = symbols.trait_definition(receiver_type)?;
-    program
+    if !trait_definition.is_boundary || !trait_definition.type_parameters.is_empty() {
+        return None;
+    }
+    let mut signatures = program
         .trait_machine_signatures(trait_definition)
         .iter()
-        .find(|signature| signature.name.as_str() == target)
+        .filter(|signature| signature.name.as_str() == target);
+    let signature = signatures.next()?;
+    (signatures.next().is_none() && signature.type_parameters.is_empty()).then_some(signature)
 }
 
 /// The program-place frame of a resolved boundary call before authored
 /// `stores` lands. Boundary code may mutate its receiver and every explicit
 /// exclusive argument; it cannot manufacture reach to unrelated caller
-/// fields. An exclusive parameter not represented by a direct `&mut place`
-/// remains opaque and returns `None`, preserving the fail-closed fallback.
+/// fields. An exclusive parameter not represented by a direct `&mut place`,
+/// or an aggregate carrying untracked reference reach, remains opaque.
 pub(crate) fn known_boundary_call_written_paths(
     program: &TypedTrees,
     machine_symbols: &MachineSymbols<'_>,
@@ -92,28 +116,54 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
 ) -> Option<Vec<String>> {
     let signature =
         boundary_trait_signature_for_parts(program, machine_symbols, symbols, receiver, target)?;
-    if receiver.is_empty() {
-        return None;
-    }
     let mut written = vec![receiver.join(".")];
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self);
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    if parameters.len() != arguments.len() {
+        return None;
+    }
 
-    for (parameter, argument) in parameters.zip(arguments) {
-        let TypeReferenceNode::Reference { access, .. } = program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
+    for (parameter, argument) in parameters.into_iter().zip(arguments) {
+        let mut parameter_type = parameter.type_reference;
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(parameter_type)
+        {
+            parameter_type = *base_type;
+        }
+        if !parameter_type.is_valid() {
+            return None;
+        }
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = program.type_reference_table.type_reference(parameter_type)
         else {
+            if !matches!(
+                program.type_reference_table.type_reference(parameter_type),
+                TypeReferenceNode::Unit
+            ) && !type_is_caller_isolated_local(program, parameter_type)
+            {
+                // A by-value carrier can still contain mutable references.
+                // Without leaf-origin transport, omitting their writes would
+                // manufacture a complete receiver-only frame.
+                return None;
+            }
             continue;
         };
         if !access.is_exclusive() {
             continue;
         }
+        if !referent_has_only_owned_storage(program, *referee) {
+            return None;
+        }
         let ExpressionNode::Borrow(place) = program.expression_table.expression(*argument) else {
             return None;
         };
+        if !place.access.is_exclusive() {
+            return None;
+        }
         let path = coarse_place_path(program, place.target)?;
         if !written.contains(&path) {
             written.push(path);
@@ -121,4 +171,17 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     }
 
     Some(written)
+}
+
+fn referent_has_only_owned_storage(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            referent_has_only_owned_storage(program, *base_type)
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            type_is_caller_isolated_local(program, *element_type)
+        }
+        TypeReferenceNode::Unit => reference.is_valid(),
+        _ => type_is_caller_isolated_local(program, reference),
+    }
 }

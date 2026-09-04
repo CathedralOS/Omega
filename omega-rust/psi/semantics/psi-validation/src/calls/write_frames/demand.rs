@@ -4,6 +4,7 @@
 //! complete-or-opaque summaries to its parent frame engine. It does not own
 //! call validation, alias-origin inference, or transition fixed points.
 
+use super::boundary_calls::receiver_requires_boundary_frame;
 use super::{
     coarse_place_path, known_boundary_call_written_paths,
     known_boundary_call_written_paths_for_parts, known_call_written_paths_for_parts,
@@ -104,7 +105,14 @@ impl<'program> CallFrameResolver<'program> {
                         call,
                     )
                 })
-                .or_else(|| conservative_call_written_paths(self.program, call))
+                .or_else(|| {
+                    conservative_call_written_paths(
+                        self.program,
+                        call,
+                        &machine_symbols,
+                        &self.symbols,
+                    )
+                })
                 .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
         } else {
             NormalizedWriteFrame::opaque()
@@ -403,19 +411,26 @@ pub(super) fn collect_expression_call_written_paths(
             for argument in program.expression_table.expression_handles(call.arguments) {
                 visit(*argument)?;
             }
+            let receiver_members = if call.receiver.is_valid() {
+                receiver_member_chain(program, call.receiver)
+            } else {
+                Some(Vec::new())
+            };
             // Reserved value/view builtins are operand operations, not machine
             // calls. They may read their operands or create a view, but they do
             // not write caller storage. Keep this list aligned with the value
             // call validation exemptions below so frame consumers do not turn
             // `min`/`max` reductions into opaque whole-receiver clobbers.
-            if value_builtin_has_empty_write_frame(call.target.as_str()) {
+            // A boundary member with the same spelling still has its declared
+            // receiver and argument reach; spelling cannot bypass resolution.
+            if value_builtin_has_empty_write_frame(call.target.as_str())
+                && !receiver_members.as_deref().is_some_and(|receiver| {
+                    receiver_requires_boundary_frame(machine_symbols, symbols, receiver)
+                })
+            {
                 return Some(());
             }
-            let receiver_members = if call.receiver.is_valid() {
-                receiver_member_chain(program, call.receiver)?
-            } else {
-                Vec::new()
-            };
+            let receiver_members = receiver_members?;
             let arguments = program.expression_table.expression_handles(call.arguments);
             let paths = known_call_written_paths_for_parts(
                 program,
@@ -443,7 +458,15 @@ pub(super) fn collect_expression_call_written_paths(
             // caller-visible floor: it cannot mutate an unpassed caller local.
             // Conservatively poison the whole receiver (`self` for an implicit
             // receiver) plus every explicit mutable argument.
-            .or_else(|| syntactic_call_written_paths(program, &receiver_members, arguments))?;
+            .or_else(|| {
+                syntactic_call_written_paths(
+                    program,
+                    &receiver_members,
+                    arguments,
+                    machine_symbols,
+                    symbols,
+                )
+            })?;
             for path in paths {
                 if !written.contains(&path) {
                     written.push(path);
@@ -497,7 +520,12 @@ pub(super) fn syntactic_call_written_paths(
     program: &TypedTrees,
     receiver_members: &[String],
     arguments: &[ExpressionHandle],
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<String>> {
+    if receiver_requires_boundary_frame(machine_symbols, symbols, receiver_members) {
+        return None;
+    }
     let mut written = vec![if receiver_members.is_empty() {
         "self".to_owned()
     } else {
@@ -510,6 +538,9 @@ pub(super) fn syntactic_call_written_paths(
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 *argument
             }
+            ExpressionNode::StructLiteral(_)
+            | ExpressionNode::ArrayLiteral(_)
+            | ExpressionNode::Call(_) => return None,
             _ => continue,
         };
         let path = coarse_place_path(program, place)?;
@@ -521,14 +552,17 @@ pub(super) fn syntactic_call_written_paths(
 }
 
 /// Ownership-derived caller-visible ceiling used when body inference or a
-/// boundary signature cannot provide a narrower complete frame. The receiver
+/// non-boundary call cannot provide a narrower complete frame. The receiver
 /// and every place-shaped argument conservatively cover the caller places the
 /// call could mutate; without a resolved signature, even a by-value place is
-/// retained rather than guessed immutable. A malformed place remains opaque so
-/// validation still fails closed rather than treating a write as absent.
+/// retained rather than guessed immutable. Rejected trait calls cannot use
+/// this fallback. Aggregate literals and unproven call results also remain
+/// opaque: their reachable references are not described by producer writes.
 pub(crate) fn conservative_call_written_paths(
     program: &TypedTrees,
     call: &TableCall,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<String>> {
     let receiver_members = program
         .statement_table
@@ -540,5 +574,7 @@ pub(crate) fn conservative_call_written_paths(
         program,
         &receiver_members,
         program.statement_table.expression_handles(call.arguments),
+        machine_symbols,
+        symbols,
     )
 }
