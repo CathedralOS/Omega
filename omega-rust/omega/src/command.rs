@@ -352,6 +352,17 @@ fn parse_arguments() -> Result<CliArguments, String> {
             continue;
         }
 
+        // Anything left that still looks like an option is a typo or an option this
+        // build does not carry. Falling through would take it as the root path and
+        // walk whatever directory contains it, so a misspelled flag surfaced as an
+        // unrelated package-resolution failure rather than as a rejected option.
+        if argument.to_string_lossy().starts_with("--") {
+            return Err(format!(
+                "unrecognized option `{}`",
+                argument.to_string_lossy()
+            ));
+        }
+
         if root_path.is_some() {
             return Err(format!(
                 "unexpected extra argument `{}`",
