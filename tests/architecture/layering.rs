@@ -1083,7 +1083,7 @@ fn compiler_builtins_never_masquerade_as_provider_execution_evidence() {
     }
 
     let target = std::fs::read_to_string(
-        root.join("omega-rust/omega/representations/omega-target-operations/src/lib.rs"),
+        root.join("omega-rust/omega/representations/omega-target-operations/src/target_operations/boundary/execution.rs"),
     )
     .expect("read target-operation execution roles");
     assert!(target.contains("CompilerBuiltin(CompilerBuiltinExecution)"));
@@ -5177,7 +5177,7 @@ fn callback_calling_plan_compact_coordinates_are_report_only_beside_exact_plans(
 fn native_provider_execution_compact_coordinates_are_report_only() {
     let root = workspace_root();
     let target_path =
-        root.join("omega-rust/omega/representations/omega-target-operations/src/lib.rs");
+        root.join("omega-rust/omega/representations/omega-target-operations/src/target_operations/boundary/execution.rs");
     let target = std::fs::read_to_string(&target_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", target_path.display()));
     assert!(

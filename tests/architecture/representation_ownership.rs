@@ -79,6 +79,78 @@ fn selected_program_has_one_representation_entrance() {
 }
 
 #[test]
+fn program_representations_have_named_roots_and_concept_owners() {
+    for (package, module, program, areas) in [
+        (
+            "omega-abstract-operations",
+            "abstract_operations",
+            "AbstractOperationPlan",
+            &["control_flow", "values", "calls", "ownership", "operations"][..],
+        ),
+        (
+            "omega-target-operations",
+            "target_operations",
+            "TargetOperationPlan",
+            &[
+                "control_flow",
+                "values",
+                "calls",
+                "storage",
+                "boundary",
+                "operations",
+            ][..],
+        ),
+        (
+            "omega-legalized-operations",
+            "legalized_operations",
+            "LegalizedOperationPlan",
+            &["control_flow", "values", "calls", "legality", "identity"][..],
+        ),
+        (
+            "omega-assigned-target-operations",
+            "assigned_operations",
+            "AssignedOperationPlan",
+            &["control_flow", "values", "calls", "storage", "operations"][..],
+        ),
+    ] {
+        let directory = repository()
+            .join("omega-rust/omega/representations")
+            .join(package)
+            .join("src");
+        let mut files = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.is_file())
+            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        files.sort();
+        let mut expected = vec!["lib.rs".to_owned(), format!("{module}.rs")];
+        expected.sort();
+        assert_eq!(files, expected, "ambiguous entrance in {package}");
+        let root = std::fs::read_to_string(directory.join(format!("{module}.rs"))).unwrap();
+        assert!(
+            root.contains(&format!("pub struct {program} {{")),
+            "root does not own {program}"
+        );
+        for area in areas {
+            assert!(
+                root.contains(&format!("pub mod {area};")),
+                "{package} has no {area} owner"
+            );
+        }
+        let source = rust_source(&directory);
+        assert_eq!(
+            source.matches(&format!("pub struct {program} {{")).count(),
+            1
+        );
+        assert!(
+            !source.contains("StagedOptimized"),
+            "{package} contains stage ancestry"
+        );
+    }
+}
+
+#[test]
 fn effect_analysis_does_not_depend_on_optimizer_history() {
     let root = repository();
     let stage =

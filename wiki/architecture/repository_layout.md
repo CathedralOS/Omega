@@ -37,6 +37,16 @@ virtual values, instructions, structural calls, constraints, provenance, and
 effects. Effect catalogs describe target mechanisms; effect program rows
 describe a particular selected program and own their canonical encoding.
 
+The corresponding entrances are `abstract_operations.rs` for
+`AbstractOperationPlan`, `target_operations.rs` for `TargetOperationPlan`,
+`legalized_operations.rs` for `LegalizedOperationPlan`, and
+`assigned_operations.rs` for `AssignedOperationPlan`. Each is beside its crate's
+`lib.rs`, with subordinate areas beneath the matching directory. The areas
+deliberately differ: abstract operations retain completion claims and ranked
+semantic control; target operations add ABI requirements and selected boundary
+mechanisms; legalization retains legality recipes; assigned operations contain
+concrete register/frame locations.
+
 Subfolders follow actual semantic areas rather than a universal template or a
 file-count target. A concept such as ownership can change form or be discharged
 between stages. Each representation must explain where the remaining facts live

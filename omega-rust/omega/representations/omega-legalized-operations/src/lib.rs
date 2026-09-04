@@ -1,24 +1,9 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: crate map. Canonical target-legal operation custody for the production Omega realization pipeline.
+//! Optimizer module role: crate map. Target-legal program representation.
 //!
-//! The public model is split by scalar and structural carriers. Representation-
-//! owned validation and canonical identity encoding descend through independent
-//! leaves; this entrance only exposes the stable data and identity surface.
+//! Start at [`legalized_operations::LegalizedOperationPlan`]. Control flow,
+//! calls, values and legality recipes are subordinate representation owners.
 
-mod identity;
-mod model;
-mod validation;
-
-pub use identity::{
-    legalized_operation_plan_identity, legalized_operation_plan_identity_v9_legacy,
-    legalized_operation_plan_identity_v12_legacy, legalized_operation_plan_identity_v13_legacy,
-    legalized_operation_plan_identity_v14_legacy, legalized_operation_plan_identity_v15_legacy,
-    legalized_operation_plan_identity_v16_legacy, legalized_operation_plan_identity_v17_legacy,
-    legalized_operation_plan_identity_v18_legacy, legalized_operation_plan_identity_v19_legacy,
-    legalized_operation_plan_identity_v20_legacy,
-};
-pub use model::*;
-
-#[cfg(test)]
-mod tests;
+pub mod legalized_operations;
+pub use legalized_operations::*;
