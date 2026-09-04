@@ -66,11 +66,18 @@ non-`main` function definition and call receives the injective `__d_` Gamma
 prefix, preventing such a declaration from being captured by Gamma's builtin
 dispatch. `main` alone retains the name required by the evaluator.
 
+Authored addition, subtraction, and multiplication lower to hygienic nested
+Gamma lets that evaluate operands once, left-to-right, compute the wrapping
+result, and trap if its sign relation or inverse-product check proves signed
+overflow. Division and remainder use Gamma's already-identical zero-divisor
+and `INT64_MIN / -1` traps. Compiler-generated tag arithmetic is structurally
+bounded and does not acquire redundant runtime checks.
+
 This is a meaningful early stage, not the complete Delta compiler. It does not
-yet provide normative `Bytes`, checked arithmetic, or production application
-profiles. Closed `bytes_*` forms reject until their representation and lowering
-exist; the stage never publishes an unexecutable Gamma call as a purported
-receipt. Calls emitted in tail position remain in Gamma tail position through
+yet provide normative `Bytes` or production application profiles. Closed
+`bytes_*` forms reject until their representation and lowering exist; the stage
+never publishes an unexecutable Gamma call as a purported receipt. Calls
+emitted in tail position remain in Gamma tail position through
 `if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
 construction and traversal in bounded call context. Static acceptance of the
 scalar/nominal slice is not full-language admission.
@@ -83,7 +90,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-1,653-line / 64,682-byte Gamma source
+1,821-line / 71,629-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -91,16 +98,16 @@ The downgraded full compiler remains separate under
   -> 3-line / 230-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
 7-line / 187-byte recursive-ADT Delta fixture
-  -> 3-line / 251-byte Gamma receipt
+  -> 3-line / 425-byte Gamma receipt
   -> selected Gamma evaluation produces byte 3
 8-line / 221-byte two-field recursive List fixture
-  -> 3-line / 328-byte Gamma receipt
+  -> 3-line / 502-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
 24-line / 767-byte three-field recursive rope fixture
-  -> 7-line / 1,056-byte Gamma receipt
+  -> 7-line / 1,404-byte Gamma receipt
   -> indexing produces byte 0x42; indexing empty traps
 7-line / 277-byte proper-tail List fixture
-  -> 4-line / 394-byte Gamma receipt
+  -> 4-line / 568-byte Gamma receipt
   -> constructs and traverses 100,000 nodes through if, let, and match
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt

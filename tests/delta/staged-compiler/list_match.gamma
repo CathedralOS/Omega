@@ -1,3 +1,3 @@
-(def __d_sum ((items Int) (total Int)) Int (let $v76 Int items (let $m76 Int (first $v76) (let $p76 Int (second $v76) (if (eq $m76 0) total (let head Int (first $p76) (let tail Int (second $p76) (__d_sum tail (+ total head)))))))))
+(def __d_sum ((items Int) (total Int)) Int (let $v76 Int items (let $m76 Int (first $v76) (let $p76 Int (second $v76) (if (eq $m76 0) total (let head Int (first $p76) (let tail Int (second $p76) (__d_sum tail (let $l143 Int total (let $r143 Int head (let $z143 Int (+ $l143 $r143) (if (lt 0 $r143) (if (lt $z143 $l143) (/ 1 0) $z143) (if (lt $r143 0) (if (lt $l143 $z143) (/ 1 0) $z143) $z143)))))))))))))
 (def main () Int (__d_sum (pair 1 (pair 4 (pair 1 (pair 3 (pair 1 (pair 2 (pair 0 0))))))) 0))
 
