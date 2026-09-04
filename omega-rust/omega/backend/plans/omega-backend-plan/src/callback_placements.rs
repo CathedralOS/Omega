@@ -1,3 +1,6 @@
+//! The placement row, its 101-byte private symbol, and the fingerprint that
+//! separates placements the symbol alone cannot tell apart.
+
 use omega_calling_conventions::{
     BoundaryEntryPlan, CallbackMaterializationContext, CallbackRequirementId,
     NativeParameterApplication, NativePlace, StaticMachineBinderId, ValueClass, ValueShape,
