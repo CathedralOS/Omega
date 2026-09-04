@@ -3,9 +3,10 @@
 //! Optimizer module role: crate map. Deterministic target-neutral analyses and rewrite orchestration for verified
 //! Psi optimization units.
 //!
-//! This crate is not constructed by the ordinary empty-selection compiler
-//! path. Callers must explicitly enter the verified optimizer pipeline before
-//! creating an [`AnalysisManager`].
+//! The canonical empty Psi selection is the identity schedule. Compiler
+//! integration may bypass construction for that case, but callers that do
+//! enter this crate receive the same empty schedule before creating an
+//! [`AnalysisManager`].
 
 mod analyses;
 mod pass_manager;
@@ -96,5 +97,7 @@ pub use rules::{
     SharedJumpFusionRule, WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
     WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
     WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
-    WrappingIntegerSubtractConstantsRule, built_in_psi_registries, built_in_psi_registry,
+    WrappingIntegerSubtractConstantsRule, built_in_psi_registries,
+    built_in_psi_registries_for_selections, built_in_psi_registry,
+    built_in_psi_registry_for_selections,
 };

@@ -35,7 +35,7 @@ fn declared_catalog() -> Vec<(
                 PsiPassTargetApplicability::TargetIndependent
             );
             (
-                entry.optimization(),
+                Optimization::from(entry.optimization()),
                 OptimizationExecutionPhase::Psi,
                 TestTargetDisposition::TargetIndependent,
             )

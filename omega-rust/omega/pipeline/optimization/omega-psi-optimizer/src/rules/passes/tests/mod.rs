@@ -44,6 +44,7 @@ use psi_core::{
     IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, ServiceId,
     StructuralTypeId, ValueId,
 };
+use psi_optimization::{PsiOptimization, PsiOptimizationSelections};
 use psi_terminal::{
     SemanticFingerprint, ServiceDeclaration, TerminalPsiIdentity, VocabularyMarker,
 };
@@ -61,6 +62,7 @@ use crate::rules::catalog::{
 };
 use crate::rules::{
     ORDERED_PSI_PASSES, PSI_PASS_CATALOG, built_in_psi_registries, built_in_psi_registry,
+    built_in_psi_registry_for_selections,
 };
 use crate::{
     AnalysisProduct, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,

@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn sccp_registry_pins_every_binary_integer_constant_rule_position() {
     let registry =
-        registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();
+        registry_for_optimization(PsiOptimization::SparseConditionalConstantPropagation).unwrap();
     let contracts = registry.contracts().collect::<Vec<_>>();
     let expected = [
         (
@@ -115,7 +115,7 @@ fn sccp_registry_pins_every_binary_integer_constant_rule_position() {
 #[test]
 fn sccp_registry_pins_every_unary_integer_constant_rule_position() {
     let registry =
-        registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();
+        registry_for_optimization(PsiOptimization::SparseConditionalConstantPropagation).unwrap();
     let contracts = registry.contracts().collect::<Vec<_>>();
     let expected = [
         (
@@ -148,7 +148,7 @@ fn sccp_registry_pins_every_unary_integer_constant_rule_position() {
 #[test]
 fn sccp_registry_places_boolean_result_constant_rules_before_range_rules() {
     let registry =
-        registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();
+        registry_for_optimization(PsiOptimization::SparseConditionalConstantPropagation).unwrap();
     let contracts = registry.contracts().collect::<Vec<_>>();
     assert_eq!(contracts.len(), 39);
     let expected = [

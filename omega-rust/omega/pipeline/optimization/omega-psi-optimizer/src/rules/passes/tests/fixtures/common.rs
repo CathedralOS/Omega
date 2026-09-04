@@ -18,7 +18,7 @@ pub(crate) fn shuffle_built_in_registrations(
 }
 
 pub(crate) fn randomized_built_in_registries(
-    optimization: Optimization,
+    optimization: PsiOptimization,
 ) -> Vec<OrderedRuleRegistry> {
     (1..=32)
         .map(|seed| {

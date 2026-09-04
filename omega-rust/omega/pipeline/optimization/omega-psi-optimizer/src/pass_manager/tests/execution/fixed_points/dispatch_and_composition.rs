@@ -142,9 +142,13 @@ fn shuffled_builtin_registration_constructs_identical_multi_rule_runs() {
         let expected_registry = built_in_psi_registry(&selections).unwrap();
         let expected = run_unit(unit.clone(), &expected_registry, budget(8)).unwrap();
 
-        for (seed, registry) in randomized_built_in_registries(optimization)
-            .into_iter()
-            .enumerate()
+        for (seed, registry) in randomized_built_in_registries(
+            optimization
+                .psi_optimization()
+                .expect("the test roster contains only Psi optimizations"),
+        )
+        .into_iter()
+        .enumerate()
         {
             let actual = run_unit(unit.clone(), &registry, budget(8)).unwrap();
             let context = format!("{optimization:?} registration seed {}", seed + 1);

@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use omega_optimization_core::{Optimization, OptimizationCatalogDescriptor};
+use psi_optimization::PsiOptimization;
 
 use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 
@@ -29,68 +29,67 @@ struct PsiPassCatalogPayload {
     rule_catalog: RuleCatalog,
 }
 
-/// One visible route from an exact source selection to its ordered rule leaf.
+/// One visible route from an exact Psi selection to its ordered rule leaf.
 #[derive(Clone, Copy)]
 pub struct PsiPassCatalogEntry {
-    descriptor: OptimizationCatalogDescriptor<PsiPassCatalogPayload>,
+    optimization: PsiOptimization,
+    payload: PsiPassCatalogPayload,
 }
 
 impl PsiPassCatalogEntry {
-    const fn new(optimization: Optimization, rule_catalog: RuleCatalog) -> Self {
+    const fn new(optimization: PsiOptimization, rule_catalog: RuleCatalog) -> Self {
         Self {
-            descriptor: OptimizationCatalogDescriptor::new(
-                optimization,
-                PsiPassCatalogPayload {
-                    target: PsiPassTargetApplicability::TargetIndependent,
-                    rule_catalog,
-                },
-            ),
+            optimization,
+            payload: PsiPassCatalogPayload {
+                target: PsiPassTargetApplicability::TargetIndependent,
+                rule_catalog,
+            },
         }
     }
 
-    pub const fn optimization(self) -> Optimization {
-        self.descriptor.optimization()
+    pub const fn optimization(self) -> PsiOptimization {
+        self.optimization
     }
 
     pub const fn target_applicability(self) -> PsiPassTargetApplicability {
-        self.descriptor.payload().target
+        self.payload.target
     }
 
     fn registrations(self) -> Vec<BuiltInRuleRegistration> {
-        (self.descriptor.payload().rule_catalog)()
+        (self.payload.rule_catalog)()
     }
 }
 
 /// The single built-in Psi enable/disable and ordering table.
 pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 6] = [
     PsiPassCatalogEntry::new(
-        Optimization::SparseConditionalConstantPropagation,
+        PsiOptimization::SparseConditionalConstantPropagation,
         sparse_conditional_constant_propagation_rule_registrations,
     ),
     PsiPassCatalogEntry::new(
-        Optimization::ControlFlowCleanup,
+        PsiOptimization::ControlFlowCleanup,
         control_flow_cleanup_rule_registrations,
     ),
     PsiPassCatalogEntry::new(
-        Optimization::CopyPropagation,
+        PsiOptimization::CopyPropagation,
         copy_propagation_rule_registrations,
     ),
     PsiPassCatalogEntry::new(
-        Optimization::GlobalValueNumbering,
+        PsiOptimization::GlobalValueNumbering,
         global_value_numbering_rule_registrations,
     ),
     PsiPassCatalogEntry::new(
-        Optimization::ProofCheckElision,
+        PsiOptimization::ProofCheckElision,
         proof_check_elision_rule_registrations,
     ),
     PsiPassCatalogEntry::new(
-        Optimization::DeadPureScalarElimination,
+        PsiOptimization::DeadPureScalarElimination,
         dead_scalar_elimination_rule_registrations,
     ),
 ];
 
 /// Compatibility view derived from [`PSI_PASS_CATALOG`], never a second table.
-pub const ORDERED_PSI_PASSES: [Optimization; 6] = [
+pub const ORDERED_PSI_PASSES: [PsiOptimization; 6] = [
     PSI_PASS_CATALOG[0].optimization(),
     PSI_PASS_CATALOG[1].optimization(),
     PSI_PASS_CATALOG[2].optimization(),
@@ -100,7 +99,7 @@ pub const ORDERED_PSI_PASSES: [Optimization; 6] = [
 ];
 
 pub(crate) fn registry_for_optimization(
-    optimization: Optimization,
+    optimization: PsiOptimization,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
     let descriptor = PSI_PASS_CATALOG
         .iter()
@@ -127,7 +126,7 @@ impl BuiltInRuleRegistration {
 
 #[cfg(test)]
 pub(crate) fn built_in_rule_registrations(
-    optimization: Optimization,
+    optimization: PsiOptimization,
 ) -> Vec<BuiltInRuleRegistration> {
     PSI_PASS_CATALOG
         .iter()
