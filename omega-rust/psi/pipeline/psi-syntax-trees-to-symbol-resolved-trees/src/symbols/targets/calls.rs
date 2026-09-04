@@ -17,6 +17,49 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     symbols: &SymbolTable,
 ) -> SymbolHandle {
     if has_receiver && receiver_symbol.is_valid() {
+        // Lexical local identity takes precedence over same-named fields,
+        // free machines, and type homes. Missing local methods stay unresolved.
+        if matches!(symbols.get(receiver_symbol).kind, SymbolKind::Local) {
+            let Some(mut reference) =
+                machine
+                    .prior_statements
+                    .iter()
+                    .find_map(|statement| match statement {
+                        psi_symbol_resolved_trees::statement::Statement::LocalData(local)
+                            if local.symbol == receiver_symbol =>
+                        {
+                            Some(&local.type_reference)
+                        }
+                        _ => None,
+                    })
+            else {
+                return SymbolHandle::invalid();
+            };
+            // A whole collection is not an indexed element receiver. The
+            // shared legacy query also serves indexed fields, so only pass a
+            // local's declared nominal type through transparent shells here.
+            loop {
+                use psi_symbol_resolved_trees::types::TypeReference;
+                reference = match reference {
+                    TypeReference::Reference(reference) => {
+                        child_type_references.get(reference.referee)
+                    }
+                    TypeReference::Constrained(constrained) => {
+                        child_type_references.get(constrained.base_type)
+                    }
+                    TypeReference::FixedArray(_) | TypeReference::Slice(_) => {
+                        return SymbolHandle::invalid();
+                    }
+                    _ => break,
+                };
+            }
+            return call_target_for_type_reference(
+                symbols,
+                child_type_references,
+                reference,
+                target,
+            );
+        }
         if let Some(field_type_reference) = machine.field_type_reference(symbols, receiver_symbol) {
             let symbol = call_target_for_type_reference(
                 symbols,
