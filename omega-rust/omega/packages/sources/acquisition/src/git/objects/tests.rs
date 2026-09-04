@@ -111,28 +111,38 @@ fn git_blob_batch_uses_one_bounded_launch_for_many_files() {
 #[test]
 #[cfg_attr(
     windows,
-    ignore = "Windows prevents replacement while the retained cache-entry handle is open"
+    ignore = "Windows prevents replacement while the retained cache-parent handle is open"
 )]
-fn git_batch_request_creation_and_cleanup_remain_in_the_retained_entry() {
+fn git_batch_request_creation_and_cleanup_remain_in_the_retained_cache_parent() {
     let (repo, _) = create_git_source("retained-batch-request-source");
     let cache = temp_root("retained-batch-request-cache");
     let request = local_git_request(&repo, "HEAD");
     resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
     let verified = open_verified_git_repository(&cache, &request);
-    let entry = verified.entry_root.clone();
-    let displaced = entry.with_file_name("entry.displaced");
-    std::fs::rename(&entry, &displaced).expect("displace retained entry");
-    std::fs::create_dir(&entry).expect("create replacement entry");
-
     let cache_root = verified
         .entry_root
         .parent()
         .expect("cache entry has parent");
+    let permissions = std::fs::metadata(cache_root)
+        .expect("read retained cache parent permissions")
+        .permissions();
+    let displaced = cache_root.with_file_name("git.displaced");
+    std::fs::rename(cache_root, &displaced).expect("displace retained cache parent");
+    std::fs::create_dir(cache_root).expect("create replacement cache parent");
+    std::fs::set_permissions(cache_root, permissions)
+        .expect("preserve private replacement directory permissions");
+    assert!(matches!(
+        verified.verify_identity(),
+        Err(SourceResolveError::GitCacheInvalid { message, .. })
+            if message == "cache parent pathname no longer identifies the retained directory"
+    ));
+
     let mut batch = PendingGitBatchRequest::create(&verified.cache_parent, cache_root)
-        .expect("create request through retained entry");
+        .expect("create request through retained cache parent");
     let name = batch.name.clone();
     assert!(displaced.join(&name).is_file());
-    assert!(!entry.join(&name).exists());
+    let replacement = cache_root.join(&name);
+    assert!(!replacement.exists());
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -146,8 +156,13 @@ fn git_batch_request_creation_and_cleanup_remain_in_the_retained_entry() {
             0o600
         );
     }
+    std::fs::write(&replacement, b"replacement").expect("install replacement request name");
     batch.remove().expect("remove retained batch request");
     assert!(!displaced.join(&name).exists());
+    assert_eq!(
+        std::fs::read(&replacement).expect("read untouched replacement request"),
+        b"replacement"
+    );
 
     let _ = std::fs::remove_dir_all(&repo);
     make_tree_owner_writable(&cache);
