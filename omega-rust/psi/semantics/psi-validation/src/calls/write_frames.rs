@@ -583,6 +583,7 @@ fn walk_state_write_prefix(
                     .then(|| {
                         known_boundary_call_written_paths_for_parts(
                             program,
+                            machine,
                             &machine_symbols,
                             symbols,
                             &nested_receiver_members,
@@ -1475,6 +1476,7 @@ fn statement_call_preserves_transparent_result(
         .then(|| {
             known_boundary_call_written_paths_for_parts(
                 program,
+                current_machine,
                 &machine_symbols,
                 symbols,
                 &receiver_members,
@@ -2013,6 +2015,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     .then(|| {
                         known_boundary_call_written_paths_for_parts(
                             program,
+                            machine,
                             machine_symbols,
                             symbols,
                             &receiver_members,

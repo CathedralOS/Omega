@@ -224,6 +224,7 @@ fn complete_expression_tree(
         .or_else(|| {
             known_boundary_call_written_paths_for_parts(
                 program,
+                current_machine,
                 machine_symbols,
                 symbols,
                 &receiver_members,

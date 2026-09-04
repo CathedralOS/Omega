@@ -149,6 +149,7 @@ impl<'program> CallFrameResolver<'program> {
                 .or_else(|| {
                     known_boundary_call_written_paths(
                         self.program,
+                        current_machine,
                         &machine_symbols,
                         &self.symbols,
                         call,
@@ -518,6 +519,7 @@ pub(super) fn collect_expression_call_written_paths(
             .or_else(|| {
                 known_boundary_call_written_paths_for_parts(
                     program,
+                    current_machine,
                     machine_symbols,
                     symbols,
                     &receiver_members,
