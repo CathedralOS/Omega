@@ -70,8 +70,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR4\0"
-    assert reader.u64() == 4
+    assert reader.bytes(8) == b"OMGPAR5\0"
+    assert reader.u64() == 5
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -362,6 +362,48 @@ def main() -> None:
     )
     accepted(
         program,
+        "contextual-multiplicity-names",
+        b"use linear::copy::case;",
+        ((1, 0, 1, 0, 23),),
+        ((0, 3, 1, 0, 23),),
+        ((1, 4, 10), (1, 12, 16), (1, 18, 22)),
+    )
+    accepted(
+        program,
+        "linear-record",
+        b"data Record [linear] {}",
+        ((2, 0, 1, 0, 23),),
+        (),
+        (),
+        ((1, 5, 11, 0, 0, 0, 0, 0, 0, 2, False, 1, 0, 23),),
+    )
+    accepted(
+        program,
+        "linear-sum",
+        b"data Sum [linear] { case Empty; }",
+        ((2, 0, 1, 0, 33),),
+        (),
+        (),
+        ((1, 5, 8, 0, 1, 0, 0, 0, 1, 2, False, 1, 0, 33),),
+        ((2, 0, 1, 20, 31),),
+        (),
+        ((1, 25, 30, 1, 20, 31, 0, 0),),
+    )
+    accepted(
+        program,
+        "linear-mixed-data",
+        b"data Mixed [linear] { value: T; case Empty; }",
+        ((2, 0, 1, 0, 45),),
+        (),
+        (),
+        ((1, 5, 10, 0, 2, 0, 1, 0, 1, 2, False, 1, 0, 45),),
+        ((1, 0, 1, 22, 31), (2, 0, 1, 32, 43)),
+        ((1, 22, 27, 0, 1, 22, 31),),
+        ((1, 37, 42, 1, 32, 43, 0, 0),),
+        ((1, 1, 29, 30, 1, 29, 30),),
+    )
+    accepted(
+        program,
         "records-visibility-order-and-named-types",
         b"pub data Empty {} data data { machine: use; } use dep; "
         b"data Main { console: Console; lexer: Lexer; parser: Parser; }",
@@ -539,8 +581,9 @@ def main() -> None:
         ("missing-field-colon", b"data X { field Type; }", 12, (15, 19)),
         ("missing-field-type", b"data X { field: ; }", 13, (16, 17)),
         ("missing-field-semicolon", b"data X { field: T }", 14, (18, 19)),
-        ("unknown-data-property", b"data X [linear] {}", 18, (8, 14)),
+        ("unknown-data-property", b"data X [unknown] {}", 18, (8, 15)),
         ("property-list-not-yet-supported", b"data X [copy,] {}", 19, (12, 13)),
+        ("linear-property-list-not-yet-supported", b"data Bad [linear,] {}", 19, (16, 17)),
         ("duplicate-copy-property", b"data X [copy copy] {}", 19, (13, 17)),
         ("missing-case-name", b"data X { case ; }", 20, (14, 15)),
         ("missing-case-semicolon", b"data X { case A }", 21, (16, 17)),
@@ -699,6 +742,7 @@ def main() -> None:
     lexical_cases = (
         ("lex-empty", b""),
         ("lex-ascii-identifiers", b"_ alpha Z9 snake_case"),
+        ("lex-contextual-identifiers", b"case copy linear"),
         ("lex-exact-whitespace", b"a \t\r\nb"),
         ("lex-ascii-tokens", b"machine item 42 3.14 :: -> != && ||"),
         ("lex-nested-comment-payload", "/* café /* 变量 */ μέτρο */".encode()),
@@ -762,7 +806,7 @@ def main() -> None:
     assert lexical_observations["lex-apostrophe-escape"].diagnostic == 6
 
     repeat_source = (
-        b"use repeated::observation; data Stable [copy] { "
+        b"use repeated::observation; data Stable [linear] { "
         b"value: Value; case Ready; case Payload(left: L, right: R,); }"
     )
     first = run(program, repeat_source)
@@ -770,7 +814,7 @@ def main() -> None:
     assert first == second, "parser observation is not deterministic"
 
     print(
-        "Psi parser slices: 57 cases passed; "
+        "Psi parser slices: 62 cases passed; "
         f"lexical profile parity: {len(lexical_cases)} cases passed"
     )
 

@@ -6,7 +6,8 @@ identity; Omega does not own this source tree. The current live slice contains
 source/span and token
 representations, a UTF-8-framed lexer, and a fail-closed whole-file parser
 for ordinary `use path::member;` roots and basic `[pub] data` declarations with
-an optional `[copy]` property, bare named field types, and payload-free
+an optional single `[copy]` or `[linear]` multiplicity property, bare named
+field types, and payload-free
 `case Name;` members or structured `case Name(field: Type, ...);` payloads.
 Direct fields and case-payload fields retain separate bounded custody while
 mixed declarations preserve exact authored field/case order and shared named
@@ -44,7 +45,7 @@ decoder directly with both executable paths.
 
 The source closure and harness currently pass checked-source compilation, but
 fresh native publication remains fail-closed at the attached Unit transitive
-machine-plan boundary. Until that dependency lands, the required 57-case run is
+machine-plan boundary. Until that dependency lands, the required 62-case run is
 not acceptance evidence and no cached executable may stand in for it.
 
 The lexer now transfers one canonical mixed `Token` stream to the parser as a
@@ -52,7 +53,7 @@ whole ownership move.
 There is no `TokenObservation`, numeric token array, per-token handoff, raw
 parser ordinal, or scalar tag/span cache. Numeric protocol projection and
 lex/parse serialization live only in the gate-owned Omega harness; the exact
-product entrypoint retains phase driving and exit diagnostics. The same 57
+product entrypoint retains phase driving and exit diagnostics. The same 62
 parser cases and structural observations remain mandatory beside the shared
 lexical-profile parity matrix, and the Python decoder stays semantic-free.
 Chapter 1 now fixes **LEXICAL-PROFILE-V1**: ASCII

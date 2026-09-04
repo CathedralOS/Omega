@@ -146,6 +146,7 @@ machine Parser::parse_data(
         let token: Token = self.input.tokens[self.current_index];
         transition token {
             Token::Keyword { keyword: KeywordKind::Copy } -> retain_copy_property()
+            Token::Keyword { keyword: KeywordKind::Linear } -> retain_linear_property()
             _ -> expected_data_property(
                 token.start,
                 token.end
@@ -155,6 +156,15 @@ machine Parser::parse_data(
 
     state retain_copy_property(&mut self) {
         self.data_multiplicity = DataMultiplicity::Unrestricted;
+        transition { _ -> retain_multiplicity_property() }
+    }
+
+    state retain_linear_property(&mut self) {
+        self.data_multiplicity = DataMultiplicity::Linear;
+        transition { _ -> retain_multiplicity_property() }
+    }
+
+    state retain_multiplicity_property(&mut self) {
         self.cursor = self.cursor + 1;
         self.skip_trivia();
         transition self.cursor < self.input.token_count {

@@ -142,8 +142,8 @@ invokes Console;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR4\0`, version
-// 4, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR5\0`, version
+// 5, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, and type-reference tables. This is hosted development
 // tooling, not an Omega ABI.
@@ -154,9 +154,9 @@ machine ParserHarness::write_parse_observation(&mut self) {
     self.write_byte(80);
     self.write_byte(65);
     self.write_byte(82);
-    self.write_byte(52);
+    self.write_byte(53);
     self.write_byte(0);
-    self.write_u64(4);
+    self.write_u64(5);
     transition self.parser.output.accepted {
         true -> parse_accepted_header()
         _ -> parse_rejected_header()
@@ -350,6 +350,7 @@ machine ParserHarness::write_parse_observation(&mut self) {
         transition item.multiplicity {
             DataMultiplicity::Affine -> parse_data_multiplicity(item, index, 0)
             DataMultiplicity::Unrestricted -> parse_data_multiplicity(item, index, 1)
+            DataMultiplicity::Linear -> parse_data_multiplicity(item, index, 2)
         }
     }
 
@@ -787,8 +788,11 @@ machine ParserHarness::write_token(&mut self, kind: Token) {
             KeywordKind::Use -> tagged(coordinates, 5, 27, 0, 0)
             KeywordKind::When -> tagged(coordinates, 5, 28, 0, 0)
             KeywordKind::While -> tagged(coordinates, 5, 29, 0, 0)
-            KeywordKind::Case -> tagged(coordinates, 5, 30, 0, 0)
-            KeywordKind::Copy -> tagged(coordinates, 5, 31, 0, 0)
+            // These parser-facing contextual classifications remain ordinary
+            // identifiers in the canonical lexical observation.
+            KeywordKind::Case -> tagged(coordinates, 1, 0, 0, 0)
+            KeywordKind::Copy -> tagged(coordinates, 1, 0, 0, 0)
+            KeywordKind::Linear -> tagged(coordinates, 1, 0, 0, 0)
             _ -> tagged(coordinates, 5, 255, 0, 0)
         }
     }
