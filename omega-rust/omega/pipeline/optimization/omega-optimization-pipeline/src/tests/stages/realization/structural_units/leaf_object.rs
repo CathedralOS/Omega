@@ -16,7 +16,7 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
         &[],
     )
     .expect("the structural Unit leaf must reach physical custody");
-    let StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { homes, .. } = physical else {
+    let StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { homes, .. } = physical else {
         panic!("the PSI-only request must retain baseline structural physical custody")
     };
 

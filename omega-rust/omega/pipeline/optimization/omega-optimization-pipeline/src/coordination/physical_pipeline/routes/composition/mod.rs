@@ -89,7 +89,7 @@ pub(crate) fn resolve_physical_phase_composition(
     let function_relative_layout = x86_rel8_selected(selections, architecture)
         .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeLayoutRuleCatalog)?;
     let route = match (selected_lowering.is_empty(), function_relative_layout) {
-        (true, false) => ResolvedNonAllocationComposition::Baseline,
+        (true, false) => ResolvedNonAllocationComposition::Identity,
         (true, true) => ResolvedNonAllocationComposition::FunctionRelativeLayout,
         (false, false) => ResolvedNonAllocationComposition::SelectedLowering,
         (false, true) => {

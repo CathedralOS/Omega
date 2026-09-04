@@ -33,7 +33,7 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
         .unwrap();
         assert!(matches!(
             staged,
-            StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { .. }
+            StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { .. }
         ));
         assert_eq!(staged.selections(), psi_only_selections.identity());
         assert_eq!(staged.selected_lowering_completion(), None);

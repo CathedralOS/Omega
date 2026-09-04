@@ -36,7 +36,8 @@ fn baseline_layout(
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { homes, machine } = staged else {
+    let StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { homes, machine } = staged
+    else {
         panic!("empty optimization selection must stop at authenticated physical custody")
     };
     let selected = homes

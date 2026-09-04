@@ -81,14 +81,14 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_allocation_recovery_
                 .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
             Ok(StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization })
         }
-        ResolvedNonAllocationComposition::Baseline => {
+        ResolvedNonAllocationComposition::Identity => {
             let legality = stage_optimized_allocation_legality(ranges)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
             let homes = stage_optimized_register_homes(legality)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterHomes)?;
             let machine = stage_optimized_post_allocation_machine_plan(&homes)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
-            Ok(StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { homes, machine })
+            Ok(StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { homes, machine })
         }
         ResolvedNonAllocationComposition::FunctionRelativeLayout => {
             let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)

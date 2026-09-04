@@ -40,7 +40,7 @@ fn active_resident_rule_is_disabled_without_its_exact_selection() {
 
         assert!(matches!(
             staged,
-            StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { .. }
+            StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { .. }
         ));
         assert_eq!(staged.selections(), selections.identity());
         assert!(
