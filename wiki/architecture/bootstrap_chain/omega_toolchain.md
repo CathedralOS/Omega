@@ -64,9 +64,13 @@ D25 gives that question one outer physical form and canonical-content model.
 `OCREQ` v1 is an exact-end, little-endian structural frame with separately
 length-bounded subject and invocation sections. The invocation carries a
 domain-separated commitment to the exact canonical subject. Package rows
-retain stable lineage and the separately selected immutable revision; V1 does
-not invent bytes for the future accepted `PackageInstance`. A package snapshot
-is one complete canonical
+retain stable lineage and the separately selected immutable revision. The
+ratified package model requires no sealed/certified `PackageInstance` or
+certificate proving lock acceptance: the lock records pins, the graph,
+accepted review baselines, and decisions, trusting whoever lands it. The sealed
+compiler input here fixes the compilation subject; it does not certify the
+decision to install a package. Compiler proof/reach and native artifact checks
+remain independent of installation. A package snapshot is one complete canonical
 raw-path tree, so absence, directory enumeration, payload length, and canonical
 metadata derive from its directory/file/link rows rather than arriving as
 parallel claims.

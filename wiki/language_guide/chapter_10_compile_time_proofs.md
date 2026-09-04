@@ -1328,13 +1328,14 @@ Working rules:
   machines arriving **from packages are inert until granted** — a library's
   boundary machines surface as requests when the package is added, and a
   package can never self-grant.
-- **Grants flow from the root.** The final build's `build.omg` accepts one
-  package claim set through the ordinary `Build` API. The build lockfile — the
-  same machine-written lockfile that pins package resolution; one receipt file,
-  not two — fingerprints the package plus its complete normalized claim set.
-  Adding, removing, or changing any claim invalidates the acceptance and
-  presents the exact diff. No hash is hand-written; `build.omg` stays the only
-  file a human authors.
+- **Grants flow from the root.** `build.omg` declares dependencies and build
+  selections through ordinary APIs. Install/update derives the complete
+  package-qualified claim set from compiler checks and presents decisions to
+  the consuming project. `omega.lock` records exact source pins, the complete
+  normalized accepted baseline, and those decisions. Adding, removing, or
+  changing a claim requires a decision on the exact diff; a package cannot
+  accept its own claims for its consumers. The project trusts whoever lands
+  these records, not a fingerprint or a supposed certificate of acceptance.
   A provider-slot grant binds only the provider plan selected for that slot;
   unselected and partial candidates remain dev-active and cannot acquire the
   selected plan's receipt merely because they implement the same boundary.

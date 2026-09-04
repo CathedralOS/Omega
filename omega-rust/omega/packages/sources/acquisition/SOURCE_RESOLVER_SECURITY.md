@@ -166,8 +166,8 @@ commit and root tree; materialized content identity and workspace-member
 projection; published immutable snapshot identity; entry, byte, and depth
 measurements; and the compiler-owned limits applied to them.
 
-Those facts belong directly to the resolved source and eventual
-`PackageInstance`. There is no canonical `GitSourceReceipt` over the process
+Those facts describe the resolved source; the lock retains its immutable pins
+and content identity. There is no canonical `GitSourceReceipt` over the process
 that fetched them. Selected executables, prepared commands, completion order,
 platform-hardening dispositions, and operational telemetry cannot mint source
 custody or change source identity. Persisted bytes cannot mint a live resolver
@@ -250,5 +250,6 @@ A dependency declaration chooses source location and revision only. It cannot
 embed secrets or choose which secret store, key, agent, or credential broker the
 host uses. `build.omg` receives compiler-owned build facets, not resolver
 environment, credentials, transport handles, or an ambient filesystem. Package
-review and lock admission remain separate decisions over the exact resolved
-source custody.
+review uses that exact resolved source. The install/update transaction records
+the project's acceptance in the lock; acquisition alone does not accept the
+package's capabilities or claims.

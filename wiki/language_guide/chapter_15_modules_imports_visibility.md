@@ -45,15 +45,16 @@ machine to discover the graph. Graph-forming calls such as `package`, `member`,
 and `depend` therefore use a closed, directly projectable form. Arbitrary build
 control flow cannot hide a dependency edge. The directory and repository names
 do not establish identity. The declared name is qualified by canonical source lineage
-to form the stable `PackageKey` used by locks and nominal symbols; exact source
-content, produced artifact identity, per-subject obligation-semantics identity,
-re-derived verification results, and disclosed open assumptions form a
-`PackageInstance`. A same-spelled package or boundary from another lineage is
-therefore a different identity. Explicit compiler/toolchain semantic, build,
-and encoding identities remain separately labeled only where a concrete
+to form the stable `PackageKey` used by locks and nominal symbols. The resolved
+source records exact revisions and content; compiler review derives API,
+reachability, unsafe API, and assumption facts from that source. No certified
+`PackageInstance` combines these into installation authority. A same-spelled
+package or boundary from another lineage is therefore a different identity.
+Explicit compiler/toolchain semantic, build, and encoding identities remain
+separately labeled only where a concrete
 reproduction, compatibility, or deployment claim consumes them. Bytes read
 through the running process's executable pathname are never package review,
-lock, cache, or admission identity and never seal the instance.
+lock, cache, or admission identity.
 
 Packages and applications use the same `PackageKey`: declared name plus source
 lineage. Role remains an explicit companion fact. A selected root may be either
@@ -93,9 +94,9 @@ it is not application-support or tested-target evidence.
 `PackageName` is not globally unique. For Git, `PackageKey` lineage identifies
 the canonical repository namespace and
 does **not** include the requested revision, resolved commit, tree, or content.
-Those exact values belong to `PackageInstance`. Consequently, two revisions of
-the same declared package collide on one key and must reconcile rather than
-silently becoming two nominal universes.
+Those exact values belong to the resolved source and lock pins. Consequently,
+two revisions of the same declared package collide on one key and must reconcile
+rather than silently becoming two nominal universes.
 
 Packages expose public data, machines, traits, domains, wire schemas, and
 boundary surfaces.
@@ -137,20 +138,30 @@ resolver-owned source root. It does not rediscover dependencies from package
 build code. The commitment, not the cache path, governs same-package and future
 nominal-identity checks; source roots only constrain where imports may load.
 
-`omega.lock` is machine-written accepted state: it records the reconciled
-closure, exact commits/trees/content, source-qualified package identities,
-compiler-derived capability/API baselines, representation-TCB availability and
-demand rows, build observations, and admission evidence. The current standalone
-trust-receipt subset stores full domain-separated admission digests; a legacy
-compact-only row cannot authorize a build and must be explicitly re-accepted.
+The ratified install/update model is Cargo-like repository acquisition and
+dependency resolution with compiler-derived reachability, unsafe API, and
+assumption review. `omega.lock` records the reconciled graph, exact source pins,
+source-qualified package identities, accepted review baselines, and decisions.
+The project trusts whoever lands the lock. Installation does not require a
+sealed/certified `PackageInstance` or certificates proving lock acceptance.
+Compiler proof/reach checks and native artifact checks remain independent of
+installation.
+
+The current manager has in-memory evidence promotion and root-policy replay,
+but no complete `omega.lock` mutation route. That redundant promotion machinery
+is to be simplified, not completed as a prerequisite for install/update. The
+existing standalone trust-receipt subset still stores full domain-separated
+admission digests and rejects legacy compact-only rows for build authorization;
+this describes the existing compiler path, not the intended lock format.
+
 Claim-free opaque boundary representation remains visible and audit-recommended
 without being mislabeled as an accepted claim. Producer availability accepts no
 consumer choice. A consumer-owned demanded by-value row retains the exact
 selected or target-derived
 representation application and its strong calling-plan commitment; `Unbound`
 is complete only when no active by-value use needs one. Chapter 19 defines the
-distinction. The compiler consumes the lock rather than silently resolving
-mutable selectors. The lock should normally be
+distinction. The intended workflow consumes recorded pins rather than silently
+resolving mutable selectors during compilation. The lock should normally be
 committed; source caches may be ignored. The first implementation performs no
 semantic-version solving. Requests for one `PackageKey` that resolve to the same
 immutable source instance deduplicate, even when their request spellings differ;
@@ -160,36 +171,32 @@ instances of one key are unsupported: adding them would require nominal types,
 conformances, provider selections, and evidence rows to be qualified by package
 instance rather than package key, not merely a second local alias.
 
-Package review is proposed by the selected local compiler rather than accepted
-from dependency source. This prevents a package from declaring its own
-capability result, but compiler output remains review-only until a consumer
-reconstructs the exact obligations from the exact requested source and produced
-artifact and checks the retained certificates. The evidence record is a cache
-of a re-derivable result, not authority. Review status, producer provenance,
-signatures, and reasons are organization policy records; none is a portable
-proof that a human or LLM performed a sound audit.
+Package review is derived by the selected local compiler rather than accepted
+from dependency source. A package cannot declare its own capability result.
+Compiler output supplies the review baseline; the lock records which baseline
+and decisions the project accepted. Review status, producer provenance,
+signatures, and reasons are organization policy records; none proves that a
+human or LLM performed a sound audit. No additional certificate is required to
+prove the decision to accept the lock.
 
-Dependency evidence composes transitively. Each subject retains its own
-obligation-semantics and evidence-schema identity, exact certificate
-provenance, discharged obligations, and still-open obligations. A parent cannot
-absorb a dependency's open obligation merely because its producer accepted it.
-Each consuming project rechecks the certificates and independently decides
-every disclosed admission before creating accepted lock state. Accepted locks
-are exact-current generated artifacts: a semantic-schema mismatch forces
-complete local reconstruction and fresh admission. Current admission has no
-schema-migration registry or compatibility classifier and never reuses old
-discharge or policy decisions.
+Review includes transitive dependencies and keeps assumptions attributable to
+their owners. A parent's acceptance cannot discharge an open compiler proof
+obligation. Actual compiler proof certificates still need their ordinary
+kernel checks, and source reach and native realization still need their
+compiler checks. These checks establish program and artifact properties,
+independently of installation. The current evidence ledger also replays
+schema-bound rows and root policy; those extra promotion layers are existing
+implementation to simplify, not a future accepted-lock requirement.
 
-Here, the produced artifact is the exact canonical package artifact whose
-claims are being checked, not necessarily a final executable. A claim about
-native lowering or final realization additionally binds the corresponding final
-artifact and Terminal evidence under the ordinary hardened rules.
+A claim about native lowering or final realization must be checked against the
+corresponding compiler artifact. These checks belong to that compilation, not
+to a certification step for the source lock.
 
-The compiler derives the ordinary admission baseline from the earliest coherent
+The compiler derives the review baseline from the earliest coherent
 compiler-owned representation in which each evidence fact is semantically
-established, through a total internal package-admission projection. Different
-rows may use different private representations; the lock stores only the final
-versioned canonical rows. This does not make any internal IR a public
+established, through its internal package-review projection. Different
+rows may use different private representations; persisted review baselines
+use canonical rows. This does not make any internal IR a public
 compatibility surface or require another nominal IR stage.
 The projector may use private pre-Psi typed or resolved structure when that is
 where an exact identity is semantically established, then join checked
@@ -199,7 +206,7 @@ required only for claims about final realization or by a hardened profile;
 absence of that evidence never implies a weaker Terminal
 guarantee. A new named stage is warranted only by a reusable semantic boundary,
 not by package-report format stability. Psi may repeat an invariant as a
-downstream compiler check without forcing package admission to reconstruct an
+downstream compiler check without forcing package review to reconstruct an
 already-settled fact from Psi.
 
 Compiler-issued package review also retains a separate commitment to the exact
@@ -570,7 +577,7 @@ provider decides whether arbitrary caller-constructed geometry receives that
 qualification. Linearity tracks the occurrence; it does not make the record
 literal an authority mint.
 
-Changing a published source shape changes package-instance and public-contract
+Changing a published source shape changes source-content and public-contract
 identity and causes dependents to rebuild or fail loudly. It does not silently
 alter an ABI.
 Only behavior declared `pub` is nameable outside the package. This preserves a

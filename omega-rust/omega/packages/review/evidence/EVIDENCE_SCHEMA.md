@@ -4,6 +4,15 @@ The canonical review schema is version 128 and row schema version 86. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
+This describes the existing encoding and its historical revisions, not a
+requirement to certify installation. The ratified lock records pins, the graph,
+accepted compiler-derived review baselines, and decisions, trusting whoever
+lands it. Existing root-admission tags and ledger replay remain documented
+implementation while redundant promotion machinery is simplified; no sealed
+`PackageInstance` or certificate proving lock acceptance is required. Proof
+certificates below answer actual compiler proof questions. Compiler proof/reach
+checks and native artifact validation remain independent of installation.
+
 The ordinary obligation-semantics schema is version 7. Its result
 vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
 external executable supplies, and exact terminal-authority permissions open

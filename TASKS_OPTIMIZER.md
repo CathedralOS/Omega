@@ -77,6 +77,18 @@ needed for independent replay through publication.
   families and publication routes must fail closed until their exact grammar,
   target applicability, result, effect, cleanup, and custody facts reconstruct.
 
+  Close D32 with one source-reachable selected-lowering operation carrying
+  nonempty physical evidence through allocation, layout, native emission, and
+  independent replay. Bind the immutable Terminal product, validated
+  optimization projection, and each surviving boundary occurrence to exactly
+  one physical child with its D29 application or D41 settlement parent.
+  Acceptance: post-Psi optimization
+  and final publication reject missing, duplicate, stale, substituted, padded,
+  or role-swapped children; only verified eliminated occurrences need no child.
+  General calls depend on `FRAME-LAYOUT` and `GENERAL-CALL-CLOBBERS` below.
+  These are native compiler guarantees, independent of package locks or
+  `PackageInstance` construction.
+
 - **BOUNDARY-QUALIFICATION-PRESERVATION.** Add optimizer and publication
   controls for boundary requirements that consume carried structural-domain
   qualifications. Joins take at most the intersection; CSE/GVN must distinguish
@@ -138,8 +150,10 @@ needed for independent replay through publication.
   single-block and canonical three-block/two-return System V AMD64/AAPCS64
   family: broader CFG admission, Microsoft shadow space, red-zone policy,
   probing, unwind information, stable-address loans, and dynamic-allocation
-  constraints. Acceptance: every admitted frame policy replays its exact
-  physical accesses through callable publication; requirements artifacts
+  constraints. General calls need target-owned frame, callee-save,
+  link-register, and call-site alignment plans. Acceptance: every admitted frame
+  policy replays its exact physical accesses through callable publication;
+  requirements artifacts
   remain non-authoritative until that replay succeeds.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber

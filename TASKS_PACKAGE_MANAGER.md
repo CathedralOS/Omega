@@ -1,292 +1,153 @@
 # Tasks: Package Manager
 
-Status: remaining work only, 2026-09-03.
+Remaining work for repository install/update and compiler-derived capability
+review. Design: [Build And Package Model](wiki/design_briefs/build_and_package_model.md).
+Subsystem entrance: [packages/README.md](omega-rust/omega/packages/README.md).
 
-This file is the forward queue for the Cargo-like source/package service under
-`omega`. Completed milestones live in Git history and in the subsystem notes;
-they are deliberately not repeated here.
+The project trusts whoever lands its dependency and lock changes. `omega.lock`
+records exact resolutions and the capabilities/assumptions the project accepted.
+It does not certify packages, prove an audit occurred, or authenticate its own
+acceptance. Compiler proof and reachability checking still apply to the selected
+source. Native artifact verification belongs to compilation.
 
-Reference documents (the first-draft brief is non-normative where it conflicts
-with the current build/package model or subsystem contracts):
+Deliver a complete transaction for the supported package surface. Reject a
+candidate when its authority cannot be checked or represented; unrelated
+backend work and future artifact classes do not block supported candidates.
 
-- `wiki/design_briefs/package_manager_first_draft.md`
-- `wiki/design_briefs/build_and_package_model.md`
-- `wiki/language_guide/chapter_15_modules_imports_visibility.md`
-- `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md`
-- `omega-rust/omega/packages/README.md`
-- `omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`
-- `OWNER_QUESTIONS.md`
+Security work must name a concrete compiler or package invariant. Host
+credential policy and audit seriousness belong to the operator, not Omega.
+Escalate a genuinely unclear authority boundary to an owner question before
+adding machinery; do not invent proof-of-review or host-security requirements.
 
-Do not enable a mutating `omega install` or `omega update` path until its exact
-candidate closure can produce recheckable evidence, accepted-lock rows, root
-decisions, and one atomic transaction. Unsupported language/build forms reject
-that candidate; they do not globally block commands for unrelated closures.
-Compiler-issued package review remains non-admitting.
+## 1. Simplify the existing implementation
 
-Security work must name a concrete invariant Omega can enforce inside compiler,
-package, or artifact custody. Do not expand this subsystem into operating-system
-policy, operator custody, unverifiable review ceremony, or proxy metrics
-presented as containment. If that authority boundary is genuinely ambiguous,
-stop the item on one precise owner question before adding machinery.
+- [ ] **PACKAGE-ACCEPTANCE-SIMPLIFICATION.** In
+  `omega-rust/omega/packages/manager` and its review interfaces, replace the
+  certification/promotion prerequisites with compiler review plus explicit
+  project decisions. Reuse source resolution, checked review, comparison, and
+  decision handling. Remove wrappers and repeated reconstruction whose only
+  purpose is promoting the same in-process result into supposed trust.
+  Preserve checks that detect mismatched source, graph, target, review, or
+  decisions. Acceptance: a checked supported closure can enter a transaction
+  without native emission, a certificate-bearing package artifact, or a sealed
+  `PackageInstance`. Existing compiler proof/artifact validators retain their
+  actual guarantees.
 
-## P2 — Compiler review and realization projection
+## 2. Resolve and check the candidate
 
-- [ ] **PACKAGE-REVIEW-PROJECTION.** Make the compiler-owned ordinary package
-  projection total for the supported language surface after successful
-  checking. The canonical output must contain no arena handles, diagnostic
-  strings as identity, compiler-private IDs, or compiler-issued admission
-  verdicts.
+- [ ] **PACKAGE-REVIEW-PROJECTION.** Finish the compiler-to-manager report
+  needed for supported source dependencies: package-qualified public APIs,
+  declared and inferred reach, reachable implementation authority, selected
+  providers, opaque external supplies, and explicit accepted assumptions.
+  Include transitive dependency paths and relevant build/generated-source
+  authority. Use the earliest checked compiler representation that establishes
+  each fact; no additional IR or native binary is required.
+  Acceptance: false reach ceilings, spoofed boundary identities, unresolved
+  proof obligations, and omitted transitive authority reject; unsupported
+  candidates produce a specific diagnostic. Generic effects must remain
+  conservative until concrete substitutions are checked.
 
-  Remaining work:
+- [ ] **BUILD-REVIEW-INTEGRATION.** Reuse the existing scoped build execution
+  and generated-source handoff during candidate checking. Resolve dependencies
+  before running dependency build code; obtain required project decisions
+  before supplying dangerous build capabilities. Include generated code in
+  final review and detect relevant source/build drift before committing.
+  Acceptance: a dependency cannot gain resolver credentials, alter its
+  dependency graph during execution, write outside admitted output roots, or
+  hide authority in generated code. Installing source does not publish a native
+  executable.
 
-  - finish D29 cross-artifact substitution for separately compiled generics;
-    `PackageInstance` composition must close every symbolic argument before
-    claiming coverage;
-  - publish one source-reachable selected-lowering operation with nonempty D32
-    custody through allocation, layout, native emission, and replay. General
-    calls first need target-owned frame, callee-save, link-register, and call-
-    site alignment plans;
-  - extend D41 normalized-import custody from fixed-width scalar calls to one
-    source-rooted flat-record argument, then to ranked control and port-bearing
-    artifacts. Preserve the exact survivor/physical-child bijection; and
-  - add external realization custody only when independently admitted concrete
-    authority exists. Never substitute a self-issued commitment.
+## 3. Record pins and accepted policy
 
-  Unsupported telescope/application forms remain fail-closed. Add a fact at
-  the earliest coherent compiler-owned representation; do not reconstruct it
-  from diagnostics or add a nominal stage only to collect private state. D46
-  continues to forbid producer-executable path bytes as review, conflict,
-  lock, or admission identity.
+- [ ] **ACCEPTED-LOCK-SCHEMA.** Implement `omega.lock` with a bounded,
+  deterministic, diffable encoding for source-qualified package identities,
+  immutable revisions/content, root role, requester-local aliases and dependency
+  edges, normalized accepted capability/API/assumption baselines, and explicit
+  project decisions. Scope target-sensitive baselines to the checked target.
+  `PackageInstance`, if useful, names a resolved source instance; verification
+  results and compiled artifacts have separate identities.
+  Acceptance: complete supported graphs round-trip; malformed or inconsistent
+  graphs reject; the baseline is available without the old checkout. The lock
+  needs neither proof certificates nor build/native replay transcripts.
 
-- [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
-  claims about emitted native/external code, ABI/lowering-dependent guarantees,
-  fixed native resources, or profiles requesting final-code replay. Keep
-  ordinary checked capability/API evidence and opaque executable-supply rows in
-  their distinct evidence classes; absence of Terminal evidence grants no
-  Terminal claim.
+- [ ] **LOCK-BASELINE-RECOVERY.** Integrate lock loading with resolution and
+  checking. Locked use preserves exact pins and never silently updates a
+  selector. Verify acquired content against the recorded resolution.
+  A missing acceptance baseline triggers fresh review of the complete graph.
+  Unavailable old source preserves a readable accepted baseline and produces
+  standalone candidate review with an audit recommendation. Unsupported lock
+  formats fail with recovery guidance; regeneration must not silently choose
+  newer revisions. Recompute stale compiler analysis without treating an
+  unchanged acceptance decision as newly certified.
+  Acceptance: fresh checkout, offline cache reuse, missing old source,
+  mismatched content, and stale/incompatible review data have explicit outcomes.
 
-  Complete the wider admitted-provider call forms and post-Psi optimization-
-  projection lanes. Extend `CompilerBuiltinExecution` only for a demanded local
-  target mechanism and keep planner conversion exhaustive.
-  Retain complete standalone-product structures as additional native proposal
-  classes land; do not regress to hidden `CheckedCompilation` state or replace
-  those structures with compact report fingerprints. The accepted package
-  assembler consumes the resulting gate under
-  `PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION`.
+## 4. Review and publish the change
 
-- [ ] **REPRESENTATION-TCB-EVIDENCE.** Complete D26 at independently compiled
-  artifact composition. Rejoin a foreign consumer demand to the producer's
-  reviewed opaque/conformance/carrier declarations and immutable resolved
-  source instance, then reject unequal strong application commitments only at
-  an actual by-value exchange. Add the corresponding `PackageInstance`
-  composition and independently reviewed historical-selection canaries.
-  Extend the landed named-conformance demand vocabulary only when a real
-  compiler-owned target-semantics application, replacement contract, or
-  stable-handle era requires another closed case; do not infer one from
-  size/alignment, compact fingerprints, or review prose.
+- [ ] **CAPABILITY-CONFLICT-TRANSACTION.** Join candidate review, baseline
+  comparison, and project decisions into one recoverable install/update
+  transaction. Capability changes block pending decisions for the exact changed
+  rows, including removals; package-name/source replacement is explicit.
+  Initial dangerous authority and accepted assumptions require review.
+  Ordinary initial API rows have no previous compatibility contract.
+  Recheck candidate identity and project-file versions before committing.
+  Acceptance: unresolved/stale decisions and concurrent edits leave the
+  previously accepted project state intact; interruption cannot leave
+  `build.omg` and `omega.lock` describing different accepted graphs.
+  Decision records identify accepted changes; they do not prove an audit.
 
-## P3 — Recheckable evidence and accepted lock
+- [ ] **AUDIT-RESULT-INTEGRATION.** Present compiler-rendered capability diffs,
+  affected APIs, dependency paths, assumptions, and source changes in the
+  install/update flow. Recommend audits for dangerous initial capabilities and
+  retained filesystem/network or comparable authority on updates, even when
+  the capability set is unchanged. Missing old source receives standalone
+  candidate review. Optional LLM advice cannot suppress compiler findings or
+  replace project decisions; no Y/N rubber-stamp prompt or proof-of-audit
+  receipt. Acceptance: deterministic findings and blockers work without an
+  advisory service; package prose cannot inject instructions into capability
+  triage. External project policy may require stronger review.
 
-Dependency order is strict here. Finish the authority-bearing evidence classes
-required by the supported package surface, then construct `PackageInstance`,
-then implement the accepted-lock codec. The current
-`AcceptedOrdinaryClosureEvidence` is an in-memory gate for its explicitly open
-ordinary lanes; encoding that subset would create a partial lock and is
-forbidden. `LOCK-BASELINE-RECOVERY` and `LOCK-CLOSURE-VALIDATION` begin only
-after the complete current-version lock payload exists.
-
-- [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Complete the authority-bearing later-
-  discharge/open-obligation result and locally recheck every retained
-  certificate required by an ordinary package claim. Add only concrete classes
-  demanded by the supported package surface and finish their final-realization
-  joins. Preserve transitive package ownership, exact open-obligation
-  propagation, and pre-policy rejection. Do not persist the partial lane or
-  add an empty generic certificate framework.
-
-- [ ] **PACKAGE-KEY-AND-INSTANCE.** Introduce the final `PackageInstance` only
-  after exact source and artifact subjects, obligation-semantics identity,
-  locally re-derived discharge results, transitive open assumptions, and root
-  admission decisions exist. Do not revive the deleted caller-constructed
-  placeholder or treat compiler/toolchain provenance as a seal.
-
-- [ ] **RECHECKABLE-PACKAGE-EVIDENCE.** Build the authority-bearing path that
-  compiler review deliberately cannot issue. Bind exact requested source,
-  produced artifact, obligation schema and locally reconstructed obligation
-  set, certificate bundle, derivation provenance, discharge result, and open
-  obligations. Compose dependency results and open obligations transitively;
-  never compose producer admission decisions. Implement concrete
-  certificate-bearing result classes when the compiler owns them,
-  final-realization artifact joins where required, and the persistable complete
-  evidence form; do not add an empty generic certificate framework in
-  anticipation of those lanes.
-
-  Apply **Accepted locks are current-version generated artifacts**. Require
-  exact semantic-schema identity; a mismatch receives complete local
-  reconstruction and fresh admission rather than reuse of old discharge or
-  policy decisions. Missing, stale, dependency-hidden, or admission-laundered
-  evidence rejects under local replay. There is no semantic-schema migration
-  registry or compatibility classifier.
-
-- [ ] **ACCEPTED-LOCK-SCHEMA.** Define and implement the accepted `omega.lock`
-  format over the canonical source-closure question, complete package evidence,
-  root decisions, and exact immutable resolutions. The lock must not contain
-  compiler-private handles, source cache paths, package-authored verdicts, or a
-  compiler/toolchain identity presented as certification. Begin with fixed
-  magic and one outer accepted-lock format version checked before payload
-  allocation or interpretation. That version covers the complete payload
-  contract, including every nested schema and encoding required for acceptance;
-  an incompatible nested change therefore bumps it. Decode only the current
-  version and reject unknown versions with regeneration guidance.
-  **Blocked on:** the required P2 evidence lanes,
-  `RECHECKABLE-PACKAGE-EVIDENCE`, and `PACKAGE-KEY-AND-INSTANCE`. Do not land an
-  outer frame, magic-only file, or codec over
-  `AcceptedOrdinaryClosureEvidence` while those inputs are incomplete.
-
-- [ ] **LOCK-BASELINE-RECOVERY.** Persist and recover accepted baselines with
-  strict canonical framing and immediate local reconstruction. Missing lock
-  evidence means fresh graph admission. Unavailable old source produces a
-  standalone-candidate review packet and audit recommendation; it neither
-  proves an audit occurred nor erases a valid accepted baseline. No review-only
-  capsule may be promoted by renaming it. An unsupported historical lock is
-  retained opaquely for its matching old toolchain or separate audit tooling;
-  current Omega does not migrate or grandfather its acceptance.
-  **Blocked on:** `ACCEPTED-LOCK-SCHEMA`.
-
-- [ ] **LOCK-CLOSURE-VALIDATION.** Revalidate exact source lineage,
-  resolutions, aliases, dependency reachability, obligation schemas,
-  certificates, and open assumptions for the complete closure before any
-  accepted lock is used or replaced.
-  **Blocked on:** `ACCEPTED-LOCK-SCHEMA` and
-  `LOCK-BASELINE-RECOVERY`.
-
-## P4 — Admission policy and review
-
-- [ ] **CAPABILITY-CONFLICT-TRANSACTION.** Integrate row-specific blocking
-  conflicts and root-policy dispositions into one locked install/update
-  transaction. Reopen and revalidate the accepted lock, candidate closure,
-  policy file, and every decision immediately before mutation. Governance
-  metadata may be deployment policy; it must not become proof that an audit
-  occurred. Do not add another review receipt in place of accepted-lock
-  reopen/revalidation and the atomic install/update transaction.
-
-- [ ] **AUDIT-RESULT-INTEGRATION.** Carry the existing deterministic states—
-  no review blocker, no review blocker with audit recommended, blocked
-  capability change, blocked missing baseline, and blocked provenance
-  replacement—through lock and command transactions. Initial install is
-  complete-graph fresh admission, not an unchanged update.
-
-## P5 — Commands
+## 5. Commands and integration tests
 
 - [ ] **OMEGA-INSTALL.** Implement
-  `omega install <source> [--rev <revision>] [--as <alias>]` once the selected
-  candidate can complete the required P2–P4 gates.
-  Fetch, declaration extraction, closure resolution, compiler review,
-  recheckable evidence, conflict handling, deterministic triage, and root-policy
-  decisions must complete before an atomic `build.omg`/`omega.lock` mutation.
-  An advisory reviewer is optional and is not an availability dependency.
-  Failure, a blocking conflict, or a missing required root decision performs no
-  mutation. An audit recommendation is non-blocking unless external project
-  policy makes it blocking.
+  `omega install <source> [--rev <revision>] [--as <alias>]` in
+  `manager/src/operations/`, with a thin CLI entrance. Acquire the repo,
+  discover its declared package name, resolve/check its closure, handle review,
+  and commit the dependency declaration and lock. Support the existing Git
+  HTTPS/SSH and local adapters first; additional stores reuse the same flow.
+  Acceptance: an actual remote package installs and imports through its
+  default alias, with overrides optional and all failure paths recoverable.
 
 - [ ] **OMEGA-UPDATE.** Implement
-  `omega update [package-or-alias...] [--to <revision>]` once the selected
-  candidate can complete the required P2–P4 gates. Resolve from the accepted
-  lock, block exact blocking-row changes and declared-name/source-lineage
-  replacement pending root decisions, render other typed provenance drift as
-  review evidence, recommend audit for retained dangerous authority, and
-  publish atomically after final revalidation.
+  `omega update [package-or-alias...] [--to <revision>]` over the same
+  transaction. Acceptance: selected updates respect existing pins for
+  unaffected packages, explain resolution conflicts, block capability changes
+  pending decisions, recommend audit for retained dangerous authority, and
+  commit the reviewed graph only.
 
-- [ ] **OMEGA-AUDIT-PACKAGES.** Render the accepted graph and current source
-  state: immutable lineage/pins, dependency paths, declared and realized reach,
-  authority flow, provider/trust/proof state, dangerous slack,
-  admission-relevant build replay evidence, deterministic audit
-  recommendations, exact root-policy dispositions, and the first failed
-  provenance edge. Exclude source-helper execution telemetry, and never render
-  reviewer metadata as evidence that an audit occurred or was serious.
+- [ ] **OMEGA-AUDIT-PACKAGES.** Render the selected graph, exact pins, accepted
+  baseline, freshly checked reach/API/assumption findings, and dependency paths.
+  Clearly distinguish accepted policy from current compiler findings and
+  unavailable analysis. Acceptance: users can identify which package and API
+  introduces dangerous authority; the output makes no claim that lock authors
+  performed an audit.
 
-## P6 — Source integration and fixtures
+- [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Exercise install/update through the
+  real command and network adapters using pure, dangerous, capability-changing,
+  same-name/different-source, transitive-authority, and generated-source
+  fixtures. Cover missing baselines/old source, invalid proofs, spoofed
+  boundaries, concurrent edits, and interruption recovery.
+  Run relevant package, resolver, compiler-handoff, and architecture checks.
+  On supported Windows workers run process-tree cleanup and Job Object
+  resource-limit canaries, reporting unavailable platforms explicitly.
+  Acceptance: successful commands publish usable dependencies and every failed
+  stage preserves or recovers the previously accepted state.
 
-- [ ] **WINDOWS-RESOLVER-CANARIES.** Run the compiled Job Object exhaustion
-  controls and negative cases on a native Windows worker and retain the results
-  in the normal test lane.
+## Compiler integration ownership
 
-## P7 — Cross-system package work
-
-These tasks consume settled language and architecture decisions across package,
-compiler, and runtime owners. A task that still needs an owner decision says so
-explicitly.
-
-- [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
-  - [ ] complete physical movement/lifecycle planning, including D44's
-    transitive inert-carrier proof and multiplicity checks;
-  - rejoin landed consumer demand to foreign producer-availability rows and
-    immutable source, and preserve strong application equality at actual
-    independently compiled by-value composition edges;
-  - bind the application into artifacts, replacement compatibility, stable-
-    handle era rules, and independently replaceable provider contracts;
-  - add compiler-sealed `Ptr<T>` target-semantic closure plus proof-only `Real`,
-    `EfiSystemTable`, provider drift, replay drift, and cleanup/multiplicity
-    canaries.
-
-- [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role through
-  authority-bearing outputs.**
-  - retain `{ PackageKey, BuildDeclarationKind }` through accepted lock rows,
-    command diagnostics, and audit output;
-  - add package/application replay, tampering, and role-change fixtures as each
-    accepted-lock, command, and audit boundary lands.
-
-- [ ] **PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION — finish accepted
-  publication around retained reviewed production.**
-  - join the retained unpublished native artifact to complete recheckable
-    package evidence and accepted-lock state after the remaining P2 authority
-    and final-realization lanes close;
-  - consume the application-root `PackageKey`, authored role, and exact
-    requested-target identity under the settled exact-target invocation
-    contract in D42/D54; and
-  - publish only after exact source/build/generated/native comparison and
-    `PackageInstance` construction succeed.
-
-- [ ] **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS.** Finish the
-  ordinary-package std migration without recreating a privileged `std` role.
-  Only core and genuinely compiler-injected vocabulary remain toolchain-owned;
-  std may be replaced, split, or absent. Removing its graph edge must reject
-  every std import or provider selection, and no name, alias, path, repository,
-  filename, or same-spelled declaration may restore it.
-
-  Remaining work:
-
-  - migrate remaining package-aware fixtures to explicit std dependency edges;
-    freestanding UEFI package roots remain dependency-free, and standalone
-    source fixtures stay on the compatibility path until they acquire package
-    roots;
-  - close the remaining composed-Unit plans exercised by trait-default,
-    float, wire, arithmetic-helper, guarded-call, and looping-cast canaries.
-    Mutable structural-parameter realization remains blocked on
-    `OWNER_QUESTIONS.md` Q2; the non-Linux Console canary needs a target-correct
-    physical catalog entry;
-  - replace the remaining standalone std/alloc `Toolchain` compatibility
-    classification only after every compiler consumer has an exact
-    source-byte catalog entry or accepted semantic role; a new label derived
-    from directory location is not a security boundary;
-  - feed every accepted semantic binding, including Console, Filesystem, and
-    UEFI, through lock replay into normal package-aware compilation;
-    **Blocked on:** `ACCEPTED-LOCK-SCHEMA`, `LOCK-BASELINE-RECOVERY`, and
-    `LOCK-CLOSURE-VALIDATION`. Do not create a partial lock codec to move them.
-
-  Do not substitute a package name, alias, repository, path, filename, or bare
-  `PackageKeyIdentity` for an exact accepted binding. Do not expand Build facets
-  without a concrete package-build consumer.
-
-- [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md` after its
-  canonical compiler work lands: make selected package invocation replay the
-  installed execution and era. Do not synthesize a requirement or satisfier
-  edge from equal reach, bodylessness, catalog presence, or build policy.
-
-## P8 — Final release gate
-
-- [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Before enabling mutation, rerun the
-  complete package, package-evidence, package-compilation, resolver, compiler
-  handoff, platform-native, fixture, recovery, and architecture suites. Define
-  the exact expected-ignore allowlist and retired surfaces, require no physical
-  std special-casing or unresolved canonical evidence rows, and verify a clean
-  atomic failure path for every install/update stage.
+`TASKS.md` owns independently compiled generic/representation composition,
+opaque ABI and lifecycle, native publication, and ordinary std migration.
+`TASKS_OPTIMIZER.md` owns allocation, frames, optimization, and physical replay.
+Their results enter package review when relevant, but completing all of them
+is not a prerequisite for source install/update. A lock decision cannot excuse
+an invalid program or an unsupported native guarantee.

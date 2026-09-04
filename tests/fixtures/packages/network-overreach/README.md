@@ -7,6 +7,5 @@ Expected package evidence:
 
 - declared network reach is present;
 - body reach is lower than the declaration;
-- strict admission profiles may reject it, while warning profiles can admit with
-  a supply-chain warning.
-
+- review exposes the gap for an accepted-baseline decision; the lock records
+  that decision without requiring a certified admission profile.

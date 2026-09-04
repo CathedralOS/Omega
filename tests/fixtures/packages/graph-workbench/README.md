@@ -9,6 +9,6 @@ Expected package evidence:
 - dependency aliases include `arithmetic_kernels` and `file_journal`;
 - transitive audit reports the path through `file_journal` for filesystem
   reach;
-- package policy admits or rejects the final transitive set, not individual
-  edges in isolation.
-
+- review presents the complete transitive set for a baseline decision;
+- the lock records that decision under the authority of whoever lands it,
+  without certifying package or lock acceptance.

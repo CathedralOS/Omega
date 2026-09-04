@@ -231,8 +231,8 @@ artifact replacement live under `tools/bootstrap/`. The removed
 Epsilon-to-Delta/native-publication tree is not a validation precedent.
 
 The package library now lives at `source/library/`. The relocation deliberately
-has no compatibility symlink. Package-manager task
-`OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS` still owns removal of the
+has no compatibility symlink. Compiler task
+`OPTIONAL-STDLIB-SEMANTIC-BINDINGS` in `TASKS.md` owns removal of the
 temporary physical-path readers that were updated to this location during the
 move. The final implementation resolves std only through the package graph and
 keeps the compiler-owned build protocol independent of whether std exists.

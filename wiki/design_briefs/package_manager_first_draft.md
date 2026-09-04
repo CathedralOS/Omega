@@ -1,6 +1,6 @@
 # Design Brief: Package Manager First Draft
 
-Status: working design record, 2026-08-30. This brief preserves design context
+Status: working design record; package scope and lock trust revised 2026-09-04. This brief preserves design context
 while implementation vocabulary settles. Where it conflicts with
 `build_and_package_model.md` or a current subsystem contract, those current
 documents govern.
@@ -14,8 +14,17 @@ from the fetched package, derives security evidence with the compiler,
 reconciles the complete closure, and admits the result before changing project
 or lock state.
 
-The package manager does not accept package-authored capability manifests or
-caller-authored package identities as evidence.
+The project trusts whoever edits and lands its lock. `omega.lock` records
+selected sources and accepted capabilities/assumptions; it is not a source of
+trust, proof of an audit, or a package certification target. Compiler findings
+come from checking the selected source, not from trusting a dependency's
+self-description. Lock acceptance cannot make an invalid proof valid.
+
+The implementation goal is one usable resolve/check/compare/review/commit
+workflow. Native code generation, ABI completion, physical proof replay, and
+std migration belong to compiler work. They do not globally block source
+install/update. Unsupported candidates must report their missing checks rather
+than receiving fabricated empty authority reports.
 
 The security invariants in this brief are firmer than its implementation
 vocabulary. The implementation should reuse the smallest coherent Omega
@@ -74,11 +83,10 @@ Three identities remain deliberately separate:
   graph, lock, and nominal-symbol identity across updates. Git lineage names the
   canonical repository namespace and excludes the requested revision, resolved
   commit, tree, and content; those belong to `PackageInstance`.
-- `PackageInstance` joins the key to exact source content, produced artifact
-  identity, each closure subject's obligation-semantics identity, locally
-  re-derived discharge results, and disclosed open assumptions. Exact
-  certificate routes and compiler/toolchain identity remain derivation and
-  review provenance rather than semantic authority.
+- `PackageInstance`, if retained, joins the key to one immutable source
+  resolution and selected workspace member. It is ordinary source identity.
+  Compiled artifacts, verification results, and project decisions remain
+  separate; the instance is not sealed or certified.
 
 `PackageKey` is shared by package and application declarations because both
 supply the same name and source-lineage inputs. Importability is a role rule,
@@ -357,9 +365,9 @@ then executes exactly once and joins only explicit Output-rooted
 `include_source` handoffs to retained staged-tree bytes. Those bytes receive
 ordinary final parsing, resolution, typing, checking, and the repeated
 selection gate without rerunning dependency discovery or build execution. The
-native-image command remains gated until
-`PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION` consumes the same sponsored
-package transaction.
+native-image command must preserve the same checked source and generated-source
+inputs through publication. That compiler task is separate from committing
+source dependencies and their accepted capability baseline.
 
 When a later package consumes that dependency, review orchestration does not
 reopen Output or rerun `build.omg`. Dependency-first compilation retains one
@@ -396,8 +404,9 @@ This gate intentionally reads the earliest coherent private typed/probe state
 where those facts exist. It is compiler-internal and may move with the compiler;
 it neither waits for Terminal Psi nor creates nominal Chi. A distinct stage is
 warranted only by a real shared invariant, transformation boundary, or
-independent consumer. Production package mutation remains disabled for the
-remaining public-expression and authored conformance/cleanup coverage.
+independent consumer. Candidates with incomplete public-expression or conformance/cleanup authority
+coverage reject specifically. Such gaps do not block unrelated supported
+candidate transactions.
 
 Nominal type spellings now enter the same ledger at symbol-resolved-to-typed
 lowering, where both the exact symbol and declaration exposure are coherent.
@@ -446,46 +455,34 @@ and fail closed at package admission.
 
 ## Authored requests versus accepted lock state
 
-`build.omg` records update intent: source locator, revision selector, explicit
-alias override, targets, roots, providers, and build orchestration. `omega.lock`
-records the accepted resolution: exact commits/trees/content, `PackageKey`, the
-selected root's explicit package/application role, `PackageInstance`, dependency
-closure, per-subject obligation-semantics and
-evidence-schema identity, exact certificate provenance, normalized capability
-baseline, transitive open obligations, build observations, and policy-resolution
-references. Cross-invocation compatibility is governed by those semantic
-identities and the explicit review and row encoding versions. The bytes
-readable through the running process's executable pathname are not review,
-lock, conflict, or admission identity.
+`build.omg` records source requests and build orchestration. `omega.lock`
+records exact immutable resolutions, source-qualified package identity, root
+role, dependency/alias edges, and the project's normalized accepted
+capability/API/assumption baseline and decisions. Persist the baseline itself so
+updates can explain changes even when the old source is unavailable.
 
-The lock contains independently populated closure/review sections for exact
-target-profile identities. The projected request map is complete for each
-fetched package, but an unresolved dependency's transitive map remains unknown.
-Ordinary resolution populates the selected profile column; an explicit command
-may populate all columns. Locked use of an absent column fails without network
-access. Common immutable instances may deduplicate across columns, while an
-inactive retained column grants no current resolver, import, build, alias, or
-capability authority.
+The lock is generated project state normally committed alongside `build.omg`.
+The project trusts whoever lands it. Format checks, pin/content verification,
+graph consistency, and concurrency checks protect correct operation; none
+certifies that the author deserves trust or performed an audit. Proof
+certificates, native artifacts, build replay transcripts, and reviewer receipts
+are not required lock contents.
 
-The compiler always builds from the lock and never silently re-resolves a
-mutable selector. `omega.lock` is generated but should normally be committed;
-source caches and expanded artifacts may be ignored. A fingerprint alone is
-not an admission baseline: the lock must embed the normalized accepted security
-projection or retain a mandatory content-addressed copy.
+Target-sensitive baseline sections cover only exact targets actually checked.
+Source resolution may be shared; a baseline for one target does not cover
+another. Missing target analysis is recomputed explicitly, and locked/offline
+operations fail with a diagnostic when required inputs are unavailable.
 
-The accepted lock begins with fixed magic and one outer format version. Omega
-checks both before allocating for or interpreting the remaining payload. The
-outer version covers the complete accepted payload contract, including its
-nested source-subject, reconstruction-question, obligation, review, and row
-schemas and encodings. Any incompatible nested change bumps the outer version.
-The ordinary decoder accepts only its exact current version; an unknown version
-rejects with guidance to regenerate `omega.lock` from the exact source closure.
-The payload's own identities remain available for internal reconstruction and
-corruption diagnosis, but they are not a multi-version compatibility surface.
-This codec begins only after the supported authority-bearing evidence and
-`PackageInstance` are complete. The narrower in-memory ordinary acceptance gate
-is not a lock payload candidate; persisting it, or landing a magic-only outer
-frame around it, would create partial accepted state.
+Use bounded deterministic framing and explicit format/baseline versions with
+concise diffs. Reject unsupported versions with recovery guidance; do not
+silently update source pins during recovery. Missing or uninterpretable
+acceptance baselines require fresh review. Stale analysis is regenerated by
+the compiler without pretending that it certifies the recorded decision.
+
+Implement the lock for the complete supported source-package surface. The
+older prohibition on a lock until every artifact/evidence class and a certified
+`PackageInstance` exist is removed. A source install/update must still check its
+candidate, resolve blocking changes, and publish consistently.
 
 The first resolver does not solve semantic-version ranges. Requests for the
 same `PackageKey` that reach the same immutable source resolution deduplicate,
@@ -845,8 +842,8 @@ interface; proposition-valued contract-call static arguments remain a separate
 incomplete form. Generic proposition law conformance now compares the exact
 normalized proposition declaration and structural application; rendered labels
 are diagnostic only, and a same-spelled foreign endpoint cannot discharge the
-selected law. This compiler result still does not become standalone package
-proof until it is carried by the total recheckable package evidence artifact.
+selected law. Separately compiled proof reuse must retain and check its exact
+obligation; source review can consume the current compiler result directly.
 Review v51 and canonical row v11 admit the four compiler-owned byte-sequence
 predicate calls in public contract facts. The checked authored-selection row
 now retains the exact closed predicate instead of one undifferentiated
@@ -1403,9 +1400,9 @@ replay. Its canonical installation record now retains exact final section
 placement, initialized-data commitment, table/slot custody, and rebound-call
 custody. The normalized loader replays sealed entry/data relocations in one
 frozen immutable extent and the terminal join compares exact unrelocated and
-materialized text/data bytes. It still does not publish a D32 package-native
-artifact: package-transaction/accepted-lock publication and the independent
-multi-block Console continuation remain unfinished. The installed-data seam is
+materialized text/data bytes. Native artifact publication and the independent
+multi-block Console continuation remain unfinished compiler work, separate
+from source install/update and its accepted lock. The installed-data seam is
 no longer that boundary; mutable general data and BSS remain outside this
 bounded lane.
 
@@ -1453,9 +1450,9 @@ boundary.
 The legacy 64-bit machine-contract fingerprint has left package-review bytes,
 so private state-machine shape no longer contaminates public package contract
 identity. Exact crash, reach, invocation, termination, signature, and
-conformance rows remain independently encoded. The remaining unsupported
-contract forms and exact proof/admission dispositions must land before the
-projection can be sealed.
+conformance rows remain independently encoded. A candidate using unsupported
+contract forms or unresolved proof dispositions rejects with a specific
+diagnostic; those gaps do not prevent review of supported candidates.
 
 The eventual normalized package-admission evidence must include, with exact
 provenance:
@@ -2112,9 +2109,9 @@ retains each supported checked implementation as a blocking open-later-
 discharge row. The row binds the complete machine-contract commitment, so a
 hypothesis change cannot hide behind an unchanged displayed goal. Unsupported
 canonical projection still rejects fail-closed.
-Accepted and opaque supply remains in the trust lane. Sealing and any exact
-later-discharge ledger are still unfinished; a successful ordinary compilation
-is not by itself a complete proof verdict. Checked proofs are rechecked by the
+Accepted and opaque supply remains in the trust lane. Exact later discharge
+remains unfinished compiler work; ordinary compilation success cannot hide an
+unresolved proof obligation. Checked proofs are rechecked by the
 proof kernel. Terminal propagation remains necessary only when an admitted row
 actually makes a final-realization claim.
 Accepted axioms and opaque boundary claims must remain explicit trust-bearing
@@ -2123,8 +2120,9 @@ proof. Boundary realization must use exact package-qualified nominal identities
 and reject same-spelled declarations from another lineage. Currently the
 compiler joins package identity for the realizing machine, provider type,
 selected service schema, and requirement owner into provider plans and provider
-trust rows. Provider binding/selection identities and sealed admission evidence
-remain unfinished.
+trust rows. Complete provider binding/selection identities remain unfinished;
+the package checker must reject a candidate whose selected authority cannot be
+identified. No separate sealing stage is required to accept a supported report.
 
 Risk classification must be compiler-owned metadata attached to exact admitted
 boundary/capability identities. It must never be inferred from
@@ -2330,10 +2328,10 @@ schemas and operation-specific lanes, parent-observation association, and all
 resource ceilings including aggregate replay bytes. The association is also a
 consistency check rather than authenticity. It is deliberately a non-admitting checkpoint: no API converts it to
 `PackageInstance`, a conflict resolution, project mutation, or accepted lock.
-The future lock may contain the same normalized material only after a consumer
-reconstructs the exact source-and-artifact obligations, checks the retained
-certificates, propagates every dependency's open obligations, and records its
-own admission decisions. Producer provenance cannot promote the checkpoint.
+The lock may reuse normalized baseline rows once the command has checked the
+candidate and recorded the project's decisions. Certificates or producer
+provenance are not prerequisites for recording acceptance. A review checkpoint
+alone is not a project decision.
 
 Useful result states include:
 
@@ -2350,156 +2348,35 @@ reason text. Those are governance records, not compiler facts.
 
 ## Re-derivable package evidence
 
-A compiler-issued review is permanently review-only. A package instance is
-sealed only when a consumer takes the exact requested source, exact produced
-artifact, canonical semantics, and subject-specific evidence schema;
-reconstructs the complete obligation set; and checks the exact retained
-certificates. The stored result is a cache of that reproducible check rather
-than authority supplied by either compiler or verifier. Certificate identity,
-proof route, and checking dependencies remain derivation provenance outside
-semantic compatibility identity.
+Compiler review reports checked facts about the selected source graph. The
+checker may use private pre-Terminal representations where the relevant
+semantics are complete. No new Chi stage or native executable is needed merely
+to review reachability.
 
-The ordinary produced artifact is the complete versioned package-admission
-semantic row set under one exact package key, target, dependency closure, and
-obligation schema. It is neither native code nor a renamed compiler review.
-Review may carry candidate bytes in the same canonical vocabulary, but a
-consumer gives them force only by independently reconstructing the total set
-from exact source and comparing bytes exactly. Source, proof route, compiler
-observations, and local decisions remain separately bound. No review schema,
-including the current one, can be promoted merely because the future artifact
-reuses its row vocabulary.
+Keep genuine compiler verification: invalid proofs and undeclared reach reject;
+selected providers have exact package-qualified identities; open obligations
+and accepted boundary assumptions remain visible through dependencies. A root
+decision can accept a disclosed assumption only where the language allows it,
+not excuse a failed proof.
 
-That local reconstruction may read the earliest coherent compiler-owned IR in
-which an obligation is semantically complete, including private pre-Psi or
-pre-Terminal state. The checker is part of the compiler and may move with those
-internals; only its versioned canonical obligation ledger and exact replay
-subjects cross the persistence boundary. There is no nominal Chi stage merely
-to stabilize this seam. Add one only if implementation discovers a genuine
-reusable semantic boundary, and prefer an existing coherent stage such as Exact
-when it can carry the same meaning with less machinery.
+The accepted baseline records what the project agreed to use. It is distinct
+from a fresh compiler analysis, but no certificate is needed to promote one to
+the other. A transaction binds decisions to the reviewed candidate and stores
+the resulting baseline. On later use, the project trusts those decisions and
+checks the selected code with its compiler.
 
-The current ordinary reconstruction ledger binds the exact source-path-free
-dependency closure consumed by package-aware compilation alongside package,
-target, and canonical rows. It is projected only from validated compiler inputs
-and retains every reachable package identity and requester-local alias edge,
-but no separately copied package display name, source root, immutable
-resolution, or source byte. Each opaque package identity still binds its
-declared name and source lineage. Recovered row envelopes must be joined to that
-separately reconstructed closure. Renaming an unused alias or adding/removing an
-unused reachable package invalidates ledger equality; relocating the same graph
-does not. The ledger's obligation-semantics schema is explicit and independent
-from its outer codec and review-row versions. A bounded canonical whole-ledger
-frame carries the schema, package, target, complete package/alias closure, and
-exact rows. Decode rejects unsupported vocabularies, malformed or noncanonical
-graphs and row framing, resource-limit violations, and trailing state. Row
-payload meaning remains opaque until exact local reconstruction. A domain-
-separated fingerprint names this complete framed replay question, and compiler-
-issued closure review retains the locally reconstructed ledger under one 64 MiB
-aggregate session ceiling. Neither decode nor a matching fingerprint
-establishes a discharge result. This closes a schema-bound subject coordinate
-in the current replay gate, not transitive certificate/open-obligation
-composition or lock authority.
+Existing ledgers, reconstruction-question types, review capsules, and
+`AcceptedOrdinaryClosureEvidence` contain reusable checks and data. They are
+not a required ladder of trust. Simplify wrappers and repeated same-process
+reconstruction when they serve no source/graph/target/decision consistency
+invariant. Keep optional review checkpoints only where they support resuming
+real work; do not require a second baseline archive next to the lock.
 
-Resolved-source custody separately retains the exact validated root request and
-exposes a zero-copy request-set view that joins the root plus every requester-
-owned dependency row, by authored ordinal, to the selected package key and
-immutable resolution. Distinct selectors converging on one package are
-therefore not collapsed into a fabricated primary request. Aliases remain
-requester-local edge names; transport observations remain provenance rather
-than package identity. Git adapters now follow this path for both repository
-roots and declared named workspace members. They preserve acquisition and
-package selection independently from the resolved commit/tree/content tuple,
-share exact acquisitions within one traversal, and confine member-relative Path
-rows to the verified root's declared members. This is resolver custody only—not lock
-encoding, compiler evidence, admission, or `PackageInstance` construction—and
-the ordinary obligation ledger intentionally remains source-selector-free.
-Git dependency requests now normalize omitted selection to `Root` and retain
-explicit `Named(PackageName)` selection in this custody.
-
-The versioned `CanonicalSourceClosureSubject` is the bounded canonical form of
-that source-selection question. It retains the exact root request and every
-requester/ordinal dependency occurrence, resolved alias, selected package key,
-immutable resolution, content identity, and one stable root/member navigation
-value per package. Version 3 binds both root and dependency package selectors;
-cache and snapshot paths remain excluded. Recovery reconstructs one strictly
-ordered closed graph and rejects malformed, mismatched, noncanonical, or over-
-limit state. Its fingerprint names the question only: use requires independent
-resolution and snapshotting followed by complete reconstruction and exact
-equality. Snapshot/cache paths, raw source bytes, transport execution
-observations, compiler-consumption/build observations, artifacts, certificates,
-admissions, and open obligations remain separately bound. This is neither an
-accepted lock nor a package instance. Package selection is an explicit request
-coordinate and does not change repository source identity.
-
-`CanonicalPackageReconstructionQuestion` is the first canonical association of
-that source-selection question with the current ordinary obligation questions.
-It retains the complete source-subject bytes and, in strict full-`PackageKey`
-source order, one complete canonical ledger frame for every package. Each
-ledger root, target, transitive package set, and requester-local alias edge must
-match the closure independently derived for that package; missing, foreign,
-swapped, colliding-identity, mixed-target, or graph-drifted associations reject.
-Fresh matching reconstructs the aggregate from current resolver custody and a
-new compiler-issued review set. Decode and the aggregate's domain-separated
-fingerprint remain inert: the type contains no compiler pedigree, build
-observation, artifact, certificate, result, open obligation, admission,
-accepted-lock state, or `PackageInstance` promotion route.
-
-The current ordinary result lanes are deliberately smaller than accepted
-evidence. For every bodyless accepted claim, dangerous authority, and opaque
-external executable supply, local reconstruction rejoins the typed compiler
-fact to its matching canonical obligation row and assigns
-`OpenRootAdmission`. A freshly rederived contract-entailment stand-down instead
-becomes `OpenLaterDischarge`, keyed by exact callable and contract/fact
-positions and bound to the complete machine-contract commitment, projected
-goal, and closed reason. The manager composes all open obligations over the
-exact reconstruction question; a dependency obligation reaches the selected
-root with its original package owner. Root policy can resolve only root-
-admission lanes. Any open later-discharge result rejects before policy and can
-never enter accepted evidence. No certificate or producer decision is
-representable, and the result has no codec, lock-promotion route, or
-`PackageInstance` constructor.
-
-Terminal Psi now provides the first concrete replay ledger: one ordered,
-owner-tagged set covers executable operations, call and nominal-cleanup
-requirements, and contract guarantees, retaining each exact proposition,
-obligation class, assumption list, and reconstructed axiom order. The verifier
-consumes and retains that set. Its canonical bytes bind exact Terminal-Psi and
-source-backed verifier trust-graph identities but exclude proof route, so
-different valid certificates preserve semantic identity. A decoded producer
-ledger is accepted only after exact local reconstruction. This remains a narrow
-Terminal component. Its artifact manifest retains a separate ledger fingerprint,
-and replay lowering consumes semantic, ledger, and proof sections in that order.
-It is not whole-package evidence or lock authority.
-
-Compiler-owned native builtins are not package provider executions. The first
-complete lane rejoins a demanded Linux `exit_group(i32)` proposal to one exact
-selected intrinsic row, one Terminal boundary, and the consuming lowerer's
-local ELF catalog. Physical custody retains the closed role
-`CompilerBuiltin(LinuxExitGroupI32)` through image and installation framing
-while provider-execution reports remain empty. Installed and foreign
-implementations continue through their separate admitted-provider role. The
-planner-to-lowerer catalog conversion is one exhaustive `match` returning an
-optional `CompilerBuiltinExecution`, and the admitted D41 settlement remains
-complete replay input for its D32 physical child rather than collapsing to a
-commitment.
-
-Dependency evidence composes transitively. Each subject retains its own
-obligation-semantics identity. Checked obligations compose upward. Missing or
-unproved obligations also compose upward as open rows, never as a producer's
-already-accepted decision; each consuming project applies its own admission
-policy. Accepted locks and evidence are exact-current generated artifacts. A
-semantic-schema mismatch forces complete local reconstruction and fresh
-admission; no old discharge or policy decision is reused. Unsupported lock
-versions reject and regenerate rather than entering a compatibility or
-migration classifier. Historical bytes may be retained for their matching old
-toolchain or separate audit tooling, but current admission never grandfathers
-them. Unavailable old source continues through standalone review and audit
-recommendation rather than migration.
-
-Mechanical verification, local admissions, and producer metadata are separate
-report sections. A `verified` verdict contains only locally re-derived facts.
-Compiler/toolchain closure, reproduction, signatures, and audit records remain
-useful provenance but never appear as support for that verdict.
+PCC and native replay retain their actual compiler propositions. Store or
+regenerate that material through compiler artifacts and caches when a consumer
+needs it. D29 substitution, D26 representation agreement, and D32/D41 physical
+realization remain compiler work. They are not prerequisites for recording
+source dependencies whose authority can already be checked.
 
 ## Audit authority and compiler provenance
 
@@ -2511,8 +2388,8 @@ was understood, that an LLM resisted manipulation, or that an upgrade is safe.
 
 The people and infrastructure allowed to land accepted project state remain an
 outer trust boundary. Package review is regenerated locally so a dependency
-cannot declare its own capability result; package acceptance reconstructs the
-question and checks the certificates. In the current pipeline the package
+cannot declare its own capability result. The lock records the project's
+decision, trusted from whoever landed it; it is not an auditable proof target. In the current pipeline the package
 manager drives that compiler review inside the same `omega` process, so this is
 an internal canonical and semantic consistency check, not isolation from the
 compiler executable. Obligation-semantics, evidence-schema, review-encoding,
@@ -2534,8 +2411,9 @@ manufacture a portable “proof of audit.”
 
 The `omega-package-manager` release surface now contains reviewed corrected-model
 building blocks for immutable source custody, typed identity and closure,
-compiler handoff/review, exact row conflicts, and review-only triage. Its final
-admission model is not yet accepted. The legacy manifest, name-keyed lock,
+compiler handoff/review, exact row conflicts, and review-only triage. The ratified
+acceptance model above still needs transaction integration. The legacy manifest,
+name-keyed lock,
 whole-section receipt, caller-constructed instance, and install/update
 scaffolding and standalone dependency scanner were deleted rather than retained
 as compatibility paths. Standalone compilation now resolves only ordinary
@@ -2552,8 +2430,11 @@ reintroduce or depend on any path that:
 - syntactically scan dependency calls while silently skipping malformed
   dependency builds.
 
-The corrected recheckable evidence, accepted-lock, and transaction paths must
-exist before `omega install` or `omega update` can mutate project state.
+The lock and recoverable transaction paths still need implementation.
+Existing source acquisition, checked review, comparison, and decision handling
+should feed those commands directly after redundant certification prerequisites
+are removed. Unsupported candidates reject specifically. Native compilation
+and its artifact guarantees remain separately enforced.
 
 ## Test packages
 

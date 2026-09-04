@@ -12,7 +12,15 @@ packages/
 └── review/               compiler-issued facts and optional audit advice
 ```
 
-The ordinary flow is:
+The ratified install/update model is ordinary repository acquisition and graph
+resolution, with compiler-derived reachability, unsafe API, and assumption
+review. `omega.lock` records exact pins, the graph, accepted review baselines,
+and decisions. The project trusts whoever lands that file. Installation does
+not require a sealed or certified `PackageInstance`, or certificates proving
+lock acceptance. Compiler proof/reach checks and native artifact checks remain
+independent of installation.
+
+The current implementation flow is:
 
 ```text
 build.omg declaration
@@ -21,13 +29,15 @@ build.omg declaration
     -> compiler checks the selected closure
     -> review records and compares compiler-issued facts
     -> manager admission rechecks custody, evidence, and root-owned policy
-    -> operations apply transaction rules
+    -> operations return review results or continue retained native compilation
 ```
 
-No supporting crate admits a package. Source custody does not imply trust,
-review evidence does not imply acceptance, and advisory output cannot alter
-policy. Complete operations belong only to `manager/`; the `omega` binary
-delegates to those operations rather than rebuilding package policy.
+The manager's additional evidence-promotion and policy-replay machinery exists
+today, but is redundant machinery to simplify, not a required future stage of
+install/update. Source verification and compiler checks retain their own
+purposes. Review evidence does not prove acceptance or that an audit occurred,
+and advisory output cannot alter policy. Complete operations belong only to
+`manager/`; the `omega` binary delegates to those operations.
 
 Design and security references:
 
