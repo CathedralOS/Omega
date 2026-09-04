@@ -30,7 +30,7 @@ use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     boundary trait PortIo {}
-    data Receipt [linear] { value: u64; }
+    pub data Receipt [linear] { value: u64; }
 
     boundary machine Receipt::settle(self)
     reaches PortIo
