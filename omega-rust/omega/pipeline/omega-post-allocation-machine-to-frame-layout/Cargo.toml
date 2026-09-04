@@ -1,0 +1,21 @@
+[package]
+name = "omega-post-allocation-machine-to-frame-layout"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_post_allocation_machine_to_frame_layout"
+path = "src/lib.rs"
+
+[dependencies]
+omega-callee-saved-requirements-to-save-storage = { path = "../omega-callee-saved-requirements-to-save-storage" }
+omega-machine-optimizer = { path = "../omega-machine-optimizer" }
+omega-register-homes-to-callee-saved-requirements = { path = "../omega-register-homes-to-callee-saved-requirements" }
+omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
+omega-target = { path = "../../representations/omega-target" }
+omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+sha2 = "0.10.9"
