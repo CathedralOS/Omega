@@ -156,6 +156,14 @@ needed for independent replay through publication.
   requirements artifacts
   remain non-authoritative until that replay succeeds.
 
+  The Unit baseline route in `omega-optimization-pipeline` emits a bare AArch64
+  `ret` with no function-lifetime frame, so the object boundary in
+  `omega-image-emission` rejects it as `MissingAarch64UnitReturnLink`; the
+  ordinary route allocates that frame and saves the link register
+  unconditionally. Acceptance: an empty machine selected for optimization
+  reaches AArch64 native custody carrying the same frame and link-register
+  save/restore the ordinary route emits.
+
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
   scalar and structural calls on each ABI.
