@@ -181,13 +181,18 @@ Must own:
   parameter, or immediately preceding fixed-integer ordinary/selected call
   result assignment may instead target a relevant
   primitive field below the machine's sole mutable or write-only structural
-  parameter. Every carrier segment must be a common record field in a plain,
-  invariant-free, nongeneric, nonquotient data shape, and the complete mutation
-  frame must contain exactly that destination. The checked operation retains
-  the parameter position, ordered carrier-field identities, final field
-  identity and primitive type, and the exact source expression. A direct root field
-  has an empty carrier path; a nested record field retains every enclosing
-  field. No referent read is introduced.
+  parameter. Before the optional literal index, every carrier segment must be
+  a common record field in a plain, invariant-free, nongeneric, nonquotient data
+  shape. The complete mutation frame must contain exactly that destination, or
+  the sole containing-array field for the indexed form. The checked operation
+  retains the parameter position, ordered carrier-field identities, final
+  field identity and primitive type, and the exact source expression. A direct
+  root field has an empty carrier path; a nested record field retains every enclosing
+  field. One additional form retains a common-field prefix followed by one
+  in-bounds literal fixed-array index and a final relevant primitive field of
+  its closed material `[copy]` record element. The caller-visible mutation
+  summary remains conservatively rooted at the containing array field while
+  the executable store carries the exact index. No referent read is introduced.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Bounded installation-row facts keyed by exact boundary-requirement path,
   including the declared service upper bound, symbolic dependencies through

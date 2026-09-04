@@ -66,8 +66,9 @@ pub(super) fn build_structural_scalar_field_store(
     if destination.access != expected_access {
         return None;
     }
-    let mut field_owner = crate::field_domain::data_definition_for_field_type(program, *referee)?;
-    if !plain_record(field_owner, program) {
+    let mut carrier_type = *referee;
+    let root_owner = crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+    if !plain_record(root_owner, program) {
         return None;
     }
     let place = crate::flow::canonical_place_from_expression_in_state(
@@ -87,24 +88,49 @@ pub(super) fn build_structural_scalar_field_store(
         return None;
     };
     let mut carrier_path = Vec::with_capacity(carrier_segments.len());
+    let mut reached_array = false;
     for segment in carrier_segments {
-        let psi_facts::PlaceSegment::Field { symbol } = segment else {
-            return None;
-        };
-        let carrier = exact_relevant_field(program, field_owner, *symbol)?;
-        if !crate::field_domain::domain_constraint_symbols(program, carrier.type_reference)
-            .is_empty()
-        {
-            return None;
+        match segment {
+            psi_facts::PlaceSegment::Field { symbol } if !reached_array => {
+                let field_owner =
+                    crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+                if !plain_record(field_owner, program) {
+                    return None;
+                }
+                let carrier = exact_relevant_field(program, field_owner, *symbol)?;
+                if !crate::field_domain::domain_constraint_symbols(program, carrier.type_reference)
+                    .is_empty()
+                {
+                    return None;
+                }
+                carrier_path.push(CheckedUnitStructuralPathSegment::Field(
+                    terminal_field_identity(program, carrier.symbol)?,
+                ));
+                carrier_type = carrier.type_reference;
+            }
+            psi_facts::PlaceSegment::FixedIndex { index } if !reached_array => {
+                reached_array = true;
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(carrier_type)
+                else {
+                    return None;
+                };
+                if *index >= *length {
+                    return None;
+                }
+                carrier_path.push(CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(*index).ok()?,
+                ));
+                carrier_type = *element_type;
+            }
+            _ => return None,
         }
-        carrier_path.push(CheckedUnitStructuralPathSegment::Field(
-            terminal_field_identity(program, carrier.symbol)?,
-        ));
-        field_owner =
-            crate::field_domain::data_definition_for_field_type(program, carrier.type_reference)?;
-        if !plain_record(field_owner, program) {
-            return None;
-        }
+    }
+    let field_owner = crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+    if !plain_record(field_owner, program) {
+        return None;
     }
     let field = exact_relevant_field(program, field_owner, *field_symbol)?;
     if !crate::field_domain::domain_constraint_symbols(program, field.type_reference).is_empty() {
@@ -124,6 +150,22 @@ pub(super) fn build_structural_scalar_field_store(
         destination.position,
         source_path.strip_prefix(&source_root)?,
     );
+    let array_collection_mutation_path = place
+        .segments
+        .iter()
+        .position(|segment| matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. }))
+        .and_then(|first_index| {
+            let collection_path = crate::labels::canonical_place_label_from_parts(
+                program,
+                place.root,
+                &place.segments[..first_index],
+            );
+            Some(format!(
+                "$P{}{}",
+                destination.position,
+                collection_path.strip_prefix(&source_root)?
+            ))
+        });
     let frame = &facts
         .mutation
         .for_machine(machine.symbol)?
@@ -133,13 +175,17 @@ pub(super) fn build_structural_scalar_field_store(
         .frame;
     let exact_frame =
         matches!(frame.complete_paths(), Some([path]) if path == &expected_mutation_path);
+    let exact_collection_frame = matches!(
+        (frame.complete_paths(), array_collection_mutation_path.as_ref()),
+        (Some([path]), Some(collection_path)) if path == collection_path
+    );
     // Provider selection resolves the boundary initializer after ordinary
     // mutation analysis, so that initializer leaves the pre-selection frame
     // opaque. The exact selected result, two-statement body, and canonical
     // projected destination are independently rejoined above and below.
     let unresolved_selected_frame = selected_scalar_result_local.is_some()
         && frame.completeness() == psi_facts::WriteFrameCompleteness::Opaque;
-    if !exact_frame && !unresolved_selected_frame {
+    if !exact_frame && !exact_collection_frame && !unresolved_selected_frame {
         return None;
     }
     let value = facts.values.scalar_expressions.expression_at(

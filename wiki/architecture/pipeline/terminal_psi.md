@@ -851,17 +851,21 @@ fixed-integer or Boolean literal, one exact same-typed scalar parameter, or the
 fixed-integer result of one immediately preceding ordinary scalar call or
 selected boundary-operator realization through the sole
 unrestricted-or-affine mutable/write-only record parameter, with an exact
-complete write frame and no claims or qualifications. An empty carrier path denotes a primitive field
-directly on the root record; a nonempty path names each enclosing plain record
-field before the final scalar field. Checked-to-Terminal lowering shares the
-dynamic realization path/type replay rather than maintaining a second field
-walker. Abstract and target lowering independently reconstruct direct and
-nested byte offsets, and assignment, machine emission, object construction,
-and installation replay preserve the exact non-self parameter home, scalar
-parameter location or durable result home, and store bytes on x86-64 and
-AArch64. Multiple writes, observations, delayed results, arithmetic locals,
-arrays, cases, erased fields, constrained data, and opaque shapes remain
-fail-closed.
+field write frame or the indexed form's sole conservative containing-array
+frame and no claims or qualifications. An empty carrier path denotes a
+primitive field directly on the root record; a nonempty path names each
+enclosing plain record field before the final scalar field. One bounded sibling
+ends the carrier path with one in-bounds literal `FixedIndex` into a closed
+material `[copy]` record array and then names the final scalar field separately.
+Checked-to-Terminal lowering shares the dynamic realization path/type replay
+rather than maintaining a second field walker. Abstract and target lowering
+independently reconstruct direct and nested byte offsets, and assignment,
+machine emission, object construction, and installation replay preserve the
+exact non-self parameter home, scalar parameter location or durable result
+home, and store bytes on x86-64 and AArch64. Multiple writes, observations,
+delayed results, arithmetic locals, nested or dynamic indexes, ranges,
+aggregate array elements, cases, erased fields, constrained data, and opaque
+shapes remain fail-closed.
 
 Terminal format 62/vocabulary 65 carries the bounded one-reassignment dynamic
 scalar lane without devirtualizing it. The caller owns two dense conformance

@@ -6,6 +6,7 @@ use psi_terminal::{
     BindingRelevance, Block, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    is_bounded_structural_scalar_store_path,
 };
 
 use crate::lowering::LoweringError;
@@ -64,9 +65,7 @@ fn lower_store(
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
         || !has_empty_structural_custody(machine, destination.place)
-        || !path.iter().all(
-            |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
-        )
+        || !is_bounded_structural_scalar_store_path(path)
     {
         return Err(invalid());
     }

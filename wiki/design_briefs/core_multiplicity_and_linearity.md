@@ -174,7 +174,9 @@ The first projected replacement sibling accepts one fixed-integer or Boolean
 literal, one exact same-typed fixed-integer or Boolean parameter, or the exact
 fixed-integer result of one immediately preceding ordinary scalar call or
 selected boundary-operator realization through a finite field-only path of
-plain invariant-free records.
+plain invariant-free records, or through such a common-field prefix, one
+in-bounds literal fixed-array index, and a relevant primitive field of the
+closed material `[copy]` record element.
 The destination is the machine's sole structural parameter and may carry
 mutable or write-only access; the final field must be relevant and either
 Boolean or fixed-width non-address integer. Checked planning requires the exact complete mutation frame,
@@ -189,9 +191,10 @@ incoming-stack target ABI placement are independently reconstructed rather
 than trusted from an emitted record. Boolean definitions
 retain their zero-code semantic ordinal and exact one-byte store rather than
 borrowing an integer-definition carrier.
-Additional assignments, generics, domains/invariants, quotients, sums, arrays,
-erased fields, bodyless boundary result homes, delayed result uses, and other
-nonliteral values remain outside this rung.
+Additional assignments, generics, domains/invariants, quotients, sums, nested
+or dynamic array indexes, ranges, aggregate array elements, erased fields,
+bodyless boundary result homes, delayed result uses, and other nonliteral
+values remain outside this rung.
 
 ## Consumers and cleanup
 

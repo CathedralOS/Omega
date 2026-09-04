@@ -60,6 +60,7 @@ fn validate_store(
         || store.destination_placement != home.source
         || store.parameter_home_byte_offset != home.byte_offset
         || store.parameter_home_indirect != home.indirect
+        || !psi_terminal::is_bounded_structural_scalar_store_path(&store.path)
         || !function
             .provenance
             .operations
