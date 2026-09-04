@@ -17,7 +17,7 @@ use crate::{
 /// emission, object construction, installation, or publication.
 #[derive(Debug)]
 pub enum StagedOptimizedVerifiedPhysicalPipeline {
-    PsiOnly {
+    PhysicalIdentity {
         homes: StagedOptimizedRegisterHomes,
         machine: StagedOptimizedPostAllocationMachinePlan,
     },
@@ -38,7 +38,7 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
 impl StagedOptimizedVerifiedPhysicalPipeline {
     pub fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
         match self {
-            Self::PsiOnly { homes, .. } => homes
+            Self::PhysicalIdentity { homes, .. } => homes
                 .legality_stage()
                 .live_range_stage()
                 .liveness_stage()
@@ -102,7 +102,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
 
     pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
         match self {
-            Self::PsiOnly { homes, .. } => homes.post_allocation_manifest(),
+            Self::PhysicalIdentity { homes, .. } => homes.post_allocation_manifest(),
             Self::PostAllocationMachine { realization } => match realization.source() {
                 StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => {
                     homes.post_allocation_manifest()
@@ -128,7 +128,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
 
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         match self {
-            Self::PsiOnly { machine, .. } => machine,
+            Self::PhysicalIdentity { machine, .. } => machine,
             Self::PostAllocationMachine { realization } => realization.machine(),
             Self::AllocationRecovery { realization } => realization.machine(),
             Self::FunctionRelativeLayout { realization } => realization.machine(),
@@ -140,7 +140,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<&StagedSelectedLoweringFunctionRelativeRealization> {
         match self {
-            Self::PsiOnly { .. }
+            Self::PhysicalIdentity { .. }
             | Self::PostAllocationMachine { .. }
             | Self::AllocationRecovery { .. }
             | Self::FunctionRelativeLayout { .. } => None,
@@ -152,7 +152,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<&ValidatedFunctionRelativeOptimizationRealizationManifest> {
         match self {
-            Self::PsiOnly { .. } => None,
+            Self::PhysicalIdentity { .. } => None,
             Self::AllocationRecovery { realization } => Some(realization.manifest()),
             Self::PostAllocationMachine { realization } => Some(realization.manifest()),
             Self::FunctionRelativeLayout { realization } => Some(realization.manifest()),
@@ -162,7 +162,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
 
     pub fn selections(&self) -> OptimizationSelectionIdentity {
         match self {
-            Self::PsiOnly { homes, .. } => homes
+            Self::PhysicalIdentity { homes, .. } => homes
                 .legality_stage()
                 .live_range_stage()
                 .liveness_stage()
@@ -200,7 +200,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<omega_optimization_core::SelectedLoweringOptimizationCompletionIdentity> {
         match self {
-            Self::PsiOnly { .. }
+            Self::PhysicalIdentity { .. }
             | Self::AllocationRecovery { .. }
             | Self::FunctionRelativeLayout { .. } => None,
             Self::PostAllocationMachine { realization } => match realization.source() {
@@ -227,7 +227,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     ) -> Option<&StagedOptimizedPostAllocationMachineOptimization> {
         match self {
             Self::PostAllocationMachine { realization } => Some(realization.optimization()),
-            Self::PsiOnly { .. }
+            Self::PhysicalIdentity { .. }
             | Self::AllocationRecovery { .. }
             | Self::FunctionRelativeLayout { .. }
             | Self::SelectedLowering { .. } => None,

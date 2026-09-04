@@ -29,7 +29,8 @@ fn disabled_not_equal_zero_baseline_retains_compare_and_branch_on_both_isas() {
             &[],
         )
         .unwrap();
-        let StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { homes, machine } = staged else {
+        let StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { homes, machine } = staged
+        else {
             panic!("disabled post-allocation selection must retain baseline custody")
         };
         let selected = homes

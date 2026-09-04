@@ -14,7 +14,7 @@ pub(crate) enum ResolvedPhysicalPhaseComposition {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ResolvedNonAllocationComposition {
-    Baseline,
+    Identity,
     SelectedLowering,
     SelectedLoweringWithFunctionRelativeLayout,
     PostAllocationMachine {

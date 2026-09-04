@@ -164,7 +164,7 @@ fn expected_pair(
         ));
     }
     ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::NonAllocation(
-        ResolvedNonAllocationComposition::Baseline,
+        ResolvedNonAllocationComposition::Identity,
     ))
 }
 
