@@ -35,7 +35,7 @@ needed for independent replay through publication.
   independently reproducible.
 
 - **WORKSPACE-ROLLOUT.** Keep every rule explicit opt-in until the frozen-tree
-  command `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test --workspace
+  command `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace
   --no-fail-fast` passes. Do not replace it with `--all-targets`, which omits
   doctests. Acceptance: the command passes from a clean checkout and every
   promoted exact rule has its required rollout evidence.

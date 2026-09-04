@@ -33,15 +33,21 @@ The long-term pitch is ambitious on purpose: write programs as explicit state ev
 ## Building
 
 The repository pins its Rust compiler, formatter, and linter in
-`rust-toolchain.toml`; `rustup` selects that toolchain automatically. The
-baseline gates for a fresh checkout are:
+`rust-toolchain.toml`; `rustup` selects that toolchain automatically. Use
+`mbx` 1.7.0 or newer for every Cargo command that can compile code. Keep
+`cargo fmt` and `cargo clean` direct: they do not compile, and `mbx clean` has
+different semantics. If `mbx` is missing or older than 1.7.0, stop; do not
+silently substitute Cargo.
+
+The baseline gates for a fresh checkout are:
 
 ```bash
+mbx --version
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test -p omega-architecture-test --all-targets
-cargo check --workspace --all-targets
-cargo test --workspace --lib
+mbx clippy --workspace --all-targets -- -D warnings
+mbx test -p omega-architecture-test --all-targets
+mbx check --workspace --all-targets
+mbx test --workspace --lib --no-fail-fast
 ```
 
 The final command is the platform-portable test subset: all workspace library
@@ -59,27 +65,27 @@ cold.
 Check the smallest CLI sample:
 
 ```bash
-cargo run -p omega-cli -- --check samples/cli/basics/cli_mvp/main.omg
+mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
 Build the smallest CLI sample on macOS ARM64:
 
 ```bash
-cargo run -p omega-cli -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
+mbx run -p omega -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
 ./samples/cli/basics/cli_mvp/build/omega-program
 ```
 
 Build the smallest CLI sample as a direct Linux ARM64 ELF image:
 
 ```bash
-cargo run -p omega-cli -- --target linux_arm64 samples/cli/basics/cli_mvp/main.omg
+mbx run -p omega -- --target linux_arm64 samples/cli/basics/cli_mvp/main.omg
 docker run --rm --platform linux/arm64 -v "$PWD:/work" -w /work alpine:3.20 ./samples/cli/basics/cli_mvp/build/omega-program
 ```
 
 Check the richer samples:
 
 ```bash
-cargo run -p omega-cli -- --check samples/cli/games/dungeon_crawler_cli/main.omg
+mbx run -p omega -- --check samples/cli/games/dungeon_crawler_cli/main.omg
 ```
 
 Compile/check writes ignored phase artifacts under a `build/` directory next to the entrypoint unless `--build-dir <dir>` is provided.
@@ -219,26 +225,26 @@ Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testi
 Run tests:
 
 ```bash
-cargo test
+mbx test
 ```
 
 Check a sample:
 
 ```bash
-cargo run -p omega-cli -- --check samples/cli/basics/cli_mvp/main.omg
+mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
 Compile a sample on macOS ARM64:
 
 ```bash
-cargo run -p omega-cli -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
+mbx run -p omega -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
 ```
 
 Run focused compiler acceptance groups:
 
 ```bash
-cargo test -p omega-compiler --test canary_suite entry_and_abi::pass_canaries_compile
-cargo test -p omega-compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
+mbx test -p omega-compiler --test canary_suite entry_and_abi::pass_canaries_compile
+mbx test -p omega-compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
 ```
 
 ## Design Notes
