@@ -108,6 +108,8 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedDataCasePayloadFieldType;
     case ExpectedDataCasePayloadSeparatorOrEnd;
     case DataCasePayloadFieldCapacityExceeded;
+    case DuplicateDataMultiplicity;
+    case ConflictingDataMultiplicity;
 }
 
 pub data ParseDiagnostic [copy] {

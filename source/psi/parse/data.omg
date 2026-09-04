@@ -182,10 +182,66 @@ machine Parser::parse_data(
         let token: Token = self.input.tokens[self.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property()
+            Token::Punctuation { punctuation: PunctuationKind::Comma } -> data_property_trailing_comma()
             _ -> expected_data_property_end(
                 token.start,
                 token.end
             )
+        }
+    }
+
+    state data_property_trailing_comma(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.input.token_count {
+            true -> data_property_trailing_end()
+            _ -> expected_data_property_end_at_end()
+        }
+    }
+
+    state data_property_trailing_end(&mut self) {
+        self.load_current();
+        transition { _ -> data_property_trailing_end_loaded() }
+    }
+
+    state data_property_trailing_end_loaded(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property()
+            Token::Keyword { keyword: KeywordKind::Copy } -> second_copy_property(
+                token.start,
+                token.end
+            )
+            Token::Keyword { keyword: KeywordKind::Linear } -> second_linear_property(
+                token.start,
+                token.end
+            )
+            _ -> expected_data_property(
+                token.start,
+                token.end
+            )
+        }
+    }
+
+    state second_copy_property(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.data_multiplicity {
+            DataMultiplicity::Unrestricted -> duplicate_data_multiplicity(start, end)
+            _ -> conflicting_data_multiplicity(start, end)
+        }
+    }
+
+    state second_linear_property(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.data_multiplicity {
+            DataMultiplicity::Linear -> duplicate_data_multiplicity(start, end)
+            _ -> conflicting_data_multiplicity(start, end)
         }
     }
 
@@ -1050,6 +1106,14 @@ machine Parser::parse_data(
 
     state expected_data_property_end(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
         self.output.reject(ParseDiagnosticCode::ExpectedDataPropertyEnd, self.source, start, end);
+    }
+
+    state duplicate_data_multiplicity(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::DuplicateDataMultiplicity, self.source, start, end);
+    }
+
+    state conflicting_data_multiplicity(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ConflictingDataMultiplicity, self.source, start, end);
     }
 
     state expected_data_case_name_at_end(&mut self) {

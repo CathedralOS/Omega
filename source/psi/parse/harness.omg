@@ -142,8 +142,8 @@ invokes Console;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR5\0`, version
-// 5, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR6\0`, version
+// 6, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, and type-reference tables. This is hosted development
 // tooling, not an Omega ABI.
@@ -154,9 +154,9 @@ machine ParserHarness::write_parse_observation(&mut self) {
     self.write_byte(80);
     self.write_byte(65);
     self.write_byte(82);
-    self.write_byte(53);
+    self.write_byte(54);
     self.write_byte(0);
-    self.write_u64(5);
+    self.write_u64(6);
     transition self.parser.output.accepted {
         true -> parse_accepted_header()
         _ -> parse_rejected_header()
@@ -199,6 +199,8 @@ machine ParserHarness::write_parse_observation(&mut self) {
             ParseDiagnosticCode::ExpectedDataCasePayloadFieldType -> parse_diagnostic(26)
             ParseDiagnosticCode::ExpectedDataCasePayloadSeparatorOrEnd -> parse_diagnostic(27)
             ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded -> parse_diagnostic(28)
+            ParseDiagnosticCode::DuplicateDataMultiplicity -> parse_diagnostic(29)
+            ParseDiagnosticCode::ConflictingDataMultiplicity -> parse_diagnostic(30)
         }
     }
 
