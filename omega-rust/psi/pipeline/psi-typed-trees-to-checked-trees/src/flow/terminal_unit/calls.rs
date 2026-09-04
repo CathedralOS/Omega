@@ -1267,13 +1267,23 @@ pub(super) fn ordinary_projected_call_is_supported(
     let write_only_subloan_path = (field_path || literal_index_path)
         && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
         && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
+    let shared_subloan_path = (field_path
+        || literal_index_fields.is_some_and(|fields| {
+            !fields.is_empty() && arguments[0].path.len() == fields.len() + 1
+        }))
+        && caller_parameters[0].multiplicity == Multiplicity::Unrestricted
+        && arguments[0].access == CheckedStructuralAccess::SharedBorrow;
     if caller_source_parameters.len() != 1 && !write_only_subloan_path {
         return false;
     }
-    if field_path && !allow_field_path_projection && !write_only_subloan_path {
+    if field_path
+        && !allow_field_path_projection
+        && !write_only_subloan_path
+        && !shared_subloan_path
+    {
         return false;
     }
-    if literal_indexed_field_path && !write_only_subloan_path {
+    if literal_indexed_field_path && !write_only_subloan_path && !shared_subloan_path {
         return false;
     }
     if !field_path && !literal_index_path {
@@ -1367,14 +1377,17 @@ pub(super) fn ordinary_projected_call_is_supported(
     } else {
         false
     };
-    if write_only_subloan_path {
+    if write_only_subloan_path || shared_subloan_path {
         let [target_parameter] = target_parameters.as_slice() else {
             return false;
         };
         return target_machine.supply_mode == MachineSupplyMode::CheckedBody
             && !target_parameter.is_self
             && structural_access_for_type_reference(program, target_parameter.type_reference)
-                == Some(CheckedStructuralAccess::WriteOnlyBorrow)
+                == Some(arguments[0].access)
+            && (!shared_subloan_path
+                || crate::checks::type_multiplicity(program, target_parameter.type_reference)
+                    == Multiplicity::Unrestricted)
             && program.machine_states(caller_machine).len() == 1
             && program.machine_states(target_machine).len() == 1
             && caller_parameters[0].qualifications.is_empty();
@@ -1883,6 +1896,18 @@ pub(super) fn structural_call_arguments(
                     && segments.iter().all(|segment| {
                         matches!(segment, psi_facts::PlaceSegment::Field { .. })
                     }))
+                    || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                        && caller_parameters.get(source_index)?.multiplicity
+                            == Multiplicity::Unrestricted
+                        && structural_access_for_type_reference(
+                            program,
+                            target.type_reference,
+                        )? == CheckedStructuralAccess::SharedBorrow
+                        && (segments.iter().all(|segment| {
+                            matches!(segment, psi_facts::PlaceSegment::Field { .. })
+                        }) || place_literal_index_path(segments).is_some_and(|fields| {
+                            !fields.is_empty() && segments.len() == fields.len() + 1
+                        })))
                     || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
                         && caller_parameters.get(source_index)?.access
                             == CheckedStructuralAccess::WriteOnlyBorrow

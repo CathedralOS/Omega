@@ -401,6 +401,7 @@ pub(super) fn validate_unit_operation_static(
                         || (is_direct_literal_index_path(&argument.path)
                             && argument.access == StructuralAccess::WriteOnlyBorrow))
                         && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
+                        && !is_unrestricted_shared_subloan(machine, expected, argument)
                 })
             {
                 return Err(ModuleError::InvalidStructuralArgumentPath {
