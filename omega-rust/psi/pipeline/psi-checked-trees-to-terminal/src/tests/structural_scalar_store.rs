@@ -39,6 +39,63 @@ const RESULT_SOURCE: &str = r#"
 "#;
 
 #[test]
+fn source_indexed_shared_call_reaches_serialized_interpretation() {
+    let checked = checked_source(
+        r#"
+        data Cell [copy] { value: u16; }
+        data Matrix [copy] { cells: [Cell; 3]; }
+        data Sink {}
+        machine Sink::inspect(cell: &Cell) {}
+        data Root {}
+        machine Root::forward(matrix: &Matrix) {
+            Sink::inspect(&matrix.cells[2]);
+        }
+    "#,
+    );
+    let artifact = produce_terminal_artifact(&checked, "Root::forward")
+        .expect("source indexed shared call produces canonical Terminal");
+    drop(checked);
+    let module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &entry.blocks[0].operations[0].kind
+    else {
+        panic!("source forwarding retains a Unit call")
+    };
+    assert!(matches!(structural_arguments.as_slice(), [argument]
+        if argument.access == StructuralAccess::SharedBorrow
+            && matches!(argument.path.as_slice(), [StructuralPathSegment::Field(_), StructuralPathSegment::FixedIndex(2)])));
+    let argument = psi_terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 1,
+        structural_type: entry.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution =
+        psi_terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &psi_proof_admission::AdmissionProfile::default(),
+            &[],
+            &[argument],
+        )
+        .expect("source indexed shared call reconstructs for interpretation");
+    let mut meter = psi_terminal_fuel::TerminalFuelMeter::with_allowance(3);
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        psi_terminal_interpreter::TerminalExecutionStatus::Complete(
+            psi_terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+}
+
+#[test]
 fn lowers_direct_and_nested_write_only_record_field_stores() {
     let checked = checked_source(SOURCE);
     for (machine_name, expected_path_len, expected_value) in [

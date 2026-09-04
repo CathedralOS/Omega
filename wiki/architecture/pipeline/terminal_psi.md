@@ -876,6 +876,12 @@ regressions write distinct array elements in a write-only callee, read each
 after its return, and pause at every operation/return fuel boundary to check
 that committed writes are not replayed. This artifact-level execution coverage
 does not expand the checked source producer's single-store body grammar.
+Ordinary single-state Unit source can forward a shared field or literal-indexed
+record element through the same rule. The caller and callee each retain one
+structural parameter, unrestricted referents, empty qualifications, and exact
+projected type/access; parameter-dependent contracts and content evidence
+remain outside this source-call form. Canonical reload and interpretation use
+the source-produced argument path without frontend state.
 
 Terminal format 62/vocabulary 65 carries the bounded one-reassignment dynamic
 scalar lane without devirtualizing it. The caller owns two dense conformance
