@@ -742,9 +742,19 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("source-produced terminal Psi should have a semantic identity");
     let canonical_proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
         .expect("source-produced proof bundle should encode canonically");
-    let artifact_manifest =
-        build_artifact_manifest(&lowered.semantic_module, &lowered.proof_bundle, None, None)
-            .expect("source-produced terminal sections should have a manifest");
+    let optimization = psi_terminal_codec::build_identity_optimization_execution_record(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+    )
+    .expect("source-produced identity optimization execution");
+    let artifact_manifest = build_artifact_manifest(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &optimization,
+        None,
+        None,
+    )
+    .expect("source-produced terminal sections should have a manifest");
     drop(lowered);
     let semantic_module = decode_module(&canonical_bytes)
         .expect("canonical source-produced terminal Psi should decode");
@@ -753,6 +763,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     validate_artifact_manifest(
         &semantic_module,
         &proof_bundle,
+        &optimization,
         None,
         None,
         artifact_manifest,
@@ -1270,6 +1281,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     let installed_manifest = build_artifact_manifest(
         &manifest_module,
         &manifest_proof,
+        &optimization,
         Some(&installation_bytes),
         None,
     )
@@ -1277,6 +1289,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     validate_artifact_manifest(
         &manifest_module,
         &manifest_proof,
+        &optimization,
         Some(&installation_bytes),
         None,
         installed_manifest,
