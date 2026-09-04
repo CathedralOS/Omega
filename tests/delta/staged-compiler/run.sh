@@ -54,17 +54,17 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 1192, 45840, "67aa529276b9212bbb104f4536a176e6ba86ae41fbce6171bca36848c9113249"),
+    ("compiler", compiler, 1276, 49000, "773080b901d60d8e45f48056c0dd9592baf4daddee2f3cebe1fb55b02c849327"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
-    ("receipt", expected, 3, 159, "ace9d225806cd36712201fadd87031de99bd068cacde8b0140446122a3567663"),
+    ("receipt", expected, 3, 167, "4029a78652f009270960d82e990f187c33e19b3dc65b808a9b9d9a045370e093"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
-    ("payload receipt", payload_expected, 3, 229, "ebea130d8dcb88aac7d2389adf1f655669adfc13217ecdeb1d247aa97224305b"),
+    ("payload receipt", payload_expected, 3, 237, "f47b425116ada111114d6339dc5ed1b26a2964ac1f44148184b79fb3c7254ccb"),
     ("recursive source", recursive_source, 7, 187, "2122553bd7a2e7635df523eeaf0b7518fbaf71b4cfdbd1050aa190055182c3dd"),
-    ("recursive receipt", recursive_expected, 3, 246, "8725427391f6ec805adde6dbf9e8bd24b3049f63b54e2c1c9b980eb307c4600e"),
+    ("recursive receipt", recursive_expected, 3, 258, "03d3d43172d359c2c295342adff1c26944a3ebce1de9a6eff0062729744d0c96"),
     ("list source", list_source, 8, 221, "a86dd12c78f488de2ba4adea71ba90ee29057e97d805ce627befe48c939e3ac3"),
-    ("list receipt", list_expected, 3, 324, "64812b78fde8e1aee5fca648af7cfc3a46bff7cac010d91f166c8df4b9125b0e"),
+    ("list receipt", list_expected, 3, 336, "d46f2f5450c578d9091bdcea57114407eae3ccb57b20af969774c03e1880fa8e"),
     ("bytes source", bytes_source, 24, 767, "a4366165ddac1f1ffea603463ec9c3e04e91331b857d0b978b06863e62438b94"),
-    ("bytes receipt", bytes_expected, 7, 1018, "044c1886d7e3ae07cadaf7d0271dfabf1235bba4e83bf3890d18b66e0374ead5"),
+    ("bytes receipt", bytes_expected, 7, 1078, "8fb3d0e58438e877cf847daccdeff5494433c6c5b905952e43c457dfb24416a3"),
 ):
     if len(data.splitlines()) != lines or len(data) != size:
         raise SystemExit(f"{name} size changed")
@@ -106,8 +106,8 @@ if evaluate(compiler, bytes_source) != (0, bytes_expected):
 if evaluate(bytes_expected) != (0, b"B"):
     raise SystemExit("recursive rope indexing did not produce 0x42")
 empty_bytes = bytes_expected.replace(
-    b"(rope_get (rope_concat (rope_single 65) (rope_single 66)) 1)",
-    b"(rope_get (rope_empty) 0)",
+    b"(__d_rope_get (__d_rope_concat (__d_rope_single 65) (__d_rope_single 66)) 1)",
+    b"(__d_rope_get (__d_rope_empty) 0)",
 )
 if evaluate(empty_bytes) != (2, b""):
     raise SystemExit("empty recursive rope indexing did not trap")
@@ -130,7 +130,8 @@ if evaluate(compiler, shared_namespace) != (0, identity + b"\n"):
 
 long_name = b"x" * 200
 long_identifier = b"(def " + long_name + b" () Int 0)\n" + identity
-if evaluate(compiler, long_identifier) != (0, long_identifier + b"\n"):
+long_status, long_receipt = evaluate(compiler, long_identifier)
+if long_status != 0 or evaluate(long_receipt) != (0, b"\x07"):
     raise SystemExit("bytewise name trie exhausted context on a long identifier")
 
 for name, literal in (
@@ -140,6 +141,11 @@ for name, literal in (
     boundary = b"(def main () Int " + literal + b")\n"
     if evaluate(compiler, boundary) != (0, boundary + b"\n"):
         raise SystemExit(f"{name} literal did not compile")
+
+user_read = b"(def read ((x Int)) Int x)\n(def main () Int (read 7))\n"
+user_read_status, user_read_receipt = evaluate(compiler, user_read)
+if user_read_status != 0 or evaluate(user_read_receipt) != (0, b"\x07"):
+    raise SystemExit("declared function named read did not resolve exactly")
 
 malformed = {
     "unknown field type": b"(data Bad (Bad Missing))\n(def main () Int 0)\n",
@@ -171,6 +177,15 @@ malformed = {
     "malformed integer": b"(def main () Int 12x)\n",
     "positive integer overflow": b"(def main () Int 9223372036854775808)\n",
     "negative integer overflow": b"(def main () Int -9223372036854775809)\n",
+    "unknown function": b"(def main () Int (missing 0))\n",
+    "undeclared Gamma input": b"(def main () Int (input))\n",
+    "undeclared Gamma read": b"(def main () Int (read 0))\n",
+    "undeclared Gamma pair": b"(def main () Int (pair 1 2))\n",
+    "missing function argument": b"(def f ((x Int)) Int x)\n(def main () Int (f))\n",
+    "excess function argument": b"(def f ((x Int)) Int x)\n(def main () Int (f 1 2))\n",
+    "missing if argument": b"(def main () Int (if 1 2))\n",
+    "excess operator argument": b"(def main () Int (+ 1 2 3))\n",
+    "missing Bytes builtin argument": b"(def main () Int (bytes_get 0))\n",
 }
 for name, candidate in malformed.items():
     status, _ = evaluate(compiler, candidate)
@@ -185,7 +200,7 @@ stress = (
     + b"(def main () Int (f2999))\n"
 )
 stress_status, stress_receipt = evaluate(compiler, stress)
-if stress_status != 0 or len(stress) != 66266 or len(stress_receipt) != 66267:
+if stress_status != 0 or len(stress) != 66266 or len(stress_receipt) != 78271:
     raise SystemExit("3,001-function staged transformation failed")
 if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")

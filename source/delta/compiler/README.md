@@ -41,6 +41,16 @@ Keywords, `Int`, `Bytes`, and the five closed `bytes_*` builtin names cannot be
 redeclared. Decimal literals are scanned without overflow and admit exactly
 `INT64_MIN..INT64_MAX`.
 
+The global function trie carries declared arity as its terminal payload.
+Application heads resolve through that exact checked table, including forward
+and mutual calls, and every user call, operator, `if`, and closed Bytes builtin
+has an exact argument count. Undeclared Gamma effects such as `input`, `read`,
+and `pair` therefore cannot leak through as Delta calls; an ordinary Delta
+function may still deliberately use one of those spellings after declaring it.
+Every non-`main` function definition and call receives the injective `__d_`
+Gamma prefix, preventing such a declaration from being captured by Gamma's
+builtin dispatch. `main` alone retains the name required by the evaluator.
+
 This is a meaningful early stage, not the complete Delta compiler. It does not
 yet provide normative `Bytes`, checked arithmetic, complete type checking, production
 application profiles, or proper-tail guarantees beyond those available in
@@ -56,24 +66,24 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-1,192-line / 45,840-byte Gamma source
+1,276-line / 49,000-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
-  -> 3-line / 159-byte Gamma receipt
+  -> 3-line / 167-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
 7-line / 186-byte payload-ADT Delta fixture
-  -> 3-line / 229-byte Gamma receipt
+  -> 3-line / 237-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
 7-line / 187-byte recursive-ADT Delta fixture
-  -> 3-line / 246-byte Gamma receipt
+  -> 3-line / 258-byte Gamma receipt
   -> selected Gamma evaluation produces byte 3
 8-line / 221-byte two-field recursive List fixture
-  -> 3-line / 324-byte Gamma receipt
+  -> 3-line / 336-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
 24-line / 767-byte three-field recursive rope fixture
-  -> 7-line / 1,018-byte Gamma receipt
+  -> 7-line / 1,078-byte Gamma receipt
   -> indexing produces byte 0x42; indexing empty traps
 3,001-function / 66,266-byte scale fixture
-  -> 66,267-byte Gamma receipt
+  -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199; staged transformation is
-     about 8 seconds on the development host
+     about 10 seconds on the development host
 ```
