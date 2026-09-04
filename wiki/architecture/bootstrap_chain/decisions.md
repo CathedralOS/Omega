@@ -4639,3 +4639,36 @@ open rather than being hidden behind this nominal-index milestone.
 
 The exact selected subject is now 2,029 Gamma lines and 81,156 bytes, with 169
 definitions and 665 lexical `let` binders.
+
+## D112 — Exact-name tries allocate only present byte edges
+
+The exact-name trie previously represented each byte transition as a complete
+eight-level binary tree. Every source byte lookup therefore executed eight
+division, remainder, branch, and projection steps. Every new name byte also
+allocated the complete empty tree and rebuilt the selected eight-pair path.
+This was exact and collision-free, but it made absent edges the dominant
+representation cost for the Epsilon customer.
+
+Each trie node now carries an immutable list containing only its present
+`(byte, child)` edges. Lookup compares exact bytes and returns the same explicit
+absence option; insertion replaces an existing edge or prepends a missing one
+while preserving prior roots. No hash, normalization, mutation, source limit,
+or probabilistic identity enters the compiler. Terminal payloads retain D111's
+explicit presence wrapper, so pair-valued metadata still never enters a Gamma
+condition.
+
+On the 437,283-byte current Epsilon source plus a diagnostic scalar entry, the
+cumulative global-catalog phase fell from 35.1 to 26.2 seconds and the complete
+type-check phase fell from 115.1 to 66.9 seconds. The full transformation now
+finishes in 99.7 seconds and emits 503,658 bytes instead of exceeding the
+previous 120-second diagnostic bound. These are development-host measurements,
+not language limits or acceptance thresholds.
+
+All staged malformed-source cases, the exact Epsilon declaration census, and
+the 3,001-function scale source remain green. Every pinned Gamma receipt,
+including the forward/mutual nominal witness, is byte-identical. Function
+signatures are still reparsed at each call during checking and emission, so
+general metadata caching remains open.
+
+The exact selected subject is now 2,027 Gamma lines and 81,168 bytes, with 170
+definitions and 660 lexical `let` binders.
