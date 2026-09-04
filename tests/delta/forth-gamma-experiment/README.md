@@ -23,16 +23,16 @@ retained Delta compiler.
 functional Gamma evaluator    1,325         1,065     165      479       6,934
 Forth-Gamma interpreter          890           723     122      312       5,145
 
-functional Delta compiler      1,022 source lines, 93 definitions
+functional Delta compiler      1,192 source lines, 113 definitions
 Forth-Gamma Delta compiler      1,451 source lines, 555 definitions
 
-total functional route         2,347 authored lines
+total functional route         2,517 authored lines
 total Forth route              2,341 authored lines
 ```
 
 The Forth compiler contains 49 named values, 5,860 executable source tokens,
 204 explicit branches, 171 explicit jumps, 77 stack-shuffle operations, and 20
-remaining dynamic cell operations. The functional compiler contains 354 named
+remaining dynamic cell operations. The functional compiler contains 364 named
 lexical `let` bindings and no source-level control-flow choreography. These
 current totals are no longer a matched-coverage comparison: the functional
 compiler also performs a complete declaration-order and exact namespace
@@ -51,10 +51,10 @@ The pure interpreted route passes:
 - 100,000-node construction and traversal complete through proper tail
   transfers.
 
-The rope fixture is profile-adapted: helper names use `rope_` because the old
-compiler reserves normative `bytes_*` builtins, and its unreachable Gamma I/O
-trap is replaced with pure Delta division by zero. This preserves the recursive
-three-field representation question but is not exact-source equivalence.
+The shared rope fixture now already uses `rope_` helper names and a pure Delta
+division-by-zero trap, so this experiment no longer rewrites it before use. It
+preserves the recursive three-field representation question but does not claim
+the normative `Bytes` implementation.
 
 Scale is the largest operational loss. On the development host, interpreted
 compilation took 2.38 seconds for 101 functions, 11.98 seconds for 301, and
@@ -73,10 +73,10 @@ boilerplate.
 It does not yet beat the selected architecture overall. The compiler is split
 across 555 tiny words, explicit stack effects remain difficult to reconstruct,
 and unreachable names or stack underflow are not statically rejected. Total
-source is now six lines smaller only because it lacks the selected route's
-source-envelope and global-census checks, as well as any stack-effect checker;
-this is not matched evidence. Large program compilation also remains
-impractically slow.
+source is now 176 lines smaller only because it lacks the selected route's
+source-envelope, lexical, literal-range, and global-census checks, as well as
+any stack-effect checker; this is not matched evidence. Large program
+compilation also remains impractically slow.
 
 The experiment is promising enough to retain, but not to select. A next attempt
 would need declared stack effects plus indexed declaration lookup while keeping

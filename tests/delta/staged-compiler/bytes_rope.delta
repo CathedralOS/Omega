@@ -2,23 +2,23 @@
   (Empty)
   (Single Int)
   (Concat Int ByteSeq ByteSeq))
-(def bytes_empty () ByteSeq Empty)
-(def bytes_single ((value Int)) ByteSeq
+(def rope_empty () ByteSeq Empty)
+(def rope_single ((value Int)) ByteSeq
   (Single value))
-(def bytes_length ((value ByteSeq)) Int
+(def rope_length ((value ByteSeq)) Int
   (match value
     (Empty 0)
     ((Single byte) 1)
     ((Concat length left right) length)))
-(def bytes_concat ((left ByteSeq) (right ByteSeq)) ByteSeq
-  (Concat (+ (bytes_length left) (bytes_length right)) left right))
-(def bytes_get ((value ByteSeq) (index Int)) Int
+(def rope_concat ((left ByteSeq) (right ByteSeq)) ByteSeq
+  (Concat (+ (rope_length left) (rope_length right)) left right))
+(def rope_get ((value ByteSeq) (index Int)) Int
   (match value
     (Empty (/ 1 0))
     ((Single byte) byte)
     ((Concat length left right)
-      (if (lt index (bytes_length left))
-        (bytes_get left index)
-        (bytes_get right (- index (bytes_length left)))))))
+      (if (lt index (rope_length left))
+        (rope_get left index)
+        (rope_get right (- index (rope_length left)))))))
 (def main () Int
-  (bytes_get (bytes_concat (bytes_single 65) (bytes_single 66)) 1))
+  (rope_get (rope_concat (rope_single 65) (rope_single 66)) 1))

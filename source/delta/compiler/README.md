@@ -35,6 +35,12 @@ required by Delta's grammar-distinguished namespaces. Name recursion advances
 once per complete byte; a 200-byte identifier witness guards practical Gamma
 call-context headroom, while the Epsilon customer currently tops out at 56.
 
+The emitted slice also validates identifier spelling at declarations, types,
+parameters, local binders, constructor patterns, atoms, and application heads.
+Keywords, `Int`, `Bytes`, and the five closed `bytes_*` builtin names cannot be
+redeclared. Decimal literals are scanned without overflow and admit exactly
+`INT64_MIN..INT64_MAX`.
+
 This is a meaningful early stage, not the complete Delta compiler. It does not
 yet provide normative `Bytes`, checked arithmetic, complete type checking, production
 application profiles, or proper-tail guarantees beyond those available in
@@ -50,7 +56,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-1,022-line / 40,278-byte Gamma source
+1,192-line / 45,840-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 159-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -63,8 +69,8 @@ The downgraded full compiler remains separate under
 8-line / 221-byte two-field recursive List fixture
   -> 3-line / 324-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
-24-line / 782-byte three-field recursive Bytes-rope fixture
-  -> 7-line / 1,033-byte Gamma receipt
+24-line / 767-byte three-field recursive rope fixture
+  -> 7-line / 1,018-byte Gamma receipt
   -> indexing produces byte 0x42; indexing empty traps
 3,001-function / 66,266-byte scale fixture
   -> 66,267-byte Gamma receipt

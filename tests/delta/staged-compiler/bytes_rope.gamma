@@ -1,7 +1,7 @@
-(def bytes_empty () Int (pair 0 0))
-(def bytes_single ((value Int)) Int (pair 1 value))
-(def bytes_length ((value Int)) Int (let __v206 Int value (let __m206 Int (first __v206) (let __p206 Int (second __v206) (if (eq __m206 0) 0 (if (eq __m206 1) (let byte Int __p206 1) (let length Int (first __p206) (let left Int (first (second __p206)) (let right Int (second (second __p206)) length)))))))))
-(def bytes_concat ((left Int) (right Int)) Int (pair 2 (pair (+ (bytes_length left) (bytes_length right)) (pair left right))))
-(def bytes_get ((value Int) (index Int)) Int (let __v475 Int value (let __m475 Int (first __v475) (let __p475 Int (second __v475) (if (eq __m475 0) (/ 1 0) (if (eq __m475 1) (let byte Int __p475 byte) (let length Int (first __p475) (let left Int (first (second __p475)) (let right Int (second (second __p475)) (if (lt index (bytes_length left)) (bytes_get left index) (bytes_get right (- index (bytes_length left)))))))))))))
-(def main () Int (bytes_get (bytes_concat (bytes_single 65) (bytes_single 66)) 1))
+(def rope_empty () Int (pair 0 0))
+(def rope_single ((value Int)) Int (pair 1 value))
+(def rope_length ((value Int)) Int (let __v203 Int value (let __m203 Int (first __v203) (let __p203 Int (second __v203) (if (eq __m203 0) 0 (if (eq __m203 1) (let byte Int __p203 1) (let length Int (first __p203) (let left Int (first (second __p203)) (let right Int (second (second __p203)) length)))))))))
+(def rope_concat ((left Int) (right Int)) Int (pair 2 (pair (+ (rope_length left) (rope_length right)) (pair left right))))
+(def rope_get ((value Int) (index Int)) Int (let __v468 Int value (let __m468 Int (first __v468) (let __p468 Int (second __v468) (if (eq __m468 0) (/ 1 0) (if (eq __m468 1) (let byte Int __p468 byte) (let length Int (first __p468) (let left Int (first (second __p468)) (let right Int (second (second __p468)) (if (lt index (rope_length left)) (rope_get left index) (rope_get right (- index (rope_length left)))))))))))))
+(def main () Int (rope_get (rope_concat (rope_single 65) (rope_single 66)) 1))
 

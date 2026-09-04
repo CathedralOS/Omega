@@ -128,4 +128,4 @@ if len(beta.splitlines()) != 2019 or len(tape) != 11004:
     raise SystemExit("direct evaluator prototype measurement changed")
 PY
 
-echo "Direct Beta Delta evaluator: recursive data, staged validation, scale, and proper tails pass at 2,019 lines / 11,004 bytes"
+echo "Direct Beta Delta evaluator: retained recursive-data, scale, and proper-tail cases pass at 2,019 lines / 11,004 bytes; selected lexical/global coverage remains unmatched"
