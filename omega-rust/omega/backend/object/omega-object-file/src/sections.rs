@@ -1,3 +1,5 @@
+//! The three section kinds every lane agrees on.
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SectionPlan {
     pub kind: SectionKind,

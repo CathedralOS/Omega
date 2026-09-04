@@ -1,3 +1,6 @@
+//! Placement of one relocation-free text section and its SHA-256 identity, whose
+//! machine-alternative family tags are the crate's only zero-based table.
+
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
