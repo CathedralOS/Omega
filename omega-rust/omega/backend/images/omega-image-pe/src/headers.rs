@@ -1,3 +1,6 @@
+//! The DOS stub, the COFF and optional headers, and one section header per emitted
+//! section.
+
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::constants::{
     DOS_HEADER_SIZE, FILE_ALIGNMENT, IMAGE_BASE, OPTIONAL_HEADER_SIZE, SECTION_ALIGNMENT, TEXT_RVA,

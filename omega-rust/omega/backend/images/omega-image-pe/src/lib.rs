@@ -1,3 +1,70 @@
+//! PE32+ executables for x86-64 Windows, in one function whose whole difficulty
+//! is the order its nine steps have to run in.
+//!
+//! PE keeps two alignments at once, and every section carries both a virtual
+//! size and a raw size because of it: `SECTION_ALIGNMENT` is 0x1000 in memory,
+//! `FILE_ALIGNMENT` is 0x200 on disk. `IMAGE_BASE` is 0x1_4000_0000 and `.text`
+//! always begins at RVA 0x1000. `.text` and `.rdata` are always emitted;
+//! `.data`, `.reloc` and `.bss` appear only when non-empty, so `section_count`
+//! is `2 + has_data + has_reloc + has_bss` and the header size depends on it.
+//!
+//! Section flags are written as raw COFF characteristics: `.text` 0x6000_0020,
+//! `.rdata` 0x4000_0040, `.data` 0xc000_0040, `.bss` 0xc000_0080, and `.reloc`
+//! 0x4200_0040 - initialized data, read, and DISCARDABLE, because the loader
+//! consumes the fixups and then throws the section away.
+//!
+//! An import becomes a six-byte thunk appended to `.text`, `ff 25 00 00 00 00`,
+//! which is `jmp [rip+disp32]` with the displacement filled in later. The
+//! opcode is chosen for what it does not touch: control flow moves, and no
+//! general-purpose register, no flag, no stack slot and no vector lane changes,
+//! so inserting one cannot perturb the surrounding code's machine state.
+//!
+//! The step order in `emit_pe_x86_64_executable` is almost entirely forced:
+//!
+//! ```text
+//!   1  install_import_thunks     appends to .text, so sizes are not known yet
+//!   2  plan_pe_sections(.., 0)   a first pass, only to learn rdata_rva
+//!   3  build_import_table        needs that rva to place the IAT
+//!   4  plan_pe_sections(.., len) the real pass, now the rdata size is known
+//!   5  build_base_relocations    BEFORE relocations are applied
+//!   6  patch_import_thunks       fills the disp32 now that the IAT has an address
+//!   7  apply_x86_64_relocations  mutates text and data
+//!   8  validate_import_thunk_footprints   re-checks the ff 25 opcodes after 7
+//!   9  place_executable_regions
+//! ```
+//!
+//! Step 5 reads oddly and is right: `.reloc` lists the OFFSETS of relocation
+//! sites, never their values, so it is identical before and after step 7 and
+//! computing it first keeps the section base-independent. Step 8 exists because
+//! step 7 writes into the same `.text` the thunks were appended to; a
+//! relocation whose site overlapped a thunk would corrupt it silently, so the
+//! opcodes are re-read after patching rather than assumed.
+
+//! `plan_pe_sections` runs twice per emission and is not memoised, and the
+//! honest reason is that the second call needs a number only the first call's
+//! output can produce. Threading a partially built `PeSections` through
+//! `build_import_table` would let it observe fields that are still wrong at that
+//! point - every raw offset after `.rdata` shifts once the import table has a
+//! size - so the layout is recomputed from scratch instead of patched.
+//!
+//! It costs more than it looks. `plan_pe_sections` itself calls
+//! `build_base_relocations` purely to measure the section's length, so the
+//! relocation bytes are built three times per executable: once inside each
+//! planning pass, and once for real at step 5. For the image sizes this
+//! compiler produces that is not worth a cache; if `.reloc` ever gets large it
+//! is the first thing to look at.
+
+//! `omega-image` supplies `FinalImage`, `apply_x86_64_relocations` and
+//! `place_executable_regions`. The Windows subsystem value is a parameter rather
+//! than a constant here, so the console and GUI variants share every byte of
+//! this path except that one `u16`.
+//!
+//! @Note: this crate has no `.idata` section. The import directory and IAT are
+//! written into `.rdata` and named through the PE data directories instead,
+//! which is what modern linkers do and what the `import_directory_rva` /
+//! `iat_rva` fields of `PeHeaderInput` carry. Looking for `.idata` here and not
+//! finding it does not mean imports are unimplemented.
+
 use omega_image::{
     ExecutableImageOutput, FinalImage, apply_x86_64_relocations, place_executable_regions,
 };

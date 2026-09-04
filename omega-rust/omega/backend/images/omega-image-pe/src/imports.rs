@@ -1,3 +1,6 @@
+//! Import thunks, the import directory and IAT written into .rdata, and the
+//! post-relocation re-check that the thunk opcodes survived.
+
 use crate::bytes::{write_i32_at, write_u16_at, write_u32_at, write_u64_at};
 use crate::constants::IMAGE_BASE;
 use crate::layout::align_to;

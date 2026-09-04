@@ -1,3 +1,6 @@
+//! The whole PE layout decision in one pass: virtual and raw sizes, RVAs, and file
+//! offsets for every section that exists.
+
 use crate::constants::{
     COFF_HEADER_SIZE, DOS_HEADER_SIZE, FILE_ALIGNMENT, IMAGE_BASE, OPTIONAL_HEADER_SIZE,
     SECTION_ALIGNMENT, SECTION_HEADER_SIZE, TEXT_RVA,
