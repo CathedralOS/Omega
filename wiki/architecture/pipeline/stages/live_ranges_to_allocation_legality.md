@@ -75,9 +75,9 @@ unsupported. No result from this stage can enter machine emission.
 
 ## Implementation Map
 
-- `pipeline/optimization/omega-regalloc/src/allocation_legality_*` owns the data,
+- `pipeline/omega-regalloc` owns the data,
   production, independent replay, and identity.
-- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/allocation_legality.rs` owns
+- `pipeline/omega-live-ranges-to-allocation-legality` owns policy selection and
   nested cross-stage custody.
 - `omega-register-model` owns physical aliases, write footprints, and the
   validated active reservation profile.

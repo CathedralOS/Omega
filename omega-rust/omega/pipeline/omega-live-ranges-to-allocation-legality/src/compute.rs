@@ -1,21 +1,19 @@
 use omega_regalloc::{
-    ValidatedAllocationLegality, ValidatedAllocatorAvailability, validate_allocation_legality,
+    ValidatedAllocatorAvailability, analyze_allocation_legality, validate_allocation_legality,
     validate_allocator_availability,
 };
 
-use crate::{StagedOptimizedLiveRanges, validate_optimized_live_range_custody};
-
-use super::custody::custody_receipt;
-use super::model::{
-    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegalityCustodyReceipt,
+use omega_liveness_to_live_ranges::{
+    StagedOptimizedLiveRanges, validate_optimized_live_range_custody,
 };
 
-pub fn validate_optimized_allocation_legality_custody(
-    ranges: &StagedOptimizedLiveRanges,
-    availability: &ValidatedAllocatorAvailability,
-    legality: &ValidatedAllocationLegality,
-) -> Result<StagedOptimizedAllocationLegalityCustodyReceipt, OptimizedAllocationLegalityCustodyError>
-{
+use super::custody::custody_receipt;
+use super::model::{OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality};
+
+pub(super) fn compute_allocation_legality(
+    ranges: StagedOptimizedLiveRanges,
+    availability: ValidatedAllocatorAvailability,
+) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
     let upstream = validate_optimized_live_range_custody(ranges.liveness_stage(), ranges.ranges())
         .map_err(OptimizedAllocationLegalityCustodyError::UpstreamLiveRanges)?;
     let environment = ranges
@@ -35,9 +33,19 @@ pub fn validate_optimized_allocation_legality_custody(
     if replayed_availability.receipt() != availability.receipt() {
         return Err(OptimizedAllocationLegalityCustodyError::ReceiptMismatch);
     }
+    let legality = analyze_allocation_legality(
+        ranges.ranges(),
+        &availability,
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+    )
+    .map_err(OptimizedAllocationLegalityCustodyError::Analysis)?;
     let replayed = validate_allocation_legality(
         ranges.ranges(),
-        availability,
+        &availability,
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -49,9 +57,15 @@ pub fn validate_optimized_allocation_legality_custody(
     if replayed.receipt() != legality.receipt() {
         return Err(OptimizedAllocationLegalityCustodyError::ReceiptMismatch);
     }
-    Ok(custody_receipt(
+    let custody = custody_receipt(
         upstream,
         availability.receipt().identity(),
-        replayed.receipt(),
-    ))
+        legality.receipt(),
+    );
+    Ok(StagedOptimizedAllocationLegality {
+        ranges,
+        availability,
+        legality,
+        custody,
+    })
 }

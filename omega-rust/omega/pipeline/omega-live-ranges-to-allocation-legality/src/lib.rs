@@ -1,4 +1,6 @@
-//! Optimizer module role: executable entrance. Allocation-availability and physical-view legality stage.
+#![forbid(unsafe_code)]
+
+//! Pipeline stage from live ranges to allocation availability and physical-view legality.
 //!
 //! Each public route chooses one explicit availability policy. This entrance
 //! then owns the shared analysis-to-independent-replay join that grants
@@ -15,7 +17,7 @@ pub use validation::validate_optimized_allocation_legality_custody;
 
 use omega_regalloc::ValidatedAllocatorAvailability;
 
-use crate::StagedOptimizedLiveRanges;
+use omega_liveness_to_live_ranges::StagedOptimizedLiveRanges;
 
 pub fn stage_optimized_allocation_legality(
     ranges: StagedOptimizedLiveRanges,
