@@ -3,7 +3,7 @@
 use super::*;
 
 pub(super) fn construct_object(
-    source: &StagedOptimizedRelocationFreeTextSection,
+    source: &StagedOptimizedObjectTextSectionSource,
 ) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectContainerError> {
     let text = source.text_section();
     let text_manifest = source.manifest().record();
@@ -44,7 +44,7 @@ pub(super) fn construct_object(
 }
 
 pub(super) fn replay_object(
-    source: &StagedOptimizedRelocationFreeTextSection,
+    source: &StagedOptimizedObjectTextSectionSource,
 ) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectContainerError> {
     let text = source.text_section();
     let mut entry = None;
@@ -88,7 +88,7 @@ pub(super) fn replay_object(
 }
 
 pub(super) fn assemble_object(
-    source: &StagedOptimizedRelocationFreeTextSection,
+    source: &StagedOptimizedObjectTextSectionSource,
     symbols: Vec<RelocationFreeFunctionSymbol>,
     semantic_entry_symbol: ObjectLocalSymbolId,
     text_name: String,
@@ -126,7 +126,7 @@ pub(super) fn assemble_object(
 }
 
 pub(super) fn construct_manifest(
-    source: &StagedOptimizedRelocationFreeTextSection,
+    source: &StagedOptimizedObjectTextSectionSource,
     object: &RelocationFreeObjectPlan,
     container: &RelocationFreeObjectContainer,
 ) -> Result<ValidatedFunctionFragmentObjectContainerManifest, RelocationFreeObjectContainerError> {

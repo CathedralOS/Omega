@@ -1253,10 +1253,24 @@ validated stage result
 Each boundary recomputes child identities and rejects detached, reordered,
 truncated, trailing, or cross-source data. Generic artifact layers bind child
 identities and do not need a new schema merely because a new exact rule exists.
-The genericization changed the data carried at three serialized boundaries:
-function-relative realization is v10, while fragment emission and fragment text
-placement are v8. Their records retain the exact selected-lowering selection
-or post-allocation optimization, not a broad optimization level.
+The current serialized boundaries are function-relative realization v11,
+fragment emission v10, and fragment text placement v11. Their records retain
+the exact selected-lowering selection, post-allocation optimization, or fixed-
+frame application rather than a broad optimization level.
+
+Relocation-free object construction accepts one closed text-source sum: direct
+fragment placement or fixed-frame application placement. It retains the entire
+opaque source carrier and independently validates the selected variant before
+assembly. The text manifest is the authority for the source role, fixed-frame
+application identity, and canonical fixed-frame body kind; the object manifest,
+optimized artifact, and callable bind that authenticated child identity instead
+of copying those fields into parallel schemas. The attached-Unit three-call
+fixture carries a real nonzero frame and three resolved internal calls through
+ELF object/container and optimized-artifact publication on System V AMD64 and
+AAPCS64. A separate ordinary scalar fixture carries a zero-byte fixed-frame
+application through callable publication on both ISAs. The latter proves the
+generic publication seam only; it does not grant nonzero-frame general-CFG
+return placement.
 
 Function-relative V9 persistence enters through a 78-line framing and final-
 admission join. Canonical content encoding, ordered decoding, post-allocation
@@ -1409,10 +1423,16 @@ architectural-fault behavior, and complete register effects; the AArch64 row
 records the four-byte direct relative call, unchanged SP/memory,
 architectural-fault behavior, and complete X30/PC effects. Current pre- and
 post-allocation formats retain and independently replay those rows, while older
-formats remain decode-only and cannot acquire scalar-call vocabulary. This
-grants no callee-save sequence, x86 call-site alignment adjustment, AArch64
-incoming X30 preservation, selected-fragment relocation, encoding, emission,
-publication, or general scalar-call authority.
+formats remain decode-only and cannot acquire scalar-call vocabulary. That
+exact attached-Unit chain now also retains replayed callee-saved requirements/
+storage, System V AMD64 or AAPCS64 frame layout and protocol, frame-aware exit
+custody, fixed-frame realization, body-fragment emission, single-block frame
+application, three resolved internal calls, fixed-frame text custody,
+relocation-free object/container bytes, and optimized-object-artifact
+publication. Its attached Unit signature still cannot become an ordinary
+scalar callable. This grants no nonzero-frame general-CFG return placement,
+Microsoft shadow space, red-zone policy, probing, unwind information, stable-
+address loans, dynamic allocation, or general scalar-call authority.
 
 Applied selected-lowering publication coverage crosses both exact incoming-u12
 rules with every hosted target: Linux x64, Windows x64, Linux Arm64, and macOS
@@ -1464,5 +1484,6 @@ same source taxonomy into the generic post-allocation realization's
 `AfterAllocationRecovery` leaf. That join independently replays recovery,
 machine plan, exact materialization, encoding, layout, and exit custody and
 publishes the generic post-allocation source kind. Neither recovery rule owns a
-parallel publication vertical. Fragment and fragment-text manifests use schema
-v9 because the source-kind tag denotes these generic carriers.
+parallel publication vertical. Allocation-recovery source kinds entered
+fragment and text schema v9; later fixed-frame custody advanced the current
+fragment schema to v10 and text schema to v11.

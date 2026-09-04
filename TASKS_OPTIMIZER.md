@@ -105,16 +105,13 @@ needed for independent replay through publication.
   fixed/precolored intervals, and rematerialization cost decisions while
   preserving exact register-unit aliases, liveness, and target custody.
 
-- **FRAME-LAYOUT.** Carry the landed replayed System V AMD64/AAPCS64 frame
-  geometry, packed save/restore encodings, frame-aware exit admission, exact
-  frame-bearing function-relative realization, body-fragment emission, and
-  fail-closed single-block frame application through ordinary internal-call
-  fixup resolution and frame-application-bound text placement. Next carry that
-  role-specific text custody through object/container and callable publication;
-  then add general CFG return placement, Microsoft shadow space,
-  red-zone policy, probing, unwind information, stable-address loans, and
-  dynamic-allocation constraints. Requirements artifacts remain
-  non-authoritative until exact physical accesses replay.
+- **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the current
+  single-block System V AMD64/AAPCS64 family: general CFG return placement,
+  Microsoft shadow space, red-zone policy, probing, unwind information,
+  stable-address loans, and dynamic-allocation constraints. Acceptance: every
+  admitted frame policy replays its exact physical accesses through callable
+  publication; requirements artifacts remain non-authoritative until that
+  replay succeeds.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
