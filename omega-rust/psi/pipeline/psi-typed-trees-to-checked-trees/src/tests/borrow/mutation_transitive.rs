@@ -197,6 +197,10 @@ fn boundary_storage_fallback_keeps_receiver_and_exclusive_argument_reach() {
         }
         data Main { device: Device; value: u64; }
         machine Main::good(&mut self) { self.device.fill(&mut self.value); }
+        machine Main::forward(&mut self) {
+            let output: &mut u64 = &mut self.value;
+            self.device.fill(output);
+        }
         machine Main::bad(&mut self) {
             self.device.consume(Carrier { value: &mut self.value });
         }
@@ -224,7 +228,7 @@ fn boundary_storage_fallback_keeps_receiver_and_exclusive_argument_reach() {
         .collect();
     let facts = build_borrow_facts(&program);
     let mut cache = StateMutationSummaryCache::default();
-    for name in ["Main::good", "Main::bad"] {
+    for name in ["Main::good", "Main::forward", "Main::bad"] {
         let machine = program
             .machines()
             .iter()

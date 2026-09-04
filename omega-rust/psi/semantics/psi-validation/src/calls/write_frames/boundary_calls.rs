@@ -2,14 +2,16 @@
 //!
 //! Boundary calls have no locally inspectable body. This owner resolves the
 //! selected trait signature and derives the exact receiver/exclusive-argument
-//! frame, failing closed when a mutable argument is not a direct place.
+//! frame, failing closed when a mutable argument has no supported storage origin.
 
+use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::coarse_place_path;
 use super::isolation::type_is_caller_isolated_local;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use psi_typed_trees::statement::TableCall;
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::statement::{StatementNode, TableCall};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Recognition is deliberately broader than signature selection: even an
@@ -79,13 +81,15 @@ pub(super) fn boundary_trait_signature_for_parts<'program>(
     (signatures.next().is_none() && signature.type_parameters.is_empty()).then_some(signature)
 }
 
-/// The program-place frame of a resolved boundary call before authored
-/// `stores` lands. Boundary code may mutate its receiver and every explicit
+/// The program-place frame of a resolved boundary call. Boundary code may
+/// mutate its receiver and every supplied
 /// exclusive argument; it cannot manufacture reach to unrelated caller
-/// fields. An exclusive parameter not represented by a direct `&mut place`,
-/// or an aggregate carrying untracked reference reach, remains opaque.
+/// fields. A direct exclusive borrow or a verified caller reference binding
+/// supplies that argument's path. Aggregates with untracked reference reach
+/// and computed reference origins remain opaque.
 pub(crate) fn known_boundary_call_written_paths(
     program: &TypedTrees,
+    current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     call: &TableCall,
@@ -98,6 +102,7 @@ pub(crate) fn known_boundary_call_written_paths(
         .collect::<Vec<_>>();
     known_boundary_call_written_paths_for_parts(
         program,
+        current_machine,
         machine_symbols,
         symbols,
         &receiver,
@@ -108,6 +113,7 @@ pub(crate) fn known_boundary_call_written_paths(
 
 pub(super) fn known_boundary_call_written_paths_for_parts(
     program: &TypedTrees,
+    current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     receiver: &[String],
@@ -158,19 +164,85 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         if !referent_has_only_owned_storage(program, *referee) {
             return None;
         }
-        let ExpressionNode::Borrow(place) = program.expression_table.expression(*argument) else {
-            return None;
+        let path = match program.expression_table.expression(*argument) {
+            ExpressionNode::Borrow(place) if place.access.is_exclusive() => {
+                coarse_place_path(program, place.target)?
+            }
+            ExpressionNode::Name(_) => {
+                exclusive_reference_binding_path(program, current_machine, *argument)?
+            }
+            _ => return None,
         };
-        if !place.access.is_exclusive() {
-            return None;
-        }
-        let path = coarse_place_path(program, place.target)?;
         if !written.contains(&path) {
             written.push(path);
         }
     }
 
     Some(written)
+}
+
+/// Forward a reference value, not a borrow of its binding slot. Only an exact
+/// caller declaration can supply its type. This returns a raw binding path:
+/// the state transfer and public demand closure own local-origin admission.
+/// Replaying that prefix here would recursively replay every earlier boundary
+/// call. Carrier fields and computed results stay opaque.
+fn exclusive_reference_binding_path(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    argument: ExpressionHandle,
+) -> Option<String> {
+    let ExpressionNode::Name(name) = program.expression_table.expression(argument) else {
+        return None;
+    };
+    let [member] = program.expression_table.name_path_members(name.members) else {
+        return None;
+    };
+    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+        return None;
+    }
+    let (state, _, index) = caller_statement_at_site(
+        program,
+        current_machine,
+        CallerWriteSite::Expression(argument),
+    )?;
+    let declaration = program.symbols.get(name.symbol);
+    if declaration.parent != state.symbol || program.symbols.name(name.symbol) != member.as_str() {
+        return None;
+    }
+    let mut reference = match declaration.kind {
+        psi_symbols::SymbolKind::Parameter => {
+            program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == name.symbol)?
+                .type_reference
+        }
+        psi_symbols::SymbolKind::Local => {
+            let local = program.statement_table.statements(state.statement_nodes)[..index]
+                .iter()
+                .find_map(|statement| match statement {
+                    StatementNode::LocalData(local) if local.symbol == name.symbol => Some(local),
+                    _ => None,
+                })?;
+            local.type_reference
+        }
+        _ => return None,
+    };
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    (reference.is_valid()
+        && access.is_exclusive()
+        && referent_has_only_owned_storage(program, *referee))
+    .then(|| member.as_str().to_owned())
 }
 
 fn referent_has_only_owned_storage(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {

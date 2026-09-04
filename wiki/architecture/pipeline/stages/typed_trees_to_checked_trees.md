@@ -745,7 +745,16 @@ Current ownership is:
   A same-named field beneath another receiver prefix cannot select that cached
   signature. Exact actual/formal arity is required. The receiver is always in
   the may-write set, and exclusive parameters add their direct mutable-borrow
-  places. Constraint wrappers are peeled without erasing reference access.
+  places or forwarded exclusive-reference bindings. A forwarded binding must
+  name an exact parameter or prior local declaration in the owning caller state;
+  foreign, stale, missing, and shared-reference identities cannot supply it.
+  The boundary resolver returns the binding path without replaying prefix
+  transfer. Whole-state inference and public demand closure apply the shared
+  local-origin evidence, including stable replacement and prior aliases.
+  Constraint wrappers are peeled without erasing reference access, and both
+  the formal and forwarded reference's referent must have supported owned
+  storage. A reference-bearing member or a call-produced reference remains
+  opaque until its origin can be transported; it is not an implicit reborrow.
   Primitive and concrete caller-isolated by-value parameters add no caller
   writes, but a reference-bearing aggregate remains opaque until its reachable
   leaf origins can be transported; passing it by value does not erase its

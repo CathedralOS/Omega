@@ -184,6 +184,35 @@ fn caller_aliases_at_site(
     }) {
         return Some(Vec::new());
     }
+    let (state, statement, index) = caller_statement_at_site(program, machine, site)?;
+    if !program.statement_table.statements(state.statement_nodes)[..index]
+        .iter()
+        .any(may_declare_alias)
+    {
+        return Some(Vec::new());
+    }
+    let prefix = walk_state_write_prefix(
+        program,
+        machine,
+        state,
+        symbols,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        Some(StateWriteQuery::Before(statement)),
+    )?;
+    Some(prefix.aliases)
+}
+
+/// Locate a unique retained occurrence without resolving declarations by name.
+pub(super) fn caller_statement_at_site<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    site: CallerWriteSite<'_>,
+) -> Option<(
+    &'program psi_typed_trees::state::State,
+    &'program StatementNode,
+    usize,
+)> {
     let mut owner = None;
     for state in program.machine_states(machine) {
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -203,28 +232,11 @@ fn caller_aliases_at_site(
                 if owner.is_some() {
                     return None;
                 }
-                owner = Some((
-                    state,
-                    statement,
-                    statements[..index].iter().any(may_declare_alias),
-                ));
+                owner = Some((state, statement, index));
             }
         }
     }
-    let (state, statement, has_aliases) = owner?;
-    if !has_aliases {
-        return Some(Vec::new());
-    }
-    let prefix = walk_state_write_prefix(
-        program,
-        machine,
-        state,
-        symbols,
-        &mut Vec::new(),
-        &mut Vec::new(),
-        Some(StateWriteQuery::Before(statement)),
-    )?;
-    Some(prefix.aliases)
+    owner
 }
 
 fn place_suffix<'path>(root: &str, path: &'path str) -> Option<&'path str> {
