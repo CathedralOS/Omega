@@ -51,7 +51,7 @@ pub(super) fn validate_source(
     Ok(source)
 }
 
-fn validate_unit_shape(
+pub(crate) fn validate_unit_shape(
     selected: &SelectedInstructionPlan,
 ) -> Result<(), OptimizedUnitFunctionRelativeRealizationError> {
     let [function] = selected.functions.as_slice() else {

@@ -9,7 +9,8 @@ use crate::{
     OptimizedPostAllocationMachineOptimizationError, OptimizedPostAllocationMachinePipelineError,
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
     OptimizedRegisterHomeCustodyError, OptimizedSelectedReanalysisError,
-    OptimizedSelectionPipelineError,
+    OptimizedSelectionPipelineError, OptimizedStructuralUnitFunctionRelativeRealizationError,
+    OptimizedUnitFunctionRelativeRealizationError,
 };
 
 #[derive(Debug)]
@@ -38,6 +39,10 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     PostCopyRegisterHomes(OptimizedPostCopyRegisterHomeCustodyError),
     ActiveResidentRematerialization(OptimizedActiveResidentRematerializationError),
     AllocationRecoveryFunctionRelative(Box<AllocationRecoveryFunctionRelativeRealizationError>),
+    UnitFunctionRelativeRealization(OptimizedUnitFunctionRelativeRealizationError),
+    StructuralUnitFunctionRelativeRealization(
+        OptimizedStructuralUnitFunctionRelativeRealizationError,
+    ),
     UnsupportedPhysicalPhaseComposition,
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }

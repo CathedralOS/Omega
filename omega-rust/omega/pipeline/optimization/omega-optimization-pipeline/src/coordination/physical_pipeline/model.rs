@@ -4,22 +4,31 @@ use omega_regalloc::ValidatedPostAllocationOptimizationManifest;
 
 use crate::{
     StagedAllocationRecoveryFunctionRelativeRealization,
+    StagedFixedFrameFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization,
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedRegisterHomes, StagedPostAllocationMachineFunctionRelativeRealization,
+    StagedOptimizedStructuralUnitFunctionRelativeRealization,
+    StagedOptimizedUnitFunctionRelativeRealization,
+    StagedPostAllocationMachineFunctionRelativeRealization,
     StagedPostAllocationMachineFunctionRelativeSource,
     StagedSelectedLoweringFunctionRelativeRealization,
     ValidatedFunctionRelativeOptimizationRealizationManifest,
 };
 
-/// Complete currently admitted physical validation for one explicitly selected
-/// optimized source. All variants stop before frame construction, machine
-/// emission, object construction, installation, or publication.
+/// Complete currently admitted function-relative physical realization for one
+/// explicitly selected optimized source. Every variant owns a validated
+/// function-relative manifest and stops before fragment emission, object/image
+/// construction, installation, or publication.
 #[derive(Debug)]
 pub enum StagedOptimizedVerifiedPhysicalPipeline {
-    PhysicalIdentity {
-        homes: StagedOptimizedRegisterHomes,
-        machine: StagedOptimizedPostAllocationMachinePlan,
+    UnitBaseline {
+        realization: StagedOptimizedUnitFunctionRelativeRealization,
+    },
+    StructuralUnit {
+        realization: StagedOptimizedStructuralUnitFunctionRelativeRealization,
+    },
+    FixedFrame {
+        realization: StagedFixedFrameFunctionRelativeRealization,
     },
     PostAllocationMachine {
         realization: StagedPostAllocationMachineFunctionRelativeRealization,
@@ -38,7 +47,26 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
 impl StagedOptimizedVerifiedPhysicalPipeline {
     pub fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
         match self {
-            Self::PhysicalIdentity { homes, .. } => homes
+            Self::UnitBaseline { realization } => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::StructuralUnit { realization } => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::FixedFrame { realization } => realization
+                .homes()
                 .legality_stage()
                 .live_range_stage()
                 .liveness_stage()
@@ -102,7 +130,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
 
     pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
         match self {
-            Self::PhysicalIdentity { homes, .. } => homes.post_allocation_manifest(),
+            Self::UnitBaseline { realization } => realization.homes().post_allocation_manifest(),
+            Self::StructuralUnit { realization } => realization.homes().post_allocation_manifest(),
+            Self::FixedFrame { realization } => realization.homes().post_allocation_manifest(),
             Self::PostAllocationMachine { realization } => match realization.source() {
                 StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => {
                     homes.post_allocation_manifest()
@@ -128,7 +158,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
 
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         match self {
-            Self::PhysicalIdentity { machine, .. } => machine,
+            Self::UnitBaseline { realization } => realization.machine(),
+            Self::StructuralUnit { realization } => realization.machine(),
+            Self::FixedFrame { realization } => realization.machine(),
             Self::PostAllocationMachine { realization } => realization.machine(),
             Self::AllocationRecovery { realization } => realization.machine(),
             Self::FunctionRelativeLayout { realization } => realization.machine(),
@@ -136,11 +168,13 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         }
     }
 
-    pub const fn function_relative_realization(
+    pub const fn selected_lowering_function_relative_realization(
         &self,
     ) -> Option<&StagedSelectedLoweringFunctionRelativeRealization> {
         match self {
-            Self::PhysicalIdentity { .. }
+            Self::UnitBaseline { .. }
+            | Self::StructuralUnit { .. }
+            | Self::FixedFrame { .. }
             | Self::PostAllocationMachine { .. }
             | Self::AllocationRecovery { .. }
             | Self::FunctionRelativeLayout { .. } => None,
@@ -150,19 +184,42 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
 
     pub const fn function_relative_manifest(
         &self,
-    ) -> Option<&ValidatedFunctionRelativeOptimizationRealizationManifest> {
+    ) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
         match self {
-            Self::PhysicalIdentity { .. } => None,
-            Self::AllocationRecovery { realization } => Some(realization.manifest()),
-            Self::PostAllocationMachine { realization } => Some(realization.manifest()),
-            Self::FunctionRelativeLayout { realization } => Some(realization.manifest()),
-            Self::SelectedLowering { realization } => Some(realization.manifest()),
+            Self::UnitBaseline { realization } => realization.manifest(),
+            Self::StructuralUnit { realization } => realization.manifest(),
+            Self::FixedFrame { realization } => realization.manifest(),
+            Self::AllocationRecovery { realization } => realization.manifest(),
+            Self::PostAllocationMachine { realization } => realization.manifest(),
+            Self::FunctionRelativeLayout { realization } => realization.manifest(),
+            Self::SelectedLowering { realization } => realization.manifest(),
         }
     }
 
     pub fn selections(&self) -> OptimizationSelectionIdentity {
         match self {
-            Self::PhysicalIdentity { homes, .. } => homes
+            Self::UnitBaseline { realization } => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .selections()
+                .identity(),
+            Self::StructuralUnit { realization } => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .selections()
+                .identity(),
+            Self::FixedFrame { realization } => realization
+                .homes()
                 .legality_stage()
                 .live_range_stage()
                 .liveness_stage()
@@ -200,7 +257,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<omega_optimization_core::SelectedLoweringOptimizationCompletionIdentity> {
         match self {
-            Self::PhysicalIdentity { .. }
+            Self::UnitBaseline { .. }
+            | Self::StructuralUnit { .. }
+            | Self::FixedFrame { .. }
             | Self::AllocationRecovery { .. }
             | Self::FunctionRelativeLayout { .. } => None,
             Self::PostAllocationMachine { realization } => match realization.source() {
@@ -227,7 +286,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     ) -> Option<&StagedOptimizedPostAllocationMachineOptimization> {
         match self {
             Self::PostAllocationMachine { realization } => Some(realization.optimization()),
-            Self::PhysicalIdentity { .. }
+            Self::UnitBaseline { .. }
+            | Self::StructuralUnit { .. }
+            | Self::FixedFrame { .. }
             | Self::AllocationRecovery { .. }
             | Self::FunctionRelativeLayout { .. }
             | Self::SelectedLowering { .. } => None,

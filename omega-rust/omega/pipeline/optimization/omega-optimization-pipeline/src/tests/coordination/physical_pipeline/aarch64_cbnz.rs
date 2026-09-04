@@ -56,11 +56,7 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
     };
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(staged.selected_lowering_completion(), None);
-    assert!(staged.function_relative_manifest().is_some());
-    assert_eq!(
-        staged.function_relative_manifest(),
-        Some(realization.manifest())
-    );
+    assert_eq!(staged.function_relative_manifest(), realization.manifest());
     assert_eq!(
         validate_post_allocation_machine_function_relative_realization_custody(realization)
             .unwrap(),
@@ -412,10 +408,7 @@ fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
         Some(homes.selected_lowering_run().custody().identity())
     );
     assert_eq!(optimization.fusion().receipt().action_count(), 1);
-    assert_eq!(
-        staged.function_relative_manifest(),
-        Some(realization.manifest())
-    );
+    assert_eq!(staged.function_relative_manifest(), realization.manifest());
     assert_eq!(
         validate_post_allocation_machine_function_relative_realization_custody(realization)
             .unwrap(),

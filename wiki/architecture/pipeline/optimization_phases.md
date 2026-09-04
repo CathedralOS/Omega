@@ -191,12 +191,17 @@ projects its closed post-Terminal selection once into exact phase-local inputs;
 composition does not rescan the global set, and a post-Terminal phase without
 an implemented stage rejects rather than disappearing. Executable physical
 catalogs accept only `OptimizationPhaseSelections`, validate the owning phase,
-and cannot rediscover policy by scanning the global selection. The physical result is
-still transitional: its identity variants contain assigned operations while its
-selected variant may contain a result from a later phase, because the selected
-side still groups several Omega-owned phases into one optimizer unit. The public
-request surface uses the closed post-Terminal selection type, so this
-transitional branch cannot reopen an earlier phase.
+and cannot rediscover policy by scanning the global selection. Inside the
+selected optimizer pipeline, every physical route now reaches a validated
+function-relative realization. Empty physical selection is classified from the
+already selected representation into unit, structural-unit, or fixed-frame
+identity execution before custody is consumed; it never means try a specialized
+route and silently fall back. Consequently every selected-pipeline result owns a
+non-optional function-relative manifest. The remaining transitional split is one
+layer out: `NativePhysicalStageResult` still carries assigned operations in its
+ordinary and ranked identity arms but a completed optimizer-owned physical result
+in its selected arm. The public request surface uses the closed post-Terminal
+selection type, so this transitional branch cannot reopen an earlier phase.
 
 Migration proceeds in dependency order:
 
@@ -214,14 +219,19 @@ Migration proceeds in dependency order:
    and lowering produce one stage result regardless of selection presence.
    Ranked execution remains role-specific authority inside that result. There
    are currently no cataloged abstract-operation rewrites to move.
-5. **Target staging and physical routing are explicit; phase-depth convergence
-   remains.** Identity and selected execution enter one target-lowering stage
-   and then one physical-routing stage. Machine emission consumes their closed
-   results without scheduling either stage. Split the selected optimizer unit
-   and replace the different-depth physical variants with one sequence of
-   explicit assignment, instruction-selection, allocation, layout, and emission
-   phase results. Preserve role-specific authority carriers such as ranked
-   execution without using them as optimization bypasses.
+5. **Optimizer-owned physical routes now converge at function-relative
+   realization; outer convergence remains.** Identity and selected execution
+   enter one target-lowering stage and then one physical-routing stage. The
+   selected optimizer pipeline classifies identity input by its already selected
+   representation and produces a validated unit, structural-unit, or fixed-frame
+   realization; it does not try one route and fall back to another. Its public
+   function-relative manifest is therefore non-optional for every route. The
+   outer Terminal-to-native physical result still mixes assigned ordinary/ranked
+   identity plans with the selected optimizer result. Replace that mixed-depth
+   carrier with one common physical postcondition, then widen fragment emission
+   and publication beyond the selected-lowering route. Preserve role-specific
+   authority carriers such as ranked execution without using them as
+   optimization bypasses.
 6. Add checked-tree pruning only after its product-root identity, ownership,
    proof, effect, and boundary-retention rules are independently reconstructible.
 7. Remove transitional names, branches, and documentation only after ordinary,

@@ -23,48 +23,25 @@ fn optimized_source(
     optimized_source_with_budget(selections, selected_lowering_budget())
 }
 
-fn baseline_layout(
-    target: NativeTarget,
-) -> (
-    StagedOptimizedRegisterHomes,
-    StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedResolvedSelectedFormLayout,
-) {
+fn baseline_layout(target: NativeTarget) -> StagedFixedFrameFunctionRelativeRealization {
     let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
         optimized_source(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
         target,
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { homes, machine } = staged
-    else {
-        panic!("empty optimization selection must stop at authenticated physical custody")
+    let StagedOptimizedVerifiedPhysicalPipeline::FixedFrame { realization } = staged else {
+        panic!("empty optimization selection must reach fixed-frame function-relative custody")
     };
-    let selected = homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let encoding = stage_optimized_layout_independent_selected_form_encoding(
-        selected.selected(),
-        &machine,
-        selected.register_environment().physical(),
-    )
-    .unwrap();
-    let layout = stage_optimized_resolved_selected_form_layout(
-        selected.selected(),
-        &machine,
-        selected.register_environment().physical(),
-        &encoding,
-    )
-    .unwrap();
-    (homes, machine, layout)
+    realization
 }
 
 #[test]
 fn post_allocation_disabled_baseline_retains_compare_zero_and_nonzero_branch_on_both_isas() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let (homes, _, layout) = baseline_layout(target);
+        let realization = baseline_layout(target);
+        let homes = realization.homes();
+        let layout = realization.layout();
         let selected = homes
             .legality_stage()
             .live_range_stage()

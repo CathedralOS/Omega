@@ -14,6 +14,7 @@ use crate::{
 };
 
 use super::super::{OptimizedVerifiedPhysicalPipelineError, ResolvedNonAllocationComposition};
+use super::stage_identity_function_relative_pipeline;
 
 #[inline(never)]
 pub(in crate::coordination::physical_pipeline) fn stage_non_allocation_recovery_physical_pipeline(
@@ -86,9 +87,7 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_allocation_recovery_
                 .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
             let homes = stage_optimized_register_homes(legality)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterHomes)?;
-            let machine = stage_optimized_post_allocation_machine_plan(&homes)
-                .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
-            Ok(StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { homes, machine })
+            stage_identity_function_relative_pipeline(homes)
         }
         ResolvedNonAllocationComposition::FunctionRelativeLayout => {
             let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)

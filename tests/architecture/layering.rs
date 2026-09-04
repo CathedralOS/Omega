@@ -2062,6 +2062,26 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 optimizer_physical_composition_path.display()
             )
         });
+    let optimizer_identity_route_path = root.join(
+        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/coordination/physical_pipeline/routes/identity.rs",
+    );
+    let optimizer_identity_route = std::fs::read_to_string(&optimizer_identity_route_path)
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                optimizer_identity_route_path.display()
+            )
+        });
+    let optimizer_selected_phases_path = root.join(
+        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/coordination/physical_pipeline/routes/selected_phases.rs",
+    );
+    let optimizer_selected_phases = std::fs::read_to_string(&optimizer_selected_phases_path)
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                optimizer_selected_phases_path.display()
+            )
+        });
     let physical_catalog_entrances = [
         "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/mod.rs",
         "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/mod.rs",
@@ -2091,8 +2111,24 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
             && !input.contains("reject_pre_terminal_selections(")
             && target_stage.contains("enum NativeTargetStageResult")
-            && optimizer_physical_model.contains("PhysicalIdentity")
+            && optimizer_physical_model.contains("UnitBaseline")
+            && optimizer_physical_model.contains("StructuralUnit")
+            && optimizer_physical_model.contains("FixedFrame")
+            && !optimizer_physical_model.contains("PhysicalIdentity")
             && !optimizer_physical_model.contains("PsiOnly")
+            && optimizer_physical_model.contains(
+                ") -> &ValidatedFunctionRelativeOptimizationRealizationManifest"
+            )
+            && optimizer_selected_phases
+                .contains("stage_identity_function_relative_pipeline(homes)")
+            && optimizer_identity_route
+                .contains("stage_optimized_unit_function_relative_realization(homes)")
+            && optimizer_identity_route.contains(
+                "stage_optimized_structural_unit_function_relative_realization(homes)"
+            )
+            && optimizer_identity_route
+                .contains("stage_fixed_frame_function_relative_realization(homes, budget)")
+            && !optimizer_identity_route.contains(".or_else(")
             && optimizer_physical_pipeline.contains(
                 "post_terminal: &PostTerminalOptimizationSelections"
             )
