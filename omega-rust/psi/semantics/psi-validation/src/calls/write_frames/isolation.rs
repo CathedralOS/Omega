@@ -2,41 +2,15 @@
 //! inference.
 //!
 //! These queries decide whether an ordinary value is structurally incapable
-//! of carrying caller-visible aliasing. They inspect only checked typed shapes;
-//! the initializer query additionally admits only a finite direct-call tree.
+//! of carrying caller-visible aliasing. They inspect only checked typed shapes.
 //! Frame traversal and complete-or-opaque fallback remain in the parent.
 
-use super::transparent_effects::expression_is_effectful_for_transparent_result;
 use crate::struct_literals::construction_field_type;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::DataMember;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
+use psi_typed_trees::expression::TableStructLiteral;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-/// Traverse direct calls along initializer receiver/argument edges. Pure
-/// leaves are neutral; calls hidden under operators, aggregates, or other
-/// computed expressions remain outside this relation. The typed expression
-/// tree is finite; a worklist handles call nesting without a depth limit.
-pub(super) fn isolated_local_initializer_has_direct_call_tree(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> bool {
-    let mut pending = vec![expression];
-    while let Some(expression) = pending.pop() {
-        if !expression_is_effectful_for_transparent_result(program, expression) {
-            continue;
-        }
-        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-            return false;
-        };
-        if call.receiver.is_valid() {
-            pending.push(call.receiver);
-        }
-        pending.extend_from_slice(program.expression_table.expression_handles(call.arguments));
-    }
-    true
-}
 
 pub(super) fn struct_literal_field_type(
     program: &TypedTrees,

@@ -15,6 +15,9 @@ use psi_typed_trees::types::TypeReferenceNode;
 #[derive(Debug, Clone)]
 pub(super) struct ParameterRelativeFrameOrigin {
     pub(super) place: FramePlaceOrigin,
+    /// Zero means a proven caller-isolated local with no caller parameter.
+    /// Such origins may compose inside a helper but cannot be exported as its
+    /// returned-place relation.
     pub(super) parameter_symbol: SymbolHandle,
 }
 
