@@ -48,6 +48,7 @@ pub data KeywordKind [copy] {
     // exact parser positions; the parser's name-like rule admits them.
     case Case;
     case Copy;
+    case Linear;
 }
 
 pub data PunctuationKind [copy] {

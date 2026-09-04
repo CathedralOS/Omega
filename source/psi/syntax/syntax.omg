@@ -51,6 +51,7 @@ pub data DataMember [copy] {
 pub data DataMultiplicity [copy] {
     case Affine;
     case Unrestricted;
+    case Linear;
 }
 
 pub data DataItem [copy] {
