@@ -1,10 +1,8 @@
 use omega_optimization_core::PostAllocationOptimizationManifestIdentity;
 use omega_regalloc::RegisterHomeValidationReceipt;
 
-use crate::{
-    StagedOptimizedAllocationLegalityCustodyReceipt,
-    StagedOptimizedSelectedReanalysisCustodyReceipt,
-};
+use omega_fixed_view_copies_to_reanalyzed_legality::StagedOptimizedSelectedReanalysisCustodyReceipt;
+use omega_live_ranges_to_allocation_legality::StagedOptimizedAllocationLegalityCustodyReceipt;
 
 use super::model::{
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,

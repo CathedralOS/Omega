@@ -44,5 +44,5 @@ direct transition-free path. It still grants no machine-emission authority.
   validated-analysis boundary.
 - `pipeline/omega-fixed-view-copies-to-reanalyzed-legality` owns complete
   transformed analysis custody.
-- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/register_homes.rs` owns the
-  separate post-copy home carrier.
+- `pipeline/omega-allocation-legality-to-register-homes` owns the separate
+  post-copy home carrier.

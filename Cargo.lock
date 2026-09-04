@@ -327,6 +327,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-allocation-legality-to-register-homes"
+version = "0.1.0"
+dependencies = [
+ "omega-fixed-view-copies-to-reanalyzed-legality",
+ "omega-live-ranges-to-allocation-legality",
+ "omega-optimization-core",
+ "omega-regalloc",
+ "omega-register-model",
+ "omega-selected-instructions",
+ "omega-target",
+ "psi-core",
+ "psi-terminal",
+]
+
+[[package]]
 name = "omega-architecture-test"
 version = "0.1.0"
 dependencies = [
@@ -1098,6 +1113,7 @@ dependencies = [
  "omega-abstract-operations-optimizer",
  "omega-abstract-operations-to-target-operations",
  "omega-allocation-legality-to-fixed-view-copies",
+ "omega-allocation-legality-to-register-homes",
  "omega-assigned-target-operations",
  "omega-calling-conventions",
  "omega-effects",

@@ -4,9 +4,11 @@ use omega_regalloc::{
     validate_register_homes,
 };
 
-use crate::{
-    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
-    validate_optimized_allocation_legality_custody, validate_optimized_selected_reanalysis_custody,
+use omega_fixed_view_copies_to_reanalyzed_legality::{
+    StagedOptimizedSelectedReanalysis, validate_optimized_selected_reanalysis_custody,
+};
+use omega_live_ranges_to_allocation_legality::{
+    StagedOptimizedAllocationLegality, validate_optimized_allocation_legality_custody,
 };
 
 use super::custody::{custody_receipt, post_copy_custody_receipt};
