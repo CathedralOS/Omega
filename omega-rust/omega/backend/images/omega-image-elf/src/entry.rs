@@ -1,3 +1,6 @@
+//! Resolution of the entry address from the final image's entry symbol, which must
+//! be present and must live in text.
+
 use omega_image::{FinalImage, FinalImageSection, final_image_symbol_name};
 use psi_diagnostics::Diagnostic;
 
