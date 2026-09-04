@@ -30,10 +30,9 @@ fn baseline_layout(target: NativeTarget) -> StagedFixedFrameFunctionRelativeReal
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::FixedFrame { realization } = staged else {
+    (staged).into_fixed_frame_for_test().unwrap_or_else(|| {
         panic!("empty optimization selection must reach fixed-frame function-relative custody")
-    };
-    realization
+    })
 }
 
 #[test]
@@ -126,10 +125,11 @@ fn explicit_aarch64_cbnz_selection_crosses_allocation_and_elides_the_compare() {
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = staged
-    else {
-        panic!("equal-zero selection must reach the post-allocation CBNZ route")
-    };
+    let realization = (staged)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| {
+            panic!("equal-zero selection must reach the post-allocation CBNZ route")
+        });
     let allocation = realization.allocation().current();
     assert!(matches!(
         allocation.evidence(),

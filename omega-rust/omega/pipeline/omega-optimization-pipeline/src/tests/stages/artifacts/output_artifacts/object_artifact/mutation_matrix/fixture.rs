@@ -21,10 +21,9 @@ pub(super) fn staged_object_artifact() -> StagedValidatedOptimizedObjectArtifact
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = physical
-    else {
-        panic!("CBNZ must complete its direct post-allocation realization")
-    };
+    let realization = (physical)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| panic!("CBNZ must complete its direct post-allocation realization"));
     let fragments = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )

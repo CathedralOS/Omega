@@ -2135,7 +2135,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !optimizer_physical_model.contains("PhysicalIdentity")
             && !optimizer_physical_model.contains("PsiOnly")
             && optimizer_physical_model.contains(
-                ") -> &ValidatedFunctionRelativeOptimizationRealizationManifest"
+                ") -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest"
             )
             && optimizer_physical_model.contains("into_function_fragment_emission_source(")
             && optimizer_selected_phases
@@ -5504,13 +5504,10 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
     )
     .expect("read allocation-recovery route entrance");
     for required in [
-        "mod fixed_view;",
-        "mod active_resident;",
         "fn stage_allocation_recovery_pipeline",
-        "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",
-        "stage_fixed_view(ranges)",
-        "ActiveResidentImmediateU64MultiUseRematerializationV1",
-        "stage_active_resident(ranges)",
+        "stage_register_allocation(ranges)",
+        "stage_optimized_post_allocation_machine_plan(&allocation.current())",
+        "stage_allocation_recovery_function_relative_realization(allocation, machine)",
     ] {
         assert!(
             route.contains(required),
@@ -5520,7 +5517,7 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
     let model = std::fs::read_to_string(pipeline.join("coordination/physical_pipeline/model.rs"))
         .expect("read physical carrier model");
     assert!(
-        model.contains("AllocationRecovery {")
+        model.contains("pub struct StagedOptimizedVerifiedPhysicalPipeline")
             && model.contains("StagedAllocationRecoveryFunctionRelativeRealization")
     );
     assert!(!model.contains("ActiveResidentRematerialization {"));

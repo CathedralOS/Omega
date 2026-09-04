@@ -29,9 +29,9 @@ fn disabled_not_equal_zero_baseline_retains_compare_and_branch_on_both_isas() {
             &[],
         )
         .unwrap();
-        let StagedOptimizedVerifiedPhysicalPipeline::FixedFrame { realization } = staged else {
+        let realization = (staged).into_fixed_frame_for_test().unwrap_or_else(|| {
             panic!("disabled post-allocation selection must reach fixed-frame custody")
-        };
+        });
         let homes = realization.homes();
         let machine = realization.machine();
         let selected = homes
@@ -100,10 +100,9 @@ fn explicit_cbnz_fuses_not_equal_zero_and_preserves_both_operation_spans() {
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = staged
-    else {
-        panic!("not-equal-zero selection must reach the CBNZ route")
-    };
+    let realization = (staged)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| panic!("not-equal-zero selection must reach the CBNZ route"));
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(optimization) =
         realization.optimization()
     else {

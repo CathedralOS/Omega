@@ -256,6 +256,15 @@ carrier through the same physical postcondition.
 
 Migration proceeds in dependency order:
 
+The optimizer-owned physical result is one struct carrying the retained
+function-relative realization into emission, not a second seven-way route enum.
+It exposes the current machine and manifests without walking allocation ancestry
+or cloning program data. Fragment construction selects only scalar versus
+structural program shape. Recovery, selected-lowering, and machine/layout
+optimization histories remain distinct replay inputs and evidence identities;
+their validators run before emission but do not choose its algorithm. The
+remaining realization replay carriers are transitional, not new canonical IRs.
+
 1. **Complete.** Make the phase model and phase-specific selections canonical.
    Empty selection becomes identity execution at every phase.
 2. Retarget existing target-neutral passes and their validators to the live

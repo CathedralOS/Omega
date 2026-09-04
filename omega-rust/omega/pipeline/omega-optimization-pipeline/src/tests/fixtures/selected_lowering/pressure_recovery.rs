@@ -7,12 +7,12 @@ use crate::tests::{
     OperationResult, Optimization, OptimizationSelections, PressureRematerializationPolicy,
     RecoveryClassificationPolicy, ScalarType, SpillChoicePolicy,
     StagedAllocationRecoveryFunctionRelativeRealization,
-    StagedAllocationRecoveryFunctionRelativeSource, StagedOptimizedActiveResidentRematerialization,
-    StagedOptimizedAllocationLegality, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
-    lower_optimized_to_target_operations, operation_proof_bundle, optimize_artifact_sections,
-    selected_lowering_budget, stage_allocation_recovery_function_relative_realization,
+    StagedOptimizedActiveResidentRematerialization, StagedOptimizedAllocationLegality,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedSelectedInstructions, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
+    VocabularyMarker, lower_optimized_to_target_operations, operation_proof_bundle,
+    optimize_artifact_sections, selected_lowering_budget,
+    stage_allocation_recovery_function_relative_realization,
     stage_optimized_active_resident_rematerialization,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
@@ -454,11 +454,5 @@ pub(crate) fn staged_active_resident_allocation_recovery_realization(
     target: NativeTarget,
 ) -> StagedAllocationRecoveryFunctionRelativeRealization {
     let (source, machine) = staged_active_resident_rematerialization_and_machine(target);
-    stage_allocation_recovery_function_relative_realization(
-        StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(Box::new(
-            source,
-        )),
-        machine,
-    )
-    .unwrap()
+    stage_allocation_recovery_function_relative_realization(source, machine).unwrap()
 }

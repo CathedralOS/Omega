@@ -8,7 +8,7 @@ use omega_regalloc::{
 
 use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, Optimization, OptimizationSelections,
-    OptimizedActiveResidentRematerializationError, StagedOptimizedVerifiedPhysicalPipeline,
+    OptimizedActiveResidentRematerializationError,
     conditional_active_resident_exact_add_chain_artifact, optimize_artifact_sections,
     selected_lowering_budget, stage_optimized_active_resident_rematerialization,
     stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
@@ -41,10 +41,7 @@ fn active_resident_rule_is_disabled_without_its_exact_selection() {
         )
         .unwrap();
 
-        assert!(matches!(
-            staged,
-            StagedOptimizedVerifiedPhysicalPipeline::FixedFrame { .. }
-        ));
+        assert!(staged.fixed_frame_for_test().is_some());
         assert_eq!(staged.selections(), selections.identity());
         assert!(
             staged

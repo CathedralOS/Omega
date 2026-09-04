@@ -115,11 +115,13 @@ fn frame_application_rejects_a_non_fixed_fragment_source() {
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let source = match physical {
-        StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } => {
-            StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(realization))
-        }
-        _ => panic!("selected exact-add must take its selected-lowering route"),
+    let source = {
+        let source = (physical).into_function_fragment_emission_source();
+        assert!(matches!(
+            &source,
+            StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(_)
+        ));
+        source
     };
     let fragments = stage_optimized_function_fragment_emission(source).unwrap();
     assert!(matches!(

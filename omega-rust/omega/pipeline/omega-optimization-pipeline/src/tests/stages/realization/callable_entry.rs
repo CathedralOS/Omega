@@ -27,19 +27,15 @@ pub(super) fn staged_callable_object_artifact(
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let source = match physical {
-        StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } => {
-            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization))
-        }
-        StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } => {
-            StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(
-                realization,
-            ))
-        }
-        StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } => {
-            StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(realization))
-        }
-        _ => panic!("fixture must complete a function-relative realization"),
+    let source = {
+        let source = (physical).into_function_fragment_emission_source();
+        assert!(matches!(
+            &source,
+            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(_)
+                | StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(_)
+                | StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(_)
+        ));
+        source
     };
     let fragments = stage_optimized_function_fragment_emission(source).unwrap();
     let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
@@ -66,10 +62,11 @@ fn staged_active_resident_callable_object_artifact(
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { realization } = physical
-    else {
-        panic!("the root-build rematerialization selection must retain its owning realization")
-    };
+    let realization = (physical)
+        .into_allocation_recovery_for_test()
+        .unwrap_or_else(|| {
+            panic!("the root-build rematerialization selection must retain its owning realization")
+        });
     let fragments = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization),
     )
@@ -127,13 +124,15 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         else {
             panic!("object custody must retain the rematerialization realization")
         };
-        let StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-            rematerialization,
-        ) = realization.source()
-        else {
-            panic!("object custody must retain the active-resident recovery source")
+        let current = realization.allocation().current();
+        let rematerialization = realization
+            .allocation()
+            .rematerialization_proof_for_test()
+            .unwrap();
+        let AllocationEvidence::ActiveResidentRematerialization(_) = current.evidence() else {
+            panic!("fixture must retain rematerialization evidence")
         };
-        let fresh = rematerialization.rematerialization().plan().functions[0]
+        let fresh = rematerialization.plan().functions[0]
             .action
             .as_ref()
             .expect("the exact root-build family must apply one rematerialization")
@@ -173,13 +172,13 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
             FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
         );
         assert_eq!(
-            rematerialization
+            current
                 .post_allocation_manifest()
                 .record()
                 .selected_transformations,
             [
                 PostAllocationSelectedTransformation::PressureRematerialization(
-                    rematerialization.rematerialization().receipt().identity(),
+                    rematerialization.receipt().identity(),
                 )
             ]
         );

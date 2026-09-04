@@ -101,6 +101,18 @@ fn retained_allocation_rejects_selected_recovery_without_recovery_evidence() {
 }
 
 #[test]
+fn plain_recovery_realization_rejects_non_recovery_allocation() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let homes = baseline(target);
+        let machine = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
+        assert!(matches!(
+            stage_allocation_recovery_function_relative_realization(homes, machine),
+            Err(AllocationRecoveryFunctionRelativeRealizationError::UnsupportedSelections)
+        ));
+    }
+}
+
+#[test]
 fn allocation_phase_matches_explicit_baseline_and_selected_lowering_sequences() {
     fn ranges(target: NativeTarget, lowering: bool) -> StagedOptimizedLiveRanges {
         let selections = OptimizationSelections::new(if lowering {

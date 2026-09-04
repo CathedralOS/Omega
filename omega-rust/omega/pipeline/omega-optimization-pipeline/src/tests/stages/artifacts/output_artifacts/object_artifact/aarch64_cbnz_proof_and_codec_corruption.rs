@@ -21,10 +21,9 @@ fn optimized_cbnz_object_artifact_retains_zero_span_and_rejects_detached_proof()
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = physical
-    else {
-        panic!("CBNZ must complete its direct realization")
-    };
+    let realization = (physical)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| panic!("CBNZ must complete its direct realization"));
     let emitted = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )
@@ -63,10 +62,9 @@ fn optimized_cbnz_object_artifact_retains_zero_span_and_rejects_detached_proof()
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = physical
-    else {
-        panic!("CBNZ must complete its direct realization")
-    };
+    let realization = (physical)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| panic!("CBNZ must complete its direct realization"));
     let emitted = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )

@@ -12,6 +12,8 @@ mod input;
 mod model;
 mod phase_selections;
 mod routes;
+#[cfg(test)]
+mod test_support;
 
 use crate::{
     ValidatedOptimizedTargetOperations, baseline_target_register_environment,
@@ -66,9 +68,9 @@ pub fn stage_optimized_verified_physical_pipeline(
             ResolvedRealizationPlan::PostAllocationMachine { entry },
         ),
         ResolvedPhysicalPhaseComposition::AllocationRecovery {
-            rule,
             post_allocation: None,
-        } => stage_allocation_recovery_pipeline(ranges, rule),
+            ..
+        } => stage_allocation_recovery_pipeline(ranges),
         ResolvedPhysicalPhaseComposition::Realization(composition) => {
             stage_allocation_and_realization(ranges, composition)
         }

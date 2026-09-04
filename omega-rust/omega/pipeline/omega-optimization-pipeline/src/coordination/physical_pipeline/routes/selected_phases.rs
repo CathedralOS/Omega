@@ -37,7 +37,7 @@ pub(in crate::coordination::physical_pipeline) fn stage_allocation_and_realizati
                 optimization,
             )
             .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
-            Ok(StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization })
+            Ok(StagedOptimizedVerifiedPhysicalPipeline::from(realization))
         }
         ResolvedRealizationPlan::Identity => {
             let legality = stage_optimized_allocation_legality(ranges)
@@ -53,7 +53,7 @@ pub(in crate::coordination::physical_pipeline) fn stage_allocation_and_realizati
                 .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterHomes)?;
             let realization = stage_function_relative_layout_optimization_realization(homes)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
-            Ok(StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization })
+            Ok(StagedOptimizedVerifiedPhysicalPipeline::from(realization))
         }
         ResolvedRealizationPlan::SelectedLowering => {
             let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)
@@ -64,7 +64,7 @@ pub(in crate::coordination::physical_pipeline) fn stage_allocation_and_realizati
                 .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLoweringHomes)?;
             let realization = stage_selected_lowering_function_relative_realization(homes)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
-            Ok(StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization })
+            Ok(StagedOptimizedVerifiedPhysicalPipeline::from(realization))
         }
     }
 }

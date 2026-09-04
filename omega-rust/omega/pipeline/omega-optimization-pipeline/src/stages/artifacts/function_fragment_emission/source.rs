@@ -11,6 +11,9 @@ use crate::{
 };
 
 #[derive(Debug)]
+/// Retained inputs for independently replaying the completed realization.
+/// These transitional roles preserve existing evidence identities, not separate
+/// fragment-emission algorithms; emission reads the common plan and layout.
 pub enum StagedOptimizedFunctionFragmentEmissionSource {
     X86Rel8Direct(Box<StagedFunctionRelativeLayoutOptimizationRealization>),
     SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
@@ -22,6 +25,39 @@ pub enum StagedOptimizedFunctionFragmentEmissionSource {
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
+    pub fn machine(&self) -> &crate::StagedOptimizedPostAllocationMachinePlan {
+        match self {
+            Self::UnitBaseline(realization) => realization.machine(),
+            Self::StructuralUnit(realization) => realization.machine(),
+            Self::FixedFrame(realization) => realization.machine(),
+            Self::PostAllocationMachine(realization) => realization.machine(),
+            Self::AllocationRecovery(realization) => realization.machine(),
+            Self::X86Rel8Direct(realization) => realization.machine(),
+            Self::SelectedLowering(realization) => realization.machine(),
+        }
+    }
+
+    pub fn resolved_layout(&self) -> &crate::StagedOptimizedResolvedSelectedFormLayout {
+        match self {
+            Self::UnitBaseline(realization) => realization.layout(),
+            Self::StructuralUnit(realization) => realization.layout(),
+            Self::FixedFrame(realization) => realization.layout(),
+            Self::PostAllocationMachine(realization) => realization.layout(),
+            Self::AllocationRecovery(realization) => realization.layout(),
+            Self::X86Rel8Direct(realization) => realization.layout(),
+            Self::SelectedLowering(realization) => realization.layout(),
+        }
+    }
+
+    pub fn post_allocation_machine_optimization(
+        &self,
+    ) -> Option<&crate::StagedOptimizedPostAllocationMachineOptimization> {
+        match self {
+            Self::PostAllocationMachine(realization) => Some(realization.optimization()),
+            _ => None,
+        }
+    }
+
     pub const fn fixed_frame_realization(
         &self,
     ) -> Option<&StagedFixedFrameFunctionRelativeRealization> {
@@ -45,7 +81,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::PostAllocationMachine(realization) => {
                 realization.allocation().current().selected_plan()
             }
-            Self::AllocationRecovery(realization) => realization.source().selected_plan(),
+            Self::AllocationRecovery(realization) => {
+                realization.allocation().current().selected_plan()
+            }
             Self::UnitBaseline(realization) => realization
                 .homes()
                 .legality_stage()
@@ -78,7 +116,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::X86Rel8Direct(realization) => realization.homes().homes(),
             Self::SelectedLowering(realization) => realization.homes().homes(),
             Self::PostAllocationMachine(realization) => realization.allocation().current().homes(),
-            Self::AllocationRecovery(realization) => realization.source().homes(),
+            Self::AllocationRecovery(realization) => realization.allocation().current().homes(),
             Self::UnitBaseline(realization) => realization.homes().homes(),
             Self::StructuralUnit(realization) => realization.homes().homes(),
             Self::FixedFrame(realization) => realization.homes().homes(),
@@ -105,7 +143,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::PostAllocationMachine(realization) => {
                 realization.allocation().current().register_environment()
             }
-            Self::AllocationRecovery(realization) => realization.source().register_environment(),
+            Self::AllocationRecovery(realization) => {
+                realization.allocation().current().register_environment()
+            }
             Self::UnitBaseline(realization) => realization
                 .homes()
                 .legality_stage()
@@ -171,8 +211,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .optimized()
                 .pre_physical_manifest(),
             Self::AllocationRecovery(realization) => realization
-                .source()
-                .optimized_target()
+                .allocation()
+                .current()
+                .target_input()
                 .optimized()
                 .pre_physical_manifest(),
             Self::UnitBaseline(realization) => realization
@@ -229,9 +270,10 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .allocation()
                 .current()
                 .post_allocation_manifest(),
-            Self::AllocationRecovery(realization) => {
-                realization.source().post_allocation_manifest()
-            }
+            Self::AllocationRecovery(realization) => realization
+                .allocation()
+                .current()
+                .post_allocation_manifest(),
             Self::UnitBaseline(realization) => realization.homes().post_allocation_manifest(),
             Self::StructuralUnit(realization) => realization.homes().post_allocation_manifest(),
             Self::FixedFrame(realization) => realization.homes().post_allocation_manifest(),
@@ -260,7 +302,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::PostAllocationMachine(realization) => {
                 realization.allocation().current().target_input()
             }
-            Self::AllocationRecovery(realization) => realization.source().optimized_target(),
+            Self::AllocationRecovery(realization) => {
+                realization.allocation().current().target_input()
+            }
             Self::UnitBaseline(realization) => realization
                 .homes()
                 .legality_stage()

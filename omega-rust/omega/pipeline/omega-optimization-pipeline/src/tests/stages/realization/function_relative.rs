@@ -28,11 +28,11 @@ fn function_relative_only_rel8_suite_shrinks_and_replays_without_selected_loweri
             .function_relative()
             .is_some()
     );
-    let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } =
-        &mut staged
-    else {
-        panic!("the exact function-relative phase must use its direct realization route")
-    };
+    let realization = (staged)
+        .function_relative_layout_mut_for_test()
+        .unwrap_or_else(|| {
+            panic!("the exact function-relative phase must use its direct realization route")
+        });
     assert_eq!(
         validate_function_relative_layout_optimization_realization_custody(realization).unwrap(),
         *realization.custody()
@@ -122,9 +122,9 @@ fn selected_lowering_and_rel8_phases_retain_both_completion_receipts() {
     let staged =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } = &staged else {
-        panic!("the selected-lowering phase remains the owning physical route")
-    };
+    let realization = (staged)
+        .selected_lowering_for_test()
+        .unwrap_or_else(|| panic!("the selected-lowering phase remains the owning physical route"));
     assert_eq!(
         validate_selected_lowering_function_relative_realization_custody(realization).unwrap(),
         *realization.custody()
@@ -168,10 +168,9 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } = physical
-    else {
-        panic!("rel8 must complete its direct function-relative realization")
-    };
+    let realization = (physical)
+        .into_function_relative_layout_for_test()
+        .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
     let mut emitted = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
     )
@@ -313,10 +312,9 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = physical
-    else {
-        panic!("CBNZ must complete its direct function-relative realization")
-    };
+    let realization = (physical)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| panic!("CBNZ must complete its direct function-relative realization"));
     let mut emitted = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )
@@ -433,14 +431,11 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                         &[],
                     )
                     .unwrap();
-                let source = match physical {
-                    StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine {
-                        realization,
-                    } => StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(
-                        Box::new(realization),
-                    ),
-                    _ => panic!("MOVN fixture must retain the corresponding realization route"),
-                };
+                let source = {
+    let source = (physical).into_function_fragment_emission_source();
+    assert!(matches!(&source, StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(_)));
+    source
+};
 
                 let mut emitted = stage_optimized_function_fragment_emission(source).unwrap();
                 assert_eq!(

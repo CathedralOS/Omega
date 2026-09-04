@@ -4,19 +4,16 @@ mod function;
 use omega_machine_code::FunctionFragmentEmissionPlan;
 use omega_optimization_core::FunctionFragmentEmissionIdentity;
 
-use crate::StagedOptimizedStructuralUnitFunctionRelativeRealization;
-
 use super::super::{FunctionFragmentEmissionError, StagedOptimizedFunctionFragmentEmissionSource};
 use super::manifest;
 use super::ordinary::Emission;
 
 pub(super) fn compute(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
-    realization: &StagedOptimizedStructuralUnitFunctionRelativeRealization,
 ) -> Result<Emission, FunctionFragmentEmissionError> {
     let selected_plan = source.selected_plan();
-    let layout = realization.layout();
-    let source_manifest = realization.manifest().record();
+    let layout = source.resolved_layout();
+    let source_manifest = source.function_relative_manifest().record();
     if !selected_plan.functions.is_empty()
         || !layout.functions().is_empty()
         || selected_plan.structural_unit_functions.len() != layout.structural_unit_functions().len()

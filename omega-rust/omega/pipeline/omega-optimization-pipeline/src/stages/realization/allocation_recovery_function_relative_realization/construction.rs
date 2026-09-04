@@ -12,39 +12,28 @@ use super::model::{
     AllocationRecoveryFunctionRelativeRealizationError,
     StagedAllocationRecoveryFunctionRelativeRealization,
 };
-use super::source::{
-    StagedAllocationRecoveryFunctionRelativeSource, validate_active_resident_source,
-    validate_fixed_view_source,
-};
+use super::selection::validate_phase_selection;
+use omega_selected_instructions_to_register_homes::RetainedAllocation;
 
 pub(super) fn construct(
-    source: StagedAllocationRecoveryFunctionRelativeSource,
+    allocation: RetainedAllocation,
     machine: StagedOptimizedPostAllocationMachinePlan,
 ) -> Result<
     StagedAllocationRecoveryFunctionRelativeRealization,
     AllocationRecoveryFunctionRelativeRealizationError,
 > {
-    source.validate_phase_selection()?;
-    let source_custody = match &source {
-        StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) => {
-            let custody = validate_fixed_view_source(homes)?;
-            validate_optimized_post_allocation_machine_plan_custody(homes, &machine)
-                .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
-            custody
-        }
-        StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-            rematerialization,
-        ) => {
-            let custody = validate_active_resident_source(rematerialization)?;
-            validate_optimized_post_allocation_machine_plan_custody(rematerialization, &machine)
-                .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
-            custody
-        }
-    };
-    let (encoding, layout, exit_contract) = build_physical_artifacts(&source, &machine)?;
-    let manifest = expected_manifest(&source, &machine, &encoding, &layout, &exit_contract)?;
+    let current = allocation.current();
+    validate_phase_selection(&current)?;
+    validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
+        .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
+    let (encoding, layout, exit_contract) = build_for_selected(
+        current.selected(),
+        &machine,
+        current.register_environment().physical(),
+    )?;
+    let manifest = expected_manifest(&current, &machine, &encoding, &layout, &exit_contract)?;
     let custody = receipt(
-        source_custody,
+        current.evidence().clone(),
         &machine,
         &encoding,
         &layout,
@@ -52,7 +41,7 @@ pub(super) fn construct(
         &manifest,
     );
     Ok(StagedAllocationRecoveryFunctionRelativeRealization {
-        source,
+        allocation,
         machine,
         encoding,
         layout,
@@ -60,35 +49,6 @@ pub(super) fn construct(
         manifest,
         custody,
     })
-}
-
-fn build_physical_artifacts(
-    source: &StagedAllocationRecoveryFunctionRelativeSource,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-) -> Result<
-    (
-        StagedOptimizedSelectedFormEncoding,
-        StagedOptimizedResolvedSelectedFormLayout,
-        ValidatedWholeFunctionExitContract,
-    ),
-    AllocationRecoveryFunctionRelativeRealizationError,
-> {
-    match source {
-        StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) => {
-            build_for_selected(
-                homes.reanalysis_stage().transformation_stage().copies(),
-                machine,
-                source.register_environment().physical(),
-            )
-        }
-        StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-            rematerialization,
-        ) => build_for_selected(
-            rematerialization.rematerialization(),
-            machine,
-            source.register_environment().physical(),
-        ),
-    }
 }
 
 fn build_for_selected<S: omega_regalloc::ValidatedSelectedAnalysis>(

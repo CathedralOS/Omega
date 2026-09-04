@@ -6,10 +6,9 @@ use crate::tests::{
     FunctionRelativeOptimizationRealizationManifest, NativeTarget, Optimization,
     OptimizationSelections, OptimizedResolvedSelectedFormLayoutError,
     OptimizedSelectedFormEncodingError, StagedOptimizedPostAllocationMachineOptimization,
-    StagedOptimizedVerifiedPhysicalPipeline, WholeFunctionExitContractError,
-    WholeFunctionExitLayoutCustody, conditional_exact_binary_artifact,
-    optimization_pipeline_report, optimize_artifact_sections, selected_lowering_budget,
-    stage_optimized_layout_independent_selected_form_encoding,
+    WholeFunctionExitContractError, WholeFunctionExitLayoutCustody,
+    conditional_exact_binary_artifact, optimization_pipeline_report, optimize_artifact_sections,
+    selected_lowering_budget, stage_optimized_layout_independent_selected_form_encoding,
     stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
     stage_optimized_resolved_selected_form_layout,
     stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
@@ -39,10 +38,11 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
     let mut staged =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = &staged
-    else {
-        panic!("the exact post-allocation phase must use its symbolic machine route")
-    };
+    let realization = (staged)
+        .post_allocation_machine_for_test()
+        .unwrap_or_else(|| {
+            panic!("the exact post-allocation phase must use its symbolic machine route")
+        });
     let allocation = realization.allocation().current();
     assert!(matches!(
         allocation.evidence(),
@@ -333,11 +333,9 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
         Err(omega_machine_optimizer::Aarch64CbnzFusionError::ArtifactMismatch)
     );
 
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
-        &mut staged
-    else {
-        unreachable!()
-    };
+    let realization = (staged)
+        .post_allocation_machine_mut_for_test()
+        .unwrap_or_else(|| unreachable!());
     let original_layout = realization.manifest().record().resolved_layout;
     realization.manifest_mut().record_mut().resolved_layout =
         realization.baseline_layout().identity();
@@ -387,10 +385,11 @@ fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
     let staged =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = &staged
-    else {
-        panic!("selected lowering must retain custody before post-allocation fusion")
-    };
+    let realization = (staged)
+        .post_allocation_machine_for_test()
+        .unwrap_or_else(|| {
+            panic!("selected lowering must retain custody before post-allocation fusion")
+        });
     let allocation = realization.allocation().current();
     assert!(matches!(
         allocation.evidence(),

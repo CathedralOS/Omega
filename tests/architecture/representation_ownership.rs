@@ -352,3 +352,50 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
         );
     }
 }
+
+#[test]
+fn completed_physical_results_and_emission_do_not_fork_by_history() {
+    let root = repository().join("omega-rust/omega/pipeline/omega-optimization-pipeline/src");
+    let model =
+        std::fs::read_to_string(root.join("coordination/physical_pipeline/model.rs")).unwrap();
+    assert!(model.contains("pub struct StagedOptimizedVerifiedPhysicalPipeline"));
+    assert!(!model.contains("pub enum StagedOptimizedVerifiedPhysicalPipeline"));
+    for ancestry in [
+        "selected_stage()",
+        "legality_stage()",
+        "selected_lowering_run()",
+    ] {
+        assert!(!model.contains(ancestry));
+    }
+    let compute = root.join("stages/artifacts/function_fragment_emission/compute");
+    for retired in [
+        "allocation_recovery",
+        "post_allocation_machine",
+        "selected_lowering",
+        "x86_rel8",
+        "unit_baseline",
+        "fixed_frame",
+    ] {
+        assert!(!compute.join(format!("{retired}.rs")).exists());
+    }
+    for file in ["mod.rs", "ordinary.rs", "structural_unit.rs"] {
+        let source = std::fs::read_to_string(compute.join(file)).unwrap();
+        assert!(!source.contains("StagedOptimizedFunctionFragmentEmissionSource::"));
+        assert!(!source.contains("selected_stage()"));
+        assert!(!source.contains("steps().last()"));
+    }
+    let recovery =
+        root.join("stages/realization/allocation_recovery_function_relative_realization");
+    assert!(!recovery.join("source/mod.rs").exists());
+    let source = rust_source(&recovery);
+    assert!(source.contains("RetainedAllocation"));
+    assert!(source.contains("replay_allocation()"));
+    assert!(!source.contains("StagedAllocationRecoveryFunctionRelativeSource"));
+    for ancestry in [
+        "reanalysis_stage()",
+        "source_legality_stage()",
+        "selected_stage()",
+    ] {
+        assert!(!source.contains(ancestry));
+    }
+}
