@@ -87,6 +87,16 @@ fn local_cache_rejects_a_replaced_locked_path() {
     let _ = std::fs::remove_dir_all(&cache);
 }
 
+#[cfg(unix)]
+fn create_test_symlink(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(windows)]
+fn create_test_symlink(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_file(target, link)
+}
+
 #[test]
 fn cache_lock_open_does_not_follow_a_preexisting_symlink() {
     let root = temp_root("cache-lock-symlink");
@@ -99,10 +109,17 @@ fn cache_lock_open_does_not_follow_a_preexisting_symlink() {
         ("local.lock", CacheCustodyKind::LocalSnapshot),
     ] {
         let lock_path = root.join(name);
-        #[cfg(unix)]
-        std::os::unix::fs::symlink(&target, &lock_path).expect("create cache lock symlink");
-        #[cfg(windows)]
-        std::os::windows::fs::symlink_file(&target, &lock_path).expect("create cache lock symlink");
+        // Creating a symlink on Windows needs SeCreateSymbolicLinkPrivilege, which an
+        // ordinary shell does not hold unless Developer Mode is on. The host then cannot
+        // set up this contract at all, so report the missing runtime leg and stop rather
+        // than failing a lock-custody test with an unrelated privilege error.
+        if let Err(error) = create_test_symlink(&target, &lock_path) {
+            eprintln!(
+                "skipping cache_lock_open_does_not_follow_a_preexisting_symlink: this host cannot create a symlink ({error})"
+            );
+            let _ = std::fs::remove_dir_all(&root);
+            return;
+        }
         let error = CacheEntryLock::open_retained(kind, &lock_path)
             .expect_err("cache lock open must not follow a symlink");
         assert!(matches!(
