@@ -23,6 +23,8 @@ authored locals. It lowers
 arbitrary-field recursive algebraic data and
 declaration-order exhaustive `match`, while a whole-program pass enforces
 global declaration order, nonempty data, unique namespaces, and exactly one
-`main`. The admitted complete edge remains absent while normative `Bytes`, full
-checking, checked arithmetic, proper-tail lowering, and profile closure remain
+`main`. Tail calls remain in tail position through emitted `if`, `let`, and
+lowered `match`; a 100,000-node construction/traversal witness completes in the
+selected evaluator's bounded call context. The admitted complete edge remains
+absent while normative `Bytes`, checked arithmetic, and profile closure remain
 open.

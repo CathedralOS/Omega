@@ -67,11 +67,13 @@ prefix, preventing such a declaration from being captured by Gamma's builtin
 dispatch. `main` alone retains the name required by the evaluator.
 
 This is a meaningful early stage, not the complete Delta compiler. It does not
-yet provide normative `Bytes`, checked arithmetic, production application
-profiles, or proper-tail guarantees beyond those available in Gamma. Closed
-`bytes_*` forms reject until their representation and lowering exist; the stage
-never publishes an unexecutable Gamma call as a purported receipt. Static
-acceptance of the scalar/nominal slice is not full-language admission.
+yet provide normative `Bytes`, checked arithmetic, or production application
+profiles. Closed `bytes_*` forms reject until their representation and lowering
+exist; the stage never publishes an unexecutable Gamma call as a purported
+receipt. Calls emitted in tail position remain in Gamma tail position through
+`if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
+construction and traversal in bounded call context. Static acceptance of the
+scalar/nominal slice is not full-language admission.
 
 The executable gate is
 [`../../../tests/delta/staged-compiler/`](../../../tests/delta/staged-compiler/).
@@ -97,8 +99,11 @@ The downgraded full compiler remains separate under
 24-line / 767-byte three-field recursive rope fixture
   -> 7-line / 1,056-byte Gamma receipt
   -> indexing produces byte 0x42; indexing empty traps
+7-line / 277-byte proper-tail List fixture
+  -> 4-line / 394-byte Gamma receipt
+  -> constructs and traverses 100,000 nodes through if, let, and match
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199; staged transformation is
-     about 10 seconds on the development host
+     about 12 seconds on the development host
 ```

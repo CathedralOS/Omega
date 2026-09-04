@@ -192,6 +192,22 @@ nominal_status, nominal_receipt = evaluate(compiler, nominal_types)
 if nominal_status != 0 or evaluate(nominal_receipt) != (0, b"\x07"):
     raise SystemExit("nominal constructor, pattern, call, or result types failed")
 
+proper_tail = b"""(data List (Nil) (Cons Int List))
+(def make ((n Int) (items List)) List
+  (if (eq n 0) items
+    (let next Int (- n 1) (make next (Cons 1 items)))))
+(def walk ((items List)) Int
+  (match items (Nil 0) ((Cons head tail) (walk tail))))
+(def main () Int (walk (make 100000 Nil)))
+"""
+tail_status, tail_receipt = evaluate(compiler, proper_tail)
+if tail_status != 0 or len(tail_receipt) != 394:
+    raise SystemExit("proper-tail witness did not lower")
+if hashlib.sha256(tail_receipt).hexdigest() != "d188b2ce9899861832fe5e398fd28366ecc00954a17327b80da31990733e6049":
+    raise SystemExit("proper-tail receipt identity changed")
+if evaluate(tail_receipt) != (0, b"\x00"):
+    raise SystemExit("tail calls through if, let, or match consumed context")
+
 malformed = {
     "unknown field type": b"(data Bad (Bad Missing))\n(def main () Int 0)\n",
     "missing payload argument": b"(data Option (None) (Some Int))\n(def main () Int (Some))\n",
@@ -271,4 +287,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: source envelope, globals, scalar/nominal types, and recursive ADTs pass"
+echo "Staged Delta compiler: source envelope, scalar/nominal types, recursive ADTs, and proper tails pass"
