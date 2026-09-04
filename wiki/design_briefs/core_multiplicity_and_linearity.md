@@ -182,13 +182,14 @@ nested fields retain each enclosing record field. Terminal verification,
 target layout, both Linux ABIs, machine emission, object replay, and installed
 custody preserve the same store, source identity and ABI location, and exact
 byte offset. The parameter form is deliberately one structural destination
-followed by one scalar source; its target ABI placement is independently
-reconstructed rather than trusted from an emitted record. Boolean definitions
+plus an ordered scalar roster with one exact selected source; register and
+incoming-stack target ABI placement are independently reconstructed rather
+than trusted from an emitted record. Boolean definitions
 retain their zero-code semantic ordinal and exact one-byte store rather than
 borrowing an integer-definition carrier.
-Additional assignments, wider scalar rosters, generics, domains/invariants,
-quotients, sums, arrays, erased fields, result homes, and other nonliteral
-values remain outside this rung.
+Additional assignments, generics, domains/invariants, quotients, sums, arrays,
+erased fields, result homes, and other nonliteral values remain outside this
+rung.
 
 ## Consumers and cleanup
 

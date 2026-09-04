@@ -25,7 +25,6 @@ pub(super) fn build_structural_scalar_field_store(
             CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
         )
         || !destination.qualifications.is_empty()
-        || scalar_parameters.len() > 1
     {
         return None;
     }
@@ -130,8 +129,8 @@ pub(super) fn build_structural_scalar_field_store(
         0,
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
-    let exact_source = match scalar_parameters {
-        [] => match value {
+    let exact_source = if scalar_parameters.is_empty() {
+        match value {
             CheckedScalarExpression::IntegerLiteral { .. } => {
                 primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
             }
@@ -143,25 +142,19 @@ pub(super) fn build_structural_scalar_field_store(
                     )
             }
             _ => false,
-        },
-        [scalar_parameter] => {
-            scalar_parameter.source_position == 1
-                && scalar_parameter.primitive_type == primitive_type
-                && match value {
-                    CheckedScalarExpression::Parameter {
-                        position: 0,
-                        primitive_type: source_type,
-                    } => *source_type == primitive_type,
-                    CheckedScalarExpression::Boolean(boolean) => {
-                        matches!(
-                            boolean.as_ref(),
-                            psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
-                        ) && primitive_type == PrimitiveType::Bool
-                    }
-                    _ => false,
-                }
         }
-        _ => false,
+    } else {
+        let (position, source_type) = checked_parameter_source(value)?;
+        scalar_parameters.get(position).is_some_and(|parameter| {
+            Some(parameter.source_position) == authored_scalar_position(position)
+                && parameter.primitive_type == primitive_type
+                && source_type == primitive_type
+        }) && scalar_parameters
+            .iter()
+            .enumerate()
+            .all(|(index, parameter)| {
+                Some(parameter.source_position) == authored_scalar_position(index)
+            })
     };
     if !exact_source || crate::values::scalar_expression_type(value) != Some(primitive_type) {
         return None;
@@ -174,6 +167,28 @@ pub(super) fn build_structural_scalar_field_store(
         primitive_type,
         value: value.clone(),
     })
+}
+
+fn authored_scalar_position(dense_position: usize) -> Option<u32> {
+    u32::try_from(dense_position).ok()?.checked_add(1)
+}
+
+fn checked_parameter_source(value: &CheckedScalarExpression) -> Option<(usize, PrimitiveType)> {
+    match value {
+        CheckedScalarExpression::Parameter {
+            position,
+            primitive_type,
+        } => Some((*position, *primitive_type)),
+        CheckedScalarExpression::Boolean(boolean) => {
+            let psi_checked_trees::CheckedBooleanExpression::Parameter { position } =
+                boolean.as_ref()
+            else {
+                return None;
+            };
+            Some((*position, PrimitiveType::Bool))
+        }
+        _ => None,
+    }
 }
 
 fn plain_record(data: &psi_typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {

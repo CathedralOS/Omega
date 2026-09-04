@@ -54,6 +54,21 @@ const WRITE_ONLY_SOURCE: &str = r#"
     machine Sink::boolean_parameter(flags: &write Flags, replacement: bool) {
         flags.target = replacement;
     }
+
+    machine Sink::stack_parameter(
+        pair: &write Pair,
+        a: u16,
+        b: u16,
+        c: u16,
+        d: u16,
+        e: u16,
+        f: u16,
+        g: u16,
+        h: u16,
+        replacement: u16
+    ) {
+        pair.target = replacement;
+    }
 "#;
 
 #[test]
@@ -122,11 +137,17 @@ fn direct_dynamic_projected_store_and_call_reach_machine_custody() {
 
 #[test]
 fn parameter_sourced_write_only_field_store_reaches_canonical_installation() {
-    assert_parameter_sourced_field_store("Sink::parameter", 2);
-    assert_parameter_sourced_field_store("Sink::boolean_parameter", 1);
+    assert_parameter_sourced_field_store("Sink::parameter", 2, 0, false);
+    assert_parameter_sourced_field_store("Sink::boolean_parameter", 1, 0, false);
+    assert_parameter_sourced_field_store("Sink::stack_parameter", 2, 8, true);
 }
 
-fn assert_parameter_sourced_field_store(machine: &str, expected_field_byte_offset: u32) {
+fn assert_parameter_sourced_field_store(
+    machine: &str,
+    expected_field_byte_offset: u32,
+    expected_source_index: u32,
+    expect_stack_source: bool,
+) {
     let checked = checked(WRITE_ONLY_SOURCE);
     let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, machine)
         .expect("parameter-sourced field store reaches canonical Terminal");
@@ -154,21 +175,31 @@ fn assert_parameter_sourced_field_store(machine: &str, expected_field_byte_offse
                 _ => None,
             })
             .expect("one target Unit body");
-        let [scalar_parameter] = body.scalar_parameters.as_slice() else {
-            panic!("one target scalar parameter")
-        };
-        assert!(body.operations.iter().any(|operation| matches!(
-            operation,
-            omega_target_operations::TargetUnitOperation::StructuralScalarFieldStore {
-                source: omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
-                    parameter_index: 0,
-                    source_value,
-                    scalar_type,
-                },
-                ..
-            } if *source_value == scalar_parameter.value
+        let scalar_parameter = body
+            .scalar_parameters
+            .get(usize::try_from(expected_source_index).unwrap())
+            .expect("selected target scalar parameter");
+        let source = body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_target_operations::TargetUnitOperation::StructuralScalarFieldStore {
+                    source,
+                    ..
+                } => Some(source),
+                _ => None,
+            })
+            .expect("one target projected store");
+        assert!(matches!(
+            source,
+            omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
+                parameter_index,
+                source_value,
+                scalar_type,
+            } if *parameter_index == expected_source_index
+                && *source_value == scalar_parameter.value
                 && *scalar_type == scalar_parameter.scalar_type
-        )));
+        ));
 
         let assigned =
             omega_target_operations_to_assigned_target_operations::assign_registers(&target)
@@ -182,17 +213,26 @@ fn assert_parameter_sourced_field_store(machine: &str, expected_field_byte_offse
             .expect("one machine owns the parameter-sourced field store");
         let store = &function.unit_structural_scalar_field_stores[0];
         assert_eq!(store.field_byte_offset, expected_field_byte_offset);
-        assert!(matches!(
-            store.source,
-            omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
-                parameter_index: 0,
-                source_value,
-                scalar_type,
-                location: omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
-            } if source_value == scalar_parameter.value
-                && scalar_type == scalar_parameter.scalar_type
-                && register.architecture() == native_target.architecture
-        ));
+        let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } = store.source
+        else {
+            panic!("machine store retains one parameter source")
+        };
+        assert_eq!(parameter_index, expected_source_index);
+        assert_eq!(source_value, scalar_parameter.value);
+        assert_eq!(scalar_type, scalar_parameter.scalar_type);
+        match (expect_stack_source, location) {
+            (false, omega_machine_code::UnitScalarParameterLocationRecord::Register(register)) => {
+                assert_eq!(register.architecture(), native_target.architecture)
+            }
+            (true, omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack { .. }) => {
+            }
+            _ => panic!("parameter source has the expected ABI location family"),
+        }
 
         let mut corrupted = emitted.clone();
         let corrupted_source = &mut corrupted
@@ -209,7 +249,7 @@ fn assert_parameter_sourced_field_store(machine: &str, expected_field_byte_offse
         else {
             unreachable!()
         };
-        *parameter_index = 1;
+        *parameter_index = u32::MAX;
         assert!(omega_image_emission::build_object_artifact(&corrupted).is_err());
 
         let object = omega_image_emission::build_object_artifact(&emitted)
