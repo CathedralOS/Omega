@@ -80,6 +80,11 @@ transformation of each applicable phase: the phase validates its input and
 output but constructs no rule candidates, transformations, or pass manifests.
 Psi optimization completes before Terminal publication; later Omega phases
 optimize their own representations without mutating Terminal. The bounded
+checked-to-Terminal producer enforces that order in its API: lowering produces
+an unsealed carrier, the Psi optimization entrance consumes it, and canonical
+publication accepts only the validated stage result. The identity route is
+implemented; named transformations reject at that entrance until ported from
+the post-Terminal compatibility optimizer. The bounded
 assignment stage after target operations is
 the one acknowledged transitional defect in this chain. It cycles scratch homes
 for the small supported roster. The durable replacement is one in-line

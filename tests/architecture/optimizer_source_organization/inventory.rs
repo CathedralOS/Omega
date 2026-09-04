@@ -10,6 +10,8 @@ use crate::Audit;
 /// Keep these roots explicit: silently losing a moved or renamed tree must
 /// fail this test rather than shrinking its jurisdiction.
 const GOVERNED_ROOTS: &[&str] = &[
+    "omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/preterminal_optimization",
+    "omega-rust/psi/representations/psi-optimization/src",
     "omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry",
     "omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_wrapper",
     "omega-rust/omega/build/omega-build-evaluation/src/optimization",
@@ -42,6 +44,13 @@ pub(super) struct RuleStageDescriptor {
 }
 
 pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
+    RuleStageDescriptor {
+        entrance: "omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/preterminal_optimization/mod.rs",
+        catalog: "omega-rust/psi/representations/psi-optimization/src/catalog.rs",
+        coordination_marker: "pub fn run_psi_optimization",
+        catalog_marker: "PRETERMINAL_PSI_PASS_CATALOG",
+        next_rungs: &[],
+    },
     RuleStageDescriptor {
         entrance: "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/mod.rs",
         catalog: "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/catalog.rs",

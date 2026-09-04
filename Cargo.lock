@@ -1747,6 +1747,7 @@ dependencies = [
  "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-optimization",
  "psi-proof-admission",
  "psi-source",
  "psi-source-files-to-tokens",

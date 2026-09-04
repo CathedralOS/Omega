@@ -126,9 +126,9 @@ fn is_optimization_array(declaration: &ConstantDeclaration) -> bool {
 }
 
 fn check_repository_wide_catalog_uniqueness(audit: &mut Audit) {
-    let omega_root = audit.repository.join("omega-rust/omega");
+    let optimizer_ownership_root = audit.repository.join("omega-rust");
     let mut files = Vec::new();
-    if let Err(error) = collect_rust_files(&omega_root, &mut files) {
+    if let Err(error) = collect_rust_files(&optimizer_ownership_root, &mut files) {
         audit.violations.insert(format!(
             "failed to inventory repository-wide optimization catalogs: {error}"
         ));
