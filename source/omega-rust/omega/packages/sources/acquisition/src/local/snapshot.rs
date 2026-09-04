@@ -449,6 +449,11 @@ fn materialize_pending_local_snapshot(
             "finalized snapshot does not match the captured local tree",
         ));
     }
+    // ponytail: Windows refuses to rename a directory while any handle to its
+    // contents is open (a subdirectory or file handle; a handle to the directory
+    // itself is fine). This handle on <stage>/source is done being used, so close
+    // it before publishing or the rename below fails with ERROR_ACCESS_DENIED.
+    drop(source_directory);
     pending.publish(snapshots, publication)?;
     verify_local_snapshot(publication, identity, limits)
 }
