@@ -203,6 +203,40 @@ optimization_vocabulary! {
     },
 }
 
+impl Optimization {
+    /// Project one unified build-visible selection into Psi's independently
+    /// owned pre-Terminal vocabulary. Physical optimizations have no Psi
+    /// identity and remain in their Omega-owned phases.
+    pub const fn psi_optimization(self) -> Option<psi_optimization::PsiOptimization> {
+        use psi_optimization::PsiOptimization;
+
+        match self {
+            Self::ControlFlowCleanup => Some(PsiOptimization::ControlFlowCleanup),
+            Self::SparseConditionalConstantPropagation => {
+                Some(PsiOptimization::SparseConditionalConstantPropagation)
+            }
+            Self::CopyPropagation => Some(PsiOptimization::CopyPropagation),
+            Self::GlobalValueNumbering => Some(PsiOptimization::GlobalValueNumbering),
+            Self::DeadPureScalarElimination => Some(PsiOptimization::DeadPureScalarElimination),
+            Self::ProofCheckElision => Some(PsiOptimization::ProofCheckElision),
+            Self::SelectedIncomingU12ExactAddImmediate
+            | Self::X86RelaxConditionalBranchesToRel8V1
+            | Self::SelectedIncomingU12ExactSubtractImmediate
+            | Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
+            | Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1
+            | Self::ActiveResidentImmediateU64MultiUseRematerializationV1
+            | Self::Aarch64SelectShortestMovnSeededI64MaterializationV1
+            | Self::X86SelectXorZeroI64MaterializationV1
+            | Self::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
+            | Self::X86SelectMovR64Imm32SignExtendedI64MaterializationV1
+            | Self::Aarch64ElideSameViewCopyI64BeforeReturnV1
+            | Self::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1
+            | Self::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1
+            | Self::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 => None,
+        }
+    }
+}
+
 /// Common source-visible catalog header with a representation-specific
 /// payload. Target predicates, candidate constructors, validators, and route
 /// types remain owned by the stage that understands them.
@@ -245,6 +279,25 @@ pub struct OptimizationPhaseSelections {
     phase: OptimizationExecutionPhase,
     complete_selection: OptimizationSelectionIdentity,
     selected: OptimizationSelections,
+}
+
+/// Omega-owned bridge from the complete build selection to the independently
+/// encoded target-neutral Psi selection. Coordinators retain the complete
+/// identity; Psi consumes only `selected`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PsiOptimizationSelectionProjection {
+    complete_selection: OptimizationSelectionIdentity,
+    selected: psi_optimization::PsiOptimizationSelections,
+}
+
+impl PsiOptimizationSelectionProjection {
+    pub const fn complete_selection(&self) -> OptimizationSelectionIdentity {
+        self.complete_selection
+    }
+
+    pub const fn selections(&self) -> &psi_optimization::PsiOptimizationSelections {
+        &self.selected
+    }
 }
 
 impl OptimizationPhaseSelections {
@@ -312,6 +365,21 @@ impl OptimizationSelections {
             phase,
             complete_selection: self.identity(),
             selected: self.for_phase(phase),
+        }
+    }
+
+    /// Exhaustively project the unified build selection into Psi's closed,
+    /// target-neutral pre-Terminal vocabulary.
+    pub fn project_psi(&self) -> PsiOptimizationSelectionProjection {
+        let selected = psi_optimization::PsiOptimizationSelections::new(
+            self.selected
+                .iter()
+                .filter_map(|optimization| optimization.psi_optimization()),
+        )
+        .expect("the unified-to-Psi optimization map is injective");
+        PsiOptimizationSelectionProjection {
+            complete_selection: self.identity(),
+            selected,
         }
     }
 
@@ -688,6 +756,38 @@ mod tests {
                     .as_slice()
                     .iter()
                     .all(|optimization| optimization.execution_phase() == phase)
+            );
+        }
+    }
+
+    #[test]
+    fn psi_projection_is_exhaustive_target_neutral_and_bound_to_complete_policy() {
+        let selections = OptimizationSelections::new([
+            Optimization::ControlFlowCleanup,
+            Optimization::CopyPropagation,
+            Optimization::X86SelectXorZeroI64MaterializationV1,
+        ])
+        .unwrap();
+        let projection = selections.project_psi();
+
+        assert_eq!(projection.complete_selection(), selections.identity());
+        assert_eq!(
+            projection.selections().as_slice(),
+            &[
+                psi_optimization::PsiOptimization::ControlFlowCleanup,
+                psi_optimization::PsiOptimization::CopyPropagation,
+            ]
+        );
+        assert!(
+            !projection
+                .selections()
+                .contains(psi_optimization::PsiOptimization::ProofCheckElision)
+        );
+
+        for optimization in Optimization::ALL {
+            assert_eq!(
+                optimization.psi_optimization().is_some(),
+                optimization.execution_phase() == OptimizationExecutionPhase::Psi
             );
         }
     }

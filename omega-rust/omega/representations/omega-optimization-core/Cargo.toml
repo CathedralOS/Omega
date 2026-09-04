@@ -9,4 +9,5 @@ name = "omega_optimization_core"
 path = "src/lib.rs"
 
 [dependencies]
+psi-optimization = { path = "../../../psi/representations/psi-optimization" }
 sha2 = "0.10.9"

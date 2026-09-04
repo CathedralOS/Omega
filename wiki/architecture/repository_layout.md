@@ -88,6 +88,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-facts/                      # Durable checked places, contexts, and semantic fact plans.
 |   |   |   |-- [CRATE] psi-effects/                    # Target-neutral operational, reach, invocation, and capability-flow facts.
 |   |   |   |-- [CRATE] psi-checked-trees/              # Checked proof, borrow, flow, reach, value, and admissibility evidence.
+|   |   |   |-- [CRATE] psi-optimization/               # Closed pre-Terminal pass names, selections, encoding, and identity.
 |   |   |   `-- [CRATE] psi-terminal/                   # Self-contained terminal module and closed operation vocabulary.
 |   |   |-- pipeline/
 |   |   |   |-- [CRATE] psi-source-files-to-tokens/     # Psi-owned Omega source lexer.
