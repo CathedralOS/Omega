@@ -69,7 +69,7 @@ use parameter_aliases::{
 use path_instantiation::{instantiate_written_path, instantiate_written_path_with_origins};
 use place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, frame_place_path,
-    split_place_root,
+    receiver_frame_origin, split_place_root,
 };
 use state_paths::{
     expression_forwards_exact_symbol, normalize_state_relative_path, push_visible_frame_path,
@@ -117,6 +117,7 @@ fn known_call_written_paths_with_summaries(
         call.target_symbol,
         call.target.as_str(),
         &receiver_members,
+        None,
         program.statement_table.expression_handles(call.arguments),
         current_machine,
         machine_symbols,
@@ -133,6 +134,7 @@ fn known_call_written_paths_for_parts(
     target_symbol: SymbolHandle,
     target: &str,
     receiver_members: &[String],
+    receiver_origin: Option<&FramePlaceOrigin>,
     arguments: &[ExpressionHandle],
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -145,6 +147,7 @@ fn known_call_written_paths_for_parts(
         target_symbol,
         target,
         receiver_members,
+        receiver_origin,
         arguments,
         current_machine,
         machine_symbols,
@@ -161,35 +164,7 @@ fn known_call_written_paths_for_parts_with_origins(
     target_symbol: SymbolHandle,
     target: &str,
     receiver_members: &[String],
-    arguments: &[ExpressionHandle],
-    current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    argument_origins: Option<&[Option<FramePlaceOrigin>]>,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
-) -> Option<Vec<String>> {
-    known_call_written_paths_for_parts_with_origins_and_summaries(
-        program,
-        target_symbol,
-        target,
-        receiver_members,
-        arguments,
-        current_machine,
-        machine_symbols,
-        symbols,
-        active_states,
-        argument_origins,
-        complete_state_summaries,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn known_call_written_paths_for_parts_with_origins_and_summaries(
-    program: &TypedTrees,
-    target_symbol: SymbolHandle,
-    target: &str,
-    receiver_members: &[String],
+    receiver_origin: Option<&FramePlaceOrigin>,
     arguments: &[ExpressionHandle],
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -207,7 +182,16 @@ fn known_call_written_paths_for_parts_with_origins_and_summaries(
     {
         return None;
     }
-    let (callee_machine, callee_state) = machine_state_by_symbol(program, target_symbol)
+    let exact_callee = machine_state_by_symbol(program, target_symbol);
+    if receiver_origin
+        .is_some_and(|origin| origin.precision == FramePathPrecision::CollectionCoarse)
+        && exact_callee.is_none()
+    {
+        // A collection path is storage evidence, not a nominal receiver name.
+        // It cannot select a same-named cached field or machine.
+        return None;
+    }
+    let (callee_machine, callee_state) = exact_callee
         .or_else(|| {
             (receiver_members.is_empty()
                 || matches!(receiver_members, [receiver] if receiver == "self"))
@@ -258,6 +242,7 @@ fn known_call_written_paths_for_parts_with_origins_and_summaries(
         callee_machine,
         callee_state,
         receiver_members,
+        receiver_origin,
         symbols,
         active_states,
         argument_origins,
@@ -274,19 +259,26 @@ fn summarize_resolved_call(
     callee_machine: &Machine,
     callee_state: &State,
     receiver_members: &[String],
+    receiver_origin: Option<&FramePlaceOrigin>,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
     argument_origins: Option<&[Option<FramePlaceOrigin>]>,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
-    let receiver_base = (!receiver_members.is_empty())
-        .then(|| receiver_members.join("."))
-        .or_else(|| {
-            callee_machine
-                .attached_data
-                .as_ref()
-                .map(|_| "self".to_owned())
-        });
+    let receiver_base = receiver_origin.cloned().or_else(|| {
+        (!receiver_members.is_empty())
+            .then(|| receiver_members.join("."))
+            .or_else(|| {
+                callee_machine
+                    .attached_data
+                    .as_ref()
+                    .map(|_| "self".to_owned())
+            })
+            .map(|path| FramePlaceOrigin {
+                path,
+                precision: FramePathPrecision::Exact,
+            })
+    });
     let parameters = program.state_parameters(callee_state);
     let mut written = Vec::new();
 
@@ -311,7 +303,7 @@ fn summarize_resolved_call(
         if let Some(instantiated) = instantiate_written_path_with_origins(
             program,
             &relative,
-            receiver_base.as_deref(),
+            receiver_base.as_ref(),
             parameters,
             arguments,
             &[],
@@ -563,11 +555,12 @@ fn walk_state_write_prefix(
                         )
                     })
                     .collect::<Vec<_>>();
-                let nested_writes = known_call_written_paths_for_parts_with_origins_and_summaries(
+                let nested_writes = known_call_written_paths_for_parts_with_origins(
                     program,
                     nested_call.target_symbol,
                     nested_call.target.as_str(),
                     &nested_receiver_members,
+                    None,
                     arguments,
                     machine,
                     &machine_symbols,
@@ -1434,6 +1427,7 @@ fn statement_call_preserves_transparent_result(
         call.target_symbol,
         call.target.as_str(),
         &receiver_members,
+        None,
         arguments,
         current_machine,
         &machine_symbols,
@@ -1974,6 +1968,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     call.target_symbol,
                     call.target.as_str(),
                     &receiver_members,
+                    None,
                     arguments,
                     machine,
                     machine_symbols,

@@ -26,10 +26,14 @@ pub(super) fn instantiate_written_path(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
 ) -> Option<Option<String>> {
+    let receiver_origin = receiver_base.map(|path| FramePlaceOrigin {
+        path: path.to_owned(),
+        precision: FramePathPrecision::Exact,
+    });
     instantiate_written_path_with_origins(
         program,
         relative,
-        receiver_base,
+        receiver_origin.as_ref(),
         parameters,
         arguments,
         locals,
@@ -43,7 +47,7 @@ pub(super) fn instantiate_written_path(
 pub(super) fn instantiate_written_path_with_origins(
     program: &TypedTrees,
     relative: &str,
-    receiver_base: Option<&str>,
+    receiver_base: Option<&FramePlaceOrigin>,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
     locals: &[String],
@@ -53,7 +57,11 @@ pub(super) fn instantiate_written_path_with_origins(
 ) -> Option<Option<String>> {
     let (root, suffix) = split_place_root(relative);
     if root == "self" {
-        return Some(Some(append_place_suffix(receiver_base?, suffix)));
+        let base = receiver_base?;
+        return Some(Some(match base.precision {
+            FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),
+            FramePathPrecision::CollectionCoarse => base.path.clone(),
+        }));
     }
     if let Some(argument_index) = parameters
         .iter()

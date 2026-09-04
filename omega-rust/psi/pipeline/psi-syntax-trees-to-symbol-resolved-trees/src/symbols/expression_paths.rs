@@ -1,4 +1,5 @@
 mod calls;
+mod indexed_receivers;
 mod receivers;
 mod stamping;
 

@@ -1,6 +1,172 @@
 use super::*;
 
 #[test]
+fn indexed_method_receiver_reaches_checked_trees() {
+    let source = r#"
+        data Cell { value: u64; }
+        data Main { cells: [Cell; 2]; }
+        machine Cell::write_value(&mut self) -> u64 { self.value = 1; 1 }
+        machine Main::run(&mut self) { let result: u64 = self.cells[0].write_value(); }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("indexed method receiver reaches checking");
+}
+
+#[test]
+fn indexed_method_receivers_keep_coarse_storage_and_exact_argument_writes() {
+    let cases = [
+        (
+            "literal",
+            "self.cells[0]",
+            "",
+            Some(vec!["self.audit", "self.cells"]),
+        ),
+        (
+            "builtin_spelling",
+            "self.cells[0]",
+            "",
+            Some(vec!["self.audit", "self.cells"]),
+        ),
+        (
+            "index_producer",
+            "self.cells[compute_index(&mut self.index_audit)]",
+            "",
+            Some(vec!["self.audit", "self.cells", "self.index_audit"]),
+        ),
+        (
+            "local_collection",
+            "cells[0]",
+            "let cells: &mut [Cell; 2] = &mut self.cells;",
+            Some(vec!["self.audit", "self.cells"]),
+        ),
+        (
+            "local_element",
+            "cell",
+            "let cell: &mut Cell = &mut self.cells[0];",
+            Some(vec!["self.audit", "self.cells"]),
+        ),
+        (
+            "member_after_index",
+            "self.buckets[0].cell",
+            "",
+            Some(vec!["self.audit", "self.buckets"]),
+        ),
+        (
+            "recursive_index",
+            "self.cells[recursive_index(&mut self.index_audit)]",
+            "",
+            None,
+        ),
+        ("unknown_index", "self.cells[unknown_index()]", "", None),
+        (
+            "unknown_prefix",
+            "cells[0]",
+            "let cells: &mut [Cell; 2] = &mut self.cells; unknown([0]);",
+            None,
+        ),
+        (
+            "binding_reborrow",
+            "self.cells[rebind_index(&mut audit)]",
+            "let audit: &mut u64 = &mut self.index_audit;",
+            None,
+        ),
+    ];
+    let mut source = String::from(
+        r#"
+        data Cell { value: u64; }
+        data Bucket { cell: Cell; }
+        data Main { cells: [Cell; 2]; buckets: [Bucket; 2]; audit: u64; index_audit: u64; }
+        machine Cell::write_value(&mut self, audit: &mut u64) -> u64 {
+            self.value = 1;
+            audit = 1;
+            1
+        }
+        machine Cell::min(&mut self, audit: &mut u64) -> u64 {
+            self.value = 1;
+            audit = 1;
+            1
+        }
+        machine compute_index(audit: &mut u64) -> u64 { audit = 1; 0 }
+        machine recursive_index(audit: &mut u64) -> u64 { recursive_index(audit) }
+        machine rebind_index(binding: &mut u64) -> u64 { 0 }
+    "#,
+    );
+    for (name, receiver, prefix, _) in &cases {
+        let target = if *name == "builtin_spelling" {
+            "min"
+        } else {
+            "write_value"
+        };
+        source.push_str(&format!("machine Main::case_{name}(&mut self) {{ {prefix} let result: u64 = {receiver}.{target}(&mut self.audit); }}"));
+    }
+    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("resolver");
+    let mut failures = Vec::new();
+    for (name, _, _, expected) in cases {
+        let qualified = format!("Main::case_{name}");
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == qualified)
+            .expect("caller");
+        let state = &typed.machine_states(machine)[0];
+        let psi_typed_trees::statement::StatementNode::LocalData(result) = typed
+            .statement_table
+            .statements(state.statement_nodes)
+            .last()
+            .expect("result local")
+        else {
+            panic!("result local");
+        };
+        let psi_typed_trees::expression::ExpressionNode::Call(call) =
+            typed.expression_table.expression(result.initial_value)
+        else {
+            panic!("method call");
+        };
+        if expected.is_some() && !call.target_symbol.is_valid() {
+            failures.push(format!("{name} method target was not resolved"));
+        }
+        for (query, frame) in [
+            resolver.inferred_state_write_frame(machine, state),
+            resolver.expression_write_frame(machine, result.initial_value),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let actual = frame.into_complete_paths().map(|mut paths| {
+                paths.sort();
+                paths
+            });
+            let expected = expected.as_ref().map(|paths| {
+                let mut paths: Vec<_> = paths.iter().map(|path| (*path).to_owned()).collect();
+                if query == 1 {
+                    if name == "local_collection" {
+                        paths.push("cells".to_owned());
+                    }
+                    if name == "local_element" {
+                        paths.extend(["cell".to_owned(), "cell.value".to_owned()]);
+                    }
+                }
+                paths.sort();
+                paths
+            });
+            if actual != expected {
+                failures.push(format!(
+                    "{name} query {query}: expected {expected:?}, actual {actual:?}"
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+#[test]
 fn boundary_forwarded_reference_reaches_checked_trees() {
     for (argument, target, expected_diagnostic) in [
         ("output", "output", None),
@@ -106,13 +272,10 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
             "self.device.output(cell.field_reference());",
             Some(vec!["$P0.value", "self.device"]),
         ),
-        // General method-receiver frames still require member chains. An
-        // indexed receiver needs absorbing collection precision transported
-        // through that shared instantiation, not index erasure at this boundary.
         (
             "indexed_receiver",
             "self.device.output(self.cell_array[0].field_reference());",
-            None,
+            Some(vec!["self.cell_array", "self.device"]),
         ),
         (
             "reference_member_receiver",

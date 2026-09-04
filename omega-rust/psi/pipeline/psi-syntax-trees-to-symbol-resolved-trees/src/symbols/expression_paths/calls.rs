@@ -14,6 +14,17 @@ pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
     symbols: &SymbolTable,
 ) -> SymbolHandle {
     if call.receiver.is_valid() {
+        if super::indexed_receivers::contains_index(expression_table, call.receiver) {
+            return super::indexed_receivers::call_target(
+                machine,
+                parameters,
+                state_symbol,
+                call,
+                expression_table,
+                child_type_references,
+                symbols,
+            );
+        }
         let receiver_symbol = resolve_expression_table_receiver_symbol(
             symbols,
             machine.symbol,

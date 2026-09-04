@@ -674,8 +674,9 @@ Current ownership is:
   contents without redirecting their origins.
   Direct-call expression trees use one finite worklist, shared by statement
   arguments, non-reference assignment values, and effectful indexes. Every
-  sibling must pass independently: receivers must be effect-free member chains,
-  no expression may reborrow a mutable-reference binding, and every internal or
+  sibling must pass independently: receivers retain structural member/index
+  paths and every receiver index passes the same scalar call-tree checks.
+  No expression may reborrow a mutable-reference binding, and every internal or
   boundary call must have a complete inferred frame. Call nesting has no numeric
   cutoff. Computed arguments to resolved nongeneric internal or boundary calls
   carry the formal parameter's type into the shared value rules below. Every nested call
@@ -760,9 +761,19 @@ Current ownership is:
   paths; wrapping a foreign or stale binding in a helper does not admit it.
   Attached methods resolve nominal `Self` through their own attached declaration,
   and receiver projections cannot traverse a loaded reference-bearing member.
-  Indexed method receivers still require shared receiver-frame instantiation to
-  retain collection-coarse precision; argument/result indexing does not imply
-  that receiver support. Argument type and access checking recognizes a resolved
+  Indexed method receivers carry the same origin precision as arguments through
+  shared frame instantiation. A receiver-relative field write becomes the
+  nearest whole collection; independent explicit-argument writes retain their
+  own exact paths. A collection path requires an exact resolved method target,
+  not a cached field or free-call name fallback. Boundary signature selection
+  still requires an exact canonical receiver, and a resolved method whose name
+  matches a value builtin retains its body's writes.
+  Receiver-index effects use the shared complete, non-rebinding call-tree proof;
+  producer writes remain in the aggregate frame. Unknown or recursive index
+  calls and reference-binding reborrows cannot preserve an indexed origin.
+  Declaration lookup for that check is shared with boundary forwarding and
+  does not replay prefix origin transfer inside raw frame resolution.
+  Argument type and access checking recognizes a resolved
   call's declared reference result without creating a binding-slot borrow.
   Exact normalized reference identity is required except for the existing
   mutable-to-shared attenuation with the same referee; write-only attenuation

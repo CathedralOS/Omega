@@ -4,7 +4,7 @@
 //! selected trait signature and derives the exact receiver/exclusive-argument
 //! frame, failing closed when a mutable argument has no supported storage origin.
 
-use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
+use super::caller_aliases::{CallerWriteSite, caller_binding_type, caller_statement_at_site};
 use super::isolation::{data_definition_has_only_owned_storage, type_is_caller_isolated_local};
 use super::{
     FramePathPrecision, FramePlaceOrigin, frame_place_path, transparent_call_result_origin,
@@ -14,7 +14,7 @@ use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
-use psi_typed_trees::statement::{StatementNode, TableCall};
+use psi_typed_trees::statement::TableCall;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Recognition is deliberately broader than signature selection: even an
@@ -319,66 +319,6 @@ fn exclusive_reference_binding_path(
     exclusive_reference_has_owned_storage(program, reference)
         .then(|| frame_place_path(program, argument).map(|origin| origin.path))
         .flatten()
-}
-
-fn caller_binding_type(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    argument: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(argument) else {
-        return None;
-    };
-    let [member] = program.expression_table.name_path_members(name.members) else {
-        return None;
-    };
-    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
-        return None;
-    }
-    let (state, _, index) = caller_statement_at_site(
-        program,
-        current_machine,
-        CallerWriteSite::Expression(argument),
-    )?;
-    let declaration = program.symbols.get(name.symbol);
-    // Typed `self` paths retain the owning machine identity, not the synthetic
-    // state parameter identity. Only that exact machine may select this state's
-    // unique receiver declaration.
-    if member.as_str() == "self"
-        && name.symbol == current_machine.symbol
-        && declaration.kind == psi_symbols::SymbolKind::Machine
-    {
-        let mut receivers = program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| parameter.is_self);
-        let receiver = receivers.next()?;
-        return (receivers.next().is_none() && receiver.type_reference.is_valid())
-            .then_some(receiver.type_reference);
-    }
-    if declaration.parent != state.symbol || program.symbols.name(name.symbol) != member.as_str() {
-        return None;
-    }
-    let reference = match declaration.kind {
-        psi_symbols::SymbolKind::Parameter => {
-            program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == name.symbol)?
-                .type_reference
-        }
-        psi_symbols::SymbolKind::Local => {
-            let local = program.statement_table.statements(state.statement_nodes)[..index]
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.symbol == name.symbol => Some(local),
-                    _ => None,
-                })?;
-            local.type_reference
-        }
-        _ => return None,
-    };
-    reference.is_valid().then_some(reference)
 }
 
 fn referent_has_only_owned_storage(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
