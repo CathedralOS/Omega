@@ -13,6 +13,7 @@
 ; r97 value-stack end, r98 tail-request flag, r99 tail function,
 ; r9a tail argument base, r9b tail argument count,
 ; ra0 immutable-pair heap cursor, ra1 immutable-pair heap limit,
+; ra2 result kind (zero scalar, one pair),
 ; rb0 output count, rb1 output limit.
 ; Low registers are caller-clobbered scratch.
 
@@ -75,6 +76,7 @@ read_done:
         mov r1 r8a
         mov r2 r90
         call @enter_function
+        call @require_scalar
         jlt r0 r90 @authored_trap
         imm r1 0x100
         jlt r0 r1 @main_write
@@ -396,18 +398,36 @@ parse_character_fail:
         mov r1 r90
         ret
 
-; Value stack stores evaluator intermediates and call arguments.
+; Value stack stores (word, kind) evaluator intermediates and call arguments.
 push_value:
-        jeq r8a r97 @incomplete
+        mov r1 r8a
+        imm r2 0x10
+        add r1 r2
+        jlt r97 r1 @incomplete
         store r8a r0
         imm r1 0x8
+        add r8a r1
+        store r8a ra2
         add r8a r1
         ret
 pop_value:
         jeq r8a r96 @internal
-        imm r1 0x8
+        imm r1 0x10
         sub r8a r1
         load r0 r8a
+        imm r1 0x8
+        add r1 r8a
+        load ra2 r1
+        ret
+
+require_scalar:
+        jnz ra2 @authored_trap
+        ret
+
+require_pair:
+        jeq ra2 r91 @require_pair_done
+        jmp @authored_trap
+require_pair_done:
         ret
 
 ; Function row is five words: name start/length, params start, body start, arity.
@@ -473,7 +493,7 @@ find_environment:
 find_environment_loop:
         jeq r2 r8c @find_environment_absent
         sub r2 r91
-        imm r0 0x18
+        imm r0 0x20
         mul r0 r2
         add r0 r95
         mov r3 r0
@@ -487,12 +507,13 @@ find_environment_absent:
         mov r0 r90
         ret
 
-; r0=value, current token=name. Active shadowing rejects.
+; r0=value and ra2=kind, current token=name. Active shadowing rejects.
 add_environment:
         mov r8 r0
+        mov r9 ra2
         call @find_environment
         jnz r0 @invalid
-        imm r0 0x18
+        imm r0 0x20
         mul r0 r89
         add r0 r95
         store r0 r86
@@ -501,8 +522,10 @@ add_environment:
         store r0 r87
         add r0 r1
         store r0 r8
+        add r0 r1
+        store r0 r9
         add r89 r91
-        imm r1 0x15555
+        imm r1 0x10000
         jlt r89 r1 @add_environment_done
         jmp @incomplete
 add_environment_done:
@@ -824,9 +847,13 @@ enter_parameter_loop:
         sub r0 r1
         load r0 r0
         mov r1 r8f
-        imm r2 0x8
+        imm r2 0x10
         mul r1 r2
         add r0 r1
+        mov r3 r0
+        imm r2 0x8
+        add r3 r2
+        load ra2 r3
         load r0 r0
         call @add_environment
         call @expect_int
@@ -911,6 +938,7 @@ eval_tail_fallback_reset:
         ret
 eval_tail_if:
         call @eval_expression
+        call @require_scalar
         jz r0 @eval_tail_if_false
         jmp @eval_tail_expression
 eval_tail_if_false:
@@ -930,11 +958,13 @@ bind_let_initializer:
         call @expect_int
         call @eval_expression
         mov r8 r0
+        mov r9 ra2
         call @pop_value
         mov r87 r0
         call @pop_value
         mov r86 r0
         mov r0 r8
+        mov ra2 r9
         call @add_environment
         ret
 
@@ -974,13 +1004,20 @@ eval_expression:
         call @is_open
         jnz r0 @eval_list
         call @parse_integer
-        jnz r1 @eval_return
+        jnz r1 @eval_scalar_return
         call @find_environment
         jz r0 @authored_trap
         imm r1 0x10
         add r0 r1
+        mov r2 r0
+        imm r1 0x8
+        add r2 r1
+        load ra2 r2
         load r0 r0
 eval_return:
+        ret
+eval_scalar_return:
+        mov ra2 r90
         ret
 
 eval_list:
@@ -1006,6 +1043,7 @@ eval_list:
 
 eval_if:
         call @eval_expression
+        call @require_scalar
         jz r0 @eval_if_false
         call @eval_expression
         call @push_value
@@ -1030,9 +1068,11 @@ eval_let:
         call @expect_close
         call @pop_value
         mov r6 r0
+        mov r7 ra2
         call @pop_value
         mov r89 r0
         mov r0 r6
+        mov ra2 r7
         ret
 
 eval_binary_classified:
@@ -1047,8 +1087,10 @@ eval_binary:
         call @push_value
         call @expect_close
         call @pop_value
+        call @require_scalar
         mov r5 r0
         call @pop_value
+        call @require_scalar
         mov r4 r0
         call @pop_value
         mov r6 r0
@@ -1067,37 +1109,38 @@ eval_binary:
         jmp @eval_binary_lt
 eval_binary_add:
         add r0 r5
-        ret
+        jmp @eval_scalar_return
 eval_binary_sub:
         sub r0 r5
-        ret
+        jmp @eval_scalar_return
 eval_binary_mul:
         mul r0 r5
-        ret
+        jmp @eval_scalar_return
 eval_binary_div:
         div r0 r5
-        ret
+        jmp @eval_scalar_return
 eval_binary_mod:
         mod r0 r5
-        ret
+        jmp @eval_scalar_return
 eval_binary_eq:
         jeq r0 r5 @eval_binary_true
         mov r0 r90
-        ret
+        jmp @eval_scalar_return
 eval_binary_lt:
         jlt r0 r5 @eval_binary_true
         mov r0 r90
-        ret
+        jmp @eval_scalar_return
 eval_binary_true:
         mov r0 r91
-        ret
+        jmp @eval_scalar_return
 
 eval_input:
         call @expect_close
         mov r0 r84
-        ret
+        jmp @eval_scalar_return
 eval_read:
         call @eval_expression
+        call @require_scalar
         jlt r0 r90 @authored_trap
         jlt r0 r84 @eval_read_ok
         jmp @authored_trap
@@ -1110,6 +1153,7 @@ eval_read_ok:
         ret
 eval_write:
         call @eval_expression
+        call @require_scalar
         jlt r0 r90 @authored_trap
         imm r1 0x100
         jlt r0 r1 @eval_write_ok
@@ -1129,12 +1173,14 @@ eval_pair:
         call @expect_close
         call @pop_value
         mov r5 r0
+        mov r7 ra2
         call @pop_value
         mov r4 r0
-        mov r6 ra0
-        imm r1 0x18
-        add r6 r1
-        jlt ra1 r6 @incomplete
+        mov r6 ra2
+        mov r2 ra0
+        imm r1 0x28
+        add r2 r1
+        jlt ra1 r2 @incomplete
         mov r0 ra0
         imm r1 0x50414952
         store r0 r1
@@ -1142,9 +1188,14 @@ eval_pair:
         add r0 r1
         store r0 r4
         add r0 r1
+        store r0 r6
+        add r0 r1
         store r0 r5
+        add r0 r1
+        store r0 r7
         mov r0 ra0
-        mov ra0 r6
+        mov ra0 r2
+        mov ra2 r91
         ret
 
 validate_pair:
@@ -1156,7 +1207,7 @@ validate_pair:
 validate_pair_extent:
         mov r2 r6
         sub r2 r1
-        imm r3 0x18
+        imm r3 0x28
         mod r2 r3
         jnz r2 @authored_trap
         load r2 r6
@@ -1169,9 +1220,13 @@ validate_pair_done:
 
 eval_first:
         call @eval_expression
+        call @require_pair
         call @validate_pair
         imm r1 0x8
         add r0 r1
+        mov r2 r0
+        add r2 r1
+        load ra2 r2
         load r0 r0
         call @push_value
         call @expect_close
@@ -1180,9 +1235,14 @@ eval_first:
 
 eval_second:
         call @eval_expression
+        call @require_pair
         call @validate_pair
-        imm r1 0x10
+        imm r1 0x18
         add r0 r1
+        mov r2 r0
+        imm r1 0x8
+        add r2 r1
+        load ra2 r2
         load r0 r0
         call @push_value
         call @expect_close

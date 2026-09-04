@@ -40,10 +40,10 @@ import subprocess
 from pathlib import Path
 
 artifacts = (
-    ("SYMBOLIC", 29090, "28b1dff02fac546dad478252bb7e9cb14309407473b6aa3a3371b8c4bed5dc9a"),
+    ("SYMBOLIC", 30532, "c99d21c940d4d275cddc561761a03f2effd2c293632ca4d5ffc116da003769f3"),
     ("RESOLVER", 2302, "71bca1be08a58ae8596b0f829d48ee43f48d963829ea8a21208197be0598d3c8"),
-    ("BETA", 34950, "aa028b9bc2f85ab7f01e1ceb887ec76de53137e28713fba329d593c9ef333b95"),
-    ("TAPE", 6545, "d00b1d5107b310e8a8411b56feff7efd0bce9b8d20dfc53d026085e39495e025"),
+    ("BETA", 36674, "1b943437dece551712ae3a1406dff27804b4004f090613d8343c39fa833b14b2"),
+    ("TAPE", 6880, "69c2247323d226799ba9c5ee5697240d1b67a6fcc35173b545b04a2802429a83"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -111,6 +111,12 @@ positive = {
         b"(def main () Int (first (second (pair 0 (pair 9 7)))))\n",
         b"", b"\x09",
     ),
+    "pair through tail call": (
+        b"(def id ((x Int)) Int x)\n"
+        b"(def relay ((x Int)) Int (id x))\n"
+        b"(def main () Int (first (relay (pair 12 13))))\n",
+        b"", b"\x0c",
+    ),
 }
 for name, (source, sealed_input, expected) in positive.items():
     if run(source, sealed_input) != (0, expected):
@@ -139,6 +145,27 @@ negative = {
     "unused tab escape": (b"(def main () Int '\\t')\n", 1),
     "unused quote escape": (b"(def main () Int '\\'')\n", 1),
     "unused slash escape": (b"(def main () Int '\\\\')\n", 1),
+    "forged pair literal": (
+        b"(def main () Int (let p Int (pair 7 8) (first 33554432)))\n", 2,
+    ),
+    "forged pair arithmetic": (
+        b"(def main () Int (let p Int (pair 7 8) (first (+ 33554432 0))))\n", 2,
+    ),
+    "pair equality": (
+        b"(def main () Int (eq (pair 1 2) (pair 1 2)))\n", 2,
+    ),
+    "pair condition": (
+        b"(def main () Int (if (pair 1 2) 3 4))\n", 2,
+    ),
+    "pair read index": (
+        b"(def main () Int (read (pair 1 2)))\n", 2,
+    ),
+    "pair write value": (
+        b"(def main () Int (write (pair 1 2)))\n", 2,
+    ),
+    "pair main result": (
+        b"(def main () Int (pair 1 2))\n", 2,
+    ),
 }
 for name, (source, status) in negative.items():
     if run(source) != (status, b""):
