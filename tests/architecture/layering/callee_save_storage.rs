@@ -4,7 +4,7 @@ use super::{recursive_rust_source, workspace_root};
 fn is_target_owned_independent_and_non_authoritative() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/callee_save_storage",
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/callee_save_storage",
     );
     let entrance =
         std::fs::read_to_string(stage.join("mod.rs")).expect("read callee-save storage entrance");
