@@ -95,19 +95,16 @@ publication accepts only the validated stage result. The identity route is
 implemented; named transformations reject at that entrance until ported. The
 compiler projects later physical selections away from the sealed artifact, and
 a separately invoked Terminal-to-native lowerer rejects any attempt to reselect
-a checked-tree or Psi pass. The bounded
-assignment stage after target operations is
-the one acknowledged transitional defect in this chain. It cycles scratch homes
-for the small supported roster. The durable replacement is one in-line
-continuation—target legalization, selected virtual instructions,
-liveness/allocation, physical assignment, then emission—not a second backend.
+a checked-tree or Psi pass. The former bounded direct-assignment lane has been
+deleted. One in-line continuation now owns target legalization, selected
+virtual instructions, liveness/allocation, physical assignment, and emission;
+there is no second backend.
 Selected builds no longer reject before optimization: they consume the same
 verified optimizer result and enter the in-line legalization,
 selected-virtual-instruction, liveness, allocation, home, and
-post-allocation-machine continuation. They fail closed only where that
-continuation still lacks ordinary frame/exit, object/image, and publication
-validation. The selected continuation must replace bounded assignment at that
-join; compilation never falls back or runs an alternate route.
+post-allocation-machine continuation. They fail closed wherever frame/exit,
+object/image, or publication validation remains incomplete; compilation never
+falls back or runs an alternate route.
 
 The ordinary realization graph uses the data-only `omega-program-entry-plan`
 for source/target ProgramEntry declarations and

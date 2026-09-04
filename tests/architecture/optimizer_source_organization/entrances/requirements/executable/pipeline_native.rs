@@ -26,10 +26,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "validate_abstract_to_target_translation",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/selection/assignment/mod.rs",
-        coordination_marker: "fn stage_optimized_assignment",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-live-ranges-to-allocation-legality/src/lib.rs",
         coordination_marker: "pub fn stage_optimized_allocation_legality_with_availability",
     },
