@@ -375,10 +375,7 @@
 (data EpsilonCensusLocalScan
   (EpsilonCensusLocalScanResult EpsilonCensusCandidate EpsilonNameList))
 
-; D31 type formation is a complete source-coordinate candidate judgment.  The
-; small kind Int is private equality identity only: it detects the impossible
-; case where two distinct structural reasons claim one exact anchor and never
-; orders reasons or enters ECOUT.
+; D31 type formation is a complete source-coordinate candidate judgment.
 (data EpsilonTypePlacement
   (EpsilonStoredTypePlacement)
   (EpsilonParameterTypePlacement)
@@ -389,7 +386,7 @@
 
 (data EpsilonTypeFormationCandidate
   (NoEpsilonTypeFormationCandidate)
-  (EpsilonTypeFormationCandidateAt Int EpsilonRejectReason Int)
+  (EpsilonTypeFormationCandidateAt EpsilonRejectReason Int)
   (EpsilonTypeFormationConflict Int))
 
 (data EpsilonDataShapeKind
@@ -3670,19 +3667,19 @@
 
 ; ---- D31 structural type formation ---------------------------------------
 
-(def epsilon_type_formation_candidate_min_present ((leftKind Int)
-  (leftReason EpsilonRejectReason) (leftOffset Int)
+(def epsilon_type_formation_candidate_min_present
+  ((leftReason EpsilonRejectReason) (leftOffset Int)
   (right EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match right
     (NoEpsilonTypeFormationCandidate
-      (EpsilonTypeFormationCandidateAt leftKind leftReason leftOffset))
-    ((EpsilonTypeFormationCandidateAt rightKind rightReason rightOffset)
+      (EpsilonTypeFormationCandidateAt leftReason leftOffset))
+    ((EpsilonTypeFormationCandidateAt rightReason rightOffset)
       (if (lt rightOffset leftOffset)
         right
         (if (lt leftOffset rightOffset)
-          (EpsilonTypeFormationCandidateAt leftKind leftReason leftOffset)
-          (if (eq leftKind rightKind)
-            (EpsilonTypeFormationCandidateAt leftKind leftReason leftOffset)
+          (EpsilonTypeFormationCandidateAt leftReason leftOffset)
+          (if (epsilon_reject_reasons_equal leftReason rightReason)
+            (EpsilonTypeFormationCandidateAt leftReason leftOffset)
             (EpsilonTypeFormationConflict leftOffset)))))
     ((EpsilonTypeFormationConflict rightOffset) right)))
 
@@ -3690,9 +3687,9 @@
   (right EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match left
     (NoEpsilonTypeFormationCandidate right)
-    ((EpsilonTypeFormationCandidateAt leftKind leftReason leftOffset)
-      (epsilon_type_formation_candidate_min_present leftKind leftReason
-        leftOffset right))
+    ((EpsilonTypeFormationCandidateAt leftReason leftOffset)
+      (epsilon_type_formation_candidate_min_present leftReason leftOffset
+        right))
     ((EpsilonTypeFormationConflict leftOffset) left)))
 
 (def epsilon_owner_name_exists ((source Bytes) (nameValue EpsilonName)
@@ -3733,16 +3730,16 @@
   (placement EpsilonTypePlacement)) EpsilonTypeFormationCandidate
   (match placement
     (EpsilonStoredTypePlacement
-      (EpsilonTypeFormationCandidateAt 6 TypeMismatch start))
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonParameterTypePlacement
-      (EpsilonTypeFormationCandidateAt 6 TypeMismatch start))
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonLocalTypePlacement
-      (EpsilonTypeFormationCandidateAt 6 TypeMismatch start))
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonReturnTypePlacement NoEpsilonTypeFormationCandidate)
     (EpsilonMainConsoleTypePlacement
-      (EpsilonTypeFormationCandidateAt 6 TypeMismatch start))
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonNestedTypePlacement
-      (EpsilonTypeFormationCandidateAt 6 TypeMismatch start))))
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))))
 
 ; `u8` is a storage element rather than an ordinary standalone value type.
 ; Stored fields and nested array/view elements admit it; authored scalar
@@ -3753,11 +3750,11 @@
   (match placement
     (EpsilonStoredTypePlacement NoEpsilonTypeFormationCandidate)
     (EpsilonParameterTypePlacement
-      (EpsilonTypeFormationCandidateAt 6 TypeMismatch start))
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonLocalTypePlacement
-      (EpsilonTypeFormationCandidateAt 6 TypeMismatch start))
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonReturnTypePlacement
-      (EpsilonTypeFormationCandidateAt 6 TypeMismatch start))
+      (EpsilonTypeFormationCandidateAt TypeMismatch start))
     ; This placement is structurally stored. D56's final type-formation
     ; entry-shape subjudgment owns a `Main.console` field whose type is not the
     ; sealed capability.
@@ -3770,26 +3767,26 @@
   (if (epsilon_name_is_console_type source nameValue)
     (match placement
       (EpsilonStoredTypePlacement
-        (EpsilonTypeFormationCandidateAt 5 InvalidEntry start))
+        (EpsilonTypeFormationCandidateAt InvalidEntry start))
       (EpsilonParameterTypePlacement
-        (EpsilonTypeFormationCandidateAt 5 InvalidEntry start))
+        (EpsilonTypeFormationCandidateAt InvalidEntry start))
       (EpsilonLocalTypePlacement
-        (EpsilonTypeFormationCandidateAt 5 InvalidEntry start))
+        (EpsilonTypeFormationCandidateAt InvalidEntry start))
       (EpsilonReturnTypePlacement
-        (EpsilonTypeFormationCandidateAt 5 InvalidEntry start))
+        (EpsilonTypeFormationCandidateAt InvalidEntry start))
       (EpsilonMainConsoleTypePlacement NoEpsilonTypeFormationCandidate)
       (EpsilonNestedTypePlacement
-        (EpsilonTypeFormationCandidateAt 5 InvalidEntry start)))
+        (EpsilonTypeFormationCandidateAt InvalidEntry start)))
     (if (epsilon_owner_name_exists source nameValue owners)
       NoEpsilonTypeFormationCandidate
-      (EpsilonTypeFormationCandidateAt 1 UnknownType start))))
+      (EpsilonTypeFormationCandidateAt UnknownType start))))
 
 (def epsilon_array_length_candidate ((literal EpsilonIntegerLiteral))
   EpsilonTypeFormationCandidate
   (match literal
     ((EpsilonIntegerSpan start end value)
       (if (eq value 0)
-        (EpsilonTypeFormationCandidateAt 4 InvalidArrayLength start)
+        (EpsilonTypeFormationCandidateAt InvalidArrayLength start)
         NoEpsilonTypeFormationCandidate))))
 
 (def epsilon_validate_formed_type ((source Bytes) (typeValue EpsilonType)
@@ -3812,7 +3809,7 @@
     ((EpsilonViewType start end elementType)
       (match placement
         (EpsilonStoredTypePlacement
-          (EpsilonTypeFormationCandidateAt 7 EscapingView start))
+          (EpsilonTypeFormationCandidateAt EscapingView start))
         (EpsilonParameterTypePlacement
           (epsilon_validate_formed_type source elementType owners
             EpsilonNestedTypePlacement))
@@ -3820,11 +3817,11 @@
           (epsilon_validate_formed_type source elementType owners
             EpsilonNestedTypePlacement))
         (EpsilonReturnTypePlacement
-          (EpsilonTypeFormationCandidateAt 7 EscapingView start))
+          (EpsilonTypeFormationCandidateAt EscapingView start))
         (EpsilonMainConsoleTypePlacement
-          (EpsilonTypeFormationCandidateAt 7 EscapingView start))
+          (EpsilonTypeFormationCandidateAt EscapingView start))
         (EpsilonNestedTypePlacement
-          (EpsilonTypeFormationCandidateAt 7 EscapingView start))))))
+          (EpsilonTypeFormationCandidateAt EscapingView start))))))
 
 (def epsilon_validate_optional_formed_type ((source Bytes)
   (typeValue EpsilonOptionalType) (owners EpsilonOwnerRowList)
@@ -4003,7 +4000,7 @@
   (members EpsilonDataMemberList)) EpsilonTypeFormationCandidate
   (if (epsilon_data_members_have_field members)
     (if (epsilon_data_members_have_case members)
-      (EpsilonTypeFormationCandidateAt 3 InvalidDataShape
+      (EpsilonTypeFormationCandidateAt InvalidDataShape
         (epsilon_name_start nameValue))
       NoEpsilonTypeFormationCandidate)
     NoEpsilonTypeFormationCandidate))
@@ -4201,7 +4198,7 @@
         NoEpsilonNames)
         ((EpsilonReachabilityScanResult reached visited)
           (if reached
-            (EpsilonTypeFormationCandidateAt 2 RecursiveValueType typeOffset)
+            (EpsilonTypeFormationCandidateAt RecursiveValueType typeOffset)
             NoEpsilonTypeFormationCandidate))))))
 
 (def epsilon_validate_recursive_edges ((source Bytes)
@@ -4238,7 +4235,7 @@
                       (epsilon_collect_data_shape_rows_acc declarations
                         NoEpsilonDataShapeRows)
                       valueEdges)))
-                ((EpsilonTypeFormationCandidateAt kind reasonValue errorOffset)
+                ((EpsilonTypeFormationCandidateAt reasonValue errorOffset)
                   (EpsilonTypeFormationRejected reasonValue errorOffset))
                 ((EpsilonTypeFormationConflict errorOffset)
                   (EpsilonTypeFormationInternal errorOffset))))))))))

@@ -55,8 +55,8 @@ D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
 AST-to-symbolic-Alpha lowering, `main`, and final publication remain
-implementation gaps. D56 settles the still-unimplemented entry-diagnostic
-subjudgment and removal of the redundant type-candidate `kind`. D31's profile-
+implementation gaps. D56's redundant type-candidate `kind` is removed; its
+entry-diagnostic subjudgment remains unimplemented. D31's profile-
 independent structural type-formation judgment is now implemented; its
 physical storage realization remains later than complete checking, with D34
 now fixing its over-`Int` demand representation. The existing source is
@@ -88,8 +88,11 @@ contradiction. Accepted programs retain explicit source-ordered record/sum rows
 so `data X {}` is concretely a zero-field record, plus all direct data-
 containment edges. Recursion checks each edge with a visited-owner graph walk,
 marking every edge in a value cycle at its named-reference coordinate without
-expanding every path through a shared acyclic graph. The winning candidate is
-now promoted after successful census. D56 requires a final type-formation entry
+expanding every path through a shared acyclic graph. Candidate identity is now
+exactly its reason and packed coordinate; same-anchor reason equality derives
+from the total reason mapping rather than a parallel integer discriminator.
+The winning candidate is promoted after successful census. D56 requires a
+final type-formation entry
 subjudgment before that promotion: no authored `Main::main` owner/name candidate
 yields only `MissingEntry` at source extent; once one exists, every malformed or
 absent supporting component is `InvalidEntry`. Entry facts do not enter the

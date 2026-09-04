@@ -4765,3 +4765,20 @@ checker slice would create a second semantic owner. The exact 8,735-line,
 
 This closes only the two settled local judgments. D51, D53, D56, D57,
 AST-to-Alpha lowering, `main`, and Q5's application boundary remain open.
+
+## D116 — Type-formation candidates derive identity from their reason
+
+The Epsilon type-formation candidate no longer stores a separately authored
+integer `kind` beside its rejection reason and packed coordinate. Candidate
+merge compares offsets for priority and derives same-anchor reason equality
+through the existing total `epsilon_reject_reason_identity` mapping. Repeated
+derivations of one `(reason, offset)` still merge, while distinct reasons at one
+offset still become `EpsilonTypeFormationConflict`; wire-code order never
+selects a winner.
+
+This deletes the unenforced parallel bijection from every placement, data-shape,
+array-length, unknown-type, and recursive-value producer. The exact 8,732-line,
+436,969-byte source plus a scalar diagnostic entry compiles through the selected
+Delta stage to a 503,401-byte Gamma receipt in 69.5 seconds on the development
+host. D56's final entry-shape subjudgment and its entry fixtures remain open;
+this checkpoint closes only the candidate-identity prerequisite.
