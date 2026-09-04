@@ -273,10 +273,13 @@ pub enum BuiltinFunction {
     FloatFusedMultiplyAddTowardPositiveF64,
     FloatFusedMultiplyAddTowardNegativeF32,
     FloatFusedMultiplyAddTowardNegativeF64,
+    /// Total, proof-only projection of a fixed-width integer or address into
+    /// mathematical Int. This has no callable implementation or runtime ABI.
+    IntegerEmbed,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 71;
+    pub const COUNT: usize = 72;
 
     pub const ALL: [Self; Self::COUNT] = [
         Self::Max,
@@ -350,6 +353,7 @@ impl BuiltinFunction {
         Self::FloatFusedMultiplyAddTowardPositiveF64,
         Self::FloatFusedMultiplyAddTowardNegativeF32,
         Self::FloatFusedMultiplyAddTowardNegativeF64,
+        Self::IntegerEmbed,
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -437,6 +441,7 @@ impl BuiltinFunction {
             }
             Self::ContentOld => "old",
             Self::ContentSeparate => "separate",
+            Self::IntegerEmbed => "embed",
         }
     }
 
@@ -513,6 +518,7 @@ impl BuiltinFunction {
             Self::FloatFusedMultiplyAddTowardPositiveF64 => 68,
             Self::FloatFusedMultiplyAddTowardNegativeF32 => 69,
             Self::FloatFusedMultiplyAddTowardNegativeF64 => 70,
+            Self::IntegerEmbed => 71,
         }
     }
 
@@ -588,6 +594,7 @@ impl BuiltinFunction {
             | Self::FloatFusedMultiplyAddTowardNegativeF64
             | Self::ContentOld
             | Self::ContentSeparate
+            | Self::IntegerEmbed
             | Self::AsmLoadFence
             | Self::AsmStoreFence
             | Self::AsmFullFence
@@ -940,6 +947,10 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         (
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF64.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::IntegerEmbed.name()),
         ),
     ]
 }

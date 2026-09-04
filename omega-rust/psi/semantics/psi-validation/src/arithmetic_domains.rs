@@ -51,7 +51,7 @@ pub(crate) use guard_narrowing::{
 pub(crate) use interval::Interval;
 pub(crate) use total_specification::{
     validate_abstract_total_specification_arithmetic,
-    validate_machine_total_specification_arithmetic,
+    validate_machine_total_specification_arithmetic, validate_total_specification_arithmetic,
 };
 use value_environment::FloatInterval;
 pub(crate) use value_environment::ValueEnv;
@@ -1090,6 +1090,9 @@ pub(crate) fn call_return_type(
     current_machine: &Machine,
     call: &TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
+    if crate::proof_embeddings::is_exact_embed_call(program, call) {
+        return crate::proof_embeddings::proof_int_type_reference(program);
+    }
     if let Some(operator) = psi_typed_trees::operator::resolve_named_expression_call(program, call)
         && operator.return_type.is_valid()
     {

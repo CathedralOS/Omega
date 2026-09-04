@@ -353,6 +353,92 @@ fn validate_direct_projection(
         return None;
     }
 
+    let (machine, state) = validate_checked_call_candidate(
+        program,
+        call,
+        operational,
+        service_reaches,
+        &reject,
+        diagnostics,
+    )?;
+
+    let (data_symbol, qualified) = match program
+        .type_reference_table
+        .type_reference(state.return_type)
+    {
+        TypeReferenceNode::Named { symbol, .. } => (*symbol, false),
+        TypeReferenceNode::Generic { base_symbol, .. } => (*base_symbol, false),
+        TypeReferenceNode::Constrained { .. } => (psi_symbols::SymbolHandle::invalid(), true),
+        _ => (psi_symbols::SymbolHandle::invalid(), false),
+    };
+    if qualified {
+        reject(
+            "content-bearing or otherwise qualified results are not admitted",
+            diagnostics,
+        );
+        return None;
+    }
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == data_symbol)
+    else {
+        reject("the result is not one nominal plain record", diagnostics);
+        return None;
+    };
+    if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+        || DataShapeKind::Record
+            != psi_typed_trees::data::DataDefinition::shape_kind_from_members(
+                program.data_members(data),
+            )
+    {
+        reject(
+            "sum, mixed, empty, and opaque result shapes are not admitted",
+            diagnostics,
+        );
+        return None;
+    }
+    let field = (member.case_variant.is_none())
+        .then(|| {
+            program.data_members(data).iter().find_map(|candidate| {
+                let DataMember::Field(field) = candidate else {
+                    return None;
+                };
+                (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
+            })
+        })
+        .flatten();
+    let Some(field) = field else {
+        reject(
+            "the selected member is not one exact direct record field",
+            diagnostics,
+        );
+        return None;
+    };
+    Some(ValidatedFactCallProjection {
+        projection_expression,
+        call_expression,
+        target_machine: machine.symbol,
+        target_state: state.symbol,
+        machine_arguments: call.machine_arguments.clone(),
+        result_type: state.return_type,
+        field,
+    })
+}
+
+/// Shared source admission for denotational calls. Final checked termination
+/// remains mandatory for every candidate, including integer embeddings.
+pub(crate) fn validate_checked_call_candidate<'program>(
+    program: &'program TypedTrees,
+    call: &TableCallExpression,
+    operational: &psi_effects::OperationalPlan,
+    service_reaches: &psi_effects::ServiceReachInferencePlan,
+    reject: &impl Fn(&str, &mut Vec<Diagnostic>),
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<(
+    &'program psi_typed_trees::machine::Machine,
+    &'program psi_typed_trees::state::State,
+)> {
     let matches = program
         .machines()
         .iter()
@@ -439,69 +525,7 @@ fn validate_direct_projection(
         reject("the selected call closure has a crash route", diagnostics);
         return None;
     }
-
-    let (data_symbol, qualified) = match program
-        .type_reference_table
-        .type_reference(state.return_type)
-    {
-        TypeReferenceNode::Named { symbol, .. } => (*symbol, false),
-        TypeReferenceNode::Generic { base_symbol, .. } => (*base_symbol, false),
-        TypeReferenceNode::Constrained { .. } => (psi_symbols::SymbolHandle::invalid(), true),
-        _ => (psi_symbols::SymbolHandle::invalid(), false),
-    };
-    if qualified {
-        reject(
-            "content-bearing or otherwise qualified results are not admitted",
-            diagnostics,
-        );
-        return None;
-    }
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == data_symbol)
-    else {
-        reject("the result is not one nominal plain record", diagnostics);
-        return None;
-    };
-    if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
-        || DataShapeKind::Record
-            != psi_typed_trees::data::DataDefinition::shape_kind_from_members(
-                program.data_members(data),
-            )
-    {
-        reject(
-            "sum, mixed, empty, and opaque result shapes are not admitted",
-            diagnostics,
-        );
-        return None;
-    }
-    let field = (member.case_variant.is_none())
-        .then(|| {
-            program.data_members(data).iter().find_map(|candidate| {
-                let DataMember::Field(field) = candidate else {
-                    return None;
-                };
-                (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
-            })
-        })
-        .flatten();
-    let Some(field) = field else {
-        reject(
-            "the selected member is not one exact direct record field",
-            diagnostics,
-        );
-        return None;
-    };
-    Some(ValidatedFactCallProjection {
-        projection_expression,
-        call_expression,
-        target_machine: machine.symbol,
-        target_state: state.symbol,
-        machine_arguments: call.machine_arguments.clone(),
-        result_type: state.return_type,
-        field,
-    })
+    Some((*machine, *state))
 }
 
 fn has_observation_free_checked_closure(

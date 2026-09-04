@@ -315,6 +315,25 @@ fn projection_result_expression(
     }
 }
 
+pub(crate) fn content_projection_body_expression(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Option<ExpressionHandle> {
+    program
+        .machine_trait_conformances(machine)
+        .iter()
+        .any(|conformance| {
+            conformance.requirement.as_ref().map(|name| name.as_str()) == Some("project")
+                && program
+                    .traits()
+                    .iter()
+                    .find(|candidate| candidate.symbol == conformance.symbol)
+                    .is_some_and(|candidate| is_content_projection_trait(program, candidate))
+        })
+        .then(|| projection_result_expression(program, machine))
+        .flatten()
+}
+
 fn normalize_projection_expression(
     program: &TypedTrees,
     subject: ProjectionSubject,
@@ -367,6 +386,15 @@ fn normalize_projection_scalar(
     subject: ProjectionSubject,
     expression: ExpressionHandle,
 ) -> Option<ContentScalarExpression> {
+    normalize_projection_scalar_context(program, subject, expression, false)
+}
+
+fn normalize_projection_scalar_context(
+    program: &TypedTrees,
+    subject: ProjectionSubject,
+    expression: ExpressionHandle,
+    within_integer_coercion: bool,
+) -> Option<ContentScalarExpression> {
     match program.expression_table.expression(expression) {
         // Content algebras are Nat-valued, while runtime integers and
         // addresses uniformly embed into proof Int. The explicit exact
@@ -380,7 +408,7 @@ fn normalize_projection_scalar(
                 && cast.domain == psi_numerics::arithmetic::ArithmeticDomain::Exact
                 && cast.semantic_domain.count() == 0 =>
         {
-            normalize_projection_scalar(program, subject, cast.value)
+            normalize_projection_scalar_context(program, subject, cast.value, true)
         }
         ExpressionNode::Integer(value) => {
             let value = value.value_bignum()?;
@@ -393,7 +421,9 @@ fn normalize_projection_scalar(
         }
         ExpressionNode::Member(_) => normalize_subject_field(program, subject, expression)
             .map(|(path, _)| ContentScalarExpression::SubjectField(path)),
-        ExpressionNode::Call(call) if is_content_scalar_embedding(program, call) => {
+        ExpressionNode::Call(call)
+            if within_integer_coercion && is_content_scalar_embedding(program, call) =>
+        {
             let [argument] = program.expression_table.expression_handles(call.arguments) else {
                 return None;
             };
@@ -414,8 +444,18 @@ fn normalize_projection_scalar(
                     BinaryOperator::Multiply => ContentArithmeticOperator::Multiply,
                     _ => unreachable!("guarded closed arithmetic operator"),
                 },
-                left: Box::new(normalize_projection_scalar(program, subject, binary.left)?),
-                right: Box::new(normalize_projection_scalar(program, subject, binary.right)?),
+                left: Box::new(normalize_projection_scalar_context(
+                    program,
+                    subject,
+                    binary.left,
+                    within_integer_coercion,
+                )?),
+                right: Box::new(normalize_projection_scalar_context(
+                    program,
+                    subject,
+                    binary.right,
+                    within_integer_coercion,
+                )?),
             })
         }
         ExpressionNode::StructLiteral(literal)
@@ -523,9 +563,7 @@ fn is_content_projection_trait(program: &TypedTrees, candidate: &TraitDefinition
 }
 
 fn is_content_scalar_embedding(program: &TypedTrees, call: &TableCallExpression) -> bool {
-    !call.receiver.is_valid()
-        && call.target.as_str().rsplit("::").next() == Some("embed")
-        && compiler_owned_symbol(program, call.target_symbol)
+    crate::proof_embeddings::is_exact_embed_call(program, call)
 }
 
 fn runtime_scalar_can_embed(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {

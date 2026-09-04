@@ -649,7 +649,29 @@ fn is_hoistable_value_cast_call(lowerer: &Lowerer, expression: ExpressionHandle)
     let ExpressionNode::Call(call) = expressions.expression(expression) else {
         return false;
     };
-    !call.receiver.is_valid() && !matches!(call.target.as_str(), "min" | "max" | "sqrt")
+    !call.receiver.is_valid()
+        && !is_integer_embedding_call(lowerer, call)
+        && !matches!(call.target.as_str(), "min" | "max" | "sqrt")
+}
+
+/// A compiler proof term has no runtime call-result slot to materialize.
+/// Keep its source expression intact for proof typing and ordered coercion
+/// checks. Calls are initially unresolved at this normalization site, so the
+/// reserved syntax is preserved without assigning it semantic authority. The
+/// later proof-only gate requires the exact builtin symbol and rejects both
+/// executable uses and any authored same-spelled replacement.
+fn is_integer_embedding_call(
+    lowerer: &Lowerer,
+    call: &psi_symbol_resolved_trees::expression::TableCallExpression,
+) -> bool {
+    !call.receiver.is_valid()
+        && call.target.as_str() == psi_symbols::BuiltinFunction::IntegerEmbed.name()
+        && (!call.target_symbol.is_valid()
+            || lowerer
+                .symbol_resolved_trees
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                == Some(psi_symbols::BuiltinFunction::IntegerEmbed))
 }
 
 /// Rewrites an `Indexed` node's INDEX position. A hoistable COMPUTED index
@@ -922,7 +944,10 @@ fn hoist_scalar_value_call_comparison(
     }
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let side_is_user_call = |handle: ExpressionHandle| match expressions.expression(handle) {
-        ExpressionNode::Call(call) => !matches!(call.target.as_str(), "min" | "max" | "sqrt"),
+        ExpressionNode::Call(call) => {
+            !is_integer_embedding_call(lowerer, call)
+                && !matches!(call.target.as_str(), "min" | "max" | "sqrt")
+        }
         _ => false,
     };
     let call_is_left = side_is_user_call(binary.left) && !side_is_user_call(binary.right);
@@ -1040,7 +1065,9 @@ fn hoist_terminal_value_machine_call(
     let ExpressionNode::Call(call) = expressions.expression(expression) else {
         return expression;
     };
-    if matches!(call.target.as_str(), "min" | "max" | "sqrt") {
+    if is_integer_embedding_call(lowerer, call)
+        || matches!(call.target.as_str(), "min" | "max" | "sqrt")
+    {
         return expression;
     }
     if call.receiver.is_valid() {

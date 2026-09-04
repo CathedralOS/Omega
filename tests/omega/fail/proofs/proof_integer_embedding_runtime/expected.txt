@@ -1,0 +1,1 @@
+compiler-owned `embed(value)` is proof-only

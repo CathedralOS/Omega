@@ -1,1 +1,1 @@
-entry(whole)
+`entry(&whole)` is not a parameter, `self`, `result`, or structural subplace

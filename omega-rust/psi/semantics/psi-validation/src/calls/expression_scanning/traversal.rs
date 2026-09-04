@@ -591,6 +591,17 @@ fn scan_expression_calls(
         ),
         ExpressionNode::Call(call) => {
             let call = call.clone();
+            if crate::proof_embeddings::is_exact_embed_call(program, &call) {
+                crate::arithmetic_domains::validate_total_specification_arithmetic(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                    value_env,
+                    "`embed` source in a proof body",
+                    diagnostics,
+                );
+            }
             validate_expression_call_bounds(
                 program,
                 machine,

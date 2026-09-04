@@ -118,6 +118,7 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::FloatClassifyF64
         | BuiltinFunction::ContentOld
         | BuiltinFunction::ContentSeparate
+        | BuiltinFunction::IntegerEmbed
         | BuiltinFunction::FloatAddTowardZeroF32
         | BuiltinFunction::FloatAddTowardZeroF64
         | BuiltinFunction::FloatAddTowardPositiveF32

@@ -17,6 +17,8 @@ use std::collections::HashMap;
 /// Why a data definition is proof-only. `describe` renders the chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofOnlyReason {
+    /// The compiler's unbounded mathematical integer has no runtime layout.
+    Integer,
     /// An N6 quotient is an equivalence class with no runtime representative.
     Quotient,
     /// The definition reaches itself through inline fields.
@@ -44,6 +46,9 @@ impl ProofOnlyClassification {
     /// "`Wrapper` is proof-only: field `n` holds proof-only `Nat`".
     pub fn describe(&self, name: &str, symbol: SymbolHandle) -> Option<String> {
         Some(match self.reasons.get(&symbol.arena_index())? {
+            ProofOnlyReason::Integer => {
+                format!("`{name}` is proof-only: mathematical integers have no runtime layout")
+            }
             ProofOnlyReason::Quotient => {
                 format!("`{name}` is proof-only: quotient data has no representative layout")
             }
@@ -168,6 +173,9 @@ impl ProofOnlyClassification {
 /// inline-containment cycle), then contagion to fixpoint.
 pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
     let definitions = program.data_definitions();
+    let proof_integer = program
+        .symbols
+        .builtin_type_symbol(psi_symbols::BuiltinType::Int);
     let index_by_symbol: HashMap<u32, usize> = definitions
         .iter()
         .enumerate()
@@ -177,6 +185,7 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
     // Inline containment edges, with the field that carries each edge (for
     // the contagion message).
     let mut edges: Vec<Vec<(usize, Identifier, Identifier)>> = vec![Vec::new(); definitions.len()];
+    let mut integer_containment = vec![None; definitions.len()];
     for (index, definition) in definitions.iter().enumerate() {
         for member in program.data_members(definition) {
             let fields = match member {
@@ -191,14 +200,14 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
                 if field.relevance == psi_language_core::BindingRelevance::Erased {
                     continue;
                 }
-                collect_inline_data_edges(
-                    program,
-                    field.type_reference,
-                    &index_by_symbol,
-                    &mut |target, held| {
-                        edges[index].push((target, field.name.clone(), held));
-                    },
-                );
+                collect_inline_data_edges(program, field.type_reference, &mut |target, held| {
+                    if Some(target) == proof_integer {
+                        integer_containment[index] = Some((field.name.clone(), held.clone()));
+                    }
+                    if let Some(target) = index_by_symbol.get(&target.arena_index()) {
+                        edges[index].push((*target, field.name.clone(), held));
+                    }
+                });
             }
         }
     }
@@ -222,6 +231,20 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
     }
 
     let mut reasons: HashMap<u32, ProofOnlyReason> = HashMap::new();
+    if let Some(symbol) = proof_integer {
+        reasons.insert(symbol.arena_index(), ProofOnlyReason::Integer);
+    }
+    // The builtin is not an authored data-definition node in the recursion
+    // graph. Seed its inline holders before the ordinary containment fixpoint
+    // so wrappers of those holders inherit the same proof-only classification.
+    for (index, contained) in integer_containment.into_iter().enumerate() {
+        if let Some((field, held)) = contained {
+            reasons.insert(
+                definitions[index].symbol.arena_index(),
+                ProofOnlyReason::Contains { field, held },
+            );
+        }
+    }
 
     // Quotients are proof-only by construction: an equivalence class does not
     // expose or store a chosen representative.
@@ -302,23 +325,22 @@ fn reaches(goal: usize, from: usize, edges: &[Vec<(usize, Identifier, Identifier
 fn collect_inline_data_edges(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    index_by_symbol: &HashMap<u32, usize>,
-    edge: &mut impl FnMut(usize, Identifier),
+    edge: &mut impl FnMut(SymbolHandle, Identifier),
 ) {
     if !type_reference.is_valid() {
         return;
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { symbol, name } => {
-            if let Some(target) = index_by_symbol.get(&symbol.arena_index()) {
-                edge(*target, name.clone());
+            if symbol.is_valid() {
+                edge(*symbol, name.clone());
             }
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
-            collect_inline_data_edges(program, *base_type, index_by_symbol, edge)
+            collect_inline_data_edges(program, *base_type, edge)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            collect_inline_data_edges(program, *element_type, index_by_symbol, edge)
+            collect_inline_data_edges(program, *element_type, edge)
         }
         TypeReferenceNode::Generic {
             base_symbol,
@@ -326,14 +348,14 @@ fn collect_inline_data_edges(
             arguments,
             ..
         } => {
-            if let Some(target) = index_by_symbol.get(&base_symbol.arena_index()) {
-                edge(*target, base_name.clone());
+            if base_symbol.is_valid() {
+                edge(*base_symbol, base_name.clone());
             }
             for argument in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
             {
-                collect_inline_data_edges(program, *argument, index_by_symbol, edge);
+                collect_inline_data_edges(program, *argument, edge);
             }
         }
         TypeReferenceNode::Reference { .. }

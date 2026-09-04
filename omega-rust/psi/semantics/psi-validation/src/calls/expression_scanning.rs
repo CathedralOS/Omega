@@ -113,6 +113,13 @@ fn validate_expression_call_bounds(
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if crate::proof_embeddings::is_exact_embed_call(program, call) {
+        // Embedding is a proof term, not a value-machine invocation. Its
+        // dedicated whole-program gate validates the exact unary carrier
+        // shape and rejects every executable occurrence. The outer scanner
+        // still visits its operand, including any nested ordinary call.
+        return;
+    }
     if (call.target.as_str() == "asm#pushfq"
         || psi_language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
             call.target.as_str(),

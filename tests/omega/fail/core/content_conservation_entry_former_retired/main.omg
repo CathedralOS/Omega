@@ -11,7 +11,7 @@ domain Region::Owned;
 machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
 satisfies Content<CountedQuantity<ByteUnit>>::project
 {
-    CountedQuantity { magnitude: embed(region.remaining) }
+    CountedQuantity { magnitude: embed(region.remaining) as Nat }
 }
 
 trait RetiredEntryContentForm {

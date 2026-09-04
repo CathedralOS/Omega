@@ -10,12 +10,12 @@ use omega::language::core::nat;
 // A struct literal introduces one half-open member. Compiler normalization
 // lifts it into the canonical finite interval-set term used by `separate` and
 // residual difference; this proof-only carrier never acquires runtime layout.
-data IntervalSet<CoordinateSpace> {
+pub data IntervalSet<CoordinateSpace> {
     start: Nat;
     end: Nat;
 }
 
-data CountedQuantity<Unit> {
+pub data CountedQuantity<Unit> {
     magnitude: Nat;
 }
 
@@ -36,4 +36,5 @@ pub trait Content<A> {
 // conversion and discharge nonnegativity from that derived range. The content-
 // fragment validator admits this surface only for u8/u16/u32/u64/addr subject
 // fields; arbitrary calls and non-scalar arguments remain outside the fragment.
-boundary machine embed<T>(value: T) -> Int;
+// `embed` is installed by the compiler as a proof term, like `old` and
+// `separate`. It has no machine declaration, provider, or runtime implementation.

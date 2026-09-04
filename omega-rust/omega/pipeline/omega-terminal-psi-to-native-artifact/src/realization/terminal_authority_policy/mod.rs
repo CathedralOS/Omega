@@ -28,7 +28,7 @@ use commitment::complete_policy_commitment;
 
 /// Version of the receiving-realization policy table over D45's shared
 /// role-tagged terminal-mechanism identity.
-pub const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 6;
+pub const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 7;
 
 pub fn terminal_authority_policy_with_rows(
     explicit_rows: Vec<TerminalAuthorityPolicyRow>,

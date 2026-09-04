@@ -76,6 +76,7 @@ mod quotient_congruence;
 mod structural_judgment;
 mod structural_terms;
 
+pub use arithmetic_judgment::integer_embedding_sources_equal;
 use arithmetic_judgment::{Engine, Judgment, Polynomial};
 use inductive_judgment::inductive_transition_entailment;
 pub(crate) use law_conformance::{
@@ -91,6 +92,12 @@ use structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use structural_terms::{
     split_structural_machine_name, structural_call_machine_name, structural_term, term_contains,
     unfold_constant_applications,
+};
+
+mod proof_integer;
+pub(crate) use proof_integer::{
+    proof_integer_expression, proof_integer_nonnegative, proof_nat_cast,
+    validate_proof_fact_integer_casts, validate_proof_integer_casts,
 };
 
 /// One exact symbol substitution admitted by the strict arithmetic

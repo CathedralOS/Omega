@@ -287,6 +287,14 @@ pub(super) struct Engine<'program> {
     /// back to its display spelling.
     strict_symbol_bindings: Option<Vec<(SymbolHandle, Polynomial)>>,
     strict_symbol_bindings_valid: bool,
+    /// A formation query has exact symbol bindings and admits only total
+    /// mathematical arithmetic. It must not inherit the legacy proof
+    /// machine adapter's interpretation of arbitrary executable operators.
+    proof_integer_formation: bool,
+    /// Policy-safe normalization is required by the new embedding lane.
+    /// The pre-existing raw wrapping induction producer is migrated
+    /// separately; unrelated machines must not select a different prover.
+    integer_embedding_policy: bool,
     /// Parameters whose primitive type is unsigned carry an implicit `>= 0`.
     unsigned_atoms: Vec<String>,
     /// Directed substitutions from requires equations (`atom := polynomial`),
@@ -337,6 +345,10 @@ impl<'program> Engine<'program> {
             parameter_atoms,
             strict_symbol_bindings: None,
             strict_symbol_bindings_valid: true,
+            proof_integer_formation: false,
+            integer_embedding_policy: crate::proof_embeddings::machine_contains_integer_embedding(
+                program, machine,
+            ),
             unsigned_atoms,
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
@@ -388,6 +400,40 @@ impl<'program> Engine<'program> {
 
     pub(super) fn strict_symbol_bindings_are_valid(&self) -> bool {
         self.strict_symbol_bindings_valid
+    }
+
+    pub(super) fn for_proof_integer_formation(program: &'program TypedTrees) -> Self {
+        let mut bindings = Vec::new();
+        for (handle, expression) in program.expression_table.iter_expressions() {
+            let ExpressionNode::Name(path) = expression else {
+                continue;
+            };
+            if path.symbol.is_valid()
+                && (crate::proof_embeddings::integer_embedding(program, handle).is_some()
+                    || proof_integer_expression(program, handle))
+                && !bindings.iter().any(|(symbol, _)| *symbol == path.symbol)
+            {
+                bindings.push((
+                    path.symbol,
+                    Polynomial::atom(format!("\0proof-symbol:{:?}", path.symbol)),
+                ));
+            }
+        }
+        Self {
+            program,
+            machine_symbol: SymbolHandle::default(),
+            parameter_atoms: Vec::new(),
+            strict_symbol_bindings: Some(bindings),
+            strict_symbol_bindings_valid: true,
+            proof_integer_formation: true,
+            integer_embedding_policy: true,
+            unsigned_atoms: Vec::new(),
+            substitutions: BTreeMap::new(),
+            bounds: Vec::new(),
+            mod_intervals: BTreeMap::new(),
+            matrix: BTreeMap::new(),
+            requires_unsatisfiable: false,
+        }
     }
 
     /// Like [`Engine::new`], plus the reserved `result` atom for the
@@ -955,6 +1001,18 @@ impl<'program> Engine<'program> {
             // The typed-tree unary operator is logical-not only (negative
             // literals fold into Integer), so unary nodes are never terms.
             ExpressionNode::Unary(_) => None,
+            ExpressionNode::Binary(_)
+                if !proof_integer_expression(self.program, expression)
+                    && ((self.proof_integer_formation
+                        && !exact_integer_source(self.program, expression))
+                        || (self.integer_embedding_policy
+                            && nonexact_integer_source(self.program, expression))) =>
+            {
+                if self.strict_symbol_bindings.is_some() && !self.proof_integer_formation {
+                    return None;
+                }
+                self.normalize_integer_embedding(expression)
+            }
             ExpressionNode::Binary(binary) => match binary.operator {
                 BinaryOperator::Add => {
                     let left = self.normalize(binary.left)?;
@@ -990,6 +1048,18 @@ impl<'program> Engine<'program> {
                 _ => None,
             },
             ExpressionNode::Call(call) => {
+                if crate::proof_embeddings::is_exact_embed_call(self.program, &call)
+                    && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation)
+                {
+                    let [argument] = self
+                        .program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                    else {
+                        return None;
+                    };
+                    return self.normalize_integer_embedding(*argument);
+                }
                 if self.strict_symbol_bindings.is_some() {
                     return None;
                 }
@@ -1017,8 +1087,155 @@ impl<'program> Engine<'program> {
                     rendered.join(", ")
                 )))
             }
+            ExpressionNode::Cast(cast)
+                if proof_nat_cast(self.program, &cast)
+                    && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation) =>
+            {
+                // Formation is checked separately against prior facts. This
+                // conversion preserves the already-proven mathematical value.
+                self.normalize(cast.value)
+            }
             _ => None,
         }
+    }
+
+    fn normalize_integer_embedding(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
+        let embedding = crate::proof_embeddings::integer_embedding(self.program, expression)?;
+        if let ExpressionNode::Integer(literal) =
+            self.program.expression_table.expression(expression)
+        {
+            return Some(Polynomial::constant(literal.value_bignum()?));
+        }
+        // A direct binding denotes its payload regardless of its arithmetic
+        // qualification. Computed sources remain opaque: normalizing their
+        // written arithmetic would erase wrapping or saturation semantics.
+        let direct = if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Name(_)
+        ) {
+            self.normalize(expression)
+        } else {
+            None
+        };
+        let polynomial = direct.unwrap_or_else(|| {
+            Polynomial::atom(format!(
+                "\0embed:{:?}:{}",
+                embedding.primitive,
+                integer_source_identity(self.program, expression),
+            ))
+        });
+        self.bounds.push((polynomial.clone(), embedding.minimum));
+        self.bounds
+            .push((polynomial.neg(), embedding.maximum.negate()));
+        self.seed_matrix();
+        self.close_matrix();
+        Some(polynomial)
+    }
+}
+
+/// A transient normalization key, never artifact identity. Resolved source
+/// symbols, selected casts and operator structure remain distinct. Unsupported
+/// source forms use occurrence identity rather than guessing equivalence.
+fn integer_source_identity(program: &TypedTrees, expression: ExpressionHandle) -> String {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) if path.symbol.is_valid() => format!("name:{:?}", path.symbol),
+        ExpressionNode::Integer(literal) => format!("literal:{literal:?}"),
+        ExpressionNode::Binary(binary) => format!(
+            "binary:{:?}({},{})",
+            binary.operator,
+            integer_source_identity(program, binary.left),
+            integer_source_identity(program, binary.right)
+        ),
+        ExpressionNode::Cast(cast) => format!(
+            "cast:{:?}:{:?}:{:?}:{}",
+            cast.target_type,
+            cast.domain,
+            cast.semantic_domain_id,
+            integer_source_identity(program, cast.value)
+        ),
+        ExpressionNode::Member(member) if member.member_symbol.is_valid() => format!(
+            "member:{:?}:{:?}:{}",
+            member.member_symbol,
+            member.case_variant,
+            integer_source_identity(program, member.receiver)
+        ),
+        ExpressionNode::Indexed(indexed) => format!(
+            "index:{}:{}",
+            integer_source_identity(program, indexed.collection),
+            integer_source_identity(program, indexed.index)
+        ),
+        ExpressionNode::Call(call) if call.target_symbol.is_valid() => format!(
+            "call:{:?}:{:?}:{}:{:?}",
+            call.target_symbol,
+            call.machine_arguments,
+            integer_source_identity(program, call.receiver),
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|argument| integer_source_identity(program, *argument))
+                .collect::<Vec<_>>(),
+        ),
+        _ => format!("occurrence:{expression:?}"),
+    }
+}
+
+/// Compare already-admitted embedding sources using the same carrier and
+/// exact transient identity as arithmetic normalization. No display label or
+/// bare call spelling can establish equality.
+pub fn integer_embedding_sources_equal(
+    program: &TypedTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    let Some(left_carrier) = crate::proof_embeddings::integer_embedding(program, left) else {
+        return false;
+    };
+    let Some(right_carrier) = crate::proof_embeddings::integer_embedding(program, right) else {
+        return false;
+    };
+    left_carrier.primitive == right_carrier.primitive
+        && integer_source_identity(program, left) == integer_source_identity(program, right)
+}
+
+fn exact_integer_source(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    use psi_numerics::arithmetic::ArithmeticDomain;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal
+            .landing()
+            .is_none_or(|landing| landing.domain == ArithmeticDomain::Exact),
+        ExpressionNode::Binary(binary) => {
+            exact_integer_source(program, binary.left)
+                && exact_integer_source(program, binary.right)
+        }
+        ExpressionNode::Cast(cast) => cast.domain == ArithmeticDomain::Exact,
+        ExpressionNode::Name(path) => crate::expression_types::named_value_type_reference(
+            program, path,
+        )
+        .is_some_and(|reference| {
+            program.arithmetic_domain_for_type_reference(reference) == ArithmeticDomain::Exact
+        }),
+        _ => false,
+    }
+}
+
+fn nonexact_integer_source(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    use psi_numerics::arithmetic::ArithmeticDomain;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal
+            .landing()
+            .is_some_and(|landing| landing.domain != ArithmeticDomain::Exact),
+        ExpressionNode::Binary(binary) => {
+            nonexact_integer_source(program, binary.left)
+                || nonexact_integer_source(program, binary.right)
+        }
+        ExpressionNode::Cast(cast) => cast.domain != ArithmeticDomain::Exact,
+        ExpressionNode::Call(_) => false,
+        _ => crate::proof_embeddings::expression_type_reference(program, expression).is_some_and(
+            |reference| {
+                program.arithmetic_domain_for_type_reference(reference) != ArithmeticDomain::Exact
+            },
+        ),
     }
 }
 
@@ -1047,5 +1264,123 @@ fn polynomial_display(polynomial: &Polynomial) -> String {
         "0".to_owned()
     } else {
         parts.join(" + ")
+    }
+}
+
+#[cfg(test)]
+mod embedding_tests {
+    use super::*;
+    use psi_numerics::arithmetic::ArithmeticDomain;
+    use psi_numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+    use psi_typed_trees::expression::TableBinaryExpression;
+
+    fn byte_sum(program: &mut TypedTrees, domain: ArithmeticDomain) -> ExpressionHandle {
+        let mut literal = |value| {
+            program.expression_table.insert(ExpressionNode::Integer(
+                IntegerLiteral::from_value(value).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U8,
+                    domain,
+                }),
+            ))
+        };
+        let left = literal(255);
+        let right = literal(1);
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator: BinaryOperator::Add,
+                right,
+            }))
+    }
+
+    #[test]
+    fn embedded_wrapping_and_saturating_sources_are_not_mathematical_sums() {
+        let mut program = TypedTrees::default();
+        let wrapping = byte_sum(&mut program, ArithmeticDomain::Wrapping);
+        let saturating = byte_sum(&mut program, ArithmeticDomain::Saturating);
+        let mut engine = Engine::for_proof_integer_formation(&program);
+        let wrapped = engine.normalize_integer_embedding(wrapping).unwrap();
+        let saturated = engine.normalize_integer_embedding(saturating).unwrap();
+        assert_ne!(wrapped, Polynomial::constant(BigInt::from_i64(256)));
+        assert_ne!(wrapped, saturated);
+        assert!(engine.prove_at_least(&wrapped, &BigInt::zero()));
+        assert!(engine.prove_at_least(&wrapped.neg(), &BigInt::from_i64(-255)));
+        assert!(engine.prove_at_least(&saturated.neg(), &BigInt::from_i64(-255)));
+    }
+
+    #[test]
+    fn equal_embedded_source_structure_has_one_transient_mathematical_identity() {
+        let mut program = TypedTrees::default();
+        let first = byte_sum(&mut program, ArithmeticDomain::Wrapping);
+        let second = byte_sum(&mut program, ArithmeticDomain::Wrapping);
+        let mut engine = Engine::for_proof_integer_formation(&program);
+        assert_eq!(
+            engine.normalize_integer_embedding(first),
+            engine.normalize_integer_embedding(second)
+        );
+    }
+
+    #[test]
+    fn embedded_signed_literals_keep_their_negative_mathematical_value() {
+        let mut program = TypedTrees::default();
+        let value = program.expression_table.insert(ExpressionNode::Integer(
+            IntegerLiteral::from_value(-1).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::I32,
+                domain: ArithmeticDomain::Trapping,
+            }),
+        ));
+        let mut engine = Engine::for_proof_integer_formation(&program);
+        let polynomial = engine.normalize_integer_embedding(value).unwrap();
+        assert_eq!(polynomial, Polynomial::constant(BigInt::from_i64(-1)));
+        assert!(!engine.prove_at_least(&polynomial, &BigInt::zero()));
+    }
+
+    #[test]
+    fn satisfiable_wrapping_hypotheses_do_not_prove_arbitrary_nonnegativity() {
+        let source = r#"
+            data Nat { case Zero; case Succ(previous: Nat); }
+            machine predicate(value: u8 in Wrapping, signed: i32) -> Nat
+            requires value == 255
+            requires value + 1 == 0
+            { embed(signed) as Nat }
+        "#;
+        let tokens = psi_source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved =
+            psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let program =
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .unwrap();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "predicate")
+            .unwrap();
+        let hypotheses: Vec<_> = program
+            .machine_contracts(machine)
+            .iter()
+            .filter(|contract| contract.kind == SignatureContractKind::Requires)
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .filter_map(|fact| match fact {
+                ProofFact::Expression(expression) => Some(*expression),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(hypotheses.len(), 2);
+        let source = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(_, expression)| match expression {
+                ExpressionNode::Cast(cast) if proof_nat_cast(&program, cast) => Some(cast.value),
+                _ => None,
+            })
+            .unwrap();
+        assert!(!proof_integer_nonnegative(&program, source, &hypotheses));
+        let mut engine = Engine::new(&program, machine);
+        engine.add_requires(&hypotheses);
+        assert!(!engine.requires_unsatisfiable);
     }
 }
