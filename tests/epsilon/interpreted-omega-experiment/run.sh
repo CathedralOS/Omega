@@ -21,6 +21,11 @@ CORE_ARITHMETIC="$TEST_DIR/core_arithmetic.epsilon"
 ADD_OVERFLOW="$TEST_DIR/add_overflow.epsilon"
 MULTIPLY_OVERFLOW="$TEST_DIR/multiply_overflow.epsilon"
 NEGATE_OVERFLOW="$TEST_DIR/negate_overflow.epsilon"
+FULL_SCALAR="$TEST_DIR/full_scalar.epsilon"
+DIVISION_ZERO="$TEST_DIR/division_zero.epsilon"
+DIVISION_OVERFLOW="$TEST_DIR/division_overflow.epsilon"
+SHIFT_COUNT="$TEST_DIR/shift_count.epsilon"
+SHORT_CIRCUIT="$TEST_DIR/short_circuit.epsilon"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Interpreted Omega experiment: skipped (python3 absent)"
@@ -47,8 +52,8 @@ grep -F 'data AlphaTapeBuffer {' "$OMEGA_D" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 8976 ]
-[ "$EPSILON_BYTES" -eq 447126 ]
+[ "$EPSILON_LINES" -eq 9108 ]
+[ "$EPSILON_BYTES" -eq 452671 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" FIXTURE="$FIXTURE" \
@@ -57,6 +62,9 @@ EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" FIXTURE="$FIXTURE" \
     CORE_ARITHMETIC="$CORE_ARITHMETIC" ADD_OVERFLOW="$ADD_OVERFLOW" \
     MULTIPLY_OVERFLOW="$MULTIPLY_OVERFLOW" \
     NEGATE_OVERFLOW="$NEGATE_OVERFLOW" \
+    FULL_SCALAR="$FULL_SCALAR" DIVISION_ZERO="$DIVISION_ZERO" \
+    DIVISION_OVERFLOW="$DIVISION_OVERFLOW" SHIFT_COUNT="$SHIFT_COUNT" \
+    SHORT_CIRCUIT="$SHORT_CIRCUIT" \
     EVALUATOR="$TMP/evaluator" python3 - <<'PY'
 import hashlib
 import os
@@ -67,8 +75,8 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        447126,
-        "7586686bfd64d36ca8f990d49d7fab232cd34dcc76b2c301a9eac6f02a4c44d3",
+        452671,
+        "a7dfd30c55b3e99e510e3229263f7fe863e8485bb7712e08e6f592cd7bf1e11d",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -125,6 +133,31 @@ artifacts = {
         281,
         "ecca508ce5e8851a140c8d641179bfafb7a7a7e8afb2fc97d4b8173d6144eea1",
     ),
+    "full scalar": (
+        Path(os.environ["FULL_SCALAR"]).read_bytes(),
+        457,
+        "7e65a18289c21d4d6e2fc0c16cf1ccbbec5c174830a13950bb9098f7c1044c77",
+    ),
+    "division zero": (
+        Path(os.environ["DIVISION_ZERO"]).read_bytes(),
+        272,
+        "0e48f7cfc98585bcf0d388c410a6e07f9c884ec65ec6e071ea7c2f4beb49807f",
+    ),
+    "division overflow": (
+        Path(os.environ["DIVISION_OVERFLOW"]).read_bytes(),
+        283,
+        "b9a5dc30e6a15697ba330ff6126e3da4b39fa15a549977d0820e1a0ab89cacd4",
+    ),
+    "shift count": (
+        Path(os.environ["SHIFT_COUNT"]).read_bytes(),
+        274,
+        "16047d495435f581e186efe19594becedf032c15ed5f9315f63f2d4e1d436da8",
+    ),
+    "short circuit": (
+        Path(os.environ["SHORT_CIRCUIT"]).read_bytes(),
+        320,
+        "3ec652c83dc00bf125412c33b46af3b18c6824a42fc7e5d43f4bb48704b60255",
+    ),
 }
 for name, (data, size, digest) in artifacts.items():
     if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
@@ -148,12 +181,12 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 527397:
-    raise SystemExit("core arithmetic evaluator slice did not compile")
+if status != 0 or len(receipt) != 534217:
+    raise SystemExit("complete scalar evaluator slice did not compile")
 if hashlib.sha256(receipt).hexdigest() != (
-    "64e6227e7c96430ea3289297a586794a74cb7fc168ec23ab6f57160d263b66f3"
+    "526d207589efb1748fbd1c3bab2010d52630c5bce89b80f03aace77ee6ee51af"
 ):
-    raise SystemExit("core arithmetic evaluator receipt identity changed")
+    raise SystemExit("complete scalar evaluator receipt identity changed")
 controls = {
     "empty entry": b"\x00",
     "write then exit": b"A\x07",
@@ -165,10 +198,15 @@ controls = {
     "add overflow": b"A\x81",
     "multiply overflow": b"\x81",
     "negate overflow": b"\x81",
+    "full scalar": b"A\x00",
+    "division zero": b"\x82",
+    "division overflow": b"\x83",
+    "shift count": b"\x84",
+    "short circuit": b"\x00",
 }
 for name, expected in controls.items():
     if evaluate(receipt, artifacts[name][0], timeout=120) != (0, expected):
         raise SystemExit(f"{name} did not produce its exact observation")
 PY
 
-echo "Interpreted Omega experiment: core arithmetic, scalar locals, and Console execution pass"
+echo "Interpreted Omega experiment: complete scalar, locals, and Console execution pass"

@@ -5136,3 +5136,20 @@ with its driver to a 527,397-byte Gamma receipt. Retained controls cover nested
 add/multiply success, comparison, output-prefix addition overflow,
 multiplication overflow, and negation overflow. Logical, bitwise, shift,
 division, and remainder execution remain open.
+
+## D129 — Epsilon scalar execution is complete before mutable storage
+
+The evaluator now executes all Epsilon scalar operators. Division and remainder
+distinguish zero-divisor trap 2 from `INT32_MIN / -1` trap 3. Shift counts
+outside `0..31` produce trap 4; left shift wraps in 32-bit two's-complement and
+right shift is arithmetic. Bitwise operations normalize through the unsigned
+32-bit representation and return the corresponding signed `i32`. Logical AND
+and OR validate exact Boolean values and short-circuit before evaluating the
+right operand.
+
+The evaluator is 9,108 lines and 452,671 bytes and compiles with its driver to
+a 534,217-byte Gamma receipt. New retained controls cover signed division and
+remainder, bitwise and shift composition, division by zero, signed division
+overflow, invalid shift count, and suppression of a trapping right operand.
+Mutable storage, arrays/views, machine calls, state transitions, and remaining
+Console operations are the next execution frontier.
