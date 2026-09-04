@@ -41,59 +41,13 @@ use super::{
 };
 use crate::layout_plans::ValidatedConstRecordWithSumMaterialization;
 
-mod depth_eighteen;
-mod depth_nineteen;
-mod depth_seventeen;
-mod depth_sixteen;
-mod depth_twenty;
-mod depth_twenty_one;
-mod depth_twenty_three;
-mod depth_twenty_two;
 mod derivation;
+mod fixed_depths;
 mod report_identity;
 mod sum_reachability;
 
-pub use depth_eighteen::{
-    ValidatedConstDepthEighteenNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthEighteenNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_eighteen_nested_sums,
-};
-pub use depth_nineteen::{
-    ValidatedConstDepthNineteenNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthNineteenNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_nineteen_nested_sums,
-};
-pub use depth_seventeen::{
-    ValidatedConstDepthSeventeenNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthSeventeenNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_seventeen_nested_sums,
-};
-pub use depth_sixteen::{
-    ValidatedConstDepthSixteenNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthSixteenNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_sixteen_nested_sums,
-};
-pub use depth_twenty::{
-    ValidatedConstDepthTwentyNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthTwentyNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_twenty_nested_sums,
-};
-pub use depth_twenty_one::{
-    ValidatedConstDepthTwentyOneNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthTwentyOneNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_twenty_one_nested_sums,
-};
-pub use depth_twenty_three::{
-    ValidatedConstDepthTwentyThreeNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthTwentyThreeNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_twenty_three_nested_sums,
-};
-pub use depth_twenty_two::{
-    ValidatedConstDepthTwentyTwoNestedSumOccurrenceMaterialization,
-    ValidatedConstRecordWithDepthTwentyTwoNestedSumsMaterialization,
-    validate_const_materializable_record_with_depth_twenty_two_nested_sums,
-};
 use derivation::*;
+pub use fixed_depths::*;
 use report_identity::*;
 pub(super) use sum_reachability::SumReachability;
 use sum_reachability::{record_sum_profile, reject_sum_array_type};
