@@ -33,8 +33,8 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/copy_propagation/redundant_block_parameter.rs",
         "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys.rs",
         "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/tests.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/analyses/live_ranges/validate/replay.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/analyses/live_ranges/validate/tests.rs",
         "omega-rust/omega/representations/omega-optimization-unit/src/ledger.rs",
         "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation.rs",
         "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/machine/selected_lowering.rs",
@@ -88,7 +88,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/compatible_policy.rs",
         "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/contract_custody.rs",
         "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/dead_scalar_elimination.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate.rs",
         "omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation.rs",
     ] {
         if repository.join(obsolete).exists() {
@@ -144,7 +144,8 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let obsolete_post_allocation_manifest = "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/post_allocation_manifest.rs";
+    let obsolete_post_allocation_manifest =
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/post_allocation_manifest.rs";
     if repository.join(obsolete_post_allocation_manifest).exists() {
         violations.insert(format!(
             "register allocation retains the mixed post-allocation manifest file: {obsolete_post_allocation_manifest}"
@@ -152,9 +153,9 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/compute.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/validate.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/compute_tests.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/home_assignment/compute.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/home_assignment/validate.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/home_assignment/compute_tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -164,11 +165,11 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/compute.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/validate.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/codec.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/tests.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/logical_spill_operations.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/logical_spill_operations/compute.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/logical_spill_operations/validate.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/logical_spill_operations/codec.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/logical_spill_operations/tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -178,8 +179,8 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec.rs",
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec_tests.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec.rs",
+        "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec_tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -326,7 +327,7 @@ pub(crate) fn check(audit: &mut Audit) {
     for path in source_lines.keys().filter(|path| {
         !is_test_source(path)
             && (path.starts_with(
-                "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/",
+                "omega-rust/omega/pipeline/omega-regalloc/src/rules/",
             ) || path.starts_with(
                 "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/literal_folds/",
             ))

@@ -4,7 +4,7 @@ use super::{recursive_rust_source, workspace_root};
 fn segmented_home_replay_is_independent_and_non_authoritative() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/fixed_precolored_segment_homes",
+        "omega-rust/omega/pipeline/omega-regalloc/src/allocation/fixed_precolored_segment_homes",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read fixed/precolored segmented-home entrance");
@@ -59,7 +59,7 @@ fn segmented_home_replay_is_independent_and_non_authoritative() {
 fn fixed_view_copy_consumes_segment_evidence_without_legacy_transition_fallback() {
     let root = workspace_root();
     let owner = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy",
+        "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy",
     );
     let entrance =
         std::fs::read_to_string(owner.join("mod.rs")).expect("read fixed-view-copy entrance");

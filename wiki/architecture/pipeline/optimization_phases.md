@@ -250,10 +250,11 @@ Migration proceeds in dependency order:
    outer carrier with one common physical postcondition, then extend native
    projection to the remaining validated fragment shapes. Preserve role-specific
    authority carriers such as ranked execution without using them as optimization
-   bypasses. The post-allocation machine optimizer is now an ordinary pipeline
-   stage crate rather than a child of the transitional `pipeline/optimization`
-   island. Move the remaining stage owners out as their boundaries become
-   explicit; do not preserve that directory as an architectural layer.
+   bypasses. Register allocation and the post-allocation machine optimizer are
+   now ordinary pipeline stage crates rather than children of the transitional
+   `pipeline/optimization` island. Move the remaining stage owners out as their
+   boundaries become explicit; do not preserve that directory as an
+   architectural layer.
 6. Add checked-tree pruning only after its product-root identity, ownership,
    proof, effect, and boundary-retention rules are independently reconstructible.
 7. Remove transitional names, branches, and documentation only after ordinary,
