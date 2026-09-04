@@ -37,6 +37,11 @@ machinery. Target backends own unavoidable ISA, ABI, object-format, and
 relocation encoding. Cathedral owns OS data structures, policies, protocols,
 and lifecycle.
 
+Compiler guarantees are established by checking and artifact verification;
+they require neither an accepted package lock nor a proof-bearing
+`PackageInstance`. Unfinished native realization does not block source package
+installation. Unsupported compiler forms reject at their owning stage.
+
 If Cathedral cannot express a subsystem, identify the missing general Omega
 primitive or mark the slice blocked. Do not implement page tables, descriptor
 tables, schedulers, process tables, timer queues, or drivers as compiler-owned
@@ -149,6 +154,13 @@ Owners include
   independent verifier reconstructs every obligation and executes or lowers
   the same artifact.
 
+  Native/external execution, ABI, fixed native resource, and final-code replay
+  claims additionally require exact final-realization evidence. Preserve
+  complete standalone products without hidden `CheckedCompilation` state;
+  checked API/capability results and opaque executable supply cannot establish
+  those claims. Physical optimization replay belongs to
+  `TRANSLATION-VALIDATION` in `TASKS_OPTIMIZER.md`.
+
 - **CRASH-CONTRACT.** Complete invocation-specific crash obligations through
   nested structural paths, calls, cycles, and imported effects. Crash is an
   explicit observable outcome with a semantic cause; it is never represented
@@ -160,7 +172,11 @@ Owners include
   source automation. Recursive certificates own one SCC and cite ranking and
   well-foundedness evidence once; normalization names exact laws and preserves
   transitive trust. Acceptance: changing an edge decrease, premise, law, or
-  component identity rejects or changes the trust closure.
+  component identity rejects or changes the trust closure. For separately
+  compiled dependencies, reconstruct the exact obligations and recheck retained
+  certificates locally; propagate unresolved assumptions with their original
+  owner. Missing or stale evidence cannot silently discharge an obligation or
+  inherit a producer's admission decision.
 
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Bind every proof to an exact semantic
   subject and observation profile through ledgers, artifact seals, deployment,
@@ -197,6 +213,21 @@ Owners include
   dynamic values, callbacks, and foreign boundaries. Acceptance: the ABI is
   independently reconstructible and no target placement leaks back into
   Terminal Psi.
+
+- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete D26 representation agreement at
+  independently compiled by-value exchanges. Rejoin consumer demands to exact
+  producer opaque/conformance/carrier declarations and immutable source;
+  enforce strong selected-application equality at actual exchanges. Finish
+  physical movement and lifecycle planning, including D44 transitive
+  inert-carrier proof and multiplicity checks. Equal size/alignment or compact
+  fingerprints cannot establish agreement.
+
+  Carry the application through native artifacts, replacement compatibility,
+  stable-handle eras, and independently replaceable provider contracts.
+  Acceptance: independently compiled producer/consumer and historical-selection
+  canaries cover sealed `Ptr<T>` target semantics, proof-only `Real`,
+  `EfiSystemTable`, provider/replay drift, cleanup, and multiplicity; incompatible
+  by-value exchanges and replacements reject before execution.
 
 - **WRITE-ONLY-BORROW.** Finish `&write T` through projected aggregates,
   calls, returns, dynamic dispatch, cleanup, and native lowering. It permits
@@ -339,6 +370,13 @@ Owners include
   custody through provider selection and native emission. Raw foreign bytes are
   data, never Omega symbol names or ambient lookup authority.
 
+  Extend D41 normalized-import evidence from fixed-width scalar calls to a
+  source-rooted flat-record argument, then ranked control and port-bearing
+  artifacts. Acceptance: independent native replay preserves the exact
+  survivor/physical-child bijection and rejects missing, duplicate, substituted,
+  or role-swapped children. External realization claims require independently
+  admitted concrete authority.
+
 - **FLOAT-PROVIDERS.** Complete runtime Boolean/machine operations for exact
   `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources.
   Keep IEEE runtime comparison distinct from mathematical meaning equality;
@@ -352,10 +390,16 @@ Owners include
   not license `dyn`.
 
 - **TARGET-SEMANTIC-APPLICATIONS.** Complete typed target observations,
-  hermetic const evaluation, selected realization coverage, and D29/D32
-  physical-child binding. Boundary-operator empty telescopes remain distinct
-  from boundary-trait calls with no telescope. Every surviving settled
-  occurrence must have exactly one role-correct physical child.
+  hermetic const evaluation, and D29 selected realization coverage. Finish
+  artifact-qualified symbolic substitution for separately compiled generics;
+  recheck the reachable specialization's actual capability reach, proof
+  obligations, target facts, and selected realization after closing every
+  argument. Boundary-operator empty telescopes remain distinct from
+  boundary-trait calls with no telescope. Acceptance: cross-artifact canaries
+  preserve actual reach and transitive open obligations, reject stale or
+  substituted applications, and grant no coverage to unresolved arguments.
+  D32 physical-child binding belongs to `TRANSLATION-VALIDATION` in
+  `TASKS_OPTIMIZER.md`.
 
 - **BOUNDARY-OPERATOR-FAMILY-SELECTION.** Extend build selection from exact
   boundary traits to exact package-qualified boundary-operator families.
@@ -374,6 +418,29 @@ Owners include
   later resolution stratum. Authored source may not resolve forward into output
   generated by its own build. Acceptance includes replay after serialization
   and drift rejection for the full activation.
+
+  Finish compiler-owned publication of the retained native product built with
+  generated source. Bind the exact application root, authored declaration role,
+  requested target, and source/build/generated/native inputs; validate final
+  realization before publishing. Acceptance: serialized replay reproduces the
+  product, and source, role, target, or artifact drift prevents publication.
+
+- **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish the compiler/library migration
+  to explicit ordinary std dependency edges. Std may be replaced, split, or
+  absent; only core and compiler-injected vocabulary remain toolchain-owned.
+  Migrate package-aware fixtures, keep freestanding UEFI roots dependency-free,
+  and retain standalone compatibility only until fixtures acquire package
+  roots. Replace std/alloc `Toolchain` classification when compiler consumers
+  have exact source-byte catalog entries or explicit semantic bindings.
+
+  Complete composed-Unit plans for trait-default, float, wire, arithmetic-helper,
+  guarded-call, and looping-cast canaries and the target-correct non-Linux
+  Console catalog entry. Structural writeback shares the blocker recorded in
+  `WRITE-ONLY-BORROW`. Feed consumer-scoped Console, Filesystem, and UEFI
+  bindings through normal package-aware compilation. Acceptance: removing a
+  dependency rejects its imports/provider selections; name, alias, path, or
+  same-spelled declarations cannot restore it, and stale or substituted
+  semantic bindings reject without relying on accepted-lock replay.
 
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
   while keeping deployment/update policy in Cathedral. Componentization must

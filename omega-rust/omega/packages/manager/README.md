@@ -3,6 +3,15 @@
 This is the operation-owning `omega-package-manager` crate. Start at
 [`src/lib.rs`](src/lib.rs), then enter the operation you are following.
 
+The ratified destination is Cargo-like repository install/update with
+compiler-derived reachability, unsafe API, and assumption review. The lock
+records pins, the graph, accepted baselines, and decisions; the project trusts
+whoever lands it. No sealed/certified `PackageInstance` or certificate of lock
+acceptance is required. The implementation described below still contains
+redundant evidence-promotion and policy-replay machinery to simplify. Actual
+compiler proof/reach checks and native artifact validation remain independent
+of installation.
+
 ```text
 manager/
 ├── Cargo.toml
@@ -10,7 +19,7 @@ manager/
 ├── src/
 │   ├── lib.rs             Rust entrance
 │   ├── operations/        complete package-aware operations
-│   ├── admission/         consumer-owned evidence promotion gates
+│   ├── admission/         current evidence promotion and native handoff gates
 │   ├── declarations/      checked package declarations from build.omg
 │   ├── resolution/        exact source selection and dependency closure
 │   └── review/            compile, compare, audit, and decide
@@ -43,8 +52,9 @@ boundary: it rechecks live source custody and the complete reconstruction and
 policy replay before producing in-memory accepted ordinary evidence. That
 evidence retains exact compiler-consumed semantic bindings scoped to their
 consuming package, while every resulting blocker still requires fresh root
-policy. It still has no codec, `omega.lock` mutation route, `PackageInstance`,
-or transaction authority.
+policy. It still has no codec, `omega.lock` mutation route, or transaction
+authority. Its promotion layer is current implementation, not a requirement to
+add `PackageInstance` certification before implementing install/update.
 
 `compile_resolved_package_candidate_reviews` is the install/update candidate
 entrance. It uses one preliminary compiler review only to discover supported
@@ -66,9 +76,11 @@ application root that produced them. Admission consumes that root directly
 into unpublished Terminal/native production after fresh evidence comparison;
 it does not rerun `build.omg` or recover generated source from staging.
 
-Install and update belong in `operations/` when their remaining acceptance and
-transaction gates are closed. The source and review crates remain subordinate
-and cannot admit packages independently.
+Install and update belong in `operations/`. Their remaining work is the basic
+resolve/fetch/review workflow and transactional lock/cache updates, with
+accepted baselines and decisions recorded directly. Extending the promotion
+layer or certifying lock acceptance is not a prerequisite. The source and
+review crates remain subordinate to those operations.
 
 Return to the [package subsystem map](../README.md), or consult:
 

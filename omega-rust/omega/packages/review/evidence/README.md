@@ -14,6 +14,14 @@ src/
 └── ledger/      how rows and supported open results are reconstructed locally
 ```
 
+The ratified package workflow uses compiler-derived reachability, unsafe API,
+and assumption facts for review. The lock records pins, the graph, accepted
+baselines, and decisions; the project trusts whoever lands it. The existing
+ledger and manager promotion machinery described here is not a requirement
+for certified lock acceptance and is to be simplified where it duplicates
+compiler checks. Compiler proof/reach and native artifact checks retain their
+independent roles.
+
 ## Record
 
 `record/` is the source-handle-free review vocabulary. Begin with
@@ -32,8 +40,9 @@ application, complete checked shape graph, every opaque carrier occurrence and
 its semantic path, replay-validated physical placement, target and calling
 policy, and strong selection and boundary-plan commitments. Checked compilation
 records the exact carrier shape root while materializing each opaque; capture
-does not infer occurrences from equal layouts or an aggregate digest. Future
-`PackageInstance` composition still owns the immutable foreign-source join.
+does not infer occurrences from equal layouts or an aggregate digest. Compiler
+composition still needs the immutable foreign-source join; it does not require
+a certified `PackageInstance` or lock-promotion stage.
 
 ## Capture
 
@@ -80,8 +89,9 @@ to a consuming root, but root policy cannot admit a later-discharge obligation.
 The source-handle-free discharge now has its own canonically encoded review
 row beside the still-blocking stand-down row. Fresh capture and ordinary-ledger
 replay independently recheck its exact semantic/kernel question before the
-local result closes that obligation. Neither row is an accepted lock,
-`PackageInstance`, root-policy decision, or package-admission authority.
+local result closes that obligation. These checks concern an actual compiler
+proof question, not certification of lock acceptance. Neither row
+is a root-policy decision or package-admission authority.
 
 The crate root exports `project_checked_package_review` for ordinary checked
 review and the separately non-executable

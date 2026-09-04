@@ -13,4 +13,4 @@ Expected package evidence:
 - compiler-owned risk metadata classifies that exact service as process
   authority;
 - a package-authored `Console` lookalike cannot spoof that classification;
-- initial admission and updates retaining it recommend source audit.
+- initial review and updates retaining it recommend source audit.

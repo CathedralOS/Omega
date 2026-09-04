@@ -10,5 +10,6 @@ Expected package evidence:
 - `PlatformToken` is retained under the exact package identity with boundary-
   opaque supply;
 - no fabricated layout or semantic guarantee is inferred;
-- sealed admission must eventually record the target mechanism/ABI or explicit
-  unbound status before this becomes accepted lock evidence.
+- review records producer availability and explicit unbound representation;
+- compiler checking must resolve the target mechanism/ABI when an actual
+  by-value use demands it, independently of installation or lock acceptance.

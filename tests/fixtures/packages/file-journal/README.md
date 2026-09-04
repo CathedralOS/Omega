@@ -7,4 +7,4 @@ Expected package evidence:
 
 - exported service reach and invocation include filesystem authority;
 - compiler-owned risk metadata classifies that exact service as filesystem;
-- initial admission and updates retaining it recommend source audit.
+- initial review and updates retaining it recommend source audit.
