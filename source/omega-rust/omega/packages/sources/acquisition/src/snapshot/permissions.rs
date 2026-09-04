@@ -198,6 +198,14 @@ pub(crate) fn make_open_snapshot_read_only(
                     "snapshot file changed during read-only finalization",
                 ));
             }
+            // ponytail: construction.rs already published these files read-only. On Windows
+            // re-applying that is both redundant and impossible: set_permissions needs
+            // FILE_WRITE_ATTRIBUTES on the handle, and a read-only file cannot be reopened
+            // for write. Skip the no-op; the identity check above still runs.
+            #[cfg(not(unix))]
+            if opened.permissions().readonly() {
+                continue;
+            }
             set_open_snapshot_file_mode(&file, &path, capability_is_executable(&metadata))?;
         }
     }
