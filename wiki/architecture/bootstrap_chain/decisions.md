@@ -4887,3 +4887,42 @@ The exact selected Epsilon source is now 8,880 lines and 440,439 bytes with 524
 definitions. Appending a scalar diagnostic entry compiles through the selected
 Delta stage to a 512,344-byte Gamma receipt in 71.2 seconds on the development
 host.
+
+## D120 — Epsilon transition-pattern premises execute as separate facts
+
+D57's semantic transition judgment now retains independently searchable
+name-resolved, subject-admitted, identity-owned, and complete facts. The former
+`Resolved | Complete` carrier is deleted. A wildcard has no semantic identity;
+scalar identities contain their validated `i32` value, and sum identities
+contain the exact nominal owner and a case-only resolved member. The catalog's
+new sum-case lookup cannot return a field.
+
+Pattern processing follows the settled premise order. Unknown owners and cases
+produce `UnknownName`; known boundary and record owners in case position, scalar
+patterns against sums, cases against scalars, and foreign-sum cases produce
+only `TypeMismatch` at the pattern start and never gain subject admission. An
+admitted nonwildcard checks prior identity ownership for the same transition.
+A duplicate produces only `DuplicatePattern` at the later pattern start. A
+unique case owns its identity before payload arity, so wrong arity produces
+`ArityMismatch` without relinquishing that identity to a later arm. Only a
+unique arity-compatible case becomes complete and supplies binder types.
+
+Coverage and binder typing consume only complete facts. Missing complete sum
+coverage now retains `EpsilonTransitionCoverageMissing` and contributes
+`NonexhaustiveSum` at the subject expression start. Any absent complete premise
+retains unresolved coverage and suppresses that later candidate; scalar
+transitions retain no static coverage requirement.
+
+An ephemeral six-program matrix checked `false`/`00` semantic duplication,
+duplicate-before-arity, unique wrong arity, missing sum coverage, scalar-pattern
+category rejection against a sum, and an exhaustive payload-binder transition
+with a redundant final wildcard. The positive case retained exactly three
+complete facts. Its combined predicate executed as byte `0x3f`; the 485,777-
+byte temporary source compiled to a 548,542-byte Gamma receipt in 76.8 seconds.
+The generated matrix is not retained as a second semantic owner or default slow
+gate.
+
+The exact selected Epsilon source is now 9,119 lines and 452,145 bytes with 540
+definitions. Appending a scalar diagnostic entry compiles through the selected
+Delta stage to a 525,740-byte Gamma receipt in 72.6 seconds on the development
+host.

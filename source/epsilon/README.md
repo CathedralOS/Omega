@@ -77,7 +77,7 @@ compilers and must not both be called “the Epsilon compiler.”
   machines plus special `self` resolution, D52 fixes resultless-argument
   anchoring, D53 fixes local block exits, D56 fixes entry diagnostics, and D57
   fixes transition-pattern and coverage diagnostics. D50, D51, D52, D56, and
-  D57's grammar-owned final wildcard are implemented; the remaining rulings remain
+  D57 are implemented; the remaining rulings remain
   alongside final body/control checking, the remaining D37
   control/terminal premise DAG, D38 executable controls, storage realization/
   lowering, `main`, and publication are incomplete, so it exposes no compiler
