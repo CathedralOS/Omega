@@ -696,7 +696,8 @@ Current ownership is:
   origin proof at every position in the tree, not just at a particular nesting
   depth. A scalar projection of a computed aggregate can instead use its typed
   value evidence; a borrowed indexed place cannot use that fallback.
-  Stable-alias index expressions retain their stricter direct-call shape.
+  Stable-alias and parameter-relative scalar indexes use the same value
+  expansion, with their respective binding-reborrow checks.
   Complete frames remain may-write evidence; admission never suppresses nested
   call writes.
   An explicitly discarded concrete primitive result from a nongeneric internal
@@ -761,8 +762,15 @@ Current ownership is:
   stable mutable-alias initializers, and direct alias replacements share the
   origin algebra: exact member suffixes compose before the first index; that
   index fixes the nearest collection-coarse origin; later indexes or members
-  remain absorbed. Each effectful index must independently satisfy the finite
-  non-rebinding direct-call rule and publishes all of its call writes.
+  remain absorbed. Each effectful scalar index independently satisfies the
+  finite non-rebinding expression rule and publishes all of its call writes.
+  The index-operand context admits primitive computations and scalar aggregate
+  projections without inventing a fixed integer carrier. Calls beneath a
+  computation require caller-isolated results; direct index calls keep their
+  prior complete-frame admission. Nested calls supply their own formal argument
+  contexts. Bare effectful aggregates and ranges are not scalar index values.
+  Numeric eligibility and bounds remain separate typing and proof obligations;
+  a complete write frame does not prove an index safe to execute.
   A compiler-owned `as_mut_slice()` view on the collection spine preserves its
   backing array origin. That origin may come from a parameter, a stable local
   alias, or a transparent free or attached helper result; an attached helper
