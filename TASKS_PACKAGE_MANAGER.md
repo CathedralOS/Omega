@@ -13,8 +13,8 @@ with the current build/package model or subsystem contracts):
 - `wiki/design_briefs/build_and_package_model.md`
 - `wiki/language_guide/chapter_15_modules_imports_visibility.md`
 - `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md`
-- `source/omega-rust/omega/packages/README.md`
-- `source/omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`
+- `omega-rust/omega/packages/README.md`
+- `omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`
 - `OWNER_QUESTIONS.md`
 
 Do not enable a mutating `omega install` or `omega update` path until its exact

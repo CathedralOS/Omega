@@ -516,7 +516,7 @@ they apply without interpreting the host's helper graph.
 
 Primary Git selection follows the stable **Primary Git selection and
 consistency** contract in
-`source/omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`.
+`omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`.
 An explicit absolute operator setting wins; otherwise the resolver snapshots a
 constrained absolute-entry `PATH` before reading package-controlled input,
 freezes one absolute executable, and uses it for the complete resolution.
