@@ -190,7 +190,8 @@ pub(crate) fn fused_service_custody() -> (
     .expect("ProgramEntry Terminal artifact");
     let establishment =
         establishment_for_source(&source, &attachment_type.identity, "service", type_identity);
-    let (artifact, receipt, _) = produced.into_parts();
+    let (artifact, receipt, _, selected_ieee_float_fma_occurrences) = produced.into_parts();
+    assert!(selected_ieee_float_fma_occurrences.is_empty());
     (artifact, receipt, source, establishment)
 }
 

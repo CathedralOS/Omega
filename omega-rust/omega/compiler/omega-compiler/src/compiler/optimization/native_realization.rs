@@ -3,6 +3,7 @@ use psi_diagnostics::Diagnostic;
 
 pub(super) struct PreparedTerminalNativeArtifact {
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_program_entry: psi_checked_trees_to_terminal::CheckedProgramEntryTerminalReceipt,
     checked_boundary_operator_scope:
         psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
 }
@@ -34,19 +35,27 @@ pub(super) fn prepare_terminal_artifact(
     let entry_machine = admission.program_entry.machine_name().to_owned();
     let psi_optimizations = optimization_selections.project_psi();
     let produced =
-        psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope_and_optimizations(
+        psi_checked_trees_to_terminal::produce_program_entry_terminal_artifact_with_optimizations(
             checked,
             &entry_machine,
+            admission
+                .program_entry
+                .source_signature()
+                .identity()
+                .bytes(),
             psi_optimizations.selections().clone(),
-        ).map_err(
-            |error| {
-                vec![Diagnostic::error(format!(
-                    "native-artifact Terminal production failed: {error}"
-                ))]
-            },
-        )?;
-    let (artifact, checked_boundary_operator_scope, selected_ieee_float_fma_occurrences) =
-        produced.into_parts();
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "native-artifact Terminal production failed: {error}"
+            ))]
+        })?;
+    let (
+        artifact,
+        checked_program_entry,
+        checked_boundary_operator_scope,
+        selected_ieee_float_fma_occurrences,
+    ) = produced.into_parts();
     if !selected_ieee_float_fma_occurrences.is_empty() {
         return Err(vec![Diagnostic::error(
             "optimized direct native realization does not yet consume retained IEEE-FMA occurrence custody",
@@ -54,6 +63,7 @@ pub(super) fn prepare_terminal_artifact(
     }
     Ok(PreparedTerminalNativeArtifact {
         artifact,
+        checked_program_entry,
         checked_boundary_operator_scope,
     })
 }
@@ -70,6 +80,7 @@ pub(super) fn realize(
 ) -> Result<omega_terminal_psi_to_native_artifact::NativeArtifact, Vec<Diagnostic>> {
     let PreparedTerminalNativeArtifact {
         artifact,
+        checked_program_entry,
         checked_boundary_operator_scope,
     } = prepared_terminal;
     let terminal_module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
@@ -112,6 +123,18 @@ pub(super) fn realize(
         calling_plans,
         admission.program_entry.fused_service_establishments(),
     );
+    let _validated_program_entry =
+        omega_terminal_psi_to_native_artifact::validate_native_program_entry_settlement(
+            &artifact,
+            &checked_program_entry,
+            program_entry,
+            admission.target,
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "native-artifact checked ProgramEntry settlement failed: {error}"
+            ))]
+        })?;
     let request = omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
             target: admission.target,
             subsystem: checked.subsystem(),

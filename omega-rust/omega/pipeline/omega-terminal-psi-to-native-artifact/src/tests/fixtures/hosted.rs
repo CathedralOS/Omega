@@ -40,6 +40,7 @@ pub(in crate::tests) fn hosted_custody() -> (
         source.identity().bytes(),
     )
     .expect("ProgramEntry Terminal artifact");
-    let (artifact, receipt, _) = produced.into_parts();
+    let (artifact, receipt, _, selected_ieee_float_fma_occurrences) = produced.into_parts();
+    assert!(selected_ieee_float_fma_occurrences.is_empty());
     (artifact, receipt, source)
 }
