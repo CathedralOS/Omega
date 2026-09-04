@@ -40,8 +40,9 @@ revalidated once the Gamma-written Delta compiler exists.
 It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
-exhaustion. D51's removal of the former D36 cross-kind callable census is
-implemented; the direct-qualified static-machine path remains to be removed.
+exhaustion. D51's receiver-only qualified-machine syntax, ordinary named
+`self` binding, disjoint constructor/method selection, and removal of the
+former D36 cross-kind callable census are implemented.
 Unqualified, named-data receiver, and exact
 sealed-boundary applications now retain source identity and settled result
 facts; explicit state applications and state/machine collision classification
@@ -106,12 +107,14 @@ The resolution catalog retains one row per formed top-level declaration and
 keeps members, cases, bodies, and states inside their original AST owner. It
 classifies qualified machine owners without numeric node IDs, provides exact
 owner/machine/member/state lookups, and compares types structurally using
-nominal name equality and semantic array lengths. Constructor and qualified-
-machine lookup remain structurally distinct in the current source, but D51
-permits shared owner/name spellings and removes direct qualified static-machine
-selection. An unqualified receiver remains a syntax rejection at its `&`; a
-qualified machine must instead begin with its receiver. An unresolved qualified
-machine declaration owner contributes `UnknownName` at that owner spelling even when unused. A
+nominal name equality and semantic array lengths. Constructor and receiver-
+machine lookup are structurally distinct by syntax. D51 permits shared owner/
+name spellings and removes direct qualified static-machine selection. An
+unqualified receiver remains a syntax rejection at its `&`; every qualified
+machine must begin with its receiver, and a receiverless qualified declaration
+is rejected at the first nonreceiver token. An unresolved qualified machine
+declaration owner contributes `UnknownName` at that owner spelling even when
+unused. A
 neutral minimum-coordinate bucket deduplicates one reason/coordinate and
 retains distinct ties for the eventual D37 internal-contradiction promotion;
 traversal and ECOUT order never choose between them.
@@ -141,9 +144,9 @@ a non-place `i32`. Their resultless/`never` branches are retained independently
 at D37's enclosing-relation or exact-call anchors, and a missing sibling never
 manufactures an operator mismatch or result.
 
-The current source retains direct qualified constructors and static data
-machines before context, arity, or argument typing; D51 narrows that path to
-constructors and deletes static data-machine custody. The generalized ledger retains
+The current source retains direct qualified constructors before context,
+arity, or argument typing; static data-machine custody is absent. The
+generalized ledger retains
 unqualified machine applications in ordinary, nested-call-head, and postfix-
 statement positions, including arbitrarily grouped bare-name heads.
 Constructor and machine lookups remain independent, and the semantic machine
@@ -161,10 +164,10 @@ grammar selects that namespace; a genuinely absent head retains the local
 local is `TypeMismatch` at the application. One admitted-signature join owns
 arity, complete argument typing, and value/resultless/`never` production for
 direct-qualified, unqualified, data-receiver, and sealed-boundary spellings.
-Exact catalog ownership currently gives a special `self` node its nominal value
-and storage place inside a receiver-bearing qualified data machine and its
-states. D51 replaces that path with an ordinary named receiver binding; an
-undeclared `self` then follows ordinary `UnknownName` resolution.
+The authored `self` token is an ordinary name expression. A receiver-bearing
+qualified data machine installs an ordinary named receiver binding with its
+owner's nominal value and storage-place type; states inherit that binding, and
+an undeclared `self` follows ordinary `UnknownName` resolution.
 Grouped named-receiver heads preserve exact data-machine or boundary-member
 custody before receiver-place and signature checks. Same-spelled record fields
 fall back to ordinary field custody and call syntax selects a receiver machine;
@@ -296,11 +299,10 @@ derives from D17, D22, D24, D36, D37, D38, D50, D51, D52, D53, and
 matrix becomes a retained executable gate only through the real Delta-written
 compiler and its selected D19 adapter.
 
-D51 supersedes the current-source entries below that mention receiverless
-qualified machines or case/machine collision rejection. Final controls instead
-require a receiver on every qualified data machine, allow case/receiver-method
-spelling reuse, normalize `self` through ordinary binding lookup, and reject a
-direct static-machine spelling.
+D51's current implementation requires a receiver on every qualified data
+machine, allows case/receiver-method spelling reuse, normalizes `self` through
+ordinary binding lookup, and rejects a direct static-machine spelling. The
+matrix below describes that selected behavior.
 
 | Area | Positive controls | Negative controls and exact obligation |
 | --- | --- | --- |
@@ -371,6 +373,16 @@ byte temporary Delta source to 605,816 Gamma bytes in 92.2 seconds; a corrected
 four-case tail probe returned byte `0x7f`. Neither generated fixture expansion
 is retained as a second semantic owner or default slow gate.
 
+D51 receiver and namespace controls have executed as a five-source ephemeral
+probe. Receiverless qualified declarations fail at `)` or the first ordinary
+parameter; `self` resolves through its exact authored name and an ordinary
+owner-typed local in the entry and states; direct `Owner::name()` selects only
+the constructor namespace; and `receiver.name()` selects only the receiver-
+method namespace even when a case shares the spelling. Direct method-only and
+free-machine `self` failures each retain one `UnknownName`. The combined probe
+returned byte `0x7f`; it is not retained as a second semantic owner or default
+slow gate.
+
 D57 transition controls cover a pattern after `_`, a repeated `_`, and an
 exhaustive sum with a redundant final wildcard; category-incompatible scalar
 and case patterns; duplicate cases before payload arity; and missing sum
@@ -381,7 +393,8 @@ category, duplicate, or arity failure and then expose the previously suppressed
 `NonExhaustiveTransition` traps rather than static rejections.
 
 Resolution-catalog, local-resolution, and expression-fact controls remain
-planned, not claimed execution: forward data
+planned as retained executable gates rather than claimed default execution:
+forward data
 owners, unknown qualified owners, same-spelled type and unqualified machine,
 distinct qualified/unqualified machines, D51 case/receiver-method reuse,
 mandatory parentheses on zero-parameter machine calls, state-name reuse across

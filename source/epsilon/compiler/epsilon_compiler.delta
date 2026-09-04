@@ -154,7 +154,7 @@
 (data EpsilonMachineInputs
   (NoEpsilonMachineInputs Int Int)
   (EpsilonPlainMachineInputs Int Int EpsilonParameterList)
-  (EpsilonReceiverMachineInputs Int Int Int Int EpsilonParameterList))
+  (EpsilonReceiverMachineInputs Int Int EpsilonName EpsilonParameterList))
 
 (data EpsilonParameter
   (EpsilonParameterSyntax Int Int EpsilonName EpsilonType))
@@ -228,7 +228,6 @@
   (EpsilonStringExpression Int Int EpsilonStringLiteral)
   (EpsilonTrueExpression Int Int)
   (EpsilonFalseExpression Int Int)
-  (EpsilonSelfExpression Int Int)
   (EpsilonNameExpression Int Int EpsilonName)
   (EpsilonQualifiedExpression Int Int EpsilonName EpsilonName EpsilonOptionalArguments)
   (EpsilonGroupedExpression Int Int EpsilonExpression)
@@ -499,7 +498,7 @@
 ; bare local-value reference. A transition binder retains its complete pattern
 ; because its eventual type comes from the resolved case payload position.
 (data EpsilonLocalBinding
-  (EpsilonSelfLocal EpsilonDeclaration)
+  (EpsilonReceiverLocal EpsilonName EpsilonType)
   (EpsilonMachineParameterLocal EpsilonParameter)
   (EpsilonStateParameterLocal EpsilonParameter)
   (EpsilonLetLocal EpsilonName EpsilonType EpsilonStatement)
@@ -512,14 +511,6 @@
 (data EpsilonLocalBindingLookup
   (NoEpsilonLocalBinding)
   (OneEpsilonLocalBinding EpsilonLocalBinding))
-
-(data EpsilonLocalBindingNameLookup
-  (NoEpsilonLocalBindingName)
-  (OneEpsilonLocalBindingName EpsilonName))
-
-(data EpsilonSelfBindingLookup
-  (NoEpsilonSelfBinding)
-  (OneEpsilonSelfBinding EpsilonLocalBinding EpsilonDeclaration))
 
 (data EpsilonResolvedLocalReference
   (EpsilonResolvedLocalReferenceSyntax EpsilonExpression EpsilonLocalBinding))
@@ -1308,7 +1299,6 @@
     ((EpsilonStringExpression start end literal) start)
     ((EpsilonTrueExpression start end) start)
     ((EpsilonFalseExpression start end) start)
-    ((EpsilonSelfExpression start end) start)
     ((EpsilonNameExpression start end name) start)
     ((EpsilonQualifiedExpression start end owner name arguments) start)
     ((EpsilonGroupedExpression start end inner) start)
@@ -1326,7 +1316,6 @@
     ((EpsilonStringExpression start end literal) end)
     ((EpsilonTrueExpression start end) end)
     ((EpsilonFalseExpression start end) end)
-    ((EpsilonSelfExpression start end) end)
     ((EpsilonNameExpression start end name) end)
     ((EpsilonQualifiedExpression start end owner name arguments) end)
     ((EpsilonGroupedExpression start end inner) end)
@@ -1498,7 +1487,10 @@
                   (EpsilonStringExpression start end (EpsilonStringSpan start end)))
                 (if (eq code 20) (EpsilonExpressionParsed (EpsilonTrueExpression start end))
                   (if (eq code 21) (EpsilonExpressionParsed (EpsilonFalseExpression start end))
-                    (if (eq code 22) (EpsilonExpressionParsed (EpsilonSelfExpression start end))
+                    (if (eq code 22)
+                      (EpsilonExpressionParsed
+                        (EpsilonNameExpression start end
+                          (EpsilonNameSpan start end)))
                       (if (eq code 1)
                         (let scopeStart Int (epsilon_token_start source end)
                           (if (eq (epsilon_token_code source scopeStart) 43)
@@ -2788,7 +2780,7 @@
       (epsilon_qualified_name_reject_at source cursor))))
 
 (def epsilon_parse_receiver_parameters ((source Bytes) (openStart Int)
-  (receiverStart Int) (receiverEnd Int) (cursor Int)) EpsilonMachineInputsParseOutcome
+  (selfName EpsilonName) (cursor Int)) EpsilonMachineInputsParseOutcome
   (let parameterStart Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source parameterStart) 33)
       (EpsilonMachineInputsParseRejected UnexpectedToken parameterStart)
@@ -2800,22 +2792,22 @@
           ((EpsilonParameterListParsed parameters closeStart)
             (EpsilonMachineInputsParsed
               (EpsilonReceiverMachineInputs openStart
-                (epsilon_token_end source closeStart) receiverStart receiverEnd parameters)
+                (epsilon_token_end source closeStart) selfName parameters)
               closeStart)))))))
 
 (def epsilon_finish_receiver_inputs ((source Bytes) (openStart Int)
-  (receiverStart Int) (receiverEnd Int) (cursor Int)) EpsilonMachineInputsParseOutcome
+  (selfName EpsilonName) (cursor Int)) EpsilonMachineInputsParseOutcome
   (let followingStart Int (epsilon_token_start source cursor)
     (let followingCode Int (epsilon_token_code source followingStart)
       (if (eq followingCode 33)
         (EpsilonMachineInputsParsed
           (EpsilonReceiverMachineInputs openStart
-            (epsilon_token_end source followingStart) receiverStart receiverEnd
+            (epsilon_token_end source followingStart) selfName
             NoEpsilonParameters)
           followingStart)
         (if (eq followingCode 38)
-          (epsilon_parse_receiver_parameters source openStart receiverStart
-            receiverEnd (epsilon_token_end source followingStart))
+          (epsilon_parse_receiver_parameters source openStart selfName
+            (epsilon_token_end source followingStart))
           (epsilon_machine_inputs_reject_at source cursor))))))
 
 (def epsilon_parse_receiver_inputs ((source Bytes) (openStart Int)
@@ -2825,9 +2817,9 @@
       (if (eq (epsilon_token_code source mutStart) 23)
         (let selfStart Int (epsilon_token_start source (epsilon_token_end source mutStart))
           (if (eq (epsilon_token_code source selfStart) 22)
-            (let receiverEnd Int (epsilon_token_end source selfStart)
-              (epsilon_finish_receiver_inputs source openStart receiverStart
-                receiverEnd receiverEnd))
+            (let selfEnd Int (epsilon_token_end source selfStart)
+              (epsilon_finish_receiver_inputs source openStart
+                (EpsilonNameSpan selfStart selfEnd) selfEnd))
             (epsilon_machine_inputs_reject_at source
               (epsilon_token_end source mutStart))))
         (epsilon_machine_inputs_reject_at source
@@ -2858,7 +2850,7 @@
   (let start Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source start) 40)
       (epsilon_parse_receiver_inputs source openStart start)
-      (epsilon_parse_plain_machine_inputs source openStart start))))
+      (epsilon_machine_inputs_reject_at source start))))
 
 (def epsilon_parse_machine_inputs_for_name ((source Bytes)
   (nameValue EpsilonQualifiedName) (openStart Int)
@@ -3083,7 +3075,7 @@
   (match inputs
     ((NoEpsilonMachineInputs start end) NoEpsilonParameters)
     ((EpsilonPlainMachineInputs start end parameters) parameters)
-    ((EpsilonReceiverMachineInputs start end receiverStart receiverEnd parameters)
+    ((EpsilonReceiverMachineInputs start end selfName parameters)
       parameters)))
 
 (def epsilon_census_scan_statements ((source Bytes)
@@ -3937,7 +3929,7 @@
     ((EpsilonPlainMachineInputs start end parameters)
       (epsilon_validate_parameter_formed_types source parameters owners
         EpsilonParameterTypePlacement))
-    ((EpsilonReceiverMachineInputs start end receiverStart receiverEnd parameters)
+    ((EpsilonReceiverMachineInputs start end selfName parameters)
       (epsilon_validate_parameter_formed_types source parameters owners
         EpsilonParameterTypePlacement))))
 
@@ -4299,7 +4291,7 @@
   (match inputs
     ((NoEpsilonMachineInputs start end) 0)
     ((EpsilonPlainMachineInputs start end parameters) 0)
-    ((EpsilonReceiverMachineInputs start end receiverStart receiverEnd parameters)
+    ((EpsilonReceiverMachineInputs start end selfName parameters)
       (if (epsilon_parameters_are_none parameters)
         (epsilon_return_is_none returnType)
         0))))
@@ -5037,15 +5029,8 @@
   (match inputs
     ((NoEpsilonMachineInputs start end) NoEpsilonParameters)
     ((EpsilonPlainMachineInputs start end parameters) parameters)
-    ((EpsilonReceiverMachineInputs start end receiverStart receiverEnd parameters)
+    ((EpsilonReceiverMachineInputs start end selfName parameters)
       parameters)))
-
-(def epsilon_machine_inputs_have_receiver ((inputs EpsilonMachineInputs)) Int
-  (match inputs
-    ((NoEpsilonMachineInputs start end) 0)
-    ((EpsilonPlainMachineInputs start end parameters) 0)
-    ((EpsilonReceiverMachineInputs start end receiverStart receiverEnd parameters)
-      1)))
 
 (def epsilon_constructor_parameters ((memberValue EpsilonDataMember))
   EpsilonParameterList
@@ -5087,51 +5072,31 @@
 ; ---- ordered local and expression-fact resolution ------------------------
 
 (def epsilon_local_binding_name ((bindingValue EpsilonLocalBinding))
-  EpsilonLocalBindingNameLookup
+  EpsilonName
   (match bindingValue
-    ((EpsilonSelfLocal ownerDeclaration) NoEpsilonLocalBindingName)
+    ((EpsilonReceiverLocal name typeValue) name)
     ((EpsilonMachineParameterLocal parameterValue)
       (match parameterValue
         ((EpsilonParameterSyntax start end name typeValue)
-          (OneEpsilonLocalBindingName name))))
+          name)))
     ((EpsilonStateParameterLocal parameterValue)
       (match parameterValue
         ((EpsilonParameterSyntax start end name typeValue)
-          (OneEpsilonLocalBindingName name))))
+          name)))
     ((EpsilonLetLocal name typeValue statementValue)
-      (OneEpsilonLocalBindingName name))
+      name)
     ((EpsilonTransitionBinderLocal patternValue name)
-      (OneEpsilonLocalBindingName name))))
+      name)))
 
 (def epsilon_local_find_binding ((source Bytes) (target EpsilonName)
   (bindings EpsilonLocalBindingList)) EpsilonLocalBindingLookup
   (match bindings
     (NoEpsilonLocalBindings NoEpsilonLocalBinding)
     ((MoreEpsilonLocalBindings item rest)
-      (match (epsilon_local_binding_name item)
-        (NoEpsilonLocalBindingName
-          (epsilon_local_find_binding source target rest))
-        ((OneEpsilonLocalBindingName name)
-          (if (epsilon_names_equal source target name)
-            (OneEpsilonLocalBinding item)
-            (epsilon_local_find_binding source target rest)))))))
-
-(def epsilon_local_find_self_binding ((bindings EpsilonLocalBindingList))
-  EpsilonSelfBindingLookup
-  (match bindings
-    (NoEpsilonLocalBindings NoEpsilonSelfBinding)
-    ((MoreEpsilonLocalBindings item rest)
-      (match item
-        ((EpsilonSelfLocal ownerDeclaration)
-          (OneEpsilonSelfBinding item ownerDeclaration))
-        ((EpsilonMachineParameterLocal parameterValue)
-          (epsilon_local_find_self_binding rest))
-        ((EpsilonStateParameterLocal parameterValue)
-          (epsilon_local_find_self_binding rest))
-        ((EpsilonLetLocal name typeValue statementValue)
-          (epsilon_local_find_self_binding rest))
-        ((EpsilonTransitionBinderLocal patternValue name)
-          (epsilon_local_find_self_binding rest))))))
+      (if (epsilon_names_equal source target
+          (epsilon_local_binding_name item))
+        (OneEpsilonLocalBinding item)
+        (epsilon_local_find_binding source target rest)))))
 
 (def epsilon_add_machine_parameter_bindings
   ((parameters EpsilonParameterList) (bindings EpsilonLocalBindingList))
@@ -5143,24 +5108,35 @@
         (MoreEpsilonLocalBindings
           (EpsilonMachineParameterLocal item) bindings)))))
 
-; Superseded by D51: the reserved self token becomes one ordinary named
-; receiver binding carrying its owner-derived type/place. Receiverless
-; qualified machines and this nameless carrier are deletion work.
-(def epsilon_add_catalog_machine_self_binding
+; The reserved self token is normalized to an ordinary named receiver binding
+; carrying the keyword span and owner-derived nominal type.
+(def epsilon_add_catalog_machine_receiver_binding
   ((machineDeclaration EpsilonDeclaration) (owner EpsilonCatalogMachineOwner)
   (bindings EpsilonLocalBindingList)) EpsilonLocalBindingList
   (match machineDeclaration
     ((EpsilonBoundaryDeclaration start end name machines) bindings)
     ((EpsilonDataDeclaration start end name members) bindings)
     ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
-      (if (epsilon_machine_inputs_have_receiver inputs)
-        (match owner
-          (EpsilonCatalogUnqualifiedMachine bindings)
-          ((EpsilonCatalogUnknownMachineOwner unknownOwner) bindings)
-          ((EpsilonCatalogDataMachineOwner ownerDeclaration)
-            (MoreEpsilonLocalBindings
-              (EpsilonSelfLocal ownerDeclaration) bindings)))
-        bindings))))
+      (match inputs
+        ((NoEpsilonMachineInputs inputStart inputEnd) bindings)
+        ((EpsilonPlainMachineInputs inputStart inputEnd parameters) bindings)
+        ((EpsilonReceiverMachineInputs inputStart inputEnd selfName parameters)
+          (match owner
+            (EpsilonCatalogUnqualifiedMachine bindings)
+            ((EpsilonCatalogUnknownMachineOwner unknownOwner) bindings)
+            ((EpsilonCatalogDataMachineOwner ownerDeclaration)
+              (match ownerDeclaration
+                ((EpsilonBoundaryDeclaration ownerStart ownerEnd ownerName
+                  machines) bindings)
+                ((EpsilonMachineDeclaration ownerStart ownerEnd ownerName
+                  ownerInputs ownerReturn ownerBody) bindings)
+                ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
+                  (match selfName
+                    ((EpsilonNameSpan selfStart selfEnd)
+                    (MoreEpsilonLocalBindings
+                      (EpsilonReceiverLocal selfName
+                        (EpsilonNamedType selfStart selfEnd ownerName))
+                      bindings))))))))))))
 
 (def epsilon_add_state_parameter_bindings
   ((parameters EpsilonParameterList) (bindings EpsilonLocalBindingList))
@@ -5217,15 +5193,11 @@
   (match pending
     (NoEpsilonLocalBindings NoEpsilonLocalBindings)
     ((MoreEpsilonLocalBindings item rest)
-      (match (epsilon_local_binding_name item)
-        (NoEpsilonLocalBindingName
-          (MoreEpsilonLocalBindings item
-            (epsilon_remove_pending_binding source target rest)))
-        ((OneEpsilonLocalBindingName name)
-          (if (epsilon_names_equal source target name)
-            rest
-            (MoreEpsilonLocalBindings item
-              (epsilon_remove_pending_binding source target rest))))))))
+      (if (epsilon_names_equal source target
+          (epsilon_local_binding_name item))
+        rest
+        (MoreEpsilonLocalBindings item
+          (epsilon_remove_pending_binding source target rest))))))
 
 (def epsilon_reverse_resolved_local_references
   ((input EpsilonResolvedLocalReferenceList)
@@ -5243,7 +5215,6 @@
     ((EpsilonStringExpression start end literal) 2)
     ((EpsilonTrueExpression start end) 3)
     ((EpsilonFalseExpression start end) 4)
-    ((EpsilonSelfExpression start end) 5)
     ((EpsilonNameExpression start end name) 6)
     ((EpsilonQualifiedExpression start end owner name arguments) 7)
     ((EpsilonGroupedExpression start end inner) 8)
@@ -5591,7 +5562,8 @@
   (bindingValue EpsilonLocalBinding) (control EpsilonControlReferenceLedger))
   EpsilonLocalBindingTypeLookup
   (match bindingValue
-    ((EpsilonSelfLocal ownerDeclaration) NoEpsilonLocalBindingType)
+    ((EpsilonReceiverLocal name typeValue)
+      (OneEpsilonLocalBindingType typeValue))
     ((EpsilonMachineParameterLocal parameterValue)
       (match parameterValue
         ((EpsilonParameterSyntax start end name typeValue)
@@ -6069,42 +6041,6 @@
         (epsilon_local_scan_add_candidate InvalidControlTarget
           continuationStart identityScan)))))
 
-(def epsilon_local_scan_data_machine_application ((source Bytes)
-  (expressionValue EpsilonExpression) (arguments EpsilonOptionalArguments)
-  (ownerDeclaration EpsilonDeclaration) (machineDeclaration EpsilonDeclaration)
-  (useValue EpsilonExpressionUse) (scan EpsilonLocalResolutionScan))
-  EpsilonLocalResolutionScan
-  (let identityScan EpsilonLocalResolutionScan
-    (epsilon_local_scan_add_callable_reference expressionValue
-      (EpsilonResolvedDataMachineCallable ownerDeclaration machineDeclaration)
-      scan)
-    (match machineDeclaration
-      ((EpsilonBoundaryDeclaration start end name machines) identityScan)
-      ((EpsilonDataDeclaration start end name members) identityScan)
-      ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
-        (match arguments
-          (NoEpsilonArguments
-            (match useValue
-              (EpsilonOrdinaryExpressionUse
-                (epsilon_local_scan_add_candidate TypeMismatch
-                  (epsilon_expression_start expressionValue) identityScan))
-              ; A bare qualified machine can be the grammar-selected head of
-              ; a following call suffix. That outer application owns custody.
-              (EpsilonCallHeadExpressionUse identityScan)
-              ((EpsilonPostfixStatementExpressionUse statementStart)
-                (epsilon_local_scan_add_candidate TypeMismatch
-                  statementStart identityScan))
-              ((EpsilonTransitionContinuationExpressionUse machineValue
-                continuationStart) identityScan)))
-          ((SomeEpsilonArguments openStart closeEnd values)
-            (if (epsilon_machine_inputs_have_receiver inputs)
-              ; Static qualified syntax never supplies or infers a receiver,
-              ; regardless of expression, statement, or continuation context.
-              (epsilon_local_scan_wrong_qualified_callable_kind expressionValue
-                useValue identityScan)
-              (epsilon_local_scan_admitted_machine_application source
-                expressionValue values machineDeclaration identityScan))))))))
-
 (def epsilon_local_scan_wrong_qualified_callable_kind
   ((expressionValue EpsilonExpression) (useValue EpsilonExpressionUse)
    (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
@@ -6145,39 +6081,18 @@
                   (epsilon_local_scan_wrong_qualified_callable_kind
                     expressionValue useValue scan))))
             ((OneEpsilonCatalogDataOwner ownerDeclaration shape)
-              (let memberLookup EpsilonCatalogDataMemberLookup
-                (epsilon_catalog_find_data_member source ownerName memberName rows)
-                (let machineLookup EpsilonCatalogDataMachineLookup
-                  (epsilon_catalog_find_qualified_data_machine source ownerName
-                    memberName rows)
-                  (match machineLookup
-                    ((OneEpsilonCatalogDataMachine machineOwner
-                      machineDeclaration)
-                      (match memberLookup
-                        ((OneEpsilonCatalogCase caseOwner caseValue)
-                          ; Accepted D36 census makes this dual success
-                          ; unreachable. Never choose a callable by lookup order.
-                          scan)
-                        (NoEpsilonCatalogDataMember
-                          (epsilon_local_scan_data_machine_application source
-                            expressionValue arguments machineOwner
-                            machineDeclaration useValue scan))
-                        ((OneEpsilonCatalogField fieldOwner fieldValue)
-                          (epsilon_local_scan_data_machine_application source
-                            expressionValue arguments machineOwner
-                            machineDeclaration useValue scan))))
-                    (NoEpsilonCatalogDataMachine
-                      (match memberLookup
-                        ((OneEpsilonCatalogCase caseOwner caseValue)
-                          (epsilon_local_scan_constructor_application source
-                            expressionValue ownerName arguments caseOwner
-                            caseValue useValue scan))
-                        ((OneEpsilonCatalogField fieldOwner fieldValue)
-                          (epsilon_local_scan_wrong_qualified_callable_kind
-                            expressionValue useValue scan))
-                        (NoEpsilonCatalogDataMember
-                          (epsilon_local_scan_add_candidate UnknownName
-                            (epsilon_name_start memberName) scan))))))))))))))
+              (match (epsilon_catalog_find_data_member source ownerName
+                memberName rows)
+                ((OneEpsilonCatalogCase caseOwner caseValue)
+                  (epsilon_local_scan_constructor_application source
+                    expressionValue ownerName arguments caseOwner caseValue
+                    useValue scan))
+                ((OneEpsilonCatalogField fieldOwner fieldValue)
+                  (epsilon_local_scan_wrong_qualified_callable_kind
+                    expressionValue useValue scan))
+                (NoEpsilonCatalogDataMember
+                  (epsilon_local_scan_add_candidate UnknownName
+                    (epsilon_name_start memberName) scan))))))))))
 
 ; Parentheses do not create a distinct callable identity. The outer
 ; application remains the custody/result key while this allocation-free view
@@ -6190,7 +6105,6 @@
     ((EpsilonStringExpression start end literal) expressionValue)
     ((EpsilonTrueExpression start end) expressionValue)
     ((EpsilonFalseExpression start end) expressionValue)
-    ((EpsilonSelfExpression start end) expressionValue)
     ((EpsilonNameExpression start end name) expressionValue)
     ((EpsilonQualifiedExpression start end owner name arguments) expressionValue)
     ((EpsilonFieldExpression start end base field) expressionValue)
@@ -6226,7 +6140,6 @@
     ((EpsilonStringExpression start end literal) scan)
     ((EpsilonTrueExpression start end) scan)
     ((EpsilonFalseExpression start end) scan)
-    ((EpsilonSelfExpression start end) scan)
     ((EpsilonNameExpression start end name) scan)
     ((EpsilonQualifiedExpression start end owner name argumentsValue) scan)
     ((EpsilonFieldExpression start end base member) scan)
@@ -6280,51 +6193,31 @@
   (receiverPlace EpsilonOptionalPlaceType) (rows EpsilonCatalogDeclarationList)
   (useValue EpsilonExpressionUse) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
-  (let memberLookup EpsilonCatalogDataMemberLookup
-    (epsilon_catalog_find_data_member source ownerName memberName rows)
-    (let machineLookup EpsilonCatalogDataMachineLookup
-      (epsilon_catalog_find_qualified_data_machine source ownerName memberName
-        rows)
-      (match machineLookup
-        ((OneEpsilonCatalogDataMachine machineOwner machineDeclaration)
-          (let caseCollision Int
-            (match memberLookup
-              ((OneEpsilonCatalogCase caseOwner caseValue) 1)
-              ((OneEpsilonCatalogField fieldOwner fieldValue) 0)
-              (NoEpsilonCatalogDataMember 0))
-            ; Superseded by D51: the final compiler removes this cross-kind
-            ; collision guard because constructor and receiver syntax select
-            ; distinct namespaces.
-            (if caseCollision
-              scan
-              (let identityScan EpsilonLocalResolutionScan
-                (epsilon_local_scan_add_callable_reference expressionValue
-                  (EpsilonResolvedDataMachineCallable machineOwner
-                    machineDeclaration)
-                  scan)
-                (match machineDeclaration
-                  ((EpsilonBoundaryDeclaration start end name machines)
-                    identityScan)
-                  ((EpsilonDataDeclaration start end name members) identityScan)
-                  ((EpsilonMachineDeclaration start end name inputs returnType
-                    bodyValue)
-                    (if (epsilon_machine_inputs_have_receiver inputs)
-                      (match receiverPlace
-                        (NoEpsilonPlaceType
-                          (epsilon_local_scan_add_candidate InvalidPlace
-                            (epsilon_expression_start receiver) identityScan))
-                        ((SomeEpsilonPlaceType storageType)
-                          (epsilon_local_scan_admitted_signature_application
-                            source expressionValue arguments
-                            (epsilon_machine_input_parameters inputs) returnType
-                            identityScan)))
-                      (epsilon_local_scan_wrong_qualified_callable_kind
-                        expressionValue useValue identityScan))))))))
-        (NoEpsilonCatalogDataMachine
-          (epsilon_local_scan_propagate_grouped_call_head_result callBase
-            (epsilon_local_scan_field_fact source
-              (epsilon_call_head_core callBase) receiver memberName useValue
-              scan)))))))
+  (match (epsilon_catalog_find_qualified_data_machine source ownerName
+    memberName rows)
+    ((OneEpsilonCatalogDataMachine machineOwner machineDeclaration)
+      (let identityScan EpsilonLocalResolutionScan
+        (epsilon_local_scan_add_callable_reference expressionValue
+          (EpsilonResolvedDataMachineCallable machineOwner machineDeclaration)
+          scan)
+        (match machineDeclaration
+          ((EpsilonBoundaryDeclaration start end name machines) identityScan)
+          ((EpsilonDataDeclaration start end name members) identityScan)
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            (match receiverPlace
+              (NoEpsilonPlaceType
+                (epsilon_local_scan_add_candidate InvalidPlace
+                  (epsilon_expression_start receiver) identityScan))
+              ((SomeEpsilonPlaceType storageType)
+                (epsilon_local_scan_admitted_signature_application source
+                  expressionValue arguments
+                  (epsilon_machine_input_parameters inputs) returnType
+                  identityScan)))))))
+    (NoEpsilonCatalogDataMachine
+      (epsilon_local_scan_propagate_grouped_call_head_result callBase
+        (epsilon_local_scan_field_fact source
+          (epsilon_call_head_core callBase) receiver memberName useValue
+          scan)))))
 
 (def epsilon_local_scan_receiver_application ((source Bytes)
   (expressionValue EpsilonExpression) (callBase EpsilonExpression)
@@ -6374,7 +6267,6 @@
     ((EpsilonStringExpression start end literal) scan)
     ((EpsilonTrueExpression start end) scan)
     ((EpsilonFalseExpression start end) scan)
-    ((EpsilonSelfExpression start end) scan)
     ((EpsilonNameExpression start end name) scan)
     ((EpsilonQualifiedExpression start end owner name argumentsValue) scan)
     ((EpsilonGroupedExpression start end inner) scan)
@@ -6393,68 +6285,6 @@
   EpsilonResolvedCallableReferenceLookup
   (epsilon_find_resolved_callable_reference (epsilon_call_head_core target)
     references))
-
-; `(Owner::machine)(args)` and its grouped forms use the authored outer call
-; suffix as the machine application. The inner bare qualified spelling retains
-; identity only in call-head use; this join moves custody to the exact outer
-; application before receiver/static, arity, or argument typing.
-(def epsilon_local_scan_qualified_head_application ((source Bytes)
-  (expressionValue EpsilonExpression) (callBase EpsilonExpression)
-  (arguments EpsilonExpressionList) (useValue EpsilonExpressionUse)
-  (scan EpsilonLocalResolutionScan))
-  EpsilonLocalResolutionScan
-  (match (epsilon_call_head_core callBase)
-    ((EpsilonQualifiedExpression start end owner name argumentsValue)
-      (match argumentsValue
-        ((SomeEpsilonArguments openStart closeEnd innerArguments) scan)
-        (NoEpsilonArguments
-          (match scan
-            ((EpsilonLocalResolutionScanSyntax catalog references fields
-              callables stateApplications types candidate)
-              (match (epsilon_find_resolved_callable_reference
-                (epsilon_call_head_core callBase) callables)
-                (NoEpsilonResolvedCallableReference scan)
-                ((OneEpsilonResolvedCallableReference callable)
-                  (match callable
-                    ((EpsilonResolvedDataMachineCallable ownerDeclaration
-                      machineDeclaration)
-                      (let identityScan EpsilonLocalResolutionScan
-                        (epsilon_local_scan_add_callable_reference expressionValue
-                          callable scan)
-                        (match machineDeclaration
-                          ((EpsilonBoundaryDeclaration machineStart machineEnd
-                            machineName machines) identityScan)
-                          ((EpsilonDataDeclaration machineStart machineEnd
-                            machineName members) identityScan)
-                          ((EpsilonMachineDeclaration machineStart machineEnd
-                            machineName inputs returnType bodyValue)
-                            (if (epsilon_machine_inputs_have_receiver inputs)
-                              (epsilon_local_scan_wrong_qualified_callable_kind
-                                expressionValue useValue identityScan)
-                              (epsilon_local_scan_admitted_machine_application
-                                source expressionValue arguments
-                                machineDeclaration identityScan))))))
-                    ((EpsilonResolvedConstructorCallable constructorOwner
-                      caseValue) scan)
-                    ((EpsilonResolvedUnqualifiedMachineCallable
-                      machineDeclaration) scan)
-                    ((EpsilonResolvedBoundaryMachineCallable boundaryOwner
-                      memberValue) scan)))))))))
-    ((EpsilonIntegerExpression start end literal) scan)
-    ((EpsilonCharacterExpression start end literal) scan)
-    ((EpsilonStringExpression start end literal) scan)
-    ((EpsilonTrueExpression start end) scan)
-    ((EpsilonFalseExpression start end) scan)
-    ((EpsilonSelfExpression start end) scan)
-    ((EpsilonNameExpression start end name) scan)
-    ((EpsilonGroupedExpression start end inner) scan)
-    ((EpsilonFieldExpression start end base field) scan)
-    ((EpsilonCallExpression start end base innerArguments) scan)
-    ((EpsilonIndexExpression start end base indexValue) scan)
-    ((EpsilonSliceExpression start end base low high) scan)
-    ((EpsilonNegateExpression start end operand) scan)
-    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
-      left right) scan)))
 
 (def epsilon_expression_use_admits_unqualified_machine
   ((useValue EpsilonExpressionUse)) Int
@@ -6516,7 +6346,6 @@
       ((EpsilonStringExpression start end literal) scan)
       ((EpsilonTrueExpression start end) scan)
       ((EpsilonFalseExpression start end) scan)
-      ((EpsilonSelfExpression start end) scan)
       ((EpsilonQualifiedExpression start end owner name argumentsValue) scan)
       ((EpsilonFieldExpression start end base field) scan)
       ((EpsilonCallExpression start end base innerArguments) scan)
@@ -6578,7 +6407,6 @@
     ((EpsilonStringExpression start end literal) scan)
     ((EpsilonTrueExpression start end) scan)
     ((EpsilonFalseExpression start end) scan)
-    ((EpsilonSelfExpression start end) scan)
     ((EpsilonQualifiedExpression start end owner name argumentsValue) scan)
     ((EpsilonGroupedExpression start end inner) scan)
     ((EpsilonFieldExpression start end base field) scan)
@@ -6671,7 +6499,6 @@
             ((EpsilonStringExpression start end literal) scan)
             ((EpsilonTrueExpression start end) scan)
             ((EpsilonFalseExpression start end) scan)
-            ((EpsilonSelfExpression start end) scan)
             ((EpsilonNameExpression start end name) scan)
             ((EpsilonQualifiedExpression start end owner name argumentsValue)
               scan)
@@ -6774,27 +6601,6 @@
         (NoEpsilonLocalBinding
           (epsilon_local_scan_add_candidate UnknownName
             (epsilon_expression_start expressionValue) scan))))))
-
-; Superseded by D51: self expressions follow ordinary local lookup. This
-; self-only fact path remains only until receiver normalization is implemented.
-(def epsilon_local_scan_self_fact ((expressionValue EpsilonExpression)
-  (active EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
-  EpsilonLocalResolutionScan
-  (match (epsilon_local_find_self_binding active)
-    (NoEpsilonSelfBinding scan)
-    ((OneEpsilonSelfBinding bindingValue ownerDeclaration)
-      (match ownerDeclaration
-        ((EpsilonBoundaryDeclaration start end name machines) scan)
-        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
-          scan)
-        ((EpsilonDataDeclaration start end ownerName members)
-          (let selfType EpsilonType
-            (EpsilonNamedType (epsilon_expression_start expressionValue)
-              (epsilon_expression_end expressionValue) ownerName)
-            (epsilon_local_scan_add_value expressionValue selfType
-              (SomeEpsilonPlaceType selfType)
-              (epsilon_local_scan_add_reference expressionValue bindingValue
-                scan))))))))
 
 (def epsilon_resolve_local_expression_list ((source Bytes)
   (expressions EpsilonExpressionList) (active EpsilonLocalBindingList)
@@ -7060,7 +6866,6 @@
     ((EpsilonStringExpression start end literal) scan)
     ((EpsilonTrueExpression start end) scan)
     ((EpsilonFalseExpression start end) scan)
-    ((EpsilonSelfExpression start end) scan)
     ((EpsilonNameExpression start end name) scan)
     ((EpsilonQualifiedExpression start end owner name arguments) scan)
     ((EpsilonCallExpression start end base arguments) scan)
@@ -7367,8 +7172,6 @@
     ((EpsilonFalseExpression start end)
       (epsilon_local_scan_add_value expressionValue
         (epsilon_expression_i32_type expressionValue) NoEpsilonPlaceType scan))
-    ((EpsilonSelfExpression start end)
-      (epsilon_local_scan_self_fact expressionValue active scan))
     ((EpsilonNameExpression start end name)
       (match useValue
         ((EpsilonPostfixStatementExpressionUse statementStart)
@@ -7415,33 +7218,30 @@
           (let contextualScan EpsilonLocalResolutionScan
             (epsilon_local_scan_non_named_call_head_field_fact source base
               useValue argumentScan)
-          (let receiverScan EpsilonLocalResolutionScan
-            (epsilon_local_scan_receiver_application source expressionValue base
-              arguments useValue contextualScan)
-            (let qualifiedScan EpsilonLocalResolutionScan
-              (epsilon_local_scan_qualified_head_application source
-                expressionValue base arguments useValue receiverScan)
+            (let receiverScan EpsilonLocalResolutionScan
+              (epsilon_local_scan_receiver_application source expressionValue
+                base arguments useValue contextualScan)
               (match useValue
                 ((EpsilonTransitionContinuationExpressionUse machineValue
                   continuationStart)
                   (epsilon_local_scan_transition_unqualified_application source
                     expressionValue base arguments active pending machineValue
-                    continuationStart qualifiedScan))
+                    continuationStart receiverScan))
                 (EpsilonOrdinaryExpressionUse
                   (epsilon_local_scan_unqualified_machine_application source
                     expressionValue base arguments active pending useValue
                     (epsilon_local_scan_reject_value_call expressionValue base
-                      qualifiedScan)))
+                      receiverScan)))
                 (EpsilonCallHeadExpressionUse
                   (epsilon_local_scan_unqualified_machine_application source
                     expressionValue base arguments active pending useValue
                     (epsilon_local_scan_reject_value_call expressionValue base
-                      qualifiedScan)))
+                      receiverScan)))
                 ((EpsilonPostfixStatementExpressionUse statementStart)
                   (epsilon_local_scan_unqualified_machine_application source
                     expressionValue base arguments active pending useValue
                     (epsilon_local_scan_reject_value_call expressionValue base
-                      qualifiedScan))))))))))
+                      receiverScan)))))))))
     ((EpsilonIndexExpression start end base indexValue)
       (epsilon_local_scan_index_fact expressionValue base indexValue
         (epsilon_resolve_local_expression source indexValue active pending
@@ -7481,7 +7281,6 @@
     ((EpsilonStringExpression start end literal) 0)
     ((EpsilonTrueExpression start end) 0)
     ((EpsilonFalseExpression start end) 0)
-    ((EpsilonSelfExpression start end) 0)
     ((EpsilonNameExpression start end name) 0)
     ((EpsilonGroupedExpression start end inner) 0)
     ((EpsilonFieldExpression start end base field) 0)
@@ -8222,7 +8021,7 @@
         ((EpsilonDataDeclaration start end name members) scan)
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           (epsilon_resolve_machine_body_locals source bodyValue declarationValue
-            (epsilon_add_catalog_machine_self_binding declarationValue owner
+            (epsilon_add_catalog_machine_receiver_binding declarationValue owner
               (epsilon_add_machine_parameter_bindings
                 (epsilon_machine_input_parameters inputs)
                 NoEpsilonLocalBindings))
