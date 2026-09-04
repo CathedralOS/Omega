@@ -1314,6 +1314,49 @@ fn retains_finite_literal_index_suffix_after_write_only_field_prefix() {
 }
 
 #[test]
+fn retains_scalar_literal_beside_projected_write_only_argument() {
+    let checked = checked(
+        r#"
+        data Outer [copy] { values: [[[[[[u16; 7]; 6]; 5]; 4]; 3]; 2]; sibling: u16; }
+        data Sink {}
+        machine Sink::fill(destination: &write u16, replacement: u16) {
+            destination = replacement;
+        }
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.values[1][2][3][4][5][6], 17);
+        }
+        "#,
+    );
+    let forward = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("scalar-bearing projected write-only caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        scalar_arguments,
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("projected write-only call with scalar literal is retained")
+    };
+    assert!(matches!(
+        scalar_arguments.as_slice(),
+        [psi_checked_trees::CheckedScalarExpression::IntegerLiteral { .. }]
+    ));
+    assert!(matches!(
+        structural_arguments.as_slice(),
+        [argument]
+            if argument.access
+                == psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                && argument.path.len() == 7
+    ));
+}
+
+#[test]
 fn write_only_common_field_subloan_does_not_bypass_ordinary_call_shape() {
     for (name, source) in [
         (

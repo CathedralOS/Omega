@@ -1249,7 +1249,6 @@ pub(super) fn ordinary_projected_call_is_supported(
     let target_source_parameters = program.state_parameters(target_state);
     if caller_source_parameters.len() != 1
         || caller_parameters.len() != 1
-        || target_source_parameters.len() != 1
         || arguments.len() != 1
         || arguments[0].source_parameter_index() != Some(0)
     {
@@ -1295,7 +1294,12 @@ pub(super) fn ordinary_projected_call_is_supported(
 
     let target_parameters = target_source_parameters
         .iter()
-        .filter(|parameter| !(parameter.is_self && is_reference(program, parameter.type_reference)))
+        .filter(|parameter| {
+            !(parameter.is_self && is_reference(program, parameter.type_reference))
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
         .collect::<Vec<_>>();
     if target_parameters.len() != arguments.len() {
         return false;
@@ -1306,7 +1310,7 @@ pub(super) fn ordinary_projected_call_is_supported(
         facts,
         target_machine,
         target_state,
-        &target_source_parameters[0],
+        target_parameters[0],
     ) {
         return false;
     }

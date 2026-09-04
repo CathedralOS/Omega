@@ -210,13 +210,13 @@ fn finite_literal_write_only_subloan_reaches_both_linux_artifacts() {
             }
 
             data Sink {}
-            machine Sink::fill(destination: &write u16) {
-                destination = 17;
+            machine Sink::fill(destination: &write u16, replacement: u16) {
+                destination = replacement;
             }
 
             data Root {}
             machine Root::forward(outer: &write Outer) {
-                Sink::fill(&write outer.values[1][2][3][4][5][6]);
+                Sink::fill(&write outer.values[1][2][3][4][5][6], 17);
             }
         "#,
     );
@@ -282,6 +282,7 @@ fn finite_literal_write_only_subloan_reaches_both_linux_artifacts() {
         let [call] = caller.internal_unit_calls.as_slice() else {
             panic!("one projected write-only call must survive machine emission")
         };
+        assert_eq!(call.scalar_arguments.len(), 1);
         let [argument] = call.arguments.as_slice() else {
             panic!("projected call must retain one write-only argument")
         };
@@ -334,6 +335,24 @@ fn finite_literal_write_only_subloan_reaches_both_linux_artifacts() {
             .path;
         *path.last_mut().unwrap() = psi_terminal::StructuralPathSegment::FixedIndex(0);
         rejects(&changed_path);
+        let mut changed_scalar = emitted.clone();
+        let scalar_source = &mut changed_scalar
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller.machine)
+            .unwrap()
+            .internal_unit_calls[0]
+            .scalar_arguments[0]
+            .source;
+        let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            value,
+            ..
+        } = scalar_source
+        else {
+            panic!("projected write-only call retains its scalar literal")
+        };
+        *value = psi_core::IntegerValue::Unsigned(18);
+        rejects(&changed_scalar);
 
         let object = omega_image_emission::build_object_artifact(&emitted)
             .expect("object replay accepts the projected write-only call");

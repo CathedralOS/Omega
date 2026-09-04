@@ -3045,12 +3045,14 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     .iter()
                     .zip(callee_unit_parameters)
                     .zip(&abi.call_plan.parameters[abi.parameters.len()..])
-                    .all(|((argument, parameter), placement)| {
-                        argument.root_structural_type == parameter.structural_type
-                            && argument.structural_type == parameter.structural_type
-                            && argument.access == parameter.access
-                            && argument.shape == parameter.shape
-                            && argument.destination == *placement
+                    .enumerate()
+                    .all(|(index, ((argument, parameter), placement))| {
+                        exact_write_only_argument(index, argument)
+                            || (argument.root_structural_type == parameter.structural_type
+                                && argument.structural_type == parameter.structural_type
+                                && argument.access == parameter.access
+                                && argument.shape == parameter.shape
+                                && argument.destination == *placement)
                     })
                 && custody.scalar_arguments.windows(2).all(|pair| {
                     pair[0]

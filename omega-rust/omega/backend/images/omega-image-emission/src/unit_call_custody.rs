@@ -524,6 +524,22 @@ pub(super) fn validate_internal_unit_call_custody(
         },
     )
     .map_err(|_| invalid())?;
+    let exact_write_only_argument =
+        |index: usize, argument: &omega_machine_code::InternalUnitCallArgumentRecord| {
+            parameter_homes
+                .iter()
+                .find(|home| home.place == argument.place)
+                .zip(callee_unit_parameters.get(index))
+                .zip(affine_cleanup)
+                .is_some_and(|((source, destination), cleanup)| {
+                    exact_write_only_projection(
+                        argument,
+                        source,
+                        destination,
+                        &cleanup.structural_types,
+                    )
+                })
+        };
     if let Some(abi) = callee_unit_scalar_abi {
         if expected_plan != abi.call_plan
             || custody.result.is_some()
@@ -545,12 +561,14 @@ pub(super) fn validate_internal_unit_call_custody(
                 .iter()
                 .zip(callee_unit_parameters)
                 .zip(&abi.call_plan.parameters[abi.parameters.len()..])
-                .any(|((argument, parameter), placement)| {
-                    argument.root_structural_type != parameter.structural_type
-                        || argument.structural_type != parameter.structural_type
-                        || argument.access != parameter.access
-                        || argument.shape != parameter.shape
-                        || argument.destination != *placement
+                .enumerate()
+                .any(|(index, ((argument, parameter), placement))| {
+                    !exact_write_only_argument(index, argument)
+                        && (argument.root_structural_type != parameter.structural_type
+                            || argument.structural_type != parameter.structural_type
+                            || argument.access != parameter.access
+                            || argument.shape != parameter.shape
+                            || argument.destination != *placement)
                 })
         {
             return Err(invalid());
@@ -709,22 +727,6 @@ pub(super) fn validate_internal_unit_call_custody(
         }
         Some(home)
     };
-    let exact_write_only_argument =
-        |index: usize, argument: &omega_machine_code::InternalUnitCallArgumentRecord| {
-            parameter_homes
-                .iter()
-                .find(|home| home.place == argument.place)
-                .zip(callee_unit_parameters.get(index))
-                .zip(affine_cleanup)
-                .is_some_and(|((source, destination), cleanup)| {
-                    exact_write_only_projection(
-                        argument,
-                        source,
-                        destination,
-                        &cleanup.structural_types,
-                    )
-                })
-        };
     let scalar_count = custody.scalar_arguments.len();
     if custody.byte_count == 0
         || custody.code_offset > relocation.offset
