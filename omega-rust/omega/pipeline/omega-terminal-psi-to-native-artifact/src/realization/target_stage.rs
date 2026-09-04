@@ -27,13 +27,13 @@ pub(crate) fn lower_realization_target_stage(
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<NativeTargetStageResult, Vec<Diagnostic>> {
     match optimization_stage {
-        NativeOptimizationStageResult::IdentityOrdinary(plan) => {
+        NativeOptimizationStageResult::IdentityOrdinary(identity) => {
             let installation = provider_installation
                 .as_ref()
                 .map(|installation| installation as &dyn ProviderInstallationEvidence);
             let target =
                 omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
-                    &plan,
+                    identity.plan(),
                     request.target,
                     settlements,
                     installation,
@@ -43,7 +43,16 @@ pub(crate) fn lower_realization_target_stage(
                 .map_err(|error| realization_error("ordinary target lowering", error))?;
             Ok(NativeTargetStageResult::IdentityOrdinary(target))
         }
-        NativeOptimizationStageResult::IdentityRanked(ranked) => {
+        NativeOptimizationStageResult::IdentityRanked {
+            ranked,
+            abstract_identity,
+        } => {
+            if abstract_identity.plan() != &ranked.plan {
+                return Err(realization_error(
+                    "ranked abstract optimization identity",
+                    "the validated identity result no longer matches ranked native authority",
+                ));
+            }
             if provider_installation.is_some()
                 || !settlements.is_empty()
                 || !request.native_callbacks.is_empty()

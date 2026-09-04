@@ -32,7 +32,7 @@ pub(crate) fn admit_checked_provider_installation(
                 &selected,
             )
         }
-        PostTerminalOptimizationContinuation::Identity => match input.native() {
+        PostTerminalOptimizationContinuation::Identity(_) => match input.native() {
             omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_) => {
                 omega_psi_to_abstract_operations::admit_provider_installation(
                     plan,

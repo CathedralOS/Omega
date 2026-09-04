@@ -38,11 +38,12 @@ builtin_native_realization_conversion!(omega_target_operations::ClaimCompletionO
 /// native stage.
 ///
 /// An empty post-Terminal selection is the identity continuation, not absence
-/// of a stage. The selected variant retains the verifier context required by
-/// the transitional physical optimizer until its phases are split apart.
+/// of a stage. Both variants retain the verifier context needed to execute and
+/// validate the abstract-operation phase; the selected variant additionally
+/// authorizes its exact later phase projections.
 #[derive(Debug, Clone)]
 pub(crate) enum PostTerminalOptimizationContinuation {
-    Identity,
+    Identity(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
     Selected(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
 }
 
@@ -51,7 +52,7 @@ impl PostTerminalOptimizationContinuation {
         &self,
     ) -> Option<&omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput> {
         match self {
-            Self::Identity => None,
+            Self::Identity(_) => None,
             Self::Selected(input) => Some(input),
         }
     }
@@ -93,7 +94,7 @@ impl NativeRealizationInput {
 
     pub(crate) fn plan(&self) -> &omega_abstract_operations::AbstractOperationPlan {
         match &self.optimization_continuation {
-            PostTerminalOptimizationContinuation::Identity => self.native.plan(),
+            PostTerminalOptimizationContinuation::Identity(_) => self.native.plan(),
             PostTerminalOptimizationContinuation::Selected(input) => input.plan(),
         }
     }
@@ -126,7 +127,7 @@ impl NativeRealizationInput {
         physical_evidence_scope(
             matches!(
                 self.optimization_continuation,
-                PostTerminalOptimizationContinuation::Identity
+                PostTerminalOptimizationContinuation::Identity(_)
             ),
             checked_scope,
         )

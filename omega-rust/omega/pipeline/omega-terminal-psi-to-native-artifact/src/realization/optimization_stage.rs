@@ -14,8 +14,11 @@ use psi_diagnostics::Diagnostic;
 /// the ordinary optimized route.
 #[derive(Debug)]
 pub(crate) enum NativeOptimizationStageResult {
-    IdentityOrdinary(omega_abstract_operations::AbstractOperationPlan),
-    IdentityRanked(omega_abstract_operations::RankedNativeAbstractOperationPlan),
+    IdentityOrdinary(omega_optimization_pipeline::ValidatedOptimizedAbstractPlan),
+    IdentityRanked {
+        ranked: omega_abstract_operations::RankedNativeAbstractOperationPlan,
+        abstract_identity: omega_optimization_pipeline::ValidatedOptimizedAbstractPlan,
+    },
     OptimizedOrdinary(omega_optimization_pipeline::ValidatedOptimizedAbstractPlan),
 }
 
@@ -26,14 +29,35 @@ pub(crate) fn lower_realization_optimization_stage(
     match input.into_parts() {
         (
             omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(plan),
-            PostTerminalOptimizationContinuation::Identity,
-        ) => Ok(NativeOptimizationStageResult::IdentityOrdinary(plan)),
+            PostTerminalOptimizationContinuation::Identity(input),
+        ) => {
+            let identity = run_abstract_optimization_stage(input, request)?;
+            if identity.plan() != &plan {
+                return Err(realization_error(
+                    "abstract optimization identity",
+                    "empty selection changed the ordinary abstract-operation plan",
+                ));
+            }
+            Ok(NativeOptimizationStageResult::IdentityOrdinary(identity))
+        }
         (
             omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(
                 ranked,
             ),
-            PostTerminalOptimizationContinuation::Identity,
-        ) => Ok(NativeOptimizationStageResult::IdentityRanked(ranked)),
+            PostTerminalOptimizationContinuation::Identity(input),
+        ) => {
+            let abstract_identity = run_abstract_optimization_stage(input, request)?;
+            if abstract_identity.plan() != &ranked.plan {
+                return Err(realization_error(
+                    "ranked abstract optimization identity",
+                    "empty selection changed the ranked native abstract-operation plan",
+                ));
+            }
+            Ok(NativeOptimizationStageResult::IdentityRanked {
+                ranked,
+                abstract_identity,
+            })
+        }
         (
             omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(_),
             PostTerminalOptimizationContinuation::Selected(_),
@@ -57,12 +81,19 @@ pub(crate) fn lower_realization_optimization_stage(
                     "retained nearest-FMA occurrences require the ordinary custody-preserving pipeline",
                 ));
             }
-            let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
-                request.optimization_selections.selections(),
-            );
-            omega_optimization_pipeline::optimize_verified_psi_input(input, optimization_request)
+            run_abstract_optimization_stage(input, request)
                 .map(NativeOptimizationStageResult::OptimizedOrdinary)
-                .map_err(|error| realization_error("canonical optimization", error))
         }
     }
+}
+
+fn run_abstract_optimization_stage(
+    input: omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
+    request: &NativeRealizationCoreRequest<'_>,
+) -> Result<omega_optimization_pipeline::ValidatedOptimizedAbstractPlan, Vec<Diagnostic>> {
+    let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
+        request.optimization_selections.selections(),
+    );
+    omega_optimization_pipeline::optimize_verified_psi_input(input, optimization_request)
+        .map_err(|error| realization_error("canonical abstract optimization", error))
 }
