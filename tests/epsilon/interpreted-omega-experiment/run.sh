@@ -14,6 +14,9 @@ DRIVER="$TEST_DIR/empty_entry_driver.delta"
 FIXTURE="$TEST_DIR/empty_entry.epsilon"
 WRITE_EXIT="$TEST_DIR/write_exit.epsilon"
 BYTE_RANGE="$TEST_DIR/byte_range.epsilon"
+LET_EXIT="$TEST_DIR/let_exit.epsilon"
+ASSERTION="$TEST_DIR/assertion.epsilon"
+NONBOOLEAN="$TEST_DIR/nonboolean.epsilon"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Interpreted Omega experiment: skipped (python3 absent)"
@@ -40,12 +43,13 @@ grep -F 'data AlphaTapeBuffer {' "$OMEGA_D" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 8794 ]
-[ "$EPSILON_BYTES" -eq 437763 ]
+[ "$EPSILON_LINES" -eq 8863 ]
+[ "$EPSILON_BYTES" -eq 441260 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" FIXTURE="$FIXTURE" \
     WRITE_EXIT="$WRITE_EXIT" BYTE_RANGE="$BYTE_RANGE" \
+    LET_EXIT="$LET_EXIT" ASSERTION="$ASSERTION" NONBOOLEAN="$NONBOOLEAN" \
     EVALUATOR="$TMP/evaluator" python3 - <<'PY'
 import hashlib
 import os
@@ -56,8 +60,8 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        437763,
-        "0a80de8083c3e6ef9c3804e87560fde94459d3472329d88ec36a6c1cc0965c8c",
+        441260,
+        "33beb656e128e4dad9428bae27276a75942af43433234949baff949f73371c38",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -78,6 +82,21 @@ artifacts = {
         Path(os.environ["BYTE_RANGE"]).read_bytes(),
         309,
         "9dd6f6fd2697de619b1cf7d86b78ab2d416eb33dd255d2de2a5dc822dd5bb037",
+    ),
+    "let then exit": (
+        Path(os.environ["LET_EXIT"]).read_bytes(),
+        349,
+        "4d6f63fcd7892bc51d9594f2a674edff830e1bd48b23f8e00bc54f45c7ffe3c6",
+    ),
+    "assertion": (
+        Path(os.environ["ASSERTION"]).read_bytes(),
+        293,
+        "f6c889a5cbb9acbaa8d31062ef946669db3d033eb5fab2f02dce4cf8b46b02ed",
+    ),
+    "nonboolean": (
+        Path(os.environ["NONBOOLEAN"]).read_bytes(),
+        258,
+        "d4a855e7f6e7e60dc5d8f19c58ed0fcac284fae07ff52da1050980275b3ce5ea",
     ),
 }
 for name, (data, size, digest) in artifacts.items():
@@ -102,20 +121,23 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 517400:
-    raise SystemExit("literal Console evaluator slice did not compile")
+if status != 0 or len(receipt) != 520260:
+    raise SystemExit("scalar local evaluator slice did not compile")
 if hashlib.sha256(receipt).hexdigest() != (
-    "31127bddd6c823a50040b4fb8853016987392249334bfc47076a2e85345d4dcb"
+    "899820f58d08cf4e4d73313e2012ee6e166769f03c64c4b8a056330c9a3f4577"
 ):
-    raise SystemExit("literal Console evaluator receipt identity changed")
+    raise SystemExit("scalar local evaluator receipt identity changed")
 controls = {
     "empty entry": b"\x00",
     "write then exit": b"A\x07",
     "byte range": b"A\x85",
+    "let then exit": b"A\x07",
+    "assertion": b"A\x88",
+    "nonboolean": b"\x87",
 }
 for name, expected in controls.items():
     if evaluate(receipt, artifacts[name][0], timeout=120) != (0, expected):
         raise SystemExit(f"{name} did not produce its exact observation")
 PY
 
-echo "Interpreted Omega experiment: alpha_bootstrap ownership and literal Console execution pass"
+echo "Interpreted Omega experiment: alpha_bootstrap, scalar locals, and Console execution pass"

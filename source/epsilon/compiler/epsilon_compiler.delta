@@ -50,6 +50,14 @@
   (NoEpsilonEvaluatorScalar)
   (OneEpsilonEvaluatorScalar Int))
 
+(data EpsilonEvaluatorLocalValue
+  (EpsilonEvaluatorLetValue EpsilonStatement Int))
+
+(data EpsilonEvaluatorLocalValueList
+  (NoEpsilonEvaluatorLocalValues)
+  (MoreEpsilonEvaluatorLocalValues EpsilonEvaluatorLocalValue
+    EpsilonEvaluatorLocalValueList))
+
 (data EpsilonEvaluatorStatementEffect
   (EpsilonEvaluatorContinue Bytes)
   (EpsilonEvaluatorExit Int Bytes)
@@ -8621,8 +8629,41 @@
     ((EpsilonLocalResolutionAccepted resolved)
       (epsilon_finish_body_check resolved))))
 
-(def epsilon_evaluate_literal_scalar ((expressionValue EpsilonExpression))
-  EpsilonEvaluatorScalar
+(def epsilon_evaluator_statements_same_identity ((left EpsilonStatement)
+  (right EpsilonStatement)) Int
+  (if (eq (epsilon_statement_start left) (epsilon_statement_start right))
+    (eq (epsilon_statement_end left) (epsilon_statement_end right))
+    0))
+
+(def epsilon_evaluate_let_value ((target EpsilonStatement)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
+  (match locals
+    (NoEpsilonEvaluatorLocalValues NoEpsilonEvaluatorScalar)
+    ((MoreEpsilonEvaluatorLocalValues item rest)
+      (match item
+        ((EpsilonEvaluatorLetValue statementValue value)
+          (if (epsilon_evaluator_statements_same_identity target statementValue)
+            (OneEpsilonEvaluatorScalar value)
+            (epsilon_evaluate_let_value target rest)))))))
+
+(def epsilon_evaluate_resolved_local_scalar ((expressionValue EpsilonExpression)
+  (references EpsilonResolvedLocalReferenceList)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
+  (match (epsilon_find_resolved_local_reference expressionValue references)
+    (NoEpsilonResolvedLocalReference NoEpsilonEvaluatorScalar)
+    ((OneEpsilonResolvedLocalReference bindingValue)
+      (match bindingValue
+        ((EpsilonLetLocal name typeValue statementValue)
+          (epsilon_evaluate_let_value statementValue locals))
+        ((EpsilonReceiverLocal name typeValue) NoEpsilonEvaluatorScalar)
+        ((EpsilonMachineParameterLocal parameterValue) NoEpsilonEvaluatorScalar)
+        ((EpsilonStateParameterLocal parameterValue) NoEpsilonEvaluatorScalar)
+        ((EpsilonTransitionBinderLocal patternValue name)
+          NoEpsilonEvaluatorScalar)))))
+
+(def epsilon_evaluate_scalar ((expressionValue EpsilonExpression)
+  (references EpsilonResolvedLocalReferenceList)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
   (match expressionValue
     ((EpsilonIntegerExpression start end literal)
       (OneEpsilonEvaluatorScalar (epsilon_integer_literal_value literal)))
@@ -8633,9 +8674,10 @@
     ((EpsilonTrueExpression start end) (OneEpsilonEvaluatorScalar 1))
     ((EpsilonFalseExpression start end) (OneEpsilonEvaluatorScalar 0))
     ((EpsilonGroupedExpression start end inner)
-      (epsilon_evaluate_literal_scalar inner))
+      (epsilon_evaluate_scalar inner references locals))
     ((EpsilonStringExpression start end literal) NoEpsilonEvaluatorScalar)
-    ((EpsilonNameExpression start end name) NoEpsilonEvaluatorScalar)
+    ((EpsilonNameExpression start end name)
+      (epsilon_evaluate_resolved_local_scalar expressionValue references locals))
     ((EpsilonQualifiedExpression start end owner name arguments)
       NoEpsilonEvaluatorScalar)
     ((EpsilonFieldExpression start end base field) NoEpsilonEvaluatorScalar)
@@ -8646,19 +8688,24 @@
     ((EpsilonBinaryExpression start end operator operatorStart operatorEnd
       left right) NoEpsilonEvaluatorScalar)))
 
-(def epsilon_evaluate_one_literal_argument
-  ((arguments EpsilonExpressionList)) EpsilonEvaluatorScalar
+(def epsilon_evaluate_one_scalar_argument
+  ((arguments EpsilonExpressionList)
+  (references EpsilonResolvedLocalReferenceList)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalar
   (match arguments
     (NoEpsilonExpressions NoEpsilonEvaluatorScalar)
     ((MoreEpsilonExpressions item rest)
       (match rest
-        (NoEpsilonExpressions (epsilon_evaluate_literal_scalar item))
+        (NoEpsilonExpressions
+          (epsilon_evaluate_scalar item references locals))
         ((MoreEpsilonExpressions nextItem nextRest) NoEpsilonEvaluatorScalar)))))
 
 (def epsilon_evaluate_console_literal_effect ((kind Int)
-  (arguments EpsilonExpressionList) (output Bytes))
+  (arguments EpsilonExpressionList)
+  (references EpsilonResolvedLocalReferenceList)
+  (locals EpsilonEvaluatorLocalValueList) (output Bytes))
   EpsilonEvaluatorStatementEffect
-  (match (epsilon_evaluate_one_literal_argument arguments)
+  (match (epsilon_evaluate_one_scalar_argument arguments references locals)
     (NoEpsilonEvaluatorScalar EpsilonEvaluatorStatementUnsupported)
     ((OneEpsilonEvaluatorScalar value)
       (if (eq kind 1)
@@ -8672,7 +8719,9 @@
 
 (def epsilon_evaluate_console_call ((source Bytes)
   (expressionValue EpsilonExpression) (arguments EpsilonExpressionList)
-  (callables EpsilonResolvedCallableReferenceList) (output Bytes))
+  (references EpsilonResolvedLocalReferenceList)
+  (callables EpsilonResolvedCallableReferenceList)
+  (locals EpsilonEvaluatorLocalValueList) (output Bytes))
   EpsilonEvaluatorStatementEffect
   (match (epsilon_find_resolved_callable_reference_normalized expressionValue
     callables)
@@ -8683,7 +8732,7 @@
           (epsilon_evaluate_console_literal_effect
             (epsilon_console_member_kind source
               (epsilon_boundary_machine_name memberValue))
-            arguments output))
+            arguments references locals output))
         ((EpsilonResolvedConstructorCallable owner caseValue)
           EpsilonEvaluatorStatementUnsupported)
         ((EpsilonResolvedDataMachineCallable owner machineValue)
@@ -8693,7 +8742,9 @@
 
 (def epsilon_evaluate_entry_statements ((source Bytes)
   (statements EpsilonStatementList)
-  (callables EpsilonResolvedCallableReferenceList) (output Bytes))
+  (references EpsilonResolvedLocalReferenceList)
+  (callables EpsilonResolvedCallableReferenceList)
+  (locals EpsilonEvaluatorLocalValueList) (output Bytes))
   EpsilonEvaluatorSliceOutcome
   (match statements
     (NoEpsilonStatements (EpsilonEvaluatorSliceExit 0 output))
@@ -8703,10 +8754,10 @@
           (match expressionValue
             ((EpsilonCallExpression expressionStart expressionEnd base arguments)
               (match (epsilon_evaluate_console_call source expressionValue
-                arguments callables output)
+                arguments references callables locals output)
                 ((EpsilonEvaluatorContinue nextOutput)
-                  (epsilon_evaluate_entry_statements source rest callables
-                    nextOutput))
+                  (epsilon_evaluate_entry_statements source rest references
+                    callables locals nextOutput))
                 ((EpsilonEvaluatorExit code finalOutput)
                   (EpsilonEvaluatorSliceExit code finalOutput))
                 ((EpsilonEvaluatorTrap kind finalOutput)
@@ -8741,23 +8792,39 @@
               operatorStart operatorEnd left right)
               EpsilonEvaluatorSliceUnsupported)))
         ((EpsilonLetStatement start end name typeValue initializer)
-          EpsilonEvaluatorSliceUnsupported)
+          (match (epsilon_evaluate_scalar initializer references locals)
+            (NoEpsilonEvaluatorScalar EpsilonEvaluatorSliceUnsupported)
+            ((OneEpsilonEvaluatorScalar value)
+              (epsilon_evaluate_entry_statements source rest references
+                callables
+                (MoreEpsilonEvaluatorLocalValues
+                  (EpsilonEvaluatorLetValue item value) locals)
+                output))))
         ((EpsilonAssignmentStatement start end placeValue assignedValue)
           EpsilonEvaluatorSliceUnsupported)
         ((EpsilonAssertStatement start end expressionValue)
-          EpsilonEvaluatorSliceUnsupported)))))
+          (match (epsilon_evaluate_scalar expressionValue references locals)
+            (NoEpsilonEvaluatorScalar EpsilonEvaluatorSliceUnsupported)
+            ((OneEpsilonEvaluatorScalar value)
+              (if (eq value 0)
+                (EpsilonEvaluatorSliceTrap 8 output)
+                (if (eq value 1)
+                  (epsilon_evaluate_entry_statements source rest references
+                    callables locals output)
+                  (EpsilonEvaluatorSliceTrap 7 output))))))))))
 
 (def epsilon_evaluate_entry_declarations ((source Bytes)
   (declarations EpsilonDeclarationList)
+  (references EpsilonResolvedLocalReferenceList)
   (callables EpsilonResolvedCallableReferenceList)) EpsilonEvaluatorSliceOutcome
   (match declarations
     (NoEpsilonDeclarations (EpsilonEvaluatorSliceInternal 0))
     ((MoreEpsilonDeclarations item rest)
       (match item
         ((EpsilonBoundaryDeclaration start end name machines)
-          (epsilon_evaluate_entry_declarations source rest callables))
+          (epsilon_evaluate_entry_declarations source rest references callables))
         ((EpsilonDataDeclaration start end name members)
-          (epsilon_evaluate_entry_declarations source rest callables))
+          (epsilon_evaluate_entry_declarations source rest references callables))
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           (if (epsilon_qualified_name_is_main_entry source name)
             (match bodyValue
@@ -8766,10 +8833,12 @@
                 (match terminalValue
                   (NoEpsilonTerminal
                     (epsilon_evaluate_entry_statements source statements
-                      callables (bytes_empty)))
+                      references callables NoEpsilonEvaluatorLocalValues
+                      (bytes_empty)))
                   ((SomeEpsilonTerminal terminal)
                     EpsilonEvaluatorSliceUnsupported))))
-            (epsilon_evaluate_entry_declarations source rest callables)))))))
+            (epsilon_evaluate_entry_declarations source rest references
+              callables)))))))
 
 (def epsilon_evaluate_entry_slice ((source Bytes))
   EpsilonEvaluatorSliceOutcome
@@ -8791,4 +8860,4 @@
                       (match program
                         ((EpsilonSyntaxProgram start end declarations)
                           (epsilon_evaluate_entry_declarations source
-                            declarations callables))))))))))))))
+                            declarations references callables))))))))))))))

@@ -30,8 +30,10 @@ wrappers contain only their native AST value and no duplicated cursor or span.
 It deliberately has no final evaluator `main` or composed executable identity.
 The first staging execution slice accepts only a completely checked empty
 `Main::main` entry or direct literal `Console.write_byte` and
-`Console.exit_process` statements. Output prefixes survive exact exit and
-`ByteRange` trap outcomes; every other entry statement is explicitly
+`Console.exit_process` statements. It now retains scalar let values by exact
+checked binding identity and executes grouped/local reads plus `assert`. Output
+prefixes survive exact exit, `ByteRange`, and `Assertion` trap outcomes; every
+other entry statement is explicitly
 unsupported rather than assigned guessed semantics. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
