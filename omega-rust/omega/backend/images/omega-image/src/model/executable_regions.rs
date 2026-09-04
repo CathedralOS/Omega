@@ -1,3 +1,6 @@
+//! Where each compiler function landed in the placed image, and the inventory
+//! that has to reproduce that placement byte for byte.
+
 use crate::{FinalImage, FinalImageLayout};
 use omega_calling_conventions::{MachineRegister, StateFootprintEvidence};
 use psi_diagnostics::Diagnostic;

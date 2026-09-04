@@ -1,3 +1,6 @@
+//! Bounds-checked little-endian reads and writes into a section buffer, so a
+//! relocation offset past the end is a diagnostic rather than a panic.
+
 use psi_diagnostics::Diagnostic;
 
 pub(crate) fn read_u32(

@@ -1,3 +1,5 @@
+//! Assembly of one final image from an object plan and its relocation plan.
+
 mod copies;
 mod sections;
 

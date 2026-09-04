@@ -1,3 +1,7 @@
+//! The four copies that turn an object plan into a final image - symbols,
+//! executable regions, imports, relocations - and the one place that re-checks a
+//! reused handle before storing it.
+
 use crate::model::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImport,
     FinalImageImportPlan, FinalImageRelocation, FinalImageSymbol,

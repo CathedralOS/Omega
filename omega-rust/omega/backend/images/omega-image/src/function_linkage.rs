@@ -1,4 +1,6 @@
-//! Exact function-linkage retention in the common final-image carrier.
+//! A second, independent derivation of the object-to-image symbol
+//! correspondence, so the reused handle coordinates are re-proved rather than
+//! trusted.
 
 use crate::{FinalImage, FinalImageSection};
 use omega_object_file::{ObjectPlan, SectionKind, SymbolKind, SymbolSection};

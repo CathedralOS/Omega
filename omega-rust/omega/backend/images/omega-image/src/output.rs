@@ -1,3 +1,6 @@
+//! The evidence an emitter hands forward: text and function validation, entry
+//! bindings, and the image output kinds that carry them.
+
 use sha2::{Digest, Sha256};
 
 macro_rules! image_evidence_digest {
