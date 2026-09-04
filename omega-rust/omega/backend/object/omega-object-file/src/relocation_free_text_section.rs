@@ -32,7 +32,7 @@ pub enum TextSectionRelocationRequirements {
 
 /// One relocation-free, section-relative concatenation of validated function fragments.
 ///
-/// This is representation data only. It is not an [`ObjectPlan`], has no symbols or external
+/// This is representation data only. It is not a [`crate::ObjectPlan`], has no symbols or external
 /// entry point, and grants no object serialization, image, installation, or publication
 /// authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
