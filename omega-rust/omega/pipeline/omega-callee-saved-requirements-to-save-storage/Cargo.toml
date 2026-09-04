@@ -1,0 +1,18 @@
+[package]
+name = "omega-callee-saved-requirements-to-save-storage"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_callee_saved_requirements_to_save_storage"
+path = "src/lib.rs"
+
+[dependencies]
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-register-homes-to-callee-saved-requirements = { path = "../omega-register-homes-to-callee-saved-requirements" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-target = { path = "../../representations/omega-target" }
+omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+sha2 = "0.10.9"

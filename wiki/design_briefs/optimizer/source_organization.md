@@ -543,8 +543,9 @@ corruption, and budget evidence. Architecture guards register every rung,
 require exact `write_units` use on both paths, and forbid frame, save/restore,
 unwind, machine, encoding, and publication authority.
 
-Non-authoritative callee-save storage planning enters through the adjacent
-33-line `allocation/callee_save_storage/mod.rs` coordinator. It visibly joins
+Non-authoritative callee-save storage planning enters through the dedicated
+`omega-callee-saved-requirements-to-save-storage` stage crate. Its
+`callee_save_storage/mod.rs` entrance visibly joins
 `compute::derive` to `validate_non_authoritative_callee_save_storage` and
 descends through `compute/{groups,work}`. Independent reconstruction descends
 through `replay/{groups,work}`, builds its own keyed unit-to-group index, and
