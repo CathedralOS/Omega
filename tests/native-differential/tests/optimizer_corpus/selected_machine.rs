@@ -186,7 +186,16 @@ fn run_machine(
     let ledger = optimized.transformation_ledger().clone();
     let pre_manifest = optimized.pre_physical_manifest().record().clone();
     let target = lower_optimized_to_target_operations(optimized, target).unwrap();
-    let selected = stage_optimized_instruction_selection(target).unwrap();
+    // The pipeline crate's one-argument shorthand is #[cfg(test)] pub(crate) on
+    // purpose, so production keeps the register environment as its own stage.
+    // Build it the way stage_non_allocation_recovery_physical_pipeline does.
+    let register_environment = baseline_target_register_environment(target.target()).unwrap();
+    let selected =
+        omega_target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+            target,
+            register_environment,
+        )
+        .unwrap();
     let liveness = stage_optimized_liveness(selected).unwrap();
     let ranges = stage_optimized_live_ranges(liveness).unwrap();
     let legality = stage_optimized_allocation_legality(ranges).unwrap();

@@ -1065,6 +1065,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
+ "omega-target-operations-to-selected-instructions",
  "omega-terminal-psi-to-native-artifact",
  "omega-x86-encoding",
  "psi-arena",
