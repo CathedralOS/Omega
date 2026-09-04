@@ -2022,6 +2022,12 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && post_terminal_selection.contains("pub struct PostTerminalOptimizationSelections")
             && post_terminal_selection.contains("OptimizationExecutionPhase::CheckedTrees")
             && post_terminal_selection.contains("OptimizationExecutionPhase::Psi")
+            && model.contains("enum PostTerminalPhysicalContinuation")
+            && model.contains("PostTerminalPhysicalContinuation::Identity")
+            && model.contains("PostTerminalPhysicalContinuation::Selected")
+            && !model.contains(
+                "optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>",
+            )
             && !input.contains("reject_pre_terminal_selections(")
             && machine_code.contains("optimize_verified_psi_input(")
             && machine_code
@@ -2031,11 +2037,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let native_stage = input
         .find("let native = omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization")
         .expect("native realization constructs one unconditional Terminal-to-abstract stage");
-    let optional_physical_context = input
-        .find("let optimization = if optimization_selections.is_empty()")
-        .expect("later selected physical work retains its transitional optimizer context");
+    let explicit_physical_continuation = input
+        .find("let physical_continuation = if optimization_selections.is_empty()")
+        .expect("later physical work records explicit identity or selected continuation");
     assert!(
-        native_stage < optional_physical_context
+        native_stage < explicit_physical_continuation
             && model.contains("pub(crate) struct NativeRealizationInput")
             && !model.contains("NativeRealizationInput::Unoptimized")
             && !model.contains("NativeRealizationInput::ExplicitOptimization"),
@@ -2045,7 +2051,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .split_once("match input.into_parts() {")
         .expect("native realization consumes the one abstract-stage result");
     let (baseline_conveyor, optimized_conveyor) = native_conveyor
-        .split_once("(_, Some(input))")
+        .split_once("(_, PostTerminalPhysicalContinuation::Selected(input))")
         .expect("native realization retains a transitional later physical-selection arm");
     let (_, selected_physical_conveyor) = optimized_conveyor
         .split_once("let continuation = match provider_installation")

@@ -1,5 +1,7 @@
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{
+    NativeRealizationCoreRequest, NativeRealizationInput, PostTerminalPhysicalContinuation,
+};
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
 use psi_diagnostics::Diagnostic;
 
@@ -20,15 +22,17 @@ pub(crate) fn admit_checked_provider_installation(
     if selected.is_empty() {
         return Ok(None);
     }
-    let installation = match input.optimization() {
-        Some(_) => omega_psi_to_abstract_operations::admit_provider_installation_for_optimization(
-            plan,
-            semantic_bytes,
-            proof_bytes,
-            request.profile,
-            &selected,
-        ),
-        None => match input.native() {
+    let installation = match input.physical_continuation() {
+        PostTerminalPhysicalContinuation::Selected(_) => {
+            omega_psi_to_abstract_operations::admit_provider_installation_for_optimization(
+                plan,
+                semantic_bytes,
+                proof_bytes,
+                request.profile,
+                &selected,
+            )
+        }
+        PostTerminalPhysicalContinuation::Identity => match input.native() {
             omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_) => {
                 omega_psi_to_abstract_operations::admit_provider_installation(
                     plan,

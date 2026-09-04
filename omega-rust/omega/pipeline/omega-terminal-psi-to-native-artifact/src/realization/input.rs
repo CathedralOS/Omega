@@ -1,5 +1,7 @@
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{
+    NativeRealizationCoreRequest, NativeRealizationInput, PostTerminalPhysicalContinuation,
+};
 use psi_diagnostics::Diagnostic;
 
 /// Reusable target-neutral lowering of one exact canonical Terminal artifact.
@@ -26,7 +28,7 @@ impl PreparedNativeRealizationInput {
     }
 
     pub fn is_optimized(&self) -> bool {
-        self.input.optimization().is_some()
+        self.input.physical_continuation().selected().is_some()
     }
 
     pub fn matches(
@@ -95,10 +97,10 @@ pub(crate) fn lower_realization_input(
         profile,
     )
     .map_err(|error| realization_error("native artifact lowering", error))?;
-    let optimization = if optimization_selections.is_empty() {
-        None
+    let physical_continuation = if optimization_selections.is_empty() {
+        PostTerminalPhysicalContinuation::Identity
     } else {
-        Some(
+        PostTerminalPhysicalContinuation::Selected(
             omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
                 semantic_bytes,
                 proof_bytes,
@@ -107,7 +109,7 @@ pub(crate) fn lower_realization_input(
             .map_err(|error| realization_error("verified optimizer artifact lowering", error))?,
         )
     };
-    NativeRealizationInput::new(native, optimization)
+    NativeRealizationInput::new(native, physical_continuation)
         .map_err(|error| realization_error("native abstract-stage join", error))
 }
 
@@ -168,6 +170,10 @@ mod tests {
         let empty = omega_optimization_core::PostTerminalOptimizationSelections::default();
         let prepared = prepare_native_realization_input(&artifact, &profile, &empty)
             .expect("prepare target-neutral input");
+        assert!(matches!(
+            prepared.input.physical_continuation(),
+            PostTerminalPhysicalContinuation::Identity
+        ));
         assert!(prepared.matches(artifact.manifest().identity(), &profile, &empty));
         assert!(!prepared.matches(
             alternate_artifact_fixture().manifest().identity(),
@@ -224,7 +230,10 @@ mod tests {
             prepared.input.native(),
             omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_)
         ));
-        assert!(prepared.input.optimization().is_some());
+        assert!(matches!(
+            prepared.input.physical_continuation(),
+            PostTerminalPhysicalContinuation::Selected(_)
+        ));
         assert!(prepared.matches(artifact.manifest().identity(), &profile, &selected));
         assert!(!prepared.matches(artifact.manifest().identity(), &profile, &substituted,));
     }
