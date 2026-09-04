@@ -1,3 +1,7 @@
+//! The retained Terminal product and the target-constrained proposal that has to
+//! match it occurrence for occurrence - every boundary demand, callback and
+//! nearest-FMA site - before native realization is allowed to begin.
+
 /// One compiler-owned builtin proposed beside a target-neutral Terminal
 /// artifact. The local lowerer still has to rejoin this row to the exact
 /// selected plan, Terminal demand, and its own target catalog.

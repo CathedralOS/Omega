@@ -1,3 +1,7 @@
+//! The canonical little-endian byte layout that binds one production to its
+//! package, build machine, target and artifact, hashed under a versioned domain
+//! so adding a field is a new domain rather than a silent reinterpretation.
+
 use omega_build_evaluation::{
     BuildEvaluationUsage, BuildObservationIdentity, BuildObservationSummary,
 };
