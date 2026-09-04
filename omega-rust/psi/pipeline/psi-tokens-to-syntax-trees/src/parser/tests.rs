@@ -5,6 +5,8 @@ use psi_syntax_trees::expression::ExpressionNode;
 use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
+mod expression_stack;
+
 #[test]
 fn source_target_declarations_are_retired() {
     let tokens = Lexer::new("target linux_x86_64 { }")

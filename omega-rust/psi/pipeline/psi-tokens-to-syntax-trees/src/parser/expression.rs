@@ -79,52 +79,10 @@ fn parse_expression_handle_in<'tokens, 'source>(
     Ok((handle, rest.with_depth(outer_depth)))
 }
 
+// Membership separates ordinary logical/comparison operators from integer
+// operators. Keep those grammar entrypoints distinct: an operator after a domain
+// path must not silently become a new integer operand of that membership.
 fn parse_or_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    context: ExpressionContext,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
-        syntax_trees,
-        input,
-        context,
-        parse_and_expression_handle,
-        &[(PunctuationKind::PipePipe, BinaryOperator::Or)],
-    )
-}
-
-fn parse_and_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    context: ExpressionContext,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
-        syntax_trees,
-        input,
-        context,
-        parse_equality_expression_handle,
-        &[(PunctuationKind::AndAnd, BinaryOperator::And)],
-    )
-}
-
-fn parse_equality_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    context: ExpressionContext,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
-        syntax_trees,
-        input,
-        context,
-        parse_comparison_expression_handle,
-        &[
-            (PunctuationKind::EqualEqual, BinaryOperator::Equal),
-            (PunctuationKind::ExclamationEqual, BinaryOperator::NotEqual),
-        ],
-    )
-}
-
-fn parse_comparison_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
@@ -135,99 +93,27 @@ fn parse_comparison_expression_handle<'tokens, 'source>(
         context,
         parse_membership_expression_handle,
         &[
-            (PunctuationKind::LessEqual, BinaryOperator::LessOrEqual),
+            (PunctuationKind::PipePipe, BinaryOperator::Or, 0),
+            (PunctuationKind::AndAnd, BinaryOperator::And, 1),
+            (PunctuationKind::EqualEqual, BinaryOperator::Equal, 2),
+            (
+                PunctuationKind::ExclamationEqual,
+                BinaryOperator::NotEqual,
+                2,
+            ),
+            (PunctuationKind::LessEqual, BinaryOperator::LessOrEqual, 3),
             (
                 PunctuationKind::GreaterEqual,
                 BinaryOperator::GreaterOrEqual,
+                3,
             ),
-            (PunctuationKind::Less, BinaryOperator::Less),
-            (PunctuationKind::Greater, BinaryOperator::Greater),
+            (PunctuationKind::Less, BinaryOperator::Less, 3),
+            (PunctuationKind::Greater, BinaryOperator::Greater, 3),
         ],
     )
 }
 
-// Bitwise operators sit between comparison/membership and the shifts (Rust-style
-// precedence: `|` < `^` < `&` < `<<`/`>>`, and all tighter than `==`). Infix `&`
-// is disambiguated from a prefix reference by position -- the binary chain only
-// consumes `&` after a left operand; prefix `&x` / `&[u8]` are parsed by the unary
-// layer below.
 pub(super) fn parse_bitwise_or_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    context: ExpressionContext,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
-        syntax_trees,
-        input,
-        context,
-        parse_bitwise_xor_expression_handle,
-        &[(PunctuationKind::Pipe, BinaryOperator::BitwiseOr)],
-    )
-}
-
-fn parse_bitwise_xor_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    context: ExpressionContext,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
-        syntax_trees,
-        input,
-        context,
-        parse_bitwise_and_expression_handle,
-        &[(PunctuationKind::Caret, BinaryOperator::BitwiseXor)],
-    )
-}
-
-fn parse_bitwise_and_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    context: ExpressionContext,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
-        syntax_trees,
-        input,
-        context,
-        parse_shift_expression_handle,
-        &[(PunctuationKind::Ampersand, BinaryOperator::BitwiseAnd)],
-    )
-}
-
-pub(super) fn parse_shift_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    context: ExpressionContext,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
-        syntax_trees,
-        input,
-        context,
-        parse_add_expression_handle,
-        &[
-            (PunctuationKind::LessLess, BinaryOperator::ShiftLeft),
-            (PunctuationKind::GreaterGreater, BinaryOperator::ShiftRight),
-        ],
-    )
-}
-
-fn parse_add_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    context: ExpressionContext,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
-        syntax_trees,
-        input,
-        context,
-        parse_multiply_expression_handle,
-        &[
-            (PunctuationKind::Plus, BinaryOperator::Add),
-            (PunctuationKind::Minus, BinaryOperator::Subtract),
-        ],
-    )
-}
-
-fn parse_multiply_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
@@ -238,9 +124,20 @@ fn parse_multiply_expression_handle<'tokens, 'source>(
         context,
         parse_unary_expression_handle,
         &[
-            (PunctuationKind::Asterisk, BinaryOperator::Multiply),
-            (PunctuationKind::Slash, BinaryOperator::Divide),
-            (PunctuationKind::Percent, BinaryOperator::Modulo),
+            (PunctuationKind::Pipe, BinaryOperator::BitwiseOr, 0),
+            (PunctuationKind::Caret, BinaryOperator::BitwiseXor, 1),
+            (PunctuationKind::Ampersand, BinaryOperator::BitwiseAnd, 2),
+            (PunctuationKind::LessLess, BinaryOperator::ShiftLeft, 3),
+            (
+                PunctuationKind::GreaterGreater,
+                BinaryOperator::ShiftRight,
+                3,
+            ),
+            (PunctuationKind::Plus, BinaryOperator::Add, 4),
+            (PunctuationKind::Minus, BinaryOperator::Subtract, 4),
+            (PunctuationKind::Asterisk, BinaryOperator::Multiply, 5),
+            (PunctuationKind::Slash, BinaryOperator::Divide, 5),
+            (PunctuationKind::Percent, BinaryOperator::Modulo, 5),
         ],
     )
 }
@@ -254,37 +151,64 @@ fn parse_binary_chain_handle<'tokens, 'source>(
         Input<'tokens, 'source>,
         ExpressionContext,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle>,
-    operators: &[(PunctuationKind, BinaryOperator)],
+    operators: &[(PunctuationKind, BinaryOperator, u8)],
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     let (mut expression, mut input) = lower(syntax_trees, input, context)?;
+    let mut pending = Vec::new();
 
-    while let Some((punctuation, operator)) = operators
+    while let Some((punctuation, operator, precedence)) = operators
         .iter()
-        .find(|(punctuation, _)| input.at_punctuation(*punctuation))
+        .find(|(punctuation, _, _)| input.at_punctuation(*punctuation))
         .copied()
     {
-        let operator_span = input
-            .tokens
-            .first()
-            .map(|token| input.source_span(token))
-            .expect("recognized binary punctuation has a source token");
+        while pending
+            .last()
+            .is_some_and(|(_, _, pending_precedence, _)| *pending_precedence >= precedence)
+        {
+            let (left, operator, _, span) = pending.pop().expect("pending operator");
+            expression = insert_binary_expression(syntax_trees, left, operator, expression, span);
+        }
+        let operator_span = input.current_source_span();
         input = input.take_punctuation(punctuation, punctuation_label(punctuation))?;
-        let (right, rest) = lower(syntax_trees, input, context)?;
-        input = rest;
-        expression =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: expression,
-                    operator,
-                    right,
-                }));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, operator_span);
+        pending.push((expression, operator, precedence, operator_span));
+        (expression, input) = lower(syntax_trees, input, context)?;
     }
 
+    while let Some((left, operator, _, span)) = pending.pop() {
+        expression = insert_binary_expression(syntax_trees, left, operator, expression, span);
+    }
     Ok((expression, input))
+}
+
+fn insert_binary_expression(
+    syntax_trees: &mut SyntaxTrees,
+    left: ExpressionHandle,
+    operator: BinaryOperator,
+    right: ExpressionHandle,
+    span: psi_source::SourceSpan,
+) -> ExpressionHandle {
+    let expression =
+        syntax_trees
+            .expressions
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator,
+                right,
+            }));
+    syntax_trees.expressions.set_source_span(expression, span);
+    expression
+}
+
+enum UnaryPrefix<'tokens, 'source> {
+    Borrow(psi_language_core::ReferenceAccess),
+    Operator(UnaryOperator, psi_source::SourceSpan),
+    Negate(psi_source::SourceSpan),
+    Acknowledge {
+        input: Input<'tokens, 'source>,
+        suspend: bool,
+        block: bool,
+    },
+    Move,
 }
 
 fn parse_unary_expression_handle<'tokens, 'source>(
@@ -292,9 +216,23 @@ fn parse_unary_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    // CALLACK: `suspend` and `block` remain contextual identifiers except
-    // when followed by another expression rather than `(` (so declarations
-    // may still name an ordinary `suspend()` or `block()` operation).
+    let mut input = input;
+    let mut prefixes = Vec::new();
+    while let Some((prefix, rest)) = take_unary_prefix(input)? {
+        prefixes.push(prefix);
+        input = rest;
+    }
+    let (mut expression, rest) = parse_postfix_expression_handle(syntax_trees, input, context)?;
+    while let Some(prefix) = prefixes.pop() {
+        expression = apply_unary_prefix(syntax_trees, expression, prefix)?;
+    }
+    Ok((expression, rest))
+}
+
+fn take_unary_prefix<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<Option<(UnaryPrefix<'tokens, 'source>, Input<'tokens, 'source>)>, crate::ParseError> {
+    // Acknowledgements remain ordinary identifiers when followed by `(`.
     if input.at_contextual("suspend")
         && input
             .take_contextual("suspend")
@@ -306,32 +244,20 @@ fn parse_unary_expression_handle<'tokens, 'source>(
                 input.error_here("duplicate `suspend` call acknowledgement; write it exactly once")
             );
         }
-        let (acknowledges_block, input) = if input.at_contextual("block") {
+        let (block, input) = if input.at_contextual("block") {
             (true, input.take_contextual("block")?)
         } else {
             (false, input)
         };
-        let (expression, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
-        let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression).clone()
-        else {
-            return Err(input.error_here(
-                "`suspend` is a call acknowledgement and must appear immediately before a call",
-            ));
-        };
-        syntax_trees.expressions.replace_expression(
-            expression,
-            ExpressionNode::Call(psi_syntax_trees::expression::TableCallExpression {
-                operational_acknowledgement: psi_language_core::CallOperationalAcknowledgement {
-                    acknowledges_suspend: true,
-                    acknowledges_block,
-                    ..Default::default()
-                },
-                ..call
-            }),
-        );
-        return Ok((expression, rest));
+        return Ok(Some((
+            UnaryPrefix::Acknowledge {
+                input,
+                suspend: true,
+                block,
+            },
+            input,
+        )));
     }
-
     if input.at_contextual("block")
         && input
             .take_contextual("block")
@@ -348,26 +274,15 @@ fn parse_unary_expression_handle<'tokens, 'source>(
                 input.error_here("duplicate `block` call acknowledgement; write it exactly once")
             );
         }
-        let (expression, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
-        let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression).clone()
-        else {
-            return Err(input.error_here(
-                "`block` is a call acknowledgement and must appear immediately before a call",
-            ));
-        };
-        syntax_trees.expressions.replace_expression(
-            expression,
-            ExpressionNode::Call(psi_syntax_trees::expression::TableCallExpression {
-                operational_acknowledgement: psi_language_core::CallOperationalAcknowledgement {
-                    acknowledges_block: true,
-                    ..Default::default()
-                },
-                ..call
-            }),
-        );
-        return Ok((expression, rest));
+        return Ok(Some((
+            UnaryPrefix::Acknowledge {
+                input,
+                suspend: false,
+                block: true,
+            },
+            input,
+        )));
     }
-
     if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
         let (access, input) = if input.at_contextual("mut") {
@@ -388,105 +303,107 @@ fn parse_unary_expression_handle<'tokens, 'source>(
         } else {
             (psi_language_core::ReferenceAccess::Shared, input)
         };
-        let (expression, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
-        return Ok((
-            syntax_trees.expressions.insert(ExpressionNode::Borrow(
-                psi_syntax_trees::expression::TableBorrowExpression {
-                    target: expression,
-                    access,
-                },
-            )),
-            rest,
-        ));
+        return Ok(Some((UnaryPrefix::Borrow(access), input)));
     }
-
-    if input.at_punctuation(PunctuationKind::Exclamation) {
-        let operator_span = input
-            .tokens
-            .first()
-            .map(|token| input.source_span(token))
-            .expect("recognized unary punctuation has a source token");
-        let input = input.take_punctuation(PunctuationKind::Exclamation, "!")?;
-        let (operand, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
-        let expression =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Unary(TableUnaryExpression {
-                    operator: UnaryOperator::LogicalNot,
-                    operand,
-                }));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, operator_span);
-        return Ok((expression, rest));
+    for (punctuation, operator, label) in [
+        (PunctuationKind::Exclamation, UnaryOperator::LogicalNot, "!"),
+        (PunctuationKind::Tilde, UnaryOperator::BitwiseNot, "~"),
+    ] {
+        if input.at_punctuation(punctuation) {
+            return Ok(Some((
+                UnaryPrefix::Operator(operator, input.current_source_span()),
+                input.take_punctuation(punctuation, label)?,
+            )));
+        }
     }
-
-    if input.at_punctuation(PunctuationKind::Tilde) {
-        let operator_span = input
-            .tokens
-            .first()
-            .map(|token| input.source_span(token))
-            .expect("recognized unary punctuation has a source token");
-        let input = input.take_punctuation(PunctuationKind::Tilde, "~")?;
-        let (operand, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
-        let expression =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Unary(TableUnaryExpression {
-                    operator: UnaryOperator::BitwiseNot,
-                    operand,
-                }));
-        syntax_trees
-            .expressions
-            .set_source_span(expression, operator_span);
-        return Ok((expression, rest));
-    }
-
     if input.at_punctuation(PunctuationKind::Minus) {
-        let operator_span = input
-            .tokens
-            .first()
-            .map(|token| input.source_span(token))
-            .expect("recognized unary punctuation has a source token");
-        let input = input.take_punctuation(PunctuationKind::Minus, "-")?;
-        let (operand, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
-        // Fold numeric literals into their negative value so a negative literal
-        // stays a constant (usable in guards/static contexts). Negating any other
-        // expression lowers to `0 - operand`, reusing the existing subtraction
-        // lane rather than introducing a dedicated negate operator + codegen.
-        let negated = match syntax_trees.expressions.expression(operand).clone() {
-            ExpressionNode::Integer(literal) => ExpressionNode::Integer(literal.negated()),
-            ExpressionNode::Float(text) => {
-                ExpressionNode::Float(SourceText::generated(format!("-{}", text.as_str())))
-            }
-            _ => {
-                let zero = syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
-                ExpressionNode::Binary(TableBinaryExpression {
-                    left: zero,
-                    operator: BinaryOperator::Subtract,
-                    right: operand,
-                })
-            }
-        };
-        let negated = syntax_trees.expressions.insert(negated);
-        syntax_trees
-            .expressions
-            .set_source_span(negated, operator_span);
-        return Ok((negated, rest));
+        return Ok(Some((
+            UnaryPrefix::Negate(input.current_source_span()),
+            input.take_punctuation(PunctuationKind::Minus, "-")?,
+        )));
     }
-
     if input.at_contextual("move") {
-        let input = input.take_contextual("move")?;
-        // Ownership is currently inferred from the value flow itself. `move`
-        // is accepted as explicit spelling for that move, then lowered to the
-        // moved expression so the existing ownership lane remains the source of
-        // truth.
-        return parse_unary_expression_handle(syntax_trees, input, context);
+        return Ok(Some((UnaryPrefix::Move, input.take_contextual("move")?)));
     }
+    Ok(None)
+}
 
-    parse_postfix_expression_handle(syntax_trees, input, context)
+fn apply_unary_prefix(
+    syntax_trees: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+    prefix: UnaryPrefix<'_, '_>,
+) -> Result<ExpressionHandle, crate::ParseError> {
+    match prefix {
+        UnaryPrefix::Borrow(access) => Ok(syntax_trees.expressions.insert(ExpressionNode::Borrow(
+            psi_syntax_trees::expression::TableBorrowExpression {
+                target: expression,
+                access,
+            },
+        ))),
+        UnaryPrefix::Operator(operator, span) => {
+            let expression =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Unary(TableUnaryExpression {
+                        operator,
+                        operand: expression,
+                    }));
+            syntax_trees.expressions.set_source_span(expression, span);
+            Ok(expression)
+        }
+        UnaryPrefix::Negate(span) => {
+            // Preserve literal folding and the existing 0 - value representation.
+            let negated = match syntax_trees.expressions.expression(expression).clone() {
+                ExpressionNode::Integer(literal) => ExpressionNode::Integer(literal.negated()),
+                ExpressionNode::Float(text) => {
+                    ExpressionNode::Float(SourceText::generated(format!("-{}", text.as_str())))
+                }
+                _ => {
+                    let zero = syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+                    ExpressionNode::Binary(TableBinaryExpression {
+                        left: zero,
+                        operator: BinaryOperator::Subtract,
+                        right: expression,
+                    })
+                }
+            };
+            let expression = syntax_trees.expressions.insert(negated);
+            syntax_trees.expressions.set_source_span(expression, span);
+            Ok(expression)
+        }
+        UnaryPrefix::Acknowledge {
+            input,
+            suspend,
+            block,
+        } => {
+            let ExpressionNode::Call(call) =
+                syntax_trees.expressions.expression(expression).clone()
+            else {
+                return Err(input.error_here(if suspend {
+                    "`suspend` is a call acknowledgement and must appear immediately before a call"
+                } else {
+                    "`block` is a call acknowledgement and must appear immediately before a call"
+                }));
+            };
+            syntax_trees.expressions.replace_expression(
+                expression,
+                ExpressionNode::Call(psi_syntax_trees::expression::TableCallExpression {
+                    operational_acknowledgement:
+                        psi_language_core::CallOperationalAcknowledgement {
+                            acknowledges_suspend: suspend,
+                            acknowledges_block: block,
+                            ..Default::default()
+                        },
+                    ..call
+                }),
+            );
+            Ok(expression)
+        }
+        // Ownership is inferred from value flow; explicit `move` has no extra node.
+        UnaryPrefix::Move => Ok(expression),
+    }
 }
 
 fn punctuation_label(punctuation: PunctuationKind) -> &'static str {

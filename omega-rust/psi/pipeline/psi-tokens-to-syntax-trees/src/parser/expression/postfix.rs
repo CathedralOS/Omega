@@ -80,9 +80,16 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    let (mut expression, mut input) =
-        parse_primary_expression_handle(syntax_trees, input, context)?;
+    let (expression, input) = parse_primary_expression_handle(syntax_trees, input, context)?;
+    parse_postfix_suffixes_handle(syntax_trees, expression, input)
+}
 
+// Keep suffix construction scratch off the stack while parsing a nested primary.
+fn parse_postfix_suffixes_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut expression: ExpressionHandle,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     loop {
         if input.at_punctuation(PunctuationKind::Less)
             && let Some((machine_arguments, rest)) = try_parse_static_machine_arguments(input)?
