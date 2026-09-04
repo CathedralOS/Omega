@@ -10,7 +10,7 @@ use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
-use crate::{OptimizedLiveRangeCustodyError, StagedOptimizedLiveRanges};
+use omega_liveness_to_live_ranges::{OptimizedLiveRangeCustodyError, StagedOptimizedLiveRanges};
 
 /// Opt-in physical-view legality staging over complete live-range custody.
 /// It records exact candidates and required fixed-view transitions, but grants

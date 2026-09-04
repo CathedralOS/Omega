@@ -4,7 +4,7 @@ use omega_regalloc::{
     AllocatorAvailabilityPolicy, ValidatedAllocatorAvailability, materialize_allocator_availability,
 };
 
-use crate::StagedOptimizedLiveRanges;
+use omega_liveness_to_live_ranges::StagedOptimizedLiveRanges;
 
 use super::model::OptimizedAllocationLegalityCustodyError;
 

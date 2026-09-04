@@ -1,7 +1,6 @@
 //! Optimizer module role: stage group. Liveness, legality, copy, and home custody stages.
 
 pub(crate) mod abi_preservation;
-pub(crate) mod allocation_legality;
 mod callee_save_storage;
 pub(crate) mod callee_saved_requirements;
 pub(crate) mod fixed_precolored_segment_homes;
@@ -10,7 +9,6 @@ pub(crate) mod frame_requirements;
 pub(crate) mod register_homes;
 pub(crate) mod selected_reanalysis;
 
-pub use allocation_legality::*;
 pub use callee_save_storage::*;
 pub use callee_saved_requirements::*;
 pub use fixed_precolored_segment_homes::*;

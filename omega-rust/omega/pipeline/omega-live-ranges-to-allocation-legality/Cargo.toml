@@ -1,0 +1,21 @@
+[package]
+name = "omega-live-ranges-to-allocation-legality"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_live_ranges_to_allocation_legality"
+path = "src/lib.rs"
+
+[dependencies]
+omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
+omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
+omega-liveness-to-live-ranges = { path = "../omega-liveness-to-live-ranges" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-regalloc = { path = "../omega-regalloc" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
+omega-target = { path = "../../representations/omega-target" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }

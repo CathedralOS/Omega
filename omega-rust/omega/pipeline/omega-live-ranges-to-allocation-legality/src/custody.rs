@@ -1,6 +1,6 @@
 use omega_regalloc::{AllocationLegalityValidationReceipt, AllocatorAvailabilityIdentity};
 
-use crate::StagedOptimizedLiveRangeCustodyReceipt;
+use omega_liveness_to_live_ranges::StagedOptimizedLiveRangeCustodyReceipt;
 
 use super::model::StagedOptimizedAllocationLegalityCustodyReceipt;
 

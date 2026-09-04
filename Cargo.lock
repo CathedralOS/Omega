@@ -853,6 +853,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-live-ranges-to-allocation-legality"
+version = "0.1.0"
+dependencies = [
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
+ "omega-liveness-to-live-ranges",
+ "omega-optimization-core",
+ "omega-regalloc",
+ "omega-register-model",
+ "omega-selected-instructions",
+ "omega-target",
+ "psi-core",
+ "psi-terminal",
+]
+
+[[package]]
 name = "omega-liveness-to-live-ranges"
 version = "0.1.0"
 dependencies = [
@@ -1065,6 +1081,7 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-legalized-operations",
+ "omega-live-ranges-to-allocation-legality",
  "omega-liveness-to-live-ranges",
  "omega-machine-code",
  "omega-machine-optimizer",
