@@ -1172,6 +1172,7 @@ dependencies = [
  "omega-register-model",
  "omega-selected-instructions",
  "omega-selected-instructions-to-liveness",
+ "omega-selected-instructions-to-machine-effects",
  "omega-spill-access-constraints-to-frame-requirements",
  "omega-target",
  "omega-target-operations",
@@ -1596,6 +1597,23 @@ dependencies = [
  "omega-target-operations-to-selected-instructions",
  "psi-core",
  "psi-terminal",
+]
+
+[[package]]
+name = "omega-selected-instructions-to-machine-effects"
+version = "0.1.0"
+dependencies = [
+ "omega-allocation-legality-to-active-resident-rematerialization",
+ "omega-allocation-legality-to-fixed-view-copies",
+ "omega-allocation-legality-to-literal-folds",
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
+ "omega-machine-optimizer",
+ "omega-regalloc",
+ "omega-selected-instructions",
+ "omega-target",
+ "omega-target-operations-to-selected-instructions",
+ "omega-target-to-register-environment",
 ]
 
 [[package]]

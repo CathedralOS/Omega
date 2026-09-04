@@ -27,6 +27,7 @@ omega-target-operations = { path = "../../representations/omega-target-operation
 omega-target-operations-to-selected-instructions = { path = "../omega-target-operations-to-selected-instructions" }
 omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
 omega-selected-instructions-to-liveness = { path = "../omega-selected-instructions-to-liveness" }
+omega-selected-instructions-to-machine-effects = { path = "../omega-selected-instructions-to-machine-effects" }
 omega-liveness-to-live-ranges = { path = "../omega-liveness-to-live-ranges" }
 omega-live-ranges-to-allocation-legality = { path = "../omega-live-ranges-to-allocation-legality" }
 omega-allocation-legality-to-active-resident-rematerialization = { path = "../omega-allocation-legality-to-active-resident-rematerialization" }
