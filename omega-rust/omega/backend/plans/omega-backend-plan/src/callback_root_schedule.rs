@@ -1,3 +1,6 @@
+//! Activation identity for one callback root, built by validating a placement and
+//! then immediately replaying the result through the public checker.
+
 use crate::{
     BoundNominalCallbackPlacement, CallbackPlacementBindingIdentity,
     callback_placement_binding_identity, canonical_callback_private_symbol,
