@@ -161,7 +161,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         FunctionFragmentEmissionManifest::decode(&fragment_manifest.encode()),
         Ok(fragment_manifest.clone())
     );
-    for unsupported in [5_u32, 7_u32, 10_u32] {
+    for unsupported in [5_u32, 7_u32, 11_u32] {
         let mut encoded = fragment_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(
@@ -292,7 +292,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         FunctionFragmentTextSectionManifest::decode(&text_manifest.encode()),
         Ok(text_manifest.clone())
     );
-    for unsupported in [5_u32, 7_u32, 10_u32] {
+    for unsupported in [5_u32, 7_u32, 11_u32] {
         let mut encoded = text_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(

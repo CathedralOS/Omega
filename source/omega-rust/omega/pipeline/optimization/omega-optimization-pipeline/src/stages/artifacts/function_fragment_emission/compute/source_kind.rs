@@ -26,5 +26,8 @@ pub(super) fn of(
         StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(_) => {
             FunctionFragmentEmissionSourceKind::StructuralUnitV1
         }
+        StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(_) => {
+            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
+        }
     }
 }

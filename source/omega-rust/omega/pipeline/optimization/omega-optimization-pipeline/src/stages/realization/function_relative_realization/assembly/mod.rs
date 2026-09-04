@@ -3,12 +3,14 @@ use super::prelude::*;
 use super::{error::*, model::*};
 
 mod custody;
+mod fixed_frame;
 mod manifests;
 mod rel8;
 mod statistics;
 mod validation;
 
 pub(super) use custody::*;
+pub(super) use fixed_frame::*;
 pub(super) use manifests::{
     expected_direct_manifest, expected_direct_post_allocation_machine_manifest, expected_manifest,
     expected_post_allocation_machine_manifest,

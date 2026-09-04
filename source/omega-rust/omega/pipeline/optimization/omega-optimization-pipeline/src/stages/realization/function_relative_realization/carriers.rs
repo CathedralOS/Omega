@@ -11,6 +11,100 @@ pub enum StagedPostAllocationMachineFunctionRelativeSource {
     AfterAllocationRecovery(StagedAllocationRecoveryFunctionRelativeSource),
 }
 
+/// Direct ordinary realization whose call, preservation, and return effects
+/// are discharged by one exact canonical target frame. Frame requirements,
+/// abstract storage, geometry, and byte protocol remain distinct retained
+/// artifacts so validation can replay every join independently.
+#[derive(Debug)]
+pub struct StagedFixedFrameFunctionRelativeRealization {
+    pub(super) homes: StagedOptimizedRegisterHomes,
+    pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
+    pub(super) encoding: StagedOptimizedSelectedFormEncoding,
+    pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) requirements: ValidatedAllocatedCalleeSavedRequirements,
+    pub(super) storage: ValidatedNonAuthoritativeCalleeSaveStorage,
+    pub(super) frame: ValidatedTargetFrameLayout,
+    pub(super) protocol: ValidatedTargetFrameProtocolEncoding,
+    pub(super) exit_contract: ValidatedWholeFunctionExitContract,
+    pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
+    pub(super) custody: StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
+}
+
+impl StagedFixedFrameFunctionRelativeRealization {
+    pub const fn homes(&self) -> &StagedOptimizedRegisterHomes {
+        &self.homes
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
+        &self.machine
+    }
+    pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
+        &self.encoding
+    }
+    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.layout
+    }
+    pub const fn requirements(&self) -> &ValidatedAllocatedCalleeSavedRequirements {
+        &self.requirements
+    }
+    pub const fn storage(&self) -> &ValidatedNonAuthoritativeCalleeSaveStorage {
+        &self.storage
+    }
+    pub const fn frame(&self) -> &ValidatedTargetFrameLayout {
+        &self.frame
+    }
+    pub const fn protocol(&self) -> &ValidatedTargetFrameProtocolEncoding {
+        &self.protocol
+    }
+    pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
+        &self.exit_contract
+    }
+    pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &self.manifest
+    }
+    pub const fn custody(&self) -> StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
+        self.custody
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
+    pub(super) source: StagedOptimizedRegisterHomeCustodyReceipt,
+    pub(super) machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub(super) requirements: AllocatedCalleeSavedRequirementIdentity,
+    pub(super) storage: NonAuthoritativeCalleeSaveStorageIdentity,
+    pub(super) frame: TargetFrameLayoutIdentity,
+    pub(super) protocol: TargetFrameProtocolEncodingIdentity,
+    pub(super) exit_contract: WholeFunctionExitContractIdentity,
+    pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
+}
+
+impl StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
+    pub const fn source(self) -> StagedOptimizedRegisterHomeCustodyReceipt {
+        self.source
+    }
+    pub const fn machine(self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+        self.machine
+    }
+    pub const fn requirements(self) -> AllocatedCalleeSavedRequirementIdentity {
+        self.requirements
+    }
+    pub const fn storage(self) -> NonAuthoritativeCalleeSaveStorageIdentity {
+        self.storage
+    }
+    pub const fn frame(self) -> TargetFrameLayoutIdentity {
+        self.frame
+    }
+    pub const fn protocol(self) -> TargetFrameProtocolEncodingIdentity {
+        self.protocol
+    }
+    pub const fn exit_contract(self) -> WholeFunctionExitContractIdentity {
+        self.exit_contract
+    }
+    pub const fn realization(self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
+        self.realization
+    }
+}
+
 #[derive(Debug)]
 pub struct StagedPostAllocationMachineFunctionRelativeRealization {
     pub(super) source: StagedPostAllocationMachineFunctionRelativeSource,

@@ -114,17 +114,17 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
 
         let record = emitted.manifest().record();
         let encoded = record.encode();
-        assert_eq!(&encoded[8..12], &9_u32.to_le_bytes());
+        assert_eq!(&encoded[8..12], &10_u32.to_le_bytes());
         assert_eq!(encoded[45], 3);
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&encoded),
             Ok(record.clone())
         );
         let mut unknown_source = encoded;
-        unknown_source[45] = 7;
+        unknown_source[45] = 8;
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&unknown_source),
-            Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(7))
+            Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(8))
         );
 
         let original_fresh_byte = emitted.fragments().functions[0]
@@ -181,7 +181,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
             FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
         );
         let text_encoded = placed.manifest().record().encode();
-        assert_eq!(&text_encoded[8..12], &9_u32.to_le_bytes());
+        assert_eq!(&text_encoded[8..12], &10_u32.to_le_bytes());
         assert_eq!(text_encoded[45], 3);
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&text_encoded),

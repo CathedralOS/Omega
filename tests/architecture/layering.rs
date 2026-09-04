@@ -4840,9 +4840,9 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
         let encoded = std::fs::read_to_string(&manifest)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
         assert!(
-            encoded.contains("const MANIFEST_VERSION: u32 = 9;")
+            encoded.contains("const MANIFEST_VERSION: u32 = 10;")
                 && encoded.contains("SelectedLoweringV1"),
-            "generic selected-lowering source custody must be explicit in v9 manifest {}",
+            "generic selected-lowering source custody must be explicit in v10 manifest {}",
             manifest.display(),
         );
     }

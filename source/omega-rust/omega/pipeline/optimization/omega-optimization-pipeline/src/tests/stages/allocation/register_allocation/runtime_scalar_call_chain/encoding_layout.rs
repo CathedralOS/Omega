@@ -416,6 +416,71 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             .find(|function| function.machine == caller_machine())
             .unwrap();
         assert!(!caller_exit.modified_callee_saved_units.is_empty());
+
+        let frame_budget =
+            OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000)
+                .unwrap();
+        let realization =
+            stage_fixed_frame_function_relative_realization(homes, frame_budget).unwrap();
+        validate_fixed_frame_function_relative_realization(&realization).unwrap();
+        assert_eq!(
+            realization.manifest().record().frame,
+            FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 {
+                layout: realization.frame().receipt().identity(),
+                protocol: realization.protocol().receipt().identity(),
+            }
+        );
+        assert_eq!(
+            FunctionRelativeOptimizationRealizationManifest::decode(
+                &realization.manifest().record().encode()
+            ),
+            Ok(realization.manifest().record().clone())
+        );
+        let route_frame = realization.frame().clone();
+        let route_protocol = realization.protocol().clone();
+        let fragments = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(Box::new(realization)),
+        )
+        .unwrap();
+        assert_eq!(
+            fragments.manifest().record().source_kind,
+            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
+        );
+        assert_eq!(
+            FunctionFragmentEmissionManifest::decode(&fragments.manifest().record().encode()),
+            Ok(fragments.manifest().record().clone())
+        );
+        assert_eq!(
+            fragments
+                .fragments()
+                .functions
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .flat_map(|block| &block.instructions)
+                .filter(|row| row.internal_machine_fixup.is_some())
+                .count(),
+            3
+        );
+        let source_bytes = fragments
+            .fragments()
+            .functions
+            .iter()
+            .map(|row| row.byte_count)
+            .sum::<u64>();
+        let applied =
+            stage_function_fragment_frame_application(fragments, route_frame, route_protocol)
+                .unwrap();
+        validate_function_fragment_frame_application(&applied).unwrap();
+        assert!(
+            applied
+                .fragments()
+                .functions
+                .iter()
+                .map(|row| row.byte_count)
+                .sum::<u64>()
+                > source_bytes
+        );
+        assert_eq!(applied.receipt().framed_function_count(), 1);
     }
 }
 

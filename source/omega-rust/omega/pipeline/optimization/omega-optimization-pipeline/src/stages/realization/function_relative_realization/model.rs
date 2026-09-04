@@ -18,10 +18,20 @@ pub struct FunctionRelativeOptimizationRealizationStatistics {
     pub unresolved_internal_machine_fixups: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FunctionRelativeFrameDisposition {
+    Unavailable,
+    CanonicalFixedFrameV1 {
+        layout: TargetFrameLayoutIdentity,
+        protocol: TargetFrameProtocolEncodingIdentity,
+    },
+}
+
 /// Structured report at the function-relative selected-form boundary after
-/// validating the admitted whole-function frameless exit discipline. It owns
-/// no frame, section, symbol, relocation, executable image, installation, or
-/// publication authority.
+/// validating the admitted whole-function exit discipline. A role-tagged
+/// frame disposition retains fixed-frame planning when that route was
+/// selected; this boundary owns no emitted frame bytes, section, symbol,
+/// relocation, executable image, installation, or publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionRelativeOptimizationRealizationManifest {
     pub identity: FunctionRelativeOptimizationRealizationManifestIdentity,
@@ -49,7 +59,7 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub layout_policy: SelectedFunctionLayoutPolicy,
     pub scope: FunctionRelativeOptimizationRealizationScope,
     pub statistics: FunctionRelativeOptimizationRealizationStatistics,
-    pub frame: FunctionRelativeOptimizationUnavailableData,
+    pub frame: FunctionRelativeFrameDisposition,
     pub machine_emission: FunctionRelativeOptimizationUnavailableData,
     pub section_placement: FunctionRelativeOptimizationUnavailableData,
     pub symbols: FunctionRelativeOptimizationUnavailableData,

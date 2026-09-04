@@ -1,4 +1,4 @@
-//! Structural offsets for both V9 optional-transformation shapes.
+//! Structural offsets for both V11 optional-transformation shapes.
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct WireOffsets {
@@ -13,7 +13,8 @@ pub(super) struct WireOffsets {
     pub pointer_alignment: usize,
     pub layout_policy: usize,
     pub scope: usize,
-    pub unavailable: [usize; 8],
+    pub frame_disposition: usize,
+    pub unavailable: [usize; 7],
 }
 
 pub(super) fn wire_offsets(bytes: &[u8]) -> WireOffsets {
@@ -43,6 +44,8 @@ pub(super) fn wire_offsets(bytes: &[u8]) -> WireOffsets {
     let layout_policy = offset;
     let scope = offset + 1;
     offset += 2 + 10 * 8;
+    let frame_disposition = offset;
+    offset += 1 + usize::from(bytes[offset] == 2) * 64;
     let unavailable = [
         offset,
         offset + 1,
@@ -51,9 +54,8 @@ pub(super) fn wire_offsets(bytes: &[u8]) -> WireOffsets {
         offset + 4,
         offset + 5,
         offset + 6,
-        offset + 7,
     ];
-    assert_eq!(bytes.len(), unavailable[7] + 1);
+    assert_eq!(bytes.len(), unavailable[6] + 1);
     WireOffsets {
         stage,
         selected_completion_status,
@@ -66,6 +68,7 @@ pub(super) fn wire_offsets(bytes: &[u8]) -> WireOffsets {
         pointer_alignment,
         layout_policy,
         scope,
+        frame_disposition,
         unavailable,
     }
 }

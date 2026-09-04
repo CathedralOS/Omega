@@ -1,5 +1,6 @@
 use crate::{
     validate_allocation_recovery_function_relative_realization,
+    validate_fixed_frame_function_relative_realization,
     validate_function_relative_layout_optimization_realization_custody,
     validate_optimized_structural_unit_function_relative_realization,
     validate_optimized_unit_function_relative_realization,
@@ -46,6 +47,10 @@ pub(super) fn validate_source(
         StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(realization) => {
             validate_optimized_structural_unit_function_relative_realization(realization)
                 .map_err(FunctionFragmentEmissionError::StructuralUnitSource)?;
+        }
+        StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(realization) => {
+            validate_fixed_frame_function_relative_realization(realization)
+                .map_err(FunctionFragmentEmissionError::Source)?;
         }
     }
     Ok(())

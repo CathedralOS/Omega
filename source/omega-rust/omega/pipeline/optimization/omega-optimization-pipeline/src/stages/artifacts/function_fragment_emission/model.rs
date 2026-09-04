@@ -20,6 +20,7 @@ pub enum FunctionFragmentEmissionSourceKind {
     AllocationRecoveryV1,
     UnitBaselineV1,
     StructuralUnitV1,
+    CanonicalFixedFrameBodyV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

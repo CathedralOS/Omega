@@ -4,6 +4,7 @@
 //! structural fragment construction to canonical statistics and manifest sealing.
 
 mod allocation_recovery;
+mod fixed_frame;
 mod manifest;
 mod ordinary;
 mod ordinary_function;
@@ -49,6 +50,9 @@ pub(super) fn compute(
         }
         StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(realization) => {
             structural_unit::compute(source, realization)
+        }
+        StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(realization) => {
+            fixed_frame::compute(source, realization)
         }
     }
 }

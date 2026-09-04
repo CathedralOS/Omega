@@ -1,4 +1,6 @@
-use super::super::model::FunctionRelativeOptimizationRealizationManifest;
+use super::super::model::{
+    FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
+};
 use super::super::prelude::*;
 use super::target::{architecture_name, object_format_name};
 
@@ -223,7 +225,16 @@ pub(super) fn render_manifest(
         manifest.statistics.unresolved_internal_machine_fixups
     )
     .unwrap();
-    writeln!(output, "frame: unavailable").unwrap();
+    match manifest.frame {
+        FunctionRelativeFrameDisposition::Unavailable => {
+            writeln!(output, "frame: unavailable").unwrap()
+        }
+        FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 { layout, protocol } => {
+            writeln!(output, "frame: canonical-fixed-v1").unwrap();
+            writeln!(output, "frame layout: {}", hex(&layout.bytes())).unwrap();
+            writeln!(output, "frame protocol: {}", hex(&protocol.bytes())).unwrap();
+        }
+    }
     writeln!(output, "machine emission: unavailable").unwrap();
     writeln!(output, "section placement: unavailable").unwrap();
     writeln!(output, "symbols: unavailable").unwrap();

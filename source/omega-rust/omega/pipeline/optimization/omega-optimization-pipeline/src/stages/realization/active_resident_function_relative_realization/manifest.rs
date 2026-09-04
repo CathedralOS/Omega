@@ -8,8 +8,9 @@ use crate::stages::realization::function_relative_realization::{
     function_relative_statistics, seal_function_relative_manifest,
 };
 use crate::{
-    FunctionRelativeOptimizationRealizationManifest, FunctionRelativeOptimizationRealizationScope,
-    FunctionRelativeOptimizationRealizationStage, FunctionRelativeOptimizationUnavailableData,
+    FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
+    FunctionRelativeOptimizationUnavailableData,
     StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout,
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
     WholeFunctionExitLayoutCustody,
@@ -111,7 +112,7 @@ pub(super) fn expected_manifest(
         statistics: function_relative_statistics(artifacts.layout).map_err(
             OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::Manifest,
         )?,
-        frame: unavailable,
+        frame: FunctionRelativeFrameDisposition::Unavailable,
         machine_emission: unavailable,
         section_placement: unavailable,
         symbols: unavailable,

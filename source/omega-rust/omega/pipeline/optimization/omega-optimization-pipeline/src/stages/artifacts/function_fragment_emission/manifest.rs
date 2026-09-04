@@ -17,11 +17,11 @@ use super::model::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFFE\0\0";
-const MANIFEST_VERSION: u32 = 9;
+const MANIFEST_VERSION: u32 = 10;
 
 impl FunctionFragmentEmissionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentEmissionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-emission-manifest.v9\0".to_vec();
+        let mut canonical = b"omega.function-fragment-emission-manifest.v10\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -64,6 +64,7 @@ impl FunctionFragmentEmissionManifest {
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
             5 => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
             6 => FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
+            7 => FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
             tag => return Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(tag)),
         };
         let source_realization =
@@ -166,6 +167,7 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
         FunctionFragmentEmissionSourceKind::AllocationRecoveryV1 => bytes.push(3),
         FunctionFragmentEmissionSourceKind::UnitBaselineV1 => bytes.push(4),
         FunctionFragmentEmissionSourceKind::StructuralUnitV1 => bytes.push(5),
+        FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1 => bytes.push(7),
     }
     bytes.extend_from_slice(&record.source_realization.bytes());
     bytes.extend_from_slice(&record.selections.bytes());

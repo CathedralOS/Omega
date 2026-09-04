@@ -357,7 +357,7 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
         }
     );
     let encoded = emitted.manifest().record().encode();
-    assert_eq!(&encoded[8..12], &9_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &10_u32.to_le_bytes());
     assert_eq!(encoded[45], 2);
     assert_eq!(
         encoded[46],
@@ -542,7 +542,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 );
                 let fragment_manifest = emitted.manifest().record().clone();
                 let fragment_encoded = fragment_manifest.encode();
-                assert_eq!(&fragment_encoded[8..12], &9_u32.to_le_bytes());
+                assert_eq!(&fragment_encoded[8..12], &10_u32.to_le_bytes());
                 assert_eq!(fragment_encoded[45], 2);
                 assert_eq!(
                     fragment_encoded[46],
@@ -579,10 +579,10 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                     )
                 );
                 let mut unknown_fragment_source = fragment_encoded;
-                unknown_fragment_source[45] = 7;
+                unknown_fragment_source[45] = 8;
                 assert_eq!(
                     FunctionFragmentEmissionManifest::decode(&unknown_fragment_source),
-                    Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(7))
+                    Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(8))
                 );
                 let expected_text_bytes = emitted
                     .fragments()
@@ -654,7 +654,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 assert_eq!(text.manifest().record().statistics.relocation_requirements, 0);
                 let text_manifest = text.manifest().record().clone();
                 let text_encoded = text_manifest.encode();
-                assert_eq!(&text_encoded[8..12], &9_u32.to_le_bytes());
+                assert_eq!(&text_encoded[8..12], &10_u32.to_le_bytes());
                 assert_eq!(text_encoded[45], 2);
                 assert_eq!(
                     text_encoded[46],
@@ -691,10 +691,10 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                     )
                 );
                 let mut unknown_text_source = text_encoded;
-                unknown_text_source[45] = 7;
+                unknown_text_source[45] = 8;
                 assert_eq!(
                     FunctionFragmentTextSectionManifest::decode(&unknown_text_source),
-                    Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(7))
+                    Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(8))
                 );
 
                 let object = stage_optimized_relocation_free_object_container(text).unwrap();
