@@ -29,6 +29,7 @@ omega-target-to-register-environment = { path = "../omega-target-to-register-env
 omega-selected-instructions-to-liveness = { path = "../omega-selected-instructions-to-liveness" }
 omega-liveness-to-live-ranges = { path = "../omega-liveness-to-live-ranges" }
 omega-live-ranges-to-allocation-legality = { path = "../omega-live-ranges-to-allocation-legality" }
+omega-allocation-legality-to-literal-folds = { path = "../omega-allocation-legality-to-literal-folds" }
 omega-allocation-legality-to-fixed-view-copies = { path = "../omega-allocation-legality-to-fixed-view-copies" }
 omega-fixed-view-copies-to-reanalyzed-legality = { path = "../omega-fixed-view-copies-to-reanalyzed-legality" }
 omega-allocation-legality-to-register-homes = { path = "../omega-allocation-legality-to-register-homes" }

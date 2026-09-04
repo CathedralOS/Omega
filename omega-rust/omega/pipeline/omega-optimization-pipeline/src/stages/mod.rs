@@ -17,6 +17,7 @@ pub use omega_abstract_operations_to_target_operations::{
     lower_optimized_to_target_operations_with_provider_executions_and_installation,
 };
 pub use omega_allocation_legality_to_fixed_view_copies::*;
+pub use omega_allocation_legality_to_literal_folds::*;
 pub use omega_allocation_legality_to_register_homes::*;
 pub use omega_callee_saved_requirements_to_save_storage::*;
 pub use omega_fixed_view_copies_to_reanalyzed_legality::*;

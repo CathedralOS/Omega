@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Optimizer module role: executable entrance. Selected-lowering literal-fold stage entrance.
 //!
 //! `omega_regalloc::rules` owns the exact-name catalog. This file consumes its
@@ -19,7 +21,7 @@ use omega_regalloc::{
 };
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
 
-use crate::{
+use omega_live_ranges_to_allocation_legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt,
     validate_optimized_allocation_legality_custody,
