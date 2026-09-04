@@ -4319,3 +4319,40 @@ relations, checked runtime arithmetic, normative `Bytes`, application profiles,
 failure ordering, and proper-tail closure remain open. The Forth and direct-Beta
 experiments lack the new lexical contract; their smaller current aggregate is
 not a matched architectural comparison.
+
+## D102 — Delta calls resolve through the checked global census
+
+D102 turns the global function trie from a duplicate set into an emission-time
+symbol table. Each terminal stores declared arity plus one, leaving zero as the
+unresolved sentinel. The whole-program census validates and counts every
+parameter list before retaining that payload, returns the immutable global
+context, and the emitter threads the same checked value through every nested
+expression and match arm. Lookup remains exact source-byte trie traversal; it
+does not rescan the program or consult a host table.
+
+Every application now has an exact argument count. User calls, including
+forward and mutual calls, use the retained declaration arity. `if` requires
+three arguments; integer operators require two; and each closed `bytes_*` form
+has its normative zero-, one-, or two-argument shape. Too few or too many
+arguments reject rather than being inherited by Gamma parsing.
+
+This also closes the staged purity leak without reserving ordinary names.
+Undeclared `(input)`, `(read ...)`, `(write ...)`, `(pair ...)`, `(first ...)`,
+and `(second ...)` cannot resolve as Delta functions and reject. A source may
+still declare an ordinary pure function named `read`; a retained witness does
+so and evaluates to byte 7. Non-`main` definitions and calls receive one
+injective `__d_` Gamma prefix, while `main` retains the evaluator entry name.
+This prevents Gamma builtin dispatch from capturing a valid Delta declaration.
+Delta owns declarations and meaning, not a blanket ban on coincidentally
+Gamma-like spellings.
+
+The 3,001-function transformation remains below 10 seconds on the development
+host. Its canonical receipt grows from 66,267 to 78,271 bytes because 3,000
+non-entry definitions and the selected call carry the prefix. The exact
+selected subject is now 1,276 Gamma lines and 49,000 bytes, with 120 definitions
+and 379 lexical `let` binders. Local-variable resolution,
+duplicate active binders, expression/result type relations, checked runtime
+arithmetic, normative Bytes lowering, application profiles, failure ordering,
+and proper-tail closure remain open. The retained Forth and direct-Beta
+experiments have neither this symbol table nor matched lexical coverage and do
+not reopen selection.
