@@ -1,4 +1,6 @@
-use omega_optimization_core::{OptimizationSelections, OptimizationWorkBudget};
+use omega_optimization_core::{
+    OptimizationSelections, OptimizationWorkBudget, PsiOptimizationSelectionProjection,
+};
 
 /// Canonical input to the Psi optimization phase.
 ///
@@ -8,16 +10,19 @@ use omega_optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationPipelineRequest {
     selections: OptimizationSelections,
+    psi: PsiOptimizationSelectionProjection,
     budget_per_pass: OptimizationWorkBudget,
 }
 
 impl OptimizationPipelineRequest {
-    pub const fn new(
+    pub fn new(
         selections: OptimizationSelections,
         budget_per_pass: OptimizationWorkBudget,
     ) -> Self {
+        let psi = selections.project_psi();
         Self {
             selections,
+            psi,
             budget_per_pass,
         }
     }
@@ -28,6 +33,10 @@ impl OptimizationPipelineRequest {
 
     pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
         self.budget_per_pass
+    }
+
+    pub const fn psi_projection(&self) -> &PsiOptimizationSelectionProjection {
+        &self.psi
     }
 }
 
