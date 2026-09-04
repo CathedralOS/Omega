@@ -62,7 +62,7 @@ forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
 epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 2029, 80787, "c74675ee338cf9abc74b6256287b1c0bb7d4c5384de9f53b397e4c9b38ee66e7"),
+    ("compiler", compiler, 1992, 79294, "5dfa3ae4d8de9378a9a849717e55aad3b3839f2f497c70872a91c91c4a35886c"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -463,7 +463,7 @@ for name, candidate in malformed.items():
     status, output = evaluate(compiler, candidate)
     if status != 2:
         raise SystemExit(f"{name} did not trap in the staged compiler")
-    if name in {"non-exhaustive match", "duplicate match arm"} and output:
+    if output:
         raise SystemExit(f"{name} emitted before static rejection")
 
 stress = (

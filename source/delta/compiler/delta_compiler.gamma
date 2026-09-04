@@ -755,25 +755,6 @@
                     (let ignored9 Int (emit_int_word)
                       (write ')'))))))))))))
 
-(def validate_data ((form Int) (type_rows Int)) Int
-  (let head Int (form_head form)
-    (let type_name Int (skip (token_end head))
-      (validate_constructor_items
-        (skip (token_end type_name)) 0 type_rows))))
-
-(def validate_constructor_items
-  ((index Int) (count Int) (type_rows Int)) Int
-  (let item Int (skip index)
-    (if (eq (read item) 41)
-      (if (eq count 0)
-        (fail)
-        (token_end item))
-      (let constructor Int (skip (token_end item))
-        (let constructor_end Int (token_end constructor)
-          (validate_constructor_items
-            (constructor_after constructor_end type_rows)
-            (+ count 1) type_rows))))))
-
 ; A name trie option is (pair present node). Each node is
 ; (pair terminal-option children), and each terminal option is
 ; (pair present payload). Children are an immutable list of present byte edges;
@@ -1479,7 +1460,7 @@
         (let head_end Int (token_end head)
           (if (token_data head head_end)
             (emit_program
-              (validate_data form (global_types globals)) globals)
+              (skip_expression form) globals)
             (if (token_def head head_end)
               (let next Int (emit_definition form globals)
                 (let ignored Int (write '\n')
@@ -1501,21 +1482,15 @@
                       (let ignored5 Int (write '\s')
                         (let result_type Int (skip after_parameters)
                           (let after_type Int (token_end result_type)
-                            (let checked_result Int
-                              (if (field_type_valid
-                                    result_type after_type
-                                    (global_types globals))
-                                0
-                                (fail))
-                              (let ignored6 Int (emit_int_word)
-                                (let ignored7 Int (write '\s')
-                                  (let after_body Int
-                                    (emit_expression (skip after_type) globals)
-                                    (let close Int (skip after_body)
-                                      (if (eq (read close) 41)
-                                        (let ignored8 Int (write ')')
-                                          (token_end close))
-                                        (fail)))))))))))))))))))))
+                            (let ignored6 Int (emit_int_word)
+                              (let ignored7 Int (write '\s')
+                                (let after_body Int
+                                  (emit_expression (skip after_type) globals)
+                                  (let close Int (skip after_body)
+                                    (if (eq (read close) 41)
+                                      (let ignored8 Int (write ')')
+                                        (token_end close))
+                                      (fail))))))))))))))))))))
 
 (def emit_parameters ((open Int) (globals Int)) Int
   (if (eq (read open) 40)
@@ -1535,18 +1510,9 @@
               (let close Int (skip type_end)
                 (if (eq (read close) 41)
                   (let ignored Int
-                    (emit_parameter_type
-                      name name_end type_name type_end globals)
+                    (emit_parameter name name_end)
                     (emit_parameter_tail (token_end close) globals))
                   (fail))))))))))
-
-(def emit_parameter_type
-  ((name Int) (name_end Int) (type_name Int) (type_end Int)
-   (globals Int)) Int
-  (let checked Int
-    (validate_local_declaration
-      name name_end type_name type_end (global_types globals))
-    (emit_parameter name name_end)))
 
 (def emit_parameter_tail ((next Int) (globals Int)) Int
   (let separated Int (skip next)
@@ -1748,28 +1714,25 @@
     (let name_end Int (token_end name)
       (let type_name Int (skip name_end)
         (let type_end Int (token_end type_name)
-          (let checked Int
-            (validate_local_declaration
-              name name_end type_name type_end (global_types globals))
-            (let ignored0 Int (write '(')
-              (let ignored1 Int (write 'l')
-                (let ignored2 Int (write 'e')
-                  (let ignored3 Int (write 't')
-                    (let ignored4 Int (write '\s')
-                      (let ignored5 Int (emit_span name name_end)
-                        (let ignored6 Int (write '\s')
-                          (let ignored7 Int (emit_int_word)
-                            (let ignored8 Int (write '\s')
-                              (let after_initializer Int
-                                (emit_expression (skip type_end) globals)
-                                (let ignored9 Int (write '\s')
-                                  (let after_body Int
-                                    (emit_expression (skip after_initializer) globals)
-                                    (let close Int (skip after_body)
-                                      (if (eq (read close) 41)
-                                        (let ignored10 Int (write ')')
-                                          (token_end close))
-                                        (fail)))))))))))))))))))))
+          (let ignored0 Int (write '(')
+            (let ignored1 Int (write 'l')
+              (let ignored2 Int (write 'e')
+                (let ignored3 Int (write 't')
+                  (let ignored4 Int (write '\s')
+                    (let ignored5 Int (emit_span name name_end)
+                      (let ignored6 Int (write '\s')
+                        (let ignored7 Int (emit_int_word)
+                          (let ignored8 Int (write '\s')
+                            (let after_initializer Int
+                              (emit_expression (skip type_end) globals)
+                              (let ignored9 Int (write '\s')
+                                (let after_body Int
+                                  (emit_expression (skip after_initializer) globals)
+                                  (let close Int (skip after_body)
+                                    (if (eq (read close) 41)
+                                      (let ignored10 Int (write ')')
+                                        (token_end close))
+                                      (fail))))))))))))))))))))
 
 (def emit_match ((match_start Int) (scrutinee Int) (globals Int)) Int
   (let scrutinee_end Int (skip_expression scrutinee)
