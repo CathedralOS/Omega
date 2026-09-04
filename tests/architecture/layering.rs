@@ -5814,7 +5814,7 @@ fn countdown_invariant_constant_relocation_is_exact_independent_and_atomic() {
 fn countdown_ranking_constant_resolution_is_internal_and_independent() {
     let root = workspace_root();
     let ranking_root = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles",
+        "omega-rust/omega/pipeline/omega-optimization-validation/src/unit_validation/context/ranked_cycles",
     );
     let resolver = std::fs::read_to_string(
         ranking_root.join("countdown_ranking/current/invariant_constants.rs"),
@@ -5872,7 +5872,7 @@ fn countdown_ranking_constant_resolution_is_internal_and_independent() {
 fn countdown_ranked_freeze_normalization_is_independent_and_preserves_source_custody() {
     let root = workspace_root();
     let freeze_root = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/freeze",
+        "omega-rust/omega/pipeline/omega-optimization-validation/src/unit_validation/context/ranked_cycles/freeze",
     );
     let normalization = std::fs::read_to_string(freeze_root.join("normalized_component.rs"))
         .expect("read ranked-component normalization leaf");

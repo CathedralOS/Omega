@@ -14,7 +14,7 @@ omega-optimization-run-to-abstract-operations = { path = "../../omega-optimizati
 omega-machine-optimizer = { path = "../../omega-machine-optimizer" }
 omega-object-file = { path = "../../../backend/object/omega-object-file" }
 omega-optimization-core = { path = "../../../representations/omega-optimization-core" }
-omega-optimization-validation = { path = "../omega-optimization-validation" }
+omega-optimization-validation = { path = "../../omega-optimization-validation" }
 omega-psi-optimizer = { path = "../omega-psi-optimizer" }
 omega-regalloc = { path = "../../omega-regalloc" }
 omega-register-model = { path = "../../../representations/omega-register-model" }

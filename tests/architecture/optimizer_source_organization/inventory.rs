@@ -28,6 +28,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/omega-machine-optimizer",
     "omega-rust/omega/pipeline/omega-optimization-policy",
     "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
+    "omega-rust/omega/pipeline/omega-optimization-validation",
     "omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
     "omega-rust/omega/pipeline/omega-regalloc",
     "omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",

@@ -468,13 +468,13 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "structural-catalog tests",
         paths: &[
-            "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/mod.rs",
-            "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/catalog.rs",
-            "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/type_declarations.rs",
-            "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/content_projection.rs",
-            "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/function_catalog.rs",
-            "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/structural_roots.rs",
-            "omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/tests/structural_catalog/provider_specialization.rs",
+            "omega-rust/omega/pipeline/omega-optimization-validation/src/tests/structural_catalog/mod.rs",
+            "omega-rust/omega/pipeline/omega-optimization-validation/src/tests/structural_catalog/catalog.rs",
+            "omega-rust/omega/pipeline/omega-optimization-validation/src/tests/structural_catalog/type_declarations.rs",
+            "omega-rust/omega/pipeline/omega-optimization-validation/src/tests/structural_catalog/content_projection.rs",
+            "omega-rust/omega/pipeline/omega-optimization-validation/src/tests/structural_catalog/function_catalog.rs",
+            "omega-rust/omega/pipeline/omega-optimization-validation/src/tests/structural_catalog/structural_roots.rs",
+            "omega-rust/omega/pipeline/omega-optimization-validation/src/tests/structural_catalog/provider_specialization.rs",
         ],
     },
     SemanticLadder {
