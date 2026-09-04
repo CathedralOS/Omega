@@ -230,6 +230,7 @@ fn complete_expression_tree(
                 &receiver_members,
                 call.target.as_str(),
                 arguments,
+                active_states,
             )
         })
         .is_none()

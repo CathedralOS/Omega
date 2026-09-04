@@ -589,6 +589,7 @@ fn walk_state_write_prefix(
                             &nested_receiver_members,
                             nested_call.target.as_str(),
                             arguments,
+                            active_states,
                         )
                     })
                     .flatten()
@@ -761,7 +762,7 @@ fn stable_alias_initializer_origin(
                 call,
                 symbols,
                 active_states,
-                |actual, active_states| {
+                |_, _, actual, active_states| {
                     stable_alias_initializer_origin(
                         program,
                         current_machine,
@@ -872,17 +873,23 @@ fn stable_alias_expression_origin(
                     allow_isolated_local,
                 );
             }
-            transparent_call_result_origin(program, call, symbols, &mut Vec::new(), |actual, _| {
-                stable_alias_expression_origin(
-                    program,
-                    actual,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    symbols,
-                    allow_isolated_local,
-                )
-            })
+            transparent_call_result_origin(
+                program,
+                call,
+                symbols,
+                &mut Vec::new(),
+                |_, _, actual, _| {
+                    stable_alias_expression_origin(
+                        program,
+                        actual,
+                        parameters,
+                        isolated_local_roots,
+                        aliases,
+                        symbols,
+                        allow_isolated_local,
+                    )
+                },
+            )
         }
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
@@ -1002,6 +1009,8 @@ fn transparent_call_result_origin(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
     resolve_actual_origin: impl FnOnce(
+        &Machine,
+        &StateParameter,
         ExpressionHandle,
         &mut Vec<SymbolHandle>,
     ) -> Option<FramePlaceOrigin>,
@@ -1044,7 +1053,8 @@ fn transparent_call_result_origin(
             .expression_handles(call.arguments)
             .get(argument_index)?
     };
-    let argument_origin = resolve_actual_origin(actual, active_states)?;
+    let argument_origin =
+        resolve_actual_origin(callee_machine, result_parameter, actual, active_states)?;
     Some(match argument_origin.precision {
         FramePathPrecision::Exact => FramePlaceOrigin {
             path: append_place_suffix(&argument_origin.path, result_suffix),
@@ -1107,52 +1117,15 @@ fn transparent_place_expression_origin(
                     active_states,
                 );
             }
-            let (callee_machine, callee_state) =
-                machine_state_by_symbol(program, call.target_symbol).or_else(|| {
-                    (!call.receiver.is_valid())
-                        .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
-                        .flatten()
-                })?;
-            if call.receiver.is_valid() != callee_machine.attached_data.is_some() {
-                return None;
-            }
-            let result_origin = transparent_callee_result_origin(
+            transparent_call_result_origin(
                 program,
-                callee_machine,
-                callee_state,
+                call,
                 symbols,
                 active_states,
-            )?;
-            let parameters = program.state_parameters(callee_state);
-            let result_parameter = parameters
-                .iter()
-                .find(|parameter| parameter.symbol == result_origin.parameter_symbol)?;
-            let actual = if result_parameter.is_self {
-                if callee_machine.attached_data.is_none() || !call.receiver.is_valid() {
-                    return None;
-                }
-                call.receiver
-            } else {
-                let (argument_index, _) = parameters
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .enumerate()
-                    .find(|(_, parameter)| parameter.symbol == result_parameter.symbol)?;
-                *program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .get(argument_index)?
-            };
-            let actual_origin =
-                transparent_place_expression_origin(program, actual, symbols, active_states)?;
-            let (_, suffix) = split_place_root(&result_origin.place.path);
-            Some(match actual_origin.precision {
-                FramePathPrecision::Exact => FramePlaceOrigin {
-                    path: append_place_suffix(&actual_origin.path, suffix),
-                    precision: result_origin.place.precision,
+                |_, _, actual, active_states| {
+                    transparent_place_expression_origin(program, actual, symbols, active_states)
                 },
-                FramePathPrecision::CollectionCoarse => actual_origin,
-            })
+            )
         }
         _ => frame_place_path(program, expression),
     }
@@ -1482,6 +1455,7 @@ fn statement_call_preserves_transparent_result(
                 &receiver_members,
                 call.target.as_str(),
                 arguments,
+                active_states,
             )
         })
         .flatten()
@@ -2021,6 +1995,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                             &receiver_members,
                             call.target.as_str(),
                             arguments,
+                            &mut active_states,
                         )
                     })
                     .flatten()

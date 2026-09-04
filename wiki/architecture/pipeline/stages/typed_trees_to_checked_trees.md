@@ -753,8 +753,27 @@ Current ownership is:
   local-origin evidence, including stable replacement and prior aliases.
   Constraint wrappers are peeled without erasing reference access, and both
   the formal and forwarded reference's referent must have supported owned
-  storage. A reference-bearing member or a call-produced reference remains
-  opaque until its origin can be transported; it is not an implicit reborrow.
+  storage. A checked free or attached helper can supply a computed reference
+  through the shared returned-place relation: its selected formal must refer
+  only to owned storage, and its actual must retain a proven caller origin.
+  Nested helpers compose exact field suffixes or absorbing collection-coarse
+  paths; wrapping a foreign or stale binding in a helper does not admit it.
+  Attached methods resolve nominal `Self` through their own attached declaration,
+  and receiver projections cannot traverse a loaded reference-bearing member.
+  Indexed method receivers still require shared receiver-frame instantiation to
+  retain collection-coarse precision; argument/result indexing does not imply
+  that receiver support. Argument type and access checking recognizes a resolved
+  call's declared reference result without creating a binding-slot borrow.
+  Exact normalized reference identity is required except for the existing
+  mutable-to-shared attenuation with the same referee; write-only attenuation
+  stays explicit. A reference result cannot use a scalar-call fallback to match
+  an owned argument type or an unrelated shared referee.
+  The boundary frame describes the call's writes; operand evaluation separately
+  contributes every producer write, and whole-state frames include both.
+  The same active-state guard spans helper-result proof and boundary inference,
+  including cycles through a helper's boundary-call arguments.
+  Opaque, recursive, and boundary-produced reference results and reference-bearing
+  members remain opaque; none is treated as an implicit reborrow.
   Primitive and concrete caller-isolated by-value parameters add no caller
   writes, but a reference-bearing aggregate remains opaque until its reachable
   leaf origins can be transported; passing it by value does not erase its

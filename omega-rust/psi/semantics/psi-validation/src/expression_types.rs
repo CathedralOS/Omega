@@ -70,6 +70,27 @@ pub fn argument_matches_type_reference_handle(
             && argument_matches_type_reference_handle(program, inner_expression.target, *referee);
     }
 
+    // A resolved reference result has an exact referee type. Do not let the
+    // permissive scalar-call or implicit-shared syntax fallbacks erase it.
+    if let ExpressionNode::Call(call) = program.expression_table.expression(argument)
+        && let Some(actual) = crate::calls::resolved_call_result_type(program, call)
+        && let TypeReferenceNode::Reference {
+            access: actual_access,
+            referee: actual_referee,
+            ..
+        } = program.type_reference_table.type_reference(actual)
+    {
+        if program.normalized_type_identity(actual)
+            == program.normalized_type_identity(type_reference)
+        {
+            return true;
+        }
+        return matches!(program.type_reference_table.type_reference(type_reference),
+            TypeReferenceNode::Reference { access: psi_language_semantics::ReferenceAccess::Shared, referee, .. }
+                if *actual_access == psi_language_semantics::ReferenceAccess::Mutable
+                    && program.normalized_type_identity(*actual_referee) == program.normalized_type_identity(*referee));
+    }
+
     // A reference already stored in a named parameter/local is a value of its
     // declared reference type. Forwarding that value does not form a new loan,
     // so it has no `Borrow` syntax node to inspect. Match the complete

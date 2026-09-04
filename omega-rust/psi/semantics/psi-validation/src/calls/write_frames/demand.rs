@@ -525,6 +525,7 @@ pub(super) fn collect_expression_call_written_paths(
                     &receiver_members,
                     call.target.as_str(),
                     arguments,
+                    active_states,
                 )
             })
             // Even when the callee body is opaque (transitioning, cyclic,

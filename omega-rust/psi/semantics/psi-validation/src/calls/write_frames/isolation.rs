@@ -140,6 +140,13 @@ pub(super) fn struct_literal_type_is_caller_isolated(
         && data_definition_is_caller_isolated(program, definition, &mut Vec::new())
 }
 
+pub(super) fn data_definition_has_only_owned_storage(
+    program: &TypedTrees,
+    definition: &psi_typed_trees::data::DataDefinition,
+) -> bool {
+    data_definition_is_caller_isolated(program, definition, &mut Vec::new())
+}
+
 fn data_definition_is_caller_isolated(
     program: &TypedTrees,
     definition: &psi_typed_trees::data::DataDefinition,
