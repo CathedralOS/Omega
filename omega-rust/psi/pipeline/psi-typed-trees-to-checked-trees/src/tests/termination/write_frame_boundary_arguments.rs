@@ -2,19 +2,409 @@ use super::*;
 
 #[test]
 fn boundary_forwarded_reference_reaches_checked_trees() {
-    let source = r#"
-        boundary trait Device { machine output(value: &mut u64); }
-        data Main { device: Device; value: u64; }
+    for (argument, target, expected_diagnostic) in [
+        ("output", "output", None),
+        ("identity(output)", "output", None),
+        ("identity(output)", "inspect", None),
+        ("other(&mut self.other)", "inspect", Some("expects `&u64`")),
+        ("identity(output)", "owned", Some("expects `u64`")),
+        (
+            "shared(&self.value)",
+            "output",
+            Some("caller lends only immutable access"),
+        ),
+        (
+            "other(&mut self.other)",
+            "output",
+            Some("expects `&mut u64`"),
+        ),
+        (
+            "identity(output)",
+            "write",
+            Some("requires explicit write-only attenuation"),
+        ),
+    ] {
+        let source = r#"
+        boundary trait Device {
+            machine output(value: &mut u64);
+            machine inspect(value: &u64);
+            machine owned(value: u64);
+        }
+        data Main { device: Device; value: u64; other: u32; }
+        machine identity(value: &mut u64) -> &mut u64 { value }
+        machine shared(value: &u64) -> &u64 { value }
+        machine other(value: &mut u32) -> &mut u32 { value }
+        machine write(value: &write u64) { value = 1; }
         machine Main::run(&mut self) {
             let output: &mut u64 = &mut self.value;
-            self.device.output(output);
+            TARGET(ARGUMENT);
         }
+    "#
+        .replace("ARGUMENT", argument)
+        .replace(
+            "TARGET",
+            &if target == "write" {
+                "write".to_owned()
+            } else {
+                format!("self.device.{target}")
+            },
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let checked = lower_typed_trees(typed);
+        if let Some(expected) = expected_diagnostic {
+            let diagnostics = checked.expect_err("reference result access and referee must match");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.to_string().contains(expected)),
+                "{target}({argument}) must diagnose {expected}: {diagnostics:?}"
+            );
+        } else {
+            checked.expect("forwarding uses the existing reference loan");
+        }
+    }
+}
+
+#[test]
+fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
+    let cases = [
+        (
+            "identity",
+            "self.device.output(identity(&mut self.value));",
+            Some(vec!["self.device", "self.value"]),
+        ),
+        (
+            "nested",
+            "self.device.output(identity(identity(identity(&mut self.value))));",
+            Some(vec!["self.device", "self.value"]),
+        ),
+        (
+            "projected",
+            "self.device.output(field(&mut self.cell));",
+            Some(vec!["self.cell.value", "self.device"]),
+        ),
+        (
+            "attached",
+            "self.device.output(self.cell.field_reference());",
+            Some(vec!["self.cell.value", "self.device"]),
+        ),
+        (
+            "local",
+            "let alias: &mut u64 = &mut self.value; self.device.output(identity(alias));",
+            Some(vec!["self.device", "self.value"]),
+        ),
+        (
+            "owned_local_receiver",
+            "let local: Cell = Cell { value: 0 }; self.device.output(local.field_reference());",
+            Some(vec!["self.device"]),
+        ),
+        (
+            "parameter_receiver",
+            "self.device.output(cell.field_reference());",
+            Some(vec!["$P0.value", "self.device"]),
+        ),
+        // General method-receiver frames still require member chains. An
+        // indexed receiver needs absorbing collection precision transported
+        // through that shared instantiation, not index erasure at this boundary.
+        (
+            "indexed_receiver",
+            "self.device.output(self.cell_array[0].field_reference());",
+            None,
+        ),
+        (
+            "reference_member_receiver",
+            "self.device.output(self.holder.cell.field_reference());",
+            None,
+        ),
+        (
+            "shared_parameter_receiver",
+            "self.device.output(cell.field_reference());",
+            None,
+        ),
+        (
+            "effectful",
+            "self.device.output(audited(&mut self.value, &mut self.audit));",
+            Some(vec!["self.audit", "self.device", "self.value"]),
+        ),
+        (
+            "indexed_result",
+            "self.device.output(element(&mut self.cells));",
+            Some(vec!["self.cells", "self.device"]),
+        ),
+        (
+            "indexed_actual",
+            "self.device.output(identity(&mut self.cells[1]));",
+            Some(vec!["self.cells", "self.device"]),
+        ),
+        (
+            "value_call",
+            "let result: u64 = self.device.output_value(identity(&mut self.value));",
+            Some(vec!["self.device", "self.value"]),
+        ),
+        (
+            "recursive",
+            "self.device.output(recursive(&mut self.value));",
+            None,
+        ),
+        (
+            "boundary_cycle",
+            "self.device.output(self.recursive_boundary());",
+            None,
+        ),
+        (
+            "opaque",
+            "self.device.output(opaque(&mut self.value));",
+            None,
+        ),
+        (
+            "unknown_result",
+            "self.device.output(unknown(&mut self.value));",
+            None,
+        ),
+        (
+            "carrier",
+            "self.device.output_carrier(carrier(&mut self.carrier));",
+            None,
+        ),
+        (
+            "carrier_scalar",
+            "self.device.output(carrier_scalar(&mut self.carrier));",
+            None,
+        ),
+        ("shared", "self.device.output(shared(&self.value));", None),
+        (
+            "boundary_reference",
+            "self.device.output(self.device.reference(&mut self.value));",
+            None,
+        ),
+    ];
+    let mut source = String::from(
+        r#"
+        data Cell { value: u64; }
+        data Carrier { value: &mut u64; }
+        data ReferenceHolder { cell: &mut Cell; }
+        boundary trait Device {
+            machine output(value: &mut u64);
+            machine output_value(value: &mut u64) -> u64;
+            machine output_carrier(value: &mut Carrier);
+            machine reference(value: &mut u64) -> &mut u64;
+        }
+        data Main {
+            device: Device; value: u64; audit: u64;
+            cell: Cell; cells: [u64; 2]; carrier: Carrier;
+            cell_array: [Cell; 2]; holder: ReferenceHolder;
+        }
+        machine identity(value: &mut u64) -> &mut u64 { value }
+        machine field(value: &mut Cell) -> &mut u64 { &mut value.value }
+        machine Cell::field_reference(&mut self) -> &mut u64 { &mut self.value }
+        machine element(values: &mut [u64; 2]) -> &mut u64 { &mut values[0] }
+        machine audited<'value, 'audit>(
+            value: &'value mut u64, audit: &'audit mut u64
+        ) -> &'value mut u64 { audit = 1; value }
+        machine recursive(value: &mut u64) -> &mut u64 { recursive(value) }
+        machine Main::recursive_boundary(&mut self) -> &mut u64 {
+            self.device.output(self.recursive_boundary());
+            &mut self.value
+        }
+        machine opaque(value: &mut u64) -> &mut u64 { unknown(value); value }
+        machine carrier(value: &mut Carrier) -> &mut Carrier { value }
+        machine carrier_scalar(value: &mut Carrier) -> &mut u64 { value.value }
+        machine shared(value: &u64) -> &u64 { value }
+    "#,
+    );
+    for (name, body, _) in &cases {
+        let parameters = match *name {
+            "parameter_receiver" => ", cell: &mut Cell",
+            "shared_parameter_receiver" => ", cell: &Cell",
+            _ => "",
+        };
+        source.push_str(&format!(
+            "machine Main::case_{name}(&mut self{parameters}) {{ {body} }}"
+        ));
+    }
+    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("resolver");
+    let mut failures = Vec::new();
+    for (name, _, expected) in cases {
+        let qualified = format!("Main::case_{name}");
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == qualified)
+            .expect("caller");
+        let state = &typed.machine_states(machine)[0];
+        let statement = typed
+            .statement_table
+            .statements(state.statement_nodes)
+            .last()
+            .expect("boundary call statement");
+        let direct = match statement {
+            psi_typed_trees::statement::StatementNode::Call(call) => {
+                if name == "attached" {
+                    let argument = typed.statement_table.expression_handles(call.arguments)[0];
+                    let psi_typed_trees::expression::ExpressionNode::Call(helper) =
+                        typed.expression_table.expression(argument)
+                    else {
+                        panic!("attached helper");
+                    };
+                    let callee = typed
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.name.as_str() == "Cell::field_reference")
+                        .expect("attached callee");
+                    let callee_state = &typed.machine_states(callee)[0];
+                    assert_eq!(
+                        helper.target_symbol, callee_state.symbol,
+                        "attached call uses exact resolved helper"
+                    );
+                }
+                // The statement-call query excludes argument evaluation. The
+                // production statement consumer joins these two frames.
+                let boundary = resolver.may_write_paths(machine, call);
+                let producers = resolver.statement_value_may_write_paths(machine, statement);
+                if name == "effectful" {
+                    let mut boundary_paths = boundary.clone().expect("boundary reach");
+                    boundary_paths.sort();
+                    assert_eq!(boundary_paths, ["self.device", "self.value"]);
+                    assert_eq!(
+                        producers.as_deref(),
+                        Some(["self.audit".to_owned()].as_slice())
+                    );
+                }
+                boundary.zip(producers).map(|(mut written, producers)| {
+                    written.extend(producers);
+                    written.sort();
+                    written.dedup();
+                    written
+                })
+            }
+            psi_typed_trees::statement::StatementNode::LocalData(local) => {
+                resolver.expression_may_write_paths(machine, local.initial_value)
+            }
+            _ => panic!("boundary call"),
+        };
+        for (query, frame) in [
+            resolver
+                .inferred_state_write_frame(machine, state)
+                .into_complete_paths(),
+            direct,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let actual = frame.map(|mut paths| {
+                paths.sort();
+                paths
+            });
+            let expected = expected.as_ref().map(|paths| {
+                let mut paths: Vec<_> = paths.iter().map(|path| (*path).to_owned()).collect();
+                if name == "local" && query == 1 {
+                    paths.push("alias".to_owned());
+                }
+                if name == "owned_local_receiver" && query == 1 {
+                    paths.push("local.value".to_owned());
+                }
+                if name == "parameter_receiver" && query == 1 {
+                    paths.retain(|path| path != "$P0.value");
+                    paths.push("cell.value".to_owned());
+                }
+                paths.sort();
+                paths
+            });
+            if actual != expected {
+                failures.push(format!(
+                    "{name} query {query}: expected {expected:?}, actual {actual:?}"
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+#[test]
+fn boundary_attached_result_requires_the_exact_caller_self_identity() {
+    use psi_typed_trees::expression::ExpressionNode;
+    use psi_typed_trees::statement::StatementNode;
+    let source = r#"
+        boundary trait Device { machine output(value: &mut u64); }
+        data Cell { value: u64; }
+        data Main { device: Device; cell: Cell; }
+        machine Cell::field_reference(&mut self) -> &mut u64 { &mut self.value }
+        machine Main::run(&mut self) { self.device.output(self.cell.field_reference()); }
+        machine Main::foreign(&mut self) {}
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("forwarding uses the existing reference loan");
+    let original = lower_symbol_resolved_trees(&resolved).expect("type");
+    for foreign in [false, true] {
+        let mut typed = original.clone();
+        if foreign {
+            let foreign_symbol = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "Main::foreign")
+                .expect("foreign machine")
+                .symbol;
+            let machine = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "Main::run")
+                .expect("caller");
+            let state = &typed.machine_states(machine)[0];
+            let StatementNode::Call(call) =
+                &typed.statement_table.statements(state.statement_nodes)[0]
+            else {
+                panic!("boundary call");
+            };
+            let argument = typed.statement_table.expression_handles(call.arguments)[0];
+            let ExpressionNode::Call(helper) = typed.expression_table.expression(argument) else {
+                panic!("helper call");
+            };
+            let ExpressionNode::Member(member) = typed.expression_table.expression(helper.receiver)
+            else {
+                panic!("owned field receiver");
+            };
+            let root = member.receiver;
+            let ExpressionNode::Name(name) = typed.expression_table.expression_mut(root) else {
+                panic!("self root");
+            };
+            name.symbol = foreign_symbol;
+            name.head_symbol = foreign_symbol;
+            let members = name.member_symbols;
+            typed
+                .expression_table
+                .set_name_path_member_symbol_at_offset(members, 0, foreign_symbol);
+        }
+        let resolver = psi_validation::CallFrameResolver::new(&typed).expect("resolver");
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::run")
+            .expect("caller");
+        let state = &typed.machine_states(machine)[0];
+        let StatementNode::Call(call) = &typed.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("boundary call");
+        };
+        let frame = resolver.may_write_frame(machine, call);
+        if foreign {
+            assert!(
+                !frame.is_complete(),
+                "foreign machine cannot supply the caller's self origin"
+            );
+        } else {
+            let mut paths = frame.into_complete_paths().expect("exact caller self");
+            paths.sort();
+            assert_eq!(paths, ["self.cell.value", "self.device"]);
+        }
+    }
 }
 
 #[test]
@@ -25,10 +415,18 @@ fn boundary_reference_binding_identity_requires_the_live_caller_declaration() {
     let source = r#"
         boundary trait Device { machine output(value: &mut u64); }
         data Main { device: Device; value: u64; }
+        machine identity(value: &mut u64) -> &mut u64 { value }
         machine Main::current(&mut self, output: &mut u64) { self.device.output(output); }
+        machine Main::wrapped(&mut self, output: &mut u64) {
+            self.device.output(identity(identity(output)));
+        }
         machine Main::foreign(&mut self, output: &mut u64) {}
         machine Main::early(&mut self) {
             self.device.output(alias);
+            let alias: &mut u64 = &mut self.value;
+        }
+        machine Main::early_wrapped(&mut self) {
+            self.device.output(identity(identity(alias)));
             let alias: &mut u64 = &mut self.value;
         }
     "#;
@@ -36,12 +434,17 @@ fn boundary_reference_binding_identity_requires_the_live_caller_declaration() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let original = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
-    for variant in ["exact", "constrained", "foreign", "stale", "later_local"] {
+    for (wrapped, variant) in [false, true].into_iter().flat_map(|wrapped| {
+        ["exact", "constrained", "foreign", "stale", "later_local"]
+            .into_iter()
+            .map(move |variant| (wrapped, variant))
+    }) {
         let mut typed = original.clone();
-        let machine_name = if variant == "later_local" {
-            "Main::early"
-        } else {
-            "Main::current"
+        let machine_name = match (wrapped, variant) {
+            (false, "later_local") => "Main::early",
+            (true, "later_local") => "Main::early_wrapped",
+            (false, _) => "Main::current",
+            (true, _) => "Main::wrapped",
         };
         let machine = typed
             .machines()
@@ -53,7 +456,10 @@ fn boundary_reference_binding_identity_requires_the_live_caller_declaration() {
         else {
             panic!("boundary call")
         };
-        let argument = typed.statement_table.expression_handles(call.arguments)[0];
+        let mut argument = typed.statement_table.expression_handles(call.arguments)[0];
+        while let ExpressionNode::Call(inner) = typed.expression_table.expression(argument) {
+            argument = typed.expression_table.expression_handles(inner.arguments)[0];
+        }
         let replacement = match variant {
             "foreign" => {
                 let foreign = typed
@@ -140,11 +546,15 @@ fn boundary_reference_binding_identity_requires_the_live_caller_declaration() {
                 .expect("live declared reference forwards")
                 .to_vec();
             actual.sort();
-            assert_eq!(actual, ["output", "self.device"], "{variant}");
+            assert_eq!(
+                actual,
+                ["output", "self.device"],
+                "{variant}, wrapped={wrapped}"
+            );
         } else {
             assert!(
                 !frame.is_complete(),
-                "{variant} must not grant a caller binding frame by spelling"
+                "{variant}, wrapped={wrapped} must not grant a caller binding frame by spelling"
             );
         }
     }
@@ -225,8 +635,8 @@ fn boundary_reference_bindings_keep_exact_origins_without_reborrowing_slots() {
             "reference_result",
             "",
             "self.device.output(identity(&mut self.value));",
-            None,
-            vec![None],
+            Some(vec!["self.device", "self.value"]),
+            vec![Some(vec!["self.device", "self.value"])],
         ),
         (
             "unknown_prefix",

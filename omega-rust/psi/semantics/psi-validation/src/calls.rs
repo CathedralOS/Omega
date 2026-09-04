@@ -13,7 +13,7 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::StateParameter;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TableCall};
-use psi_typed_trees::types::TypeReferenceHandle;
+use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod expression_scanning;
 mod generic_bounds;
@@ -574,6 +574,14 @@ fn argument_forwards_mutable_reference(
     })
 }
 
+pub(crate) fn resolved_call_result_type(
+    program: &TypedTrees,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> Option<TypeReferenceHandle> {
+    let (_, state) = machine_state_by_symbol(program, call.target_symbol)?;
+    state.return_type.is_valid().then_some(state.return_type)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_arguments_handles(
     program: &TypedTrees,
@@ -687,11 +695,28 @@ fn validate_call_arguments_handles_with_policy_retention(
         };
         let supplied_access = match program.expression_table.expression(*argument) {
             ExpressionNode::Borrow(borrow) => Some(borrow.access),
+            ExpressionNode::Call(call) => {
+                // A resolved result carries its declared reference access;
+                // passing it onward is not a new borrow of a binding slot.
+                resolved_call_result_type(program, call).and_then(|mut reference| {
+                    while let TypeReferenceNode::Constrained { base_type, .. } =
+                        program.type_reference_table.type_reference(reference)
+                    {
+                        reference = *base_type;
+                    }
+                    match program.type_reference_table.type_reference(reference) {
+                        TypeReferenceNode::Reference { access, .. } => Some(*access),
+                        _ => None,
+                    }
+                })
+            }
             _ => None,
         };
 
         if expected_access == Some(psi_language_semantics::ReferenceAccess::WriteOnly)
-            && supplied_access != Some(psi_language_semantics::ReferenceAccess::WriteOnly)
+            && !matches!(program.expression_table.expression(*argument),
+                ExpressionNode::Borrow(borrow)
+                    if borrow.access == psi_language_semantics::ReferenceAccess::WriteOnly)
         {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)",
@@ -738,7 +763,13 @@ fn validate_call_arguments_handles_with_policy_retention(
             continue;
         }
 
-        if !parameter.is_mutable && is_mutable {
+        if !parameter.is_mutable
+            && is_mutable
+            && !matches!(
+                program.expression_table.expression(*argument),
+                ExpressionNode::Call(_)
+            )
+        {
             continue;
         }
 

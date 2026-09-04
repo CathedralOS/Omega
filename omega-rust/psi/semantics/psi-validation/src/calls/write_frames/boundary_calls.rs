@@ -5,9 +5,12 @@
 //! frame, failing closed when a mutable argument has no supported storage origin.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
-use super::coarse_place_path;
-use super::isolation::type_is_caller_isolated_local;
+use super::isolation::{data_definition_has_only_owned_storage, type_is_caller_isolated_local};
+use super::{
+    FramePathPrecision, FramePlaceOrigin, frame_place_path, transparent_call_result_origin,
+};
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
@@ -85,8 +88,8 @@ pub(super) fn boundary_trait_signature_for_parts<'program>(
 /// mutate its receiver and every supplied
 /// exclusive argument; it cannot manufacture reach to unrelated caller
 /// fields. A direct exclusive borrow or a verified caller reference binding
-/// supplies that argument's path. Aggregates with untracked reference reach
-/// and computed reference origins remain opaque.
+/// supplies that argument's path. Checked helpers can transport that origin
+/// through their proven result relation. Untracked reference reach stays opaque.
 pub(crate) fn known_boundary_call_written_paths(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -108,6 +111,7 @@ pub(crate) fn known_boundary_call_written_paths(
         &receiver,
         call.target.as_str(),
         program.statement_table.expression_handles(call.arguments),
+        &mut Vec::new(),
     )
 }
 
@@ -119,6 +123,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     receiver: &[String],
     target: &str,
     arguments: &[ExpressionHandle],
+    active_states: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<String>> {
     let signature =
         boundary_trait_signature_for_parts(program, machine_symbols, symbols, receiver, target)?;
@@ -164,15 +169,9 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         if !referent_has_only_owned_storage(program, *referee) {
             return None;
         }
-        let path = match program.expression_table.expression(*argument) {
-            ExpressionNode::Borrow(place) if place.access.is_exclusive() => {
-                coarse_place_path(program, place.target)?
-            }
-            ExpressionNode::Name(_) => {
-                exclusive_reference_binding_path(program, current_machine, *argument)?
-            }
-            _ => return None,
-        };
+        let path =
+            boundary_reference_origin(program, current_machine, *argument, symbols, active_states)?
+                .path;
         if !written.contains(&path) {
             written.push(path);
         }
@@ -181,16 +180,152 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     Some(written)
 }
 
+/// Reuse the checked body's result relation, validating its selected input at
+/// this boundary. A helper cannot turn an untracked reference-bearing carrier
+/// or a foreign binding identity into a proven caller storage origin.
+fn boundary_reference_origin(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    argument: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+) -> Option<FramePlaceOrigin> {
+    match program.expression_table.expression(argument) {
+        ExpressionNode::Borrow(place) if place.access.is_exclusive() => {
+            frame_place_path(program, place.target)
+        }
+        ExpressionNode::Name(_) => Some(FramePlaceOrigin {
+            path: exclusive_reference_binding_path(program, current_machine, argument)?,
+            precision: FramePathPrecision::Exact,
+        }),
+        ExpressionNode::Call(call) => transparent_call_result_origin(
+            program,
+            call,
+            symbols,
+            active_states,
+            |callee_machine, parameter, actual, active_states| {
+                let referee = exclusive_reference_referee(program, parameter.type_reference)?;
+                let owned = if parameter.is_self {
+                    // The typed receiver uses nominal `Self`, whose concrete
+                    // declaration belongs to this resolved attached machine.
+                    let attached = callee_machine.attached_data.as_ref()?;
+                    let mut definitions = program
+                        .data_definitions()
+                        .iter()
+                        .filter(|definition| definition.name == *attached);
+                    let definition = definitions.next()?;
+                    definitions.next().is_none()
+                        && data_definition_has_only_owned_storage(program, definition)
+                } else {
+                    referent_has_only_owned_storage(program, referee)
+                };
+                if !owned {
+                    return None;
+                }
+                if parameter.is_self {
+                    // Attached methods implicitly borrow their owned receiver;
+                    // they cannot bypass the origin fence on a loaded reference.
+                    match program.expression_table.expression(actual) {
+                        ExpressionNode::Name(_)
+                        | ExpressionNode::Member(_)
+                        | ExpressionNode::Indexed(_) => {
+                            return boundary_receiver_origin(program, current_machine, actual);
+                        }
+                        _ => {}
+                    }
+                }
+                boundary_reference_origin(program, current_machine, actual, symbols, active_states)
+            },
+        ),
+        _ => None,
+    }
+}
+
+fn exclusive_reference_has_owned_storage(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    exclusive_reference_referee(program, reference)
+        .is_some_and(|referee| referent_has_only_owned_storage(program, referee))
+}
+
+fn exclusive_reference_referee(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            exclusive_reference_referee(program, *base_type)
+        }
+        TypeReferenceNode::Reference {
+            access, referee, ..
+        } => (reference.is_valid() && access.is_exclusive()).then_some(*referee),
+        _ => None,
+    }
+}
+
+fn boundary_receiver_origin(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<FramePlaceOrigin> {
+    let parent = match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) => {
+            let reference = caller_binding_type(program, current_machine, expression)?;
+            if exclusive_reference_referee(program, reference).is_none()
+                && !type_is_caller_isolated_local(program, reference)
+            {
+                return None;
+            }
+            return frame_place_path(program, expression);
+        }
+        ExpressionNode::Member(member) => member.receiver,
+        ExpressionNode::Indexed(indexed) => indexed.collection,
+        _ => return None,
+    };
+    boundary_receiver_origin(program, current_machine, parent)?;
+    let (state, _, _) = caller_statement_at_site(
+        program,
+        current_machine,
+        CallerWriteSite::Expression(expression),
+    )?;
+    let reference =
+        crate::places::declared_place_type_raw(program, current_machine, Some(state), expression)
+            .or_else(|| {
+            crate::places::declared_indexed_projection_type_raw(
+                program,
+                current_machine,
+                Some(state),
+                expression,
+            )
+        })?;
+    if !type_is_caller_isolated_local(program, reference) {
+        return None;
+    }
+    frame_place_path(program, expression)
+}
+
 /// Forward a reference value, not a borrow of its binding slot. Only an exact
 /// caller declaration can supply its type. This returns a raw binding path:
 /// the state transfer and public demand closure own local-origin admission.
 /// Replaying that prefix here would recursively replay every earlier boundary
-/// call. Carrier fields and computed results stay opaque.
+/// call. Carrier fields stay opaque.
 fn exclusive_reference_binding_path(
     program: &TypedTrees,
     current_machine: &Machine,
     argument: ExpressionHandle,
 ) -> Option<String> {
+    let reference = caller_binding_type(program, current_machine, argument)?;
+    exclusive_reference_has_owned_storage(program, reference)
+        .then(|| frame_place_path(program, argument).map(|origin| origin.path))
+        .flatten()
+}
+
+fn caller_binding_type(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    argument: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
     let ExpressionNode::Name(name) = program.expression_table.expression(argument) else {
         return None;
     };
@@ -206,10 +341,25 @@ fn exclusive_reference_binding_path(
         CallerWriteSite::Expression(argument),
     )?;
     let declaration = program.symbols.get(name.symbol);
+    // Typed `self` paths retain the owning machine identity, not the synthetic
+    // state parameter identity. Only that exact machine may select this state's
+    // unique receiver declaration.
+    if member.as_str() == "self"
+        && name.symbol == current_machine.symbol
+        && declaration.kind == psi_symbols::SymbolKind::Machine
+    {
+        let mut receivers = program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| parameter.is_self);
+        let receiver = receivers.next()?;
+        return (receivers.next().is_none() && receiver.type_reference.is_valid())
+            .then_some(receiver.type_reference);
+    }
     if declaration.parent != state.symbol || program.symbols.name(name.symbol) != member.as_str() {
         return None;
     }
-    let mut reference = match declaration.kind {
+    let reference = match declaration.kind {
         psi_symbols::SymbolKind::Parameter => {
             program
                 .state_parameters(state)
@@ -228,21 +378,7 @@ fn exclusive_reference_binding_path(
         }
         _ => return None,
     };
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    (reference.is_valid()
-        && access.is_exclusive()
-        && referent_has_only_owned_storage(program, *referee))
-    .then(|| member.as_str().to_owned())
+    reference.is_valid().then_some(reference)
 }
 
 fn referent_has_only_owned_storage(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
