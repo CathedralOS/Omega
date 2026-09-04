@@ -76,6 +76,7 @@ fn baseline() -> ExternalDecisionLog {
     )
 }
 
+#[cfg(unix)]
 fn limits(request_bytes: usize, response_bytes: usize) -> ExternalPolicyExecutionLimits {
     let stderr_bytes = 128;
     ExternalPolicyExecutionLimits::new(

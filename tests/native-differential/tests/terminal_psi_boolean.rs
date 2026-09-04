@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! End-to-end scalar terminal-Psi canaries, including host execution.
 
 use std::path::PathBuf;

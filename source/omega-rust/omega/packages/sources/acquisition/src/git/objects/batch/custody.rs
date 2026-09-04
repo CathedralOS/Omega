@@ -149,6 +149,7 @@ impl PendingGitBatchRequest {
         self.parent
             .remove_file(&self.name)
             .map_err(|error| io_error(&self.display_path, error))?;
+        #[cfg(unix)]
         self.parent
             .try_clone()
             .map_err(|error| io_error(&self.display_path, error))?

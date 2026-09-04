@@ -126,6 +126,10 @@ fn git_cache_rejects_repository_config_substitution_without_asking_git() {
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "Windows prevents replacement while the retained repository handle is open"
+)]
 fn verified_git_repository_rejects_replaced_repository_path() {
     let (repo, _) = create_git_source("git-retained-repository-source");
     let cache = temp_root("git-retained-repository-cache");
@@ -148,6 +152,10 @@ fn verified_git_repository_rejects_replaced_repository_path() {
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "Windows prevents replacement while the retained object-store handle is open"
+)]
 fn verified_git_repository_rejects_replaced_objects_path() {
     let (repo, _) = create_git_source("git-retained-objects-source");
     let cache = temp_root("git-retained-objects-cache");

@@ -126,6 +126,10 @@ fn pending_git_cache_cleanup_does_not_remove_a_replacement_stage_name() {
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "Windows prevents replacement while the retained stage handle is open"
+)]
 fn pending_git_cache_publication_rejects_a_replaced_stage_name() {
     let cache = temp_root("git-retained-stage-publication");
     let retained_stage = cache.join("retained-stage");

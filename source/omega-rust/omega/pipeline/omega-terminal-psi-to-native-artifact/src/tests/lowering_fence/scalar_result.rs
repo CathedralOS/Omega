@@ -1,0 +1,189 @@
+//! Runtime scalar-result forwarding controls.
+
+use super::*;
+
+#[test]
+fn scalar_result_home_reaches_a_write_only_store_and_canonical_installation() {
+    let checked = checked(
+        r#"
+            data Scalar {}
+            machine Scalar::identity(value: i32) -> i32
+            requires value == value
+            ensures result == value
+            {
+                transition { _ -> value }
+            }
+
+            data Sink {}
+            machine Sink::fill(destination: &write i32, replacement: i32) {
+                destination = replacement;
+            }
+
+            data Root {}
+            machine Root::enter(destination: &mut i32) {
+                let replacement: i32 = Scalar::identity(23);
+                Sink::fill(&write destination, replacement);
+            }
+        "#,
+    );
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("runtime scalar result caller reaches verified Terminal production");
+    let root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("runtime scalar result caller is retained");
+    let [structural_parameter] = root.structural_parameters.as_slice() else {
+        panic!("runtime scalar result caller retains one structural parameter")
+    };
+    let scalar_call = root.blocks[0]
+        .operations
+        .iter()
+        .find(|operation| matches!(operation.kind, psi_terminal::OperationKind::Call { .. }))
+        .expect("runtime scalar result caller retains one scalar call");
+    let unit_call = root.blocks[0]
+        .operations
+        .iter()
+        .find(|operation| matches!(operation.kind, psi_terminal::OperationKind::CallUnit { .. }))
+        .expect("runtime scalar result caller retains one Unit call");
+    assert!(matches!(
+        scalar_call.kind,
+        psi_terminal::OperationKind::Call { .. }
+    ));
+    let psi_terminal::OperationResult::Scalar(result) = &scalar_call.result else {
+        panic!("first operation produces the runtime scalar")
+    };
+    let psi_terminal::OperationKind::CallUnit { arguments, .. } = &unit_call.kind else {
+        panic!("second operation forwards the runtime scalar")
+    };
+    assert_eq!(arguments, &[result.id]);
+    let psi_core::ScalarType::Integer(integer) = result.scalar_type else {
+        panic!("runtime scalar result is an integer")
+    };
+
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode runtime scalar result caller semantics");
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("encode runtime scalar result caller proof");
+    let mut handler = psi_terminal_interpreter::AcceptTerminalEffects;
+    let executed = psi_terminal_interpreter::interpret_terminal_artifact_with_structural_primitive_values_measured(
+        &semantic,
+        &proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+        &[],
+        &[psi_terminal_interpreter::TerminalStructuralValue {
+            opaque_identity: 31,
+            structural_type: structural_parameter.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }],
+        &[psi_terminal_interpreter::TerminalStructuralPrimitiveValue {
+            argument_index: 0,
+            value: psi_terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: psi_core::IntegerValue::Signed(1),
+            },
+        }],
+        &mut handler,
+    )
+    .expect("runtime scalar result reaches write-only storage in reference execution");
+    assert_eq!(
+        executed.structural_primitive_values(),
+        &[psi_terminal_interpreter::TerminalStructuralPrimitiveValue {
+            argument_index: 0,
+            value: psi_terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: psi_core::IntegerValue::Signed(23),
+            },
+        }]
+    );
+
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
+        &semantic,
+        &proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("runtime scalar result caller reaches Abstract operations");
+    for native_target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstract_plan,
+            native_target,
+        )
+        .expect("runtime scalar result caller reaches Target IR");
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target)
+                .expect("runtime scalar result caller reaches physical assignment");
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("runtime scalar result caller reaches machine emission");
+        let caller = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("emitted runtime scalar result caller is retained");
+        let [producer] = caller.internal_unit_scalar_calls.as_slice() else {
+            panic!("caller retains one scalar result producer")
+        };
+        let [consumer] = caller.internal_unit_calls.as_slice() else {
+            panic!("caller retains one mixed Unit consumer")
+        };
+        let [argument] = consumer.scalar_arguments.as_slice() else {
+            panic!("mixed Unit consumer retains one scalar argument")
+        };
+        assert_eq!(
+            argument.source,
+            omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(producer.result.home)
+        );
+        assert_ne!(argument.byte_count, 0);
+
+        let mut changed_home = emitted.clone();
+        let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) =
+            &mut changed_home
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == emitted.entry)
+                .unwrap()
+                .internal_unit_calls[0]
+                .scalar_arguments[0]
+                .source
+        else {
+            unreachable!()
+        };
+        home.byte_offset = home.byte_offset.checked_add(8).unwrap();
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&changed_home),
+            Err(omega_image_emission::ObjectError::InvalidInternalUnitCallEvidence(emitted.entry))
+        );
+        let mut changed_bytes = emitted.clone();
+        changed_bytes
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == emitted.entry)
+            .unwrap()
+            .bytes[argument.code_offset] ^= 1;
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&changed_bytes),
+            Err(omega_image_emission::ObjectError::InvalidInternalUnitCallEvidence(emitted.entry))
+        );
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object replay accepts runtime scalar result forwarding");
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("runtime scalar result caller reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains runtime scalar result forwarding");
+        let bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode runtime scalar result installation");
+        let decoded = omega_image_emission::decode_installation_record(&bytes)
+            .expect("decode runtime scalar result installation");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("installation replays runtime scalar result forwarding");
+    }
+}

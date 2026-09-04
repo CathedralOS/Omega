@@ -3032,6 +3032,7 @@ fn run_canary(path: &str) -> PathBuf {
     repo_root().join("tests/omega/run").join(path)
 }
 
+#[cfg(not(windows))]
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
     fs::create_dir_all(to)?;
     for entry in fs::read_dir(from)? {

@@ -62,7 +62,7 @@ impl PrimaryGitSelection {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn capture_primary_git(
     explicit_operator_path: Option<&Path>,
     path_snapshot: Option<&OsStr>,
@@ -199,7 +199,7 @@ struct ExcludedRoot {
     canonical: Option<PathBuf>,
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn capture_primary_git_from_snapshot(
     explicit_operator_path: Option<&Path>,
     path_snapshot: Option<&OsStr>,
@@ -230,6 +230,7 @@ pub(crate) fn resolver_package_controlled_roots(
 mod tests {
     use super::*;
     use crate::git::executable::validation::is_direct_windows_git_executable;
+    #[cfg(unix)]
     use crate::test_support::temp_root;
 
     #[cfg(unix)]

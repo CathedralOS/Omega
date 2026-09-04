@@ -79,7 +79,7 @@ pub(crate) fn run_command_bounded_with_stdin_and_budget(
         .map_err(|error| project_error(operation, error))
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn command_cleanup_reserve(timeout: Duration) -> Duration {
     GIT_COMMAND_CLEANUP_TIMEOUT.min(timeout / 4)
 }

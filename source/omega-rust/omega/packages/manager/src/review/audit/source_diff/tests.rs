@@ -34,6 +34,8 @@ fn write_package(root: &Path, main: &[u8]) {
     std::fs::write(root.join("main.omg"), main).unwrap();
 }
 
+// Test cleanup must undo readonly snapshots before removing their directory.
+#[allow(clippy::permissions_set_readonly_false)]
 fn make_tree_writable(root: &Path) {
     let Ok(metadata) = std::fs::symlink_metadata(root) else {
         return;

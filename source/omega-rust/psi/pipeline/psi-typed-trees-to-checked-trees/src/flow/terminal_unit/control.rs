@@ -1901,9 +1901,8 @@ fn build_write_only_primitive_store(
         _ => None,
     };
     let direct_parameter_is_exact = direct_parameter.is_some_and(|(position, primitive_type)| {
-        usize::try_from(position)
-            .ok()
-            .and_then(|position| scalar_parameters.get(position))
+        scalar_parameters
+            .get(position)
             .is_some_and(|parameter| parameter.primitive_type == primitive_type)
             && *destination_type == primitive_type
     });

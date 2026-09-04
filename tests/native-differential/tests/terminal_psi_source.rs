@@ -7,13 +7,16 @@ use omega_abstract_operations::{
     AbstractParameter, ValueBinding,
 };
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
+#[cfg(unix)]
 use omega_artifacts::external_root_manifest_json;
 use omega_assigned_target_operations::{
     AssignedBooleanControl, AssignedIntegerControl, AssignedOperation,
 };
+use omega_calling_conventions::CallSignature;
+#[cfg(unix)]
 use omega_calling_conventions::{
-    ArrivalContextId, ArrivalContextStackDomain, CallSignature, CallingPolicy, MachineStateSet,
-    RegisterSet, StackDomainRef, StateFootprintEvidence, evaluate_ordinary_boundary_entry_plan,
+    ArrivalContextId, ArrivalContextStackDomain, CallingPolicy, MachineStateSet, RegisterSet,
+    StackDomainRef, StateFootprintEvidence, evaluate_ordinary_boundary_entry_plan,
     validate_entry_stack_domain_closure,
 };
 use omega_compiler::{
@@ -21,13 +24,15 @@ use omega_compiler::{
     RequestedCompileProduct, compile_to_checked,
 };
 use omega_component_candidate::{ComponentCandidate, ComponentCandidateParts};
+#[cfg(unix)]
+use omega_component_deployment::publish_component_flat_output;
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_component_deployment,
-    begin_component_deployment_with_claimed_registry, publish_component_flat_output,
+    begin_component_deployment_with_claimed_registry,
 };
-use omega_component_publication::{
-    InstalledRunnableComponent, RunnableComponentEraLedger, bind_installed_runnable_component,
-};
+#[cfg(unix)]
+use omega_component_publication::InstalledRunnableComponent;
+use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
 use omega_effects::{
     ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
     ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile, ExecutionScope,
@@ -42,27 +47,34 @@ use omega_executable_installation::{
     install_validated, materialize_admitted_artifact, materialize_and_freeze,
     validate_final_placement,
 };
+#[cfg(unix)]
 use omega_external_roots::{
-    AdapterStackRealizationOrigin, ArrivalStackRealizationOrigin, ComponentProgressDemandIdentity,
-    ExternalRootCandidate, ExternalRootId, FixedFuelProviderSummary, FuelProvisionId,
-    FuelValidationReceiptId, InstalledProviderOccurrenceId, InstalledRootLedger,
+    AdapterStackRealizationOrigin, ArrivalStackRealizationOrigin, ExternalRootCandidate,
+    ExternalRootId, FixedFuelProviderSummary, FuelProvisionId, FuelValidationReceiptId,
     LogicalFuelResourceColumn, MachineStateResourceColumn, NestingRelationId,
-    OpaqueProviderExitAssurance, ProgressProfileEstablishmentAttestation,
-    ProgressProfileEstablishmentReceiptId, ProgressProfileGrantInvocationId, ProviderExecution,
-    ProviderExecutionId, ProviderFuelSummaryId, ProviderOccurrenceInstallationReceipt,
-    ProviderOccurrenceInstallationReceiptId, ProviderOccurrencePlanBinding, ProviderPlanId,
-    ProviderStackSummary, RootAdmission, RootAdmissionId, RootProviderId, RootSlotAuthority,
-    RootSlotId, RootSlotOwnerId, StackNestingRelation, StackResourceColumn,
+    OpaqueProviderExitAssurance, ProviderExecution, ProviderExecutionId, ProviderFuelSummaryId,
+    ProviderPlanId, ProviderStackSummary, RootAdmission, RootAdmissionId, RootProviderId,
+    RootSlotAuthority, RootSlotId, RootSlotOwnerId, StackNestingRelation, StackResourceColumn,
     StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
     bind_direct_generated_entry_stack_realization, bind_installed_entry_fuel,
     bind_installed_entry_stack, compose_bound_entry_stack_epochs, compose_fixed_fuel,
     validate_external_root, validate_installed_entry_fuel, validate_installed_entry_stack,
 };
+use omega_external_roots::{
+    ComponentProgressDemandIdentity, InstalledProviderOccurrenceId, InstalledRootLedger,
+    ProgressProfileEstablishmentAttestation, ProgressProfileEstablishmentReceiptId,
+    ProgressProfileGrantInvocationId, ProviderOccurrenceInstallationReceipt,
+    ProviderOccurrenceInstallationReceiptId, ProviderOccurrencePlanBinding,
+};
 use omega_image_emission::{
     ObjectArtifact, bind_installed_artifact, build_installation_record, build_object_artifact,
-    decode_installation_record, derive_installation_stack_demand, derive_stack_demand,
-    emit_executable_image, emit_object_container, encode_installation_record,
-    installation_fingerprint, validate_installation_record,
+    decode_installation_record, derive_stack_demand, emit_executable_image,
+    encode_installation_record,
+};
+#[cfg(unix)]
+use omega_image_emission::{
+    derive_installation_stack_demand, emit_object_container, installation_fingerprint,
+    validate_installation_record,
 };
 use omega_machine_emission::emit_machine_code;
 use omega_native_differential_test::{
@@ -100,13 +112,16 @@ use psi_terminal_codec::{
     validate_artifact_manifest,
 };
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
-use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+#[cfg(unix)]
+use psi_terminal_fuel::FuelExhaustion;
+use psi_terminal_fuel::{FuelChargeSite, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
     MeasuredTerminalExecution, TerminalArtifactInterpretError, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     interpret_terminal_artifact_measured,
 };
 use psi_terminal_verifier::{VerifiedTerminalModule, verify_module};
+#[cfg(unix)]
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -237,6 +252,7 @@ fn stage_terminal_component(
     })
 }
 
+#[cfg(unix)]
 fn write_finalized_terminal_component_output(
     options: &CompileOptions,
     runnable: InstalledRunnableComponent,

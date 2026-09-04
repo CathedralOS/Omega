@@ -888,7 +888,9 @@ mod tests {
 
     #[test]
     fn exact_handle_protocol_success_establishes_non_root_loaded_image_correspondence() {
-        let _firmware = FIRMWARE_TEST_LOCK.lock().unwrap();
+        let _firmware = FIRMWARE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let boot_address = 0x401000;
         let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
         let boot = table(
@@ -1092,7 +1094,9 @@ mod tests {
 
     #[test]
     fn closed_and_unknown_statuses_return_complete_execution_custody() {
-        let _firmware = FIRMWARE_TEST_LOCK.lock().unwrap();
+        let _firmware = FIRMWARE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let statuses = [
             (
                 UefiHandleProtocolStatus::InvalidParameter,
@@ -1208,7 +1212,9 @@ mod tests {
 
     #[test]
     fn null_stale_and_malformed_outputs_cannot_establish_correspondence() {
-        let _firmware = FIRMWARE_TEST_LOCK.lock().unwrap();
+        let _firmware = FIRMWARE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         for (index, loaded_image) in [
             None,
             Some(loaded_image_bytes(0, 0x20000)),

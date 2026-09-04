@@ -10,7 +10,7 @@ use crate::limits::{
 };
 use omega_resolver_execution::ResolverExecutionBackend;
 use std::cell::Cell;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -43,7 +43,7 @@ impl GitExecutor {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn open(path: &Path) -> Result<Self, SourceResolveError> {
         Self::open_with_budget_for_transport(
             path,
@@ -54,7 +54,7 @@ impl GitExecutor {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn open_with_budget(
         path: &Path,
         maximum_launches: usize,
@@ -69,7 +69,7 @@ impl GitExecutor {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn open_with_resource_budgets(
         path: &Path,
         maximum_launches: usize,
@@ -85,7 +85,7 @@ impl GitExecutor {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn open_with_budget_for_transport(
         path: &Path,
         maximum_launches: usize,

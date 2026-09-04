@@ -1,6 +1,9 @@
 use super::*;
 
 #[test]
+// Clearing readonly is the exact Windows operation needed to exercise custody
+// tampering; Unix uses owner-write mode bits below.
+#[allow(clippy::permissions_set_readonly_false)]
 fn review_compilation_rejects_snapshot_tampering_before_compiler_consumption() {
     let fixtures = workspace_root().join("tests/fixtures/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();

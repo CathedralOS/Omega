@@ -1277,14 +1277,34 @@ mod tests {
         }
     }
 
+    fn sponsor_root() -> &'static Path {
+        #[cfg(windows)]
+        {
+            Path::new(r"C:\staging\session")
+        }
+        #[cfg(not(windows))]
+        {
+            Path::new("/staging/session")
+        }
+    }
+
+    fn other_sponsor_root() -> &'static Path {
+        #[cfg(windows)]
+        {
+            Path::new(r"C:\other\session")
+        }
+        #[cfg(not(windows))]
+        {
+            Path::new("/other/session")
+        }
+    }
+
     fn sponsor_with(limits: FilesystemSponsorLimits) -> FilesystemSponsor {
-        FilesystemSponsor::with_limits("/staging/session", limits).unwrap()
+        FilesystemSponsor::with_limits(sponsor_root(), limits).unwrap()
     }
 
     fn path(sponsor: &FilesystemSponsor, suffix: &str) -> FilesystemSponsorPath {
-        sponsor
-            .bind_path(Path::new("/staging/session").join(suffix))
-            .unwrap()
+        sponsor.bind_path(sponsor_root().join(suffix)).unwrap()
     }
 
     fn commit_directory(sponsor: &FilesystemSponsor, suffix: &str) {
@@ -1326,11 +1346,15 @@ mod tests {
     fn session_root_is_excluded_and_outside_paths_are_rejected() {
         let sponsor = sponsor_with(limits(2, 2, 2));
         assert_eq!(
-            sponsor.bind_path("/staging/session").unwrap_err(),
+            sponsor.bind_path(sponsor_root()).unwrap_err(),
             FilesystemSponsorError::SessionRootIsNotAnEntry
         );
+        let outside = sponsor_root()
+            .parent()
+            .expect("session root has a parent")
+            .join("elsewhere");
         assert!(matches!(
-            sponsor.bind_path("/staging/elsewhere"),
+            sponsor.bind_path(outside),
             Err(FilesystemSponsorError::PathOutsideSessionRoot(_))
         ));
         assert!(matches!(
@@ -1698,10 +1722,11 @@ mod tests {
     #[test]
     fn account_bound_paths_and_descriptors_reject_cross_account_operations() {
         let first = sponsor_with(limits(4, 20, 20));
-        let second = FilesystemSponsor::with_limits("/other/session", limits(4, 20, 20)).unwrap();
+        let second =
+            FilesystemSponsor::with_limits(other_sponsor_root(), limits(4, 20, 20)).unwrap();
         let first_object = commit_object(&first, "object", 1);
         let first_descriptor = first.prepare_open(&first_object).unwrap().commit().unwrap();
-        let second_name = second.bind_path("/other/session/name").unwrap();
+        let second_name = second.bind_path(other_sponsor_root().join("name")).unwrap();
 
         assert_eq!(
             second

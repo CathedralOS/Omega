@@ -31,8 +31,9 @@ pub struct UefiProtocolGuid {
     pub data4: [u8; 8],
 }
 
-/// Target-owned identity used for the image-handle `HandleProtocol` query.
-pub const UEFI_LOADED_IMAGE_PROTOCOL_GUID: UefiProtocolGuid = UefiProtocolGuid {
+/// Target-owned identity and stable native operand used for the image-handle
+/// `HandleProtocol` query.
+pub static UEFI_LOADED_IMAGE_PROTOCOL_GUID: UefiProtocolGuid = UefiProtocolGuid {
     data1: 0x5b1b_31a1,
     data2: 0x9562,
     data3: 0x11d2,

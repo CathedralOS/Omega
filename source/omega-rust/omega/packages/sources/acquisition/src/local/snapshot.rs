@@ -449,6 +449,10 @@ fn materialize_pending_local_snapshot(
             "finalized snapshot does not match the captured local tree",
         ));
     }
+    // Windows will not rename the retained stage while a descendant directory
+    // handle remains open. Verification is complete, so release it before the
+    // atomic publication rename.
+    drop(source_directory);
     pending.publish(snapshots, publication)?;
     verify_local_snapshot(publication, identity, limits)
 }

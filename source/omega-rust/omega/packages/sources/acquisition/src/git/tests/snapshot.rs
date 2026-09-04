@@ -151,6 +151,10 @@ fn authenticated_member_snapshot_reuse_rejects_tampered_publication() {
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "Windows prevents replacement while the retained workspace-lane handle is open"
+)]
 fn authenticated_member_snapshot_rejects_replaced_workspace_member_lane() {
     let (repository, _) = create_git_source("git-member-snapshot-custody");
     let (tree, entries) = authenticated_single_file_member_tree(&repository);

@@ -187,17 +187,22 @@ impl PendingCacheEntry {
     pub(crate) fn create(
         cache_dir: &Path,
         cache_directory: &CapabilityDirectory,
-        cache_identity: &str,
+        _cache_identity: &str,
     ) -> Result<Self, SourceResolveError> {
-        let parent = cache_directory
-            .try_clone()
-            .map_err(|error| io_error(cache_dir, error))?;
+        let parent = cache_directory.try_clone().map_err(|error| {
+            cache_invalid(
+                cache_dir,
+                format!("could not retain the Git cache publication parent: {error}"),
+            )
+        })?;
         for _ in 0..128 {
             let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let stage_name = OsString::from(format!(
-                ".git-{cache_identity}.stage-{}-{sequence}",
-                std::process::id()
-            ));
+            // The retained parent lock and process-local sequence provide the
+            // staging identity. Repeating the 64-byte cache identity here adds
+            // no custody and can push otherwise valid canonical cache roots
+            // beyond Windows' child-process path limits before Git runs.
+            let stage_name =
+                OsString::from(format!(".git-stage-{}-{sequence}", std::process::id()));
             let root = cache_dir.join(&stage_name);
             match create_private_cache_directory(&parent, &stage_name) {
                 Ok(()) => {

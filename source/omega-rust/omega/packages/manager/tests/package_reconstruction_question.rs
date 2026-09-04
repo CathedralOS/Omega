@@ -335,6 +335,9 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
+// Clearing readonly is the exact Windows operation needed to exercise custody
+// tampering; Unix uses owner-write mode bits above.
+#[allow(clippy::permissions_set_readonly_false)]
 fn accepted_evidence_rechecks_live_source_custody_after_review() {
     let temporary = temporary_root("accepted-source-custody");
     let root = temporary.join("root");
@@ -1286,6 +1289,8 @@ fn make_tree_owner_writable(root: &std::path::Path) {
 }
 
 #[cfg(windows)]
+// Test cleanup must undo readonly snapshots before removing their directory.
+#[allow(clippy::permissions_set_readonly_false)]
 fn make_tree_owner_writable(root: &std::path::Path) {
     let Ok(metadata) = std::fs::symlink_metadata(root) else {
         return;
@@ -1293,11 +1298,11 @@ fn make_tree_owner_writable(root: &std::path::Path) {
     let mut permissions = metadata.permissions();
     permissions.set_readonly(false);
     let _ = std::fs::set_permissions(root, permissions);
-    if metadata.is_dir() {
-        if let Ok(entries) = std::fs::read_dir(root) {
-            for entry in entries.flatten() {
-                make_tree_owner_writable(&entry.path());
-            }
+    if metadata.is_dir()
+        && let Ok(entries) = std::fs::read_dir(root)
+    {
+        for entry in entries.flatten() {
+            make_tree_owner_writable(&entry.path());
         }
     }
 }
