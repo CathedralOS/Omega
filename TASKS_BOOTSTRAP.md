@@ -49,8 +49,8 @@ Epsilon compiler.
   Gamma emission. Application-profile publication and boundary-failure closure
   are **OWNER-BLOCKED on Q5**; all independent frontend and pure-lowering work
   continues. Do not expand Gamma with Delta-specific primitives.
-  The current 437,283-byte Epsilon source plus a diagnostic entry compiles in
-  69.3 seconds after declaration metadata indexing and emission cleanup;
+  The current 437,255-byte Epsilon source plus a diagnostic entry compiles in
+  69.4 seconds after declaration metadata indexing and emission cleanup;
   continue reducing general transformation costs rather than admitting a
   customer-specific shortcut.
   Acceptance: conformance and malformed-source suites pass, the complete

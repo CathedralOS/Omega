@@ -5591,8 +5591,8 @@
 
 ; An argument's category is a sibling of the enclosing callable's admission
 ; and arity. D52 anchors a resultless argument's TypeMismatch at the authored
-; argument expression start, including outer grouping; its branch below remains
-; intentionally unimplemented. The existing `never` sibling keeps the core
+; argument expression start, including outer grouping. The existing `never`
+; sibling keeps the core
 ; call-head anchor, and the later all-value join owns application-anchored type
 ; mismatch.
 (def epsilon_local_scan_argument_terminal_candidates
@@ -5610,7 +5610,9 @@
               ((OneEpsilonExpressionResult resultValue)
                 (match resultValue
                   ((EpsilonValueExpressionResult typeValue placeType) scan)
-                  (EpsilonResultlessExpressionResult scan)
+                  (EpsilonResultlessExpressionResult
+                    (epsilon_local_scan_add_candidate TypeMismatch
+                      (epsilon_expression_start item) scan))
                   (EpsilonNeverExpressionResult
                     (epsilon_local_scan_add_candidate InvalidTerminal
                       (epsilon_expression_start (epsilon_call_head_core item))
@@ -6266,7 +6268,7 @@
       left right) scan)))
 
 ; D50 settles a state-only bare spelling as InvalidControlTarget independent of
-; state arity. Its branch below remains intentionally unimplemented here. A
+; state arity. A
 ; state/machine collision is already invalid, a machine-only spelling is a
 ; known but unapplied control target, and genuine namespace absence may fall
 ; back to a local value judgment without inventing a target. A bare state never
@@ -6290,9 +6292,9 @@
                     ((OneEpsilonCatalogMachine targetMachine)
                       (epsilon_local_scan_add_candidate InvalidControlTarget
                         continuationStart scan))
-                    ; D50 requires InvalidControlTarget at continuationStart;
-                    ; the implementation milestone replaces this pending scan.
-                    (NoEpsilonCatalogMachine scan)))
+                    (NoEpsilonCatalogMachine
+                      (epsilon_local_scan_add_candidate InvalidControlTarget
+                        continuationStart scan))))
                 (NoEpsilonCatalogState
                   (match machineLookup
                     ((OneEpsilonCatalogMachine targetMachine)
