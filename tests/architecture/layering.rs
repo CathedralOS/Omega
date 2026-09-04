@@ -2924,14 +2924,8 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     }
 
     let legalized_representation =
-        root.join("omega-rust/omega/representations/omega-legalized-operations/src/lib.rs");
-    let legalized_representation_source = std::fs::read_to_string(&legalized_representation)
-        .unwrap_or_else(|error| {
-            panic!(
-                "failed to read {}: {error}",
-                legalized_representation.display()
-            )
-        });
+        root.join("omega-rust/omega/representations/omega-legalized-operations/src");
+    let legalized_representation_source = recursive_rust_source(&legalized_representation);
     for forbidden in [
         "fn legalize_target_operations",
         "fn validate_legalized_operations",
@@ -3042,14 +3036,8 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     );
 
     let selected_representation =
-        root.join("omega-rust/omega/representations/omega-selected-instructions/src/lib.rs");
-    let selected_representation_source = std::fs::read_to_string(&selected_representation)
-        .unwrap_or_else(|error| {
-            panic!(
-                "failed to read {}: {error}",
-                selected_representation.display()
-            )
-        });
+        root.join("omega-rust/omega/representations/omega-selected-instructions/src");
+    let selected_representation_source = recursive_rust_source(&selected_representation);
     for forbidden in [
         "fn select_instructions",
         "fn validate_selected_instructions",
@@ -3069,12 +3057,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         "selected virtual-register origins must consume canonical legalization-temporary identities"
     );
     assert!(
-        recursive_rust_source(
-            selected_representation
-                .parent()
-                .expect("selected representation has a source directory"),
-        )
-        .contains("LegalizationTemporary"),
+        selected_representation_source.contains("LegalizationTemporary"),
         "selected virtual registers must distinguish legalized temporaries from Psi value identities"
     );
 
