@@ -3963,7 +3963,7 @@ fn spill_frame_requirements_are_independent_and_non_authoritative() {
 fn allocated_callee_saved_requirements_are_independent_exact_and_non_authoritative() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/callee_saved_requirements",
+        "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements/src/callee_saved_requirements",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read allocated callee-saved requirement entrance");

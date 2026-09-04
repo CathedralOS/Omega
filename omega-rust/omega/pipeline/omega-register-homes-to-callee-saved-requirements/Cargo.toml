@@ -1,0 +1,20 @@
+[package]
+name = "omega-register-homes-to-callee-saved-requirements"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_register_homes_to_callee_saved_requirements"
+path = "src/lib.rs"
+
+[dependencies]
+omega-allocation-legality-to-register-homes = { path = "../omega-allocation-legality-to-register-homes" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-regalloc = { path = "../omega-regalloc" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
+omega-target = { path = "../../representations/omega-target" }
+omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+sha2 = "0.10.9"

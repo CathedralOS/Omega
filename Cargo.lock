@@ -1132,6 +1132,7 @@ dependencies = [
  "omega-optimization-validation",
  "omega-psi-to-abstract-operations",
  "omega-regalloc",
+ "omega-register-homes-to-callee-saved-requirements",
  "omega-register-model",
  "omega-selected-instructions",
  "omega-selected-instructions-to-liveness",
@@ -1441,6 +1442,21 @@ dependencies = [
  "psi-core",
  "psi-terminal",
  "psi-terminal-codec",
+ "sha2",
+]
+
+[[package]]
+name = "omega-register-homes-to-callee-saved-requirements"
+version = "0.1.0"
+dependencies = [
+ "omega-allocation-legality-to-register-homes",
+ "omega-optimization-core",
+ "omega-regalloc",
+ "omega-register-model",
+ "omega-selected-instructions",
+ "omega-target",
+ "omega-target-to-register-environment",
+ "psi-core",
  "sha2",
 ]
 
