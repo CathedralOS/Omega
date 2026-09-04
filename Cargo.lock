@@ -313,6 +313,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-active-resident-rematerialization-to-selected-form-encoding"
+version = "0.1.0"
+dependencies = [
+ "omega-allocation-legality-to-active-resident-rematerialization",
+ "omega-post-allocation-machine-to-selected-form-encoding",
+ "omega-register-homes-to-post-allocation-machine",
+ "omega-selected-instructions",
+]
+
+[[package]]
 name = "omega-allocation-legality-to-active-resident-rematerialization"
 version = "0.1.0"
 dependencies = [
@@ -1169,6 +1179,7 @@ dependencies = [
  "omega-abstract-operations",
  "omega-abstract-operations-optimizer",
  "omega-abstract-operations-to-target-operations",
+ "omega-active-resident-rematerialization-to-selected-form-encoding",
  "omega-allocation-legality-to-active-resident-rematerialization",
  "omega-allocation-legality-to-fixed-view-copies",
  "omega-allocation-legality-to-literal-folds",

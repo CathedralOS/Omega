@@ -103,9 +103,7 @@ fn active_resident_rematerialization_encoding_rejects_detached_or_corrupt_custod
     let mut staged =
         stage_optimized_active_resident_rematerialization_selected_form_encoding(source, machine)
             .unwrap();
-    crate::stages::encoding::active_resident_selected_form_encoding::corrupt_active_resident_selected_form_encoding_byte_for_test(
-        &mut staged,
-    );
+    crate::corrupt_active_resident_selected_form_encoding_byte_for_test(&mut staged);
     assert_eq!(
         validate_optimized_active_resident_rematerialization_selected_form_encoding(&staged),
         Err(

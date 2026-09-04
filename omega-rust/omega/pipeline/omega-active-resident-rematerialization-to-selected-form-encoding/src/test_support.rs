@@ -2,7 +2,7 @@ use crate::SelectedFormEncodingState;
 
 use super::StagedOptimizedActiveResidentRematerializationSelectedFormEncoding;
 
-pub(crate) fn corrupt_active_resident_selected_form_encoding_byte_for_test(
+pub fn corrupt_active_resident_selected_form_encoding_byte_for_test(
     staged: &mut StagedOptimizedActiveResidentRematerializationSelectedFormEncoding,
 ) {
     let bytes = staged

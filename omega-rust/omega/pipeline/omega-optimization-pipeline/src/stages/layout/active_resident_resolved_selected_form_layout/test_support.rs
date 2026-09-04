@@ -3,9 +3,7 @@ use super::StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLay
 pub(crate) fn corrupt_active_resident_resolved_layout_pre_layout_byte_for_test(
     staged: &mut StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout,
 ) {
-    crate::stages::encoding::active_resident_selected_form_encoding::corrupt_active_resident_selected_form_encoding_byte_for_test(
-        &mut staged.pre_layout,
-    );
+    crate::corrupt_active_resident_selected_form_encoding_byte_for_test(&mut staged.pre_layout);
 }
 
 pub(crate) fn corrupt_active_resident_resolved_layout_byte_for_test(
