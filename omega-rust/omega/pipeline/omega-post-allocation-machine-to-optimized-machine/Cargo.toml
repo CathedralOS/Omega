@@ -9,9 +9,7 @@ name = "omega_post_allocation_machine_to_optimized_machine"
 path = "src/lib.rs"
 
 [dependencies]
-omega-allocation-legality-to-active-resident-rematerialization = { path = "../omega-allocation-legality-to-active-resident-rematerialization" }
-omega-allocation-legality-to-register-homes = { path = "../omega-allocation-legality-to-register-homes" }
-omega-literal-folds-to-register-homes = { path = "../omega-literal-folds-to-register-homes" }
+omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
 omega-machine-optimizer = { path = "../omega-machine-optimizer" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-regalloc = { path = "../omega-regalloc" }

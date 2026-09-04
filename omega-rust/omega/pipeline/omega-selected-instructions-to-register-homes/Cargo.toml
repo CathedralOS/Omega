@@ -1,0 +1,24 @@
+[package]
+name = "omega-selected-instructions-to-register-homes"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
+omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
+omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-regalloc = { path = "../omega-regalloc" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
+omega-target = { path = "../../representations/omega-target" }
+omega-target-operations-to-selected-instructions = { path = "../omega-target-operations-to-selected-instructions" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }

@@ -1,22 +1,9 @@
-use omega_machine_optimizer::ValidatedPreAllocationMachineEffects;
 use omega_machine_optimizer::{
     PostAllocationMachineError, PostAllocationMachineIdentity, ValidatedPostAllocationMachinePlan,
-};
-
-use omega_allocation_legality_to_active_resident_rematerialization::{
-    OptimizedActiveResidentRematerializationError,
-    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
-};
-use omega_allocation_legality_to_register_homes::{
-    OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
-    StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
-};
-use omega_literal_folds_to_register_homes::{
-    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
+    ValidatedPreAllocationMachineEffects,
 };
 use omega_selected_instructions_to_machine_effects::MachineEffectStageError;
+use omega_selected_instructions_to_register_homes::{AllocationEvidence, AllocationReplayError};
 
 /// Home-aware machine facts joined only through independently replayed source
 /// custody. This remains non-emission and non-publication authority.
@@ -43,7 +30,7 @@ impl StagedOptimizedPostAllocationMachinePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
-    pub(super) source: StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
+    pub(super) source: AllocationEvidence,
     pub(super) effects: omega_machine_optimizer::PreAllocationMachineEffectIdentity,
     pub(super) machine: PostAllocationMachineIdentity,
     pub(super) function_count: usize,
@@ -54,7 +41,7 @@ pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
 }
 
 impl StagedOptimizedPostAllocationMachineCustodyReceipt {
-    pub const fn source(&self) -> &StagedOptimizedPostAllocationMachineSourceCustodyReceipt {
+    pub const fn source(&self) -> &AllocationEvidence {
         &self.source
     }
     pub const fn effects(&self) -> omega_machine_optimizer::PreAllocationMachineEffectIdentity {
@@ -81,21 +68,8 @@ impl StagedOptimizedPostAllocationMachineCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StagedOptimizedPostAllocationMachineSourceCustodyReceipt {
-    RegisterHomes(StagedOptimizedRegisterHomeCustodyReceipt),
-    FixedViewCopies(StagedOptimizedPostCopyRegisterHomeCustodyReceipt),
-    LiteralFolds(StagedOptimizedPostLiteralFoldHomeCustodyReceipt),
-    SelectedLowering(StagedOptimizedPostSelectedLoweringHomeCustodyReceipt),
-    ActiveResidentRematerialization(StagedOptimizedActiveResidentRematerializationCustodyReceipt),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostAllocationMachinePipelineError {
-    RegisterHomes(OptimizedRegisterHomeCustodyError),
-    FixedViewCopies(OptimizedPostCopyRegisterHomeCustodyError),
-    LiteralFolds(OptimizedPostLiteralFoldHomeCustodyError),
-    SelectedLowering(OptimizedPostSelectedLoweringHomeCustodyError),
-    ActiveResidentRematerialization(OptimizedActiveResidentRematerializationError),
+    Allocation(AllocationReplayError),
     MachineEffects(MachineEffectStageError),
     PostAllocation(PostAllocationMachineError),
     ReceiptMismatch,

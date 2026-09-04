@@ -4,11 +4,9 @@ use crate::{
     stage_function_relative_layout_optimization_realization, stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_live_ranges,
     stage_optimized_liveness,
-    stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_catalog_entry,
     stage_optimized_post_allocation_machine_optimization_for_catalog_entry,
-    stage_optimized_post_allocation_machine_plan,
-    stage_optimized_post_allocation_machine_plan_after_selected_lowering,
-    stage_optimized_register_homes, stage_optimized_register_homes_after_selected_lowering,
+    stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
+    stage_optimized_register_homes_after_selected_lowering,
     stage_post_allocation_machine_function_relative_realization,
     stage_post_allocation_machine_function_relative_realization_after_selected_lowering,
     stage_selected_lowering_function_relative_realization,
@@ -70,11 +68,10 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_allocation_recovery_
                 .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLowering)?;
             let homes = stage_optimized_register_homes_after_selected_lowering(run)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLoweringHomes)?;
-            let machine =
-                stage_optimized_post_allocation_machine_plan_after_selected_lowering(&homes)
-                    .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
+            let machine = stage_optimized_post_allocation_machine_plan(&homes)
+                .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
             let optimization =
-                stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_catalog_entry(
+                stage_optimized_post_allocation_machine_optimization_for_catalog_entry(
                     &homes, &machine, entry,
                 )
                 .map_err(

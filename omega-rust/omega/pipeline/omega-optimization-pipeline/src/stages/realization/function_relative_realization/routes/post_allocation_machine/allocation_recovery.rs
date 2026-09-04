@@ -17,9 +17,8 @@ use crate::{
     StagedPostAllocationMachineFunctionRelativeSource,
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
     validate_optimized_active_resident_rematerialization,
-    validate_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_custody,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
-    validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
+    validate_optimized_post_allocation_machine_optimization_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
     validate_optimized_register_home_after_fixed_view_copy_custody,
 };
 
@@ -137,14 +136,10 @@ fn validate_machine(
 > {
     match source {
         StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) => {
-            validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody(
-                homes, machine,
-            )
+            validate_optimized_post_allocation_machine_plan_custody(homes, machine)
         }
         StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(source) => {
-            validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
-                source, machine,
-            )
+            validate_optimized_post_allocation_machine_plan_custody(source, machine)
         }
     }
     .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)
@@ -162,7 +157,7 @@ fn validate_optimization(
             ),
         ),
         StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(source) => {
-            validate_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_custody(
+            validate_optimized_post_allocation_machine_optimization_custody(
                 source,
                 machine,
                 optimization,

@@ -12,7 +12,7 @@ path = "src/lib.rs"
 test-support = ["omega-post-allocation-machine-to-selected-form-encoding/test-support"]
 
 [dependencies]
-omega-allocation-legality-to-active-resident-rematerialization = { path = "../omega-allocation-legality-to-active-resident-rematerialization" }
+omega-selected-instructions-to-register-homes = { path = "../omega-selected-instructions-to-register-homes" }
 omega-post-allocation-machine-to-selected-form-encoding = { path = "../omega-post-allocation-machine-to-selected-form-encoding" }
 omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }

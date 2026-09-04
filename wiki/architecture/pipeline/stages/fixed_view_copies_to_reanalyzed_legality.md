@@ -1,5 +1,7 @@
 # Fixed-View Copies To Reanalyzed Legality
 
+This is an internal contract of [Selected Instructions To Register Homes](selected_instructions_to_register_homes.md), not a standalone pipeline crate.
+
 [Pipeline](../pipeline.md) | Optimizer design: [Optimizer Architecture](../../../design_briefs/optimizer_architecture.md)
 
 Any selected-CFG rewrite invalidates its predecessor analyses. This stage runs
@@ -42,7 +44,7 @@ direct transition-free path. It still grants no machine-emission authority.
 
 - `pipeline/omega-regalloc` owns the sealed
   validated-analysis boundary.
-- `pipeline/omega-fixed-view-copies-to-reanalyzed-legality` owns complete
+- `pipeline/omega-selected-instructions-to-register-homes` owns complete
   transformed analysis custody.
-- `pipeline/omega-allocation-legality-to-register-homes` owns the separate
+- `pipeline/omega-selected-instructions-to-register-homes` owns the separate
   post-copy home carrier.

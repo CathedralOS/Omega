@@ -1,5 +1,7 @@
 # Allocation Legality To Register Homes
 
+This is an internal contract of [Selected Instructions To Register Homes](selected_instructions_to_register_homes.md), not a standalone pipeline crate.
+
 [Pipeline](../pipeline.md) | Optimizer design: [Optimizer Architecture](../../../design_briefs/optimizer_architecture.md)
 
 This opt-in stage assigns deterministic physical register views for the exact
@@ -81,7 +83,7 @@ the admitted graph rather than deferred gaps.
   owns the proposal-to-independent-validation join.
 - `omega-regalloc` descends through separately implemented producer and replay
   domain, conflict, placement, and canonical-validation rungs.
-- `pipeline/omega-allocation-legality-to-register-homes` owns both the direct
+- `pipeline/omega-selected-instructions-to-register-homes` owns both the direct
   and post-copy-reanalysis entrances and their nested cross-stage custody.
 - `omega-register-model` remains the sole authority for views, aliases, write
   footprints, constraints, and active reservations.

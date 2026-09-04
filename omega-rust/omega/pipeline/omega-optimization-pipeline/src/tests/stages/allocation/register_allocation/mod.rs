@@ -6,6 +6,7 @@ mod abstract_spill_memory_effects;
 mod allocation_legality;
 mod callee_save_storage;
 mod callee_saved_requirements;
+mod current_output;
 mod fixed_precolored_intervals;
 mod fixed_precolored_segment_homes;
 mod fixed_precolored_split_requirements;

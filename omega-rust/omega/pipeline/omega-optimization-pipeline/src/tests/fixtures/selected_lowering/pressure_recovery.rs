@@ -21,7 +21,7 @@ use crate::tests::{
     stage_optimized_active_resident_rematerialization_selected_form_encoding,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
-    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
+    stage_optimized_post_allocation_machine_plan,
 };
 
 pub(crate) fn conditional_active_resident_exact_add_chain_artifact() -> (Vec<u8>, Vec<u8>) {
@@ -451,11 +451,7 @@ pub(crate) fn staged_active_resident_rematerialization_and_machine(
         selected_lowering_budget(),
     )
     .unwrap();
-    let machine =
-        stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
-            &source,
-        )
-        .unwrap();
+    let machine = stage_optimized_post_allocation_machine_plan(&source).unwrap();
     (source, machine)
 }
 
@@ -482,11 +478,7 @@ pub(crate) fn staged_active_resident_resolved_layout_with_selections(
         selected_lowering_budget(),
     )
     .unwrap();
-    let machine =
-        stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
-            &source,
-        )
-        .unwrap();
+    let machine = stage_optimized_post_allocation_machine_plan(&source).unwrap();
     let pre_layout =
         stage_optimized_active_resident_rematerialization_selected_form_encoding(source, machine)
             .unwrap();

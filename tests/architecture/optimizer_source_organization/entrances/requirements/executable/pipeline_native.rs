@@ -26,27 +26,27 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "validate_abstract_to_target_translation",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-live-ranges-to-allocation-legality/src/lib.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/legality/mod.rs",
         coordination_marker: "pub fn stage_optimized_allocation_legality_with_availability",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-allocation-legality-to-register-homes/src/lib.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/baseline/mod.rs",
         coordination_marker: "pub fn stage_optimized_register_homes",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-liveness/src/lib.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/liveness/mod.rs",
         coordination_marker: "pub fn stage_optimized_liveness",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-liveness-to-live-ranges/src/lib.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/live_ranges/mod.rs",
         coordination_marker: "pub fn stage_optimized_live_ranges",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-allocation-legality-to-fixed-view-copies/src/fixed_view_copies/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/fixed_view/fixed_view_copies/mod.rs",
         coordination_marker: "pub fn stage_optimized_fixed_view_copies",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-fixed-view-copies-to-reanalyzed-legality/src/lib.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/analyses/reanalysis/mod.rs",
         coordination_marker: "pub fn stage_optimized_selected_reanalysis",
     },
     RequiredCoordinationEntrance {
@@ -59,7 +59,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine/src/construction/mod.rs",
-        coordination_marker: "fn analyze_and_seal",
+        coordination_marker: "fn stage_optimized_post_allocation_machine_plan",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout/src/lib.rs",
@@ -70,7 +70,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_target_frame_protocol_encoding",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-allocation-legality-to-active-resident-rematerialization/src/lib.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/rematerialization/mod.rs",
         coordination_marker: "pub fn stage_optimized_active_resident_rematerialization",
     },
     RequiredCoordinationEntrance {
@@ -78,11 +78,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn analyze_machine_effects",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-allocation-legality-to-literal-folds/src/lib.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/literal_folds/mod.rs",
         coordination_marker: "pub fn run_selected_lowering_optimizations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-literal-folds-to-register-homes/src/lib.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/assignment/transformed/mod.rs",
         coordination_marker: "pub fn stage_optimized_register_homes_after_literal_folds",
     },
     RequiredCoordinationEntrance {

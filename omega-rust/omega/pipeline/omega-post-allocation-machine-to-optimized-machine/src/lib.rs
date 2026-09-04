@@ -10,6 +10,10 @@ mod aarch64_cbnz;
 mod aarch64_movn;
 mod aarch64_same_view_copy;
 mod execution;
+mod source;
+
+use omega_selected_instructions_to_register_homes::AllocationSource;
+use source::replay_machine_source;
 mod model;
 mod x86_mov_r32_imm32;
 mod x86_mov_r64_imm32_sign_extended;
@@ -24,13 +28,8 @@ pub use x86_mov_r32_imm32::*;
 pub use x86_mov_r64_imm32_sign_extended::*;
 pub use x86_xor_zero::*;
 
-use omega_allocation_legality_to_active_resident_rematerialization::StagedOptimizedActiveResidentRematerialization;
-use omega_allocation_legality_to_register_homes::StagedOptimizedRegisterHomes;
-use omega_literal_folds_to_register_homes::StagedOptimizedRegisterHomesAfterSelectedLowering;
 use omega_register_homes_to_post_allocation_machine::{
     OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
-    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
     validate_optimized_post_allocation_machine_plan_custody,
 };
 

@@ -2,9 +2,8 @@
 
 //! Optimizer module role: crate map. Post-allocation machine analysis components.
 //!
-//! Route adapters project each supported selected-instruction lineage into the
-//! common construction entrance. Shared receipt sealing remains beside the
-//! construction, model, and validation components at this nearest ancestor.
+//! The allocation phase supplies one replayed current-program view. This stage
+//! does not inspect rewrite history or select a different construction route.
 
 mod construction;
 mod model;
@@ -15,11 +14,12 @@ pub use model::*;
 pub use validation::*;
 
 use omega_machine_optimizer::ValidatedPostAllocationMachinePlan;
+use omega_selected_instructions_to_register_homes::AllocationEvidence;
 
 use omega_machine_optimizer::ValidatedPreAllocationMachineEffects;
 
 fn seal_staged_post_allocation_machine(
-    source: StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
+    source: AllocationEvidence,
     effects: ValidatedPreAllocationMachineEffects,
     machine: ValidatedPostAllocationMachinePlan,
 ) -> StagedOptimizedPostAllocationMachinePlan {
@@ -32,7 +32,7 @@ fn seal_staged_post_allocation_machine(
 }
 
 fn post_allocation_machine_custody(
-    source: StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
+    source: AllocationEvidence,
     effects: &omega_machine_optimizer::ValidatedPreAllocationMachineEffects,
     machine: &ValidatedPostAllocationMachinePlan,
 ) -> StagedOptimizedPostAllocationMachineCustodyReceipt {

@@ -21,11 +21,6 @@ pub use validation::validate_optimized_active_resident_rematerialization_selecte
 #[doc(hidden)]
 pub use test_support::corrupt_active_resident_selected_form_encoding_byte_for_test;
 
-use omega_allocation_legality_to_active_resident_rematerialization::{
-    OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
-    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
-    validate_optimized_active_resident_rematerialization,
-};
 use omega_post_allocation_machine_to_selected_form_encoding::{
     OptimizedSelectedFormEncodingError, SelectedFormEncodingIdentity, SelectedFormEncodingState,
     StagedOptimizedSelectedFormEncoding, stage_optimized_layout_independent_selected_form_encoding,
@@ -34,7 +29,12 @@ use omega_post_allocation_machine_to_selected_form_encoding::{
 use omega_register_homes_to_post_allocation_machine::{
     OptimizedPostAllocationMachinePipelineError,
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
+};
+use omega_selected_instructions_to_register_homes::{
+    OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
+    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    validate_optimized_active_resident_rematerialization,
 };
 
 pub fn stage_optimized_active_resident_rematerialization_selected_form_encoding(

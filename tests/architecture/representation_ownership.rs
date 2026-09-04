@@ -170,6 +170,7 @@ fn effect_analysis_does_not_depend_on_optimizer_history() {
     let manifest = std::fs::read_to_string(stage.join("Cargo.toml")).unwrap();
     for forbidden in [
         "omega-allocation-legality-to-",
+        "omega-selected-instructions-to-register-homes",
         "omega-target-operations-to-selected-instructions",
     ] {
         assert!(
@@ -187,4 +188,58 @@ fn effect_analysis_does_not_depend_on_optimizer_history() {
     assert!(
         validation.contains("validate_machine_effects(selected, environment, staged.effects())")
     );
+}
+
+#[test]
+fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
+    let pipeline = repository().join("omega-rust/omega/pipeline");
+    for retired in [
+        "omega-selected-instructions-to-liveness",
+        "omega-liveness-to-live-ranges",
+        "omega-live-ranges-to-allocation-legality",
+        "omega-allocation-legality-to-literal-folds",
+        "omega-allocation-legality-to-fixed-view-copies",
+        "omega-fixed-view-copies-to-reanalyzed-legality",
+        "omega-allocation-legality-to-active-resident-rematerialization",
+        "omega-allocation-legality-to-register-homes",
+        "omega-literal-folds-to-register-homes",
+    ] {
+        assert!(
+            !pipeline.join(retired).join("Cargo.toml").exists(),
+            "retired phase fragment: {retired}"
+        );
+    }
+    let allocation = pipeline.join("omega-selected-instructions-to-register-homes/src");
+    for area in ["analyses", "rewrites", "assignment", "output"] {
+        assert!(
+            allocation.join(area).join("mod.rs").is_file(),
+            "missing allocation owner: {area}"
+        );
+    }
+    let output = rust_source(&allocation.join("output"));
+    assert!(output.contains("pub trait AllocationSource: sealed::Sealed"));
+    assert!(output.contains("pub struct AllocationOutput<'program>"));
+    assert!(output.contains("pub enum AllocationEvidence"));
+    for consumer in [
+        "omega-register-homes-to-post-allocation-machine",
+        "omega-post-allocation-machine-to-optimized-machine",
+    ] {
+        let source = rust_source(&pipeline.join(consumer).join("src"));
+        assert!(
+            source.contains("AllocationSource"),
+            "{consumer} has no common allocation input"
+        );
+        for forbidden in [
+            "_after_",
+            "StagedOptimizedRegisterHomes",
+            "source_legality_stage",
+            "selected_stage()",
+            "steps().last()",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "{consumer} depends on optimizer history: {forbidden}"
+            );
+        }
+    }
 }

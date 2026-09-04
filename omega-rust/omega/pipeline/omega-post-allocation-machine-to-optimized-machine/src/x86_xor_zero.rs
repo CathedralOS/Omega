@@ -10,13 +10,7 @@ use omega_optimization_core::{
 use omega_regalloc::{ValidatedLiveness, ValidatedSelectedAnalysis};
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
-    StagedOptimizedActiveResidentRematerialization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
-    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
-    validate_optimized_post_allocation_machine_plan_custody,
-};
+use crate::StagedOptimizedPostAllocationMachinePlan;
 
 use super::OptimizedPostAllocationMachineOptimizationError;
 
@@ -72,182 +66,37 @@ impl StagedOptimizedX86XorZeroMaterializationCustodyReceipt {
 }
 
 pub fn stage_optimized_x86_xor_zero_materialization(
-    source: &StagedOptimizedRegisterHomes,
+    source: &impl crate::AllocationSource,
     machine: &StagedOptimizedPostAllocationMachinePlan,
 ) -> Result<StagedOptimizedX86XorZeroMaterialization, OptimizedPostAllocationMachineOptimizationError>
 {
-    validate_optimized_post_allocation_machine_plan_custody(source, machine)
-        .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
-    let ranges = source.legality_stage().live_range_stage();
-    let selected_stage = ranges.liveness_stage().selected_stage();
-    let optimized = selected_stage.optimized_target().optimized();
+    let allocation = crate::replay_machine_source(source, machine)?;
     stage_with_inputs(
-        selected_stage.selected(),
-        ranges.liveness_stage().liveness(),
+        allocation.selected(),
+        allocation.liveness(),
         machine,
-        selected_stage.register_environment().physical(),
-        optimized.selections(),
-        optimized.budget_per_pass(),
+        allocation.register_environment().physical(),
+        allocation.selections(),
+        allocation.budget_per_pass(),
     )
 }
 
 pub fn validate_optimized_x86_xor_zero_materialization_custody(
-    source: &StagedOptimizedRegisterHomes,
+    source: &impl crate::AllocationSource,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     staged: &StagedOptimizedX86XorZeroMaterialization,
 ) -> Result<
     StagedOptimizedX86XorZeroMaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
-    validate_optimized_post_allocation_machine_plan_custody(source, machine)
-        .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
-    let ranges = source.legality_stage().live_range_stage();
-    let selected_stage = ranges.liveness_stage().selected_stage();
-    let optimized = selected_stage.optimized_target().optimized();
+    let allocation = crate::replay_machine_source(source, machine)?;
     validate_with_inputs(
-        selected_stage.selected(),
-        ranges.liveness_stage().liveness(),
+        allocation.selected(),
+        allocation.liveness(),
         machine,
-        selected_stage.register_environment().physical(),
-        optimized.selections(),
-        optimized.budget_per_pass(),
-        staged,
-    )
-}
-
-pub fn stage_optimized_x86_xor_zero_materialization_after_selected_lowering(
-    source: &StagedOptimizedRegisterHomesAfterSelectedLowering,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-) -> Result<StagedOptimizedX86XorZeroMaterialization, OptimizedPostAllocationMachineOptimizationError>
-{
-    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
-        source, machine,
-    )
-    .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
-    let run = source.selected_lowering_run();
-    let selected_stage = run
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let optimized = selected_stage.optimized_target().optimized();
-    match run.steps().last() {
-        Some(step) => stage_with_inputs(
-            step.fold(),
-            step.liveness(),
-            machine,
-            selected_stage.register_environment().physical(),
-            optimized.selections(),
-            optimized.budget_per_pass(),
-        ),
-        None => stage_with_inputs(
-            selected_stage.selected(),
-            run.source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .liveness(),
-            machine,
-            selected_stage.register_environment().physical(),
-            optimized.selections(),
-            optimized.budget_per_pass(),
-        ),
-    }
-}
-
-pub fn validate_optimized_x86_xor_zero_materialization_after_selected_lowering_custody(
-    source: &StagedOptimizedRegisterHomesAfterSelectedLowering,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    staged: &StagedOptimizedX86XorZeroMaterialization,
-) -> Result<
-    StagedOptimizedX86XorZeroMaterializationCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
-    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
-        source, machine,
-    )
-    .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
-    let run = source.selected_lowering_run();
-    let selected_stage = run
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let optimized = selected_stage.optimized_target().optimized();
-    match run.steps().last() {
-        Some(step) => validate_with_inputs(
-            step.fold(),
-            step.liveness(),
-            machine,
-            selected_stage.register_environment().physical(),
-            optimized.selections(),
-            optimized.budget_per_pass(),
-            staged,
-        ),
-        None => validate_with_inputs(
-            selected_stage.selected(),
-            run.source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .liveness(),
-            machine,
-            selected_stage.register_environment().physical(),
-            optimized.selections(),
-            optimized.budget_per_pass(),
-            staged,
-        ),
-    }
-}
-
-pub fn stage_optimized_x86_xor_zero_materialization_after_active_resident_rematerialization(
-    source: &StagedOptimizedActiveResidentRematerialization,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-) -> Result<StagedOptimizedX86XorZeroMaterialization, OptimizedPostAllocationMachineOptimizationError>
-{
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
-        source, machine,
-    )
-    .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
-    let selected_stage = source
-        .source()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let optimized = selected_stage.optimized_target().optimized();
-    stage_with_inputs(
-        source.rematerialization(),
-        source.liveness(),
-        machine,
-        selected_stage.register_environment().physical(),
-        optimized.selections(),
-        optimized.budget_per_pass(),
-    )
-}
-
-pub fn validate_optimized_x86_xor_zero_materialization_after_active_resident_rematerialization_custody(
-    source: &StagedOptimizedActiveResidentRematerialization,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    staged: &StagedOptimizedX86XorZeroMaterialization,
-) -> Result<
-    StagedOptimizedX86XorZeroMaterializationCustodyReceipt,
-    OptimizedPostAllocationMachineOptimizationError,
-> {
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
-        source, machine,
-    )
-    .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
-    let selected_stage = source
-        .source()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let optimized = selected_stage.optimized_target().optimized();
-    validate_with_inputs(
-        source.rematerialization(),
-        source.liveness(),
-        machine,
-        selected_stage.register_environment().physical(),
-        optimized.selections(),
-        optimized.budget_per_pass(),
+        allocation.register_environment().physical(),
+        allocation.selections(),
+        allocation.budget_per_pass(),
         staged,
     )
 }

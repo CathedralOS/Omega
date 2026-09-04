@@ -169,8 +169,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         paths: &[
             "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/mod.rs",
             "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/model.rs",
-            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/baseline_source.rs",
-            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/selected_lowering_source.rs",
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/source.rs",
             "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/execution.rs",
         ],
     },

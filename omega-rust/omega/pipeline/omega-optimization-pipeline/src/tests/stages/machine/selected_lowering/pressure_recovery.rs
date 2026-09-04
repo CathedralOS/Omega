@@ -524,18 +524,14 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             .collect::<Vec<_>>();
         let staged_homes =
             stage_optimized_register_homes_after_literal_folds(staged_folds).unwrap();
-        let post = stage_optimized_post_allocation_machine_plan_after_literal_folds(&staged_homes)
-            .unwrap();
+        let post = stage_optimized_post_allocation_machine_plan(&staged_homes).unwrap();
         assert_eq!(
             post.machine().receipt().selected(),
             staged_homes.fold_stage().custody().final_selected()
         );
         assert_eq!(
-            &validate_optimized_post_allocation_machine_plan_after_literal_fold_custody(
-                &staged_homes,
-                &post,
-            )
-            .unwrap(),
+            &validate_optimized_post_allocation_machine_plan_custody(&staged_homes, &post,)
+                .unwrap(),
             post.custody()
         );
         assert_eq!(

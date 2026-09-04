@@ -1,0 +1,43 @@
+use super::{
+    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource, sealed,
+};
+use crate::{
+    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    validate_optimized_register_home_after_fixed_view_copy_custody,
+};
+use omega_regalloc::SelectedProgramRef;
+
+impl sealed::Sealed for StagedOptimizedRegisterHomesAfterFixedViewCopies {}
+
+impl AllocationSource for StagedOptimizedRegisterHomesAfterFixedViewCopies {
+    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
+        let evidence = validate_optimized_register_home_after_fixed_view_copy_custody(
+            self.reanalysis_stage(),
+            self.homes(),
+            self.post_allocation_manifest(),
+        )
+        .map_err(AllocationReplayError::FixedViewCopies)?;
+        if evidence != self.custody() {
+            return Err(AllocationReplayError::ReceiptMismatch);
+        }
+        let reanalysis = self.reanalysis_stage();
+        let copies = reanalysis.transformation_stage();
+        let selected = copies
+            .source_legality_stage()
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage();
+        Ok(AllocationOutput {
+            selected: SelectedProgramRef::new(copies.copies()),
+            liveness: reanalysis.liveness(),
+            ranges: reanalysis.ranges(),
+            legality: reanalysis.legality(),
+            homes: self.homes(),
+            manifest: self.post_allocation_manifest(),
+            environment: selected.register_environment(),
+            selections: selected.optimized_target().optimized().selections(),
+            budget: selected.optimized_target().optimized().budget_per_pass(),
+            evidence: AllocationEvidence::FixedViewCopies(evidence),
+        })
+    }
+}

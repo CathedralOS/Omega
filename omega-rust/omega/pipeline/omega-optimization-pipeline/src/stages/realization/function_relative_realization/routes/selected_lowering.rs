@@ -8,7 +8,7 @@ pub fn stage_selected_lowering_function_relative_realization(
 > {
     validate_optimized_register_home_after_selected_lowering_custody(&homes)
         .map_err(FunctionRelativeOptimizationRealizationError::Homes)?;
-    let machine = stage_optimized_post_allocation_machine_plan_after_selected_lowering(&homes)
+    let machine = stage_optimized_post_allocation_machine_plan(&homes)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
     let run = homes.selected_lowering_run();
     let selected_stage = run
@@ -56,11 +56,8 @@ pub fn validate_selected_lowering_function_relative_realization_custody(
     validate_optimized_register_home_after_selected_lowering_custody(&staged.homes)
         .map_err(FunctionRelativeOptimizationRealizationError::Homes)?;
     let replayed_machine =
-        validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
-            &staged.homes,
-            &staged.machine,
-        )
-        .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+        validate_optimized_post_allocation_machine_plan_custody(&staged.homes, &staged.machine)
+            .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
     if &replayed_machine != staged.machine.custody() {
         return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
     }

@@ -268,17 +268,13 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
         assert_eq!(reanalyzed.custody().entry_transition_count(), 0);
         assert_eq!(reanalyzed.legality().receipt().entry_transition_count(), 0);
         let homes = stage_optimized_register_homes_after_fixed_view_copies(reanalyzed).unwrap();
-        let post =
-            stage_optimized_post_allocation_machine_plan_after_fixed_view_copies(&homes).unwrap();
+        let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
         assert_eq!(
             post.machine().receipt().selected(),
             homes.reanalysis_stage().ranges().receipt().selected()
         );
         assert_eq!(
-            &validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody(
-                &homes, &post,
-            )
-            .unwrap(),
+            &validate_optimized_post_allocation_machine_plan_custody(&homes, &post,).unwrap(),
             post.custody()
         );
         let assignments = &homes.homes().plan().functions[0].assignments;

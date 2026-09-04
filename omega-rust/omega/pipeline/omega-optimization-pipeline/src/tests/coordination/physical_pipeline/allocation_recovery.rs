@@ -8,7 +8,7 @@ use crate::tests::{
     conditional_active_resident_exact_add_chain_artifact, conditional_forwarded_parameter_artifact,
     optimize_artifact_sections, selected_lowering_budget,
     stage_optimized_verified_physical_pipeline_with_provider_executions,
-    validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
 };
 
 #[test]
@@ -64,10 +64,7 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_shared_entry_copy() {
             homes.post_allocation_manifest().record().identity
         );
         assert_eq!(
-            &validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody(
-                homes, machine,
-            )
-            .unwrap(),
+            &validate_optimized_post_allocation_machine_plan_custody(homes, machine,).unwrap(),
             machine.custody()
         );
     }

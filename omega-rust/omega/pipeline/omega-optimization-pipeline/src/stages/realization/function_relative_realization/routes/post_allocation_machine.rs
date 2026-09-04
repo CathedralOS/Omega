@@ -14,9 +14,7 @@ use crate::{
     stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
     stage_whole_function_exit_contract_with_post_allocation_machine_optimization,
     validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
-    validate_optimized_post_allocation_machine_optimization_after_selected_lowering_custody,
     validate_optimized_post_allocation_machine_optimization_custody,
-    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
     validate_optimized_post_allocation_machine_plan_custody,
     validate_optimized_register_home_after_selected_lowering_custody,
     validate_optimized_register_home_custody,
@@ -103,11 +101,9 @@ pub fn stage_post_allocation_machine_function_relative_realization_after_selecte
 > {
     validate_optimized_register_home_after_selected_lowering_custody(&homes)
         .map_err(FunctionRelativeOptimizationRealizationError::Homes)?;
-    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
-        &homes, &machine,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
-    validate_optimized_post_allocation_machine_optimization_after_selected_lowering_custody(
+    validate_optimized_post_allocation_machine_plan_custody(&homes, &machine)
+        .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    validate_optimized_post_allocation_machine_optimization_custody(
         &homes,
         &machine,
         &optimization,
@@ -228,12 +224,9 @@ pub fn validate_post_allocation_machine_function_relative_realization_custody(
                 return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
             }
             let machine =
-                validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
-                    homes,
-                    &staged.machine,
-                )
-                .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
-            validate_optimized_post_allocation_machine_optimization_after_selected_lowering_custody(
+                validate_optimized_post_allocation_machine_plan_custody(homes, &staged.machine)
+                    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+            validate_optimized_post_allocation_machine_optimization_custody(
                 homes,
                 &staged.machine,
                 &staged.optimization,
