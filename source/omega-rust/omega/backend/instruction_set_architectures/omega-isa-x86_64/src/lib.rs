@@ -5,6 +5,7 @@
 //! any source-shaped Psi representation.
 
 mod fma;
+mod frame_protocol;
 mod ieee_float;
 mod machine_effects;
 mod mov_r32_imm32_i64_materialization;
@@ -20,6 +21,9 @@ mod xor_zero_i64_materialization;
 pub use fma::{
     DecodedScalarFmaFormat, DecodedVfmadd132Scalar, decode_vfmadd132_scalar, encode_vfmadd132sd,
     encode_vfmadd132ss,
+};
+pub use frame_protocol::{
+    X86_64FrameProtocolError, X86_64FrameSlot, encode_system_v_amd64_frame_protocol,
 };
 pub use ieee_float::{
     OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,

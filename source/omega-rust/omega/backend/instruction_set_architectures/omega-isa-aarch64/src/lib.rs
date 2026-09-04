@@ -4,6 +4,7 @@
 //! source-shaped representations and legacy operation graphs are absent.
 
 mod floating_control;
+mod frame_protocol;
 mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
@@ -12,6 +13,9 @@ mod register_model;
 mod selected_form_encoding;
 pub use floating_control::{
     encode_restore_fpcr_from_sp_displacement, encode_save_fpcr_to_sp_displacement,
+};
+pub use frame_protocol::{
+    Aarch64FrameProtocolError, Aarch64FrameSlot, encode_aapcs64_frame_protocol,
 };
 pub use machine_effects::{
     Aarch64MachineEffectCatalogValidationError, aarch64_machine_effect_catalog,

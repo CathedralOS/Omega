@@ -35,6 +35,7 @@ fn staged_frame(
     ValidatedNonAuthoritativeCalleeSaveStorage,
     ValidatedTargetRegisterEnvironment,
     ValidatedTargetFrameLayout,
+    ValidatedTargetFrameProtocolEncoding,
 ) {
     let environment = homes
         .legality_stage()
@@ -66,7 +67,13 @@ fn staged_frame(
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
     )
     .unwrap();
-    (requirements, storage, environment, frame)
+    let protocol = stage_target_frame_protocol_encoding(
+        &frame,
+        &environment,
+        TargetFrameProtocolEncodingPolicy::CanonicalFixedFrameV1,
+    )
+    .unwrap();
+    (requirements, storage, environment, frame, protocol)
 }
 
 #[test]
@@ -235,7 +242,7 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             assert!(row.branch.is_none());
         }
 
-        let (requirements, storage, environment, frame) = staged_frame(&homes, &post);
+        let (requirements, storage, environment, frame, protocol) = staged_frame(&homes, &post);
         assert_eq!(frame.receipt().function_count(), 2);
         assert_eq!(frame.receipt().calling_function_count(), 1);
         assert!(frame.receipt().callee_save_slot_count() >= 1);
@@ -307,6 +314,50 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             frame.plan().clone(),
         )
         .unwrap();
+        assert_eq!(
+            protocol.receipt().identity(),
+            target_frame_protocol_encoding_identity(protocol.plan())
+        );
+        assert_eq!(
+            protocol.receipt().frame_layout(),
+            frame.receipt().identity()
+        );
+        assert_eq!(protocol.receipt().function_count(), 2);
+        assert!(protocol.receipt().byte_count() > 0);
+        let caller_protocol = protocol
+            .plan()
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine())
+            .unwrap();
+        let prologue = caller_protocol
+            .prologue
+            .bytes(&protocol.plan().bytes)
+            .unwrap();
+        let epilogue = caller_protocol
+            .epilogue
+            .bytes(&protocol.plan().bytes)
+            .unwrap();
+        assert!(!prologue.is_empty());
+        assert!(!epilogue.is_empty());
+        match target.architecture {
+            Architecture::X86_64 => {
+                assert_eq!(&prologue[..3], &[0x48, 0x83, 0xec]);
+                assert_eq!(
+                    &epilogue[epilogue.len() - 3..epilogue.len() - 1],
+                    &[0x83, 0xc4]
+                );
+            }
+            Architecture::Aarch64 => {
+                let prologue_word = u32::from_le_bytes(prologue[..4].try_into().unwrap());
+                let epilogue_word =
+                    u32::from_le_bytes(epilogue[epilogue.len() - 4..].try_into().unwrap());
+                assert_eq!(prologue_word & 0xffc0_03ff, 0xd100_03ff);
+                assert_eq!(epilogue_word & 0xffc0_03ff, 0x9100_03ff);
+            }
+        }
+        validate_target_frame_protocol_encoding(&frame, &environment, protocol.plan().clone())
+            .unwrap();
 
         let error = stage_whole_function_exit_contract(
             selected_stage.selected(),
@@ -396,7 +447,7 @@ fn selected_call_template_and_layout_corruption_fail_independent_replay() {
             Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
         ));
 
-        let (requirements, storage, environment, frame) = staged_frame(&homes, &post);
+        let (requirements, storage, environment, frame, protocol) = staged_frame(&homes, &post);
         for corrupt in [
             |plan: &mut TargetFrameLayoutPlan| plan.functions[0].frame_size_bytes += 8,
             |plan: &mut TargetFrameLayoutPlan| {
@@ -411,5 +462,31 @@ fn selected_call_template_and_layout_corruption_fail_independent_replay() {
                 Err(TargetFrameLayoutError::NonCanonicalLayout)
             );
         }
+
+        let mut changed = protocol.plan().clone();
+        changed.bytes[0] ^= 1;
+        assert_eq!(
+            validate_target_frame_protocol_encoding(&frame, &environment, changed),
+            Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding)
+        );
+
+        let mut changed = protocol.plan().clone();
+        let caller = changed
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine())
+            .unwrap();
+        caller.prologue.length -= 1;
+        assert_eq!(
+            validate_target_frame_protocol_encoding(&frame, &environment, changed),
+            Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding)
+        );
+
+        let mut changed = protocol.plan().clone();
+        changed.frame_layout = TargetFrameLayoutIdentity::from_bytes([0xa7; 32]);
+        assert_eq!(
+            validate_target_frame_protocol_encoding(&frame, &environment, changed),
+            Err(TargetFrameProtocolEncodingError::RootMismatch)
+        );
     }
 }
