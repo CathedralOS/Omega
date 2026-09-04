@@ -30,5 +30,5 @@ general-purpose runtime facilities.
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `LANGUAGE.md` | Normative Delta source and execution contract. | Replace only with a versioned contract and synchronized compiler/customer gates. |
-| `compiler/` | Selected Gamma-authored staged compiler, currently covering arbitrary-field recursive ADTs and exhaustive matches through immutable Gamma pairs. | Replace only with a more complete immediately prior-rung implementation. |
+| `compiler/` | Selected Gamma-authored staged compiler, currently covering arbitrary-field recursive ADTs, exhaustive matches, checked arithmetic, and immutable length-bearing Bytes ropes through Gamma pairs. | Replace only with a more complete immediately prior-rung implementation. |
 | `bootstrap/concatenative-compiler/` | Downgraded full compiler from the former concatenative Gamma rung. | Delete after a Gamma-authored staged Delta edge supersedes its evidence. |

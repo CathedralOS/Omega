@@ -348,8 +348,9 @@ The selected compiler source has a staged implementation for arbitrary-field
 finite ADTs, including recursive data, plus exhaustive matches, exact global
 call signatures, lexical local-scope resolution, and the complete
 scalar/nominal type relation. Authored signed arithmetic has checked runtime
-lowering, and ordinary tail calls survive `if`, `let`, and `match`. Normative
-`Bytes` and its application profiles remain outside this admitted stage. The
-complete compiler and tape remain absent. The former concatenative-Gamma
+lowering, ordinary tail calls survive `if`, `let`, and `match`, and the five
+normative `Bytes` operations lower through a private length-bearing rope.
+Application profiles and canonical compiler-boundary failures remain outside
+this admitted stage. The complete compiler and tape remain absent. The former concatenative-Gamma
 implementation is retained only under Delta-owned bootstrap material and does
 not define a second route.

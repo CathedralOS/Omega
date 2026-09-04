@@ -54,7 +54,7 @@ bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 1821, 71629, "0b7e4fab3e096099c0e136107fc1f707e0153e9f1587bf8a78d5f0cc0a02e2ec"),
+    ("compiler", compiler, 2020, 80194, "d45ebfa58208cb79c1fe2ce2d0a4e925dede87ad6e53b2514242870a9ee2987a"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -237,6 +237,85 @@ for name, expression in (
     if arithmetic_status != 0 or evaluate(arithmetic_receipt) != (2, b""):
         raise SystemExit(f"checked {name} did not trap")
 
+bytes_runtime = b"""(def $dbe () Int (pair 0 (pair 0 0)))
+(def $dbs ((v Int)) Int (if (lt v 0) (/ 1 0) (if (lt v 256) (pair 1 (pair 1 v)) (/ 1 0))))
+(def $dbl ((v Int)) Int (first v))
+(def $dbc ((l Int) (r Int)) Int (let ll Int (first l) (let rl Int (first r) (let n Int (+ ll rl) (if (lt n ll) (/ 1 0) (pair n (pair 2 (pair l r))))))))
+(def $dbg ((v Int) (i Int)) Int (if (lt i 0) (/ 1 0) (if (lt i (first v)) ($dbgi v i) (/ 1 0))))
+(def $dbgi ((v Int) (i Int)) Int (let n Int (second v) (let t Int (first n) (if (eq t 1) (second n) (if (eq t 2) (let c Int (second n) (let l Int (first c) (let z Int (first l) (if (lt i z) ($dbgi l i) ($dbgi (second c) (- i z)))))) (/ 1 0))))))
+"""
+
+bytes_core = b"""(data Box (Box Bytes))
+(def keep ((value Bytes)) Bytes (let retained Bytes value (if 1 retained value)))
+(def unwrap ((value Box)) Bytes (match value ((Box payload) payload)))
+(def main () Int
+  (+ (bytes_length (bytes_empty))
+    (bytes_get
+      (bytes_concat (bytes_empty)
+        (keep (unwrap (Box
+          (bytes_concat (bytes_single 65) (bytes_single 66))))))
+      1)))
+"""
+bytes_status, bytes_receipt = evaluate(compiler, bytes_core)
+if bytes_status != 0 or not bytes_receipt.startswith(bytes_runtime):
+    raise SystemExit("typed Bytes program did not lower through its private runtime")
+if evaluate(bytes_receipt) != (0, b"\x42"):
+    raise SystemExit("Bytes typing, construction, length, concatenation, or indexing failed")
+
+byte_extrema = b"""(def main () Int
+  (if (eq (bytes_get (bytes_single 0) 0) 0)
+    (if (eq (bytes_get (bytes_single 255) 0) 255)
+      (eq (bytes_length (bytes_concat (bytes_single 7) (bytes_empty))) 1)
+      0)
+    0))
+"""
+extrema_status, extrema_receipt = evaluate(compiler, byte_extrema)
+if extrema_status != 0 or evaluate(extrema_receipt) != (0, b"\x01"):
+    raise SystemExit("Bytes singleton extrema changed")
+
+bytes_type_only = (
+    b"(def keep ((value Bytes)) Bytes value)\n"
+    b"(def main () Int 7)\n"
+)
+type_only_status, type_only_receipt = evaluate(compiler, bytes_type_only)
+if type_only_status != 0 or b"$dbe" in type_only_receipt:
+    raise SystemExit("Bytes type-only program acquired an unused runtime")
+if evaluate(type_only_receipt) != (0, b"\x07"):
+    raise SystemExit("Bytes type-only program changed scalar execution")
+
+for name, expression in (
+    ("negative singleton", b"(bytes_length (bytes_single -1))"),
+    ("oversized singleton", b"(bytes_length (bytes_single 256))"),
+    ("empty lookup", b"(bytes_get (bytes_empty) 0)"),
+    ("negative lookup", b"(bytes_get (bytes_single 1) -1)"),
+    ("equal-to-length lookup", b"(bytes_get (bytes_single 1) 1)"),
+    ("past-length lookup", b"(bytes_get (bytes_single 1) 2)"),
+):
+    trap_source = b"(def main () Int " + expression + b")\n"
+    trap_status, trap_receipt = evaluate(compiler, trap_source)
+    if trap_status != 0 or evaluate(trap_receipt) != (2, b""):
+        raise SystemExit(f"Bytes {name} did not trap")
+
+logical_overflow = b"""(def double ((remaining Int) (value Bytes)) Bytes
+  (if (eq remaining 0)
+    (bytes_concat value value)
+    (double (- remaining 1) (bytes_concat value value))))
+(def main () Int (bytes_length (double 62 (bytes_single 1))))
+"""
+overflow_status, overflow_receipt = evaluate(compiler, logical_overflow)
+if overflow_status != 0 or evaluate(overflow_receipt) != (2, b""):
+    raise SystemExit("Bytes logical-length overflow did not trap")
+
+deep_rope = b"""(def grow ((remaining Int) (value Bytes)) Bytes
+  (if (eq remaining 0)
+    value
+    (grow (- remaining 1) (bytes_concat (bytes_empty) value))))
+(def main () Int (bytes_get (grow 100000 (bytes_single 90)) 0))
+"""
+deep_status, deep_receipt = evaluate(compiler, deep_rope)
+if deep_status != 0 or evaluate(deep_receipt) != (0, b"Z"):
+    raise SystemExit("deep Bytes lookup consumed non-tail call context")
+
 malformed = {
     "unknown field type": b"(data Bad (Bad Missing))\n(def main () Int 0)\n",
     "missing payload argument": b"(data Option (None) (Some Int))\n(def main () Int (Some))\n",
@@ -278,7 +357,14 @@ malformed = {
     "match scrutinee type": b"(data Box (Box Int))\n(def main () Int (match 1 ((Box x) x)))\n",
     "match constructor owner": b"(data A (A))\n(data B (B))\n(def main () Int (match A (B 1)))\n",
     "match arm type agreement": b"(data Choice (Left) (Right))\n(data Box (Box Int))\n(def main () Int (match Left (Left 1) (Right (Box 2))))\n",
-    "unlowered Bytes builtin": b"(def main () Int (bytes_length (bytes_empty)))\n",
+    "Bytes used as Int": b"(def main () Int (bytes_empty))\n",
+    "Int used as Bytes": b"(def keep ((x Bytes)) Bytes x)\n(def main () Int (bytes_length (keep 1)))\n",
+    "bytes_single argument type": b"(data Box (Box))\n(def main () Int (bytes_length (bytes_single Box)))\n",
+    "bytes_length argument type": b"(def main () Int (bytes_length 1))\n",
+    "bytes_get value type": b"(def main () Int (bytes_get 1 0))\n",
+    "bytes_get index type": b"(def main () Int (bytes_get (bytes_empty) (bytes_empty)))\n",
+    "bytes_concat left type": b"(def main () Int (bytes_length (bytes_concat 1 (bytes_empty))))\n",
+    "bytes_concat right type": b"(def main () Int (bytes_length (bytes_concat (bytes_empty) 1)))\n",
     "invalid result type": b"(def main () Missing 0)\n",
     "invalid let binder": b"(def main () Int (let Bad Int 0 0))\n",
     "invalid let type": b"(def main () Int (let x Missing 0 x))\n",
@@ -296,6 +382,14 @@ malformed = {
     "missing if argument": b"(def main () Int (if 1 2))\n",
     "excess operator argument": b"(def main () Int (+ 1 2 3))\n",
     "missing Bytes builtin argument": b"(def main () Int (bytes_get 0))\n",
+    "excess bytes_empty argument": b"(def main () Int (bytes_length (bytes_empty 0)))\n",
+    "missing bytes_single argument": b"(def main () Int (bytes_length (bytes_single)))\n",
+    "excess bytes_single argument": b"(def main () Int (bytes_length (bytes_single 0 1)))\n",
+    "missing bytes_length argument": b"(def main () Int (bytes_length))\n",
+    "excess bytes_length argument": b"(def main () Int (bytes_length (bytes_empty) (bytes_empty)))\n",
+    "excess bytes_get argument": b"(def main () Int (bytes_get (bytes_empty) 0 1))\n",
+    "missing bytes_concat argument": b"(def main () Int (bytes_length (bytes_concat (bytes_empty))))\n",
+    "excess bytes_concat argument": b"(def main () Int (bytes_length (bytes_concat (bytes_empty) (bytes_empty) (bytes_empty))))\n",
 }
 for name, candidate in malformed.items():
     status, _ = evaluate(compiler, candidate)
@@ -316,4 +410,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: scalar/nominal types, checked arithmetic, recursive ADTs, and proper tails pass"
+echo "Staged Delta compiler: typed Bytes, checked arithmetic, recursive ADTs, and proper tails pass"

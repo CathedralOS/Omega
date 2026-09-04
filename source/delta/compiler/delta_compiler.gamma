@@ -1,7 +1,7 @@
 ; First selected Gamma-authored Delta stage.
-; Lowers finite nullary algebraic data and declaration-order exhaustive matches
-; into ordinary scalar Gamma. Generated match binders use a $ prefix that no
-; authored Delta identifier can contain.
+; Lowers finite algebraic data, exhaustive matches, and immutable Bytes ropes
+; into ordinary Gamma values. Generated names use a $ prefix that no authored
+; Delta identifier can contain.
 
 (def fail () Int
   (read (input)))
@@ -169,7 +169,7 @@
 (def token_bytes ((start Int) (end Int)) Int
   (token_packed start end 5 495623371074))
 
-(def bytes_builtin_arity_plus_one ((start Int) (end Int)) Int
+(def bytes_builtin_kind ((start Int) (end Int)) Int
   (if (lt (- end start) 9)
     0
     (if (token_packed start (+ start 6) 6 104949228009826)
@@ -179,16 +179,37 @@
           (if (token_packed suffix end 6 111516266162547)
             2
             (if (token_packed suffix end 6 114849160783212)
-              2
+              3
               (if (token_packed suffix end 3 7628135)
-                3
+                4
                 (if (token_packed suffix end 6 127961628831587)
-                  3
+                  5
                   0))))))
       0)))
 
+(def bytes_builtin_arity_plus_one ((start Int) (end Int)) Int
+  (let kind Int (bytes_builtin_kind start end)
+    (if (eq kind 1)
+      1
+      (if (eq kind 2)
+        2
+        (if (eq kind 3)
+          2
+          (if (eq kind 4)
+            3
+            (if (eq kind 5) 3 0)))))))
+
 (def token_bytes_builtin ((start Int) (end Int)) Int
   (if (eq (bytes_builtin_arity_plus_one start end) 0) 0 1))
+
+(def source_uses_bytes_builtin ((index Int)) Int
+  (let start Int (skip index)
+    (if (eq start (input))
+      0
+      (let end Int (token_end start)
+        (if (token_bytes_builtin start end)
+          1
+          (source_uses_bytes_builtin end))))))
 
 (def is_upper ((byte Int)) Int
   (if (lt byte 65)
@@ -341,9 +362,11 @@
 (def field_type_valid ((start Int) (end Int)) Int
   (if (token_int start end)
     1
-    (if (upper_name_valid start end)
-      (if (eq (find_type_owner start end) 0) 0 1)
-      0)))
+    (if (token_bytes start end)
+      1
+      (if (upper_name_valid start end)
+        (if (eq (find_type_owner start end) 0) 0 1)
+        0))))
 
 (def constructor_after ((constructor_end Int)) Int
   (constructor_fields_after (skip constructor_end)))
@@ -498,6 +521,102 @@
     0
     (let ignored Int (write (read index))
       (emit_span (+ index 1) end))))
+
+; The readable emitted runtime is pinned verbatim in the staged compiler gate.
+; Packed eight-byte writes keep this transformer small without making the
+; generated helper closure an implicit host input.
+(def emit_ascii ((packed Int) (remaining Int)) Int
+  (if (eq remaining 0)
+    0
+    (let ignored Int (write (% packed 256))
+      (emit_ascii (/ packed 256) (- remaining 1)))))
+
+(def emit_bytes_runtime () Int
+  (let ignored0 Int (emit_ascii 7089831434963477544 8)
+  (let ignored1 Int (emit_ascii 8389723558316089445 8)
+  (let ignored2 Int (emit_ascii 3467897510007154720 8)
+  (let ignored3 Int (emit_ascii 3467897510007154720 8)
+  (let ignored4 Int (emit_ascii 7217029574761721888 8)
+  (let ignored5 Int (emit_ascii 2338320813777774181 8)
+  (let ignored6 Int (emit_ascii 2987133713209763880 8)
+  (let ignored7 Int (emit_ascii 7577342057489440809 8)
+  (let ignored8 Int (emit_ascii 2339092740868415590 8)
+  (let ignored9 Int (emit_ascii 2319670669981264176 8)
+  (let ignored10 Int (emit_ascii 2891423562602654000 8)
+  (let ignored11 Int (emit_ascii 3906083366815954028 8)
+  (let ignored12 Int (emit_ascii 2338047023773130793 8)
+  (let ignored13 Int (emit_ascii 2338047023773130801 8)
+  (let ignored14 Int (emit_ascii 3398001280012394545 8)
+  (let ignored15 Int (emit_ascii 2965947086477996320 8)
+  (let ignored16 Int (emit_ascii 7215928127114192906 8)
+  (let ignored17 Int (emit_ascii 5269341478867463266 8)
+  (let ignored18 Int (emit_ascii 8389723558316176494 8)
+  (let ignored19 Int (emit_ascii 2338621041743898656 8)
+  (let ignored20 Int (emit_ascii 7378413687648364918 8)
+  (let ignored21 Int (emit_ascii 2893598371810124832 8)
+  (let ignored22 Int (emit_ascii 2891356540815089772 8)
+  (let ignored23 Int (emit_ascii 2317429063302062194 8)
+  (let ignored24 Int (emit_ascii 8387228800646409801 8)
+  (let ignored25 Int (emit_ascii 2338615366867774496 8)
+  (let ignored26 Int (emit_ascii 7791355394540529192 8)
+  (let ignored27 Int (emit_ascii 8223700898533613609 8)
+  (let ignored28 Int (emit_ascii 7361169275375657068 8)
+  (let ignored29 Int (emit_ascii 2317508966977073769 8)
+  (let ignored30 Int (emit_ascii 5269332649694293032 8)
+  (let ignored31 Int (emit_ascii 7812654823309866094 8)
+  (let ignored32 Int (emit_ascii 7379473583022305824 8)
+  (let ignored33 Int (emit_ascii 7791348441022212128 8)
+  (let ignored34 Int (emit_ascii 2319670669981264236 8)
+  (let ignored35 Int (emit_ascii 8244227727215831344 8)
+  (let ignored36 Int (emit_ascii 8244227727215848992 8)
+  (let ignored37 Int (emit_ascii 8244227727215833632 8)
+  (let ignored38 Int (emit_ascii 2965947087585307680 8)
+  (let ignored39 Int (emit_ascii 7306008519607134505 8)
+  (let ignored40 Int (emit_ascii 2891424633056403558 8)
+  (let ignored41 Int (emit_ascii 2317511500280919592 8)
+  (let ignored42 Int (emit_ascii 2966029846622267688 8)
+  (let ignored43 Int (emit_ascii 7379473584280717600 8)
+  (let ignored44 Int (emit_ascii 3467887301188397088 8)
+  (let ignored45 Int (emit_ascii 3467825727375155241 8)
+  (let ignored46 Int (emit_ascii 7793514779387633705 8)
+  (let ignored47 Int (emit_ascii 8244232915406889076 8)
+  (let ignored48 Int (emit_ascii 2891356218824094835 8)
+  (let ignored49 Int (emit_ascii 2339092693543707684 8)
+  (let ignored50 Int (emit_ascii 2319670669981264233 8)
+  (let ignored51 Int (emit_ascii 7217029574761720112 8)
+  (let ignored52 Int (emit_ascii 7595147478825985637 8)
+  (let ignored53 Int (emit_ascii 8389723559607937056 8)
+  (let ignored54 Int (emit_ascii 8389723559389831209 8)
+  (let ignored55 Int (emit_ascii 2891438977793927465 8)
+  (let ignored56 Int (emit_ascii 7946918674834941292 8)
+  (let ignored57 Int (emit_ascii 7957688353961812084 8)
+  (let ignored58 Int (emit_ascii 7308260413915144292 8)
+  (let ignored59 Int (emit_ascii 2338615366868279412 8)
+  (let ignored60 Int (emit_ascii 7935470582616385064 8)
+  (let ignored61 Int (emit_ascii 7289111621122138153 8)
+  (let ignored62 Int (emit_ascii 2891356251746476145 8)
+  (let ignored63 Int (emit_ascii 7935452968904779123 8)
+  (let ignored64 Int (emit_ascii 7289111621122138153 8)
+  (let ignored65 Int (emit_ascii 2891356256041443441 8)
+  (let ignored66 Int (emit_ascii 7946918627590301036 8)
+  (let ignored67 Int (emit_ascii 7957688353961812084 8)
+  (let ignored68 Int (emit_ascii 7308260413914620004 8)
+  (let ignored69 Int (emit_ascii 2338615366867755124 8)
+  (let ignored70 Int (emit_ascii 7142837048199177768 8)
+  (let ignored71 Int (emit_ascii 8800161650837037097 8)
+  (let ignored72 Int (emit_ascii 7594801941464369440 8)
+  (let ignored73 Int (emit_ascii 2891356505149567858 8)
+  (let ignored74 Int (emit_ascii 7575182581115676265 8)
+  (let ignored75 Int (emit_ascii 7089831468144884256 8)
+  (let ignored76 Int (emit_ascii 2317499071232764263 8)
+  (let ignored77 Int (emit_ascii 2891426853525136424 8)
+  (let ignored78 Int (emit_ascii 7142819434487571827 8)
+  (let ignored79 Int (emit_ascii 8800149258799423529 8)
+  (let ignored80 Int (emit_ascii 2891356217532819753 8)
+  (let ignored81 Int (emit_ascii 2965947116275441711 8)
+  (let ignored82 Int (emit_ascii 170469673 4)
+    0))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+
 
 (def emit_function_name ((start Int) (end Int)) Int
   (if (token_main start end)
@@ -953,18 +1072,24 @@
                 (fail)))))
         (fail)))))
 
-; Type -1 is Int. Positive types are exact nominal declaration owners. Zero is
-; reserved as an absent lookup or as the first-arm result sentinel.
+; Negative types are exact builtins. Positive types are exact nominal
+; declaration owners. Zero is reserved as an absent lookup or as the first-arm
+; result sentinel.
 (def int_type () Int
   -1)
+
+(def bytes_type () Int
+  -2)
 
 (def resolve_type ((start Int) (end Int)) Int
   (if (token_int start end)
     (int_type)
-    (if (upper_name_valid start end)
-      (let owner Int (find_type_owner start end)
-        (if owner owner (fail)))
-      (fail))))
+    (if (token_bytes start end)
+      (bytes_type)
+      (if (upper_name_valid start end)
+        (let owner Int (find_type_owner start end)
+          (if owner owner (fail)))
+        (fail)))))
 
 (def typed_after ((typed Int)) Int
   (first typed))
@@ -1210,6 +1335,48 @@
                 (pair after (function_result_type owner)))))))
       (fail))))
 
+(def check_type_two_arguments
+  ((index Int) (first_type Int) (second_type Int)
+   (globals Int) (locals Int)) Int
+  (let first_value Int (check_type_expression index globals locals)
+    (if (eq (typed_value first_value) first_type)
+      (let second_value Int
+        (check_type_expression
+          (skip (typed_after first_value)) globals locals)
+        (if (eq (typed_value second_value) second_type)
+          (let close Int (skip (typed_after second_value))
+            (if (eq (read close) 41)
+              (token_end close)
+              (fail)))
+          (fail)))
+      (fail))))
+
+(def check_type_bytes_builtin
+  ((head Int) (head_end Int) (args Int) (globals Int) (locals Int)) Int
+  (let kind Int (bytes_builtin_kind head head_end)
+    (if (eq kind 1)
+      (let after Int
+        (check_type_arguments args 0 (bytes_type) globals locals)
+        (pair after (bytes_type)))
+      (if (eq kind 2)
+        (let after Int
+          (check_type_arguments args 1 (int_type) globals locals)
+          (pair after (bytes_type)))
+        (if (eq kind 3)
+          (let after Int
+            (check_type_arguments args 1 (bytes_type) globals locals)
+            (pair after (int_type)))
+          (if (eq kind 4)
+            (let after Int
+              (check_type_two_arguments
+                args (bytes_type) (int_type) globals locals)
+              (pair after (int_type)))
+            (if (eq kind 5)
+              (let after Int
+                (check_type_arguments args 2 (bytes_type) globals locals)
+                (pair after (bytes_type)))
+              (fail))))))))
+
 (def check_type_list
   ((open Int) (globals Int) (locals Int)) Int
   (let head Int (skip (token_end open))
@@ -1230,7 +1397,8 @@
                       arity globals locals)
                     (pair after owner))))
               (if (token_bytes_builtin head head_end)
-                (fail)
+                (check_type_bytes_builtin
+                  head head_end (skip head_end) globals locals)
                 (if (token_eq head head_end)
                   (let after Int
                     (check_type_arguments
@@ -1490,6 +1658,31 @@
           (if (eq byte 42) 1 0))))
     0))
 
+(def emit_bytes_helper_name ((kind Int)) Int
+  (let ignored0 Int (write '$')
+    (let ignored1 Int (write 'd')
+      (let ignored2 Int (write 'b')
+        (write
+          (if (eq kind 1)
+            'e'
+            (if (eq kind 2)
+              's'
+              (if (eq kind 3)
+                'l'
+                (if (eq kind 4)
+                  'g'
+                  (if (eq kind 5) 'c' (fail)))))))))))
+
+(def emit_bytes_builtin
+  ((head Int) (head_end Int) (args Int) (globals Int)) Int
+  (let kind Int (bytes_builtin_kind head head_end)
+    (let arity Int (bytes_builtin_arity_plus_one head head_end)
+      (if kind
+        (let ignored0 Int (write '(')
+          (let ignored1 Int (emit_bytes_helper_name kind)
+            (emit_generic_arguments args (- arity 1) globals)))
+        (fail)))))
+
 (def generic_head_arity
   ((start Int) (end Int) (globals Int)) Int
   (if (token_if start end)
@@ -1517,17 +1710,19 @@
 
 (def emit_generic_list
   ((open Int) (head Int) (head_end Int) (args Int) (globals Int)) Int
-  (if (checked_arithmetic_head head head_end)
-    (emit_checked_arithmetic open head head_end args globals)
-    (let arity Int (generic_head_arity head head_end globals)
-      (if arity
-        (let ignored0 Int (write '(')
-          (let ignored1 Int
-            (if (value_name_valid head head_end)
-              (emit_function_name head head_end)
-              (emit_span head head_end))
-            (emit_generic_arguments args (- arity 1) globals)))
-        (fail)))))
+  (if (token_bytes_builtin head head_end)
+    (emit_bytes_builtin head head_end args globals)
+    (if (checked_arithmetic_head head head_end)
+      (emit_checked_arithmetic open head head_end args globals)
+      (let arity Int (generic_head_arity head head_end globals)
+        (if arity
+          (let ignored0 Int (write '(')
+            (let ignored1 Int
+              (if (value_name_valid head head_end)
+                (emit_function_name head head_end)
+                (emit_span head head_end))
+              (emit_generic_arguments args (- arity 1) globals)))
+          (fail))))))
 
 (def emit_generic_arguments
   ((index Int) (remaining Int) (globals Int)) Int
@@ -1814,8 +2009,12 @@
     (let type_rows Int (empty_name_trie)
       (let constructor_rows Int (empty_name_trie)
         (let function_rows Int (empty_name_trie)
-          (let checked Int
-            (validate_global_program
-              0 0 0 0 type_rows constructor_rows function_rows)
-            (let types Int (check_program_types 0 checked)
-              (emit_program 0 checked))))))))
+            (let checked Int
+              (validate_global_program
+                0 0 0 0 type_rows constructor_rows function_rows)
+              (let types Int (check_program_types 0 checked)
+                (let runtime Int
+                  (if (source_uses_bytes_builtin 0)
+                    (emit_bytes_runtime)
+                    0)
+                  (emit_program 0 checked)))))))))

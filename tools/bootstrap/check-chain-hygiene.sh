@@ -94,7 +94,6 @@ epsilon
 gamma
 library
 omega
-omega-rust
 psi'
 [ "$tracked_source_roots" = "$expected_source_roots" ] ||
   fail "tracked source owners differ from the selected source-root set"

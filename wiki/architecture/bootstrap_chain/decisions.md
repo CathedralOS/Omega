@@ -4543,3 +4543,36 @@ recursive, List, rope, and proper-tail receipts to 425, 502, 1,404, and 568
 bytes respectively. Programs without authored checked arithmetic, including
 the nullary and payload fixtures and the 3,001-function scale witness, retain
 their exact receipts.
+
+## D109 — Delta Bytes lower to checked immutable Gamma-pair ropes
+
+The selected compiler now recognizes `Bytes` as Delta's second exact builtin
+type in parameters, results, local annotations, constructor fields, calls,
+branches, and pattern bindings. The five reserved forms have their normative
+closed signatures; no similarly named authored function or nominal pair can
+enter the builtin path.
+
+A generated `Bytes` value is a private immutable Gamma pair containing its
+logical length and a tagged rope node. Empty and singleton nodes establish
+lengths zero and one. Concatenation evaluates its operands once from left to
+right, loads both stored lengths, checks the mathematical sum through the
+nonnegative signed-wrap relation, and only then allocates the new descriptor
+and child node. Singleton construction checks `0..255`. Lookup first checks the
+complete half-open range and then follows concatenation nodes in proper tail
+position. These coordinates and tags are erased implementation details; Delta
+source can neither construct nor observe them.
+
+Generated runtime names start with `$`, outside Delta's authored alphabet.
+The compiler emits the runtime only when one of the five builtins occurs, so a
+program that merely carries `Bytes` through an annotated interface receives no
+dead helper closure. Exact witnesses cover `Bytes` through nominal fields and
+every ordinary type relation, zero and 255 singletons, empty and nested
+concatenation, all lookup bounds, singleton bounds, logarithmic physical rope
+doubling through the `INT64_MAX` logical-length guard, and a 100,000-node
+skewed lookup within Gamma's bounded call context.
+
+This milestone is the pure constructed-value core only. Sealed-input
+construction, output publication, DCREQ, profile-specific entry/schema checks,
+DCOUT/ECOUT, and deterministic boundary failure selection remain part of the
+application-profile edge. The exact selected subject is now 2,020 Gamma lines
+and 80,194 bytes, with 165 definitions and 682 lexical `let` binders.

@@ -23,22 +23,23 @@ retained Delta compiler.
 functional Gamma evaluator    1,325         1,065     165      479       6,934
 Forth-Gamma interpreter          890           723     122      312       5,145
 
-functional Delta compiler      1,821 source lines, 156 definitions
+functional Delta compiler      2,020 source lines, 165 definitions
 Forth-Gamma Delta compiler      1,451 source lines, 555 definitions
 
-total functional route         3,146 authored lines
+total functional route         3,345 authored lines
 total Forth route              2,341 authored lines
 ```
 
 The Forth compiler contains 49 named values, 5,860 executable source tokens,
 204 explicit branches, 171 explicit jumps, 77 stack-shuffle operations, and 20
-remaining dynamic cell operations. The functional compiler contains 578 named
+remaining dynamic cell operations. The functional compiler contains 682 named
 lexical `let` bindings and no source-level control-flow choreography. These
 current totals are no longer a matched-coverage comparison: the functional
 compiler also performs a complete declaration-order and exact namespace
 uniqueness census plus scalar/nominal scope and type checking that the retained
-Forth compiler lacks, and it lowers checked signed arithmetic rather than
-inheriting wrapping addition, subtraction, and multiplication.
+Forth compiler lacks, lowers checked signed arithmetic rather than inheriting
+wrapping addition, subtraction, and multiplication, and implements the
+normative typed `Bytes` core.
 
 ## Evidence
 

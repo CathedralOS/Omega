@@ -19,7 +19,7 @@ Delta source -> direct Beta evaluator -> result
 							  Lines  Instructions  Labels  Control  Tape bytes
 selected Gamma evaluator      1,325         1,065     165      479       6,934
 matched direct Delta evaluator 2,019         1,655     262      836      11,004
-selected Delta transformer    1,821 Gamma source lines
+selected Delta transformer    2,020 Gamma source lines
 ```
 
 The prototype matches the selected staged compiler's earlier D92 structural
@@ -32,9 +32,9 @@ function activation and call-context storage.
 
 The selected transformer has since added a complete declaration-order and
 exact namespace-uniqueness census plus scalar/nominal scope and type checking.
-It also lowers checked signed arithmetic. The retained direct prototype has
-not, so current total line counts are deliberately not presented as matched
-evidence.
+It also lowers checked signed arithmetic and implements the normative typed
+`Bytes` core. The retained direct prototype has not, so current total line
+counts are deliberately not presented as matched evidence.
 
 ## Finding
 
@@ -44,6 +44,6 @@ and 4,070 tape bytes larger than the selected Gamma evaluator. It removes the
 then-852-line higher-level transformer at the cost of moving constructor and match
 semantics into the low-level root.
 
-Neither route yet implements Delta's complete nominal type relation, checked
-arithmetic, normative `Bytes`, or application profiles. Those shared gaps do not
-make this experiment an admitted replacement.
+The direct prototype does not implement Delta's complete nominal type relation,
+checked arithmetic, normative `Bytes`, or application profiles. Those gaps do
+not make it an admitted replacement.
