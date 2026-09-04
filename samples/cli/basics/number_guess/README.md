@@ -34,7 +34,7 @@ Secret number: **42**, range: **[1, 100]**
 ## Building
 
 ```
-cargo run -p omega-cli -- --build-dir samples/number_guess/build --target windows_x64 samples/number_guess/main.omg
+mbx run -p omega -- --build-dir samples/number_guess/build --target windows_x64 samples/number_guess/main.omg
 ./samples/number_guess/build/omega-program.exe
 echo $?   # 70
 ```

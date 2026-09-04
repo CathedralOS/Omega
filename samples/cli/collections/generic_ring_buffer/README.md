@@ -36,7 +36,7 @@ Remaining elements: `slots[3]+slots[4]+slots[5] = 50+5+15 = 70`.
 ## Building
 
 ```
-cargo run -p omega-cli -- --build-dir samples/generic_ring_buffer/build --target windows_x64 samples/generic_ring_buffer/main.omg
+mbx run -p omega -- --build-dir samples/generic_ring_buffer/build --target windows_x64 samples/generic_ring_buffer/main.omg
 ./samples/generic_ring_buffer/build/omega-program.exe
 echo $?   # 70
 ```

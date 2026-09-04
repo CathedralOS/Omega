@@ -28,7 +28,7 @@ Weighted score: `info_count*2 + warn_count*5 + error_code_sum*10 = 10+20+40 = 70
 ## Building
 
 ```
-cargo run -p omega-cli -- --build-dir samples/logger/build --target windows_x64 samples/logger/main.omg
+mbx run -p omega -- --build-dir samples/logger/build --target windows_x64 samples/logger/main.omg
 ./samples/logger/build/omega-program.exe
 echo $?   # 70
 ```
