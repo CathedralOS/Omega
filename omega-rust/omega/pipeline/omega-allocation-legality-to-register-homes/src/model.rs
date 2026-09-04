@@ -11,10 +11,12 @@ use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
-use crate::{
-    OptimizedAllocationLegalityCustodyError, OptimizedSelectedReanalysisError,
-    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+use omega_fixed_view_copies_to_reanalyzed_legality::{
+    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
     StagedOptimizedSelectedReanalysisCustodyReceipt,
+};
+use omega_live_ranges_to_allocation_legality::{
+    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
 };
 
 /// Bounded opt-in physical-home staging. This lane admits only legality plans

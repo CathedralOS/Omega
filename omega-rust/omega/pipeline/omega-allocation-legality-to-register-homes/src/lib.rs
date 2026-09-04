@@ -1,4 +1,6 @@
-//! Optimizer module role: executable entrance. Register-home assignment stage.
+#![forbid(unsafe_code)]
+
+//! Pipeline stage for register-home assignment.
 //!
 //! Baseline legality and post-copy reanalysis are distinct source families.
 //! This entrance grants custody only after each constructed home/manifest pair
@@ -15,7 +17,8 @@ pub use validation::{
     validate_optimized_register_home_custody,
 };
 
-use crate::{StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis};
+use omega_fixed_view_copies_to_reanalyzed_legality::StagedOptimizedSelectedReanalysis;
+use omega_live_ranges_to_allocation_legality::StagedOptimizedAllocationLegality;
 
 pub fn stage_optimized_register_homes(
     legality: StagedOptimizedAllocationLegality,

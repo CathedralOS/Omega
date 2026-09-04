@@ -14,6 +14,7 @@ pub use encoding::*;
 pub use layout::*;
 pub use machine::*;
 pub use omega_allocation_legality_to_fixed_view_copies::*;
+pub use omega_allocation_legality_to_register_homes::*;
 pub use omega_fixed_view_copies_to_reanalyzed_legality::*;
 pub use omega_live_ranges_to_allocation_legality::*;
 pub use omega_liveness_to_live_ranges::*;
