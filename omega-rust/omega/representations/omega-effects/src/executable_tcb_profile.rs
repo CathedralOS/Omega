@@ -1,3 +1,6 @@
+//! The allowance a scope is judged against, and what an exact violation of it looks
+//! like.
+
 #[cfg(test)]
 use crate::provider_plan::ProviderPlan;
 use crate::provider_plan::ProviderPlanDigest;

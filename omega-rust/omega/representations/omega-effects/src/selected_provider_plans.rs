@@ -1,3 +1,5 @@
+//! The closure of provider plans a selection actually reached, and its digest.
+
 use crate::provider_plan::ProviderPlan;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;

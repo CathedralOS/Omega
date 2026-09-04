@@ -1,3 +1,6 @@
+//! What is inside one execution scope's trusted computing base, and which entries
+//! the compiler could not describe.
+
 use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
 
 /// Why an executable entry belongs to the manifest.

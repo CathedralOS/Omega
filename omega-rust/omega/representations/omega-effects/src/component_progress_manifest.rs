@@ -1,3 +1,5 @@
+//! The progress demands a component is bound to, and the digest that pins them.
+
 use crate::{
     SelectedProviderClosureDigest, SelectedProviderPlanFacts,
     provider_plan::{ProviderPlanDigest, ServiceProgressSubject},

@@ -1,3 +1,5 @@
+//! Scopes admitted as isolated, and the manifest set that covers them.
+
 #[cfg(test)]
 use crate::provider_plan::ProviderPlan;
 use crate::provider_plan::ProviderPlanDigest;

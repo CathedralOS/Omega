@@ -1,3 +1,6 @@
+//! What one service is permitted to exercise, against the classes terminal_authority
+//! defines.
+
 use crate::{
     PortableFilesystemAuthorityFacet, TerminalAuthorityDisposition,
     provider_plan::ServiceSchemaDigest,

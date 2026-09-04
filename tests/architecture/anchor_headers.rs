@@ -50,10 +50,6 @@ const ANCHOR_HEADER_EXCEPTIONS: &[(&str, usize)] = &[
         0,
     ),
     (
-        "omega-rust/omega/representations/omega-effects/src/lib.rs",
-        0,
-    ),
-    (
         "omega-rust/omega/representations/omega-machine-code/src/lib.rs",
         2,
     ),

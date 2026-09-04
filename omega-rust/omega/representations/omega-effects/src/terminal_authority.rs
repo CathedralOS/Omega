@@ -1,3 +1,6 @@
+//! The 14 authority classes, the mechanism identities that carry them, and the
+//! closure review over both - the one file here that encodes big-endian.
+
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
