@@ -86,7 +86,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_register_homes_after_literal_folds",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/encoding/active_resident_selected_form_encoding/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-active-resident-rematerialization-to-selected-form-encoding/src/lib.rs",
         coordination_marker: "pub fn stage_optimized_active_resident_rematerialization_selected_form_encoding",
     },
     RequiredCoordinationEntrance {

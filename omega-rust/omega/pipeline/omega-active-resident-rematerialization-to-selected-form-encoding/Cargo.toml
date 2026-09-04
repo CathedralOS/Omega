@@ -1,0 +1,18 @@
+[package]
+name = "omega-active-resident-rematerialization-to-selected-form-encoding"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_active_resident_rematerialization_to_selected_form_encoding"
+path = "src/lib.rs"
+
+[features]
+test-support = ["omega-post-allocation-machine-to-selected-form-encoding/test-support"]
+
+[dependencies]
+omega-allocation-legality-to-active-resident-rematerialization = { path = "../omega-allocation-legality-to-active-resident-rematerialization" }
+omega-post-allocation-machine-to-selected-form-encoding = { path = "../omega-post-allocation-machine-to-selected-form-encoding" }
+omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }

@@ -1,12 +1,10 @@
 //! Optimizer module role: stage group. Ordered custody boundaries from target selection through native artifacts.
 
 pub(crate) mod artifacts;
-pub(crate) mod encoding;
 pub(crate) mod layout;
 pub(crate) mod realization;
 
 pub use artifacts::*;
-pub use encoding::*;
 pub use layout::*;
 pub use omega_abstract_operations_to_target_operations::{
     ValidatedOptimizedTargetOperations, lower_optimized_to_target_operations,
@@ -14,6 +12,7 @@ pub use omega_abstract_operations_to_target_operations::{
     lower_optimized_to_target_operations_with_provider_executions,
     lower_optimized_to_target_operations_with_provider_executions_and_installation,
 };
+pub use omega_active_resident_rematerialization_to_selected_form_encoding::*;
 pub use omega_allocation_legality_to_active_resident_rematerialization::*;
 pub use omega_allocation_legality_to_fixed_view_copies::*;
 pub use omega_allocation_legality_to_literal_folds::*;
