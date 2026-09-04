@@ -113,7 +113,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
             *length = u64::try_from(prefix_length).expect("bounded prefix length");
             assert!(omega_machine_emission::emit_machine_code(&wrong_root_length).is_err());
 
-            if prefix_length == 24 {
+            if prefix_length == 25 {
                 let mut fenced_successor = assigned.clone();
                 let function = &mut fenced_successor.functions[0];
                 let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
@@ -141,8 +141,8 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                 else {
                     unreachable!()
                 };
-                *declaration_ordinal = 24;
-                construction.index = 24;
+                *declaration_ordinal = 25;
+                construction.index = 25;
                 let successor_operation_id = *psi_operation;
                 let successor_place = place.id;
                 body.operations.insert(prefix_length, successor_operation);
@@ -166,7 +166,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                 else {
                     unreachable!()
                 };
-                *length = 26;
+                *length = 27;
                 function.provenance.operations.push(successor_operation_id);
                 assert!(omega_machine_emission::emit_machine_code(&fenced_successor).is_err());
             }
@@ -204,7 +204,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
             );
             assert_eq!(function.semantic_code_attribution.len(), prefix_length + 1);
 
-            if prefix_length == 24 {
+            if prefix_length == 25 {
                 let mut fenced_successor = emitted.clone();
                 let function = &mut fenced_successor.functions[0];
                 let cleanup = function
@@ -228,8 +228,8 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                 else {
                     unreachable!()
                 };
-                *declaration_ordinal = 24;
-                construction.index = 24;
+                *declaration_ordinal = 25;
+                construction.index = 25;
                 let successor_operation = successor_local.0;
                 let successor_place = successor_local.1.id;
                 cleanup.locals.push(successor_local);
@@ -246,7 +246,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
                 else {
                     unreachable!()
                 };
-                *length = 26;
+                *length = 27;
                 function.provenance.operations.push(successor_operation);
                 let mut successor_attribution =
                     function.semantic_code_attribution[prefix_length - 1];
