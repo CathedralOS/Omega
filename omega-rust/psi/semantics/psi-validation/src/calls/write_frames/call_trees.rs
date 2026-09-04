@@ -19,7 +19,48 @@ enum ExpressionAdmission {
 
 enum PendingNode {
     Expression(ExpressionHandle, ValuePosition),
+    Receiver(ExpressionHandle),
     CallFrame(ExpressionHandle),
+}
+
+/// Receiver indices use the same complete call-tree proof as other scalar
+/// indexes. Declaration lookup identifies reference slots without replaying
+/// caller-prefix origin transfer from inside a raw frame query.
+pub(super) fn receiver_expression_preserves_origin(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    receiver: ExpressionHandle,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+) -> bool {
+    complete_expression_tree(
+        program,
+        current_machine,
+        receiver,
+        ValuePosition::IndexOperand,
+        machine_symbols,
+        symbols,
+        active_states,
+        |expression, _, _| {
+            if super::local_aliases::expression_reborrows_reference_binding(
+                program,
+                expression,
+                &|target| {
+                    super::caller_aliases::caller_binding_type(program, current_machine, target)
+                        .is_none_or(|reference| {
+                            super::type_reference_is_reference(program, reference)
+                        })
+                },
+            ) {
+                ExpressionAdmission::Reject
+            } else if !expression_is_effectful_for_transparent_result(program, expression) {
+                ExpressionAdmission::Leaf
+            } else {
+                ExpressionAdmission::Traverse
+            }
+        },
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -141,6 +182,30 @@ fn complete_expression_tree(
     while let Some(node) = pending.pop() {
         let expression =
             match node {
+                PendingNode::Receiver(expression) => {
+                    match admit_expression(expression, ValuePosition::IndexOperand, active_states) {
+                        ExpressionAdmission::Reject => return false,
+                        ExpressionAdmission::Leaf => continue,
+                        ExpressionAdmission::Traverse => {}
+                    }
+                    match program.expression_table.expression(expression) {
+                        ExpressionNode::Borrow(borrow) => {
+                            pending.push(PendingNode::Receiver(borrow.target))
+                        }
+                        ExpressionNode::Member(member) => {
+                            pending.push(PendingNode::Receiver(member.receiver))
+                        }
+                        ExpressionNode::Indexed(indexed) => {
+                            pending.push(PendingNode::Expression(
+                                indexed.index,
+                                ValuePosition::IndexOperand,
+                            ));
+                            pending.push(PendingNode::Receiver(indexed.collection));
+                        }
+                        _ => return false,
+                    }
+                    continue;
+                }
                 PendingNode::Expression(expression, position) => {
                     match admit_expression(expression, position, active_states) {
                         ExpressionAdmission::Reject => return false,
@@ -180,20 +245,12 @@ fn complete_expression_tree(
             return false;
         };
         let arguments = program.expression_table.expression_handles(call.arguments);
-        let receiver_members = if call.receiver.is_valid() {
-            let Some(receiver) = receiver_member_chain(program, call.receiver) else {
-                return false;
-            };
-            receiver
-        } else {
-            Vec::new()
+        let Some((receiver_members, receiver_origin)) =
+            super::receiver_frame_origin(program, call.receiver)
+        else {
+            return false;
         };
         if matches!(node, PendingNode::Expression(..)) {
-            if call.receiver.is_valid()
-                && expression_is_effectful_for_transparent_result(program, call.receiver)
-            {
-                return false;
-            }
             // Check child expressions before the parent frame, in source order.
             pending.push(PendingNode::CallFrame(expression));
             let argument_types = call_argument_types(
@@ -208,6 +265,9 @@ fn complete_expression_tree(
                 let expected_type = argument_types.get(index).copied().unwrap_or_default();
                 PendingNode::Expression(*argument, ValuePosition::CallArgument(expected_type))
             }));
+            if call.receiver.is_valid() {
+                pending.push(PendingNode::Receiver(call.receiver));
+            }
             continue;
         }
         if known_call_written_paths_for_parts(
@@ -215,6 +275,7 @@ fn complete_expression_tree(
             call.target_symbol,
             call.target.as_str(),
             &receiver_members,
+            receiver_origin.as_ref(),
             arguments,
             current_machine,
             machine_symbols,
@@ -222,6 +283,9 @@ fn complete_expression_tree(
             active_states,
         )
         .or_else(|| {
+            if call.receiver.is_valid() && receiver_member_chain(program, call.receiver).is_none() {
+                return None;
+            }
             known_boundary_call_written_paths_for_parts(
                 program,
                 current_machine,

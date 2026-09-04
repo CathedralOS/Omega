@@ -142,11 +142,29 @@ pub(super) fn expression_reborrows_stable_alias_binding(
     parameters: &[StateParameter],
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
+    expression_reborrows_reference_binding(program, expression, &|target| {
+        frame_place_path(program, target).is_some_and(|place| {
+            let (root, suffix) = split_place_root(&place.path);
+            suffix.is_empty()
+                && (parameters.iter().any(|parameter| {
+                    matches!(program.type_reference_table.type_reference(parameter.type_reference),
+                        TypeReferenceNode::Reference { access, .. } if access.is_exclusive())
+                        && (parameter.is_self && root == "self" || root == parameter.name.as_str())
+                }) || aliases.iter().any(|(name, _)| root == name))
+        })
+    })
+}
+
+pub(super) fn expression_reborrows_reference_binding(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    is_reference_binding: &impl Fn(ExpressionHandle) -> bool,
+) -> bool {
     if !expression.is_valid() {
         return false;
     }
     let visit =
-        |child| expression_reborrows_stable_alias_binding(program, child, parameters, aliases);
+        |child| expression_reborrows_reference_binding(program, child, is_reference_binding);
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
             let reborrows_binding = inner.access.is_exclusive()
@@ -154,20 +172,7 @@ pub(super) fn expression_reborrows_stable_alias_binding(
                     program.expression_table.expression(inner.target),
                     ExpressionNode::Name(_)
                 )
-                && frame_place_path(program, inner.target).is_some_and(|place| {
-                    let (root, suffix) = split_place_root(&place.path);
-                    suffix.is_empty()
-                        && (parameters.iter().any(|parameter| {
-                            matches!(
-                                program
-                                    .type_reference_table
-                                    .type_reference(parameter.type_reference),
-                                TypeReferenceNode::Reference { access, .. }
-                                    if access.is_exclusive()
-                            ) && (parameter.is_self && root == "self"
-                                || root == parameter.name.as_str())
-                        }) || aliases.iter().any(|(name, _)| root == name))
-                });
+                && is_reference_binding(inner.target);
             reborrows_binding || visit(inner.target)
         }
         ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),

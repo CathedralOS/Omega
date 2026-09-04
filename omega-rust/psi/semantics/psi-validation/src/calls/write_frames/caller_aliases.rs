@@ -11,6 +11,66 @@ use super::{
     type_is_caller_isolated_local, type_may_carry_write, walk_state_write_prefix,
 };
 
+pub(super) fn caller_binding_type(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    argument: ExpressionHandle,
+) -> Option<super::TypeReferenceHandle> {
+    let ExpressionNode::Name(name) = program.expression_table.expression(argument) else {
+        return None;
+    };
+    let [member] = program.expression_table.name_path_members(name.members) else {
+        return None;
+    };
+    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+        return None;
+    }
+    let (state, _, index) = caller_statement_at_site(
+        program,
+        current_machine,
+        CallerWriteSite::Expression(argument),
+    )?;
+    let declaration = program.symbols.get(name.symbol);
+    // Typed `self` paths retain the owning machine identity, not the synthetic
+    // state parameter identity. Only that exact machine may select this state's
+    // unique receiver declaration.
+    if member.as_str() == "self"
+        && name.symbol == current_machine.symbol
+        && declaration.kind == psi_symbols::SymbolKind::Machine
+    {
+        let mut receivers = program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| parameter.is_self);
+        let receiver = receivers.next()?;
+        return (receivers.next().is_none() && receiver.type_reference.is_valid())
+            .then_some(receiver.type_reference);
+    }
+    if declaration.parent != state.symbol || program.symbols.name(name.symbol) != member.as_str() {
+        return None;
+    }
+    let reference = match declaration.kind {
+        psi_symbols::SymbolKind::Parameter => {
+            program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == name.symbol)?
+                .type_reference
+        }
+        psi_symbols::SymbolKind::Local => {
+            let local = program.statement_table.statements(state.statement_nodes)[..index]
+                .iter()
+                .find_map(|statement| match statement {
+                    StatementNode::LocalData(local) if local.symbol == name.symbol => Some(local),
+                    _ => None,
+                })?;
+            local.type_reference
+        }
+        _ => return None,
+    };
+    reference.is_valid().then_some(reference)
+}
+
 pub(super) enum CallerWriteSite<'query> {
     Call(&'query TableCall),
     Statement(&'query StatementNode),

@@ -308,7 +308,7 @@ Owners include
   transitional broad `Filesystem` review summary.
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
-  for unresolved or indexed method receivers, boundary-result origins,
+  for unresolved receivers, boundary-result origins,
   reference-bearing aggregate origins, computed reference arguments outside
   proven helper-result relations, and other unsupported expression shapes.
   Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.

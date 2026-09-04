@@ -497,19 +497,35 @@ pub(super) fn collect_expression_call_written_paths(
             // A boundary member with the same spelling still has its declared
             // receiver and argument reach; spelling cannot bypass resolution.
             if value_builtin_has_empty_write_frame(call.target.as_str())
+                && super::machine_state_by_symbol(program, call.target_symbol).is_none()
                 && !receiver_members.as_deref().is_some_and(|receiver| {
                     receiver_requires_boundary_frame(machine_symbols, symbols, receiver)
                 })
             {
                 return Some(());
             }
-            let receiver_members = receiver_members?;
+            let exact_receiver = receiver_members.is_some();
+            let (receiver_members, receiver_origin) =
+                super::receiver_frame_origin(program, call.receiver)?;
+            if !exact_receiver
+                && !super::call_trees::receiver_expression_preserves_origin(
+                    program,
+                    current_machine,
+                    call.receiver,
+                    machine_symbols,
+                    symbols,
+                    active_states,
+                )
+            {
+                return None;
+            }
             let arguments = program.expression_table.expression_handles(call.arguments);
             let paths = known_call_written_paths_for_parts(
                 program,
                 call.target_symbol,
                 call.target.as_str(),
                 &receiver_members,
+                receiver_origin.as_ref(),
                 arguments,
                 current_machine,
                 machine_symbols,
@@ -517,6 +533,9 @@ pub(super) fn collect_expression_call_written_paths(
                 active_states,
             )
             .or_else(|| {
+                if !exact_receiver {
+                    return None;
+                }
                 known_boundary_call_written_paths_for_parts(
                     program,
                     current_machine,
@@ -534,6 +553,9 @@ pub(super) fn collect_expression_call_written_paths(
             // Conservatively poison the whole receiver (`self` for an implicit
             // receiver) plus every explicit mutable argument.
             .or_else(|| {
+                if !exact_receiver {
+                    return None;
+                }
                 syntactic_call_written_paths(
                     program,
                     &receiver_members,

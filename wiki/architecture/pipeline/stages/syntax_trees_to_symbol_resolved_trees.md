@@ -42,6 +42,12 @@ Must own:
   construction identities before name resolution.
 - Constructing symbol identity for definitions.
 - Stamping references with symbol handles when lookup is source/scope based.
+- Resolving indexed expression-call receivers through declared array/slice
+  element types and subsequent exact-owner member declarations. Each index
+  consumes one collection layer, independently of its runtime value. Roots
+  must retain the exact current receiver, parameter, or prior local identity;
+  unresolved indexed paths cannot select a free same-named callable. Bounds,
+  index effects, receiver access, and call validity remain later obligations.
 - Keeping source names available for diagnostics without letting strings become
   semantic identity.
 - Preserving an explicit named `requires`/`ensures` evidence binding while its
