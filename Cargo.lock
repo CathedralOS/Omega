@@ -1179,6 +1179,7 @@ dependencies = [
  "omega-psi-to-abstract-operations",
  "omega-regalloc",
  "omega-register-homes-to-callee-saved-requirements",
+ "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-selected-instructions",
  "omega-selected-instructions-to-liveness",
@@ -1505,6 +1506,19 @@ dependencies = [
  "omega-target-to-register-environment",
  "psi-core",
  "sha2",
+]
+
+[[package]]
+name = "omega-register-homes-to-post-allocation-machine"
+version = "0.1.0"
+dependencies = [
+ "omega-allocation-legality-to-active-resident-rematerialization",
+ "omega-allocation-legality-to-register-homes",
+ "omega-literal-folds-to-register-homes",
+ "omega-machine-optimizer",
+ "omega-regalloc",
+ "omega-selected-instructions-to-machine-effects",
+ "omega-target-to-register-environment",
 ]
 
 [[package]]

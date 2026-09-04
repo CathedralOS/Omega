@@ -2,15 +2,21 @@ use omega_machine_optimizer::{
     PostAllocationMachineError, PostAllocationMachineIdentity, ValidatedPostAllocationMachinePlan,
 };
 
-use crate::{
-    OptimizedActiveResidentRematerializationError, OptimizedMachineEffectPipelineError,
-    OptimizedPostCopyRegisterHomeCustodyError, OptimizedPostLiteralFoldHomeCustodyError,
-    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
-    StagedOptimizedActiveResidentRematerializationCustodyReceipt, StagedOptimizedMachineEffects,
-    StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
+use omega_allocation_legality_to_active_resident_rematerialization::{
+    OptimizedActiveResidentRematerializationError,
+    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+};
+use omega_allocation_legality_to_register_homes::{
+    OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
+    StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
+};
+use omega_literal_folds_to_register_homes::{
+    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomeCustodyReceipt,
+};
+use omega_selected_instructions_to_machine_effects::{
+    OptimizedMachineEffectPipelineError, StagedOptimizedMachineEffects,
 };
 
 /// Home-aware machine facts joined only through independently replayed source

@@ -1,4 +1,6 @@
-//! Optimizer module role: stage group. Post-allocation machine analysis components.
+#![forbid(unsafe_code)]
+
+//! Optimizer module role: crate map. Post-allocation machine analysis components.
 //!
 //! Route adapters project each supported selected-instruction lineage into the
 //! common construction entrance. Shared receipt sealing remains beside the
@@ -14,7 +16,7 @@ pub use validation::*;
 
 use omega_machine_optimizer::ValidatedPostAllocationMachinePlan;
 
-use crate::StagedOptimizedMachineEffects;
+use omega_selected_instructions_to_machine_effects::StagedOptimizedMachineEffects;
 
 fn seal_staged_post_allocation_machine(
     source: StagedOptimizedPostAllocationMachineSourceCustodyReceipt,

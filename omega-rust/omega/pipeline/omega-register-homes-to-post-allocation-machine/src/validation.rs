@@ -2,22 +2,29 @@ use omega_machine_optimizer::{
     ValidatedPostAllocationMachinePlan, validate_post_allocation_machine_plan,
 };
 
-use crate::{
-    StagedOptimizedActiveResidentRematerialization, StagedOptimizedRegisterHomes,
-    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+use omega_allocation_legality_to_active_resident_rematerialization::{
+    StagedOptimizedActiveResidentRematerialization,
+    validate_optimized_active_resident_rematerialization,
+};
+use omega_allocation_legality_to_register_homes::{
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    validate_optimized_register_home_after_fixed_view_copy_custody,
+    validate_optimized_register_home_custody,
+};
+use omega_literal_folds_to_register_homes::{
     StagedOptimizedRegisterHomesAfterLiteralFolds,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
-    validate_optimized_active_resident_rematerialization,
+    validate_optimized_register_home_after_literal_fold_custody,
+    validate_optimized_register_home_after_selected_lowering_custody,
+};
+use omega_selected_instructions_to_machine_effects::{
     validate_optimized_machine_effect_custody,
     validate_optimized_machine_effect_custody_after_active_resident_rematerialization,
     validate_optimized_machine_effect_custody_after_fixed_view_copies,
     validate_optimized_machine_effect_custody_after_literal_folds,
     validate_optimized_machine_effect_custody_after_selected_lowering,
-    validate_optimized_register_home_after_fixed_view_copy_custody,
-    validate_optimized_register_home_after_literal_fold_custody,
-    validate_optimized_register_home_after_selected_lowering_custody,
-    validate_optimized_register_home_custody,
 };
+use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::{
     OptimizedPostAllocationMachinePipelineError,
@@ -239,7 +246,7 @@ fn replay<S: omega_regalloc::ValidatedSelectedAnalysis>(
     legality: &omega_regalloc::ValidatedAllocationLegality,
     homes: &omega_regalloc::ValidatedRegisterHomes,
     manifest: &omega_regalloc::ValidatedPostAllocationOptimizationManifest,
-    environment: &crate::ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedPostAllocationMachinePlan, OptimizedPostAllocationMachinePipelineError> {
     let replayed = validate_post_allocation_machine_plan(
         selected,
