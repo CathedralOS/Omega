@@ -6,7 +6,7 @@ with multi-arg parameters, integer multiply/divide, and guard-ladder
 comparison. Runs to exit **70**.
 
 ```
-omega --target windows_x64 --build-dir build samples/shapes_area/main.omg
+omega --target windows_x64 --build-dir build samples/cli/proofs/shapes_area/main.omg
 ./build/omega-program.exe   # exit 70
 ```
 

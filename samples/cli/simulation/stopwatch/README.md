@@ -21,7 +21,7 @@ Final state: `total=70`, `last_split=40`, `last_lap=30`, `elapsed=40`.
 Exits **70** when all four values are correct.
 
 ```
-omega --target windows_x64 --build-dir build samples/stopwatch/main.omg
+omega --target windows_x64 --build-dir build samples/cli/simulation/stopwatch/main.omg
 ./build/omega-program.exe   # exit 70
 ```
 

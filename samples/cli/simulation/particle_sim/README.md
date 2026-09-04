@@ -10,7 +10,7 @@ steps `position == 10.0`. The guard asserts `9.5 < position < 10.5` and
 exits **70**.
 
 ```
-omega --target windows_x64 --build-dir build samples/particle_sim/main.omg
+omega --target windows_x64 --build-dir build samples/cli/simulation/particle_sim/main.omg
 ./build/omega-program.exe   # exit 70
 ```
 

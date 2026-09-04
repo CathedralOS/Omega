@@ -18,7 +18,7 @@ withdraw(700)  -> txns[5] = -700,  cumulative = 70
 Final balance `500+200-150+300-80-700 = 70`. Exits **70**.
 
 ```
-omega --target windows_x64 --build-dir build samples/bank_ledger/main.omg
+omega --target windows_x64 --build-dir build samples/cli/systems/bank_ledger/main.omg
 ./build/omega-program.exe   # exit 70
 ```
 

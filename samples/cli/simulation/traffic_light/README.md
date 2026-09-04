@@ -6,7 +6,7 @@ dispatch in transitions, and accumulated scalar state across multiple machine
 calls. Runs to exit **70**.
 
 ```
-omega --target windows_x64 --build-dir build samples/traffic_light/main.omg
+omega --target windows_x64 --build-dir build samples/cli/simulation/traffic_light/main.omg
 ./build/omega-program.exe   # exit 70
 ```
 
