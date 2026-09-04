@@ -1982,6 +1982,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let machine_code_path = realization_root.join("machine_code.rs");
     let machine_code = std::fs::read_to_string(&machine_code_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", machine_code_path.display()));
+    let target_stage_path = realization_root.join("target_stage.rs");
+    let target_stage = std::fs::read_to_string(&target_stage_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", target_stage_path.display()));
     let callback_machine_code_path = realization_root.join("callback_machine_code.rs");
     let callback_machine_code = std::fs::read_to_string(&callback_machine_code_path)
         .unwrap_or_else(|error| {
@@ -1996,8 +1999,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let model_path = realization_root.join("model.rs");
     let model = std::fs::read_to_string(&model_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_path.display()));
-    let production_realization =
-        format!("{realization}\n{api}\n{input}\n{machine_code}\n{callback_machine_code}");
+    let production_realization = format!(
+        "{realization}\n{api}\n{input}\n{target_stage}\n{machine_code}\n{callback_machine_code}"
+    );
     let selection_path =
         root.join("omega-rust/omega/representations/omega-optimization-core/src/selection.rs");
     let selection = std::fs::read_to_string(&selection_path)
@@ -2022,54 +2026,69 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && post_terminal_selection.contains("pub struct PostTerminalOptimizationSelections")
             && post_terminal_selection.contains("OptimizationExecutionPhase::CheckedTrees")
             && post_terminal_selection.contains("OptimizationExecutionPhase::Psi")
-            && model.contains("enum PostTerminalPhysicalContinuation")
-            && model.contains("PostTerminalPhysicalContinuation::Identity")
-            && model.contains("PostTerminalPhysicalContinuation::Selected")
+            && model.contains("enum PostTerminalOptimizationContinuation")
+            && model.contains("PostTerminalOptimizationContinuation::Identity")
+            && model.contains("PostTerminalOptimizationContinuation::Selected")
             && !model.contains(
                 "optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>",
             )
             && !input.contains("reject_pre_terminal_selections(")
-            && machine_code.contains("optimize_verified_psi_input(")
-            && machine_code
+            && target_stage.contains("enum NativeTargetStageResult")
+            && target_stage.contains("optimize_verified_psi_input(")
+            && target_stage
                 .contains("lower_optimized_to_target_operations_with_provider_executions")
             && machine_code.contains("stage_optimized_verified_physical_pipeline(")
+            && machine_code.contains("lower_realization_target_stage(")
+            && !machine_code.contains("optimize_verified_psi_input(")
             && !machine_code
                 .contains("stage_optimized_native_continuation_with_provider_executions"),
-        "a resumed lowerer must make pre-Terminal selections unrepresentable and expose target lowering before later selected physical work"
+        "a resumed lowerer must make pre-Terminal selections unrepresentable, finish target lowering in one typed stage, and route only its result into physical work"
     );
     let native_stage = input
         .find("let native = omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization")
         .expect("native realization constructs one unconditional Terminal-to-abstract stage");
-    let explicit_physical_continuation = input
-        .find("let physical_continuation = if optimization_selections.is_empty()")
-        .expect("later physical work records explicit identity or selected continuation");
+    let explicit_optimization_continuation = input
+        .find("let optimization_continuation = if optimization_selections.is_empty()")
+        .expect("later optimization records explicit identity or selected continuation");
     assert!(
-        native_stage < explicit_physical_continuation
+        native_stage < explicit_optimization_continuation
             && model.contains("pub(crate) struct NativeRealizationInput")
             && !model.contains("NativeRealizationInput::Unoptimized")
             && !model.contains("NativeRealizationInput::ExplicitOptimization"),
         "optimization presence must not select the Terminal-to-abstract native authority entrance"
     );
-    let (_, native_conveyor) = machine_code
+    let (_, target_conveyor) = target_stage
         .split_once("match input.into_parts() {")
-        .expect("native realization consumes the one abstract-stage result");
-    let (baseline_conveyor, optimized_conveyor) = native_conveyor
-        .split_once("(_, PostTerminalPhysicalContinuation::Selected(input))")
-        .expect("native realization retains a transitional later physical-selection arm");
-    let selected_target_stage = optimized_conveyor
+        .expect("target realization consumes the one abstract-stage result");
+    let (identity_target_conveyor, selected_target_conveyor) = target_conveyor
+        .split_once("(_, PostTerminalOptimizationContinuation::Selected(input))")
+        .expect("target realization retains an explicit selected-optimization arm");
+    let selected_target_stage = selected_target_conveyor
         .find("let optimized_target = match provider_installation")
         .expect("optimized realization visibly constructs its validated target-stage result");
-    let selected_physical_stage = optimized_conveyor
+    let selected_target_result = selected_target_conveyor
+        .find("Ok(NativeTargetStageResult::Selected(optimized_target))")
+        .expect("optimized realization publishes its validated target-stage result");
+    let target_stage_entrance = machine_code
+        .find("let target_stage =")
+        .expect("machine realization enters target lowering once");
+    let target_stage_consumption = machine_code
+        .find("match target_stage {")
+        .expect("machine realization consumes the completed target stage");
+    let selected_physical_stage = machine_code
         .find("let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline")
         .expect("optimized realization visibly enters physical optimization after target lowering");
     let transitional_assignment =
         "omega_target_operations_to_assigned_target_operations::assign_registers";
     assert!(
-        baseline_conveyor.contains(transitional_assignment)
-            && !optimized_conveyor.contains("if psi_only {")
-            && !optimized_conveyor.contains(transitional_assignment)
-            && selected_target_stage < selected_physical_stage,
-        "only the publishable baseline may retain transitional assignment; selected lowering must expose its target result before physical routing"
+        !identity_target_conveyor.contains(transitional_assignment)
+            && !selected_target_conveyor.contains(transitional_assignment)
+            && !target_stage.contains("if psi_only {")
+            && machine_code.contains(transitional_assignment)
+            && selected_target_stage < selected_target_result
+            && target_stage_entrance < target_stage_consumption
+            && target_stage_consumption < selected_physical_stage,
+        "every route must finish target lowering before machine emission; assignment may consume only the closed target-stage result"
     );
     for forbidden in [
         "CheckedCompilation",

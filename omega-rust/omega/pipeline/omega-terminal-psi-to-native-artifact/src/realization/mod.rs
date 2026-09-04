@@ -13,6 +13,7 @@ mod output;
 mod program_entry;
 pub(crate) mod providers;
 mod selected_lowering_projection;
+mod target_stage;
 mod terminal_authority_permission_policy;
 mod terminal_authority_policy;
 mod terminal_authority_review;

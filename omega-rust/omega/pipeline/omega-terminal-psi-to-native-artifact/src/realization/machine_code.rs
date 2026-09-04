@@ -5,12 +5,11 @@ use crate::realization::diagnostics::{
     realization_error, selected_physical_pipeline_failed,
     selected_physical_pipeline_not_publishable,
 };
-use crate::realization::model::{
-    NativeRealizationCoreRequest, NativeRealizationInput, PostTerminalPhysicalContinuation,
-};
+use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
 use crate::realization::selected_lowering_projection::{
     SelectedLoweringPublicationRequest, emit_return_only_selected_lowering,
 };
+use crate::realization::target_stage::{NativeTargetStageResult, lower_realization_target_stage};
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use omega_boundary_applications::TerminalBoundaryApplicationCoverage;
 use omega_machine_code::MachineCodePlanWithPrivateFunctions;
@@ -31,32 +30,10 @@ pub(crate) fn emit_realization_machine_code(
     initial_physical_evidence_scope: NativePhysicalEvidenceScope,
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<EmittedRealizationMachineCode, Vec<Diagnostic>> {
-    match input.into_parts() {
-        (
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(plan),
-            PostTerminalPhysicalContinuation::Identity,
-        ) => {
-            let target = match provider_installation {
-                Some(installation) => {
-                    omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
-                        &plan,
-                        request.target,
-                        settlements,
-                        Some(&installation),
-                        request.ieee_float_fma,
-                        request.native_callbacks,
-                    )
-                }
-                None => omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
-                    &plan,
-                    request.target,
-                    settlements,
-                    None,
-                    request.ieee_float_fma,
-                    request.native_callbacks,
-                ),
-            }
-            .map_err(|error| realization_error("ordinary target lowering", error))?;
+    let target_stage =
+        lower_realization_target_stage(input, provider_installation, settlements, request)?;
+    match target_stage {
+        NativeTargetStageResult::IdentityOrdinary(target) => {
             let assigned = omega_target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(&target)
                 .map_err(|error| realization_error("ordinary physical assignment", error))?;
             let private_functions =
@@ -75,28 +52,7 @@ pub(crate) fn emit_realization_machine_code(
                 physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
-        (
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(
-                ranked,
-            ),
-            PostTerminalPhysicalContinuation::Identity,
-        ) => {
-            if provider_installation.is_some()
-                || !settlements.is_empty()
-                || !request.native_callbacks.is_empty()
-                || !request.callback_thunks.is_empty()
-            {
-                return Err(realization_error(
-                    "ranked native provider isolation",
-                    "the exact ranked countdown admits no provider installation or boundary settlement",
-                ));
-            }
-            let target =
-                omega_abstract_operations_to_target_operations::lower_ranked_to_target_operations(
-                    &ranked,
-                    request.target,
-                )
-                .map_err(|error| realization_error("ranked target lowering", error))?;
+        NativeTargetStageResult::IdentityRanked(target) => {
             let assigned =
                 omega_target_operations_to_assigned_target_operations::assign_registers(&target)
                     .map_err(|error| realization_error("ranked physical assignment", error))?;
@@ -110,44 +66,10 @@ pub(crate) fn emit_realization_machine_code(
                 physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
-        (_, PostTerminalPhysicalContinuation::Selected(input)) => {
-            if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
-                return Err(realization_error(
-                    "optimized native callback custody",
-                    "retained callbacks require the ordinary custody-preserving pipeline",
-                ));
-            }
-            if !request.ieee_float_fma.is_empty() {
-                return Err(realization_error(
-                    "optimized nearest-FMA custody",
-                    "retained nearest-FMA occurrences require the ordinary custody-preserving pipeline",
-                ));
-            }
-            let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
-                request.optimization_selections.selections(),
-            );
-            let optimized = omega_optimization_pipeline::optimize_verified_psi_input(
-                input,
-                optimization_request,
-            )
-            .map_err(|error| realization_error("canonical optimization", error))?;
-            let optimized_plan = optimized.plan().clone();
-            let optimized_validation = optimized.validation();
-            let has_provider_installation = provider_installation.is_some();
-            let optimized_target = match provider_installation {
-                Some(installation) => omega_optimization_pipeline::lower_optimized_to_target_operations_with_provider_executions_and_installation(
-                    optimized,
-                    request.target,
-                    settlements,
-                    installation,
-                ),
-                None => omega_optimization_pipeline::lower_optimized_to_target_operations_with_provider_executions(
-                    optimized,
-                    request.target,
-                    settlements,
-                ),
-            }
-            .map_err(|error| realization_error("optimized target lowering", error))?;
+        NativeTargetStageResult::Selected(optimized_target) => {
+            let optimized_plan = optimized_target.optimized().plan().clone();
+            let optimized_validation = optimized_target.optimized().validation();
+            let has_provider_installation = optimized_target.provider_installation().is_some();
             let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline(
                 optimized_target,
             )

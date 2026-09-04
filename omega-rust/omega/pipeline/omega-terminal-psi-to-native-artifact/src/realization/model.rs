@@ -41,12 +41,12 @@ builtin_native_realization_conversion!(omega_target_operations::ClaimCompletionO
 /// of a stage. The selected variant retains the verifier context required by
 /// the transitional physical optimizer until its phases are split apart.
 #[derive(Debug, Clone)]
-pub(crate) enum PostTerminalPhysicalContinuation {
+pub(crate) enum PostTerminalOptimizationContinuation {
     Identity,
     Selected(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
 }
 
-impl PostTerminalPhysicalContinuation {
+impl PostTerminalOptimizationContinuation {
     pub(crate) const fn selected(
         &self,
     ) -> Option<&omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput> {
@@ -66,31 +66,35 @@ impl PostTerminalPhysicalContinuation {
 #[derive(Debug, Clone)]
 pub(crate) struct NativeRealizationInput {
     native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
-    physical_continuation: PostTerminalPhysicalContinuation,
+    optimization_continuation: PostTerminalOptimizationContinuation,
 }
 
 impl NativeRealizationInput {
     pub(crate) fn new(
         native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
-        physical_continuation: PostTerminalPhysicalContinuation,
+        optimization_continuation: PostTerminalOptimizationContinuation,
     ) -> Result<Self, &'static str> {
-        if physical_continuation.selected().is_some_and(|selected| {
-            selected.plan().psi != native.plan().psi || selected.plan().entry != native.plan().entry
-        }) {
+        if optimization_continuation
+            .selected()
+            .is_some_and(|selected| {
+                selected.plan().psi != native.plan().psi
+                    || selected.plan().entry != native.plan().entry
+            })
+        {
             return Err(
                 "native authority and selected physical-optimization context disagree on the Terminal program root",
             );
         }
         Ok(Self {
             native,
-            physical_continuation,
+            optimization_continuation,
         })
     }
 
     pub(crate) fn plan(&self) -> &omega_abstract_operations::AbstractOperationPlan {
-        match &self.physical_continuation {
-            PostTerminalPhysicalContinuation::Identity => self.native.plan(),
-            PostTerminalPhysicalContinuation::Selected(input) => input.plan(),
+        match &self.optimization_continuation {
+            PostTerminalOptimizationContinuation::Identity => self.native.plan(),
+            PostTerminalOptimizationContinuation::Selected(input) => input.plan(),
         }
     }
 
@@ -100,17 +104,17 @@ impl NativeRealizationInput {
         &self.native
     }
 
-    pub(crate) const fn physical_continuation(&self) -> &PostTerminalPhysicalContinuation {
-        &self.physical_continuation
+    pub(crate) const fn optimization_continuation(&self) -> &PostTerminalOptimizationContinuation {
+        &self.optimization_continuation
     }
 
     pub(crate) fn into_parts(
         self,
     ) -> (
         omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
-        PostTerminalPhysicalContinuation,
+        PostTerminalOptimizationContinuation,
     ) {
-        (self.native, self.physical_continuation)
+        (self.native, self.optimization_continuation)
     }
 
     pub(crate) fn physical_evidence_scope(
@@ -121,8 +125,8 @@ impl NativeRealizationInput {
     ) -> omega_native_artifact::NativePhysicalEvidenceScope {
         physical_evidence_scope(
             matches!(
-                self.physical_continuation,
-                PostTerminalPhysicalContinuation::Identity
+                self.optimization_continuation,
+                PostTerminalOptimizationContinuation::Identity
             ),
             checked_scope,
         )
