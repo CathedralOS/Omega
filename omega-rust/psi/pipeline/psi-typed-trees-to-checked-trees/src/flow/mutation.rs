@@ -1,15 +1,26 @@
 use super::*;
 use crate::lookup::expression_root_symbol;
+mod local_origins;
 mod receiver;
 mod summary;
 
 pub(crate) use receiver::{
-    call_may_mutate_contract_state, call_receiver_is_mutable, call_receiver_mutated_place,
-    canonical_receiver_place_for_call_site,
+    call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
 };
 pub(crate) use summary::StateMutationSummaryCache;
 use summary::instantiate_known_call_mutation_summary_places;
 
+#[derive(Clone, Copy)]
+pub(super) enum WritePlaceNamespace {
+    /// Preserve the caller's reference binding through which access occurs.
+    AccessRoute,
+    /// Rebase reference bindings to the storage whose facts may be invalidated.
+    Storage,
+}
+
+/// Caller storage footprint. `None` requires full invalidation; an empty
+/// complete footprint preserves facts. Neither may be represented by an
+/// unresolved reference-binding root.
 pub(crate) fn call_mutated_places(
     program: &psi_typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
@@ -17,7 +28,49 @@ pub(crate) fn call_mutated_places(
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     state_mutation_summaries: &mut StateMutationSummaryCache,
+) -> Option<Vec<CanonicalPlace>> {
+    call_write_places(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+        state_mutation_summaries,
+        WritePlaceNamespace::Storage,
+    )
+}
+
+/// The access route retains the local loan owner; storage rebasing must not
+/// turn a write through that loan into an independent write to its referent.
+pub(crate) fn call_write_accesses(
+    program: &psi_typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+    state_mutation_summaries: &mut StateMutationSummaryCache,
 ) -> Vec<CanonicalPlace> {
+    call_write_places(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+        state_mutation_summaries,
+        WritePlaceNamespace::AccessRoute,
+    )
+    .expect("access-route projection always retains the ownership fallback")
+}
+
+fn call_write_places(
+    program: &psi_typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+    state_mutation_summaries: &mut StateMutationSummaryCache,
+    namespace: WritePlaceNamespace,
+) -> Option<Vec<CanonicalPlace>> {
     let summarized_places = instantiate_known_call_mutation_summary_places(
         program,
         caller_machine_symbol,
@@ -25,6 +78,7 @@ pub(crate) fn call_mutated_places(
         borrow,
         borrow_call,
         state_mutation_summaries,
+        namespace,
     );
     let use_mutable_argument_fallback = summarized_places.is_none();
     let known_target_summary = summarized_places.is_some();
@@ -102,7 +156,82 @@ pub(crate) fn call_mutated_places(
         places.push(place);
     }
 
-    places
+    if !known_target_summary && matches!(namespace, WritePlaceNamespace::Storage) {
+        let boundary_target = program.traits().iter().any(|definition| {
+            definition.is_boundary
+                && program
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .any(|signature| signature.symbol == borrow_call.target_symbol)
+        });
+        if boundary_target {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == caller_machine_symbol)?;
+            let site = find_call_site(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow_call.statement_index,
+                borrow_call.call_ordinal,
+            )?;
+            let resolver = psi_validation::CallFrameResolver::new(program)?;
+            let frame = match &site {
+                CallSite::Statement(call) => resolver.may_write_frame(machine, call),
+                CallSite::Expression { expression, .. } => {
+                    resolver.expression_write_frame(machine, *expression)
+                }
+                CallSite::TransitionNamed { .. } => return None,
+            };
+            let state = find_state(program, caller_state_symbol)?;
+            // The shared boundary frame owns implicit receiver and argument
+            // reach. Reconstruct its storage paths instead of using access
+            // roots, which can name a field without its caller receiver.
+            places = frame
+                .complete_paths()?
+                .iter()
+                .map(|path| {
+                    local_origins::place_from_origin_path(
+                        program,
+                        state,
+                        borrow_call.statement_index,
+                        path,
+                    )
+                })
+                .collect::<Option<Vec<_>>>()?;
+        }
+        if places.is_empty() {
+            return call_is_storage_free_asm_intrinsic(program, borrow_call).then(Vec::new);
+        }
+        let mut storage = Vec::new();
+        for place in places {
+            let canonical = local_origins::rebase_local_write_place(
+                program,
+                caller_state_symbol,
+                borrow_call.statement_index,
+                place,
+            )?;
+            if !storage.contains(&canonical) {
+                storage.push(canonical);
+            }
+        }
+        Some(storage)
+    } else {
+        Some(places)
+    }
+}
+
+fn call_is_storage_free_asm_intrinsic(
+    program: &psi_typed_trees::TypedTrees,
+    call: &BorrowCallFact,
+) -> bool {
+    // These canonical intrinsics affect machine services, not caller storage.
+    // Input/read results are separate assignment writes in the typed tree.
+    program
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol)
+        .is_some_and(psi_symbols::BuiltinFunction::is_asm_intrinsic)
 }
 
 pub(crate) fn statement_mutated_place(

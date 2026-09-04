@@ -27,35 +27,6 @@ pub(crate) fn call_receiver_is_mutable(
             })
 }
 
-pub(crate) fn call_may_mutate_contract_state(
-    program: &psi_typed_trees::TypedTrees,
-    borrow: &BorrowFacts,
-    borrow_call: &BorrowCallFact,
-) -> bool {
-    let Some((target_machine_symbol, target_state_symbol)) =
-        contract_target_from_state_symbol(program, borrow_call.target_symbol)
-    else {
-        return false;
-    };
-    let Some(state) = find_state_in_machine(program, target_machine_symbol, target_state_symbol)
-    else {
-        return false;
-    };
-    let signature_mutability = program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.is_mutable);
-    let borrow_mutability = borrow.states.iter().any(|(_, flow_state)| {
-        flow_state.machine_symbol == target_machine_symbol
-            && flow_state.state_symbol == target_state_symbol
-            && flow_state.mutable_parameter_count > 0
-    });
-
-    signature_mutability
-        || borrow_mutability
-        || call_receiver_is_mutable(program, borrow, borrow_call)
-}
-
 pub(crate) fn call_receiver_mutated_place(
     program: &psi_typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,

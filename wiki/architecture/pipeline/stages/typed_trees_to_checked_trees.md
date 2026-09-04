@@ -691,6 +691,29 @@ Current ownership is:
   by name resolution. Their computed arguments use the same formal-type and
   write-frame rules as other resolved internal calls; no frame-side member-name
   lookup is needed. Receivers that still lack a resolved target remain opaque.
+  Direct call and value-expression frame queries replay the same state transfer
+  up to their owning statement to recover local reference origins. They publish
+  canonical storage paths and overlapping live alias spellings, so string-based
+  fact consumers cannot retain either spelling across a write. Prefix writes do
+  not become writes of the queried call. Stable replacement changes only that
+  binding; prior aliases retain their established storage origins. An ambiguous
+  query owner or unsupported alias prefix remains opaque.
+  Structured call mutation uses the same transient `LocalWriteOrigin` evidence
+  after instantiating receiver/argument paths. Exact origins retain structured
+  suffixes; collection-coarse origins discard them. Caller-rooted writes through
+  local references therefore cannot be dropped as private local writes.
+  Borrow authorization retains the original access route separately from this
+  storage footprint: a write through an authorized local reference is not a new
+  direct access to its borrowed owner. Fact invalidation consumes storage
+  origins; loan compatibility checks consume the route used by the call.
+  Structured storage queries distinguish a complete empty frame from an opaque
+  result. Empty frames preserve facts; an unknown storage origin clears facts
+  rather than publishing a disjoint local-rooted fallback.
+  Boundary fallback requires the shared signature-and-origin frame to be
+  complete and projects all its storage paths, including receiver storage
+  without an explicit `self` parameter and receiver-qualified field arguments.
+  Canonical assembly intrinsics affect their declared machine
+  services, not caller storage; their result assignments carry separate writes.
   A recursive or opaque call, binding reborrow, or
   unsupported expression rejects the whole tree, including when it occurs in
   just one sibling. Frame inference retains its active-state recursion checks.

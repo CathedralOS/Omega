@@ -27,28 +27,23 @@ pub(in crate::flow) fn apply_call_invalidations(
         &mut ctx.state_mutation_summary_cache,
     );
     let invalidations_start = ctx.invalidations.events.len();
-    let post_contexts = if call_may_mutate_contract_state(program, borrow, borrow_call) {
-        if mutated_places.is_empty() {
-            HandleSpan::empty()
-        } else {
-            filter_contexts_after_place_mutations(
-                program,
-                semantic,
-                domains,
-                &mut ctx.contexts.semantic_context_refs,
-                &mut ctx.invalidations.segments,
-                &mut ctx.invalidations.events,
-                active_contexts,
-                &mutated_places,
-                FlowInvalidationSource::Call {
-                    statement_index: borrow_call.statement_index,
-                    call_ordinal: borrow_call.call_ordinal,
-                    target_symbol: borrow_call.target_symbol,
-                },
-            )
-        }
-    } else {
-        clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, active_contexts)
+    let post_contexts = match mutated_places {
+        None => HandleSpan::empty(),
+        Some(mutated_places) => filter_contexts_after_place_mutations(
+            program,
+            semantic,
+            domains,
+            &mut ctx.contexts.semantic_context_refs,
+            &mut ctx.invalidations.segments,
+            &mut ctx.invalidations.events,
+            active_contexts,
+            &mutated_places,
+            FlowInvalidationSource::Call {
+                statement_index: borrow_call.statement_index,
+                call_ordinal: borrow_call.call_ordinal,
+                target_symbol: borrow_call.target_symbol,
+            },
+        ),
     };
     let post_constraints = project_constraint_refs_to_active_contexts(
         &mut ctx.contexts.constraint_refs,
