@@ -4,7 +4,7 @@ mod active_resident;
 mod fixed_view;
 
 use omega_machine_optimizer::PostAllocationMachineRuleCatalogEntry;
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase};
+use omega_optimization_core::Optimization;
 
 use crate::{
     StagedOptimizedVerifiedPhysicalPipeline, ValidatedOptimizedTargetOperations,
@@ -20,16 +20,6 @@ pub(in crate::coordination::physical_pipeline) fn stage_allocation_recovery_pipe
     rule: Optimization,
     post_allocation: Option<PostAllocationMachineRuleCatalogEntry>,
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
-    let selections = optimized_target.optimized().selections();
-    if [
-        OptimizationExecutionPhase::SelectedLowering,
-        OptimizationExecutionPhase::FunctionRelativeLayout,
-    ]
-    .into_iter()
-    .any(|phase| !selections.for_phase(phase).is_empty())
-    {
-        return Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition);
-    }
     let selected = stage_optimized_instruction_selection(optimized_target)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)?;
     let liveness = stage_optimized_liveness(selected)

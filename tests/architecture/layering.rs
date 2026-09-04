@@ -2040,6 +2040,28 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 optimizer_physical_pipeline_path.display()
             )
         });
+    let optimizer_physical_phase_selections_path = root.join(
+        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/coordination/physical_pipeline/phase_selections.rs",
+    );
+    let optimizer_physical_phase_selections = std::fs::read_to_string(
+        &optimizer_physical_phase_selections_path,
+    )
+    .unwrap_or_else(|error| {
+        panic!(
+            "failed to read {}: {error}",
+            optimizer_physical_phase_selections_path.display()
+        )
+    });
+    let optimizer_physical_composition_path = root.join(
+        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/coordination/physical_pipeline/routes/composition/mod.rs",
+    );
+    let optimizer_physical_composition =
+        std::fs::read_to_string(&optimizer_physical_composition_path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                optimizer_physical_composition_path.display()
+            )
+        });
     assert!(
         realization.contains("pub fn realize_native_artifact(")
             && realization.contains("artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
@@ -2064,6 +2086,15 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 "post_terminal: &PostTerminalOptimizationSelections"
             )
             && optimizer_physical_pipeline.contains("PostTerminalSelectionMismatch")
+            && optimizer_physical_pipeline
+                .contains("PhysicalOptimizationPhaseSelections::project(post_terminal)")
+            && optimizer_physical_phase_selections
+                .contains("struct PhysicalOptimizationPhaseSelections")
+            && optimizer_physical_phase_selections
+                .contains("UnconsumedPostTerminalPhase(phase)")
+            && optimizer_physical_composition
+                .contains("phases: &PhysicalOptimizationPhaseSelections")
+            && !optimizer_physical_composition.contains(".for_phase(")
             && target_stage.contains("optimize_verified_psi_input(")
             && target_stage
                 .contains("lower_optimized_to_target_operations_with_provider_executions")

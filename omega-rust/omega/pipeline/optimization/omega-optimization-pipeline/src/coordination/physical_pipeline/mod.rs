@@ -10,6 +10,7 @@ mod error;
 #[cfg(test)]
 mod input;
 mod model;
+mod phase_selections;
 mod routes;
 
 use crate::ValidatedOptimizedTargetOperations;
@@ -18,6 +19,7 @@ pub use error::OptimizedVerifiedPhysicalPipelineError;
 pub(crate) use input::stage_optimized_verified_physical_pipeline_with_provider_executions;
 pub use model::StagedOptimizedVerifiedPhysicalPipeline;
 use omega_optimization_core::PostTerminalOptimizationSelections;
+pub(crate) use phase_selections::PhysicalOptimizationPhaseSelections;
 
 pub(crate) use routes::{
     ResolvedNonAllocationComposition, ResolvedPhysicalPhaseComposition,
@@ -36,8 +38,11 @@ pub fn stage_optimized_verified_physical_pipeline(
     if retained_projection.selections() != post_terminal {
         return Err(OptimizedVerifiedPhysicalPipelineError::PostTerminalSelectionMismatch);
     }
-    let composition =
-        resolve_physical_phase_composition(post_terminal, optimized_target.target().architecture)?;
+    let phase_selections = PhysicalOptimizationPhaseSelections::project(post_terminal)?;
+    let composition = resolve_physical_phase_composition(
+        &phase_selections,
+        optimized_target.target().architecture,
+    )?;
     match composition {
         ResolvedPhysicalPhaseComposition::AllocationRecovery {
             rule,
