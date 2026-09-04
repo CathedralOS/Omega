@@ -404,16 +404,12 @@ fn produce_callback_thunk_artifact(
             "callback thunk Terminal lowering failed: {error}",
         ))]
     })?;
-    let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
-        &lowered.terminal.semantic_module,
-        &lowered.terminal.proof_bundle,
-        lowered.terminal.debug_map.as_ref(),
-    )
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "callback thunk canonicalization failed: {error}",
-        ))]
-    })?;
+    let artifact = psi_checked_trees_to_terminal::finalize_terminal_artifact(&lowered.terminal)
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "callback thunk canonicalization failed: {error}",
+            ))]
+        })?;
     verify_terminal_artifact(&artifact, profile)?;
     validate_direct_callback_thunk_shape(&artifact, placement)?;
     omega_compilation_report::TerminalCallbackThunkArtifact::new(
