@@ -129,7 +129,8 @@ pub(crate) fn lower_realization_input(
             .map_err(|error| realization_error("verified optimizer artifact lowering", error))?,
         )
     };
-    Ok(NativeRealizationInput::new(native, optimization))
+    NativeRealizationInput::new(native, optimization)
+        .map_err(|error| realization_error("native abstract-stage join", error))
 }
 
 pub(crate) fn reopen_prepared_native_realization_input(
