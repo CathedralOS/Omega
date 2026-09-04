@@ -1,3 +1,6 @@
+//! Proof after the fact that patching touched only relocation fields, by masking
+//! every slot the plan declared and comparing everything that is left.
+
 use crate::{
     CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
     CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,

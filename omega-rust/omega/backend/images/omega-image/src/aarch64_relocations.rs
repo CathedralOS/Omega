@@ -1,3 +1,6 @@
+//! In-place AArch64 ADRP, ADD-page-offset and B/BL field patching against the
+//! layout an emitter chose.
+
 use crate::{
     FinalImage, FinalImageLayout, FinalImageSection, final_image_imports_symbol,
     final_image_symbol_address, final_image_symbol_name, patch_bytes,

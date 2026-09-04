@@ -1,3 +1,7 @@
+//! Full replay of footprint coverage, inventory and text derivation into one
+//! certificate - reachable today only from tests, and pinned as source text by
+//! tests/architecture/native_image_identity.rs.
+
 use crate::{
     CompilerEntryFootprintBindingEvidence, CompilerFunctionValidationEvidence,
     CompilerTextValidationEvidence, PlacedExecutableRegionInventory,

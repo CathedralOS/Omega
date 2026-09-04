@@ -1,3 +1,6 @@
+//! In-place x86-64 rel32 and absolute-64 field patching against the layout an
+//! emitter chose.
+
 use crate::{
     FinalImage, FinalImageLayout, final_image_symbol_address, final_image_symbol_name, patch_bytes,
 };

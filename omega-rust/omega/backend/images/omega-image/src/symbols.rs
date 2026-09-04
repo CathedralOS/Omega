@@ -1,3 +1,6 @@
+//! Handle and section translation between the object plan and the final image,
+//! including the coordinate reuse the crate header explains.
+
 use crate::model::{FinalImage, FinalImageLayout, FinalImageSection, FinalImageSymbolHandle};
 use omega_object_file::{ObjectSymbolHandle, SectionKind, SymbolSection};
 use psi_arena::Handle;
