@@ -6,7 +6,7 @@ use super::model::{
 use super::validation::validate_association;
 use crate::resolution::graph::{CanonicalSourceClosureSubject, ExactTargetPackageSourceClosure};
 use crate::resolution::package_compilation_inputs_for;
-use crate::review::CompilerIssuedPackageReviewSet;
+use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use std::collections::BTreeMap;
 
 impl CanonicalPackageReconstructionQuestion {
@@ -22,6 +22,20 @@ impl CanonicalPackageReconstructionQuestion {
         reviews: &CompilerIssuedPackageReviewSet,
         limits: CanonicalPackageReconstructionQuestionLimits,
     ) -> Result<Self, CanonicalPackageReconstructionQuestionError> {
+        Self::associate_resolved_reviews(target_closure, reviews, limits)
+            .map(|(question, _)| question)
+    }
+
+    /// Retain the exact source-ordered review association for the rest of this
+    /// operation. These borrows are scratch data, not a new acceptance carrier.
+    pub(super) fn associate_resolved_reviews<'reviews>(
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
+        reviews: &'reviews CompilerIssuedPackageReviewSet,
+        limits: CanonicalPackageReconstructionQuestionLimits,
+    ) -> Result<
+        (Self, Vec<&'reviews CompilerIssuedPackageReview>),
+        CanonicalPackageReconstructionQuestionError,
+    > {
         let limits = limits.compiler_bounded();
         let source_closure =
             CanonicalSourceClosureSubject::from_resolved(target_closure, limits.source_closure)
@@ -54,6 +68,14 @@ impl CanonicalPackageReconstructionQuestion {
                     "package reconstruction entry allocation failed",
                 )
             })?;
+        let mut associated_reviews = Vec::new();
+        associated_reviews
+            .try_reserve_exact(source_closure.packages().len())
+            .map_err(|_| {
+                CanonicalPackageReconstructionQuestionError::new(
+                    "package review association allocation failed",
+                )
+            })?;
         for selected in source_closure.packages() {
             let review = reviews_by_package.remove(selected.key()).ok_or_else(|| {
                 CanonicalPackageReconstructionQuestionError::new(
@@ -82,6 +104,7 @@ impl CanonicalPackageReconstructionQuestion {
                 package: selected.key().clone(),
                 obligations: review.obligations().clone(),
             });
+            associated_reviews.push(review);
         }
         if !reviews_by_package.is_empty() {
             return Err(CanonicalPackageReconstructionQuestionError::new(
@@ -89,7 +112,8 @@ impl CanonicalPackageReconstructionQuestion {
             ));
         }
 
-        Self::finish(source_closure, entries, limits)
+        let question = Self::finish(source_closure, entries, limits)?;
+        Ok((question, associated_reviews))
     }
 
     /// Reproject the complete question from current resolver custody and fresh

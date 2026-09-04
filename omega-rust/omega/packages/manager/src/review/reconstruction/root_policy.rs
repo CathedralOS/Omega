@@ -1,16 +1,16 @@
 //! Exact in-memory association of fresh package obligations with root policy.
 
 use super::{
-    CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionLimits,
-    LocallyComposedPackageObligationResults,
+    CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionError,
+    CanonicalPackageReconstructionQuestionLimits, LocallyComposedPackageObligationResults,
 };
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::{
-    CompilerIssuedPackageReviewSet, ReviewOnlyCapabilityConflictChange,
-    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits,
-    ReviewOnlyCapabilityConflictSet, ReviewOnlyRootPolicyResolution,
-    ReviewOnlyRootPolicyResolutionError, compare_review_only_initial_capabilities,
-    resolve_review_only_root_policy_decisions,
+    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictSet,
+    ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionError,
+    compare_review_only_initial_capabilities, resolve_review_only_root_policy_decisions,
 };
 use omega_package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
@@ -134,10 +134,41 @@ pub fn bind_fresh_package_root_policy(
     conflict_limits: ReviewOnlyCapabilityConflictLimits,
     root_policy: Option<&ReviewOnlyRootPolicyResolution>,
 ) -> Result<FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError> {
-    let obligations = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
+    bind_root_policy_with_associated_reviews(
         target_closure,
         reviews,
         reconstruction_limits,
+        conflict_limits,
+        root_policy,
+    )
+    .map(|(acceptance, _)| acceptance)
+}
+
+/// Keep the same immutable review association through final payload assembly.
+/// Public callers still start from the resolved closure and compiler reviews.
+pub(crate) fn bind_root_policy_with_associated_reviews<'reviews>(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    reviews: &'reviews CompilerIssuedPackageReviewSet,
+    reconstruction_limits: CanonicalPackageReconstructionQuestionLimits,
+    conflict_limits: ReviewOnlyCapabilityConflictLimits,
+    root_policy: Option<&ReviewOnlyRootPolicyResolution>,
+) -> Result<
+    (
+        FreshPackageRootPolicyAcceptance,
+        Vec<&'reviews CompilerIssuedPackageReview>,
+    ),
+    FreshPackageRootPolicyError,
+> {
+    let (question, associated_reviews) =
+        CanonicalPackageReconstructionQuestion::associate_resolved_reviews(
+            target_closure,
+            reviews,
+            reconstruction_limits,
+        )
+        .map_err(FreshPackageRootPolicyError::Reconstruction)?;
+    let obligations = LocallyComposedPackageObligationResults::from_associated_reviews(
+        question,
+        &associated_reviews,
     )
     .map_err(FreshPackageRootPolicyError::Reconstruction)?;
     if obligations
@@ -178,11 +209,14 @@ pub fn bind_fresh_package_root_policy(
         }
     };
 
-    Ok(FreshPackageRootPolicyAcceptance {
-        obligations,
-        conflicts,
-        root_policy: accepted_policy,
-    })
+    Ok((
+        FreshPackageRootPolicyAcceptance {
+            obligations,
+            conflicts,
+            root_policy: accepted_policy,
+        },
+        associated_reviews,
+    ))
 }
 
 type OpenObligationCoordinate<'a> = (&'a crate::declarations::PackageKey, &'a [u8], &'a [u8]);

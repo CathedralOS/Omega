@@ -13,6 +13,7 @@ pub use model::{
     CanonicalPackageReconstructionQuestionLimits,
 };
 pub use results::{LocallyComposedPackageObligationEntry, LocallyComposedPackageObligationResults};
+pub(crate) use root_policy::bind_root_policy_with_associated_reviews;
 pub use root_policy::{
     FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError, bind_fresh_package_root_policy,
 };

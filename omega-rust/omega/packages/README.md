@@ -39,6 +39,13 @@ purposes. Review evidence does not prove acceptance or that an audit occurred,
 and advisory output cannot alter policy. Complete operations belong only to
 `manager/`; the `omega` binary delegates to those operations.
 
+Within one admission operation, question construction, result composition, and
+payload assembly share the same source-ordered borrowed reviews. They do not
+rebuild package-key associations or compare copies of the same immutable
+compiler results. Live source custody, requested target, result metadata,
+generated-source identity, and exact project decisions retain their distinct
+checks. This does not replace the remaining install/update transaction work.
+
 Design and security references:
 
 - [`package_manager_first_draft.md`](../../../wiki/design_briefs/package_manager_first_draft.md)
