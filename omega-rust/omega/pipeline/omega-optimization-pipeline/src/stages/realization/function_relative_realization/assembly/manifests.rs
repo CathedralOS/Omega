@@ -7,8 +7,8 @@ use super::rel8::{final_layout, rel8_selected, validate_relaxation_manifest_root
 use super::statistics::function_relative_statistics;
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::stages::realization::function_relative_realization) fn expected_direct_post_allocation_machine_manifest(
-    homes: &StagedOptimizedRegisterHomes,
+pub(in crate::stages::realization::function_relative_realization) fn expected_allocated_post_allocation_machine_manifest(
+    allocation: &omega_selected_instructions_to_register_homes::AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     optimization: &StagedOptimizedPostAllocationMachineOptimization,
     baseline_encoding: &StagedOptimizedSelectedFormEncoding,
@@ -20,63 +20,15 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_di
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let selected_stage = homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let selections = selected_stage.optimized_target().optimized().selections();
-    let post = homes.post_allocation_manifest().record();
-    expected_post_allocation_machine_manifest(
-        selections,
-        OptimizationSelections::default().identity(),
-        None,
-        homes.custody().manifest(),
-        post.identity,
-        post.selected,
-        post.target,
-        machine,
-        optimization,
-        baseline_encoding,
-        encoding,
-        baseline_layout,
-        layout,
-        exit_contract,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(in crate::stages::realization::function_relative_realization) fn expected_selected_lowering_post_allocation_machine_manifest(
-    homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    optimization: &StagedOptimizedPostAllocationMachineOptimization,
-    baseline_encoding: &StagedOptimizedSelectedFormEncoding,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
-    exit_contract: &ValidatedWholeFunctionExitContract,
-) -> Result<
-    ValidatedFunctionRelativeOptimizationRealizationManifest,
-    FunctionRelativeOptimizationRealizationError,
-> {
-    let run = homes.selected_lowering_run();
-    let completion = run.custody();
-    let selections = run
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .selections();
-    let post = homes.post_allocation_manifest().record();
+    let selections = allocation.selections();
+    let post = allocation.post_allocation_manifest().record();
     expected_post_allocation_machine_manifest(
         selections,
         selections
             .for_phase(OptimizationExecutionPhase::SelectedLowering)
             .identity(),
-        Some(completion.identity()),
-        completion.source().manifest(),
+        post.selected_lowering_completion,
+        post.pre_physical,
         post.identity,
         post.selected,
         post.target,

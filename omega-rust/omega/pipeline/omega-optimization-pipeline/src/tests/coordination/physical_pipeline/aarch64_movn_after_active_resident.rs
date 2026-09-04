@@ -34,24 +34,21 @@ fn active_resident_composes_with_movn_through_publication() {
     else {
         panic!("the admitted pair must reach the generic post-allocation realization")
     };
-    let StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(recovery) =
-        realization.source()
-    else {
-        panic!("the realization must retain allocation-recovery source custody")
+    let allocation = realization.allocation().current();
+    let omega_selected_instructions_to_register_homes::AllocationEvidence::ActiveResidentRematerialization(recovery_custody) = allocation.evidence() else {
+        panic!("allocation must retain independently replayed rematerialization evidence")
     };
-    let StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-        rematerialization,
-    ) = recovery
-    else {
-        panic!("the exact pair must retain active-resident source custody")
-    };
+    let rematerialization = realization
+        .allocation()
+        .rematerialization_proof_for_test()
+        .unwrap();
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) =
         realization.optimization()
     else {
         panic!("the exact pair must retain the MOVN optimization result")
     };
 
-    let fresh_materialize = rematerialization.rematerialization().plan().functions[0]
+    let fresh_materialize = rematerialization.plan().functions[0]
         .action
         .as_ref()
         .unwrap()
@@ -65,8 +62,8 @@ fn active_resident_composes_with_movn_through_publication() {
     let custody = realization.optimization().custody().unwrap();
     assert_eq!(action.literal_bits, MOVN_RESIDENT_BITS);
     assert_eq!(staged.selections(), selections.identity());
-    assert_eq!(rematerialization.custody().applied_count(), 1);
-    assert_eq!(rematerialization.custody().rewritten_use_count(), 2);
+    assert_eq!(recovery_custody.applied_count(), 1);
+    assert_eq!(recovery_custody.rewritten_use_count(), 2);
     assert_eq!(custody.selections(), selections.identity());
     assert_eq!(
         custody.optimization(),
@@ -103,7 +100,7 @@ fn active_resident_composes_with_movn_through_publication() {
     );
     validate_post_allocation_machine_function_relative_realization_custody(realization).unwrap();
 
-    let physical = recovery.register_environment().physical();
+    let physical = allocation.register_environment().physical();
     let expected_rows = plan
         .actions
         .iter()

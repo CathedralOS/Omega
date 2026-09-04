@@ -32,12 +32,12 @@ pub(super) fn compute(
                 .identity()
         }
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
-            match realization.source() {
-                crate::StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
-                    recovery,
-                ) => recovery.expected_allocation_recovery_selections().identity(),
-                _ => OptimizationSelections::default().identity(),
-            }
+            realization
+                .allocation()
+                .current()
+                .selections()
+                .for_phase(omega_optimization_core::OptimizationExecutionPhase::AllocationRecovery)
+                .identity()
         }
         _ => OptimizationSelections::default().identity(),
     };

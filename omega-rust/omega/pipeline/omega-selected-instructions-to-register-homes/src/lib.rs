@@ -13,5 +13,8 @@ mod rewrites;
 
 pub use analyses::*;
 pub use assignment::*;
-pub use output::{AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource};
+pub use output::{
+    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
+    RetainedAllocation,
+};
 pub use rewrites::*;

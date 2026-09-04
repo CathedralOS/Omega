@@ -12,9 +12,8 @@ mod validation;
 pub(super) use custody::*;
 pub(super) use fixed_frame::*;
 pub(super) use manifests::{
-    expected_direct_manifest, expected_direct_post_allocation_machine_manifest, expected_manifest,
-    expected_post_allocation_machine_manifest,
-    expected_selected_lowering_post_allocation_machine_manifest,
+    expected_allocated_post_allocation_machine_manifest, expected_direct_manifest,
+    expected_manifest,
 };
 pub(super) use rel8::*;
 pub(crate) use statistics::{function_relative_statistics, seal_function_relative_manifest};

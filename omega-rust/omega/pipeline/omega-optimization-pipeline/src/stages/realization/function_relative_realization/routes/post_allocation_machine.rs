@@ -1,13 +1,13 @@
-//! One function-relative join for every registered post-allocation machine rule.
-
-mod allocation_recovery;
+//! One function-relative join over current allocation facts, independent of rewrite history.
 
 use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::{
+    AllocationReplayError, AllocationSource, RetainedAllocation,
+};
 
 use super::super::{assembly::*, carriers::*, error::*};
 use crate::{
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
     StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
     ValidatedWholeFunctionExitContract,
     stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
@@ -16,49 +16,39 @@ use crate::{
     validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
     validate_optimized_post_allocation_machine_optimization_custody,
     validate_optimized_post_allocation_machine_plan_custody,
-    validate_optimized_register_home_after_selected_lowering_custody,
-    validate_optimized_register_home_custody,
     validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
     validate_whole_function_exit_contract_with_post_allocation_machine_optimization,
 };
 
-pub use allocation_recovery::stage_post_allocation_machine_function_relative_realization_after_allocation_recovery;
-
 pub fn stage_post_allocation_machine_function_relative_realization(
-    homes: StagedOptimizedRegisterHomes,
+    source: impl TryInto<RetainedAllocation, Error = AllocationReplayError>,
     machine: StagedOptimizedPostAllocationMachinePlan,
     optimization: StagedOptimizedPostAllocationMachineOptimization,
 ) -> Result<
     StagedPostAllocationMachineFunctionRelativeRealization,
     FunctionRelativeOptimizationRealizationError,
 > {
-    validate_optimized_register_home_custody(
-        homes.legality_stage(),
-        homes.homes(),
-        homes.post_allocation_manifest(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
-    validate_optimized_post_allocation_machine_plan_custody(&homes, &machine)
+    // Conversion replays and admits the owned inputs before exposing current facts.
+    let allocation = source
+        .try_into()
+        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    let current = allocation.current();
+    validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
     validate_optimized_post_allocation_machine_optimization_custody(
-        &homes,
+        &current,
         &machine,
         &optimization,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization)?;
-    let selected_stage = homes
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
     let (baseline_encoding, encoding, baseline_layout, layout, exit_contract) = build_artifacts(
-        selected_stage.selected(),
+        current.selected(),
         &machine,
-        selected_stage.register_environment().physical(),
+        current.register_environment().physical(),
         &optimization,
     )?;
-    let manifest = expected_direct_post_allocation_machine_manifest(
-        &homes,
+    let manifest = expected_allocated_post_allocation_machine_manifest(
+        &current,
         &machine,
         &optimization,
         &baseline_encoding,
@@ -69,82 +59,16 @@ pub fn stage_post_allocation_machine_function_relative_realization(
     )?;
     let normalized = optimization
         .custody()
-        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
+        .ok_or(FunctionRelativeOptimizationRealizationError::OptimizationCustodyUnavailable)?;
     let custody = StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
-        source: PostAllocationMachineFunctionRelativeSourceCustody::Direct(homes.custody()),
+        source: current.evidence().clone(),
         machine: machine.custody().clone(),
         optimization: normalized,
         exit_contract: exit_contract.identity(),
         realization: manifest.record.identity,
     };
     Ok(StagedPostAllocationMachineFunctionRelativeRealization {
-        source: StagedPostAllocationMachineFunctionRelativeSource::Direct(homes),
-        machine,
-        optimization,
-        baseline_encoding,
-        encoding,
-        baseline_layout,
-        layout,
-        exit_contract,
-        manifest,
-        custody,
-    })
-}
-
-pub fn stage_post_allocation_machine_function_relative_realization_after_selected_lowering(
-    homes: StagedOptimizedRegisterHomesAfterSelectedLowering,
-    machine: StagedOptimizedPostAllocationMachinePlan,
-    optimization: StagedOptimizedPostAllocationMachineOptimization,
-) -> Result<
-    StagedPostAllocationMachineFunctionRelativeRealization,
-    FunctionRelativeOptimizationRealizationError,
-> {
-    validate_optimized_register_home_after_selected_lowering_custody(&homes)
-        .map_err(FunctionRelativeOptimizationRealizationError::Homes)?;
-    validate_optimized_post_allocation_machine_plan_custody(&homes, &machine)
-        .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
-    validate_optimized_post_allocation_machine_optimization_custody(
-        &homes,
-        &machine,
-        &optimization,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization)?;
-    let run = homes.selected_lowering_run();
-    let selected_stage = run
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let physical = selected_stage.register_environment().physical();
-    let artifacts = match run.steps().last() {
-        Some(step) => build_artifacts(step.fold(), &machine, physical, &optimization)?,
-        None => build_artifacts(selected_stage.selected(), &machine, physical, &optimization)?,
-    };
-    let (baseline_encoding, encoding, baseline_layout, layout, exit_contract) = artifacts;
-    let manifest = expected_selected_lowering_post_allocation_machine_manifest(
-        &homes,
-        &machine,
-        &optimization,
-        &baseline_encoding,
-        &encoding,
-        &baseline_layout,
-        &layout,
-        &exit_contract,
-    )?;
-    let normalized = optimization
-        .custody()
-        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
-    let custody = StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
-        source: PostAllocationMachineFunctionRelativeSourceCustody::AfterSelectedLowering(
-            homes.custody().clone(),
-        ),
-        machine: machine.custody().clone(),
-        optimization: normalized,
-        exit_contract: exit_contract.identity(),
-        realization: manifest.record.identity,
-    };
-    Ok(StagedPostAllocationMachineFunctionRelativeRealization {
-        source: StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes),
+        allocation,
         machine,
         optimization,
         baseline_encoding,
@@ -163,125 +87,45 @@ pub fn validate_post_allocation_machine_function_relative_realization_custody(
     StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt,
     FunctionRelativeOptimizationRealizationError,
 > {
+    let current = staged
+        .allocation
+        .replay_allocation()
+        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    let machine =
+        validate_optimized_post_allocation_machine_plan_custody(&current, &staged.machine)
+            .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    validate_optimized_post_allocation_machine_optimization_custody(
+        &current,
+        &staged.machine,
+        &staged.optimization,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization)?;
+    validate_artifacts(
+        current.selected(),
+        &staged.machine,
+        current.register_environment().physical(),
+        &staged.optimization,
+        staged,
+    )?;
+    let manifest = expected_allocated_post_allocation_machine_manifest(
+        &current,
+        &staged.machine,
+        &staged.optimization,
+        &staged.baseline_encoding,
+        &staged.encoding,
+        &staged.baseline_layout,
+        &staged.layout,
+        &staged.exit_contract,
+    )?;
+    if machine != *staged.machine.custody() || manifest.record != staged.manifest.record {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
     let normalized = staged
         .optimization
         .custody()
-        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
-    let (source, machine, manifest) = match &staged.source {
-        StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => {
-            let source = validate_optimized_register_home_custody(
-                homes.legality_stage(),
-                homes.homes(),
-                homes.post_allocation_manifest(),
-            )
-            .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
-            if source != homes.custody() {
-                return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
-            }
-            let machine =
-                validate_optimized_post_allocation_machine_plan_custody(homes, &staged.machine)
-                    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
-            validate_optimized_post_allocation_machine_optimization_custody(
-                homes,
-                &staged.machine,
-                &staged.optimization,
-            )
-            .map_err(
-                FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization,
-            )?;
-            let selected_stage = homes
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage();
-            validate_artifacts(
-                selected_stage.selected(),
-                &staged.machine,
-                selected_stage.register_environment().physical(),
-                &staged.optimization,
-                staged,
-            )?;
-            let manifest = expected_direct_post_allocation_machine_manifest(
-                homes,
-                &staged.machine,
-                &staged.optimization,
-                &staged.baseline_encoding,
-                &staged.encoding,
-                &staged.baseline_layout,
-                &staged.layout,
-                &staged.exit_contract,
-            )?;
-            (
-                PostAllocationMachineFunctionRelativeSourceCustody::Direct(source),
-                machine,
-                manifest,
-            )
-        }
-        StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-            let source = validate_optimized_register_home_after_selected_lowering_custody(homes)
-                .map_err(FunctionRelativeOptimizationRealizationError::Homes)?;
-            if &source != homes.custody() {
-                return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
-            }
-            let machine =
-                validate_optimized_post_allocation_machine_plan_custody(homes, &staged.machine)
-                    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
-            validate_optimized_post_allocation_machine_optimization_custody(
-                homes,
-                &staged.machine,
-                &staged.optimization,
-            )
-            .map_err(
-                FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization,
-            )?;
-            let run = homes.selected_lowering_run();
-            let selected_stage = run
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage();
-            let physical = selected_stage.register_environment().physical();
-            match run.steps().last() {
-                Some(step) => validate_artifacts(
-                    step.fold(),
-                    &staged.machine,
-                    physical,
-                    &staged.optimization,
-                    staged,
-                )?,
-                None => validate_artifacts(
-                    selected_stage.selected(),
-                    &staged.machine,
-                    physical,
-                    &staged.optimization,
-                    staged,
-                )?,
-            }
-            let manifest = expected_selected_lowering_post_allocation_machine_manifest(
-                homes,
-                &staged.machine,
-                &staged.optimization,
-                &staged.baseline_encoding,
-                &staged.encoding,
-                &staged.baseline_layout,
-                &staged.layout,
-                &staged.exit_contract,
-            )?;
-            (
-                PostAllocationMachineFunctionRelativeSourceCustody::AfterSelectedLowering(source),
-                machine,
-                manifest,
-            )
-        }
-        StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(source) => {
-            allocation_recovery::validate_after_allocation_recovery(source, staged)?
-        }
-    };
-    if machine != staged.machine.custody().clone() || manifest.record != staged.manifest.record {
-        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
-    }
+        .ok_or(FunctionRelativeOptimizationRealizationError::OptimizationCustodyUnavailable)?;
     let custody = StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
-        source,
+        source: current.evidence().clone(),
         machine,
         optimization: normalized,
         exit_contract: staged.exit_contract.identity(),

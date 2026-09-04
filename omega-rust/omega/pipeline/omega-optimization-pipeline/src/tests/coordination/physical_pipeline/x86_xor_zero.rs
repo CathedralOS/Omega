@@ -5,9 +5,8 @@ use crate::tests::{
     IntegerType, NativeTarget, Optimization, OptimizationSelections, ProofBundle,
     StagedOptimizedFunctionFragmentEmissionSource,
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedVerifiedPhysicalPipeline,
-    StagedPostAllocationMachineFunctionRelativeSource, WholeFunctionExitLayoutCustody,
-    canonical_artifact, conditional_immediate_machine, conditional_immediate_module,
-    optimize_artifact_sections, selected_lowering_budget,
+    WholeFunctionExitLayoutCustody, canonical_artifact, conditional_immediate_machine,
+    conditional_immediate_module, optimize_artifact_sections, selected_lowering_budget,
     stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
     stage_optimized_relocation_free_text_section,
     stage_optimized_verified_physical_pipeline_with_provider_executions,
@@ -59,21 +58,30 @@ fn x86_xor_zero_uses_the_generic_post_allocation_join_for_both_source_routes() {
             panic!("XOR-zero must reach the generic post-allocation realization")
         };
         assert_eq!(staged.selections(), selections.identity());
-        match (selected_lowering, realization.source()) {
-            (false, StagedPostAllocationMachineFunctionRelativeSource::Direct(_)) => {
-                assert_eq!(staged.selected_lowering_completion(), None);
-            }
+        let allocation = realization.allocation().current();
+        assert_eq!(
+            staged.selected_lowering_completion(),
+            allocation
+                .post_allocation_manifest()
+                .record()
+                .selected_lowering_completion
+        );
+        assert_eq!(
+            staged.selected_lowering_completion().is_some(),
+            selected_lowering
+        );
+        assert!(matches!(
+            (selected_lowering, allocation.evidence()),
             (
+                false,
+                omega_selected_instructions_to_register_homes::AllocationEvidence::RegisterHomes(_)
+            ) | (
                 true,
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes),
-            ) => {
-                assert_eq!(
-                    staged.selected_lowering_completion(),
-                    Some(homes.selected_lowering_run().custody().identity())
-                );
-            }
-            _ => panic!("the generic realization must retain its exact source route"),
-        }
+                omega_selected_instructions_to_register_homes::AllocationEvidence::SelectedLowering(
+                    _
+                )
+            )
+        ));
         let StagedOptimizedPostAllocationMachineOptimization::X86XorZero(materialization) =
             realization.optimization()
         else {

@@ -7,7 +7,6 @@ use crate::{
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     StagedOptimizedUnitFunctionRelativeRealization,
     StagedPostAllocationMachineFunctionRelativeRealization,
-    StagedPostAllocationMachineFunctionRelativeSource,
     StagedSelectedLoweringFunctionRelativeRealization,
 };
 
@@ -43,21 +42,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .selected()
                 .selected_plan(),
             Self::SelectedLowering(realization) => selected_after_lowering(realization.homes()),
-            Self::PostAllocationMachine(realization) => match realization.source() {
-                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes
-                    .legality_stage()
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .selected()
-                    .selected_plan(),
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-                    selected_after_lowering(homes)
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
-                    source,
-                ) => source.selected_plan(),
-            },
+            Self::PostAllocationMachine(realization) => {
+                realization.allocation().current().selected_plan()
+            }
             Self::AllocationRecovery(realization) => realization.source().selected_plan(),
             Self::UnitBaseline(realization) => realization
                 .homes()
@@ -86,19 +73,11 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         }
     }
 
-    pub const fn register_homes(&self) -> &omega_regalloc::ValidatedRegisterHomes {
+    pub fn register_homes(&self) -> &omega_regalloc::ValidatedRegisterHomes {
         match self {
             Self::X86Rel8Direct(realization) => realization.homes().homes(),
             Self::SelectedLowering(realization) => realization.homes().homes(),
-            Self::PostAllocationMachine(realization) => match realization.source() {
-                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes.homes(),
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-                    homes.homes()
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
-                    source,
-                ) => source.homes(),
-            },
+            Self::PostAllocationMachine(realization) => realization.allocation().current().homes(),
             Self::AllocationRecovery(realization) => realization.source().homes(),
             Self::UnitBaseline(realization) => realization.homes().homes(),
             Self::StructuralUnit(realization) => realization.homes().homes(),
@@ -123,26 +102,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .liveness_stage()
                 .selected_stage()
                 .register_environment(),
-            Self::PostAllocationMachine(realization) => match realization.source() {
-                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes
-                    .legality_stage()
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .register_environment(),
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-                    homes
-                        .selected_lowering_run()
-                        .source_legality_stage()
-                        .live_range_stage()
-                        .liveness_stage()
-                        .selected_stage()
-                        .register_environment()
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
-                    source,
-                ) => source.register_environment(),
-            },
+            Self::PostAllocationMachine(realization) => {
+                realization.allocation().current().register_environment()
+            }
             Self::AllocationRecovery(realization) => realization.source().register_environment(),
             Self::UnitBaseline(realization) => realization
                 .homes()
@@ -202,33 +164,12 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
-            Self::PostAllocationMachine(realization) => match realization.source() {
-                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes
-                    .legality_stage()
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .optimized_target()
-                    .optimized()
-                    .pre_physical_manifest(),
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-                    homes
-                        .selected_lowering_run()
-                        .source_legality_stage()
-                        .live_range_stage()
-                        .liveness_stage()
-                        .selected_stage()
-                        .optimized_target()
-                        .optimized()
-                        .pre_physical_manifest()
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
-                    source,
-                ) => source
-                    .optimized_target()
-                    .optimized()
-                    .pre_physical_manifest(),
-            },
+            Self::PostAllocationMachine(realization) => realization
+                .allocation()
+                .current()
+                .target_input()
+                .optimized()
+                .pre_physical_manifest(),
             Self::AllocationRecovery(realization) => realization
                 .source()
                 .optimized_target()
@@ -278,23 +219,16 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         }
     }
 
-    pub const fn post_allocation_manifest(
+    pub fn post_allocation_manifest(
         &self,
     ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
         match self {
             Self::X86Rel8Direct(realization) => realization.homes().post_allocation_manifest(),
             Self::SelectedLowering(realization) => realization.homes().post_allocation_manifest(),
-            Self::PostAllocationMachine(realization) => match realization.source() {
-                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => {
-                    homes.post_allocation_manifest()
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-                    homes.post_allocation_manifest()
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
-                    source,
-                ) => source.post_allocation_manifest(),
-            },
+            Self::PostAllocationMachine(realization) => realization
+                .allocation()
+                .current()
+                .post_allocation_manifest(),
             Self::AllocationRecovery(realization) => {
                 realization.source().post_allocation_manifest()
             }
@@ -323,26 +257,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .liveness_stage()
                 .selected_stage()
                 .optimized_target(),
-            Self::PostAllocationMachine(realization) => match realization.source() {
-                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes
-                    .legality_stage()
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .optimized_target(),
-                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
-                    homes
-                        .selected_lowering_run()
-                        .source_legality_stage()
-                        .live_range_stage()
-                        .liveness_stage()
-                        .selected_stage()
-                        .optimized_target()
-                }
-                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
-                    source,
-                ) => source.optimized_target(),
-            },
+            Self::PostAllocationMachine(realization) => {
+                realization.allocation().current().target_input()
+            }
             Self::AllocationRecovery(realization) => realization.source().optimized_target(),
             Self::UnitBaseline(realization) => realization
                 .homes()

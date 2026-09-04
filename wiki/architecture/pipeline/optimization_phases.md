@@ -191,8 +191,12 @@ allocation boundary independently reconstructs retained evidence and exposes
 one immutable current-program view, with policy and evidence separate from the
 program's identity. Both machine-plan construction and post-allocation machine
 optimization consume that boundary without inspecting stage ancestry or
-selecting an `after_*` route. Allocation's retained internal histories, later
-layout/realization adapters, and outer identity/selected routing remain to be
+selecting an `after_*` route. Post-allocation function realization now retains
+allocation-owned immutable replay inputs and exposes their current facts to
+fragment emission. Its construction, replay, and manifest join no longer switch
+between baseline, selected lowering, and allocation recovery. Other
+layout/realization adapters, allocation's retained internal histories, and outer
+identity/selected routing remain to be
 consolidated; they are not additional canonical stages.
 
 The current implementation projects the complete effective build selection in

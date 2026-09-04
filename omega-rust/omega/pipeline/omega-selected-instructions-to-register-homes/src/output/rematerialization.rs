@@ -1,5 +1,6 @@
 use super::{
-    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource, sealed,
+    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
+    ProjectAllocation, sealed,
 };
 use crate::{
     StagedOptimizedActiveResidentRematerialization,
@@ -16,12 +17,18 @@ impl AllocationSource for StagedOptimizedActiveResidentRematerialization {
         if evidence != self.custody() {
             return Err(AllocationReplayError::ReceiptMismatch);
         }
+        Ok(self.project_allocation())
+    }
+}
+
+impl ProjectAllocation for StagedOptimizedActiveResidentRematerialization {
+    fn project_allocation(&self) -> AllocationOutput<'_> {
         let selected = self
             .source()
             .live_range_stage()
             .liveness_stage()
             .selected_stage();
-        Ok(AllocationOutput {
+        AllocationOutput {
             selected: SelectedProgramRef::new(self.rematerialization()),
             liveness: self.liveness(),
             ranges: self.ranges(),
@@ -29,9 +36,12 @@ impl AllocationSource for StagedOptimizedActiveResidentRematerialization {
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
             environment: selected.register_environment(),
+            target_input: selected.optimized_target(),
             selections: selected.optimized_target().optimized().selections(),
             budget: selected.optimized_target().optimized().budget_per_pass(),
-            evidence: AllocationEvidence::ActiveResidentRematerialization(evidence),
-        })
+            evidence: AllocationEvidence::ActiveResidentRematerialization(
+                self.custody().to_owned(),
+            ),
+        }
     }
 }

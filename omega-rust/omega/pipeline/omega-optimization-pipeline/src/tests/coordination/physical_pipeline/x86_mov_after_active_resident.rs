@@ -29,17 +29,14 @@ fn active_resident_rematerialization_composes_with_mov_r32_through_publication()
     else {
         panic!("the admitted pair must reach the generic post-allocation realization")
     };
-    let StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(recovery) =
-        realization.source()
-    else {
-        panic!("the realization must retain allocation-recovery source custody")
+    let allocation = realization.allocation().current();
+    let omega_selected_instructions_to_register_homes::AllocationEvidence::ActiveResidentRematerialization(recovery_custody) = allocation.evidence() else {
+        panic!("allocation must retain independently replayed rematerialization evidence")
     };
-    let StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-        rematerialization,
-    ) = recovery
-    else {
-        panic!("the exact pair must retain active-resident source custody")
-    };
+    let rematerialization = realization
+        .allocation()
+        .rematerialization_proof_for_test()
+        .unwrap();
     let StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(materialization) =
         realization.optimization()
     else {
@@ -49,7 +46,7 @@ fn active_resident_rematerialization_composes_with_mov_r32_through_publication()
     let empty = OptimizationSelections::default().identity();
     let manifest = realization.manifest().record();
     let optimization_custody = realization.optimization().custody().unwrap();
-    let rematerialization_plan = rematerialization.rematerialization().plan();
+    let rematerialization_plan = rematerialization.plan();
     let fresh_materialize = rematerialization_plan.functions[0]
         .action
         .as_ref()
@@ -82,8 +79,8 @@ fn active_resident_rematerialization_composes_with_mov_r32_through_publication()
         .unwrap()
         .identity()
     );
-    assert_eq!(rematerialization.custody().applied_count(), 1);
-    assert_eq!(rematerialization.custody().rewritten_use_count(), 2);
+    assert_eq!(recovery_custody.applied_count(), 1);
+    assert_eq!(recovery_custody.rewritten_use_count(), 2);
     assert_eq!(
         staged
             .post_allocation_manifest()
@@ -91,7 +88,7 @@ fn active_resident_rematerialization_composes_with_mov_r32_through_publication()
             .selected_transformations,
         [
             PostAllocationSelectedTransformation::PressureRematerialization(
-                rematerialization.rematerialization().receipt().identity(),
+                rematerialization.receipt().identity(),
             )
         ]
     );
@@ -116,7 +113,7 @@ fn active_resident_rematerialization_composes_with_mov_r32_through_publication()
         *realization.custody()
     );
 
-    let physical = recovery.register_environment().physical();
+    let physical = allocation.register_environment().physical();
     let expected_rows = mov_plan
         .actions
         .iter()

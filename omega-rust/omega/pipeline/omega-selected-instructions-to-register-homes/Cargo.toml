@@ -11,6 +11,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+omega-abstract-operations-to-target-operations = { path = "../omega-abstract-operations-to-target-operations" }
 omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
 omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }

@@ -128,7 +128,7 @@ impl StagedOptimizedFunctionFragmentEmission {
         self.source.function_relative_manifest()
     }
 
-    pub const fn post_allocation_manifest(
+    pub fn post_allocation_manifest(
         &self,
     ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
         self.source.post_allocation_manifest()
