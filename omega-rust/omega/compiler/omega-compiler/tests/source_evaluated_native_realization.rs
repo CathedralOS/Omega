@@ -1345,7 +1345,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
 }
 
 #[test]
-fn retained_terminal_import_rejects_preterminal_optimization_reselection() {
+fn retained_terminal_import_rejects_optimization_selection_substitution() {
     for (label, fixture, receipt_identity) in [
         (
             "unit",
@@ -1389,14 +1389,15 @@ fn retained_terminal_import_rejects_preterminal_optimization_reselection() {
                     &admission.same_stack,
                 )],
             )
-            .expect_err("a retained Terminal artifact must not rerun a Psi optimization");
+            .expect_err("a retained Terminal proposal must not accept a substituted selection");
         assert_eq!(diagnostics.len(), 1, "unexpected diagnostics for {label}");
         assert!(
-            diagnostics[0].message.contains("pre-Terminal optimization"),
+            diagnostics[0]
+                .message
+                .contains("selections differ from the exact post-Terminal build proposal"),
             "unexpected diagnostic for {label}: {}",
             diagnostics[0].message
         );
-        assert!(diagnostics[0].message.contains("ControlFlowCleanup"));
     }
 }
 

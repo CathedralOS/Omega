@@ -1923,6 +1923,25 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 compiler_terminal_path.display()
             )
         });
+    let compilation_report_path =
+        root.join("omega-rust/omega/compiler/omega-compilation-report/src/terminal_product.rs");
+    let compilation_report =
+        std::fs::read_to_string(&compilation_report_path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                compilation_report_path.display()
+            )
+        });
+    let retained_realization_path = root.join(
+        "omega-rust/omega/compiler/omega-compiler/src/compiler/terminal_native_realization.rs",
+    );
+    let retained_realization =
+        std::fs::read_to_string(&retained_realization_path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                retained_realization_path.display()
+            )
+        });
     let compiler_native_path = root.join(
         "omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/native_report/mod.rs",
     );
@@ -1931,8 +1950,20 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     });
     assert!(
         compiler_terminal.contains(".project_psi()")
-            && compiler_terminal.contains("with_callback_custody_and_optimizations("),
-        "the retained Terminal-product route must project build-owned Psi selections before publication"
+            && compiler_terminal.contains("with_callback_custody_and_optimizations(")
+            && compiler_terminal.contains(".project_post_terminal()"),
+        "the retained Terminal-product route must project executed Psi selections into publication and pending physical selections into its companion"
+    );
+    assert!(
+        compilation_report.contains("post_terminal_optimizations:")
+            && compilation_report.contains("complete_selection.identity()")
+            && compilation_report.contains("complete_selection()"),
+        "the target-constrained Terminal companion must retain its exact post-Terminal selection and rejoin it to the complete build selection"
+    );
+    assert!(
+        retained_realization.contains("proposal.post_terminal_optimizations().selections()")
+            && retained_realization.contains("!= optimization_selections"),
+        "accepting a retained native proposal must not substitute a different physical optimization selection"
     );
     assert!(
         compiler_native.contains(".project_post_terminal()")

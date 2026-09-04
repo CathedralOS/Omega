@@ -225,14 +225,18 @@ impl TerminalIeeeFloatFmaOccurrenceProposal {
 ///
 /// This owns full selected plans and external-binding rows rather than a
 /// compact report fingerprint. It grants no provider execution, installation,
-/// proof admission, optimization, or publication authority; a later consumer
-/// must supply and replay those independently.
+/// proof admission, optimization, or publication authority. It does retain the
+/// build's exact pending physical-optimization proposal; a later consumer must
+/// accept that proposal exactly and independently replay it, or reject native
+/// realization.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeRealizationProposal {
     terminal_artifact_identity: psi_terminal_codec::TerminalArtifactIdentity,
     target_profile: omega_target::TargetProfile,
     native_target: omega_target::NativeTarget,
     subsystem: u16,
+    post_terminal_optimizations:
+        omega_optimization_core::PostTerminalOptimizationSelectionProjection,
     program_entry: omega_build_evaluation::SelectedCompilerProgramEntry,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
@@ -252,6 +256,7 @@ impl TerminalNativeRealizationProposal {
         target_profile: omega_target::TargetProfile,
         native_target: omega_target::NativeTarget,
         subsystem: u16,
+        post_terminal_optimizations: omega_optimization_core::PostTerminalOptimizationSelectionProjection,
         program_entry: omega_build_evaluation::SelectedCompilerProgramEntry,
         selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
         external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
@@ -284,6 +289,7 @@ impl TerminalNativeRealizationProposal {
             target_profile,
             native_target,
             subsystem,
+            post_terminal_optimizations,
             program_entry,
             selected_provider_plans,
             external_binding_rows,
@@ -307,6 +313,28 @@ impl TerminalNativeRealizationProposal {
             .map_err(|_| "Terminal native proposal is paired with an invalid canonical artifact")?;
         if self.terminal_artifact_identity != artifact.manifest().identity() {
             return Err("Terminal native proposal belongs to a different canonical artifact");
+        }
+        let complete_selection = omega_optimization_core::OptimizationSelections::new(
+            artifact
+                .optimization()
+                .selections()
+                .as_slice()
+                .iter()
+                .copied()
+                .map(omega_optimization_core::Optimization::from)
+                .chain(
+                    self.post_terminal_optimizations
+                        .selections()
+                        .as_slice()
+                        .iter()
+                        .copied(),
+                ),
+        )
+        .map_err(|_| "Terminal native proposal repeats an optimization across phase custody")?;
+        if complete_selection.identity() != self.post_terminal_optimizations.complete_selection() {
+            return Err(
+                "Terminal native proposal optimization phases do not reconstruct the complete build selection",
+            );
         }
         self.checked_boundary_operator_scope
             .validate_for_artifact(artifact)?;
@@ -718,6 +746,12 @@ impl TerminalNativeRealizationProposal {
 
     pub const fn subsystem(&self) -> u16 {
         self.subsystem
+    }
+
+    pub const fn post_terminal_optimizations(
+        &self,
+    ) -> &omega_optimization_core::PostTerminalOptimizationSelectionProjection {
+        &self.post_terminal_optimizations
     }
 
     pub const fn program_entry(&self) -> &omega_build_evaluation::SelectedCompilerProgramEntry {

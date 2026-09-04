@@ -2183,6 +2183,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             omega_target::TargetProfile::MacosArm64,
             proposal.native_target(),
             proposal.subsystem(),
+            proposal.post_terminal_optimizations().clone(),
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),

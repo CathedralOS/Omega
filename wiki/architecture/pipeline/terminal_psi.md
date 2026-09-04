@@ -35,12 +35,17 @@ Compilation may stop at canonical Terminal Psi and publish it as a standalone
 product. A later interpreter or native lowerer may consume that product on a
 different machine under a different realization authority. Target-constrained
 provider plans, external-binding requirements, target/profile, ProgramEntry,
-and compiler-builtin proposals travel as an exact owned companion beside the
-target-neutral semantic module; they do not grant the consumer authority. The
-consumer accepts the full proposal using its target catalog and local
-admissions or rejects realization without invalidating the Psi semantics. The
-portable artifact envelope owns the canonical semantic, proof, and
-pre-Terminal optimization-execution sections plus the optional canonical debug
+compiler-builtin proposals, and not-yet-executed physical optimization
+selections travel as an exact owned companion beside the target-neutral
+semantic module; they do not grant the consumer authority. The companion binds
+the post-Terminal selection to the complete build-selection identity, while the
+Terminal artifact independently retains the Psi-side selection that already
+ran. A consumer accepting that companion must accept its exact pending
+selection using its target catalog and local admissions; it may instead reject
+realization without invalidating the Psi semantics. A raw Terminal artifact
+without a target companion leaves later physical selection to the receiving
+authority. The portable artifact envelope owns the canonical semantic, proof,
+and pre-Terminal optimization-execution sections plus the optional canonical debug
 section. The execution section retains the exact Psi-local selection and both
 the input and output semantic/proof identities; the manifest binds its strong
 identity and decoding rejoins its output to the decoded semantic and proof

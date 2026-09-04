@@ -772,6 +772,45 @@ fn terminal_product_routes_selected_psi_pass_to_preterminal_stage() {
 }
 
 #[test]
+fn terminal_product_retains_the_exact_pending_physical_selection() {
+    let root = project(
+        "selected-terminal-physical-proposal",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-selected-terminal-physical-proposal");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
+}
+"#,
+        ),
+    );
+    let report = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: None,
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
+    )
+    .expect("a physical selection remains pending after Terminal publication");
+    let proposal = report
+        .terminal_native_realization_proposal()
+        .expect("target-constrained Terminal product retains its native proposal");
+    let expected = omega_optimization_core::OptimizationSelections::new([
+        Optimization::SelectedIncomingU12ExactAddImmediate,
+    ])
+    .unwrap();
+    assert_eq!(
+        proposal.post_terminal_optimizations().selections(),
+        &expected
+    );
+    assert_eq!(
+        proposal.post_terminal_optimizations().complete_selection(),
+        expected.identity()
+    );
+}
+
+#[test]
 fn dependency_build_selection_cannot_enable_root_package_optimization() {
     let root = project("dependency-selection", None);
     std::fs::write(

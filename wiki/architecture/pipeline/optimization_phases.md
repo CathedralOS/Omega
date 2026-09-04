@@ -77,7 +77,14 @@ A standalone Terminal product therefore contains the result of every selected
 Psi-side optimization. A receiving interpreter or lowerer does not rerun those
 passes. Target- or deployment-specific selections that have not run travel as
 strongly bound companion policy and remain subject to the receiving authority's
-accept/reject decision.
+accept/reject decision. For a target-constrained Terminal product, the retained
+native proposal carries the exact post-Terminal selection and the identity of
+the complete build selection. Proposal validation rejoins that identity to the
+Psi selection recorded by the Terminal artifact, and a lowerer accepting the
+proposal must accept exactly the pending selection or reject it. This is a
+proposal, not optimization authority: a different lowerer may refuse it. A raw
+target-neutral Terminal artifact has no such target policy and leaves later
+physical selection to its receiving authority.
 
 The producer exposes the construction, optimization, and publication seam
 explicitly. `lower_machine` constructs an unsealed `LoweredTerminalPsi`;
@@ -162,11 +169,14 @@ input or output validation.
 
 The current implementation projects the complete effective build selection in
 two directions. The Psi projection runs at the checked-to-Terminal entrance and
-is retained in the sealed artifact. The post-Terminal projection excludes
-checked-tree and Psi phases before native realization. A standalone receiving
-lowerer rejects either earlier-phase selection instead of rerunning it. The
-remaining `Unoptimized | ExplicitOptimization` native entrance is transitional:
-it still groups several later Omega-owned phases into one optimizer unit.
+is retained in the sealed artifact. For a target-constrained Terminal product,
+the post-Terminal projection is retained in the native proposal and excludes
+checked-tree and Psi phases before native realization. The proposal preserves
+the complete build-selection identity so its two phase projections cannot be
+silently recombined from different builds. A standalone receiving lowerer
+rejects either earlier-phase selection instead of rerunning it. The remaining
+`Unoptimized | ExplicitOptimization` native entrance is transitional: it still
+groups several later Omega-owned phases into one optimizer unit.
 
 Migration proceeds in dependency order:
 
