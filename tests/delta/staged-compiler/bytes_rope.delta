@@ -14,7 +14,7 @@
   (Concat (+ (bytes_length left) (bytes_length right)) left right))
 (def bytes_get ((value ByteSeq) (index Int)) Int
   (match value
-    (Empty (read (input)))
+    (Empty (/ 1 0))
     ((Single byte) byte)
     ((Concat length left right)
       (if (lt index (bytes_length left))

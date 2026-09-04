@@ -4225,3 +4225,44 @@ self-reconstruction. The independent Python relation remains diagnostic, not a
 bootstrap stage or authority. The finite source/tape pair, written Alpha/Beta
 semantics, published operation audit, and audited native Alpha realizations are
 the trust boundary.
+
+## D99 — Delta global declarations are checked before staged emission
+
+D99 adds the first whole-program census to the selected Gamma-authored Delta
+compiler. Before emitting any Gamma byte, the stage now requires the normative
+top-level shape: zero or more nonempty data declarations followed by one or
+more function declarations, with exactly one `main`. Type names are unique
+among types, constructor names are globally unique among constructors, and
+function names are unique among functions. The three namespaces remain
+separate, so `(data Token (Token Int))` is accepted rather than accidentally
+colliding a type with its constructor.
+
+The census retains exact source-byte names in three persistent bitwise tries.
+Each byte contributes all eight bits, and terminal identity is explicit; there
+is no hash, collision assumption, mutable table, or host lookup. Rebuilding
+only the traversed immutable path preserves Gamma's value model while avoiding
+repeated whole-source scans. A rescan prototype exceeded 30 seconds on the
+3,001-function fixture and a linked-row replacement exceeded 60 seconds. The
+selected trie completes the same staged transformation in about 8 seconds on
+the development host, within the retained 30-second per-evaluation gate.
+
+The selected source is now 1,004 lines and 39,769 bytes, with 90 definitions and
+353 lexical `let` binders. The 66,266-byte scale source still produces its exact
+66,267-byte Gamma receipt and byte 199. Duplicate type, constructor, and
+function declarations, data after a function, empty data, and missing `main`
+now reject through the selected evaluator. A 200-byte identifier also compiles,
+covering the current 56-byte maximum in the complete Epsilon source closure
+without approaching Gamma's non-tail-context boundary.
+
+This pass also removes a false purity witness. The retained Bytes-shaped rope
+had used Gamma's `(read (input))` as an unreachable trap, although Delta has no
+effects. It now uses Delta's authored division-by-zero trap; the source and
+receipt shrink from 789/1,040 to 782/1,033 bytes. This correction does not claim
+normative `Bytes` or complete expression checking. Those, checked arithmetic,
+local scopes and types, application profiles, canonical failure ordering, and
+proper-tail closure remain part of `DELTA-COMPILER`.
+
+The old Forth-Gamma and direct-Beta experiments do not implement this new
+global census. Their historical matched comparisons remain valid at D92/D93,
+but current aggregate line totals are no longer matched evidence and do not
+reopen the selected topology.

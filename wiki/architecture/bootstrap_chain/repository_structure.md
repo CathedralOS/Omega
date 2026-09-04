@@ -11,12 +11,12 @@ source/
       beta_compiler_bytecode.tape admitted Alpha implementation
   gamma/                         typed scalar/effect functional language
     evaluator/
-      gamma_evaluator.beta       provisional direct Beta evaluator
+      gamma_evaluator.beta       selected direct Beta evaluator
       gamma_evaluator_bytecode.tape derived Alpha implementation
     bootstrap/concatenative/     downgraded former Gamma implementation
   delta/                         typed pure functional language
     compiler/
-      delta_compiler.gamma       selected staged nullary-ADT/match compiler
+      delta_compiler.gamma       selected staged recursive-ADT/match compiler
     bootstrap/
       concatenative-compiler/    downgraded former Delta compiler
   epsilon/                       fixed-storage compiler-host language
@@ -60,7 +60,7 @@ the language implementing it:
 | --- | --- |
 | Beta compiler | `source/beta/compiler/beta_compiler.beta` |
 | Gamma evaluator | `source/gamma/evaluator/gamma_evaluator.beta` |
-| Delta compiler | `source/delta/compiler/delta_compiler.gamma` (first staged slice) |
+| Delta compiler | `source/delta/compiler/delta_compiler.gamma` (selected staged implementation) |
 | Epsilon compiler | `source/epsilon/compiler/epsilon_compiler.delta` |
 | Omega `D` | `source/omega/omega_compiler.epsilon` |
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |

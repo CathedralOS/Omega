@@ -21,9 +21,11 @@ The former concatenative Gamma evaluator/compiler is preserved under
 [`bootstrap/concatenative/`](bootstrap/concatenative/). It is bootstrap
 comparison evidence, not the selected Gamma language.
 
-The selected evaluator is provisional. Proper tail execution, complete static
-validation, immutable pairs, and bounded output are implemented. Exact closure
-of every resource outcome remains open.
+The selected evaluator is complete for the current Gamma contract. Proper-tail
+execution, whole-program static validation, provenance-tagged immutable pairs,
+profile-owned arithmetic traps, bounded output, and exact resource outcomes are
+implemented. Beta-root audit and the Gamma derivation checker are separate
+chain obligations.
 
 ## Retention inventory
 
