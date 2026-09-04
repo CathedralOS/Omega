@@ -204,6 +204,12 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
+  General native structural mutation and caller-visible writeback are
+  OWNER-BLOCKED on the native structural-parameter identity decision in
+  `OWNER_QUESTIONS.md`. Current projected-store byte and installation tests
+  do not establish mutation of the caller's referent after return. Checked
+  semantics, independent Terminal replay, and interpreter execution can proceed.
+
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   without allowing propositions to create or amplify authority. Normalize
   symbolic half-open ranges, then admit explicit compatibility theorems over

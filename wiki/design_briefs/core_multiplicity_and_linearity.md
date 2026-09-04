@@ -179,7 +179,8 @@ in-bounds literal fixed-array index, and a relevant primitive field of the
 closed material `[copy]` record element.
 The destination is the machine's sole structural parameter and may carry
 mutable or write-only access; the final field must be relevant and either
-Boolean or fixed-width non-address integer. Checked planning requires the exact complete mutation frame,
+Boolean or fixed-width non-address integer. Checked planning requires the exact
+field mutation frame or the indexed form's sole containing-array frame,
 retains every carrier-field identity plus the final scalar field separately,
 and emits no read of the referent. Direct root fields use an empty carrier path;
 nested fields retain each enclosing record field. Terminal verification,
@@ -191,6 +192,11 @@ incoming-stack target ABI placement are independently reconstructed rather
 than trusted from an emitted record. Boolean definitions
 retain their zero-code semantic ordinal and exact one-byte store rather than
 borrowing an integer-definition carrier.
+Native byte and installation replay do not prove caller-visible writeback:
+small structural borrows may still be copied into local homes. General native
+projected mutation remains blocked on the native structural-parameter identity
+decision in `OWNER_QUESTIONS.md`. Terminal interpretation retains referent
+identity across calls and returns independently of that native ABI decision.
 Additional assignments, generics, domains/invariants, quotients, sums, nested
 or dynamic array indexes, ranges, aggregate array elements, erased fields,
 bodyless boundary result homes, delayed result uses, and other nonliteral

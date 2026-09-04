@@ -235,6 +235,210 @@ fn admits_scalar_store_observed_through_projected_structural_call() {
         .expect("mixed scalar/structural call module verifies");
 }
 
+fn indexed_scalar_field_store_module(index: u64) -> TerminalModule {
+    let mut module = structural_scalar_field_module();
+    module.machines.truncate(1);
+    module.machines[0].blocks[0].operations.truncate(2);
+    module.machines[0].structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = StructuralFieldType::Structural(id::<StructuralTypeId>(3));
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: id::<StructuralTypeId>(3),
+        identity: "test::Items".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: id::<StructuralTypeId>(2),
+            length: 3,
+        },
+    });
+    scalar_store_path(&mut module).push(StructuralPathSegment::FixedIndex(index));
+    module
+}
+
+fn scalar_store_path(module: &mut TerminalModule) -> &mut Vec<StructuralPathSegment> {
+    let OperationKind::StructuralScalarFieldStore { path, .. } =
+        &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    path
+}
+
+fn assert_invalid_scalar_store(module: &TerminalModule) {
+    let error = validate_module(module).expect_err("invalid scalar store rejects");
+    assert!(
+        matches!(
+            error,
+            ModuleError::InvalidStructuralScalarFieldStore { operation, .. }
+                if operation == id::<OperationId>(2)
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
+#[test]
+fn admits_indexed_scalar_stores_at_both_array_boundaries() {
+    for index in [0, 2] {
+        for access in [
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let mut module = indexed_scalar_field_store_module(index);
+            module.machines[0].structural_parameters[0].access = access;
+            validate_module(&module).expect("in-bounds indexed scalar store verifies");
+        }
+    }
+}
+
+#[test]
+fn rejects_indexed_scalar_stores_outside_array_bounds() {
+    for index in [3, u64::MAX] {
+        assert_invalid_scalar_store(&indexed_scalar_field_store_module(index));
+    }
+}
+
+#[test]
+fn rejects_indexed_scalar_stores_with_malformed_carrier_paths() {
+    let mut empty_field = indexed_scalar_field_store_module(0);
+    scalar_store_path(&mut empty_field)[0] = StructuralPathSegment::Field(String::new());
+    assert_invalid_scalar_store(&empty_field);
+
+    let mut root_index = indexed_scalar_field_store_module(0);
+    root_index.machines[0].attachment = Some(id::<StructuralTypeId>(3));
+    root_index.machines[0].structural_parameters[0].structural_type = id::<StructuralTypeId>(3);
+    scalar_store_path(&mut root_index).remove(0);
+    assert_invalid_scalar_store(&root_index);
+
+    // These paths are well typed and in bounds; only the bounded store grammar
+    // excludes a second array index or a field after the first index.
+    let mut repeated_index = indexed_scalar_field_store_module(0);
+    repeated_index.structural_types[2].shape = StructuralTypeShape::FixedArray {
+        element: id::<StructuralTypeId>(4),
+        length: 3,
+    };
+    repeated_index
+        .structural_types
+        .push(StructuralTypeDeclaration {
+            id: id::<StructuralTypeId>(4),
+            identity: "test::InnerItems".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: id::<StructuralTypeId>(2),
+                length: 2,
+            },
+        });
+    scalar_store_path(&mut repeated_index).push(StructuralPathSegment::FixedIndex(1));
+    assert_invalid_scalar_store(&repeated_index);
+
+    let mut field_after_index = indexed_scalar_field_store_module(0);
+    field_after_index.structural_types[2].shape = StructuralTypeShape::FixedArray {
+        element: id::<StructuralTypeId>(4),
+        length: 3,
+    };
+    field_after_index
+        .structural_types
+        .push(StructuralTypeDeclaration {
+            id: id::<StructuralTypeId>(4),
+            identity: "test::WrappedItem".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: id::<StructuralFieldId>(1),
+                    identity: "nested".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(id::<StructuralTypeId>(2)),
+                }],
+            },
+        });
+    scalar_store_path(&mut field_after_index).push(StructuralPathSegment::Field("nested".into()));
+    assert_invalid_scalar_store(&field_after_index);
+}
+
+#[test]
+fn rejects_indexed_scalar_stores_through_erased_fields() {
+    for structural_type_index in [0, 1] {
+        let mut module = indexed_scalar_field_store_module(0);
+        let StructuralTypeShape::Record { fields } =
+            &mut module.structural_types[structural_type_index].shape
+        else {
+            unreachable!()
+        };
+        fields[0].relevance = BindingRelevance::Erased;
+        fields[0].field_type = StructuralFieldType::Erased {
+            type_identity: "test::ErasedContent".into(),
+        };
+        assert_invalid_scalar_store(&module);
+    }
+}
+
+#[test]
+fn rejects_indexed_scalar_store_value_type_mismatch() {
+    let mut module = indexed_scalar_field_store_module(2);
+    module.machines[0].blocks[0].operations[0]
+        .result
+        .scalar_mut()
+        .expect("constant result")
+        .scalar_type = ScalarType::Boolean;
+    module.machines[0].blocks[0].operations[0].kind =
+        OperationKind::BooleanConstant { value: true };
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::StructuralScalarFieldStoreValueTypeMismatch {
+            operation: id::<OperationId>(2),
+            expected: integer_type(),
+            actual: ScalarType::Boolean,
+        })
+    );
+}
+
+#[test]
+fn indexed_shared_subloans_preserve_source_access_and_multiplicity() {
+    let mut module = indexed_scalar_field_store_module(2);
+    let existing = structural_scalar_field_module();
+    let mut call = existing.machines[0].blocks[0].operations[2].clone();
+    let OperationKind::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &mut call.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = scalar_store_path(&mut module).clone();
+    module.machines[0].blocks[0].operations[1] = call;
+    module.machines.push(existing.machines[1].clone());
+    module.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    validate_module(&module).expect("unrestricted indexed shared subloan verifies");
+
+    let mut write_only = module.clone();
+    write_only.machines[0].structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
+    assert_eq!(
+        validate_module(&write_only).map(|_| ()),
+        Err(ModuleError::StructuralArgumentAccessExceedsSource {
+            operation: id::<OperationId>(3),
+            argument_index: 0,
+            source: StructuralAccess::WriteOnlyBorrow,
+            presented: StructuralAccess::SharedBorrow,
+        })
+    );
+
+    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+    module.machines[0]
+        .entry_claims
+        .push(psi_terminal::EntryClaim {
+            claim: id::<psi_core::ClaimId>(1),
+            input: id::<PlaceId>(1),
+            path: Vec::new(),
+        });
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::StructuralArgumentMultiplicityMismatch {
+            operation: id::<OperationId>(3),
+            argument_index: 0,
+            expected: StructuralMultiplicity::Unrestricted,
+            actual: StructuralMultiplicity::Linear,
+        })
+    );
+}
+
 #[test]
 fn rejects_mixed_structural_call_scalar_argument_corruption() {
     let mut missing = structural_scalar_field_module();
