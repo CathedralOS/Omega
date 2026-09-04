@@ -26,11 +26,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "impl ExternalDecisionPoint",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/pass_manager/external_policy/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/pass_manager/external_policy/mod.rs",
         coordination_marker: "pub(super) fn validated_candidate_features",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation/mod.rs",
         coordination_marker: "apply::validated(session, validated)",
     },
     RequiredCoordinationEntrance {
@@ -50,15 +50,15 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn new(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/control_flow_cleanup/mod.rs",
         coordination_marker: "fn built_in_registrations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/copy_propagation/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/copy_propagation/mod.rs",
         coordination_marker: "fn built_in_registrations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/copy_propagation/redundant_block_parameter/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/copy_propagation/redundant_block_parameter/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
@@ -90,187 +90,187 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_non_adjacent_block_merge_candidate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/dead_scalar_elimination/mod.rs",
         coordination_marker: "fn built_in_registrations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/literal/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/dead_scalar_elimination/literal/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/unconditionally_total/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/dead_scalar_elimination/unconditionally_total/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/dead_scalar/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/proof_check_elision/dead_scalar/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/mod.rs",
         coordination_marker: "fn built_in_registrations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/proof_check_elision/mod.rs",
         coordination_marker: "fn built_in_registrations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/mod.rs",
         coordination_marker: "fn built_in_registrations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/boolean_not_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/boolean_not_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/boolean_equal_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/boolean_equal_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/integer_equal_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/integer_equal_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/integer_less_than_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/integer_less_than_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/integer_less_or_equal_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/integer_less_or_equal_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_add_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_add_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_subtract_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_subtract_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_multiply_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_multiply_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_add_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_add_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_subtract_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_subtract_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_multiply_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_multiply_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_add_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_add_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_subtract_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_subtract_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_multiply_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_multiply_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_divide_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_divide_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_remainder_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_remainder_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_divide_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_divide_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_remainder_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_remainder_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_divide_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_divide_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_remainder_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/saturating_integer_remainder_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_shift_left_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_shift_left_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_shift_right_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/exact_integer_shift_right_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_shift_left_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_shift_left_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_shift_right_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/wrapping_integer_shift_right_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/integer_bitwise_and_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/integer_bitwise_and_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/integer_bitwise_or_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/integer_bitwise_or_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/integer_bitwise_xor_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/integer_bitwise_xor_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/exact_integer_cast_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/exact_integer_cast_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary/integer_widen_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary/integer_widen_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary/integer_bitwise_not_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary/integer_bitwise_not_constants/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_equal_range_constant/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_equal_range_constant/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_equal_constant_range/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_equal_constant_range/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_less_than_range_constant/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_less_than_range_constant/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_less_than_constant_range/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_less_than_constant_range/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_less_or_equal_range_constant/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_less_or_equal_range_constant/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_less_or_equal_constant_range/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_less_or_equal_constant_range/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_range/integer_equal_range_range/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_range/integer_equal_range_range/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_range/integer_less_than_range_range/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_range/integer_less_than_range_range/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_range/integer_less_or_equal_range_range/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_range/integer_less_or_equal_range_range/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
@@ -298,19 +298,19 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn evaluate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/semantic/value_ranges/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/analyses/semantic/value_ranges/mod.rs",
         coordination_marker: "pub(in crate::analyses) fn value_ranges",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_induction/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/analyses/control_flow/countdown_induction/mod.rs",
         coordination_marker: "pub(crate) fn analyze_counted_loops",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_invariant_constants/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/analyses/control_flow/countdown_invariant_constants/mod.rs",
         coordination_marker: "pub(crate) fn analyze_countdown_invariant_constants",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_invariant_constant_placement/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/analyses/control_flow/countdown_invariant_constant_placement/mod.rs",
         coordination_marker: "pub(crate) fn analyze_countdown_invariant_constant_placement",
     },
     RequiredCoordinationEntrance {
@@ -370,31 +370,31 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn validate_current_ownership_frontier",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/bitwise_absorbing/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/bitwise_absorbing/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/bitwise_neutral/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/bitwise_neutral/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/saturating_multiply_zero/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/saturating_multiply_zero/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/saturating_neutral/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/saturating_neutral/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_multiply_zero/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_multiply_zero/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_neutral/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_neutral/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_shift_zero_count/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes/global_value_numbering/identities/wrapping_shift_zero_count/mod.rs",
         coordination_marker: "fn propose(",
     },
 ];

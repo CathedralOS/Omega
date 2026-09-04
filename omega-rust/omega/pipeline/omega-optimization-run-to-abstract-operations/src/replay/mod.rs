@@ -9,10 +9,10 @@ mod commits;
 mod records;
 mod rule_set;
 
-use omega_optimization_core::{OptimizationRuleSetIdentity, OptimizationWorkUsage};
-use omega_psi_optimizer::{
+use omega_abstract_operations_optimizer::{
     OptimizationRun, OptimizationRunUsage, validate_external_decision_recording,
 };
+use omega_optimization_core::{OptimizationRuleSetIdentity, OptimizationWorkUsage};
 
 use crate::OptimizedAbstractProjectionError;
 

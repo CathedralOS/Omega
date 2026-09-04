@@ -13,7 +13,7 @@ omega-optimization-core = { path = "../../representations/omega-optimization-cor
 omega-optimization-policy = { path = "../omega-optimization-policy" }
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 omega-optimization-validation = { path = "../omega-optimization-validation" }
-omega-psi-optimizer = { path = "../optimization/omega-psi-optimizer" }
+omega-abstract-operations-optimizer = { path = "../omega-abstract-operations-optimizer" }
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-psi-to-abstract-operations = { path = "../omega-psi-to-abstract-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }

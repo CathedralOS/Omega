@@ -24,6 +24,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/representations/omega-optimization-core",
     "omega-rust/omega/representations/omega-optimization-unit",
     "omega-rust/omega/representations/omega-selected-instructions",
+    "omega-rust/omega/pipeline/omega-abstract-operations-optimizer",
     "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
     "omega-rust/omega/pipeline/omega-machine-optimizer",
     "omega-rust/omega/pipeline/omega-optimization-policy",
@@ -66,12 +67,12 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/mod.rs",
-        catalog: "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/mod.rs",
+        catalog: "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/catalog.rs",
         coordination_marker: "pub fn built_in_psi_registries",
         catalog_marker: "PSI_PASS_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes",
+            "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/rules/passes",
         ],
     },
     RuleStageDescriptor {

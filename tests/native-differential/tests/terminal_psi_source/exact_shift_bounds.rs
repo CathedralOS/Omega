@@ -1,4 +1,5 @@
 use super::*;
+use omega_abstract_operations_optimizer::{AnalysisProduct, compute_analysis, run_psi_pipeline};
 use omega_optimization_core::{
     AcceptedObligationFactIdentity, AnalysisKind, Optimization, OptimizationFactReference,
     OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
@@ -10,7 +11,6 @@ use omega_optimization_validation::{
     OptimizationUnitValidationError, validate_current_value_range_fact,
     validate_current_value_range_fact_at,
 };
-use omega_psi_optimizer::{AnalysisProduct, compute_analysis, run_psi_pipeline};
 
 #[test]
 fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidence() {

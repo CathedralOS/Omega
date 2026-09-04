@@ -2,7 +2,7 @@
 
 use super::*;
 
-use omega_psi_optimizer::{CountedLoopAnalysisError, CountedLoopAnalysisSnapshot};
+use omega_abstract_operations_optimizer::{CountedLoopAnalysisError, CountedLoopAnalysisSnapshot};
 
 #[test]
 fn source_countdown_yields_one_revision_bound_exact_trip_count() {

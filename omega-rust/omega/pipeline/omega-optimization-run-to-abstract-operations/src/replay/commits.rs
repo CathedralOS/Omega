@@ -2,12 +2,12 @@
 
 use std::collections::BTreeMap;
 
+use omega_abstract_operations_optimizer::{OptimizationRun, OrderedRuleRegistry};
 use omega_optimization_core::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationFactReference,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationUnitIdentity,
     OptimizationValidatorIdentity,
 };
-use omega_psi_optimizer::{OptimizationRun, OrderedRuleRegistry};
 
 use crate::OptimizedAbstractProjectionError;
 use crate::error::{AppliedDecisionCustodyAxis, custody_error};

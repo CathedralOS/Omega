@@ -1,6 +1,9 @@
 //! Optimizer module role: stage group. Real source-produced ranked countdown admission through optimizer analyses.
 
 use omega_abstract_operations::AbstractOperation;
+use omega_abstract_operations_optimizer::{
+    AnalysisManager, AnalysisProduct, VerifiedPsiOptimizationSession,
+};
 use omega_optimization_core::AnalysisKind;
 use omega_optimization_validation::{
     OptimizationUnitValidationError, OptimizerCycleComponentSnapshot,
@@ -8,7 +11,6 @@ use omega_optimization_validation::{
     validate_psi_optimization_unit, validate_psi_ranking_certificate_snapshot,
     validate_transformed_psi_optimization_unit, validate_verified_psi_cycle_components,
 };
-use omega_psi_optimizer::{AnalysisManager, AnalysisProduct, VerifiedPsiOptimizationSession};
 use omega_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, build_verified_psi_optimization_unit,
     lower_artifact_sections_for_optimization,

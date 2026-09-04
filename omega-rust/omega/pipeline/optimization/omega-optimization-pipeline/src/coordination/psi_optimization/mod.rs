@@ -14,10 +14,10 @@ pub use request::{
     compiler_baseline_request_v1,
 };
 
+use omega_abstract_operations_optimizer::run_psi_pipeline_for_projection;
 use omega_optimization_run_to_abstract_operations::{
     ValidatedOptimizedAbstractPlan, project_optimization_run,
 };
-use omega_psi_optimizer::run_psi_pipeline_for_projection;
 use omega_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, build_verified_psi_optimization_unit,
     lower_artifact_sections_for_optimization,

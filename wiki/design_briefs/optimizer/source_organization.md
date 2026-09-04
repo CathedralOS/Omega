@@ -229,7 +229,7 @@ enablement and order.
 | Phase | Entrance | Sole catalog | Next rung |
 |---|---|---|---|
 | Mandatory legalization | `omega-target-operations-to-selected-instructions/src/legalization/mod.rs` | `legalization/catalog.rs` | `source/`, `replay/` |
-| Psi | `omega-psi-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `passes/<exact-pass>/` |
+| Psi | `omega-abstract-operations-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `passes/<exact-pass>/` |
 | Selected lowering | `omega-regalloc/src/rules/selected_lowering/mod.rs` | adjacent `catalog.rs` | `literal_fold/` |
 | Allocation recovery | `omega-regalloc/src/rules/allocation_recovery/mod.rs` | adjacent `catalog.rs` | `fixed_view_copy/`, `pressure_rematerialization/` |
 | Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |

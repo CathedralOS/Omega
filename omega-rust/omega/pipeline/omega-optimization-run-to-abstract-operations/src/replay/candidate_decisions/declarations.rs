@@ -1,7 +1,7 @@
 //! Independent reconstruction of every retained validated candidate.
 
+use omega_abstract_operations_optimizer::{OptimizationRun, OrderedRuleRegistry};
 use omega_optimization_core::OptimizationCandidateVerdict;
-use omega_psi_optimizer::{OptimizationRun, OrderedRuleRegistry};
 
 use super::super::commits::{ReplayedCommits, bind_contract, contract_for};
 use crate::OptimizedAbstractProjectionError;

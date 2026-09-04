@@ -2,15 +2,15 @@
 
 use super::*;
 
+use omega_abstract_operations_optimizer::{
+    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
+};
 use omega_optimization_unit::{
     EffectLink, FuelSettlement, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
 use omega_optimization_validation::{
     OptimizerUnsignedCountdownRankingCertificate, validate_transformed_psi_cycle_components,
-};
-use omega_psi_optimizer::{
-    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
 };
 
 #[derive(Clone, Copy)]

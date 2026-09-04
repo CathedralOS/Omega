@@ -13,11 +13,11 @@ mod model;
 mod replay;
 mod source;
 
+use omega_abstract_operations_optimizer::{OptimizationRun, baseline_psi_cost_model_identity};
 use omega_optimization_core::OptimizationExecutionPhase;
 use omega_optimization_validation::{
     project_pre_physical_optimization_manifest, validate_optimized_abstract_plan_projection,
 };
-use omega_psi_optimizer::{OptimizationRun, baseline_psi_cost_model_identity};
 
 pub use error::{AppliedDecisionCustodyAxis, OptimizedAbstractProjectionError};
 pub use model::ValidatedOptimizedAbstractPlan;

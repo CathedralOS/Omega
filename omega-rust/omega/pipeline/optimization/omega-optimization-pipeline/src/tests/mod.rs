@@ -2,6 +2,7 @@
 use std::collections::BTreeSet;
 
 use omega_abstract_operations::{AbstractOperation, ValueBinding};
+use omega_abstract_operations_optimizer::OptimizationRunError;
 use omega_calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
 use omega_legalized_operations::{
     LegalizationRecipe, LegalizationTheorem, LegalizedLeafValue, LegalizedTemporaryId,
@@ -11,7 +12,6 @@ use omega_optimization_core::{
     Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
 };
 use omega_optimization_unit::{FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite};
-use omega_psi_optimizer::OptimizationRunError;
 use omega_regalloc::{
     AllocationLegalityError, AllocatorAvailabilityError, AllocatorAvailabilityPolicy,
     ArchitecturalUnitActionKind, FixedViewCopyError, FixedViewCopyPolicy, LiteralFoldPlan,

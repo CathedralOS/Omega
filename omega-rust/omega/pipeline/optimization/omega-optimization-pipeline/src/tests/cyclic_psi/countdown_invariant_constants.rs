@@ -2,12 +2,12 @@
 
 use super::*;
 
-use omega_optimization_unit::{ValueDefinitionSite, recompute_psi_optimization_unit_identity};
-use omega_optimization_validation::validate_transformed_psi_optimization_unit;
-use omega_psi_optimizer::{
+use omega_abstract_operations_optimizer::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantRole,
 };
+use omega_optimization_unit::{ValueDefinitionSite, recompute_psi_optimization_unit_identity};
+use omega_optimization_validation::validate_transformed_psi_optimization_unit;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId};
 
 #[test]

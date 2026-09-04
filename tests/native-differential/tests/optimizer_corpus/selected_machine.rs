@@ -1,4 +1,5 @@
 use omega_abstract_operations::AbstractOperation;
+use omega_abstract_operations_optimizer::WrappingIntegerAddConstantsRule;
 use omega_isa_aarch64::validate_aarch64_shortest_movn_materialization;
 use omega_isa_x86_64::{
     decode_x86_64_mov_r32_imm32_i64_materialization,
@@ -7,7 +8,6 @@ use omega_isa_x86_64::{
 use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use omega_optimization_pipeline::*;
 use omega_optimization_unit::PsiRewritePatch;
-use omega_psi_optimizer::WrappingIntegerAddConstantsRule;
 use omega_target::NativeTarget;
 use psi_core::IntegerValue;
 use psi_proof_admission::AdmissionProfile;
@@ -117,7 +117,7 @@ struct PsiEvidence {
     unit: omega_optimization_core::OptimizationUnitIdentity,
     identity_bundle: omega_optimization_core::OptimizationIdentityBundle,
     pass_manifests: Vec<omega_optimization_core::OptimizationPassManifestRecord>,
-    commits: Vec<omega_psi_optimizer::PsiOptimizationCommit>,
+    commits: Vec<omega_abstract_operations_optimizer::PsiOptimizationCommit>,
     ledger: omega_optimization_unit::PsiTransformationLedger,
     pre_manifest: omega_optimization_validation::PrePhysicalOptimizationManifest,
 }
@@ -127,7 +127,7 @@ struct MachineEvidence {
     unit: omega_optimization_core::OptimizationUnitIdentity,
     identity_bundle: omega_optimization_core::OptimizationIdentityBundle,
     pass_manifests: Vec<omega_optimization_core::OptimizationPassManifestRecord>,
-    commits: Vec<omega_psi_optimizer::PsiOptimizationCommit>,
+    commits: Vec<omega_abstract_operations_optimizer::PsiOptimizationCommit>,
     ledger: omega_optimization_unit::PsiTransformationLedger,
     pre_manifest: omega_optimization_validation::PrePhysicalOptimizationManifest,
     post_manifest: omega_regalloc::PostAllocationOptimizationManifest,

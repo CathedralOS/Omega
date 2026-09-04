@@ -1,10 +1,9 @@
 #![forbid(unsafe_code)]
 
 //! Optimizer module role: crate map.
-//! Deterministic target-neutral analyses and rewrites for verified Psi units.
-//!
-//! Empty selection is the identity schedule. Integration may bypass its
-//! construction; crate callers receive it before creating an [`AnalysisManager`].
+//! Post-Terminal abstract-operation optimization over units reconstructed from
+//! Terminal Psi. This does not implement the portable pre-Terminal Psi phase.
+//! Empty selection is identity and precedes [`AnalysisManager`] construction.
 mod analyses;
 mod pass_manager;
 mod ranked_rewrites;
