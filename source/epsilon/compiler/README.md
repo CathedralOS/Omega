@@ -40,8 +40,8 @@ revalidated once the Gamma-written Delta compiler exists.
 It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
-exhaustion. The source still contains D36's former cross-kind callable census
-and direct-qualified static-machine path; D51 requires their removal.
+exhaustion. D51's removal of the former D36 cross-kind callable census is
+implemented; the direct-qualified static-machine path remains to be removed.
 Unqualified, named-data receiver, and exact
 sealed-boundary applications now retain source identity and settled result
 facts; explicit state applications and state/machine collision classification
@@ -55,8 +55,8 @@ D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
 AST-to-symbolic-Alpha lowering, `main`, and final publication remain
-implementation gaps. D56's redundant type-candidate `kind` is removed; its
-entry-diagnostic subjudgment remains unimplemented. D31's profile-
+implementation gaps. D56's redundant type-candidate `kind` is removed and its
+entry-diagnostic subjudgment is implemented. D31's profile-
 independent structural type-formation judgment is now implemented; its
 physical storage realization remains later than complete checking, with D34
 now fixing its over-`Int` demand representation. The existing source is
@@ -69,12 +69,15 @@ first collects every owner row and exact qualified machine identity from source
 spans, then scans member, parameter, state, let, and transition-binder scopes.
 It compares authored bytes exactly, keeps local identities source-shaped,
 collects transition binders independently of later case and arity validity,
-and returns the globally earliest declaration-start failure. Its former D36
-case/qualified-machine comparison is superseded by D51's syntax-selected case
-and receiver-method namespaces and remains deletion work. Any duplicate owner row is ambiguous, including
-same-kind duplication, so it contributes no inferred owner kind and admits no
-machine to a data-owner callable registry until repaired. No census behavior is
-claimed as executed while the canonical Delta compiler edge is absent.
+and returns the globally earliest declaration-start failure. D51's syntax-
+selected case and receiver-method namespaces delete the former D36 case/
+qualified-machine comparison. D56 narrowly transfers duplicate custody for
+`Main`, `Console`, `Main.console`, `Console` members, and exact `Main::main`
+to the later entry-shape judgment only when an authored `Main::main` candidate
+exists. Every unrelated duplicate remains in D22. Any ordinary duplicate owner
+row is ambiguous, including same-kind duplication, so it contributes no
+inferred owner kind and admits no machine to a data-owner callable registry
+until repaired.
 
 Type formation walks every authored type after that census with an explicit
 stored/parameter/local/return/nested placement. It derives array-length,
@@ -91,10 +94,10 @@ marking every edge in a value cycle at its named-reference coordinate without
 expanding every path through a shared acyclic graph. Candidate identity is now
 exactly its reason and packed coordinate; same-anchor reason equality derives
 from the total reason mapping rather than a parallel integer discriminator.
-The winning candidate is promoted after successful census. D56 requires a
-final type-formation entry
-subjudgment before that promotion: no authored `Main::main` owner/name candidate
-yields only `MissingEntry` at source extent; once one exists, every malformed or
+The winning candidate is promoted after successful census. D56's final type-
+formation entry subjudgment runs before that promotion: no authored
+`Main::main` owner/name candidate yields only `MissingEntry` at source extent;
+once one exists, every malformed or
 absent supporting component is `InvalidEntry`. Entry facts do not enter the
 later body/control candidate carrier. Remaining expression typing and
 body/control judgments are the next semantic phase.
@@ -289,9 +292,9 @@ acceptance or runtime realization.
 
 This is the compact case matrix for the eventual adjacent executable gate. It
 derives from D17, D22, D24, D36, D37, D38, D50, D51, D52, D53, and
-`LANGUAGE.md`; it is not an unrun corpus and records no execution evidence.
-Cases become executable only through the real Delta-written compiler and its
-selected D19 adapter.
+`LANGUAGE.md`. Completed local probes are recorded explicitly below; the full
+matrix becomes a retained executable gate only through the real Delta-written
+compiler and its selected D19 adapter.
 
 D51 supersedes the current-source entries below that mention receiverless
 qualified machines or case/machine collision rejection. Final controls instead
@@ -355,14 +358,18 @@ refusals require `requested > limit` and publish no tape. Adjacent controls
 exercise zero-sized multiplication, exact `INT64_MAX`, and the first larger
 demand without taking a Delta trap.
 
-D56 entry controls begin with the first authored entry-bearing Epsilon fixtures.
-They cover no `Main::main`, a present wrong signature, missing/duplicate/wrong-
-type `Main.console`, missing or malformed `Main`/`Console`, competing entries,
-member reordering, binder renaming, several absent supporting components, and
-an entry defect beside a body defect. They assert source-extent omission,
-authored-construct anchors, same-reason deduplication, direct reason equality
-without the redundant `kind`, and the absence of any type/body coordinate
-merge.
+D56 entry controls have executed as one ephemeral authored-source matrix. Its
+19 distinct cases cover no `Main::main`, a present wrong signature, missing/
+duplicate/wrong-type `Main.console`, missing or malformed `Main`/`Console`,
+competing entries, member reordering, binder renaming, several absent
+supporting components, unrelated duplicate preservation, case/receiver-method
+spelling reuse, and an entry defect beside a body defect. They establish source-
+extent omission, authored-construct anchors, same-reason deduplication, direct
+reason equality without the redundant `kind`, and the absence of any type/body
+coordinate merge. The largest one-shot probe compiled 18 cases in a 603,389-
+byte temporary Delta source to 605,816 Gamma bytes in 92.2 seconds; a corrected
+four-case tail probe returned byte `0x7f`. Neither generated fixture expansion
+is retained as a second semantic owner or default slow gate.
 
 D57 transition controls cover a pattern after `_`, a repeated `_`, and an
 exhaustive sum with a redundant final wildcard; category-incompatible scalar
