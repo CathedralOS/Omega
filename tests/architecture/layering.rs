@@ -2123,6 +2123,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && model.contains("enum PostTerminalOptimizationContinuation")
             && model.contains("PostTerminalOptimizationContinuation::Identity(_)")
             && model.contains("PostTerminalOptimizationContinuation::Selected")
+            && model.contains("optimization_continuation.input().plan()")
             && !model.contains(
                 "optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>",
             )
