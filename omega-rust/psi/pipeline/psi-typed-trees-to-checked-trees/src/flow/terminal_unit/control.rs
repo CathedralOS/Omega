@@ -1092,6 +1092,7 @@ pub(super) fn build_checked_machine(
                 &structural_parameters,
                 &scalar_parameters,
                 statements,
+                scalar_result_local.as_ref(),
             )
         })
         .flatten();
@@ -1324,6 +1325,33 @@ pub(super) fn build_checked_machine(
         }
         operations.push(store);
     } else if let Some(store) = structural_scalar_field_store {
+        if let Some(result) = scalar_result_local {
+            let call = calls.first()?;
+            if call.statement_index != usize::try_from(result.statement_index).ok()?
+                || call.call_ordinal != 0
+            {
+                return None;
+            }
+            let call_operation = build_call_operation(
+                program,
+                facts,
+                machine,
+                state,
+                &structural_parameters,
+                &local_rows,
+                affine_scalar_record_local.as_slice(),
+                &entry_claims,
+                call,
+                false,
+                Some(ExpectedCallValueResult::Scalar(result.primitive_type)),
+            )?;
+            operations.push(bind_scalar_call_result(
+                facts,
+                call_operation,
+                result,
+                false,
+            )?);
+        }
         operations.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
             store,
         ));

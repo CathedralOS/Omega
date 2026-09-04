@@ -1539,7 +1539,9 @@ pub enum CheckedUnitEffectOperationPlan {
     /// Replace one relevant primitive field through an exact field-only path
     /// below an exclusive structural parameter. This shares the same checked
     /// path/value custody as dynamic realization stores, but is an ordinary
-    /// attached-Unit effect and therefore carries no dispatch authority.
+    /// attached-Unit effect and therefore carries no dispatch authority. The
+    /// bounded result form reads only the exact fixed-integer local produced
+    /// by the immediately preceding ordinary scalar call.
     StructuralScalarFieldStore(CheckedStructuralScalarFieldStorePlan),
     ReturnUnit {
         statement_index: u32,

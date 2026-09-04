@@ -794,6 +794,58 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
 }
 
 #[test]
+fn retains_one_scalar_result_before_a_projected_write_only_store() {
+    let checked = checked(
+        r#"
+        data Scalar {}
+        machine Scalar::identity(value: i32) -> i32
+        requires value == value
+        ensures result == value
+        {
+            transition { _ -> value }
+        }
+
+        data Pair { prefix: u8; target: i32; }
+        data Root {}
+        machine Root::enter(destination: &write Pair) {
+            let replacement: i32 = Scalar::identity(23);
+            destination.target = replacement;
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::enter"))
+        .expect("projected scalar-result store plan");
+    assert!(matches!(
+        plan.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::ScalarCall { result, .. },
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                statement_index: 2,
+                ..
+            },
+        ] if result.statement_index == 0
+            && result.binding_ordinal == 0
+            && result.primitive_type == PrimitiveType::I32
+            && store.statement_index == 1
+            && store.destination_parameter_position == 0
+            && store.carrier_path.is_empty()
+            && store.primitive_type == PrimitiveType::I32
+            && matches!(
+                store.value,
+                CheckedScalarExpression::Local {
+                    position: 0,
+                    primitive_type: PrimitiveType::I32,
+                }
+            )
+    ));
+}
+
+#[test]
 fn retains_only_certificate_backed_restored_reference_alias_call() {
     let checked = checked(
         r#"
@@ -1041,7 +1093,7 @@ fn retains_a_later_direct_write_only_fixed_integer_parameter_store() {
 }
 
 #[test]
-fn primitive_store_planning_fails_closed_outside_the_direct_source_whole_write_root() {
+fn scalar_store_planning_fails_closed_for_computed_sources_and_multiple_stores() {
     let cases = [
         (
             "computed runtime replacement",
@@ -1058,16 +1110,6 @@ fn primitive_store_planning_fails_closed_outside_the_direct_source_whole_write_r
             data Sink {}
             machine Sink::fill(destination: &write bool) {
                 destination = !true;
-            }
-            "#,
-        ),
-        (
-            "projected Boolean field",
-            r#"
-            data Cell [copy] { value: bool; }
-            data Sink {}
-            machine Sink::fill(destination: &write Cell) {
-                destination.value = true;
             }
             "#,
         ),

@@ -92,6 +92,7 @@ pub(super) fn assign(
             *field_byte_offset,
             *source,
             preceding_operations,
+            preceding_assigned_operations,
             target,
         )?,
         TargetUnitOperation::IeeeFloatConstant {

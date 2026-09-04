@@ -535,7 +535,32 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                         Some(u64::from(value)),
                     )
                 }
-                _ => return Err(invalid()),
+                omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(source_home) => {
+                    if !matches!(source_home.scalar_type, psi_core::ScalarType::Integer(_)) {
+                        return Err(invalid());
+                    }
+                    let source_count = record
+                        .internal_unit_scalar_calls
+                        .iter()
+                        .filter(|call| {
+                            call.machine == function.machine
+                                && call.custody.result.home == source_home
+                                && call.custody.operation_ordinal < store.operation_ordinal
+                        })
+                        .count();
+                    let home_count = function
+                        .unit_scalar_homes
+                        .iter()
+                        .filter(|home| **home == source_home)
+                        .count();
+                    let (shape, width) = installed_native_scalar_shape(source_home.scalar_type)
+                        .ok_or_else(invalid)?;
+                    (
+                        source_count == 1 && home_count == 1 && source_home.shape == shape,
+                        width,
+                        None,
+                    )
+                }
             };
             let expected_bytes = match store.source {
                 omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
@@ -565,6 +590,16 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     function.unit_stack.as_ref().ok_or_else(invalid)?.frame_bytes,
                 )
                 .ok_or_else(invalid)?,
+                omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(source_home) => {
+                    crate::unit_structural_scalar_field_store::expected_home_store_bytes(
+                        record.target,
+                        home,
+                        store.field_byte_offset,
+                        width,
+                        source_home,
+                    )
+                    .ok_or_else(invalid)?
+                }
                 _ => crate::unit_structural_scalar_field_store::expected_store_bytes(
                     record.target,
                     home,

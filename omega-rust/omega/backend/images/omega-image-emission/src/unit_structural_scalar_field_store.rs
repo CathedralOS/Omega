@@ -207,7 +207,32 @@ fn validate_store(
                 Some(u64::from(value)),
             )
         }
-        _ => return None,
+        InternalUnitScalarArgumentSourceRecord::Home(source_home) => {
+            if !matches!(source_home.scalar_type, psi_core::ScalarType::Integer(_)) {
+                return None;
+            }
+            let source_count = function
+                .internal_unit_scalar_calls
+                .iter()
+                .filter(|call| {
+                    call.result.home == source_home
+                        && call.operation_ordinal < store.operation_ordinal
+                })
+                .count();
+            let home_count = function
+                .unit_scalar_homes
+                .iter()
+                .filter(|home| **home == source_home)
+                .count();
+            let (shape, byte_size) = super::unit_write_only_primitive_store::native_scalar_shape(
+                source_home.scalar_type,
+            )?;
+            (
+                source_count == 1 && home_count == 1 && source_home.shape == shape,
+                byte_size,
+                None,
+            )
+        }
     };
     if !source_is_exact
         || store
@@ -239,6 +264,13 @@ fn validate_store(
             byte_size,
             byte_offset,
             validated_function_stack?.frame_bytes,
+        )?,
+        InternalUnitScalarArgumentSourceRecord::Home(source_home) => expected_home_store_bytes(
+            target,
+            home,
+            store.field_byte_offset,
+            byte_size,
+            source_home,
         )?,
         _ => expected_store_bytes(target, home, store.field_byte_offset, byte_size, bits?)?,
     };

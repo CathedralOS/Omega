@@ -71,6 +71,23 @@ const WRITE_ONLY_SOURCE: &str = r#"
     }
 "#;
 
+const RESULT_SOURCED_STORE: &str = r#"
+    data Scalar {}
+    machine Scalar::identity(value: i32) -> i32
+    requires value == value
+    ensures result == value
+    {
+        transition { _ -> value }
+    }
+
+    data Pair { prefix: u8; target: i32; }
+    data Root {}
+    machine Root::enter(destination: &write Pair) {
+        let replacement: i32 = Scalar::identity(23);
+        destination.target = replacement;
+    }
+"#;
+
 #[test]
 fn direct_dynamic_projected_store_and_call_reach_machine_custody() {
     let checked = checked(SOURCE);
@@ -140,6 +157,213 @@ fn parameter_sourced_write_only_field_store_reaches_canonical_installation() {
     assert_parameter_sourced_field_store("Sink::parameter", 2, 0, false);
     assert_parameter_sourced_field_store("Sink::boolean_parameter", 1, 0, false);
     assert_parameter_sourced_field_store("Sink::stack_parameter", 2, 8, true);
+}
+
+#[test]
+fn scalar_result_home_reaches_a_projected_store_and_canonical_installation() {
+    let checked = checked(RESULT_SOURCED_STORE);
+    let terminal =
+        psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, "Root::enter")
+            .expect("projected scalar-result store reaches canonical Terminal");
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
+        terminal.semantic_bytes(),
+        terminal.proof_bytes(),
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("projected scalar-result store reaches target-neutral Omega");
+
+    for native_target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstract_plan,
+            native_target,
+        )
+        .expect("projected scalar-result store reaches target custody");
+        let target_body = target
+            .functions
+            .iter()
+            .find(|function| function.machine == target.entry)
+            .and_then(|function| match &function.operation {
+                omega_target_operations::TargetOperation::UnitBody(body) => Some(body),
+                _ => None,
+            })
+            .expect("target caller remains a Unit body");
+        let target_result_home = target_body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_target_operations::TargetUnitOperation::ScalarCall {
+                    result_home, ..
+                } => Some(result_home),
+                _ => None,
+            })
+            .expect("target caller retains the scalar producer");
+        let (target_store_home, target_field_offset) = target_body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_target_operations::TargetUnitOperation::StructuralScalarFieldStore {
+                    source: omega_target_operations::TargetUnitScalarArgumentSource::Home(home),
+                    field_byte_offset,
+                    ..
+                } => Some((home, field_byte_offset)),
+                _ => None,
+            })
+            .expect("target projected store reads the scalar result home");
+        assert_eq!(target_store_home, target_result_home);
+        assert_eq!(*target_field_offset, 4);
+
+        let mut changed_target_home = target.clone();
+        let changed_source = changed_target_home
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == changed_target_home.entry)
+            .and_then(|function| match &mut function.operation {
+                omega_target_operations::TargetOperation::UnitBody(body) => {
+                    body.operations.iter_mut().find_map(|operation| {
+                        match operation {
+                        omega_target_operations::TargetUnitOperation::StructuralScalarFieldStore {
+                            source,
+                            ..
+                        } => Some(source),
+                        _ => None,
+                    }
+                    })
+                }
+                _ => None,
+            })
+            .expect("changed target retains the projected store");
+        let omega_target_operations::TargetUnitScalarArgumentSource::Home(home) = changed_source
+        else {
+            unreachable!()
+        };
+        home.source_value = psi_core::ValueId::new(home.source_value.get() + 100).unwrap();
+        assert!(matches!(
+            omega_target_operations_to_assigned_target_operations::assign_registers(
+                &changed_target_home
+            ),
+            Err(
+                omega_target_operations_to_assigned_target_operations::AssignmentError::StructuralScalarFieldStoreCustodyMismatch { .. }
+            )
+        ));
+
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target)
+                .expect("projected scalar-result store reaches physical assignment");
+        let assigned_body = assigned
+            .functions
+            .iter()
+            .find(|function| function.machine == assigned.entry)
+            .and_then(|function| match &function.operation {
+                omega_assigned_target_operations::AssignedOperation::UnitBody(body) => Some(body),
+                _ => None,
+            })
+            .expect("assigned caller remains a Unit body");
+        let assigned_result_home = assigned_body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_assigned_target_operations::AssignedUnitOperation::ScalarCall {
+                    result_home,
+                    ..
+                } => Some(result_home),
+                _ => None,
+            })
+            .expect("assigned caller retains the scalar producer");
+        let assigned_store_home = assigned_body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                omega_assigned_target_operations::AssignedUnitOperation::StructuralScalarFieldStore {
+                    source: omega_assigned_target_operations::AssignedUnitScalarArgumentSource::Home(home),
+                    ..
+                } => Some(home),
+                _ => None,
+            })
+            .expect("assigned projected store reads the scalar result home");
+        assert_eq!(assigned_store_home, assigned_result_home);
+
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("projected scalar-result store reaches machine emission");
+        let caller = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("emitted caller");
+        let [producer] = caller.internal_unit_scalar_calls.as_slice() else {
+            panic!("caller retains one scalar result producer")
+        };
+        let [store] = caller.unit_structural_scalar_field_stores.as_slice() else {
+            panic!("caller retains one projected scalar-result store")
+        };
+        assert_eq!(store.field_byte_offset, 4);
+        assert_eq!(
+            store.source,
+            omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(producer.result.home)
+        );
+        assert_eq!(
+            caller
+                .bytes
+                .get(store.code_offset..store.code_offset + store.byte_count),
+            Some(store.bytes.as_slice())
+        );
+
+        let mut changed_home = emitted.clone();
+        let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) =
+            &mut changed_home
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == emitted.entry)
+                .unwrap()
+                .unit_structural_scalar_field_stores[0]
+                .source
+        else {
+            unreachable!()
+        };
+        home.byte_offset = home.byte_offset.checked_add(8).unwrap();
+        assert_eq!(
+            omega_image_emission::build_object_artifact(&changed_home),
+            Err(
+                omega_image_emission::ObjectError::InvalidUnitStructuralScalarFieldStoreEvidence(
+                    emitted.entry,
+                ),
+            )
+        );
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object replay accepts the projected scalar-result store");
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("projected scalar-result store reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains the projected scalar-result store");
+        let encoded = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode projected scalar-result store custody");
+        let decoded = omega_image_emission::decode_installation_record(&encoded)
+            .expect("decode projected scalar-result store custody");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("installation independently replays the projected scalar-result store");
+        let mut changed_encoded = encoded;
+        let store_bytes = store.bytes.clone();
+        let encoded_store = changed_encoded
+            .windows(store_bytes.len())
+            .rposition(|window| window == store_bytes)
+            .expect("projected store bytes occur in the canonical installation record");
+        changed_encoded[encoded_store] ^= 1;
+        assert!(matches!(
+            omega_image_emission::decode_installation_record(&changed_encoded),
+            Err(
+                omega_image_emission::InstallationError::InvalidUnitStructuralScalarFieldStore(
+                    machine
+                )
+            ) if machine == emitted.entry
+        ));
+    }
 }
 
 fn assert_parameter_sourced_field_store(

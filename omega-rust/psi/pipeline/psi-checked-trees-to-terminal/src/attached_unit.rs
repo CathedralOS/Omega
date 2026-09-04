@@ -2570,6 +2570,10 @@ pub(super) fn lower_attached_unit_closure_including(
                         .ok_or(LoweringError::Unsupported(
                             "structural scalar store names an unknown parameter",
                         ))?;
+                    let source_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
                     let lowered =
                         crate::structural_scalar_store::lower_structural_scalar_store_destination(
                             store,
@@ -2577,6 +2581,7 @@ pub(super) fn lower_attached_unit_closure_including(
                             destination,
                             &structural_types,
                             &plan.scalar_parameters,
+                            &source_types,
                             crate::structural_scalar_store::StoreAccessPolicy::Exclusive,
                         )?;
                     let value = lower_checked_scalar_expression(&store.value)?;
@@ -2585,10 +2590,6 @@ pub(super) fn lower_attached_unit_closure_including(
                             "structural scalar store value type disagrees with its field",
                         );
                     }
-                    let source_types = scalar_result_values
-                        .iter()
-                        .map(|value| value.scalar_type)
-                        .collect::<Vec<_>>();
                     validate_direct_parameter_types(&value, &source_types)?;
                     let value = emit_direct_expression(
                         &value,
