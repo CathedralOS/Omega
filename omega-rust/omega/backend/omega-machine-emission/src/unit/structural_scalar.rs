@@ -3,10 +3,10 @@
 use std::collections::BTreeMap;
 
 use omega_assigned_target_operations::{
-    AssignedFunction, AssignedOperation, AssignedUnitBody, AssignedUnitOperation,
-    AssignedUnitScalarArgumentSource,
+    AssignedFunction, AssignedOperation, AssignedScalarLocation, AssignedUnitBody,
+    AssignedUnitOperation, AssignedUnitScalarArgumentSource,
 };
-use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+use omega_calling_conventions::{CallSignature, CallingPolicy, ValueLocation, evaluate_call_plan};
 use omega_machine_code::{
     InternalCallRelocation, InternalStructuralCallResult, InternalUnitCallArgumentRecord,
     InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord,
@@ -15,7 +15,7 @@ use omega_machine_code::{
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::CallSiteOwner;
-use psi_core::{IntegerType, IntegerValue, OperationId, ValueId};
+use psi_core::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 
 use super::{
     Aarch64UnitParameterHome, X86UnitParameterHome, emit_aarch64_adjust_sp,
@@ -42,6 +42,8 @@ pub(super) fn emit_structural_scalar_field_store(
     target: NativeTarget,
     x86_homes: &[X86UnitParameterHome],
     aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_frame_bytes: u32,
+    aarch64_frame_bytes: u32,
     established_integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
     bytes: &mut Vec<u8>,
     operation_ordinal: usize,
@@ -59,24 +61,119 @@ pub(super) fn emit_structural_scalar_field_store(
     else {
         unreachable!("structural-scalar store router supplied another operation")
     };
-    let AssignedUnitScalarArgumentSource::IntegerImmediate {
-        defining_operation,
-        source_value,
-        scalar_type,
-        value,
-    } = *source
-    else {
-        return Err(EmissionError::InvalidStructuralScalarFieldStoreCustody(
-            *psi_operation,
-        ));
+    let invalid = || EmissionError::InvalidStructuralScalarFieldStoreCustody(*psi_operation);
+    let (source_record, width, immediate_bits) = match *source {
+        AssignedUnitScalarArgumentSource::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type: ScalarType::Integer(scalar_type),
+            location,
+        } => {
+            let scalar_parameter_index = usize::try_from(parameter_index).map_err(|_| invalid())?;
+            let scalar_parameter = body
+                .scalar_parameters
+                .get(scalar_parameter_index)
+                .ok_or_else(invalid)?;
+            let width = require_native_integer_width(source_value, scalar_type)? / 8;
+            let parameter_shapes = body
+                .scalar_parameters
+                .iter()
+                .map(|parameter| {
+                    let shape = unit_scalar_shape(parameter.value, parameter.scalar_type)?;
+                    (parameter.placement.shape == shape)
+                        .then_some(shape)
+                        .ok_or_else(invalid)
+                })
+                .chain(body.parameters.iter().map(|parameter| Ok(parameter.shape)))
+                .collect::<Result<Vec<_>, EmissionError>>()?;
+            let expected_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: parameter_shapes,
+                    result: None,
+                },
+            )
+            .map_err(|_| invalid())?;
+            let expected_location = match scalar_parameter.placement.locations.as_slice() {
+                [
+                    ValueLocation::Register {
+                        register,
+                        value_byte_offset: 0,
+                        byte_size,
+                    },
+                ] if *byte_size == width => AssignedScalarLocation::Register(*register),
+                [
+                    ValueLocation::Stack {
+                        stack_byte_offset,
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    },
+                ] if *byte_size == width => AssignedScalarLocation::IncomingStack {
+                    byte_offset: *stack_byte_offset,
+                },
+                _ => return Err(invalid()),
+            };
+            if body.parameters.len() != 1
+                || body.scalar_parameters.len() != 1
+                || scalar_parameter_index != 0
+                || scalar_parameter.value != source_value
+                || scalar_parameter.scalar_type != ScalarType::Integer(scalar_type)
+                || location != expected_location
+                || body.call_plan != expected_plan
+                || body.call_plan.parameters.first() != Some(&scalar_parameter.placement)
+                || body.call_plan.parameters.get(1) != Some(destination_placement)
+            {
+                return Err(invalid());
+            }
+            let location = match expected_location {
+                AssignedScalarLocation::Register(register) => {
+                    omega_machine_code::UnitScalarParameterLocationRecord::Register(register)
+                }
+                AssignedScalarLocation::IncomingStack { byte_offset } => {
+                    omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                        byte_offset,
+                    }
+                }
+                AssignedScalarLocation::FrameSpill { .. } => return Err(invalid()),
+            };
+            (
+                InternalUnitScalarArgumentSourceRecord::Parameter {
+                    parameter_index,
+                    source_value,
+                    scalar_type: ScalarType::Integer(scalar_type),
+                    location,
+                },
+                width,
+                None,
+            )
+        }
+        AssignedUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => {
+            if established_integer_constants.get(&source_value)
+                != Some(&(defining_operation, scalar_type, value))
+            {
+                return Err(invalid());
+            }
+            (
+                InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                    defining_operation,
+                    source_value,
+                    scalar_type,
+                    value,
+                },
+                require_native_integer_width(source_value, scalar_type)? / 8,
+                Some(integer_bits(source_value, scalar_type, value)?),
+            )
+        }
+        _ => return Err(invalid()),
     };
-    if established_integer_constants.get(&source_value)
-        != Some(&(defining_operation, scalar_type, value))
-        || (destination.is_self && attachment != Some(destination.structural_type))
-    {
-        return Err(EmissionError::InvalidStructuralScalarFieldStoreCustody(
-            *psi_operation,
-        ));
+    if destination.is_self && attachment != Some(destination.structural_type) {
+        return Err(invalid());
     }
     let parameter_index = usize::try_from(destination.position)
         .map_err(|_| EmissionError::InvalidStructuralScalarFieldStoreCustody(*psi_operation))?;
@@ -94,7 +191,6 @@ pub(super) fn emit_structural_scalar_field_store(
             *psi_operation,
         ));
     }
-    let width = require_native_integer_width(source_value, scalar_type)? / 8;
     if field_byte_offset
         .checked_add(u32::from(width))
         .is_none_or(|end| end > u32::from(parameter.shape.byte_size))
@@ -103,7 +199,6 @@ pub(super) fn emit_structural_scalar_field_store(
             *psi_operation,
         ));
     }
-    let bits = integer_bits(source_value, scalar_type, value)?;
     let (parameter_home_byte_offset, parameter_home_indirect) = match target.architecture {
         Architecture::X86_64 => {
             let home = x86_homes
@@ -113,7 +208,46 @@ pub(super) fn emit_structural_scalar_field_store(
             if home.source != *destination_placement || home.shape != parameter.shape {
                 return Err(EmissionError::UnitParameterHomeMismatch(destination.place));
             }
-            emit_x86_64_unit_store_immediate(bytes, home, *field_byte_offset, width, bits)?;
+            match source_record {
+                InternalUnitScalarArgumentSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+                    ..
+                } => emit_x86_64_unit_store_register(
+                    bytes,
+                    home,
+                    *field_byte_offset,
+                    width,
+                    register,
+                )?,
+                InternalUnitScalarArgumentSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset,
+                        },
+                    ..
+                } => {
+                    let source_offset = x86_frame_bytes
+                        .checked_add(8)
+                        .and_then(|offset| offset.checked_add(byte_offset))
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    emit_x86_64_stack_load_width(bytes, 11, source_offset, width)?;
+                    emit_x86_64_unit_store_register(
+                        bytes,
+                        home,
+                        *field_byte_offset,
+                        width,
+                        omega_target_operations::MachineRegister::X86R11,
+                    )?;
+                }
+                _ => emit_x86_64_unit_store_immediate(
+                    bytes,
+                    home,
+                    *field_byte_offset,
+                    width,
+                    immediate_bits.ok_or_else(invalid)?,
+                )?,
+            }
             (home.byte_offset, home.indirect)
         }
         Architecture::Aarch64 => {
@@ -124,7 +258,51 @@ pub(super) fn emit_structural_scalar_field_store(
             if home.source != *destination_placement || home.shape != parameter.shape {
                 return Err(EmissionError::UnitParameterHomeMismatch(destination.place));
             }
-            emit_aarch64_unit_store_immediate(bytes, home, *field_byte_offset, width, bits)?;
+            match source_record {
+                InternalUnitScalarArgumentSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
+                    ..
+                } => emit_aarch64_unit_store_register(
+                    bytes,
+                    home,
+                    *field_byte_offset,
+                    width,
+                    register,
+                )?,
+                InternalUnitScalarArgumentSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset,
+                        },
+                    ..
+                } => {
+                    let source_offset = aarch64_frame_bytes
+                        .checked_add(byte_offset)
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    let instruction = aarch64_unit_stack_access(
+                        aarch64_load_base(width)?,
+                        16,
+                        source_offset,
+                        width,
+                    )?;
+                    append_aarch64_instructions(bytes, vec![instruction]);
+                    emit_aarch64_unit_store_register(
+                        bytes,
+                        home,
+                        *field_byte_offset,
+                        width,
+                        omega_target_operations::MachineRegister::Aarch64X(16),
+                    )?;
+                }
+                _ => emit_aarch64_unit_store_immediate(
+                    bytes,
+                    home,
+                    *field_byte_offset,
+                    width,
+                    immediate_bits.ok_or_else(invalid)?,
+                )?,
+            }
             (home.byte_offset, home.indirect)
         }
     };
@@ -135,12 +313,7 @@ pub(super) fn emit_structural_scalar_field_store(
         field: *field,
         destination_placement: destination_placement.clone(),
         field_byte_offset: *field_byte_offset,
-        source: InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-            defining_operation,
-            source_value,
-            scalar_type,
-            value,
-        },
+        source: source_record,
         parameter_home_byte_offset,
         parameter_home_indirect,
         operation_ordinal,

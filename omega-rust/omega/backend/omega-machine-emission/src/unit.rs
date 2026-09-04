@@ -1088,6 +1088,8 @@ pub(super) fn emit_unit_body(
                     target,
                     &x86_homes,
                     &aarch64_homes,
+                    x86_frame_bytes,
+                    aarch64_frame_bytes,
                     &established_integer_constants,
                     &mut bytes,
                     operation_ordinal,

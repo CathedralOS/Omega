@@ -4,7 +4,9 @@
 mod layout;
 
 use crate::assignment::shared::*;
-use omega_calling_conventions::{CallSignature, ValuePlacement, ValueShape};
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
+};
 use omega_target_operations::{
     AbstractResult, TargetStructuralArgument, TargetUnitBody, TargetUnitScalarCallArgument,
 };
@@ -33,6 +35,7 @@ pub(super) fn assign_field_store(
     field_byte_offset: u32,
     source: TargetUnitScalarArgumentSource,
     preceding_operations: &[TargetUnitOperation],
+    target: NativeTarget,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     let invalid = || AssignmentError::StructuralScalarFieldStoreCustodyMismatch {
         machine,
@@ -56,7 +59,7 @@ pub(super) fn assign_field_store(
     {
         return Err(invalid());
     }
-    let TargetUnitScalarArgumentSource::IntegerImmediate { scalar_type, .. } = source else {
+    let ScalarType::Integer(scalar_type) = source.scalar_type() else {
         return Err(invalid());
     };
     let expected_shape =
@@ -78,18 +81,105 @@ pub(super) fn assign_field_store(
     {
         return Err(invalid());
     }
-    let assigned_source = super::scalar_call::assign_known_unit_scalar_source(
-        source,
-        preceding_operations,
-        &BTreeMap::new(),
-    )
-    .ok_or_else(invalid)?;
-    if !matches!(
-        assigned_source,
-        AssignedUnitScalarArgumentSource::IntegerImmediate { .. }
-    ) {
-        return Err(invalid());
-    }
+    let assigned_source = match source {
+        TargetUnitScalarArgumentSource::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type: source_type,
+        } => {
+            let scalar_parameter_index = usize::try_from(parameter_index).map_err(|_| invalid())?;
+            let scalar_parameter = body
+                .scalar_parameters
+                .get(scalar_parameter_index)
+                .ok_or_else(invalid)?;
+            let parameter_shapes = body
+                .scalar_parameters
+                .iter()
+                .map(|parameter| {
+                    let ScalarType::Integer(integer) = parameter.scalar_type else {
+                        return Err(invalid());
+                    };
+                    let shape = super::scalar_call::fixed_integer_shape(parameter.value, integer)
+                        .map_err(|_| invalid())?;
+                    (parameter.placement.shape == shape)
+                        .then_some(shape)
+                        .ok_or_else(invalid)
+                })
+                .chain(body.parameters.iter().map(|parameter| Ok(parameter.shape)))
+                .collect::<Result<Vec<_>, AssignmentError>>()?;
+            let expected_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: parameter_shapes,
+                    result: None,
+                },
+            )
+            .map_err(|_| invalid())?;
+            let location = match scalar_parameter.placement.locations.as_slice() {
+                [
+                    ValueLocation::Register {
+                        register,
+                        value_byte_offset: 0,
+                        byte_size,
+                    },
+                ] if *byte_size == expected_shape.byte_size => {
+                    crate::assignment::placement::require_register_architecture(
+                        source_value,
+                        *register,
+                        target.architecture,
+                    )?;
+                    AssignedScalarLocation::Register(*register)
+                }
+                [
+                    ValueLocation::Stack {
+                        stack_byte_offset,
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    },
+                ] if *byte_size == expected_shape.byte_size => {
+                    AssignedScalarLocation::IncomingStack {
+                        byte_offset: *stack_byte_offset,
+                    }
+                }
+                _ => return Err(invalid()),
+            };
+            if body.parameters.len() != 1
+                || body.scalar_parameters.len() != 1
+                || scalar_parameter_index != 0
+                || scalar_parameter.value != source_value
+                || scalar_parameter.scalar_type != source_type
+                || scalar_parameter.placement.shape != expected_shape
+                || body.call_plan != expected_plan
+                || body.call_plan.parameters.first() != Some(&scalar_parameter.placement)
+                || body.call_plan.parameters.get(1) != Some(destination_placement)
+            {
+                return Err(invalid());
+            }
+            AssignedUnitScalarArgumentSource::Parameter {
+                parameter_index,
+                source_value,
+                scalar_type: source_type,
+                location,
+            }
+        }
+        TargetUnitScalarArgumentSource::IntegerImmediate { .. } => {
+            let assigned = super::scalar_call::assign_known_unit_scalar_source(
+                source,
+                preceding_operations,
+                &BTreeMap::new(),
+            )
+            .ok_or_else(invalid)?;
+            if !matches!(
+                assigned,
+                AssignedUnitScalarArgumentSource::IntegerImmediate { .. }
+            ) {
+                return Err(invalid());
+            }
+            assigned
+        }
+        _ => return Err(invalid()),
+    };
     Ok(AssignedUnitOperation::StructuralScalarFieldStore {
         psi_operation,
         destination: destination.clone(),
