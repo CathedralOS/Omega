@@ -26,6 +26,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/representations/omega-selected-instructions",
     "omega-rust/omega/pipeline/omega-abstract-operations-optimizer",
     "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
+    "omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage",
     "omega-rust/omega/pipeline/omega-allocation-legality-to-fixed-view-copies",
     "omega-rust/omega/pipeline/omega-allocation-legality-to-register-homes",
     "omega-rust/omega/pipeline/omega-fixed-view-copies-to-reanalyzed-legality",
