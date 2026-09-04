@@ -15,6 +15,8 @@ needed for independent replay through publication.
 
 - **PIPELINE-PHASE-INTEGRATION.** Complete the migration in
   [`optimization_phases.md`](wiki/architecture/pipeline/optimization_phases.md).
+  Resume from the [ownership audit and work breakdown](wiki/architecture/pipeline/ownership_cleanup.md)
+  (A-D: current outputs, outer convergence, stage owners, and Psi roots/passes).
   Replace public stage-ancestry wrappers with representation-owned program data;
   consolidate per-rule packages into their owning phases; remove optimization-
   history routing from allocation, machine optimization, and realization.
