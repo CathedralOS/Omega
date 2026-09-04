@@ -9,4 +9,4 @@ name = "omega_optimization_policy"
 path = "src/lib.rs"
 
 [dependencies]
-omega-optimization-core = { path = "../../../representations/omega-optimization-core" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }

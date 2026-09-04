@@ -308,7 +308,7 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     let obsolete_external_policy_schema =
-        "omega-rust/omega/pipeline/optimization/omega-optimization-policy/src/external_schema.rs";
+        "omega-rust/omega/pipeline/omega-optimization-policy/src/external_schema.rs";
     if repository.join(obsolete_external_policy_schema).exists() {
         violations.insert(format!(
             "external policy retains the mixed flat schema beside its governed entrance: {obsolete_external_policy_schema}"
