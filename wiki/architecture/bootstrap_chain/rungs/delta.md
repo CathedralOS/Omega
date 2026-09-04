@@ -12,7 +12,7 @@ The normative contract is
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
 execute the resulting canonical Gamma receipt. The selected 1,992-line
-in-progress source enforces Delta's textual-ASCII byte envelope, identifier and
+in-progress source is now 2,206 lines and enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
 signatures. A two-pass immutable metadata catalog preserves forward and mutual
 nominal declarations without repeated whole-source lookup. Function metadata
@@ -35,6 +35,7 @@ lowered `match`; a 100,000-node construction/traversal witness completes in the
 selected evaluator's bounded call context. Authored signed arithmetic evaluates
 operands once and traps at every Delta overflow boundary. The five typed
 `Bytes` builtins use a private length-bearing rope, including checked logical
-concatenation and proper-tail lookup. The admitted complete edge remains absent
-while application profiles, deterministic failure selection, and final edge
-closure remain open.
+concatenation and proper-tail lookup. Canonical DCREQ framing and
+`ConformanceBytesV1` are executable. The admitted complete edge remains absent
+while DCOUT failure frames, `EpsilonCompilerV1`, deterministic failure
+selection, and final edge closure remain open.
