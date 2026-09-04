@@ -62,7 +62,7 @@ forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
 epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 2027, 81168, "b1f1bd76847074db30166e0606bfaa270b11774e6704da3150b6ba05e981794c"),
+    ("compiler", compiler, 2029, 80787, "c74675ee338cf9abc74b6256287b1c0bb7d4c5384de9f53b397e4c9b38ee66e7"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -223,6 +223,21 @@ nominal_types = (
 nominal_status, nominal_receipt = evaluate(compiler, nominal_types)
 if nominal_status != 0 or evaluate(nominal_receipt) != (0, b"\x07"):
     raise SystemExit("nominal constructor, pattern, call, or result types failed")
+
+cached_signatures = b"""(data Box (Box Int))
+(def first ((count Int) (bytes Bytes) (box Box)) Int
+  (if (eq count 0)
+    (+ (bytes_length bytes) (match box ((Box value) (+ value 1))))
+    (second box bytes (- count 1))))
+(def second ((box Box) (bytes Bytes) (count Int)) Int
+  (if (eq count 0)
+    (+ (bytes_length bytes) (match box ((Box value) (+ value 1))))
+    (first (- count 1) bytes box)))
+(def main () Int (first 1 (bytes_single 0) (Box 5)))
+"""
+signature_status, signature_receipt = evaluate(compiler, cached_signatures)
+if signature_status != 0 or evaluate(signature_receipt) != (0, b"\x07"):
+    raise SystemExit("cached ordered signatures changed forward/mutual calls")
 
 reordered_match = b"""(data Choice (Left) (Middle) (Right))
 (def choose ((value Choice)) Int
@@ -465,4 +480,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: indexed nominals, typed Bytes, exhaustive matches, checked arithmetic, and proper tails pass"
+echo "Staged Delta compiler: indexed declarations, typed Bytes, exhaustive matches, checked arithmetic, and proper tails pass"
