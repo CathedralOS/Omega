@@ -54,6 +54,7 @@ pub(crate) fn lower_realization_physical_stage(
             let has_provider_installation = optimized_target.provider_installation().is_some();
             let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline(
                 *optimized_target,
+                request.optimization_selections,
             )
             .map_err(|error| {
                 selected_physical_pipeline_failed(

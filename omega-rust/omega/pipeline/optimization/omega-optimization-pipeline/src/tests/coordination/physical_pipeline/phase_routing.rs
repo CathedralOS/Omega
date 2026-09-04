@@ -1,10 +1,15 @@
 //! Psi-only and selected-lowering route selection and reporting.
 
+use omega_optimization_core::PostTerminalOptimizationSelections;
+
 use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, FunctionRelativeOptimizationUnavailableData,
     NativeTarget, Optimization, OptimizationReportRequest, OptimizationSelections,
-    StagedOptimizedVerifiedPhysicalPipeline, conditional_exact_binary_artifact,
-    optimization_pipeline_report, optimize_artifact_sections, selected_lowering_budget,
+    OptimizedVerifiedPhysicalPipelineError, StagedOptimizedVerifiedPhysicalPipeline,
+    conditional_exact_binary_artifact,
+    lower_optimized_to_target_operations_with_provider_executions, optimization_pipeline_report,
+    optimize_artifact_sections, selected_lowering_budget,
+    stage_optimized_verified_physical_pipeline,
     stage_optimized_verified_physical_pipeline_with_provider_executions,
 };
 
@@ -134,4 +139,35 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
             );
         }
     }
+}
+
+#[test]
+fn physical_stage_rejects_a_substituted_post_terminal_projection() {
+    let (semantic, proof) = conditional_exact_binary_artifact(false);
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        ExplicitOptimizationRequest::new(
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            selected_lowering_budget(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let optimized_target = lower_optimized_to_target_operations_with_provider_executions(
+        optimized,
+        NativeTarget::linux_x64(),
+        &[],
+    )
+    .unwrap();
+    let substituted = PostTerminalOptimizationSelections::new(
+        OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate]).unwrap(),
+    )
+    .unwrap();
+
+    assert!(matches!(
+        stage_optimized_verified_physical_pipeline(optimized_target, &substituted),
+        Err(OptimizedVerifiedPhysicalPipelineError::PostTerminalSelectionMismatch)
+    ));
 }

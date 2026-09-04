@@ -2,7 +2,7 @@ use omega_machine_optimizer::{
     ORDERED_POST_ALLOCATION_MACHINE_RULES, POST_ALLOCATION_MACHINE_RULE_CATALOG,
     PostAllocationMachineRuleCatalogError,
 };
-use omega_optimization_core::OptimizationSelections;
+use omega_optimization_core::{OptimizationSelections, PostTerminalOptimizationSelections};
 use omega_target::Architecture;
 
 use crate::coordination::physical_pipeline::{
@@ -23,6 +23,7 @@ fn every_machine_rule_rejects_the_wrong_architecture_before_execution() {
             Architecture::X86_64 => Architecture::Aarch64,
         };
         let selections = OptimizationSelections::new([rule]).unwrap();
+        let selections = PostTerminalOptimizationSelections::new(selections).unwrap();
         assert!(matches!(
             resolve_physical_phase_composition(&selections, actual),
             Err(

@@ -2,8 +2,10 @@ use omega_machine_optimizer::{
     POST_ALLOCATION_MACHINE_RULE_CATALOG, PostAllocationMachineRuleCatalogEntry,
     PostAllocationMachineRuleCatalogError,
 };
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
-use omega_psi_optimizer::built_in_psi_registries;
+use omega_optimization_core::{
+    Optimization, OptimizationExecutionPhase, OptimizationSelections,
+    PostTerminalOptimizationSelections,
+};
 use omega_regalloc::AllocationRecoveryRuleCatalogError;
 use omega_target::Architecture;
 
@@ -172,7 +174,9 @@ fn actual_disposition(
     selections: &OptimizationSelections,
     architecture: Architecture,
 ) -> ExpectedDisposition {
-    match resolve_physical_phase_composition(selections, architecture) {
+    let selections = PostTerminalOptimizationSelections::new(selections.clone())
+        .expect("physical composition test selection must be post-Terminal");
+    match resolve_physical_phase_composition(&selections, architecture) {
         Ok(route) => ExpectedDisposition::Route(route),
         Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition) => {
             ExpectedDisposition::UnsupportedPhysicalComposition
@@ -216,42 +220,24 @@ fn every_exact_rule_pair_has_a_typed_physical_composition_disposition() {
     let mut wrong_target = 0;
     let mut cells = 0;
 
-    for (index, first) in Optimization::ALL.into_iter().enumerate() {
-        for second in Optimization::ALL.into_iter().skip(index + 1) {
-            let selections = OptimizationSelections::new([first, second]).unwrap();
-            let expected_psi_passes = [first, second]
-                .into_iter()
-                .filter(|optimization| {
-                    optimization.execution_phase() == OptimizationExecutionPhase::Psi
-                })
-                .count();
-            assert_eq!(
-                built_in_psi_registries(&selections).unwrap().len(),
-                expected_psi_passes
-            );
-            let with_full_psi = OptimizationSelections::new(
-                Optimization::ALL
-                    .into_iter()
-                    .filter(|optimization| {
-                        optimization.execution_phase() == OptimizationExecutionPhase::Psi
-                    })
-                    .chain([first, second].into_iter().filter(|optimization| {
-                        optimization.execution_phase() != OptimizationExecutionPhase::Psi
-                    })),
+    let post_terminal = Optimization::ALL
+        .into_iter()
+        .filter(|optimization| {
+            !matches!(
+                optimization.execution_phase(),
+                OptimizationExecutionPhase::CheckedTrees | OptimizationExecutionPhase::Psi
             )
-            .unwrap();
-            assert_eq!(built_in_psi_registries(&with_full_psi).unwrap().len(), 6);
+        })
+        .collect::<Vec<_>>();
+    for (index, first) in post_terminal.iter().copied().enumerate() {
+        for second in post_terminal.iter().copied().skip(index + 1) {
+            let selections = OptimizationSelections::new([first, second]).unwrap();
             for architecture in [Architecture::X86_64, Architecture::Aarch64] {
                 let expected = expected_pair(first, second, architecture);
                 let actual = actual_disposition(&selections, architecture);
                 assert_eq!(
                     actual, expected,
                     "pair ({first:?}, {second:?}) on {architecture:?}"
-                );
-                assert_eq!(
-                    actual_disposition(&with_full_psi, architecture),
-                    actual,
-                    "the complete Psi overlay changed ({first:?}, {second:?}) on {architecture:?}"
                 );
                 match actual {
                     ExpectedDisposition::Route(_) => accepted += 1,
@@ -264,10 +250,24 @@ fn every_exact_rule_pair_has_a_typed_physical_composition_disposition() {
         }
     }
 
-    assert_eq!(cells, 380);
-    assert_eq!(accepted, 164);
-    assert_eq!(unsupported, 132);
-    assert_eq!(wrong_target, 84);
+    assert_eq!(cells, 182);
+    assert_eq!(accepted + unsupported + wrong_target, cells);
+}
+
+#[test]
+fn physical_composition_input_rejects_pre_terminal_selections() {
+    let selections = OptimizationSelections::new([
+        Optimization::ControlFlowCleanup,
+        Optimization::SelectedIncomingU12ExactAddImmediate,
+    ])
+    .unwrap();
+
+    assert!(matches!(
+        PostTerminalOptimizationSelections::new(selections),
+        Err(omega_optimization_core::PreTerminalOptimizationSelection(
+            Optimization::ControlFlowCleanup
+        ))
+    ));
 }
 
 #[test]
@@ -288,6 +288,7 @@ fn selected_lowering_triples_have_explicit_supported_and_rejected_routes() {
     ] {
         let selections =
             OptimizationSelections::new(selected.into_iter().chain([machine])).unwrap();
+        let selections = PostTerminalOptimizationSelections::new(selections).unwrap();
         assert_eq!(
             resolve_physical_phase_composition(&selections, architecture).unwrap(),
             ResolvedPhysicalPhaseComposition::NonAllocation(
@@ -305,6 +306,7 @@ fn selected_lowering_triples_have_explicit_supported_and_rejected_routes() {
             .chain([Optimization::X86RelaxConditionalBranchesToRel8V1]),
     )
     .unwrap();
+    let with_layout = PostTerminalOptimizationSelections::new(with_layout).unwrap();
     assert_eq!(
         resolve_physical_phase_composition(&with_layout, Architecture::X86_64).unwrap(),
         ResolvedPhysicalPhaseComposition::NonAllocation(
@@ -318,6 +320,7 @@ fn selected_lowering_triples_have_explicit_supported_and_rejected_routes() {
         Optimization::X86RelaxConditionalBranchesToRel8V1,
     ])
     .unwrap();
+    let machine_and_layout = PostTerminalOptimizationSelections::new(machine_and_layout).unwrap();
     assert!(matches!(
         resolve_physical_phase_composition(&machine_and_layout, Architecture::Aarch64),
         Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)

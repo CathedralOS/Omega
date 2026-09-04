@@ -14,6 +14,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum OptimizedVerifiedPhysicalPipelineError {
+    PostTerminalSelectionMismatch,
     TargetLowering(LoweringError),
     Selection(OptimizedSelectionPipelineError),
     Liveness(OptimizedLivenessCustodyError),

@@ -26,7 +26,9 @@ needed for independent replay through publication.
   publish a closed target-stage result while retaining ordinary, ranked, and
   selected authority separately. They then enter one physical-routing stage;
   machine emission consumes its closed result and performs no assignment or
-  optimizer scheduling. Those physical variants still represent different
+  optimizer scheduling. Physical composition now consumes a closed
+  post-Terminal projection and cannot silently ignore checked-tree or Psi
+  selections. Those physical variants still represent different
   phase depths and must converge into explicit later-stage results. Keep
   the same representation on both sides of a phase unless vocabulary,
   interpretation, invariants, or published-product identity change.

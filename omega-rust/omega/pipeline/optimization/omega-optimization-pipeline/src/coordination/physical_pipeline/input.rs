@@ -20,11 +20,12 @@ pub(crate) fn stage_optimized_verified_physical_pipeline_with_provider_execution
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
+    let post_terminal = optimized.selections().project_post_terminal();
     let optimized_target = lower_optimized_to_target_operations_with_provider_executions(
         optimized,
         target,
         settlements,
     )
     .map_err(OptimizedVerifiedPhysicalPipelineError::TargetLowering)?;
-    stage_optimized_verified_physical_pipeline(optimized_target)
+    stage_optimized_verified_physical_pipeline(optimized_target, post_terminal.selections())
 }

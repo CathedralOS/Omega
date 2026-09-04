@@ -1,8 +1,7 @@
 use omega_machine_optimizer::PostAllocationMachineRuleCatalogEntry;
 use omega_optimization_core::Optimization;
 
-/// Exact physical route admitted for one canonical optimization selection.
-/// Psi selections are orthogonal and remain on every route.
+/// Exact physical route admitted for one canonical post-Terminal selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ResolvedPhysicalPhaseComposition {
     AllocationRecovery {
