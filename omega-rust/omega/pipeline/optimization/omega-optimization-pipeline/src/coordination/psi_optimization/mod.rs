@@ -10,7 +10,8 @@ mod request;
 
 pub use error::OptimizationPipelineError;
 pub use request::{
-    EmptyOptimizationSelections, ExplicitOptimizationRequest, compiler_baseline_request_v1,
+    EmptyOptimizationSelections, ExplicitOptimizationRequest, OptimizationPipelineRequest,
+    compiler_baseline_request_v1,
 };
 
 use omega_optimization_core::{OptimizationSelections, OptimizationWorkBudget};
@@ -28,7 +29,7 @@ pub fn optimize_artifact_sections(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &AdmissionProfile,
-    request: ExplicitOptimizationRequest,
+    request: impl Into<OptimizationPipelineRequest>,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
     let input = lower_artifact_sections_for_optimization(semantic_bytes, proof_bytes, profile)
         .map_err(OptimizationPipelineError::ArtifactLowering)?;
@@ -37,8 +38,9 @@ pub fn optimize_artifact_sections(
 
 pub fn optimize_verified_psi_input(
     input: VerifiedPsiOptimizationInput,
-    request: ExplicitOptimizationRequest,
+    request: impl Into<OptimizationPipelineRequest>,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
+    let request = request.into();
     run_verified_psi_input(input, request.selections(), request.budget_per_pass())
 }
 

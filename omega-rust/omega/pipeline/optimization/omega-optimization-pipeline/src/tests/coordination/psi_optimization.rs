@@ -1,10 +1,33 @@
 use crate::tests::*;
 
 #[test]
-fn empty_selection_cannot_enter_or_decode_artifacts() {
+fn legacy_explicit_request_still_rejects_an_empty_selection() {
     assert_eq!(
         ExplicitOptimizationRequest::new(OptimizationSelections::default(), budget()),
         Err(EmptyOptimizationSelections)
+    );
+}
+
+#[test]
+fn canonical_empty_selection_executes_the_identity_phase() {
+    let (semantic, proof) = artifact();
+    let selections = OptimizationSelections::default();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        OptimizationPipelineRequest::new(selections.clone(), budget()),
+    )
+    .expect("the canonical empty selection must execute as an identity phase");
+
+    assert_eq!(optimized.selections(), &selections);
+    assert!(optimized.psi_selections().is_empty());
+    assert!(optimized.commits().is_empty());
+    assert!(optimized.pass_manifests().is_empty());
+    assert!(optimized.transformation_ledger().records().is_empty());
+    assert_eq!(
+        optimized.transformation_ledger().input(),
+        optimized.transformation_ledger().output()
     );
 }
 

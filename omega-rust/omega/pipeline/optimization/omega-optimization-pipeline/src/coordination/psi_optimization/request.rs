@@ -1,9 +1,42 @@
 use omega_optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 
-/// Exact optimizer inputs chosen by the compiler coordinator.
+/// Canonical input to the Psi optimization phase.
 ///
-/// Construction rejects the empty selection so compatibility builds cannot
-/// accidentally enter the optimizer or manufacture optimizer work records.
+/// Empty selections are ordinary identity execution. The phase still admits
+/// and validates its input, publishes empty transformation custody, and hands
+/// the unchanged representation to the next stage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizationPipelineRequest {
+    selections: OptimizationSelections,
+    budget_per_pass: OptimizationWorkBudget,
+}
+
+impl OptimizationPipelineRequest {
+    pub const fn new(
+        selections: OptimizationSelections,
+        budget_per_pass: OptimizationWorkBudget,
+    ) -> Self {
+        Self {
+            selections,
+            budget_per_pass,
+        }
+    }
+
+    pub const fn selections(&self) -> &OptimizationSelections {
+        &self.selections
+    }
+
+    pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
+        self.budget_per_pass
+    }
+}
+
+/// Legacy nonempty-only adapter for callers that still use optimization
+/// presence to choose a pipeline branch.
+///
+/// New callers use [`OptimizationPipelineRequest`]. Construction rejects the
+/// empty selection so compatibility callers preserve their old branch while
+/// they migrate to canonical identity execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExplicitOptimizationRequest {
     selections: OptimizationSelections,
@@ -30,6 +63,12 @@ impl ExplicitOptimizationRequest {
 
     pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
         self.budget_per_pass
+    }
+}
+
+impl From<ExplicitOptimizationRequest> for OptimizationPipelineRequest {
+    fn from(request: ExplicitOptimizationRequest) -> Self {
+        Self::new(request.selections, request.budget_per_pass)
     }
 }
 
