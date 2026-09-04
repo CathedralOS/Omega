@@ -1685,9 +1685,9 @@
   (epsilon_parse_binary_min source cursor 1))
 
 ; ---- transition patterns and arms --------------------------------------
-; The current parser still accepts `_` through the common pattern arm. D57
-; requires a nonempty transition body with at most one grammar-owned final
-; wildcard; any following pattern must reject as `UnexpectedToken`.
+; D57 gives the arm-list grammar sole ownership of the optional final `_`.
+; The common pattern parser admits only nonwildcards; after a wildcard
+; continuation, the arm-list parser requires the transition-closing `}`.
 
 (def epsilon_pattern_start ((patternValue EpsilonPattern)) Int
   (match patternValue
@@ -1868,7 +1868,8 @@
                 (EpsilonNameSpan secondStart secondEnd) NoEpsilonBinder)))))
       (epsilon_pattern_reject_at source cursor))))
 
-(def epsilon_parse_pattern ((source Bytes) (cursor Int)) EpsilonPatternParseOutcome
+(def epsilon_parse_nonwildcard_pattern ((source Bytes) (cursor Int))
+  EpsilonPatternParseOutcome
   (let start Int (epsilon_token_start source cursor)
     (let code Int (epsilon_token_code source start)
       (let end Int (epsilon_token_end source start)
@@ -1882,9 +1883,9 @@
             (if (eq code 20) (EpsilonPatternParsed (EpsilonTruePattern start end))
               (if (eq code 21) (EpsilonPatternParsed (EpsilonFalsePattern start end))
                 (if (eq code 1)
-                  (if (epsilon_span_is_1 source start end 95)
-                    (EpsilonPatternParsed (EpsilonWildcardPattern start end))
-                    (let scopeStart Int (epsilon_token_start source end)
+                  (let scopeStart Int (epsilon_token_start source end)
+                    (if (epsilon_span_is_1 source start end 95)
+                      (EpsilonPatternParseRejected UnexpectedToken start)
                       (if (eq (epsilon_token_code source scopeStart) 43)
                         (epsilon_parse_case_pattern source start end
                           (epsilon_token_end source scopeStart))
@@ -1924,25 +1925,50 @@
               (EpsilonExpressionContinuation (epsilon_expression_start expressionValue)
                 (epsilon_expression_end expressionValue) expressionValue))))))))
 
-(def epsilon_parse_arm ((source Bytes) (cursor Int)) EpsilonArmParseOutcome
-  (let patternOutcome EpsilonPatternParseOutcome (epsilon_parse_pattern source cursor)
+(def epsilon_parse_arm_after_pattern ((source Bytes)
+  (patternValue EpsilonPattern)) EpsilonArmParseOutcome
+  (let arrowStart Int (epsilon_token_start source (epsilon_pattern_end patternValue))
+    (if (eq (epsilon_token_code source arrowStart) 42)
+      (let continuationOutcome EpsilonContinuationParseOutcome
+        (epsilon_parse_continuation source (epsilon_token_end source arrowStart))
+        (match continuationOutcome
+          ((EpsilonContinuationParseRejected reasonValue errorOffset)
+            (EpsilonArmParseRejected reasonValue errorOffset))
+          ((EpsilonContinuationParsed continuationValue)
+            (EpsilonArmParsed
+              (EpsilonArmSyntax (epsilon_pattern_start patternValue)
+                (epsilon_continuation_end continuationValue)
+                patternValue continuationValue)))))
+      (epsilon_arm_reject_at source (epsilon_pattern_end patternValue)))))
+
+(def epsilon_parse_nonwildcard_arm ((source Bytes) (cursor Int))
+  EpsilonArmParseOutcome
+  (let patternOutcome EpsilonPatternParseOutcome
+    (epsilon_parse_nonwildcard_pattern source cursor)
     (match patternOutcome
       ((EpsilonPatternParseRejected reasonValue errorOffset)
         (EpsilonArmParseRejected reasonValue errorOffset))
       ((EpsilonPatternParsed patternValue)
-        (let arrowStart Int (epsilon_token_start source (epsilon_pattern_end patternValue))
-          (if (eq (epsilon_token_code source arrowStart) 42)
-            (let continuationOutcome EpsilonContinuationParseOutcome
-              (epsilon_parse_continuation source (epsilon_token_end source arrowStart))
-              (match continuationOutcome
-                ((EpsilonContinuationParseRejected reasonValue errorOffset)
-                  (EpsilonArmParseRejected reasonValue errorOffset))
-                ((EpsilonContinuationParsed continuationValue)
-                  (EpsilonArmParsed
-                    (EpsilonArmSyntax (epsilon_pattern_start patternValue)
-                      (epsilon_continuation_end continuationValue)
-                      patternValue continuationValue)))))
-            (epsilon_arm_reject_at source (epsilon_pattern_end patternValue))))))))
+        (epsilon_parse_arm_after_pattern source patternValue)))))
+
+(def epsilon_parse_wildcard_arm ((source Bytes) (wildcardStart Int))
+  EpsilonArmParseOutcome
+  (let wildcardEnd Int (epsilon_token_end source wildcardStart)
+    (epsilon_parse_arm_after_pattern source
+      (EpsilonWildcardPattern wildcardStart wildcardEnd))))
+
+(def epsilon_finish_wildcard_arm ((source Bytes) (armValue EpsilonArm)
+  (accumulator EpsilonArmList)) EpsilonArmListParseOutcome
+  (let followingStart Int (epsilon_token_start source (epsilon_arm_end armValue))
+    (let followingCode Int (epsilon_token_code source followingStart)
+      (if (eq followingCode 31)
+        (EpsilonArmListParsed
+          (epsilon_reverse_arms (MoreEpsilonArms armValue accumulator)
+            NoEpsilonArms)
+          followingStart)
+        (if (eq followingCode 0)
+          (EpsilonArmListParseRejected UnexpectedEnd followingStart)
+          (EpsilonArmListParseRejected UnexpectedToken followingStart))))))
 
 (def epsilon_parse_arms_acc ((source Bytes) (cursor Int) (count Int)
   (accumulator EpsilonArmList)) EpsilonArmListParseOutcome
@@ -1955,13 +1981,26 @@
             (EpsilonArmListParseRejected UnexpectedToken start)
             (EpsilonArmListParsed
               (epsilon_reverse_arms accumulator NoEpsilonArms) start))
-          (let armOutcome EpsilonArmParseOutcome (epsilon_parse_arm source start)
-            (match armOutcome
-              ((EpsilonArmParseRejected reasonValue errorOffset)
-                (EpsilonArmListParseRejected reasonValue errorOffset))
-              ((EpsilonArmParsed armValue)
-                (epsilon_parse_arms_acc source (epsilon_arm_end armValue) (+ count 1)
-                  (MoreEpsilonArms armValue accumulator))))))))))
+          (if (if (eq code 1)
+                (epsilon_span_is_1 source start
+                  (epsilon_token_end source start) 95)
+                0)
+            (let wildcardOutcome EpsilonArmParseOutcome
+              (epsilon_parse_wildcard_arm source start)
+              (match wildcardOutcome
+                ((EpsilonArmParseRejected reasonValue errorOffset)
+                  (EpsilonArmListParseRejected reasonValue errorOffset))
+                ((EpsilonArmParsed armValue)
+                  (epsilon_finish_wildcard_arm source armValue accumulator))))
+            (let armOutcome EpsilonArmParseOutcome
+              (epsilon_parse_nonwildcard_arm source start)
+              (match armOutcome
+                ((EpsilonArmParseRejected reasonValue errorOffset)
+                  (EpsilonArmListParseRejected reasonValue errorOffset))
+                ((EpsilonArmParsed armValue)
+                  (epsilon_parse_arms_acc source (epsilon_arm_end armValue)
+                    (+ count 1)
+                    (MoreEpsilonArms armValue accumulator)))))))))))
 
 (def epsilon_parse_transition ((source Bytes) (cursor Int)) EpsilonTransitionParseOutcome
   (let transitionStart Int (epsilon_token_start source cursor)
@@ -7778,18 +7817,6 @@
     ((EpsilonWildcardPattern start end) 1)
     ((EpsilonCasePattern start end owner name binder) 0)))
 
-(def epsilon_arms_have_nonfinal_wildcard ((arms EpsilonArmList)) Int
-  (match arms
-    (NoEpsilonArms 0)
-    ((MoreEpsilonArms item rest)
-      (match item
-        ((EpsilonArmSyntax start end patternValue continuation)
-          (if (epsilon_pattern_is_wildcard patternValue)
-            (match rest
-              (NoEpsilonArms 0)
-              ((MoreEpsilonArms nextItem nextRest) 1))
-            (epsilon_arms_have_nonfinal_wildcard rest)))))))
-
 (def epsilon_arms_have_final_wildcard ((arms EpsilonArmList)) Int
   (match arms
     (NoEpsilonArms 0)
@@ -7891,18 +7918,15 @@
                 (EpsilonScalarTransitionSubject scan)
                 ((EpsilonSumTransitionSubject ownerValue)
                   (if (epsilon_arms_have_complete_patterns arms control)
-                    (if (epsilon_arms_have_nonfinal_wildcard arms)
+                    (if (epsilon_arms_have_final_wildcard arms)
                       (epsilon_local_scan_add_transition_coverage terminalValue
-                        ownerValue EpsilonTransitionCoverageUnresolved scan)
-                      (if (epsilon_arms_have_final_wildcard arms)
+                        ownerValue EpsilonTransitionCoverageComplete scan)
+                      (if (epsilon_sum_owner_is_covered terminalValue ownerValue
+                        patterns)
                         (epsilon_local_scan_add_transition_coverage terminalValue
                           ownerValue EpsilonTransitionCoverageComplete scan)
-                        (if (epsilon_sum_owner_is_covered terminalValue ownerValue
-                          patterns)
-                          (epsilon_local_scan_add_transition_coverage terminalValue
-                            ownerValue EpsilonTransitionCoverageComplete scan)
-                          (epsilon_local_scan_add_transition_coverage terminalValue
-                            ownerValue EpsilonTransitionCoverageMissing scan))))
+                        (epsilon_local_scan_add_transition_coverage terminalValue
+                          ownerValue EpsilonTransitionCoverageMissing scan)))
                     (epsilon_local_scan_add_transition_coverage terminalValue
                       ownerValue EpsilonTransitionCoverageUnresolved scan)))))))))))
 

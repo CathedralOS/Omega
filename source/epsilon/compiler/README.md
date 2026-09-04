@@ -47,9 +47,10 @@ Unqualified, named-data receiver, and exact
 sealed-boundary applications now retain source identity and settled result
 facts; explicit state applications and state/machine collision classification
 are retained separately. Transition subjects, resolved patterns, typed payload
-binders, and sum coverage now have separate exact custody. D57 settles subject
-admission before semantic duplicate identity, duplicate identity before payload
-arity, and coverage after completed pattern premises. D50's bare-state
+binders, and sum coverage now have separate exact custody. D57's grammar-owned
+final wildcard is implemented; the ruling also settles subject admission before
+semantic duplicate identity, duplicate identity before payload arity, and
+coverage after completed pattern premises. D50's bare-state
 judgment and D52's resultless-argument anchor are implemented within D37's
 premise-DAG composition; the remaining body/control judgments stay open.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
@@ -382,6 +383,15 @@ method namespace even when a case shares the spelling. Direct method-only and
 free-machine `self` failures each retain one `UnknownName`. The combined probe
 returned byte `0x7f`; it is not retained as a second semantic owner or default
 slow gate.
+
+D57 wildcard grammar controls have executed as a six-source ephemeral probe.
+A lone wildcard and enumerated arms with a final wildcard parse; a following
+ordinary pattern or second wildcard is `UnexpectedToken` at that pattern; an
+empty transition body is `UnexpectedToken` at `}`; and EOF after a wildcard
+continuation is `UnexpectedEnd` at source extent. The combined probe returned
+byte `0x3f`. The common pattern parser no longer accepts `_`, and the later
+nonfinal-wildcard semantic recovery path is deleted. D57's remaining staged
+pattern-judgment work is unchanged.
 
 D57 transition controls cover a pattern after `_`, a repeated `_`, and an
 exhaustive sum with a redundant final wildcard; category-incompatible scalar
