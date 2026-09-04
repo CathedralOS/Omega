@@ -4672,3 +4672,41 @@ general metadata caching remains open.
 
 The exact selected subject is now 2,027 Gamma lines and 81,168 bytes, with 170
 definitions and 660 lexical `let` binders.
+
+## D113 — Delta function signatures resolve once in the global catalog
+
+The global function trie previously stored only each declaration's source
+owner. Every checked call walked the callee parameter syntax, resolved each
+annotated type, then scanned the parameter list again to recover the result
+type. Emission repeated the parameter scan and rebuilt a duplicate-name trie
+merely to recover arity. The current Epsilon customer contains 505 definitions,
+1,479 parameters, and 2,022 user-function calls; those calls repeatedly visited
+161,733 bytes of callee signature syntax through the result types.
+
+Each function catalog row now retains its owner, arity, ordered resolved
+parameter types, resolved result type, final typed parameter environment, and
+body coordinate. Parameter collection remains proper-tail recursive: it builds
+a reversed raw pair list, then reverses that list under its scalar cached arity.
+Consumers also traverse the raw list only under that arity, so no Gamma
+condition or equality observes a pair reference. The immutable typed parameter
+environment is shared with the later body check rather than reconstructed.
+
+The type-name census also stops at the first function. The authoritative second
+global pass still scans the complete program and rejects any later data
+declaration, so this removes a redundant 406,695-byte traversal without changing
+Delta's declaration-order rule or malformed-source behavior.
+
+The global catalog now completes in 20.9 seconds, down from 26.2; the complete
+type-check phase completes in 47.1 seconds, down from 66.9. The full 437,283-byte
+current Epsilon source plus a diagnostic entry emits the unchanged 503,658-byte
+Gamma receipt in 73.2 seconds, down from 99.7. These development-host timings
+are diagnostic rather than semantic limits.
+
+An executable witness uses mutually recursive functions whose heterogeneous
+`Int`, `Bytes`, and nominal parameters occur in different orders. All previous
+wrong-type, missing, excess, forward-call, duplicate-parameter, exact-receipt,
+and 3,001-function cases remain green. Application-profile outcomes remain
+owner-blocked on Q5 and are unaffected.
+
+The exact selected subject is now 2,029 Gamma lines and 80,787 bytes, with 178
+definitions and 639 lexical `let` binders.

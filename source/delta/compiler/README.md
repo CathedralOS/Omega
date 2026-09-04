@@ -50,12 +50,13 @@ redeclared. Decimal literals are scanned without overflow and admit exactly
 `INT64_MIN..INT64_MAX`. The global census also rejects repeated parameter names
 within a function before expression emission begins.
 
-A type-checking pass builds each function's local environment from its typed
-parameters, then extends the immutable exact-name trie for `let` bodies and
-individual match arms. It rejects unknown value atoms, self-reference from a
-`let` initializer, and any parameter, `let`, or pattern binder that duplicates
-an active local. Immutable roots give lexical pop without mutation: sibling
-expressions, branches, and disjoint match arms may reuse the same spelling.
+A type-checking pass begins each function from the typed parameter environment
+retained by the global catalog, then extends the immutable exact-name trie for
+`let` bodies and individual match arms. It rejects unknown value atoms,
+self-reference from a `let` initializer, and any parameter, `let`, or pattern
+binder that duplicates an active local. Immutable roots give lexical pop
+without mutation: sibling expressions, branches, and disjoint match arms may
+reuse the same spelling.
 The pass checks every currently emitted scalar, `Bytes`, and nominal constructor field,
 pattern binder, call argument, `let` initializer, operator, conditional, match
 arm, and declared result. Function and local names remain
@@ -67,12 +68,13 @@ agreement prove coverage without imposing declaration order. Emission compares
 the cached scrutinee tag with each authored arm's actual tag and uses the final
 exhaustive arm as the fallback, preserving the existing ordered receipts.
 
-The global function trie carries each exact declaration owner as its terminal
-payload. Application heads resolve through that checked table, including
-forward and mutual calls; arity, parameter types, and result type are recovered
-from the retained declaration. Type and constructor references resolve through
-the metadata catalogs rather than rescanning the whole source. Every user call,
-operator, and `if` has an exact argument count. Undeclared Gamma effects such as
+The global function trie carries each exact declaration's owner, arity, ordered
+resolved parameter types, result type, typed parameter environment, and body
+coordinate. Application heads resolve through that checked table, including
+forward and mutual calls, without reparsing the callee signature. Type and
+constructor references likewise resolve through metadata catalogs rather than
+rescanning the whole source. Every user call, operator, and `if` has an exact
+argument count. Undeclared Gamma effects such as
 `input`, `read`, and `pair` therefore cannot leak through as Delta calls; an
 ordinary Delta function may still deliberately use one of those spellings after
 declaring it. Every non-`main` function definition and call receives the
@@ -110,7 +112,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,027-line / 81,168-byte Gamma source
+2,029-line / 80,787-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -141,7 +143,7 @@ The downgraded full compiler remains separate under
 828-line / 30,608-byte Epsilon declaration census
   -> exact 21-byte scalar Gamma receipt within the evaluator watchdog
 8,733-line / 437,283-byte current Epsilon source plus diagnostic entry
-  -> 503,658-byte Gamma receipt in 99.7 seconds on the development host
+  -> 503,658-byte Gamma receipt in 73.2 seconds on the development host
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199; staged transformation is

@@ -894,6 +894,52 @@
 (def global_functions ((globals Int)) Int
   (second (second globals)))
 
+; Parameter types form a raw right-nested pair list. Cached arity governs every
+; traversal, so no condition or comparison observes the pair reference.
+; Function metadata is
+; (pair owner (pair arity (pair result-type
+;   (pair parameter-types (pair parameter-locals body-start))))).
+(def empty_parameter_types () Int
+  0)
+
+(def parameter_types_prepend ((type Int) (rest Int)) Int
+  (pair type rest))
+
+(def reverse_parameter_types
+  ((input Int) (remaining Int) (output Int)) Int
+  (if (eq remaining 0)
+    output
+    (reverse_parameter_types
+      (second input) (- remaining 1)
+      (parameter_types_prepend (first input) output))))
+
+(def function_metadata_owner ((metadata Int)) Int
+  (first metadata))
+
+(def function_metadata_arity ((metadata Int)) Int
+  (first (second metadata)))
+
+(def function_metadata_result_type ((metadata Int)) Int
+  (first (second (second metadata))))
+
+(def function_metadata_parameter_types ((metadata Int)) Int
+  (first (second (second (second metadata)))))
+
+(def function_metadata_parameter_locals ((metadata Int)) Int
+  (first (second (second (second (second metadata))))))
+
+(def function_metadata_body_start ((metadata Int)) Int
+  (second (second (second (second (second metadata))))))
+
+(def find_function_metadata
+  ((name Int) (name_end Int) (globals Int)) Int
+  (name_trie_find_option (global_functions globals) name_end name))
+
+(def require_function_metadata
+  ((name Int) (name_end Int) (globals Int)) Int
+  (let found Int (find_function_metadata name name_end globals)
+    (if (first found) (second found) (fail))))
+
 (def require_constructor_metadata
   ((name Int) (name_end Int) (globals Int)) Int
   (let found Int
@@ -932,7 +978,7 @@
           (fail))))))
 
 (def catalog_global_types
-  ((index Int) (saw_function Int) (type_rows Int)) Int
+  ((index Int) (type_rows Int)) Int
   (let form Int (skip index)
     (if (eq form (input))
       type_rows
@@ -940,21 +986,20 @@
         (let head Int (form_head form)
           (let head_end Int (token_end head)
             (if (token_data head head_end)
-              (if saw_function
-                (fail)
-                (let result Int (catalog_global_data form type_rows)
-                  (catalog_global_types (first result) 0 (second result))))
+              (let result Int (catalog_global_data form type_rows)
+                (catalog_global_types (first result) (second result)))
               (if (token_def head head_end)
-                (catalog_global_types
-                  (skip_expression form) 1 type_rows)
+                type_rows
                 (fail)))))
         (fail)))))
 
-(def count_function_parameters
-  ((index Int) (count Int) (locals Int) (type_rows Int)) Int
+(def catalog_function_parameters
+  ((index Int) (locals Int) (type_rows Int) (count Int)
+   (reversed_types Int)) Int
   (let item Int (skip index)
     (if (eq (read item) 41)
-      count
+      (pair (token_end item)
+        (pair count (pair reversed_types locals)))
       (if (eq (read item) 40)
         (let name Int (skip (token_end item))
           (let name_end Int (token_end name)
@@ -965,18 +1010,40 @@
                     (let checked Int
                       (validate_local_declaration
                         name name_end type_name type_end type_rows)
-                      (count_function_parameters
-                        (token_end close) (+ count 1)
-                        (name_trie_insert locals name_end name 1)
-                        type_rows))
+                      (let declared_type Int
+                        (resolve_type type_name type_end type_rows)
+                        (catalog_function_parameters
+                          (token_end close)
+                          (name_trie_insert
+                            locals name_end name declared_type)
+                          type_rows (+ count 1)
+                          (parameter_types_prepend
+                            declared_type reversed_types))))
                     (fail)))))))
         (fail)))))
 
-(def function_arity_at ((name_end Int) (type_rows Int)) Int
+(def catalog_function_signature
+  ((form Int) (name_end Int) (type_rows Int)) Int
   (let open Int (skip name_end)
     (if (eq (read open) 40)
-      (count_function_parameters
-        (token_end open) 0 (empty_name_trie) type_rows)
+      (let parameters Int
+        (catalog_function_parameters
+          (token_end open) (empty_name_trie) type_rows 0
+          (empty_parameter_types))
+        (let details Int (second parameters)
+          (let tail Int (second details)
+            (let result_name Int (skip (first parameters))
+              (let result_end Int (token_end result_name)
+                (let result_type Int
+                  (resolve_type result_name result_end type_rows)
+                  (pair (+ form 1)
+                    (pair (first details)
+                      (pair result_type
+                        (pair
+                          (reverse_parameter_types
+                            (first tail) (first details)
+                            (empty_parameter_types))
+                          (pair (second tail) (skip result_end))))))))))))
       (fail))))
 
 (def validate_global_data
@@ -1039,14 +1106,14 @@
                 (let name Int (skip head_end)
                   (let name_end Int (token_end name)
                     (if (value_name_valid name name_end)
-                      (let checked_arity Int
-                        (function_arity_at name_end type_rows)
+                      (let metadata Int
+                        (catalog_function_signature form name_end type_rows)
                         (validate_global_program
                           (skip_expression form) 1 (+ function_count 1)
                           (+ main_count (token_main name name_end))
                           type_rows constructor_rows
                           (name_trie_insert
-                            function_rows name_end name (+ form 1))))
+                            function_rows name_end name metadata)))
                       (fail))))
                 (fail)))))
         (fail)))))
@@ -1078,44 +1145,8 @@
 (def typed_value ((typed Int)) Int
   (second typed))
 
-(def function_owner
-  ((name Int) (name_end Int) (globals Int)) Int
-  (name_trie_find (global_functions globals) name_end name))
-
-(def function_result_type ((owner Int) (type_rows Int)) Int
-  (let form Int (- owner 1)
-    (let head Int (form_head form)
-      (let name Int (skip (token_end head))
-        (let parameters Int (skip (token_end name))
-          (let result_type Int (skip (skip_expression parameters))
-            (resolve_type result_type (token_end result_type) type_rows)))))))
-
 ; Local environments reuse the exact immutable name trie. Extending a scope
 ; returns a new root; sibling branches and match arms retain the outer root.
-(def collect_parameter_locals
-  ((index Int) (locals Int) (type_rows Int)) Int
-  (let item Int (skip index)
-    (if (eq (read item) 41)
-      (pair (token_end item) locals)
-      (if (eq (read item) 40)
-        (let name Int (skip (token_end item))
-          (let name_end Int (token_end name)
-            (let type_name Int (skip name_end)
-              (let type_end Int (token_end type_name)
-                (let close Int (skip type_end)
-                  (if (eq (read close) 41)
-                    (let checked Int
-                      (validate_local_declaration
-                        name name_end type_name type_end type_rows)
-                      (collect_parameter_locals
-                        (token_end close)
-                        (name_trie_insert
-                          locals name_end name
-                          (resolve_type type_name type_end type_rows))
-                        type_rows))
-                    (fail)))))))
-        (fail)))))
-
 (def collect_pattern_locals
   ((binder_index Int) (field_index Int) (remaining Int) (locals Int)
    (type_rows Int)) Int
@@ -1171,31 +1202,21 @@
                 (fail)))))))))
 
 (def check_function_arguments
-  ((index Int) (parameter_index Int) (globals Int) (locals Int)) Int
+  ((index Int) (parameter_types Int) (remaining Int)
+   (globals Int) (locals Int)) Int
   (let next Int (skip index)
-    (let parameter Int (skip parameter_index)
-      (if (eq (read parameter) 41)
-        (if (eq (read next) 41)
-          (token_end next)
-          (fail))
-        (if (eq (read next) 41)
-          (fail)
-          (let name Int (skip (token_end parameter))
-            (let name_end Int (token_end name)
-              (let type_name Int (skip name_end)
-                (let type_end Int (token_end type_name)
-                  (let close Int (skip type_end)
-                    (if (eq (read close) 41)
-                      (let typed Int
-                        (check_type_expression next globals locals)
-                        (if (eq (typed_value typed)
-                                (resolve_type
-                                  type_name type_end (global_types globals)))
-                          (check_function_arguments
-                            (typed_after typed) (token_end close)
-                            globals locals)
-                          (fail)))
-                      (fail))))))))))))
+    (if (eq remaining 0)
+      (if (eq (read next) 41)
+        (token_end next)
+        (fail))
+      (if (eq (read next) 41)
+        (fail)
+        (let typed Int (check_type_expression next globals locals)
+          (if (eq (typed_value typed) (first parameter_types))
+              (check_function_arguments
+              (typed_after typed) (second parameter_types) (- remaining 1)
+              globals locals)
+            (fail)))))))
 
 (def check_type_atom ((start Int) (globals Int) (locals Int)) Int
   (let end Int (token_end start)
@@ -1320,18 +1341,12 @@
 
 (def check_type_call
   ((head Int) (head_end Int) (args Int) (globals Int) (locals Int)) Int
-  (let owner Int (function_owner head head_end globals)
-    (if owner
-      (let form Int (- owner 1)
-        (let definition_head Int (form_head form)
-          (let name Int (skip (token_end definition_head))
-            (let parameters Int (skip (token_end name))
-              (let after Int
-                (check_function_arguments
-                  args (token_end parameters) globals locals)
-                (pair after
-                  (function_result_type owner (global_types globals))))))))
-      (fail))))
+  (let metadata Int (require_function_metadata head head_end globals)
+    (let after Int
+      (check_function_arguments
+        args (function_metadata_parameter_types metadata)
+        (function_metadata_arity metadata) globals locals)
+      (pair after (function_metadata_result_type metadata)))))
 
 (def check_type_two_arguments
   ((index Int) (first_type Int) (second_type Int)
@@ -1429,27 +1444,19 @@
   (let head Int (form_head form)
     (let name Int (skip (token_end head))
       (let name_end Int (token_end name)
-        (let parameters Int (skip name_end)
-          (if (eq (read parameters) 40)
-            (let collected Int
-              (collect_parameter_locals
-                (token_end parameters) (empty_name_trie)
-                (global_types globals))
-              (let result_type Int (skip (first collected))
-                (let result_end Int (token_end result_type)
-                  (let declared_type Int
-                    (resolve_type
-                      result_type result_end (global_types globals))
-                    (let body Int
-                      (check_type_expression
-                        (skip result_end) globals (second collected))
-                      (if (eq (typed_value body) declared_type)
-                        (let close Int (skip (typed_after body))
-                          (if (eq (read close) 41)
-                            (token_end close)
-                            (fail)))
-                        (fail)))))))
-            (fail)))))))
+        (let metadata Int
+          (require_function_metadata name name_end globals)
+          (let body Int
+            (check_type_expression
+              (function_metadata_body_start metadata) globals
+              (function_metadata_parameter_locals metadata))
+            (if (eq (typed_value body)
+                    (function_metadata_result_type metadata))
+              (let close Int (skip (typed_after body))
+                (if (eq (read close) 41)
+                  (token_end close)
+                  (fail)))
+              (fail))))))))
 
 (def check_program_types ((index Int) (globals Int)) Int
   (let form Int (skip index)
@@ -1700,14 +1707,9 @@
               (if operator_arity
                 operator_arity
                 (if (value_name_valid start end)
-                  (let owner Int
-                    (name_trie_find (global_functions globals) end start)
-                    (if owner
-                      (let form Int (- owner 1)
-                        (let head Int (form_head form)
-                          (let name Int (skip (token_end head))
-                            (+ (function_arity_at
-                                 (token_end name) (global_types globals)) 1))))
+                  (let found Int (find_function_metadata start end globals)
+                    (if (first found)
+                      (+ (function_metadata_arity (second found)) 1)
                       0))
                   0)))))))))
 
@@ -2013,7 +2015,7 @@
 (def main () Int
   (let envelope Int (validate_source_envelope 0)
     (let type_rows Int
-      (catalog_global_types 0 0 (empty_name_trie))
+      (catalog_global_types 0 (empty_name_trie))
       (let constructor_rows Int (empty_name_trie)
         (let function_rows Int (empty_name_trie)
             (let checked Int
