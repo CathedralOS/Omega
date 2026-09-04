@@ -5,31 +5,15 @@ use psi_diagnostics::Diagnostic;
 /// Reusable target-neutral lowering of one exact canonical Terminal artifact.
 ///
 /// Construction binds the full artifact identity, exact proof-admission
-/// profile, and the optimized/unoptimized entrance. Target selection,
+/// profile, and exact post-Terminal optimization selection. Target selection,
 /// provider settlement, authority policy, callbacks, FMA admission, and every
 /// physical lowering input remain in each request's source-free core.
 #[derive(Debug, Clone)]
 pub struct PreparedNativeRealizationInput {
     terminal_artifact_identity: psi_terminal_codec::TerminalArtifactIdentity,
     profile: psi_proof_admission::AdmissionProfile,
-    mode: NativeRealizationPreparationMode,
+    optimization_selection: omega_optimization_core::OptimizationSelectionIdentity,
     input: NativeRealizationInput,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum NativeRealizationPreparationMode {
-    Unoptimized,
-    ExplicitOptimization,
-}
-
-impl NativeRealizationPreparationMode {
-    fn from_selections(selections: &omega_optimization_core::OptimizationSelections) -> Self {
-        if selections.is_empty() {
-            Self::Unoptimized
-        } else {
-            Self::ExplicitOptimization
-        }
-    }
 }
 
 impl PreparedNativeRealizationInput {
@@ -42,7 +26,7 @@ impl PreparedNativeRealizationInput {
     }
 
     pub fn is_optimized(&self) -> bool {
-        self.mode == NativeRealizationPreparationMode::ExplicitOptimization
+        self.input.optimization().is_some()
     }
 
     pub fn matches(
@@ -53,8 +37,7 @@ impl PreparedNativeRealizationInput {
     ) -> bool {
         self.terminal_artifact_identity == terminal_artifact_identity
             && self.profile == *profile
-            && self.mode
-                == NativeRealizationPreparationMode::from_selections(optimization_selections)
+            && self.optimization_selection == optimization_selections.identity()
     }
 
     fn reopen(
@@ -69,7 +52,7 @@ impl PreparedNativeRealizationInput {
         ) {
             return Err(realization_error(
                 "prepared native input",
-                "Terminal artifact identity, proof-admission profile, or optimization entrance changed",
+                "Terminal artifact identity, proof-admission profile, or exact optimization selection changed",
             ));
         }
         Ok(self.input.clone())
@@ -86,7 +69,6 @@ pub fn prepare_native_realization_input(
     artifact
         .validate()
         .map_err(|error| realization_error("canonical artifact replay", error))?;
-    let mode = NativeRealizationPreparationMode::from_selections(optimization_selections);
     let input = lower_realization_input(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
@@ -96,7 +78,7 @@ pub fn prepare_native_realization_input(
     Ok(PreparedNativeRealizationInput {
         terminal_artifact_identity: artifact.manifest().identity(),
         profile: profile.clone(),
-        mode,
+        optimization_selection: optimization_selections.identity(),
         input,
     })
 }
@@ -129,25 +111,25 @@ pub(crate) fn lower_realization_input(
     optimization_selections: &omega_optimization_core::OptimizationSelections,
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
     reject_pre_terminal_selections(optimization_selections)?;
-    if optimization_selections.is_empty() {
-        Ok(NativeRealizationInput::Unoptimized(
-            omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
-                semantic_bytes,
-                proof_bytes,
-                profile,
-            )
-            .map_err(|error| realization_error("native artifact lowering", error))?,
-        ))
+    let native = omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+    )
+    .map_err(|error| realization_error("native artifact lowering", error))?;
+    let optimization = if optimization_selections.is_empty() {
+        None
     } else {
-        Ok(NativeRealizationInput::ExplicitOptimization(
+        Some(
             omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
                 semantic_bytes,
                 proof_bytes,
                 profile,
             )
             .map_err(|error| realization_error("verified optimizer artifact lowering", error))?,
-        ))
-    }
+        )
+    };
+    Ok(NativeRealizationInput::new(native, optimization))
 }
 
 pub(crate) fn reopen_prepared_native_realization_input(
@@ -234,5 +216,29 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].message.contains("pre-Terminal optimization"));
         assert!(diagnostics[0].message.contains("ControlFlowCleanup"));
+    }
+
+    #[test]
+    fn prepared_input_retains_native_authority_and_exact_physical_selection() {
+        let artifact = artifact_fixture();
+        let profile = AdmissionProfile::default();
+        let selected = omega_optimization_core::OptimizationSelections::new([
+            omega_optimization_core::Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .expect("one physical optimization");
+        let substituted = omega_optimization_core::OptimizationSelections::new([
+            omega_optimization_core::Optimization::SelectedIncomingU12ExactSubtractImmediate,
+        ])
+        .expect("a different physical optimization");
+        let prepared = prepare_native_realization_input(&artifact, &profile, &selected)
+            .expect("prepare the unconditional native stage plus selected physical context");
+
+        assert!(matches!(
+            prepared.input.native(),
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_)
+        ));
+        assert!(prepared.input.optimization().is_some());
+        assert!(prepared.matches(artifact.manifest().identity(), &profile, &selected));
+        assert!(!prepared.matches(artifact.manifest().identity(), &profile, &substituted,));
     }
 }

@@ -29,10 +29,8 @@ pub(crate) fn emit_realization_machine_code(
     initial_physical_evidence_scope: NativePhysicalEvidenceScope,
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<EmittedRealizationMachineCode, Vec<Diagnostic>> {
-    match input {
-        NativeRealizationInput::Unoptimized(
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(plan),
-        ) => {
+    match input.into_parts() {
+        (omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(plan), None) => {
             let target = match provider_installation {
                 Some(installation) => {
                     omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
@@ -72,10 +70,11 @@ pub(crate) fn emit_realization_machine_code(
                 physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
-        NativeRealizationInput::Unoptimized(
+        (
             omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(
                 ranked,
             ),
+            None,
         ) => {
             if provider_installation.is_some()
                 || !settlements.is_empty()
@@ -106,7 +105,7 @@ pub(crate) fn emit_realization_machine_code(
                 physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
-        NativeRealizationInput::ExplicitOptimization(input) => {
+        (_, Some(input)) => {
             if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
                 return Err(realization_error(
                     "optimized native callback custody",

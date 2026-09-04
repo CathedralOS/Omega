@@ -20,28 +20,30 @@ pub(crate) fn admit_checked_provider_installation(
     if selected.is_empty() {
         return Ok(None);
     }
-    let installation = match input {
-        NativeRealizationInput::Unoptimized(
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_),
-        ) => omega_psi_to_abstract_operations::admit_provider_installation(
+    let installation = match input.optimization() {
+        Some(_) => omega_psi_to_abstract_operations::admit_provider_installation_for_optimization(
             plan,
             semantic_bytes,
             proof_bytes,
             request.profile,
             &selected,
         ),
-        NativeRealizationInput::ExplicitOptimization(_) => {
-            omega_psi_to_abstract_operations::admit_provider_installation_for_optimization(
-                plan,
-                semantic_bytes,
-                proof_bytes,
-                request.profile,
-                &selected,
-            )
-        }
-        NativeRealizationInput::Unoptimized(
-            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(_),
-        ) => return Ok(None),
+        None => match input.native() {
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_) => {
+                omega_psi_to_abstract_operations::admit_provider_installation(
+                    plan,
+                    semantic_bytes,
+                    proof_bytes,
+                    request.profile,
+                    &selected,
+                )
+            }
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(
+                _,
+            ) => {
+                return Ok(None);
+            }
+        },
     }
     .map_err(|error| realization_error("checked-provider installation", format!("{error:?}")))?;
     Ok(Some(installation))

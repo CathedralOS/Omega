@@ -34,18 +34,55 @@ builtin_native_realization_conversion!(omega_target_operations::LinuxExitGroupI3
 builtin_native_realization_conversion!(omega_target_operations::LinuxReadByteRealization);
 builtin_native_realization_conversion!(omega_target_operations::ClaimCompletionOnlyRealization);
 
+/// One unconditional Terminal-to-abstract native stage result.
+///
+/// `native` retains the role-specific ordinary or ranked native authority for
+/// every request. A nonempty later-phase selection may additionally retain the
+/// optimizer context needed by the transitional physical pipeline; it never
+/// replaces or chooses the Terminal-to-abstract entrance.
 #[derive(Debug, Clone)]
-pub(crate) enum NativeRealizationInput {
-    Unoptimized(omega_psi_to_abstract_operations::NativeArtifactOperationPlan),
-    ExplicitOptimization(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
+pub(crate) struct NativeRealizationInput {
+    native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
+    optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 }
 
 impl NativeRealizationInput {
-    pub(crate) fn plan(&self) -> &omega_abstract_operations::AbstractOperationPlan {
-        match self {
-            Self::Unoptimized(input) => input.plan(),
-            Self::ExplicitOptimization(input) => input.plan(),
+    pub(crate) const fn new(
+        native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
+        optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
+    ) -> Self {
+        Self {
+            native,
+            optimization,
         }
+    }
+
+    pub(crate) fn plan(&self) -> &omega_abstract_operations::AbstractOperationPlan {
+        match &self.optimization {
+            Some(input) => input.plan(),
+            None => self.native.plan(),
+        }
+    }
+
+    pub(crate) const fn native(
+        &self,
+    ) -> &omega_psi_to_abstract_operations::NativeArtifactOperationPlan {
+        &self.native
+    }
+
+    pub(crate) const fn optimization(
+        &self,
+    ) -> Option<&omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput> {
+        self.optimization.as_ref()
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
+        Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
+    ) {
+        (self.native, self.optimization)
     }
 
     pub(crate) fn physical_evidence_scope(
@@ -54,7 +91,7 @@ impl NativeRealizationInput {
             &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
         >,
     ) -> omega_native_artifact::NativePhysicalEvidenceScope {
-        physical_evidence_scope(matches!(self, Self::Unoptimized(_)), checked_scope)
+        physical_evidence_scope(self.optimization.is_none(), checked_scope)
     }
 }
 
