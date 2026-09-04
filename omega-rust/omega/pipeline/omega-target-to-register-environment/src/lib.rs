@@ -5,9 +5,12 @@
 //! This crate is the visible join between exact target declarations,
 //! reservation policy, and the independently validated allocator environment.
 
+mod abi_preservation;
 mod catalog;
 mod model;
 mod validation;
+
+pub use abi_preservation::*;
 
 #[cfg(test)]
 mod tests;

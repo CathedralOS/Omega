@@ -278,8 +278,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "allocation-visible callee-saved requirements",
         paths: &[
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/abi_preservation/mod.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/abi_preservation/model.rs",
+            "omega-rust/omega/pipeline/omega-target-to-register-environment/src/abi_preservation.rs",
             "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/callee_saved_requirements/mod.rs",
             "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/callee_saved_requirements/model.rs",
             "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/callee_saved_requirements/error.rs",

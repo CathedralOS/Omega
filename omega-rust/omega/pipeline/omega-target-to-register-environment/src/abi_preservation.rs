@@ -1,17 +1,33 @@
-//! Optimizer module role: stage group. Exact shared ABI preservation selection.
+//! Exact ABI preservation facts selected by a validated target environment.
 //!
-//! This module selects immutable target convention data. It makes no frame,
-//! save/restore, instruction, unwind, or publication decision.
+//! These are immutable target facts. They grant no allocation, frame,
+//! save/restore instruction, unwind, or publication authority.
 
-mod model;
-
-pub use model::FrameAbiPreservationConvention;
-pub(crate) use model::{AbiPreservationSelectionError, SelectedAbiPreservation};
+use omega_register_model::{PreservationConvention, ValidatedPreservationStorageCatalog};
 
 use crate::ValidatedTargetRegisterEnvironment;
-use omega_register_model::ValidatedPreservationStorageCatalog;
 
-pub(crate) fn selected_abi_preservation(
+/// Exact target-owned preservation convention selected for frame planning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FrameAbiPreservationConvention {
+    SystemVAMD64,
+    MicrosoftX64,
+    Aapcs64,
+    DarwinAapcs64,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SelectedAbiPreservation<'model> {
+    pub kind: FrameAbiPreservationConvention,
+    pub convention: &'model PreservationConvention,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AbiPreservationSelectionError {
+    UnsupportedTargetConvention,
+}
+
+pub fn selected_abi_preservation(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedAbiPreservation<'_>, AbiPreservationSelectionError> {
     let target = environment.target();
@@ -44,7 +60,9 @@ pub(crate) fn selected_abi_preservation(
                 target,
             ),
         ),
-        _ => return Err(AbiPreservationSelectionError::UnsupportedTargetConvention),
+        _ => {
+            return Err(AbiPreservationSelectionError::UnsupportedTargetConvention);
+        }
     };
     convention
         .map(|convention| SelectedAbiPreservation { kind, convention })
@@ -52,9 +70,8 @@ pub(crate) fn selected_abi_preservation(
 }
 
 /// Select the independently validated target-owned storage grouping paired
-/// with the ABI convention above. This is immutable target data, not a frame
-/// or save/restore decision.
-pub(crate) fn selected_preservation_storage_catalog(
+/// with the target's ABI preservation convention.
+pub fn selected_preservation_storage_catalog(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedPreservationStorageCatalog, AbiPreservationSelectionError> {
     match environment.target().architecture {

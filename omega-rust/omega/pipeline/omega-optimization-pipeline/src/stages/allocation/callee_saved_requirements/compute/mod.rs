@@ -9,9 +9,8 @@ use std::collections::BTreeSet;
 
 use omega_optimization_core::OptimizationWorkBudget;
 
-use crate::{
-    StagedOptimizedRegisterHomes, stages::allocation::abi_preservation::selected_abi_preservation,
-};
+use crate::StagedOptimizedRegisterHomes;
+use omega_target_to_register_environment::selected_abi_preservation;
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPlan,
