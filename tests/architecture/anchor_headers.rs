@@ -61,7 +61,6 @@ const ANCHOR_HEADER_EXCEPTIONS: &[(&str, usize)] = &[
         "omega-rust/omega/representations/omega-target/src/lib.rs",
         0,
     ),
-    ("omega-rust/omega/tooling/omega-artifacts/src/lib.rs", 0),
     ("omega-rust/psi/foundation/psi-arena/src/lib.rs", 1),
     ("omega-rust/psi/foundation/psi-diagnostics/src/lib.rs", 1),
     ("omega-rust/psi/foundation/psi-language-core/src/lib.rs", 1),
