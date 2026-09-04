@@ -179,6 +179,15 @@ Must own:
   Further arithmetic locals, structural or
   service-bearing scalar producers, Boolean and IEEE call results, IEEE runtime
   parameters, and additional parameters remain fenced.
+- One exact fixed-integer literal assignment may instead target a relevant
+  primitive field below the machine's sole mutable or write-only structural
+  parameter. Every carrier segment must be a common record field in a plain,
+  invariant-free, nongeneric, nonquotient data shape, and the complete mutation
+  frame must contain exactly that destination. The checked operation retains
+  the parameter position, ordered carrier-field identities, final field
+  identity and primitive type, and the literal expression. A direct root field
+  has an empty carrier path; a nested record field retains every enclosing
+  field. No referent read is introduced.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Bounded installation-row facts keyed by exact boundary-requirement path,
   including the declared service upper bound, symbolic dependencies through

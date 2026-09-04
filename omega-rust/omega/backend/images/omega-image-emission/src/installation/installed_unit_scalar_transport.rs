@@ -431,13 +431,12 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                 })
                 .count();
             if previous.is_some_and(|previous| previous >= key)
-                || !store.destination.is_self
-                || function.attachment != Some(store.destination.structural_type)
+                || (store.destination.is_self
+                    && function.attachment != Some(store.destination.structural_type))
                 || !matches!(
                     store.destination.access,
                     StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
                 )
-                || store.path.is_empty()
                 || parameter.place != store.destination.place
                 || parameter.structural_type != store.destination.structural_type
                 || parameter.multiplicity != store.destination.multiplicity

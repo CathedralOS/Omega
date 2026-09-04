@@ -16,8 +16,7 @@ use psi_terminal::{
 use std::collections::BTreeSet;
 
 pub(in crate::assignment::function) use layout::{
-    declaration_map, direct_integer_field_offset, direct_scalar_field_offset, resolve_field_path,
-    scalar_field_offset_at_path,
+    declaration_map, direct_scalar_field_offset, resolve_field_path, scalar_field_offset_at_path,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -40,8 +39,7 @@ pub(super) fn assign_field_store(
     };
     let parameter_index = usize::try_from(destination.position).map_err(|_| invalid())?;
     let parameter = body.parameters.get(parameter_index).ok_or_else(invalid)?;
-    if !destination.is_self
-        || attachment != Some(destination.structural_type)
+    if (destination.is_self && attachment != Some(destination.structural_type))
         || !matches!(
             destination.access,
             psi_terminal::StructuralAccess::MutableBorrow
@@ -54,7 +52,6 @@ pub(super) fn assign_field_store(
         || parameter.projected_qualifications != destination.projected_qualifications
         || &parameter.placement != destination_placement
         || parameter.shape != destination_placement.shape
-        || path.is_empty()
     {
         return Err(invalid());
     }
@@ -65,14 +62,14 @@ pub(super) fn assign_field_store(
         super::scalar_call::fixed_integer_shape(source.source_value(), scalar_type)
             .map_err(|_| invalid())?;
     let declarations = declaration_map(&body.structural_types).ok_or_else(invalid)?;
-    let (carrier_type, _, carrier_offset) =
-        resolve_field_path(destination.structural_type, path, &declarations).ok_or_else(invalid)?;
-    let scalar_offset =
-        direct_integer_field_offset(carrier_type, field, scalar_type, &declarations)
-            .ok_or_else(invalid)?;
-    let expected_offset = carrier_offset
-        .checked_add(scalar_offset)
-        .ok_or_else(invalid)?;
+    let expected_offset = scalar_field_offset_at_path(
+        destination.structural_type,
+        path,
+        field,
+        ScalarType::Integer(scalar_type),
+        &declarations,
+    )
+    .ok_or_else(invalid)?;
     if expected_offset != field_byte_offset
         || field_byte_offset
             .checked_add(u32::from(expected_shape.byte_size))

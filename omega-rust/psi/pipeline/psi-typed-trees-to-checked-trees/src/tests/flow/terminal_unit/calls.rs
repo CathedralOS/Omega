@@ -707,6 +707,93 @@ fn retains_one_direct_mutable_primitive_literal_store() {
 }
 
 #[test]
+fn retains_direct_and_nested_write_only_record_field_literal_stores() {
+    let checked = checked(
+        r#"
+        data Pair { left: u8; right: u16; }
+        data Inner { value: u8; }
+        data Outer { inner: Inner; }
+        data Sink {}
+
+        machine Sink::direct(pair: &write Pair) {
+            pair.left = 7;
+        }
+
+        machine Sink::nested(outer: &write Outer) {
+            outer.inner.value = 9;
+        }
+
+        machine Sink::mutable(pair: &mut Pair) {
+            pair.right = 11;
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let direct = plans
+        .for_machine(machine_named(&checked, "Sink::direct"))
+        .expect("direct record-field store plan");
+    let nested = plans
+        .for_machine(machine_named(&checked, "Sink::nested"))
+        .expect("nested record-field store plan");
+
+    let [
+        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(direct_store),
+        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+    ] = direct.operations.as_slice()
+    else {
+        panic!("direct field store must retain one checked store and return")
+    };
+    assert_eq!(direct_store.statement_index, 0);
+    assert_eq!(direct_store.destination_parameter_position, 0);
+    assert!(direct_store.carrier_path.is_empty());
+    assert_eq!(direct_store.primitive_type, PrimitiveType::U8);
+    assert!(matches!(
+        direct_store.value,
+        CheckedScalarExpression::IntegerLiteral { ref literal }
+            if literal.value_u64() == Some(7)
+    ));
+
+    let [
+        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(nested_store),
+        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+    ] = nested.operations.as_slice()
+    else {
+        panic!("nested field store must retain one checked store and return")
+    };
+    assert_eq!(nested_store.statement_index, 0);
+    assert_eq!(nested_store.destination_parameter_position, 0);
+    assert!(matches!(
+        nested_store.carrier_path.as_slice(),
+        [CheckedUnitStructuralPathSegment::Field(identity)] if !identity.is_empty()
+    ));
+    assert_eq!(nested_store.primitive_type, PrimitiveType::U8);
+    assert!(matches!(
+        nested_store.value,
+        CheckedScalarExpression::IntegerLiteral { ref literal }
+            if literal.value_u64() == Some(9)
+    ));
+
+    let mutable = plans
+        .for_machine(machine_named(&checked, "Sink::mutable"))
+        .expect("mutable record-field store plan");
+    assert_eq!(
+        mutable.structural_parameters[0].access,
+        psi_checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+    assert!(matches!(
+        mutable.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] if store.carrier_path.is_empty()
+            && store.primitive_type == PrimitiveType::U16
+            && matches!(store.value,
+                CheckedScalarExpression::IntegerLiteral { ref literal }
+                    if literal.value_u64() == Some(11))
+    ));
+}
+
+#[test]
 fn retains_only_certificate_backed_restored_reference_alias_call() {
     let checked = checked(
         r#"
@@ -975,12 +1062,12 @@ fn primitive_store_planning_fails_closed_outside_the_direct_source_whole_write_r
             "#,
         ),
         (
-            "projected record field",
+            "projected Boolean field",
             r#"
-            data Cell [copy] { value: i32; }
+            data Cell [copy] { value: bool; }
             data Sink {}
             machine Sink::fill(destination: &write Cell) {
-                destination.value = 2;
+                destination.value = true;
             }
             "#,
         ),

@@ -161,7 +161,8 @@ pub struct MachineCodeFunction {
     /// only at their sole owned Unit-call use.
     pub unit_affine_scalar_records: Vec<UnitAffineScalarRecordEstablishmentRecord>,
     /// Exact semantic and physical custody for fixed-width immediate writes
-    /// into staged attached-Unit structural parameter homes.
+    /// into staged attached-Unit structural parameter homes, including
+    /// ordinary non-receiver parameters.
     pub unit_structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
     /// Exact semantic and physical custody for non-observing immediate or
     /// retained scalar-parameter writes through whole-root primitive borrows.

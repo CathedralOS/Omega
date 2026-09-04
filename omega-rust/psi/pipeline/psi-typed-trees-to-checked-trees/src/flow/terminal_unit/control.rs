@@ -1081,6 +1081,20 @@ pub(super) fn build_checked_machine(
         scalar_result_local.as_ref(),
         selected_write_only_scalar_result_local,
     );
+    let structural_scalar_field_store = write_only_store
+        .is_none()
+        .then(|| {
+            build_structural_scalar_field_store(
+                program,
+                facts,
+                machine,
+                state,
+                &structural_parameters,
+                &scalar_parameters,
+                statements,
+            )
+        })
+        .flatten();
     let scalar_expression_locals =
         if selected_scalar_result_local.is_some() || scalar_result_local.is_some() {
             scalar_expression_local_suffix(program, facts, state, statements)?
@@ -1132,7 +1146,7 @@ pub(super) fn build_checked_machine(
     } else {
         &statements[local_count..]
     };
-    if write_only_store.is_some() {
+    if write_only_store.is_some() || structural_scalar_field_store.is_some() {
         if construction.is_some()
             || affine_scalar_record_local.is_some()
             || if scalar_result_local.is_some() {
@@ -1309,6 +1323,10 @@ pub(super) fn build_checked_machine(
             )?);
         }
         operations.push(store);
+    } else if let Some(store) = structural_scalar_field_store {
+        operations.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+            store,
+        ));
     } else {
         let call_offset =
             if let Some((application, result)) = selected_scalar_result_local {
@@ -1502,6 +1520,7 @@ pub(super) fn build_checked_machine(
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }

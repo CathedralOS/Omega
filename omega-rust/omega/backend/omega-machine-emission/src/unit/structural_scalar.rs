@@ -72,8 +72,7 @@ pub(super) fn emit_structural_scalar_field_store(
     };
     if established_integer_constants.get(&source_value)
         != Some(&(defining_operation, scalar_type, value))
-        || !destination.is_self
-        || attachment != Some(destination.structural_type)
+        || (destination.is_self && attachment != Some(destination.structural_type))
     {
         return Err(EmissionError::InvalidStructuralScalarFieldStoreCustody(
             *psi_operation,
@@ -90,7 +89,6 @@ pub(super) fn emit_structural_scalar_field_store(
         || parameter.access != destination.access
         || parameter.projected_qualifications != destination.projected_qualifications
         || &parameter.placement != destination_placement
-        || path.is_empty()
     {
         return Err(EmissionError::InvalidStructuralScalarFieldStoreCustody(
             *psi_operation,

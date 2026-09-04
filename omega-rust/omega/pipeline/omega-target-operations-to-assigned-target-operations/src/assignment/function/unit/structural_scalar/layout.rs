@@ -67,20 +67,6 @@ pub(in crate::assignment::function) fn resolve_field_path(
     Some((structural_type, selected_shape?, total_offset))
 }
 
-pub(in crate::assignment::function) fn direct_integer_field_offset(
-    structural_type: StructuralTypeId,
-    field: StructuralFieldId,
-    scalar_type: psi_core::IntegerType,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Option<u32> {
-    direct_scalar_field_offset(
-        structural_type,
-        field,
-        ScalarType::Integer(scalar_type),
-        declarations,
-    )
-}
-
 pub(in crate::assignment::function) fn direct_scalar_field_offset(
     structural_type: StructuralTypeId,
     field: StructuralFieldId,

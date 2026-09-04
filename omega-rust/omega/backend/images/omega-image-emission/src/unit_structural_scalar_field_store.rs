@@ -40,13 +40,11 @@ fn validate_store(
     let parameter_index = usize::try_from(store.destination.position).ok()?;
     let parameter = function.unit_parameters.get(parameter_index)?;
     let home = function.unit_parameter_homes.get(parameter_index)?;
-    if !store.destination.is_self
-        || function.attachment != Some(store.destination.structural_type)
+    if (store.destination.is_self && function.attachment != Some(store.destination.structural_type))
         || !matches!(
             store.destination.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
-        || store.path.is_empty()
         || parameter.place != store.destination.place
         || parameter.structural_type != store.destination.structural_type
         || parameter.multiplicity != store.destination.multiplicity

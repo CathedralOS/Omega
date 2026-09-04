@@ -848,7 +848,8 @@ pub enum TargetUnitOperation {
         source: TargetUnitWriteOnlyPrimitiveStoreSource,
     },
     /// One verifier-approved fixed-width integer write into an exact field of
-    /// a staged attached-Unit structural parameter. Semantic location and
+    /// a staged attached-Unit structural parameter (receiver or ordinary
+    /// parameter). Semantic location and
     /// physical offset remain together so assignment and emission can replay
     /// the join independently.
     StructuralScalarFieldStore {

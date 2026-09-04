@@ -721,7 +721,8 @@ not a requirement to discard readable authority. Reference execution keeps
 exact-typed primitive backing outside suspended call
 frames, so a callee replacement is caller-visible; fuel is consumed before the
 mutation and resumption cannot replay it. Broader projected/aggregate stores
-and opaque-provider realization remain gated. The current native whole-root
+and opaque-provider realization remain gated, except for the exact plain-record
+field lane described below. The current native whole-root
 lane selects a borrowed-reference ABI on x86-64 and AArch64. Fixed integers
 retain their exact referent width/alignment, declaration, placement, immediate,
 and operation identity. Booleans retain a distinct one-byte referent, preceding
@@ -836,6 +837,21 @@ writeback remains blocked on the language's native structural-parameter
 identity contract; the landed direct fixture observes its store in the
 following call before returning. `WriteOnlyPrimitiveStore` remains the distinct
 whole-root operation.
+
+The same `StructuralScalarFieldStore` vocabulary now carries an ordinary
+attached-Unit replacement with no dynamic dispatch. Its checked source is one
+fixed-integer literal assignment through the sole unrestricted-or-affine
+mutable/write-only record parameter, with an exact complete write frame and no
+claims or qualifications. An empty carrier path denotes a primitive field
+directly on the root record; a nonempty path names each enclosing plain record
+field before the final scalar field. Checked-to-Terminal lowering shares the
+dynamic realization path/type replay rather than maintaining a second field
+walker. Abstract and target lowering independently reconstruct direct and
+nested byte offsets, and assignment, machine emission, object construction,
+and installation replay preserve the exact non-self parameter home and store
+bytes on x86-64 and AArch64. Multiple writes, observations, nonliteral sources,
+arrays, cases, erased fields, constrained data, and opaque shapes remain
+fail-closed.
 
 Terminal format 62/vocabulary 65 carries the bounded one-reassignment dynamic
 scalar lane without devirtualizing it. The caller owns two dense conformance
