@@ -8,11 +8,11 @@ use sha2::{Digest, Sha256};
 
 use super::model::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
-    WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionReturnEvidence,
-    WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
+    WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
+    WholeFunctionReturnEvidence, WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v8\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v9\0";
 
 pub(super) fn contract_identity(
     contract: &WholeFunctionExitContract,
@@ -55,6 +55,14 @@ pub(super) fn contract_identity(
     }
     encode_target(&mut hasher, contract.target);
     hasher.update([policy_tag(contract.policy)]);
+    match contract.frame {
+        WholeFunctionFrameDisposition::FramelessV1 => hasher.update([1]),
+        WholeFunctionFrameDisposition::CanonicalFixedFrameV1 { layout, protocol } => {
+            hasher.update([2]);
+            hasher.update(layout.bytes());
+            hasher.update(protocol.bytes());
+        }
+    }
     hasher.update([1]);
     match contract.entry_assumption {
         WholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1 => {
@@ -232,6 +240,9 @@ fn policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
         WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => 4,
         WholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1 => 5,
         WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1 => 6,
+        WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1 => 7,
+        WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1 => 8,
+        WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1 => 9,
     }
 }
 
@@ -269,8 +280,8 @@ mod tests {
 
     use super::super::model::{
         WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
-        WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionHardeningPolicy,
-        WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
+        WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
+        WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
         WholeFunctionReturnValueEvidence, WholeFunctionStructuralUnitCallEvidence,
         WholeFunctionStructuralUnitExitEvidence,
     };
@@ -297,6 +308,7 @@ mod tests {
             layout_custody,
             target: NativeTarget::linux_x64(),
             policy: WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1,
+            frame: WholeFunctionFrameDisposition::FramelessV1,
             hardening: WholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
             entry_assumption: WholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1,
             stack_pointer: RegisterViewId(0),
@@ -352,6 +364,13 @@ mod tests {
                 artifact_identity: [9; 32],
             },
         );
+        let mut framed = baseline.clone();
+        framed.frame = WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+            layout: crate::TargetFrameLayoutIdentity::from_bytes([10; 32]),
+            protocol: crate::TargetFrameProtocolEncodingIdentity::from_bytes([11; 32]),
+        };
+        framed.policy = WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1;
+        framed.identity = contract_identity(&framed);
 
         assert_ne!(baseline.identity, relaxed.identity);
         assert_ne!(relaxed.identity, another_relaxation.identity);
@@ -361,6 +380,7 @@ mod tests {
         assert_ne!(baseline.identity, generic_xor.identity);
         assert_ne!(generic_xor.identity, another_generic_rule.identity);
         assert_ne!(generic_xor.identity, another_generic_leaf.identity);
+        assert_ne!(baseline.identity, framed.identity);
     }
 
     #[test]

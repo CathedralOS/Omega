@@ -10,7 +10,8 @@ use omega_target::NativeTarget;
 use psi_core::{EdgeId, MachineId};
 
 use crate::{
-    ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, X86BranchRelaxationIdentity,
+    ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, TargetFrameLayoutIdentity,
+    TargetFrameProtocolEncodingIdentity, X86BranchRelaxationIdentity,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -40,6 +41,18 @@ pub enum WholeFunctionExitPolicy {
     /// The function owns no call frame and consists solely of its validated
     /// `ReturnUnit` encoding.
     MicrosoftX64FramelessStructuralUnitLeafV1,
+    SystemVAMD64CanonicalFixedFrameV1,
+    Aapcs64CanonicalFixedFrameV1,
+    DarwinAapcs64CanonicalFixedFrameV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WholeFunctionFrameDisposition {
+    FramelessV1,
+    CanonicalFixedFrameV1 {
+        layout: TargetFrameLayoutIdentity,
+        protocol: TargetFrameProtocolEncodingIdentity,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,6 +185,7 @@ pub struct WholeFunctionExitContract {
     pub layout_custody: WholeFunctionExitLayoutCustody,
     pub target: NativeTarget,
     pub policy: WholeFunctionExitPolicy,
+    pub frame: WholeFunctionFrameDisposition,
     pub hardening: WholeFunctionHardeningPolicy,
     pub entry_assumption: WholeFunctionEntryAssumption,
     pub stack_pointer: RegisterViewId,

@@ -4,16 +4,76 @@ use omega_register_model::ValidatedPhysicalRegisterModel;
 use crate::{
     StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
-    StagedOptimizedX86BranchRelaxation, validate_optimized_resolved_selected_form_layout,
+    StagedOptimizedX86BranchRelaxation, ValidatedTargetFrameLayout,
+    ValidatedTargetFrameProtocolEncoding, validate_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     validate_optimized_x86_branch_relaxation,
 };
 
 use super::{
-    compute::compute,
+    compute::{compute, compute_with_frame},
     error::WholeFunctionExitContractError,
     model::{ValidatedWholeFunctionExitContract, WholeFunctionExitLayoutCustody},
 };
+
+/// Establish a baseline-layout exit contract whose otherwise-forbidden call,
+/// preservation, and link-register effects are discharged by one exact
+/// validated target frame and its canonical byte protocol.
+#[allow(clippy::too_many_arguments)]
+pub fn stage_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    frame: &ValidatedTargetFrameLayout,
+    protocol: &ValidatedTargetFrameProtocolEncoding,
+) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
+    let contract = compute_with_frame(
+        selected,
+        machine,
+        physical,
+        encoding,
+        layout,
+        WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
+        frame,
+        protocol,
+    )?;
+    let validated = ValidatedWholeFunctionExitContract { contract };
+    validate_whole_function_exit_contract_with_frame(
+        selected, machine, physical, encoding, layout, frame, protocol, &validated,
+    )?;
+    Ok(validated)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn validate_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    frame: &ValidatedTargetFrameLayout,
+    protocol: &ValidatedTargetFrameProtocolEncoding,
+    contract: &ValidatedWholeFunctionExitContract,
+) -> Result<(), WholeFunctionExitContractError> {
+    validate_optimized_resolved_selected_form_layout(selected, machine, physical, encoding, layout)
+        .map_err(WholeFunctionExitContractError::Layout)?;
+    let replayed = compute_with_frame(
+        selected,
+        machine,
+        physical,
+        encoding,
+        layout,
+        WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
+        frame,
+        protocol,
+    )?;
+    if replayed != contract.contract {
+        return Err(WholeFunctionExitContractError::ArtifactMismatch);
+    }
+    Ok(())
+}
 
 /// Establish the baseline whole-function exit contract over an independently
 /// validated resolved layout. This compatibility wrapper remains distinct

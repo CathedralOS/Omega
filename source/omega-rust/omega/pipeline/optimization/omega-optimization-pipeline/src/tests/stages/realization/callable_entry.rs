@@ -491,10 +491,10 @@ fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
         Err(OptimizedOrdinaryCallableEntryDecodeError::WrongMagic)
     );
     let mut wrong_version = staged.manifest().record().encode();
-    wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
+    wrong_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
     assert_eq!(
         OptimizedOrdinaryCallableEntryManifest::decode(&wrong_version),
-        Err(OptimizedOrdinaryCallableEntryManifestDecodeError::UnsupportedVersion(4))
+        Err(OptimizedOrdinaryCallableEntryManifestDecodeError::UnsupportedVersion(5))
     );
     let mut legacy_version = staged.manifest().record().encode();
     legacy_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
