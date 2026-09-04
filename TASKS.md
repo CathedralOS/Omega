@@ -383,6 +383,27 @@ Owners include
   uninstall/replacement joins. Keep arbitrary runtime bytes-to-code, JIT, and
   raw executable addresses unsupported.
 
+- **HOST-ABI-PLAN-RETIREMENT.** Retire the unreachable `HostAbiPlan` subsystem in
+  `omega-calling-conventions`. Nothing in the shipped compiler can obtain a plan:
+  the only two constructors are `build_host_abi_plan`, whose single caller
+  outside the crate is
+  `omega-provider-planning/src/plans/external_binding_rows/tests.rs:452`, and
+  `build_freestanding_abi_plan`, which has no caller at all. No wiki page or
+  design brief describes the subsystem, so it is retired rather than redesigned.
+  Cut the three platform `populate` bodies (`windows.rs` 169-691, `linux.rs`
+  38-586, `darwin.rs` 43-1018; 2,048 lines together) and the plan tree in
+  `lib.rs`, not the files: `windows_import_library`, `darwin_import_library`, and
+  the Darwin dylib path constants keep production callers. `HostBinding`,
+  `PlatformCallLowering`, and `HostOperationReference` have no reference outside
+  the crate; `HostBindingMechanism` and `merge_external_binding_rows` are reached
+  only from that one test file, which goes with them. The stale doc comment at
+  `omega-effects/src/capabilities/provider_plan.rs:591`, which claims PRV4's
+  relocation onto `HostBindingMechanism` is a rename, is corrected in the same
+  change because it names a type that will not exist. Acceptance: no
+  `HostAbiPlan` remains, the 33 dependent crates still build, and
+  `mbx test --workspace --lib --no-fail-fast` reports the same outcome as before
+  the cut with the deleted subsystem's own tests removed rather than skipped.
+
 ## Platform-gated verification
 
 - Run Linux host/time/filesystem and `IntegerAt` runtime paths on AArch64;
