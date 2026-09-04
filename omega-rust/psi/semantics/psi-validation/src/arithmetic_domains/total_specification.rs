@@ -501,10 +501,8 @@ pub(super) fn abstract_specification_place_type(
                             ExpressionNode::Name(path) if path.symbol == parameter.symbol))
             }) {
                 (parameter.type_reference, 1)
-            } else if let Some(data) = bindings.data {
-                (data_field_type(program, data, name)?, 1)
             } else {
-                return None;
+                (data_field_type(program, bindings.data?, name)?, 1)
             }
         }
         [] => return None,

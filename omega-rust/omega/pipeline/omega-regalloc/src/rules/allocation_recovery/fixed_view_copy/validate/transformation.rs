@@ -31,8 +31,13 @@ pub(super) fn replay_transformation(
 > {
     let mut output = selected.plan().clone();
     let mut expected = Vec::new();
-    for function_index in 0..selected.plan().functions.len() {
-        let source_function = &selected.plan().functions[function_index];
+    for (function_index, (source_function, output_function)) in selected
+        .plan()
+        .functions
+        .iter()
+        .zip(&mut output.functions)
+        .enumerate()
+    {
         let function_boundaries = boundaries
             .iter()
             .filter(|boundary| boundary.function == function_index)
@@ -82,12 +87,7 @@ pub(super) fn replay_transformation(
                 next_instruction,
                 next_register,
             )? {
-                replay_apply(
-                    function_index,
-                    &mut output.functions[function_index],
-                    &copy,
-                    row,
-                )?;
+                replay_apply(function_index, output_function, &copy, row)?;
                 expected.push(copy);
             }
             continue;
@@ -167,12 +167,7 @@ pub(super) fn replay_transformation(
                 result_virtual_register: VirtualRegisterId(next_register),
                 copy_constraint: keys.copy_i64,
             };
-            replay_apply(
-                function_index,
-                &mut output.functions[function_index],
-                &copy,
-                row,
-            )?;
+            replay_apply(function_index, output_function, &copy, row)?;
             expected.push(copy);
             next_instruction =
                 next_instruction

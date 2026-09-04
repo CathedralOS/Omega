@@ -187,7 +187,6 @@ pub(crate) fn exact_payloadless_structural_call(
         returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
-        selected_evidence: _,
         ..
     } = operation
     else {

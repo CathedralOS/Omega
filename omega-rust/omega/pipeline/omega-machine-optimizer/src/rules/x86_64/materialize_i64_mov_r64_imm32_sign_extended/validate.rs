@@ -121,8 +121,9 @@ pub(crate) fn replay_from_parts(
             &functions,
         );
         let mut candidate = None;
-        'candidate_scan: for function_index in 0..selected.functions.len() {
-            let selected_function = &selected.functions[function_index];
+        'candidate_scan: for (function_index, selected_function) in
+            selected.functions.iter().enumerate()
+        {
             let machine_function = source.functions.get(function_index).ok_or(
                 X86MovR64Imm32SignExtendedMaterializationError::FunctionRosterMismatch(
                     function_index,

@@ -37,7 +37,7 @@ same Omega artifact and compare byte-for-byte with the independently maintained
 Rust observation executable. Set `OMEGA_CLI` to the exact freshly built
 comparator CLI, `OMEGA_TARGET` to the exact selected target profile that should
 compile the current product source, and `OMEGA_LEXER_OBSERVER` to the exact
-freshly built `observe_omega_lexer` executable. Acceptance evidence prints the
+freshly built `observe-omega-lexer` executable. Acceptance evidence prints the
 SHA-256 identities of the CLI, Omega artifact, and Rust observer beside the
 explicit target. The canonical gate has no cached-artifact or ambient
 `target/debug` lookup; focused iteration may invoke the semantic-free Python

@@ -160,7 +160,7 @@ pub(crate) fn linux_write_byte_custody_is_exact(
         && materialization_end.and_then(|end| end.checked_add(suffix.len())) == settlement_end
         && function_bytes.is_none_or(|bytes| {
             materialization_end
-                .and_then(|start| settlement_end.map(|end| (start, end)))
+                .zip(settlement_end)
                 .and_then(|(start, end)| bytes.get(start..end))
                 == Some(suffix.as_slice())
         })

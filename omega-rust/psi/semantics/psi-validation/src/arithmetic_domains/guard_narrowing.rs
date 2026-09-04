@@ -1048,10 +1048,8 @@ pub(crate) fn incoming_guard_env(
                         disqualified = true;
                     }
                 }
-                StatementNode::Call(call) => {
-                    if call.target.as_str() == state_name {
-                        disqualified = true;
-                    }
+                StatementNode::Call(call) if call.target.as_str() == state_name => {
+                    disqualified = true;
                 }
                 _ => {}
             }

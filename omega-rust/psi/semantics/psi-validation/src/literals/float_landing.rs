@@ -603,12 +603,9 @@ fn stamp_float_tree(
             stamp_float_tree(program, left, format);
             stamp_float_tree(program, right, format);
         }
-        ExpressionNode::Float(literal) => {
-            if literal.landing().is_none() {
-                let landed = literal.with_landing(format);
-                *program.expression_table.expression_mut(expression) =
-                    ExpressionNode::Float(landed);
-            }
+        ExpressionNode::Float(literal) if literal.landing().is_none() => {
+            let landed = literal.with_landing(format);
+            *program.expression_table.expression_mut(expression) = ExpressionNode::Float(landed);
         }
         _ => {}
     }

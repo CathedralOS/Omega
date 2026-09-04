@@ -24,11 +24,8 @@ fn integer_less_or_equal_target_corruption_fails_closed() {
     );
     assert_eq!(
         candidate_error(|target| {
-            let TargetOperation::ReturnBooleanExpression {
-                source_value,
-                expression: _,
-                ..
-            } = &mut target.functions[0].operation
+            let TargetOperation::ReturnBooleanExpression { source_value, .. } =
+                &mut target.functions[0].operation
             else {
                 unreachable!()
             };

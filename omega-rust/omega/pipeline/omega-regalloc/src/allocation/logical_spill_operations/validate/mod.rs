@@ -45,7 +45,7 @@ pub fn validate_logical_spill_operations<S: ValidatedSelectedAnalysis>(
     {
         return Err(LogicalSpillOperationError::UnsupportedPolicy);
     }
-    for function in 0..plan.functions.len() {
+    for (function, plan_function) in plan.functions.iter().enumerate() {
         let expected = replay::replay_action(
             function,
             &selected.selected_plan().functions[function],
@@ -53,26 +53,22 @@ pub fn validate_logical_spill_operations<S: ValidatedSelectedAnalysis>(
             &legality.plan().functions[function],
             &choices.plan().functions[function],
         )?;
-        if plan.functions[function].machine != choices.plan().functions[function].machine {
+        if plan_function.machine != choices.plan().functions[function].machine {
             return Err(LogicalSpillOperationError::FunctionMismatch { function });
         }
-        if plan.functions[function]
-            .action
-            .as_ref()
-            .is_some_and(|action| {
-                action.storage.id.0 != 0
-                    || action.store.storage != action.storage.id
-                    || action.reload.storage != action.storage.id
-                    || action.reload.result.0 != 0
-                    || action
-                        .rewrites
-                        .iter()
-                        .any(|rewrite| rewrite.result != action.reload.result)
-            })
-        {
+        if plan_function.action.as_ref().is_some_and(|action| {
+            action.storage.id.0 != 0
+                || action.store.storage != action.storage.id
+                || action.reload.storage != action.storage.id
+                || action.reload.result.0 != 0
+                || action
+                    .rewrites
+                    .iter()
+                    .any(|rewrite| rewrite.result != action.reload.result)
+        }) {
             return Err(LogicalSpillOperationError::NonCanonicalStorageIds { function });
         }
-        if plan.functions[function].action != expected {
+        if plan_function.action != expected {
             return Err(LogicalSpillOperationError::DecisionMismatch { function });
         }
     }

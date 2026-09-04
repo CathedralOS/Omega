@@ -208,10 +208,10 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
                             check(assignment.value, declared, diagnostics);
                         }
                     }
-                    StatementNode::LocalData(local) => {
-                        if local.initial_value.is_valid() && local.type_reference.is_valid() {
-                            check(local.initial_value, local.type_reference, diagnostics);
-                        }
+                    StatementNode::LocalData(local)
+                        if local.initial_value.is_valid() && local.type_reference.is_valid() =>
+                    {
+                        check(local.initial_value, local.type_reference, diagnostics);
                     }
                     _ => {}
                 }

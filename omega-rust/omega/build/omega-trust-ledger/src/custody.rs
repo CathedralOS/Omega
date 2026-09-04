@@ -111,7 +111,7 @@ fn parse_trust_lock(
         let mut digest = [0_u8; 32];
         for (target, pair) in digest
             .iter_mut()
-            .zip(digest_text.as_bytes().chunks_exact(2))
+            .zip(digest_text.as_bytes().as_chunks::<2>().0)
         {
             let pair =
                 std::str::from_utf8(pair).map_err(|_| malformed_lock_row(lock_path, index + 1))?;

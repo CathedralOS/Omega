@@ -218,10 +218,10 @@ fn boundary_ensures_argument_bound(
                     }
                 }
             }
-            StatementNode::Assignment(assignment) => {
-                if program.expression_table.display_name(assignment.target) == argument_label {
-                    witness = None;
-                }
+            StatementNode::Assignment(assignment)
+                if program.expression_table.display_name(assignment.target) == argument_label =>
+            {
+                witness = None;
             }
             _ => {}
         }

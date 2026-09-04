@@ -718,7 +718,7 @@ fn collect_bounded_value_obligation(
             }
         }
         TypeReferenceNode::DynamicTrait { .. } => {}
-        TypeReferenceNode::Named { name: _, .. } => {}
+        TypeReferenceNode::Named { .. } => {}
         TypeReferenceNode::ConstExpression(_) => {}
         TypeReferenceNode::Unit => {}
     }
@@ -782,7 +782,7 @@ fn collect_bounded_initializer_obligation(
             }
         }
         TypeReferenceNode::DynamicTrait { .. } => {}
-        TypeReferenceNode::Named { name: _, .. } => {}
+        TypeReferenceNode::Named { .. } => {}
         TypeReferenceNode::ConstExpression(_) => {}
         TypeReferenceNode::Unit => {}
     }

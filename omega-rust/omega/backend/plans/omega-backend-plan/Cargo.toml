@@ -9,16 +9,10 @@ name = "omega_backend_plan"
 path = "src/lib.rs"
 
 [dependencies]
-omega-abstract-operations = { path = "../../../representations/omega-abstract-operations" }
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
-omega-core = { path = "../../../representations/omega-core" }
 omega-function-identity = { path = "../../../representations/omega-function-identity" }
 psi-arena = { path = "../../../../psi/foundation/psi-arena" }
 psi-checked-trees = { path = "../../../../psi/representations/psi-checked-trees" }
 psi-layout-plans = { path = "../../../../psi/foundation/psi-layout-plans" }
 psi-symbols = { path = "../../../../psi/foundation/psi-symbols" }
-omega-layout = { path = "../../omega-layout" }
-omega-assigned-target-operations = { path = "../../../representations/omega-assigned-target-operations" }
-omega-object-file = { path = "../../object/omega-object-file" }
 omega-target = { path = "../../../representations/omega-target" }
-omega-target-operations = { path = "../../../representations/omega-target-operations" }

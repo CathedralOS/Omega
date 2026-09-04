@@ -262,10 +262,8 @@ pub(super) fn lower_attached_unit_closure_including(
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
                     realization_machine,
                     ..
-                } => {
-                    if !selected_scalar_roots.contains(realization_machine) {
-                        selected_scalar_roots.push(*realization_machine);
-                    }
+                } if !selected_scalar_roots.contains(realization_machine) => {
+                    selected_scalar_roots.push(*realization_machine);
                 }
                 _ => {}
             }

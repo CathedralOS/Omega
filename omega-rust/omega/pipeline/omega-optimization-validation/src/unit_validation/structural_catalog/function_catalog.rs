@@ -132,9 +132,7 @@ pub(crate) fn validate_function_structural_catalog(
                             )
                         })
             }
-            StructuralPlaceKind::ByteSequenceLiteral {
-                structural_type: _, ..
-            } => true,
+            StructuralPlaceKind::ByteSequenceLiteral { .. } => true,
             StructuralPlaceKind::TrivialAffineLocal { .. } => true,
             StructuralPlaceKind::ProviderAttachment { attachment, .. } => {
                 types.contains_key(&attachment) && function.attachment == Some(attachment)
