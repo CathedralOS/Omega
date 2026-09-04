@@ -22,6 +22,7 @@ pub(super) fn check_statement_borrows(
     compatibility_certificates: &mut Vec<CheckedBorrowCompatibilityCertificate>,
     retained_compatibility_certificates: &[CheckedBorrowCompatibilityCertificate],
     retained_compatibility_certificates_consumed: &mut [bool],
+    state_mutation_summaries: &mut StateMutationSummaryCache,
 ) {
     let Some(state) =
         find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
@@ -198,7 +199,14 @@ pub(super) fn check_statement_borrows(
         }
     }
 
-    check_call_mutation_borrows(program, facts, state_flow, borrow_state, diagnostics);
+    check_call_mutation_borrows(
+        program,
+        facts,
+        state_flow,
+        borrow_state,
+        diagnostics,
+        state_mutation_summaries,
+    );
 }
 
 /// Vec-views borrow rule (and, generally, owner-mutation-through-a-call vs a
@@ -221,9 +229,8 @@ fn check_call_mutation_borrows(
     state_flow: &FlowStateFact,
     borrow_state: &psi_checked_trees::StateBorrowFact,
     diagnostics: &mut Vec<Diagnostic>,
+    summary_cache: &mut StateMutationSummaryCache,
 ) {
-    let mut summary_cache = StateMutationSummaryCache::default();
-
     for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
         let mutated_places = call_mutated_places(
             program,
@@ -231,7 +238,7 @@ fn check_call_mutation_borrows(
             state_flow.state_symbol,
             &facts.borrow,
             borrow_call,
-            &mut summary_cache,
+            summary_cache,
         );
         if mutated_places.is_empty() {
             continue;

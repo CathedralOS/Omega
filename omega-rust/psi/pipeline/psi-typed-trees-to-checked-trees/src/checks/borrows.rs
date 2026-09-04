@@ -35,6 +35,7 @@ pub(crate) fn check_flow_call_borrows(
         .collect::<Vec<_>>();
     let mut retained_compatibility_certificates_consumed =
         vec![false; retained_compatibility_certificates.len()];
+    let mut state_mutation_summaries = crate::flow::StateMutationSummaryCache::default();
 
     check_view_return_elision(program, &mut diagnostics);
     check_view_return_escape(program, facts, &mut diagnostics);
@@ -57,6 +58,7 @@ pub(crate) fn check_flow_call_borrows(
             &mut compatibility_certificates,
             &retained_compatibility_certificates,
             &mut retained_compatibility_certificates_consumed,
+            &mut state_mutation_summaries,
         );
     }
 

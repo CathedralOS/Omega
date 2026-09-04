@@ -22,12 +22,11 @@ pub(crate) fn call_mutated_places(
         program,
         caller_machine_symbol,
         caller_state_symbol,
+        borrow,
         borrow_call,
         state_mutation_summaries,
     );
-    let use_mutable_argument_fallback = summarized_places
-        .as_ref()
-        .is_none_or(|summarized_places| summarized_places.is_empty());
+    let use_mutable_argument_fallback = summarized_places.is_none();
     let known_target_summary = summarized_places.is_some();
     let mut places = Vec::new();
 
