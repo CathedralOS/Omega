@@ -10,8 +10,8 @@ Epsilon; `C` is written in Omega using a deliberately conservative,
 compositional subset of ordinary Omega.
 
 ```text
-epsilon compiler + Epsilon source D → omega₀
-omega₀ + Omega source C          → omega
+Epsilon evaluator + Epsilon source D + Omega source C + alpha_bootstrap → omega₀
+omega₀ + the same Omega source C + alpha_bootstrap                    → omega
 ```
 
 `omega₀` may be conservatively generated and slow. It is already a full Omega
@@ -19,9 +19,9 @@ compiler because `D` implements the product language. The second build closes
 the self-hosting edge and may improve the compiler executable; it does not add
 language functionality.
 
-Both compiler outputs are platform-independent Alpha tapes. Native target
-realization belongs to this product phase only for user-program artifacts; it
-does not turn any compiler rung into a native bootstrap artifact.
+Both compiler outputs are platform-independent Alpha tapes produced by the
+ordinary Omega `alpha_bootstrap` target. Interpretation of D does not make
+Alpha serialization an Epsilon concern.
 
 ## Ownership
 
@@ -30,8 +30,7 @@ does not turn any compiler rung into a native bootstrap artifact.
   Epsilon-written source closure `D`, and Omega-written source closure `C`;
 - [`../omega-rust/`](../omega-rust/) — maintained Rust implementation and
   differential comparator, never bootstrap authority;
-- [`../epsilon/`](../epsilon/) — final lower-rung compiler and direct first-build
-  producer.
+- [`../epsilon/`](../epsilon/) — final lower-rung evaluator that executes D.
 
 That source choice does not define a dialect or restrict programs the resulting
 compiler accepts. Standalone viewers, interpreters, REPLs, and proof

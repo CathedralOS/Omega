@@ -8,6 +8,7 @@ machine build(builder: &mut Build) {
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(alpha_bootstrap::ProgramEntry, Main::main);
     builder.depend_as("psi", Source::Path {
         location: "../psi"
     });

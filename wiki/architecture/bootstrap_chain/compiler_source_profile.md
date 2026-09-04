@@ -7,7 +7,7 @@ Three independent facts govern the top of the chain:
 
 | Subject | Language | Purpose |
 | --- | --- | --- |
-| Epsilon v1 | independently specified Epsilon | language accepted by the Delta-written Epsilon compiler |
+| Epsilon v1 | independently specified Epsilon | language executed by the Delta-written Epsilon evaluator |
 | `D` | Epsilon source closure | first complete Omega compiler implementation |
 | `C` | ordinary Omega source closure | optimized self-hosting Omega compiler implementation |
 
@@ -39,35 +39,34 @@ Gamma-authored staged Delta compiler source
   + Gamma evaluator -> canonical Gamma receipt
   + selected lower execution -> Delta compiler behavior
 
-Delta-written Epsilon compiler source
-  + Delta compiler + sealed EpsilonCompilerV1 -> canonical Delta receipt
-  + selected lower compilers -> epsilon_compiler_bytecode.tape
+Delta-written Epsilon evaluator source
+  + Delta compiler + ConformanceBytesV1 -> canonical Gamma application
+  + exact Epsilon source D -> interpreted Omega compiler D
 
-Epsilon-written Omega source D
-  └─ epsilon_compiler_bytecode.tape ─▶ canonical Epsilon ─▶ omega0_compiler_bytecode.tape
+Epsilon-written Omega source D + Omega-written source C
+  └─ interpreted D + alpha_bootstrap ─▶ omega0_compiler_bytecode.tape
 
 Omega-written Omega source C
-  └─ omega0_compiler_bytecode.tape ─▶ canonical Epsilon ─▶ omega_compiler_bytecode.tape
+  └─ omega0 + alpha_bootstrap ─▶ omega_compiler_bytecode.tape
 ```
 
 Every named bytecode output above is canonical Alpha tape, and every intermediate
-source output is a retained canonical receipt in its named language. A
+source output is a retained canonical receipt in its named language. There is
+no Epsilon evaluator tape or compiled D tape. A
 host-specific VM seed may execute or package the tape, but native container
 bytes do not replace either identity.
-The Epsilon edge includes D19's sealed profile ID in its exact compilation
-question and checks the source-owned outcome/reason schema before emitting the
-`ECOUT` adapter; source names do not select that boundary. D30 gives that
-question its exact `DCREQ` byte envelope, profile IDs and maxima, generated
-runtime observations, and `DCOUT`/`ECOUT` tables. D33 fixes the bounded request
-suborder and total DCOUT schema diagnosis before either implementation may
-publish that boundary.
+The physical Epsilon evaluator request and observation profile remains open. It
+must bind the exact evaluator, D source, stdin, resources, and observation
+without host semantics. D30's DCREQ envelope now selects only
+`ConformanceBytesV1`; D33 continues to govern its bounded request suborder and
+eventual DCOUT diagnosis.
 
 ## Epsilon v1
 
 Epsilon is the closed deterministic compiler-host language fixed by D17 and
 `source/epsilon/LANGUAGE.md`. It may share spelling with Omega, but its grammar,
 checking, execution, resources, and observations are self-contained. Its
-compiler is written in Delta and lowers Epsilon directly to Alpha tape. Neither
+evaluator is written in Delta and executes Epsilon directly. Neither
 the superseded translator nor a sample corpus defines Epsilon.
 
 V1 provides finite records and sums, fixed arrays, bounded views, checked
@@ -89,7 +88,7 @@ permit `D` to omit them from the Omega compiler it implements.
 That makes the first compiler artifact slow or large; it does not weaken the
 Omega programs `omega₀` accepts. The optimizer implemented by `D` runs when
 `omega₀` compiles `C` and may therefore produce a materially better `omega`
-tape than the Epsilon compiler produced for `omega₀`.
+tape than interpreted D produced for `omega₀`.
 
 ## Omega-written implementation `C`
 

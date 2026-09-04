@@ -11,14 +11,14 @@ lines for the corresponding Delta language/compiler implementation.
 
 | Candidate | Exact current family | Free-feature ceiling | Result |
 | --- | --- | ---: | --- |
-| Generic option/result | 7 optional declarations plus 25 parse outcomes | 96 lines | Reject for now |
-| Generic immutable list | 25 ordinary lists, 22 template reverses, 3 template counts | 248 exact lines | Reject standalone elaboration |
-| Generic catalog/map | 7 catalog result types plus 9 lookup traversals | 206 lines | Reject generic map |
+| Generic option/result | 8 optional declarations plus 25 parse outcomes | 99 lines | Reject for now |
+| Generic immutable list | 24 ordinary lists, 22 template reverses, 3 template counts | 245 exact lines | Reject standalone elaboration |
+| Generic catalog/map | 8 catalog result types plus 11 lookup traversals | 245 lines | Reject generic map |
 | Source span wrapper | 29 start/end helpers | 164 lines | Reject wrapper alone |
 | Candidate minimum fold | 3 candidate types plus 6 merge helpers | 77 lines | Reject generic fold |
 
-Even the impossible combined ceiling is only 808 lines, 9.3% of the Epsilon
-compiler. The five proposals therefore cannot explain most of the source-size
+Even the impossible combined ceiling is only 844 lines, 9.7% of the Epsilon
+evaluator. The five proposals therefore cannot explain most of the source-size
 explosion.
 
 ## Generic sums
@@ -36,11 +36,11 @@ under current monomorphic Delta. This does not earn that language expansion.
 
 ## Generic lists
 
-This was the strongest candidate. Twenty-five declarations have the ordinary
+This was the strongest candidate. Twenty-four declarations have the ordinary
 `Empty | More(item, tail)` shape; the excluded trie has a three-field node. Of
 the 23 reverse functions, 22 are the exact list template and one reverses a
 four-list control ledger. Three count functions are exact templates. The real
-replaceable family is therefore 50 forms, 248 lines, and 11,525 bytes.
+replaceable family is therefore 49 forms, 245 lines, and 11,409 bytes.
 
 `list_elaborator.gamma` implements a complete two-pass source transformation
 for this derived form:
@@ -51,7 +51,7 @@ for this derived form:
 
 `_` omits either helper. One pass emits every data declaration; the second emits
 helpers and ordinary definitions, preserving Delta's required top-level order.
-The 25-line Epsilon family specification expands to 50 forms that are
+The 24-line Epsilon family specification expands to 49 forms that are
 alpha-equivalent to the existing declarations and helpers. A
 smoke program then passes through the ordinary selected Delta compiler and
 executes generated reverse/count functions with result 2.
@@ -59,21 +59,19 @@ executes generated reverse/count functions with result 2.
 The measured authored cost loses:
 
 ```text
-explicit Epsilon family          248 lines / 11,525 bytes
+explicit Epsilon family          245 lines / 11,409 bytes
 Gamma list elaborator            292 lines / 13,200 bytes
-derived Epsilon specifications    25 lines /  3,565 bytes
-derived route total              317 lines / 16,765 bytes
-net                               +69 lines / +5,240 bytes
+derived Epsilon specifications    24 lines / 3,474 bytes
+derived route total              316 lines / 16,674 bytes
+net                               +71 lines / +5,265 bytes
 ```
 
-The standalone pass also introduces another transformation relation. Full
-25-list elaboration takes 0.55 seconds, while lowering one synthetic program
-containing all 25 instantiated types takes 188.10 seconds on the development
-host. The trie-backed global census is fast; remaining whole-source rescans own
-the continued cost. These timings are diagnostic, not semantics.
+The standalone pass also introduces another transformation relation. The
+trie-backed global census is fast; remaining whole-source rescans own the
+continued cost. Development timings are diagnostic, not semantics.
 
 A fused implementation could reuse Delta's scanner, but it must cost fewer than
-223 Gamma lines merely to tie raw line count, before charging proof complexity
+221 Gamma lines merely to tie raw line count, before charging proof complexity
 or the greater audit weight of lower-rung code. Direct virtual-list support must
 also modify type, constructor, arity, match, and helper-function resolution. The
 standalone implementation is therefore a favorable lower bound, not an unfairly

@@ -109,8 +109,8 @@ mention only the `Bytes` type receive no unused runtime helper.
 `main : Bytes -> Bytes`, emits a marked nullary Gamma application adapter, and
 owns empty/nonempty publication plus authored-trap, input-extent, and
 output-extent statuses. Raw source remains a development-only pure-transform
-entry for the existing frontend gates. `EpsilonCompilerV1` and canonical DCOUT
-compiler-failure frames remain open. Calls emitted in tail position remain in Gamma tail position through
+entry for the existing frontend gates. Canonical DCOUT compiler-failure frames
+remain open. Calls emitted in tail position remain in Gamma tail position through
 `if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
 construction and traversal in bounded call context. Static acceptance of the
 scalar/nominal slice is not full-language admission.

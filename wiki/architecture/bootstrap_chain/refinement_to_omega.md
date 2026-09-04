@@ -10,14 +10,15 @@ its canonical prior-rung receipt and the composed Alpha tape that executes it:
 Beta self-reconstruction       -> beta_compiler_bytecode.tape
 Beta-written Gamma evaluator   -> gamma_evaluator_bytecode.tape
 Gamma-authored Delta compiler  -> canonical Gamma -> evaluator behavior
-Delta-written Epsilon compiler -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
-Epsilon-written Omega D        -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
-Omega-written Omega C          -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
+Delta-written Epsilon evaluator -> canonical Delta -> interpreted D behavior
+Interpreted Omega D + C         -> alpha_bootstrap -> omega0_compiler_bytecode.tape
+Omega0 + the same C             -> alpha_bootstrap -> omega_compiler_bytecode.tape
 ```
 
-Each chain means the adjacent elaboration relations compose to an Alpha tape
-that refines the exact source semantics under reconstructed observation and
-resource profiles, not merely that one compiler emitted some bytes.
+The evaluator chain refines exact Epsilon execution. Each Omega compilation
+edge produces an Alpha tape that refines the selected `alpha_bootstrap` target
+under reconstructed source, observation, and resource profiles, not merely
+that one compiler emitted some bytes.
 
 ## Uniform artifact-side proof
 

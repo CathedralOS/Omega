@@ -9,14 +9,14 @@ after PCC at a canonical Terminal Psi product, which a later interpreter or
 native lowerer consumes under its own realization authority.
 
 ```text
-Delta-written Epsilon compiler -> canonical Delta
-  -> selected lower compilers -> epsilon_compiler_bytecode.tape
+Delta-written Epsilon evaluator -> canonical Delta -> canonical Gamma application
+  + exact Epsilon-written Omega D -> interpreted Omega compiler D
 
-Epsilon-written Omega D
-  └─ epsilon_compiler_bytecode.tape ─▶ canonical Epsilon ─▶ omega0_compiler_bytecode.tape
+Interpreted D + Omega-written Omega C + alpha_bootstrap
+  └─ omega0_compiler_bytecode.tape
 
-Omega-written Omega C
-  └─ omega0_compiler_bytecode.tape ─▶ canonical Epsilon ─▶ omega_compiler_bytecode.tape
+Omega0 + the same Omega-written C + alpha_bootstrap
+  └─ omega_compiler_bytecode.tape
 ```
 
 `omega₀` and `omega` are full Omega compilers represented canonically as Alpha
@@ -25,7 +25,7 @@ Epsilon-written source can run while compiling `C`, producing a better `omega`.
 
 ## Source ownership
 
-- `source/epsilon/compiler/` owns the Delta-written compiler that accepts Epsilon.
+- `source/epsilon/compiler/` owns the Delta-written evaluator that executes Epsilon.
 - the Epsilon-written first Omega compiler source closure `D` belongs under
   `source/omega/`, even though its files end in `.epsilon`;
 - `source/{psi,omega}/` owns the Omega-written self-hosting closure `C` and the
@@ -101,10 +101,10 @@ because the generated unit did not cross the request boundary.
 
 ## Product targets versus bootstrap target
 
-The compiler programs themselves remain Alpha tapes. Omega may emit native user
-artifacts for ARM64, x86-64, UEFI, or other targets and may attach PCC evidence
-to those artifacts. That product target machinery does not require Beta, Gamma,
-Delta, or Epsilon to emit native code.
+`alpha_bootstrap` is an ordinary Omega target beside ARM64, x86-64, UEFI, and
+other product targets. Interpreted D implements that target and emits the first
+C tape. Omega0 and later C artifacts implement the same target meaning. Beta,
+Gamma, Delta, and Epsilon own no Alpha serializer for this edge.
 
 An optional general Alpha AOT realization can accelerate execution of
 `omega0_compiler_bytecode.tape` or `omega_compiler_bytecode.tape`, but it is
@@ -113,10 +113,11 @@ not specialize recognized compiler functions.
 
 ## Assurance
 
-Both Omega tapes owe direct source-to-Alpha refinement. The first uses Epsilon
-semantics for `D`; the second uses Omega semantics for `C`. Their different
-source languages and expected different bytes are explicit. Neither a
-self-build nor agreement with Rust substitutes for either proposition.
+The Epsilon evaluator owes direct refinement to `RunEpsilon` for D. Both Omega
+tapes separately owe Omega-source-to-`alpha_bootstrap` refinement: interpreted
+D produces omega0 from C, and omega0 produces omega from the same C closure.
+Neither a self-build nor agreement with Rust substitutes for these
+propositions.
 
 The exact execution order lives in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).

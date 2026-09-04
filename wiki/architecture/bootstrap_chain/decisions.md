@@ -5048,3 +5048,38 @@ Epsilon source is now 9,460 lines and 468,672 bytes with 552 definitions; a
 scalar diagnostic entry compiled to a 546,575-byte Gamma receipt in 122.9
 seconds. This closes candidate promotion, not the remaining body judgments or
 AST-to-Alpha lowering.
+
+## D125 — Interpreted D resumes tape production as an Omega target
+
+The Delta-written Epsilon implementation is an evaluator, not an
+Epsilon-to-Alpha compiler. The selected Gamma evaluator executes that Delta
+evaluator over the exact Epsilon-written Omega compiler D. D remains an Omega
+compiler even though its implementation language is Epsilon: when invoked on
+the exact Omega-written compiler closure C with target `alpha_bootstrap`, D
+uses its Omega backend to emit the first C Alpha tape, named
+`omega0_compiler_bytecode.tape`. Omega0 then recompiles the same C closure for
+the same target to produce `omega_compiler_bytecode.tape`.
+
+`alpha_bootstrap::ProgramEntry` is one ordinary target root in `build.omg`.
+Alpha serialization belongs to the Omega target implementation shared in
+meaning by D and C, not to Epsilon semantics or the Delta-written evaluator.
+Interpretation describes how D executes; it does not restrict the artifact D
+produces. There is no compiled D tape and no `epsilon_compiler_bytecode.tape`
+manifest row.
+
+Deleting Epsilon's self-contained symbolic Alpha representation and serializer
+removes 842 lines and 39,916 bytes. The first evaluator slice adds one staging
+outcome and two functions, leaving 8,658 lines and 430,747 bytes after removal
+of the retired compiler-outcome schema. It completes checking, finds the fixed
+`Main::main`, and executes an empty entry as exit zero with empty stdout; every
+nonempty entry remains explicitly unsupported. A repository-owned six-line
+driver and 11-line Epsilon fixture compose through the selected Delta and Gamma
+route. This slice does not claim D execution, whose remaining body semantics,
+storage realization, Console effects, and exact physical evaluator observation
+profile stay open.
+
+D125 supersedes D10, D11, D16, D17, D23, D30, and D58 only where those records
+require the Delta-written Epsilon implementation to emit Alpha or reserve
+`EpsilonCompilerV1` profile ID 2. Their Epsilon language semantics, Alpha tape
+format and capacity, common compiler-boundary discipline, and unrelated
+resource decisions remain in force.

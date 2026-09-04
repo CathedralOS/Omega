@@ -21,7 +21,7 @@ source/
       concatenative-compiler/    downgraded former Delta compiler
   epsilon/                       fixed-storage compiler-host language
     compiler/
-      epsilon_compiler.delta     incomplete Delta-written Epsilon compiler
+      epsilon_compiler.delta     incomplete Delta-written Epsilon evaluator
   psi/                           target-neutral Omega product phases
   omega/
     omega_compiler.epsilon       incomplete Epsilon-written Omega compiler D
@@ -53,15 +53,15 @@ generic source/bootstrap owner. The selected Delta compiler path remains open.
 `.beta`, `.gamma`, `.delta`, `.epsilon`, and `.omg` identify the selected source
 languages. `.tape` identifies canonical Alpha bytecode.
 
-A compiler owner is named by the language it accepts; its source suffix names
-the language implementing it:
+A compiler or evaluator owner is named by the language it accepts or executes;
+its source suffix names the language implementing it:
 
 | Owner | Current source |
 | --- | --- |
 | Beta compiler | `source/beta/compiler/beta_compiler.beta` |
 | Gamma evaluator | `source/gamma/evaluator/gamma_evaluator.beta` |
 | Delta compiler | `source/delta/compiler/delta_compiler.gamma` (selected staged implementation) |
-| Epsilon compiler | `source/epsilon/compiler/epsilon_compiler.delta` |
+| Epsilon evaluator | `source/epsilon/compiler/epsilon_compiler.delta` |
 | Omega `D` | `source/omega/omega_compiler.epsilon` |
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 

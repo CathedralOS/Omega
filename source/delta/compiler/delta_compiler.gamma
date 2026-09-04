@@ -32,7 +32,7 @@
                 (if (eq (read 6) 0)
                   (if (eq (read 7) 0)
                     (let profile Int (request_u32 8)
-                      (if (if (eq profile 1) 1 (eq profile 2))
+                      (if (eq profile 1)
                         (let length Int (request_u32 12)
                           (if (lt 4194304 length)
                             (request_fail)

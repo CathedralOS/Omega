@@ -1,10 +1,11 @@
-# Epsilon compiler owner
+# Epsilon evaluator owner
 
-The canonical compiler owned here accepts Epsilon, is implemented in Delta, and
-emits platform-independent Alpha tape:
+The canonical evaluator owned here accepts and executes Epsilon and is
+implemented in Delta:
 
 ```text
-epsilon_compiler.delta → epsilon_compiler_bytecode.tape
+Gamma evaluator + Delta-written Epsilon evaluator + exact Epsilon source
+  -> Epsilon execution
 ```
 
 The source now exists as an incomplete implementation. Its retained milestones
@@ -14,7 +15,7 @@ expression parser, transition-pattern/control parser, body/state parser,
 top-level declaration/program parser, complete D22/D24 source-shaped identity
 census, complete D31 structural type formation, a source-backed resolution
 catalog, ordered local-value resolution, scalar/aggregate value-place facts,
-and pure final symbolic-Alpha encoder.
+and deterministic body-candidate promotion.
 It validates every source byte
 before scanning all tokens and literals, returns the exact lexical reason and packed
 offset, and retains no host-generated token ledger. Syntax nodes are recursive
@@ -26,18 +27,10 @@ authors no transient token objects into the generated program's fixed immutable
 heap. The ambiguous arm-level `return expression?` uses the same scalar
 lookahead to recognize a complete following `pattern ->` prefix. Parser success
 wrappers contain only their native AST value and no duplicated cursor or span.
-The encoder accepts a closed, nonempty compiler instruction IR rather than
-general Alpha assembly. It lays out dense symbolic labels, emits every Alpha
-opcode as exact little-endian raw `.tape` payload bytes, constructs an exact
-first-crossing oversize candidate for adapter preflight, and independently
-replays instruction boundaries and distinct direct targets before returning
-bytes. Balanced serialization avoids linear rope depth. Its immutable heap use
-still scales with instruction count and unique direct targets; private budget
-exhaustion is an honest outer `Incomplete`, and representative `D` inputs must
-be profiled once the compiler edge executes. The retained source must be
-revalidated once the Gamma-written Delta compiler exists.
-
-It deliberately has no `main`, emitted placeholder, or canonical tape. Every
+It deliberately has no final evaluator `main` or composed executable identity.
+The first staging execution slice accepts only a completely checked empty
+`Main::main` entry and returns exit zero with empty stdout; every nonempty entry
+is explicitly unsupported rather than assigned guessed semantics. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D51's receiver-only qualified-machine syntax, ordinary named
@@ -58,8 +51,8 @@ the remaining body/control judgments stay open.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
-AST-to-symbolic-Alpha lowering, `main`, and final publication remain
-implementation gaps. D56's redundant type-candidate `kind` is removed and its
+Execution, `main`, and exact composition with Omega D remain implementation
+gaps. D56's redundant type-candidate `kind` is removed and its
 entry-diagnostic subjudgment is implemented. D31's profile-
 independent structural type-formation judgment is now implemented; its
 physical storage realization remains later than complete checking, with D34
@@ -276,7 +269,7 @@ application; a grouped resultless argument publishes only `TypeMismatch` at
 the outer group start; and the adjacent grouped `never` case still publishes
 only `InvalidTerminal` at its inner call head. The three predicates execute as
 byte `0x07` after compilation through the selected Delta stage. This remains
-development evidence, not a claim that the incomplete Epsilon compiler edge or
+development evidence, not a claim that the incomplete Epsilon evaluator edge or
 its final application profile exists.
 The enclosing machine's optional return type now reaches entry, state, and arm
 returns. Explicit absence/value relations use D37's exact anchors and category
@@ -456,10 +449,10 @@ Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,
 `NonBoolean`, `Assertion`, and `NonExhaustiveTransition`—and preserve the exact
 stdout prefix before each trap. Resource conformance is parameterized by the
-selected compiler/application profile rather than invented constants: for every
-source, immutable-heap, recursion/step, emitted-tape, and output bound, exercise
-the exact admitted boundary and its adjacent refusal, require outer
-`Incomplete`, and prove that no partial compiler artifact is published.
+selected evaluator profile rather than invented constants: for every source,
+storage, recursion/step, and output bound, exercise the exact admitted boundary
+and its adjacent refusal and prove that exhaustion publishes no Epsilon
+observation.
 
 The superseded Delta Epsilon-to-Delta route, Darwin-native publication tree, and
 restricted Epsilon-written native compiler prototype are deleted rather than
@@ -468,30 +461,23 @@ this Delta-written edge nor full Omega `D`; moving it would have preserved the
 wrong identity, while adapting its monolithic restricted frontend and Darwin
 backend was less economical than authoring the specified direct components.
 
-## Required replacement
+## Required completion
 
 - author `epsilon_compiler.delta` against D17 and
   [`../LANGUAGE.md`](../LANGUAGE.md);
-- expose pure `main : Bytes -> EpsilonCompileOutcome`, with `Complete(Bytes)`,
-  `Reject(EpsilonRejectReason, Int)`, and D31/D34's attributed/aggregate
-  application-static-storage refusal outcomes;
-- compile under D19's sealed `EpsilonCompilerV1` profile, which checks the exact
-  source-owned entry/outcome schema and a total constructor-to-code bijection
-  before emission;
-- let the generated adapter implement D30's 4-MiB input profile,
-  16,777,212-byte output maximum, exact `ECOUT` identity/table, and outer
-  `Incomplete`/`InternalFailure` outcomes, including validation of D31/D34's sole
-  source-authored `Incomplete` resource;
-- compile it with `delta_compiler_bytecode.tape`;
-- emit one exact Alpha tape without external older-rung semantic tools;
-- reconstruct Delta source and Alpha artifact semantics independently;
-- check direct source-to-tape refinement and negative mutations; and
-- keep any native execution as transparent Alpha-seed packaging or an optional
-  checked general Alpha realization.
+- complete every Epsilon expression, statement, state, trap, and Console
+  execution rule without turning a private `Unsupported` result into an
+  observation;
+- define one exact physical evaluator request and observation profile binding
+  evaluator source, Epsilon source, stdin, resources, and maximal execution;
+- compile the evaluator through the selected Delta and Gamma route;
+- compose it with the exact Epsilon-written Omega D source;
+- reconstruct Epsilon source and evaluator semantics independently; and
+- check direct `RunEpsilon` refinement and negative mutations.
 
-Any new validation placed here must reconstruct the Delta-source-to-Alpha-tape
-edge for `epsilon_compiler.delta`. Generic custody, repeated-execution, or native
-publication machinery does not belong here.
+Any new validation placed here must reconstruct the Delta-written evaluator's
+execution of Epsilon. Alpha target emission belongs to Omega D and C, not this
+owner.
 
 The active migration order lives in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
@@ -501,5 +487,5 @@ The active migration order lives in
 This implementation owner is retained because its exact path is part of the
 canonical bootstrap-chain contract. Delete any child subtree that does not reconstruct,
 implement, or test
-`epsilon_compiler.delta → epsilon_compiler_bytecode.tape`; replace the owner only
+`epsilon_compiler.delta + Epsilon source → RunEpsilon`; replace the owner only
 atomically with a changed, explicitly ruled bootstrap-chain topology.

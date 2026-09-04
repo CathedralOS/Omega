@@ -676,8 +676,8 @@ separate carriers and are never compared by coordinate. Coordinates are exact:
 - a body error follows the premise-DAG relation anchors in section 8 rather
   than a compiler traversal or statement-wide fallback.
 
-The Epsilon compiler application's `ECOUT` v1 reject table is explicit and is
-not derived from Delta constructor order:
+The Epsilon checking reason-code table is explicit and is not derived from a
+Delta constructor order:
 
 ```text
  1 InvalidSourceByte        2 InvalidToken
@@ -695,12 +695,10 @@ not derived from Delta constructor order:
 25 DuplicatePattern        26 NonexhaustiveSum
 ```
 
-Zero and unknown codes are noncanonical. Reordering the authored Delta sum does
-not change this table. D19's `EpsilonCompilerV1` profile owns the table and checks
-it as a bijection before adapter emission: every exact source-declared
-constructor has one unique in-range code, and every row identifies one exact
-constructor. Changing the closed reason set requires an explicit D17/profile
-and `ECOUT` version decision.
+Zero and unknown codes are noncanonical. Reordering an implementation sum does
+not change this table. The final evaluator observation profile must preserve a
+total bijection over the exact closed reason set. Changing that set requires an
+explicit D17 and observation-profile decision.
 
 `TrapKind` is exactly:
 
@@ -717,9 +715,8 @@ NonExhaustiveTransition
 ```
 
 The Epsilon v1 runtime trap codes are 1 through 9 in that displayed order. This
-is an explicit execution-profile table rather than declaration-order identity;
-it is not the Epsilon compiler application's `ECOUT` reject table. A trap
-preserves the exact stdout prefix written before the fault.
+is an explicit execution-profile table rather than declaration-order identity.
+A trap preserves the exact stdout prefix written before the fault.
 
 ## 10. Resource classification
 
@@ -783,81 +780,40 @@ locals, four parameters, three case fields, or 1,024 states. A compiler may
 have such a finite private ceiling only if it reports it fail-closed as
 `Incomplete`.
 
-## 11. Compiler application and artifact boundary
+## 11. Evaluator application and observation boundary
 
-The Delta-written Epsilon compiler exposes pure:
+The Delta-written Epsilon evaluator implements the two judgments from section
+1. It checks one exact Epsilon source closure before execution and then runs the
+accepted program over one sealed stdin byte sequence. Divergence is represented
+by actual nontermination of the evaluator, not by a returned staging value or a
+fuel limit.
 
-```text
-(data EpsilonCompileOutcome
-  (Complete Bytes)
-  (Reject EpsilonRejectReason Int)
-  (StorageIncompleteAt Int Int Int)
-  (StorageIncompleteTotal Int Int))
+The final physical request and observation envelope remains open until the
+evaluator executes every Epsilon construct and Console effect. That envelope
+must bind the exact evaluator artifact, source closure, stdin, resource profile,
+and complete `RunEpsilon` observation without host parsing or policy. A private
+`Unsupported` result is permitted only while developing an incomplete evaluator;
+it grants no Epsilon judgment and cannot appear in a selected edge.
 
-(def main ((source Bytes)) EpsilonCompileOutcome ...)
-```
+Epsilon has no Alpha backend. In particular, the evaluator owns no Alpha
+instruction representation, label/fixup pass, tape serializer, or emitted-tape
+capacity. An Epsilon program may write arbitrary bytes through its sealed
+Console capability. The Epsilon-written Omega compiler D uses that ordinary
+program behavior to publish an Alpha tape only because `alpha_bootstrap` is an
+Omega compilation target implemented by D.
 
-`StorageIncompleteAt(limit, requested, source_offset)` and
-`StorageIncompleteTotal(limit, requested)` are compiler results about the
-selected application profile, not Epsilon rejections or program results. The
-former requires an in-range source offset and maps to coordinate space 1; the
-latter maps to coordinate space 0. The adapter validates the exact selected
-limit in `0..INT64_MAX-1` and `requested > limit`; malformed returned values are
-`InternalFailure(InvalidReturnedOutcome)`. The sealed Delta compilation request selects D19's
-`EpsilonCompilerV1`; source names alone select no boundary. Before emission, the
-Delta compiler requires the exact displayed source-owned nominal schema and the
-complete checked reason-code bijection. A mismatch rejects through `ECOUT`
-rather than producing an adapter with an unhandled runtime case. The generated
-adapter owns sealed input and the `ECOUT` boundary. Halt tags are 0
-Complete, 1 Reject, 2 Incomplete, and 3 InternalFailure. Complete stdout is the
-unwrapped Alpha tape. Every failure uses the versioned `ECOUT` diagnostic frame
-and publishes no tape bytes. A returned storage refusal and adapter resource
-exhaustion both produce tag 2; traps and contradictions produce tag 3.
-
-D30 fixes `EpsilonCompilerV1` profile ID 2, a 4,194,304-byte maximum sealed
-Epsilon input, and AlphaBootstrapV2's 16,777,212-byte maximum successful output.
-`ECOUT` V1 magic is `[FF 45 43 4F 55 54 01 00]`. Its 40-byte frame uses
-coordinate spaces 0 none, 1 Epsilon-source byte, 2 emitted-payload byte, and 3
-runtime-internal row. D17 rejection codes 1 through 26 above remain unchanged.
-The closed additional codes are:
+The required evaluator-correctness relation is:
 
 ```text
-Incomplete
-1 InputBytes  2 StackBytes  3 HeapBytes  4 OutputBytes
-5 ApplicationStaticStorageBytes
-
-InternalFailure
-1 DeltaTrap                    2 MemoryContainmentViolation
-3 InvalidReturnedOutcome       4 MalformedBytes
-5 InvalidRejectOffset          6 OutputReplayMismatch
-7 AdapterContradiction         8 PublicationContradiction
+accepted Epsilon source + sealed stdin + evaluator execution
+  -> the evaluator observation equals RunEpsilon(source, stdin)
 ```
 
-The generated application uses the committed 15-MiB explicit Delta stack and
-112-MiB immutable heap. The exact wire table will be embedded in the
-Delta-compiler artifact rather than supplied as a host runtime input. A returned
-offset outside `0..input length`, a malformed private value, or an authored
-Delta trap is an adapter/internal contradiction, never a fabricated Epsilon
-rejection. Input, stack, heap, and output exhaustion remain `Incomplete` with
-their exact limit and requested extent. D34 gives application-static-storage
-`requested` its bounded-witness meaning without changing the ECOUT V1 frame,
-resource code, outcome constructors, or zero-reserved bytes. Application-
-static-storage refusal is the only `Incomplete` class ordinary Delta `main`
-may deliberately return; adapter-private resources cannot be forged through
-the source outcome.
-
-The required compiler-correctness relation is:
-
-```text
-accepted Epsilon source + emitted Alpha tape
-  -> the Alpha tape refines RunEpsilon for the selected input/resource profile
-```
-
-The checker reconstructs Epsilon and Alpha meaning independently. The compiler
-may use private CFG, layout, or encoding representations, but may not invoke a
-Delta translator, Epsilon evaluator, Alpha Tape assembler, host compiler, or other
-semantic stage to finish the artifact. Agreement with another implementation
-is diagnostic and never replaces checked source-to-tape refinement.
+The checker reconstructs Epsilon meaning independently. The evaluator may use
+private execution representations, but may not invoke an Epsilon compiler,
+Alpha assembler, host compiler, or another semantic stage to determine program
+behavior. Agreement with another implementation is diagnostic and never
+replaces checked evaluator refinement.
 
 ## 12. Conformance and change control
 
@@ -866,9 +822,10 @@ A conforming implementation provides:
 1. positive and negative coverage of this grammar and every closed reason;
 2. exact byte-coordinate, trap, evaluation-order, and I/O tests;
 3. whole-closure forward-reference and fixed-storage controls;
-4. private-budget controls proving `Incomplete` publishes no tape; and
-5. direct checked Epsilon-source-to-Alpha-tape refinement with mutations of the
-   source, input/profile, artifact, and observation.
+4. private-budget controls proving evaluator exhaustion publishes no Epsilon
+  observation; and
+5. direct checked evaluator refinement with mutations of the source, stdin,
+  resource profile, and observation.
 
 No existing Epsilon corpus is authoritative. The former translator and samples
 were deleted, and no compatibility behavior survives through Git history.

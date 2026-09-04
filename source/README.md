@@ -26,15 +26,15 @@ Alpha VM seed + beta_compiler_bytecode.tape
   -> gamma_evaluator.beta -> gamma_evaluator_bytecode.tape
   -> Gamma-authored staged source transformers
   -> Delta compiler edge (open)
-  -> epsilon_compiler.delta -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
-  -> omega_compiler.epsilon -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
-  -> build.omg/main.omg -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
+  -> epsilon_compiler.delta -> canonical Delta -> interpreted omega_compiler.epsilon
+  -> interpreted D + build.omg/main.omg + alpha_bootstrap -> omega0_compiler_bytecode.tape
+  -> omega0 + build.omg/main.omg + alpha_bootstrap -> omega_compiler_bytecode.tape
 ```
 
-Beta is the only source language that encodes Alpha instructions. Gamma is
-currently evaluated directly by Beta rather than compiled. Higher-rung
-transformers must still publish canonical source receipts in the immediately
-supported language.
+Beta encodes the fixed Gamma evaluator tape. Gamma is evaluated directly by
+Beta rather than compiled. Higher-rung transformers and evaluators publish
+canonical receipts or observations in the immediately supported language;
+Omega resumes Alpha encoding through its ordinary `alpha_bootstrap` target.
 Final compiler artifacts remain platform-independent Alpha tapes where the edge
 produces one. Gamma instead has an explicit direct-evaluation edge. Missing
 higher compilers remain explicit gaps; host scripts, downgraded compilers, and
@@ -56,7 +56,7 @@ and candidate-C comparison in
 [`bootstrap_chain_alternatives.md`](../wiki/design_briefs/bootstrap_chain_alternatives.md).
 The imperative tape-assembly language is trusted Beta. Typed scalar/effect Gamma
 is the first functional source-transformer rung, followed by richer Delta and
-the fixed-storage Epsilon compiler host.
+the fixed-storage Epsilon execution host.
 
 `omega-rust/` may build, compare, and accelerate development, but it
 supplies no trusted bootstrap premise. Bootstrap invocation lives under
