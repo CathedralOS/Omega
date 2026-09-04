@@ -79,6 +79,7 @@ members = [
     "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
     "omega-rust/omega/pipeline/omega-target-to-register-environment",
     "omega-rust/omega/pipeline/omega-selected-instructions-to-liveness",
+    "omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects",
     "omega-rust/omega/pipeline/omega-liveness-to-live-ranges",
     "omega-rust/omega/pipeline/omega-live-ranges-to-allocation-legality",
     "omega-rust/omega/pipeline/omega-allocation-legality-to-active-resident-rematerialization",

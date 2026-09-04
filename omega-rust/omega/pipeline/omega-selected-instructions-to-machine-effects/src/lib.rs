@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Optimizer module role: executable entrance. Pre-allocation machine-effect staging.
 //!
 //! Each supported selected-source lineage has one route adapter. This entrance
@@ -14,11 +16,12 @@ mod validation;
 pub use model::*;
 pub use validation::*;
 
-use crate::{
-    StagedOptimizedActiveResidentRematerialization, StagedOptimizedFixedViewCopies,
-    StagedOptimizedLiteralFolds, StagedOptimizedSelectedInstructions,
-    StagedSelectedLoweringOptimizationRun,
+use omega_allocation_legality_to_active_resident_rematerialization::StagedOptimizedActiveResidentRematerialization;
+use omega_allocation_legality_to_fixed_view_copies::StagedOptimizedFixedViewCopies;
+use omega_allocation_legality_to_literal_folds::{
+    StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationRun,
 };
+use omega_target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 
 fn admit_machine_effects(
     staged: StagedOptimizedMachineEffects,

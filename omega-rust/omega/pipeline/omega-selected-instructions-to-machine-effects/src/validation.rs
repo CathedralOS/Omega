@@ -1,11 +1,18 @@
 use omega_machine_optimizer::ValidatedPreAllocationMachineEffects;
 
-use crate::{
-    StagedOptimizedActiveResidentRematerialization, StagedOptimizedFixedViewCopies,
-    StagedOptimizedLiteralFolds, StagedOptimizedSelectedInstructions,
-    StagedSelectedLoweringOptimizationRun, validate_optimized_active_resident_rematerialization,
-    validate_optimized_fixed_view_copy_custody, validate_optimized_literal_fold_custody,
-    validate_optimized_selection_custody, validate_selected_lowering_optimization_custody,
+use omega_allocation_legality_to_active_resident_rematerialization::{
+    StagedOptimizedActiveResidentRematerialization,
+    validate_optimized_active_resident_rematerialization,
+};
+use omega_allocation_legality_to_fixed_view_copies::{
+    StagedOptimizedFixedViewCopies, validate_optimized_fixed_view_copy_custody,
+};
+use omega_allocation_legality_to_literal_folds::{
+    StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationRun,
+    validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,
+};
+use omega_target_operations_to_selected_instructions::{
+    StagedOptimizedSelectedInstructions, validate_optimized_selection_custody,
 };
 
 use super::analysis::revalidate;

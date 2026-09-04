@@ -66,7 +66,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_active_resident_rematerialization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/machine_effects/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects/src/lib.rs",
         coordination_marker: "fn admit_machine_effects",
     },
     RequiredCoordinationEntrance {

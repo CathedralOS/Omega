@@ -2,12 +2,19 @@ use omega_isa_aarch64::Aarch64MachineEffectCatalogValidationError;
 use omega_isa_x86_64::X86_64MachineEffectCatalogValidationError;
 use omega_machine_optimizer::{MachineEffectError, ValidatedPreAllocationMachineEffects};
 
-use crate::{
-    OptimizedActiveResidentRematerializationError, OptimizedFixedViewCopyCustodyError,
-    OptimizedLiteralFoldCustodyError, OptimizedSelectionCustodyError,
+use omega_allocation_legality_to_active_resident_rematerialization::{
+    OptimizedActiveResidentRematerializationError,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
-    StagedOptimizedFixedViewCopyCustodyReceipt, StagedOptimizedLiteralFoldCustodyReceipt,
-    StagedOptimizedSelectionCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
+};
+use omega_allocation_legality_to_fixed_view_copies::{
+    OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopyCustodyReceipt,
+};
+use omega_allocation_legality_to_literal_folds::{
+    OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,
+    StagedSelectedLoweringOptimizationCustodyReceipt,
+};
+use omega_target_operations_to_selected_instructions::{
+    OptimizedSelectionCustodyError, StagedOptimizedSelectionCustodyReceipt,
 };
 
 /// Borrowed, non-authoritative pre-allocation machine-effect sidecar with the

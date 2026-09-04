@@ -3,7 +3,8 @@ use omega_machine_optimizer::{
     validate_pre_allocation_machine_effects,
 };
 
-use crate::{StagedOptimizedSelectedInstructions, ValidatedTargetRegisterEnvironment};
+use omega_target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
+use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::catalog::validated_catalog;
 use super::model::OptimizedMachineEffectPipelineError;
@@ -29,7 +30,7 @@ pub(super) fn analyze<S: omega_regalloc::ValidatedSelectedAnalysis>(
 pub(super) fn revalidate<S: omega_regalloc::ValidatedSelectedAnalysis>(
     selected: &S,
     selected_stage: &StagedOptimizedSelectedInstructions,
-    environment: &crate::ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     effects: &ValidatedPreAllocationMachineEffects,
 ) -> Result<ValidatedPreAllocationMachineEffects, OptimizedMachineEffectPipelineError> {
     let catalog = validated_catalog(selected_stage)?;

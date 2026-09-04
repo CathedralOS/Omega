@@ -1,7 +1,7 @@
 use omega_isa_aarch64::{aarch64_machine_effect_catalog, validate_aarch64_machine_effect_catalog};
 use omega_isa_x86_64::{validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog};
 
-use crate::StagedOptimizedSelectedInstructions;
+use omega_target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 
 use super::model::OptimizedMachineEffectPipelineError;
 
