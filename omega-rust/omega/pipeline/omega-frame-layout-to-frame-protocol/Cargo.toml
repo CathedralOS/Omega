@@ -1,0 +1,19 @@
+[package]
+name = "omega-frame-layout-to-frame-protocol"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_frame_layout_to_frame_protocol"
+path = "src/lib.rs"
+
+[dependencies]
+omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
+omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
+omega-post-allocation-machine-to-frame-layout = { path = "../omega-post-allocation-machine-to-frame-layout" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-target = { path = "../../representations/omega-target" }
+omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+sha2 = "0.10.9"

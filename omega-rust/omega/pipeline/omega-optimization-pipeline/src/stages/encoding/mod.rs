@@ -2,8 +2,6 @@
 
 pub(crate) mod active_resident_selected_form_encoding;
 pub(crate) mod post_allocation_selected_form_encoding;
-pub(crate) mod target_frame_protocol_encoding;
 
 pub use active_resident_selected_form_encoding::*;
 pub use post_allocation_selected_form_encoding::*;
-pub use target_frame_protocol_encoding::*;

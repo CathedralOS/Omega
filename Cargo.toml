@@ -92,6 +92,7 @@ members = [
     "omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine",
     "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine",
     "omega-rust/omega/pipeline/omega-post-allocation-machine-to-frame-layout",
+    "omega-rust/omega/pipeline/omega-frame-layout-to-frame-protocol",
     "omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage",
     "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements",
     "omega-rust/omega/pipeline/omega-optimization-validation",

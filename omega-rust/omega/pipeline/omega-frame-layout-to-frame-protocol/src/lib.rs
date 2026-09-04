@@ -1,4 +1,6 @@
-//! Optimizer module role: stage group. Packed target frame-protocol encoding.
+#![forbid(unsafe_code)]
+
+//! Optimizer module role: executable entrance. Packed target frame-protocol encoding.
 //!
 //! Target-owned encoders turn validated frame geometry into one packed byte
 //! arena. Per-function spans point into that arena; no tiny byte vectors are
@@ -15,7 +17,10 @@ pub use identity::target_frame_protocol_encoding_identity;
 pub use model::*;
 pub use validation::validate_target_frame_protocol_encoding;
 
-use crate::{ValidatedTargetFrameLayout, ValidatedTargetRegisterEnvironment};
+use omega_post_allocation_machine_to_frame_layout::{
+    ReturnAddressFrameCustody, TargetFrameLayoutIdentity, ValidatedTargetFrameLayout,
+};
+use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn stage_target_frame_protocol_encoding(
     frame: &ValidatedTargetFrameLayout,
