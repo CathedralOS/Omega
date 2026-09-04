@@ -696,11 +696,18 @@ Current ownership is:
   result and later transparent chains. The terminal place may follow a prefix
   of effect-free caller-isolated scratch locals and direct local `&mut` aliases,
   including mutable bindings and results of other structurally transparent
-  helpers. A caller-isolated scratch local may be initialized by a direct-call
-  tree of any finite depth when every inferred frame is complete and all writes
-  resolve into previously established caller-isolated scratch locals. Its
-  syntax check also uses a worklist. Recursive, computed, opaque, or externally
-  writing initializer calls remain fences. A validated mutable recast local
+  helpers. A caller-isolated scratch initializer uses the same typed
+  value-expression worklist as assignments below, with its declared local type
+  as context. Primitive computations and concrete record, selected-case, and
+  fixed-array literals may compose around complete non-rebinding calls. Every
+  write must additionally resolve into a previously established caller-isolated
+  scratch local; the initializer cannot write the local being introduced or any
+  caller-visible origin. Stable aliases and projected alias chains into those
+  scratch locals keep their private origins, and the write fence rebases alias
+  paths before testing isolation. A private origin has no caller-parameter
+  symbol and cannot be exported as a helper's returned-place relation.
+  Recursive, opaque, externally writing, and unsupported initializer forms
+  remain fences. A validated mutable recast local
   with an effect-free source may write through that source without obscuring a
   separately returned parameter origin.
   The exact returned-place relation also composes when such a result is supplied
@@ -709,7 +716,7 @@ Current ownership is:
   the relation when the right-hand side is effect-free or a typed
   non-reference direct-call tree with complete frames. Reference-valued roots
   keep their existing relational handling.
-  `calls/write_frames/assignment_values.rs` uses a shared worklist to admit
+  `calls/write_frames/value_expressions.rs` uses a shared worklist to admit
   finite compositions of primitive computations and concrete caller-isolated
   aggregate literals. Root, field, element,
   member-receiver, and index-collection positions carry their available type

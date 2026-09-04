@@ -18,7 +18,6 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod alias_bindings;
 mod assignment_targets;
-mod assignment_values;
 mod boundary_calls;
 mod call_targets;
 mod call_trees;
@@ -34,6 +33,7 @@ mod transition_equations;
 mod transition_topology;
 mod transparent_effects;
 mod type_capabilities;
+mod value_expressions;
 
 use alias_bindings::{
     rebind_stable_local_mutable_alias_origin, stable_local_mutable_alias_rebinding_is_representable,
@@ -42,7 +42,6 @@ use assignment_targets::{
     assignment_target_type, expression_is_effectful_indexed_place,
     transparent_assignment_target_effect_is_structural,
 };
-use assignment_values::value_expression_assignment_preserves_transparent_result;
 use boundary_calls::known_boundary_call_written_paths_for_parts;
 pub(crate) use boundary_calls::{boundary_trait_signature, known_boundary_call_written_paths};
 use call_targets::discarded_primitive_internal_call_is_relationally_neutral;
@@ -88,6 +87,7 @@ use transparent_effects::{
 use type_capabilities::{
     parameter_may_carry_write, type_may_carry_write, type_reference_is_reference,
 };
+use value_expressions::value_expression_preserves_transparent_result;
 
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
@@ -699,34 +699,40 @@ fn stable_alias_initializer_origin(
                     allow_isolated_local,
                 );
             }
-            transparent_call_result_origin(program, call, symbols, |actual| {
-                stable_alias_initializer_origin(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    active_states,
-                    actual,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    symbols,
-                    allow_isolated_local,
-                )
-            })
-        }
-        ExpressionNode::Indexed(indexed)
-            if expression_is_effectful_for_transparent_result(program, indexed.index) =>
-        {
-            if !stable_alias_index_expression_preserves_origin(
+            transparent_call_result_origin(
                 program,
-                current_machine,
-                indexed.index,
-                machine_symbols,
+                call,
                 symbols,
                 active_states,
-                parameters,
-                aliases,
-            ) {
+                |actual, active_states| {
+                    stable_alias_initializer_origin(
+                        program,
+                        current_machine,
+                        machine_symbols,
+                        active_states,
+                        actual,
+                        parameters,
+                        isolated_local_roots,
+                        aliases,
+                        symbols,
+                        allow_isolated_local,
+                    )
+                },
+            )
+        }
+        ExpressionNode::Indexed(indexed) => {
+            if expression_is_effectful_for_transparent_result(program, indexed.index)
+                && !stable_alias_index_expression_preserves_origin(
+                    program,
+                    current_machine,
+                    indexed.index,
+                    machine_symbols,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                )
+            {
                 return None;
             }
             let mut collection = stable_alias_initializer_origin(
@@ -809,7 +815,7 @@ fn stable_alias_expression_origin(
                     allow_isolated_local,
                 );
             }
-            transparent_call_result_origin(program, call, symbols, |actual| {
+            transparent_call_result_origin(program, call, symbols, &mut Vec::new(), |actual, _| {
                 stable_alias_expression_origin(
                     program,
                     actual,
@@ -937,7 +943,11 @@ fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
     symbols: &TopLevelSymbols<'_>,
-    resolve_actual_origin: impl FnOnce(ExpressionHandle) -> Option<FramePlaceOrigin>,
+    active_states: &mut Vec<SymbolHandle>,
+    resolve_actual_origin: impl FnOnce(
+        ExpressionHandle,
+        &mut Vec<SymbolHandle>,
+    ) -> Option<FramePlaceOrigin>,
 ) -> Option<FramePlaceOrigin> {
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)
         .or_else(|| {
@@ -954,7 +964,7 @@ fn transparent_call_result_origin(
         callee_machine,
         callee_state,
         symbols,
-        &mut Vec::new(),
+        active_states,
     )?;
     let parameters = program.state_parameters(callee_state);
     let result_parameter = parameters
@@ -977,7 +987,7 @@ fn transparent_call_result_origin(
             .expression_handles(call.arguments)
             .get(argument_index)?
     };
-    let argument_origin = resolve_actual_origin(actual)?;
+    let argument_origin = resolve_actual_origin(actual, active_states)?;
     Some(match argument_origin.precision {
         FramePathPrecision::Exact => FramePlaceOrigin {
             path: append_place_suffix(&argument_origin.path, result_suffix),
@@ -1124,12 +1134,38 @@ fn transparent_callee_result_origin(
         for statement in prefix {
             match statement {
                 StatementNode::LocalData(local) => {
+                    let stable_aliases = local_aliases
+                        .iter()
+                        .map(
+                            |(name, _, origin): &(
+                                String,
+                                SymbolHandle,
+                                ParameterRelativeFrameOrigin,
+                            )| { (name.clone(), origin.place.clone()) },
+                        )
+                        .collect::<Vec<_>>();
                     if type_is_caller_isolated_local(program, local.type_reference) {
+                        if expression_is_effectful_for_transparent_result(
+                            program,
+                            local.initial_value,
+                        ) && !value_expression_preserves_transparent_result(
+                            program,
+                            callee_machine,
+                            local.initial_value,
+                            Some(local.type_reference),
+                            symbols,
+                            active_states,
+                            parameters,
+                            &local_aliases,
+                        ) {
+                            return None;
+                        }
                         if !isolated_local_initializer_preserves_transparent_result(
                             program,
                             callee_machine,
                             local.initial_value,
                             &isolated_local_roots,
+                            &stable_aliases,
                             |machine_symbols, written| {
                                 collect_expression_call_written_paths(
                                     program,
@@ -1164,7 +1200,35 @@ fn transparent_callee_result_origin(
                         &local_aliases,
                         symbols,
                         active_states,
-                    )?;
+                    )
+                    .or_else(|| {
+                        let mut diagnostics = Vec::new();
+                        let machine_symbols =
+                            MachineSymbols::build(program, callee_machine, &mut diagnostics);
+                        if !diagnostics.is_empty() {
+                            return None;
+                        }
+                        let place = stable_alias_initializer_origin(
+                            program,
+                            callee_machine,
+                            &machine_symbols,
+                            active_states,
+                            local.initial_value,
+                            parameters,
+                            &isolated_local_roots,
+                            &stable_aliases,
+                            symbols,
+                            true,
+                        )?;
+                        let (root, _) = split_place_root(&place.path);
+                        isolated_local_roots
+                            .iter()
+                            .any(|local| local == root)
+                            .then_some(ParameterRelativeFrameOrigin {
+                                place,
+                                parameter_symbol: SymbolHandle::invalid(),
+                            })
+                    })?;
                     local_aliases.push((local.name.as_str().to_owned(), local.symbol, origin));
                 }
                 StatementNode::Assignment(assignment) => {
@@ -1185,7 +1249,7 @@ fn transparent_callee_result_origin(
                     {
                         return None;
                     }
-                    if value_expression_assignment_preserves_transparent_result(
+                    if value_expression_preserves_transparent_result(
                         program,
                         callee_machine,
                         assignment.value,
@@ -1254,6 +1318,7 @@ fn transparent_callee_result_origin(
             symbols,
             active_states,
         )
+        .filter(|origin| origin.parameter_symbol.is_valid())
     })();
     active_states.pop();
     result
@@ -1357,7 +1422,7 @@ fn statement_call_preserves_transparent_result(
     .is_some()
 }
 
-fn value_call_assignment_preserves_transparent_result(
+fn value_call_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,

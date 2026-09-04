@@ -1,4 +1,4 @@
-//! Assignment-value admission for transparent returned-place relations.
+//! Typed value-expression admission for transparent returned-place relations.
 //!
 //! Positions carry the available type evidence. Traversal never manufactures
 //! that evidence from expression depth, and every effectful call still needs
@@ -12,7 +12,7 @@ use super::{
     ExpressionHandle, ExpressionNode, Machine, ParameterRelativeFrameOrigin, StateParameter,
     SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
     expression_is_effectful_for_transparent_result, free_machine_entry_state,
-    machine_state_by_symbol, value_call_assignment_preserves_transparent_result,
+    machine_state_by_symbol, value_call_preserves_transparent_result,
 };
 
 #[derive(Clone, Copy)]
@@ -23,7 +23,7 @@ enum CallResultRequirement {
 
 #[derive(Clone, Copy)]
 enum ValuePosition {
-    Assignment(TypeReferenceHandle),
+    TypedRoot(TypeReferenceHandle),
     AggregateElement(TypeReferenceHandle),
     ComputedOperand(CallResultRequirement),
     MemberReceiver(CallResultRequirement),
@@ -37,7 +37,7 @@ impl ValuePosition {
             Self::ComputedOperand(requirement)
             | Self::MemberReceiver(requirement)
             | Self::IndexCollection(requirement) => requirement,
-            Self::Assignment(_) | Self::AggregateElement(_) | Self::ProjectedArrayElement => {
+            Self::TypedRoot(_) | Self::AggregateElement(_) | Self::ProjectedArrayElement => {
                 CallResultRequirement::NonReference
             }
         }
@@ -45,7 +45,7 @@ impl ValuePosition {
 
     fn computed_operand_requirement(self, program: &TypedTrees) -> Option<CallResultRequirement> {
         match self {
-            Self::Assignment(expected_type) => program
+            Self::TypedRoot(expected_type) => program
                 .primitive_type_reference(expected_type)
                 .map(|_| CallResultRequirement::CallerIsolated),
             Self::AggregateElement(expected_type) => program
@@ -63,11 +63,11 @@ type PendingValue = (ExpressionHandle, ValuePosition);
 /// nesting limits. This is origin-preservation evidence, not a replacement for
 /// expression typing or collection of the calls' published may-write paths.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn value_expression_assignment_preserves_transparent_result(
+pub(super) fn value_expression_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
-    assignment_target_type: Option<TypeReferenceHandle>,
+    expected_type: Option<TypeReferenceHandle>,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
     parameters: &[StateParameter],
@@ -75,13 +75,13 @@ pub(super) fn value_expression_assignment_preserves_transparent_result(
 ) -> bool {
     let mut pending = vec![(
         expression,
-        ValuePosition::Assignment(assignment_target_type.unwrap_or_default()),
+        ValuePosition::TypedRoot(expected_type.unwrap_or_default()),
     )];
     while let Some((expression, position)) = pending.pop() {
         // Pure children are neutral after their container's shape is checked.
         // A pure root must still be classified: a reference alias replacement
         // belongs to the parent's origin-rebinding analysis, not this relation.
-        if !matches!(position, ValuePosition::Assignment(_))
+        if !matches!(position, ValuePosition::TypedRoot(_))
             && !expression_is_effectful_for_transparent_result(program, expression)
         {
             continue;
@@ -89,19 +89,17 @@ pub(super) fn value_expression_assignment_preserves_transparent_result(
         match program.expression_table.expression(expression) {
             ExpressionNode::Call(_) => {
                 let admitted = match position.call_result_requirement() {
-                    CallResultRequirement::NonReference => {
-                        value_call_assignment_preserves_transparent_result(
-                            program,
-                            current_machine,
-                            expression,
-                            symbols,
-                            active_states,
-                            parameters,
-                            aliases,
-                        )
-                    }
+                    CallResultRequirement::NonReference => value_call_preserves_transparent_result(
+                        program,
+                        current_machine,
+                        expression,
+                        symbols,
+                        active_states,
+                        parameters,
+                        aliases,
+                    ),
                     CallResultRequirement::CallerIsolated => {
-                        caller_isolated_value_call_assignment_preserves_transparent_result(
+                        caller_isolated_value_call_preserves_transparent_result(
                             program,
                             current_machine,
                             expression,
@@ -118,7 +116,7 @@ pub(super) fn value_expression_assignment_preserves_transparent_result(
             }
             ExpressionNode::StructLiteral(literal) => {
                 match position {
-                    ValuePosition::Assignment(_) | ValuePosition::MemberReceiver(_) => {}
+                    ValuePosition::TypedRoot(_) | ValuePosition::MemberReceiver(_) => {}
                     ValuePosition::AggregateElement(expected_type)
                         if struct_literal_matches_expected_type(
                             program,
@@ -152,7 +150,7 @@ pub(super) fn value_expression_assignment_preserves_transparent_result(
             ExpressionNode::ArrayLiteral(elements) => {
                 let elements = program.expression_table.expression_handles(*elements);
                 let element_position = match position {
-                    ValuePosition::Assignment(expected_type)
+                    ValuePosition::TypedRoot(expected_type)
                     | ValuePosition::AggregateElement(expected_type) => {
                         let Some(element_type) =
                             typed_array_element_type(program, expected_type, elements.len())
@@ -252,7 +250,7 @@ fn push_computed_operands(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn caller_isolated_value_call_assignment_preserves_transparent_result(
+fn caller_isolated_value_call_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
@@ -274,7 +272,7 @@ fn caller_isolated_value_call_assignment_preserves_transparent_result(
         return false;
     };
     type_is_caller_isolated_local(program, callee_state.return_type)
-        && value_call_assignment_preserves_transparent_result(
+        && value_call_preserves_transparent_result(
             program,
             current_machine,
             expression,
