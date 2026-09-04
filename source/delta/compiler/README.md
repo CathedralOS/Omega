@@ -36,8 +36,9 @@ coordinates.
 It requires all nonempty `data` declarations before one or more functions,
 exactly one `main`, and unique type, constructor, and function declarations in
 their separate namespaces. Exact source-byte names are retained in persistent
-bitwise tries, so this check has neither hash collisions nor repeated
-whole-source lookup. Type and constructor names may still share a spelling, as
+bytewise tries whose nodes store only present child edges, so this check has
+neither hash collisions, absent-edge trees, nor repeated whole-source lookup.
+Type and constructor names may still share a spelling, as
 required by Delta's grammar-distinguished namespaces. Name recursion advances
 once per complete byte; a 200-byte identifier witness guards practical Gamma
 call-context headroom, while the Epsilon customer currently tops out at 56.
@@ -109,7 +110,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,029-line / 81,156-byte Gamma source
+2,027-line / 81,168-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -139,6 +140,8 @@ The downgraded full compiler remains separate under
   -> all nullary, unary, and three-field constructor shapes produce byte 7
 828-line / 30,608-byte Epsilon declaration census
   -> exact 21-byte scalar Gamma receipt within the evaluator watchdog
+8,733-line / 437,283-byte current Epsilon source plus diagnostic entry
+  -> 503,658-byte Gamma receipt in 99.7 seconds on the development host
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199; staged transformation is
