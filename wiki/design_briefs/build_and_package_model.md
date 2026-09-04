@@ -1113,7 +1113,7 @@ direct call. The still-open occurrence in the authored template remains
 symbolic non-coverage. This local fixed point is not an artifact-qualified
 symbolic-demand exchange and grants nothing to a separately compiled consumer.
 
-Package review v129/canonical row v87/recovery v23 implements the first
+Package review v130/canonical row v88/recovery v23 implements the first
 producer side of that exchange. A public generic callable using a named
 generic boundary operator exports an opaque-blocking symbolic-demand row under
 the exact producer `PackageKey`, callable nominal, exact operator overload
