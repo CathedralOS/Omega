@@ -3,7 +3,7 @@ use omega_regalloc::{
     FixedPrecoloredSplitRequirementValidationReceipt,
 };
 
-use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
+use omega_live_ranges_to_allocation_legality::StagedOptimizedAllocationLegalityCustodyReceipt;
 
 use super::StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt;
 

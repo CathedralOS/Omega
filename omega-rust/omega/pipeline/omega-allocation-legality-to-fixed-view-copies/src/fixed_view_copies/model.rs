@@ -10,9 +10,9 @@ use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
 use crate::{
-    OptimizedFixedPrecoloredSegmentHomeCustodyError, StagedOptimizedAllocationLegality,
-    StagedOptimizedFixedPrecoloredSegmentHomes,
+    OptimizedFixedPrecoloredSegmentHomeCustodyError, StagedOptimizedFixedPrecoloredSegmentHomes,
 };
+use omega_live_ranges_to_allocation_legality::StagedOptimizedAllocationLegality;
 
 /// Exact named fixed-view copy materialization over the complete source
 /// legality chain. It mutates only its private selected-CFG realization and

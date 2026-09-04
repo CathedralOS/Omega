@@ -4,7 +4,7 @@ use omega_regalloc::{
     validate_fixed_precolored_segment_homes, validate_fixed_precolored_split_requirements,
 };
 
-use crate::{
+use omega_live_ranges_to_allocation_legality::{
     StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
     validate_optimized_allocation_legality_custody,
 };

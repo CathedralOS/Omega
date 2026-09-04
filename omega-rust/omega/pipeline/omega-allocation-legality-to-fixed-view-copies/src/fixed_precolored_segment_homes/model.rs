@@ -6,7 +6,7 @@ use omega_regalloc::{
     ValidatedFixedPrecoloredSplitRequirements,
 };
 
-use crate::{
+use omega_live_ranges_to_allocation_legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt,
 };

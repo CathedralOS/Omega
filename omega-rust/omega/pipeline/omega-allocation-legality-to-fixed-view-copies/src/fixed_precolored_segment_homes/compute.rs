@@ -7,7 +7,7 @@ use omega_regalloc::{
     assign_fixed_precolored_segment_homes,
 };
 
-use crate::StagedOptimizedAllocationLegality;
+use omega_live_ranges_to_allocation_legality::StagedOptimizedAllocationLegality;
 
 use super::OptimizedFixedPrecoloredSegmentHomeCustodyError;
 
