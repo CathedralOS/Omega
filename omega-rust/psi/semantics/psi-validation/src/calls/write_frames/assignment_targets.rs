@@ -43,7 +43,7 @@ pub(super) fn expression_is_effectful_indexed_place(
 }
 
 /// Effects are permitted only along the place-producing call spine or inside a
-/// separately validated index expression. The parent owns the bounded-call and
+/// separately validated index expression. The parent owns the complete-call and
 /// non-rebinding proof for the latter.
 pub(super) fn transparent_assignment_target_effect_is_structural(
     program: &TypedTrees,

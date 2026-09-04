@@ -20,6 +20,7 @@ mod alias_bindings;
 mod assignment_targets;
 mod boundary_calls;
 mod call_targets;
+mod call_trees;
 mod demand;
 mod isolated_initializers;
 mod isolation;
@@ -45,6 +46,10 @@ pub(crate) use boundary_calls::{boundary_trait_signature, known_boundary_call_wr
 use call_targets::discarded_primitive_internal_call_is_relationally_neutral;
 pub(crate) use call_targets::free_machine_entry_state;
 pub(super) use call_targets::machine_state_by_symbol;
+use call_trees::{
+    stable_alias_index_expression_preserves_origin,
+    statement_call_argument_preserves_transparent_result,
+};
 pub use demand::{CallFrameResolver, frame_paths_overlap};
 use demand::{collect_expression_call_written_paths, syntactic_call_written_paths};
 pub(crate) use demand::{conservative_call_written_paths, statement_value_expression_roots};
@@ -56,7 +61,7 @@ use isolation::{
 };
 use local_aliases::{
     expression_may_rebind_mutable_alias, expression_reborrows_local_alias_binding,
-    expression_reborrows_stable_alias_binding, rebase_local_alias_path, stable_alias_place_origin,
+    rebase_local_alias_path, stable_alias_place_origin,
 };
 use parameter_aliases::{
     ParameterRelativeFrameOrigin, expression_reborrows_transparent_alias_binding,
@@ -681,6 +686,36 @@ fn stable_alias_initializer_origin(
             symbols,
             allow_isolated_local,
         ),
+        ExpressionNode::Call(call) => {
+            if call_is_transparent_mutable_slice_view(program, call) {
+                return stable_alias_initializer_origin(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    active_states,
+                    call.receiver,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    symbols,
+                    allow_isolated_local,
+                );
+            }
+            transparent_call_result_origin(program, call, symbols, |actual| {
+                stable_alias_initializer_origin(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    active_states,
+                    actual,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    symbols,
+                    allow_isolated_local,
+                )
+            })
+        }
         ExpressionNode::Indexed(indexed)
             if expression_is_effectful_for_transparent_result(program, indexed.index) =>
         {
@@ -693,7 +728,6 @@ fn stable_alias_initializer_origin(
                 active_states,
                 parameters,
                 aliases,
-                2,
             ) {
                 return None;
             }
@@ -746,87 +780,6 @@ fn stable_alias_initializer_origin(
 }
 
 #[allow(clippy::too_many_arguments)]
-/// Admit the same bounded exact-call tree used by transparent statement-call
-/// arguments in an alias index. Every call must have a complete frame, and no
-/// node may reborrow a mutable-reference binding. The explicit depth budget
-/// keeps deeper computation out of the returned-place relation.
-fn stable_alias_index_expression_preserves_origin(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    expression: ExpressionHandle,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    parameters: &[StateParameter],
-    aliases: &[(String, FramePlaceOrigin)],
-    remaining_call_depth: usize,
-) -> bool {
-    if expression_reborrows_stable_alias_binding(program, expression, parameters, aliases) {
-        return false;
-    }
-    if !expression_is_effectful_for_transparent_result(program, expression) {
-        return true;
-    }
-    if remaining_call_depth == 0 {
-        return false;
-    }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    if call.receiver.is_valid()
-        && expression_is_effectful_for_transparent_result(program, call.receiver)
-    {
-        return false;
-    }
-    let receiver_members = if call.receiver.is_valid() {
-        let Some(receiver) = receiver_member_chain(program, call.receiver) else {
-            return false;
-        };
-        receiver
-    } else {
-        Vec::new()
-    };
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.iter().any(|argument| {
-        !stable_alias_index_expression_preserves_origin(
-            program,
-            current_machine,
-            *argument,
-            machine_symbols,
-            symbols,
-            active_states,
-            parameters,
-            aliases,
-            remaining_call_depth - 1,
-        )
-    }) {
-        return false;
-    }
-    known_call_written_paths_for_parts(
-        program,
-        call.target_symbol,
-        call.target.as_str(),
-        &receiver_members,
-        arguments,
-        current_machine,
-        machine_symbols,
-        symbols,
-        active_states,
-    )
-    .or_else(|| {
-        known_boundary_call_written_paths_for_parts(
-            program,
-            machine_symbols,
-            symbols,
-            &receiver_members,
-            call.target.as_str(),
-            arguments,
-        )
-    })
-    .is_some()
-}
-
-#[allow(clippy::too_many_arguments)]
 fn stable_alias_expression_origin(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -858,15 +811,17 @@ fn stable_alias_expression_origin(
                     allow_isolated_local,
                 );
             }
-            transparent_call_result_origin(
-                program,
-                call,
-                parameters,
-                isolated_local_roots,
-                aliases,
-                symbols,
-                allow_isolated_local,
-            )
+            transparent_call_result_origin(program, call, symbols, |actual| {
+                stable_alias_expression_origin(
+                    program,
+                    actual,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    symbols,
+                    allow_isolated_local,
+                )
+            })
         }
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
@@ -928,9 +883,9 @@ fn stable_alias_expression_origin(
 }
 
 /// Resolve an assignment target using the established direct-place behavior,
-/// plus the bounded structural origin algebra shared by stable aliases. This
+/// plus the structural origin algebra shared by stable aliases. This
 /// admits a validated effectful index through a stable alias or transparent
-/// helper result while preserving the depth, rebinding, and opacity fences.
+/// helper result while preserving the rebinding and opacity fences.
 #[allow(clippy::too_many_arguments)]
 fn stable_assignment_target_path(
     program: &TypedTrees,
@@ -983,11 +938,8 @@ fn stable_assignment_target_path(
 fn transparent_call_result_origin(
     program: &TypedTrees,
     call: &TableCallExpression,
-    caller_parameters: &[StateParameter],
-    isolated_local_roots: &[String],
-    aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
-    allow_isolated_local: bool,
+    resolve_actual_origin: impl FnOnce(ExpressionHandle) -> Option<FramePlaceOrigin>,
 ) -> Option<FramePlaceOrigin> {
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)
         .or_else(|| {
@@ -1011,39 +963,23 @@ fn transparent_call_result_origin(
         .iter()
         .find(|parameter| parameter.symbol == result_origin.parameter_symbol)?;
     let (_, result_suffix) = split_place_root(&result_origin.place.path);
-    let argument_origin = if result_parameter.is_self {
+    let actual = if result_parameter.is_self {
         if callee_machine.attached_data.is_none() || !call.receiver.is_valid() {
             return None;
         }
-        stable_alias_expression_origin(
-            program,
-            call.receiver,
-            caller_parameters,
-            isolated_local_roots,
-            aliases,
-            symbols,
-            allow_isolated_local,
-        )?
+        call.receiver
     } else {
         let (argument_index, _) = parameters
             .iter()
             .filter(|parameter| !parameter.is_self)
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == result_parameter.symbol)?;
-        let argument = *program
+        *program
             .expression_table
             .expression_handles(call.arguments)
-            .get(argument_index)?;
-        stable_alias_expression_origin(
-            program,
-            argument,
-            caller_parameters,
-            isolated_local_roots,
-            aliases,
-            symbols,
-            allow_isolated_local,
-        )?
+            .get(argument_index)?
     };
+    let argument_origin = resolve_actual_origin(actual)?;
     Some(match argument_origin.precision {
         FramePathPrecision::Exact => FramePlaceOrigin {
             path: append_place_suffix(&argument_origin.path, result_suffix),
@@ -1354,8 +1290,7 @@ fn statement_call_preserves_transparent_result(
         return false;
     }
     let arguments = program.statement_table.expression_handles(call.arguments);
-    // Sibling arguments are independent. Each receives the same deliberately
-    // bounded call-depth budget; exhausting it fails closed.
+    // Every sibling must independently preserve the returned-place origin.
     if arguments.iter().any(|argument| {
         !statement_call_argument_preserves_transparent_result(
             program,
@@ -1366,7 +1301,6 @@ fn statement_call_preserves_transparent_result(
             active_states,
             parameters,
             aliases,
-            2,
         )
     }) {
         return false;
@@ -1425,7 +1359,7 @@ fn statement_call_preserves_transparent_result(
     .is_some()
 }
 
-/// A complete bounded call tree may supply an assignment value without
+/// A complete finite direct-call tree may supply an assignment value without
 /// perturbing a separately returned place only when its root result is proven
 /// non-reference. A direct primitive scalar value may wrap complete
 /// caller-isolated call producers in up to thirty-three unary, binary, primitive-cast,
@@ -1436,7 +1370,6 @@ fn statement_call_preserves_transparent_result(
 /// existing two-shell computation budget. Projected aggregate literals retain
 /// their narrower depth-two rail. Reference-bearing or generic literals, wider
 /// aggregate or scalar-computation depth, and unknown return types fail closed.
-const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 const TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_AGGREGATE_DEPTH: usize = 3;
 const TRANSPARENT_ASSIGNMENT_VALUE_PROJECTED_AGGREGATE_DEPTH: usize = 2;
 const TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH: usize = 33;
@@ -1531,7 +1464,7 @@ fn value_expression_assignment_preserves_transparent_result(
 /// assignment target supplies the exact contextual element type that an array
 /// literal does not carry itself. Only literal-length, caller-isolated arrays
 /// participate; every effectful element independently obeys the ordinary
-/// depth-four call budget, primitive elements may use the carried scalar
+/// complete direct-call rule, primitive elements may use the carried scalar
 /// computation budget, and one nested fixed-array or concrete aggregate
 /// literal consumes the second aggregate level.
 #[allow(clippy::too_many_arguments)]
@@ -1642,7 +1575,7 @@ fn array_value_assignment_preserves_transparent_result(
 /// isolated value, so generic/reference carriers remain fenced while concrete
 /// records and fixed arrays returned by calls can feed member/index shells. A
 /// direct member projection may additionally select from one concrete literal
-/// whose effectful fields are bounded direct-call trees, and may itself sit
+/// whose effectful fields are finite direct-call trees, and may itself sit
 /// below one further computation shell. Concrete literals retain that separate
 /// two-shell frontier instead of inheriting the thirty-three direct-scalar shells.
 /// Aggregate fields remain at two shells as well, and a thirty-fourth direct-scalar
@@ -2199,101 +2132,7 @@ fn value_call_assignment_preserves_transparent_result(
             active_states,
             parameters,
             aliases,
-            TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH,
         )
-}
-
-#[allow(clippy::too_many_arguments)]
-/// Admit a bounded exact-call tree in one statement-call argument. Applying
-/// this independently to every sibling permits bounded width; the explicit
-/// budget prevents unbounded expression depth from becoming relational proof.
-fn statement_call_argument_preserves_transparent_result(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    expression: ExpressionHandle,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
-    remaining_call_depth: usize,
-) -> bool {
-    if expression_reborrows_transparent_alias_binding(program, expression, parameters, aliases) {
-        return false;
-    }
-    if !expression_is_effectful_for_transparent_result(program, expression) {
-        return true;
-    }
-    if remaining_call_depth == 2 && expression_is_effectful_indexed_place(program, expression) {
-        return parameter_relative_place_origin(
-            program,
-            current_machine,
-            expression,
-            parameters,
-            aliases,
-            symbols,
-            active_states,
-        )
-        .is_some();
-    }
-    if remaining_call_depth == 0 {
-        return false;
-    }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    if call.receiver.is_valid()
-        && expression_is_effectful_for_transparent_result(program, call.receiver)
-    {
-        return false;
-    }
-
-    let receiver_members = if call.receiver.is_valid() {
-        let Some(receiver) = receiver_member_chain(program, call.receiver) else {
-            return false;
-        };
-        receiver
-    } else {
-        Vec::new()
-    };
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.iter().any(|argument| {
-        !statement_call_argument_preserves_transparent_result(
-            program,
-            current_machine,
-            *argument,
-            machine_symbols,
-            symbols,
-            active_states,
-            parameters,
-            aliases,
-            remaining_call_depth - 1,
-        )
-    }) {
-        return false;
-    }
-    known_call_written_paths_for_parts(
-        program,
-        call.target_symbol,
-        call.target.as_str(),
-        &receiver_members,
-        arguments,
-        current_machine,
-        machine_symbols,
-        symbols,
-        active_states,
-    )
-    .or_else(|| {
-        known_boundary_call_written_paths_for_parts(
-            program,
-            machine_symbols,
-            symbols,
-            &receiver_members,
-            call.target.as_str(),
-            arguments,
-        )
-    })
-    .is_some()
 }
 
 fn parameter_relative_place_origin(
@@ -2330,7 +2169,6 @@ fn parameter_relative_place_origin(
                         active_states,
                         parameters,
                         aliases,
-                        2,
                     )
                 {
                     return None;

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
+fn transparent_returned_index_frame_accepts_a_finite_exact_call_tree() {
     let source = r#"
     data Bucket {
         cells: [u64; 2];
@@ -969,6 +969,64 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
             "Main::slice_view_repeated_call_index_result",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
+        ("Main::deep_call_index_result", vec!["self.cells"]),
+        ("Main::deep_repeated_call_index_result", vec!["self.matrix"]),
+        (
+            "Main::deep_slice_view_call_index_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::deep_slice_view_repeated_call_index_result",
+            vec!["self.matrix"],
+        ),
+        (
+            "Main::deep_projected_helper_slice_view_call_index_result",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::deep_attached_projected_slice_view_call_index_result",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::deep_slice_view_member_call_index_result",
+            vec!["self.cell_bucket.cells"],
+        ),
+        (
+            "Main::deep_alias_slice_view_call_index_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::deep_member_alias_slice_view_call_index_result",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::deep_repeated_alias_slice_view_call_index_result",
+            vec!["self.matrix"],
+        ),
+        (
+            "Main::deep_member_repeated_alias_slice_view_call_index_result",
+            vec!["self.grid_bucket.rows"],
+        ),
+        (
+            "Main::deep_alias_chain_slice_view_call_index_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::deep_member_alias_chain_slice_view_call_index_result",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::deep_coarse_alias_slice_view_call_index_result",
+            vec!["self.matrix"],
+        ),
+        (
+            "Main::deep_coarse_member_slice_view_call_index_result",
+            vec!["self.row_items"],
+        ),
+        (
+            "Main::deep_coarse_helper_member_slice_view_call_index_result",
+            vec!["self.row_items"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -995,22 +1053,6 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
     }
 
     for name in [
-        "Main::deep_call_index_result",
-        "Main::deep_repeated_call_index_result",
-        "Main::deep_slice_view_call_index_result",
-        "Main::deep_slice_view_repeated_call_index_result",
-        "Main::deep_projected_helper_slice_view_call_index_result",
-        "Main::deep_attached_projected_slice_view_call_index_result",
-        "Main::deep_slice_view_member_call_index_result",
-        "Main::deep_alias_slice_view_call_index_result",
-        "Main::deep_member_alias_slice_view_call_index_result",
-        "Main::deep_repeated_alias_slice_view_call_index_result",
-        "Main::deep_member_repeated_alias_slice_view_call_index_result",
-        "Main::deep_alias_chain_slice_view_call_index_result",
-        "Main::deep_member_alias_chain_slice_view_call_index_result",
-        "Main::deep_coarse_alias_slice_view_call_index_result",
-        "Main::deep_coarse_member_slice_view_call_index_result",
-        "Main::deep_coarse_helper_member_slice_view_call_index_result",
         "Main::recursive_call_index_result",
         "Main::recursive_helper_slice_view_call_index_result",
         "Main::recursive_projected_helper_slice_view_call_index_result",
@@ -1040,13 +1082,13 @@ fn transparent_returned_index_frame_accepts_a_bounded_exact_call_tree() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded depth-two index rung"
+            "{name} must remain opaque without a complete non-rebinding index frame"
         );
     }
 }
 
 #[test]
-fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
+fn stable_alias_index_frame_accepts_a_finite_exact_call_tree() {
     let source = r#"
     data Bucket {
         cells: [u64; 2];
@@ -2166,6 +2208,60 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
             "Main::slice_view_repeated_call_index_alias",
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
+        ("Main::deep_call_index_alias", vec!["self.cells"]),
+        ("Main::deep_slice_view_call_index_alias", vec!["self.cells"]),
+        (
+            "Main::deep_slice_view_repeated_call_index_alias",
+            vec!["self.matrix"],
+        ),
+        (
+            "Main::deep_projected_helper_slice_view_call_index_alias",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::deep_attached_projected_slice_view_call_index_alias",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::deep_slice_view_member_call_index_alias",
+            vec!["self.cell_bucket.cells"],
+        ),
+        (
+            "Main::deep_collection_alias_slice_view_call_index_alias",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::deep_member_collection_alias_slice_view_call_index_alias",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::deep_repeated_collection_alias_slice_view_call_index_alias",
+            vec!["self.matrix"],
+        ),
+        (
+            "Main::deep_member_repeated_collection_alias_slice_view_call_index_alias",
+            vec!["self.grid_bucket.rows"],
+        ),
+        (
+            "Main::deep_alias_chain_slice_view_call_index_alias",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::deep_member_alias_chain_slice_view_call_index_alias",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::deep_coarse_alias_slice_view_call_index_alias",
+            vec!["self.matrix"],
+        ),
+        (
+            "Main::deep_coarse_member_slice_view_call_index_alias",
+            vec!["self.row_items"],
+        ),
+        (
+            "Main::deep_coarse_helper_member_slice_view_call_index_alias",
+            vec!["self.row_items"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -2192,21 +2288,6 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
     }
 
     for name in [
-        "Main::deep_call_index_alias",
-        "Main::deep_slice_view_call_index_alias",
-        "Main::deep_slice_view_repeated_call_index_alias",
-        "Main::deep_projected_helper_slice_view_call_index_alias",
-        "Main::deep_attached_projected_slice_view_call_index_alias",
-        "Main::deep_slice_view_member_call_index_alias",
-        "Main::deep_collection_alias_slice_view_call_index_alias",
-        "Main::deep_member_collection_alias_slice_view_call_index_alias",
-        "Main::deep_repeated_collection_alias_slice_view_call_index_alias",
-        "Main::deep_member_repeated_collection_alias_slice_view_call_index_alias",
-        "Main::deep_alias_chain_slice_view_call_index_alias",
-        "Main::deep_member_alias_chain_slice_view_call_index_alias",
-        "Main::deep_coarse_alias_slice_view_call_index_alias",
-        "Main::deep_coarse_member_slice_view_call_index_alias",
-        "Main::deep_coarse_helper_member_slice_view_call_index_alias",
         "Main::recursive_call_index_alias",
         "Main::recursive_helper_slice_view_call_index_alias",
         "Main::recursive_projected_helper_slice_view_call_index_alias",
@@ -2236,7 +2317,7 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded depth-two alias-index rung"
+            "{name} must remain opaque without a complete non-rebinding alias index"
         );
     }
 
@@ -2347,6 +2428,70 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
             "Main::slice_view_repeated_call_index_alias_rebind",
             vec!["self.other_matrix", "self.other_value", "self.value"],
         ),
+        (
+            "Main::deep_call_index_alias_rebind",
+            vec!["self.other_cells"],
+        ),
+        (
+            "Main::deep_slice_view_call_index_alias_rebind",
+            vec!["self.other_cells"],
+        ),
+        (
+            "Main::deep_slice_view_repeated_call_index_alias_rebind",
+            vec!["self.other_matrix"],
+        ),
+        (
+            "Main::deep_projected_helper_slice_view_call_index_alias_rebind",
+            vec!["self.other_bucket.cells"],
+        ),
+        (
+            "Main::deep_attached_projected_slice_view_call_index_alias_rebind",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::deep_slice_view_member_call_index_alias_rebind",
+            vec!["self.other_cell_bucket.cells"],
+        ),
+        (
+            "Main::deep_collection_alias_slice_view_call_index_alias_rebind",
+            vec!["self.other_cells"],
+        ),
+        (
+            "Main::deep_member_collection_alias_slice_view_call_index_alias_rebind",
+            vec!["self.other_bucket.cells"],
+        ),
+        (
+            "Main::deep_repeated_collection_alias_slice_view_call_index_alias_rebind",
+            vec!["self.other_matrix"],
+        ),
+        (
+            "Main::deep_member_repeated_collection_alias_slice_view_call_index_alias_rebind",
+            vec!["self.other_grid_bucket.rows"],
+        ),
+        (
+            "Main::deep_alias_chain_slice_view_call_index_alias_rebind",
+            vec!["self.other_cells"],
+        ),
+        (
+            "Main::deep_member_alias_chain_slice_view_call_index_alias_rebind",
+            vec!["self.other_bucket.cells"],
+        ),
+        (
+            "Main::deep_coarse_alias_slice_view_call_index_alias_rebind",
+            vec!["self.other_matrix"],
+        ),
+        (
+            "Main::deep_coarse_member_slice_view_call_index_alias_rebind",
+            vec!["self.other_row_items"],
+        ),
+        (
+            "Main::deep_coarse_helper_member_slice_view_call_index_alias_rebind",
+            vec!["self.other_row_items"],
+        ),
+        (
+            "Main::deep_repeated_call_index_alias_rebind",
+            vec!["self.other_matrix"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -2373,21 +2518,6 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
     }
 
     for name in [
-        "Main::deep_call_index_alias_rebind",
-        "Main::deep_slice_view_call_index_alias_rebind",
-        "Main::deep_slice_view_repeated_call_index_alias_rebind",
-        "Main::deep_projected_helper_slice_view_call_index_alias_rebind",
-        "Main::deep_attached_projected_slice_view_call_index_alias_rebind",
-        "Main::deep_slice_view_member_call_index_alias_rebind",
-        "Main::deep_collection_alias_slice_view_call_index_alias_rebind",
-        "Main::deep_member_collection_alias_slice_view_call_index_alias_rebind",
-        "Main::deep_repeated_collection_alias_slice_view_call_index_alias_rebind",
-        "Main::deep_member_repeated_collection_alias_slice_view_call_index_alias_rebind",
-        "Main::deep_alias_chain_slice_view_call_index_alias_rebind",
-        "Main::deep_member_alias_chain_slice_view_call_index_alias_rebind",
-        "Main::deep_coarse_alias_slice_view_call_index_alias_rebind",
-        "Main::deep_coarse_member_slice_view_call_index_alias_rebind",
-        "Main::deep_coarse_helper_member_slice_view_call_index_alias_rebind",
         "Main::binding_reborrow_call_index_alias_rebind",
         "Main::recursive_call_index_alias_rebind",
         "Main::recursive_helper_slice_view_call_index_alias_rebind",
@@ -2404,7 +2534,6 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
         "Main::recursive_coarse_member_slice_view_call_index_alias_rebind",
         "Main::recursive_coarse_helper_member_slice_view_call_index_alias_rebind",
         "Main::recursive_slice_view_call_index_alias_rebind",
-        "Main::deep_repeated_call_index_alias_rebind",
     ] {
         let machine = typed
             .machines()
@@ -2419,7 +2548,7 @@ fn stable_alias_index_frame_accepts_a_bounded_exact_call_tree() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded depth-two alias-rebind rung"
+            "{name} must remain opaque without a proven alias replacement origin"
         );
     }
 }
