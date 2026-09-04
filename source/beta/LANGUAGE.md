@@ -108,8 +108,9 @@ plumbing publishes stdout as an artifact if and only if the compiler returns
 status zero. Accepting a malformed input does not extend this language.
 
 The admitted compiler profile retains at most `0x4000000` source bytes,
-and emits at most `0xffffc` output bytes. It checks each extent before advancing
-and returns nonzero without publishing an artifact on exhaustion.
+and publishes at most `0xfffffc` output bytes. It returns nonzero without
+publishing an artifact on exhaustion; its one-pass process stream may contain a
+late rejected prefix as described above.
 
 ## Canonical assembler reconstruction subject
 
@@ -117,7 +118,7 @@ The current exact subject is small enough for total checked reconstruction:
 
 | Subject fact | Value |
 | --- | ---: |
-| Source bytes | 12,639 |
+| Source bytes | 12,640 |
 | Source lines | 388 |
 | Encoded payload bytes | 1,792 |
 

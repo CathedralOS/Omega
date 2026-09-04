@@ -30,14 +30,6 @@ Epsilon compiler.
 - Every retained feature must cite a current evaluator, compiler, checker, or
   edge-verification customer.
 
-## P0 - Beta floor and Gamma evaluator
-
-- **BETA-ROOT-AUDIT.** Publish the admitted Beta compiler tape's decoded
-  instruction inventory, control-flow reconstruction, memory map, ceilings,
-  SHA-256 identity, exact self-reconstruction, and independent source-to-tape
-  correspondence. Acceptance: an independent reviewer can trace every
-  operation to one Beta rule and reproduce the executed tape byte-for-byte.
-
 ## P1 - Gamma checker
 
 - **GAMMA-DERIVATION-CHECKER.** Implement the smallest proof checker required

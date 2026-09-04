@@ -120,4 +120,5 @@ def main():
     # before tokenization, including bytes inside comments.
     sys.stdout.buffer.write(assemble(sys.stdin.buffer.read().decode('latin1')))
 
-main()
+if __name__ == '__main__':
+    main()

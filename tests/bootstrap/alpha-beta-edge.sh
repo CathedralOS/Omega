@@ -82,6 +82,13 @@ else
   echo "reconstruction SKIP - Beta compiler gate not found"
 fi
 
+echo "--- finite root audit (diagnostic decoder/correspondence) ---"
+if command -v python3 >/dev/null 2>&1; then
+  if python3 "$OMEGA_REPO_ROOT/tests/beta/compiler/root-audit.py"; then :; else rc=1; fi
+else
+  echo "finite root audit SKIP - python3 not found"
+fi
+
 echo ""
 if [ $rc = 0 ]; then
   if [ "$ALPHA_VERIFY_MODE" = full ]; then
