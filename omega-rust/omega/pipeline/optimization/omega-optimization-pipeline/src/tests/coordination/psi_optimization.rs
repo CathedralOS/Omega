@@ -37,6 +37,10 @@ fn compiler_baseline_request_retains_the_selection_and_canonical_budget() {
     let request = compiler_baseline_request_v1(&selections);
     assert_eq!(request.selections(), &selections);
     assert_eq!(
+        request.psi_projection().complete_selection(),
+        selections.identity()
+    );
+    assert_eq!(
         request.budget_per_pass(),
         OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 10_000).unwrap()
     );

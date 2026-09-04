@@ -99,3 +99,24 @@ fn mixed_suite_executes_only_its_psi_projection() {
         Ok(run.external_decisions().clone())
     );
 }
+
+#[test]
+fn projected_entry_rejects_a_projection_from_another_build_selection() {
+    let selections =
+        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
+    let other = OptimizationSelections::new([
+        Optimization::SparseConditionalConstantPropagation,
+        Optimization::SelectedIncomingU12ExactAddImmediate,
+    ])
+    .unwrap();
+
+    assert!(matches!(
+        run_psi_pipeline_for_projection(
+            verified_exact_add_unit(),
+            &selections,
+            &other.project_psi(),
+            budget(8),
+        ),
+        Err(OptimizationRunError::SelectionRegistryMismatch)
+    ));
+}

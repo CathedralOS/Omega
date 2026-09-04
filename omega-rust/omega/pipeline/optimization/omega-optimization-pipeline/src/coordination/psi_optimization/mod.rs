@@ -14,11 +14,10 @@ pub use request::{
     compiler_baseline_request_v1,
 };
 
-use omega_optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use omega_optimization_run_to_abstract_operations::{
     ValidatedOptimizedAbstractPlan, project_optimization_run,
 };
-use omega_psi_optimizer::run_psi_pipeline;
+use omega_psi_optimizer::run_psi_pipeline_for_projection;
 use omega_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, build_verified_psi_optimization_unit,
     lower_artifact_sections_for_optimization,
@@ -41,20 +40,24 @@ pub fn optimize_verified_psi_input(
     request: impl Into<OptimizationPipelineRequest>,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
     let request = request.into();
-    run_verified_psi_input(input, request.selections(), request.budget_per_pass())
+    run_verified_psi_input(input, &request)
 }
 
 fn run_verified_psi_input(
     input: VerifiedPsiOptimizationInput,
-    selections: &OptimizationSelections,
-    budget_per_pass: OptimizationWorkBudget,
+    request: &OptimizationPipelineRequest,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
     let verified = build_verified_psi_optimization_unit(
         input,
         psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
     .map_err(OptimizationPipelineError::UnitBuild)?;
-    let run = run_psi_pipeline(verified, selections, budget_per_pass)
-        .map_err(OptimizationPipelineError::Run)?;
+    let run = run_psi_pipeline_for_projection(
+        verified,
+        request.selections(),
+        request.psi_projection(),
+        request.budget_per_pass(),
+    )
+    .map_err(OptimizationPipelineError::Run)?;
     project_optimization_run(run).map_err(OptimizationPipelineError::AbstractProjection)
 }

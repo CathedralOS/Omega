@@ -45,7 +45,7 @@ pub use pass_manager::{
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
     PsiValidatedCandidateDeclaration, VerifiedPsiOptimizationSession,
     baseline_psi_cost_model_identity, replay_psi_pipeline, replay_psi_registry, run_psi_pipeline,
-    run_psi_registry, validate_external_decision_recording,
+    run_psi_pipeline_for_projection, run_psi_registry, validate_external_decision_recording,
 };
 pub use ranked_rewrites::{
     AppliedCountdownInvariantConstantRelocation, CountdownInvariantConstantRelocation,

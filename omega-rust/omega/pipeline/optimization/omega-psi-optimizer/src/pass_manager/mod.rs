@@ -12,7 +12,10 @@ mod model;
 
 use omega_optimization_core::TargetCostModelIdentity;
 
-pub use entry::{replay_psi_pipeline, replay_psi_registry, run_psi_pipeline, run_psi_registry};
+pub use entry::{
+    replay_psi_pipeline, replay_psi_registry, run_psi_pipeline, run_psi_pipeline_for_projection,
+    run_psi_registry,
+};
 pub use external_policy::validate_external_decision_recording;
 pub use model::{
     CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,

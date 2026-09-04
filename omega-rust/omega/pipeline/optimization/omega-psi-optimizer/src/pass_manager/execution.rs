@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::{
-    OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationExecutionPhase,
+    Optimization, OptimizationCandidateVerdict, OptimizationDecisionRecord,
     OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationReasonCode,
     OptimizationRuleContract, OptimizationRuleSetIdentity, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget,
@@ -13,6 +13,7 @@ use omega_optimization_unit::{
     PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord,
 };
 use omega_optimization_validation::{ValidatedPsiRewrite, validate_psi_rewrite_candidate};
+use psi_optimization::PsiOptimizationSelections;
 
 use crate::{AnalysisManager, OrderedRuleRegistry, RuleAnalysisView};
 
@@ -31,15 +32,24 @@ use super::{
 pub(super) fn run_registries(
     session: VerifiedPsiOptimizationSession,
     selections: &OptimizationSelections,
+    psi_selections: &PsiOptimizationSelections,
     registries: &[OrderedRuleRegistry],
     budget_per_pass: OptimizationWorkBudget,
 ) -> Result<OptimizationRun, OptimizationRunError> {
-    run_registries_inner(session, selections, registries, budget_per_pass, None)
+    run_registries_inner(
+        session,
+        selections,
+        psi_selections,
+        registries,
+        budget_per_pass,
+        None,
+    )
 }
 
 pub(super) fn run_registries_with_external_decisions(
     session: VerifiedPsiOptimizationSession,
     selections: &OptimizationSelections,
+    psi_selections: &PsiOptimizationSelections,
     registries: &[OrderedRuleRegistry],
     budget_per_pass: OptimizationWorkBudget,
     external_decisions: ExternalDecisionLog,
@@ -47,6 +57,7 @@ pub(super) fn run_registries_with_external_decisions(
     run_registries_inner(
         session,
         selections,
+        psi_selections,
         registries,
         budget_per_pass,
         Some(external_decisions),
@@ -56,11 +67,19 @@ pub(super) fn run_registries_with_external_decisions(
 fn run_registries_inner(
     session: VerifiedPsiOptimizationSession,
     selections: &OptimizationSelections,
+    psi_selection: &PsiOptimizationSelections,
     registries: &[OrderedRuleRegistry],
     budget_per_pass: OptimizationWorkBudget,
     supplied_external_decisions: Option<ExternalDecisionLog>,
 ) -> Result<OptimizationRun, OptimizationRunError> {
-    let psi_selections = selections.for_phase(OptimizationExecutionPhase::Psi);
+    let psi_selections = OptimizationSelections::new(
+        psi_selection
+            .as_slice()
+            .iter()
+            .copied()
+            .map(Optimization::from),
+    )
+    .expect("the canonical Psi selection is duplicate-free");
     let initial_identity = session.unit.identity;
     let psi = session.unit.psi;
     let fuel_schedule = session.unit.fuel_schedule;
