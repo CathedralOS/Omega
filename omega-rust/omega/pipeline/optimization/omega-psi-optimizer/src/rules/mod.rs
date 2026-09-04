@@ -9,7 +9,8 @@
 mod catalog;
 mod passes;
 
-use omega_optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
+use omega_optimization_core::OptimizationSelections;
+use psi_optimization::PsiOptimizationSelections;
 
 use crate::{OrderedRuleRegistry, RuleRegistryError};
 
@@ -21,7 +22,17 @@ pub use passes::*;
 pub fn built_in_psi_registry(
     selections: &OptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
-    let mut registries = built_in_psi_registries(selections)?;
+    let projection = selections.project_psi();
+    built_in_psi_registry_for_selections(projection.selections())
+}
+
+/// Construct at most one Psi pass registry from Psi's own target-neutral
+/// selection vocabulary. The unified-build entrance above is a migration
+/// adapter and performs only the exhaustive structural projection.
+pub fn built_in_psi_registry_for_selections(
+    selections: &PsiOptimizationSelections,
+) -> Result<OrderedRuleRegistry, RuleRegistryError> {
+    let mut registries = built_in_psi_registries_for_selections(selections)?;
     if registries.len() > 1 {
         return Err(RuleRegistryError::UnsupportedOptimizationCombination);
     }
@@ -34,8 +45,15 @@ pub fn built_in_psi_registry(
 pub fn built_in_psi_registries(
     selections: &OptimizationSelections,
 ) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
-    let psi_selections = selections.for_phase(OptimizationExecutionPhase::Psi);
-    if let Some(unsupported) = psi_selections.as_slice().iter().find(|optimization| {
+    let projection = selections.project_psi();
+    built_in_psi_registries_for_selections(projection.selections())
+}
+
+/// Resolve exact Psi-owned selections in canonical catalog order.
+pub fn built_in_psi_registries_for_selections(
+    selections: &PsiOptimizationSelections,
+) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
+    if let Some(unsupported) = selections.as_slice().iter().find(|optimization| {
         !PSI_PASS_CATALOG
             .iter()
             .any(|entry| entry.optimization() == **optimization)
@@ -46,7 +64,7 @@ pub fn built_in_psi_registries(
     PSI_PASS_CATALOG
         .iter()
         .copied()
-        .filter(|entry| psi_selections.contains(entry.optimization()))
+        .filter(|entry| selections.contains(entry.optimization()))
         .map(|entry| catalog::registry_for_optimization(entry.optimization()))
         .collect()
 }

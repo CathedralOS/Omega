@@ -237,6 +237,23 @@ impl Optimization {
     }
 }
 
+impl From<psi_optimization::PsiOptimization> for Optimization {
+    fn from(optimization: psi_optimization::PsiOptimization) -> Self {
+        use psi_optimization::PsiOptimization;
+
+        match optimization {
+            PsiOptimization::ControlFlowCleanup => Self::ControlFlowCleanup,
+            PsiOptimization::SparseConditionalConstantPropagation => {
+                Self::SparseConditionalConstantPropagation
+            }
+            PsiOptimization::CopyPropagation => Self::CopyPropagation,
+            PsiOptimization::GlobalValueNumbering => Self::GlobalValueNumbering,
+            PsiOptimization::DeadPureScalarElimination => Self::DeadPureScalarElimination,
+            PsiOptimization::ProofCheckElision => Self::ProofCheckElision,
+        }
+    }
+}
+
 /// Common source-visible catalog header with a representation-specific
 /// payload. Target predicates, candidate constructors, validators, and route
 /// types remain owned by the stage that understands them.

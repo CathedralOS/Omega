@@ -1,11 +1,12 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use omega_optimization_core::{
-    AnalysisKind, Optimization, OptimizationPassIdentity, OptimizationRuleContract,
-    OptimizationRuleIdentity, OptimizationRuleSetIdentity,
+    AnalysisKind, OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
+    OptimizationRuleSetIdentity,
 };
 use omega_optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError};
 use psi_core::{MachineId, ObligationId, OperationId};
+use psi_optimization::PsiOptimization;
 
 use crate::AnalysisProduct;
 
@@ -73,7 +74,7 @@ impl RuleScheduleKey {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleRegistryError {
-    UnsupportedOptimization(Optimization),
+    UnsupportedOptimization(PsiOptimization),
     UnsupportedOptimizationCombination,
     DuplicateRule(OptimizationRuleIdentity),
     MixedPasses {

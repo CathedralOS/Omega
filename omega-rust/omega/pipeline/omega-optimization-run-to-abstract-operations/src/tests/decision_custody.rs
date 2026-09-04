@@ -49,7 +49,7 @@ fn every_psi_suite_replays_every_validated_candidate_declaration() {
     let cases = suite_cases();
     assert_eq!(
         cases.map(|(optimization, _)| optimization),
-        PSI_PASS_CATALOG.map(|entry| entry.optimization()),
+        PSI_PASS_CATALOG.map(|entry| Optimization::from(entry.optimization())),
         "every public Psi pass must have an Applied-evidence custody fixture"
     );
     for (optimization, fixture) in cases {

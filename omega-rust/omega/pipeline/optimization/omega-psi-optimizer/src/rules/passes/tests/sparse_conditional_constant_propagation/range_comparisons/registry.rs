@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn sccp_registry_appends_range_pair_comparisons_after_literal_range_rules() {
     let registry =
-        registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();
+        registry_for_optimization(PsiOptimization::SparseConditionalConstantPropagation).unwrap();
     let contracts = registry.contracts().collect::<Vec<_>>();
     assert_eq!(contracts.len(), 39);
     let expected_range_contracts = [
