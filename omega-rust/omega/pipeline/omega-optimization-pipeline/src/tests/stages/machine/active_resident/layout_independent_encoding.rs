@@ -73,9 +73,7 @@ fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both
 fn active_resident_rematerialization_encoding_rejects_detached_or_corrupt_custody() {
     let (mut corrupt_source, machine) =
         staged_active_resident_rematerialization_and_machine(NativeTarget::linux_x64());
-    crate::stages::machine::active_resident_rematerialization::corrupt_active_resident_rematerialization_custody_for_test(
-        &mut corrupt_source,
-    );
+    crate::corrupt_active_resident_rematerialization_custody_for_test(&mut corrupt_source);
     assert!(matches!(
         stage_optimized_active_resident_rematerialization_selected_form_encoding(
             corrupt_source,

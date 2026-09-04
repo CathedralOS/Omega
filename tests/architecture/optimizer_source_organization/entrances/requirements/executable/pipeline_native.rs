@@ -62,7 +62,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn analyze_and_seal",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/active_resident_rematerialization/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-allocation-legality-to-active-resident-rematerialization/src/lib.rs",
         coordination_marker: "pub fn stage_optimized_active_resident_rematerialization",
     },
     RequiredCoordinationEntrance {

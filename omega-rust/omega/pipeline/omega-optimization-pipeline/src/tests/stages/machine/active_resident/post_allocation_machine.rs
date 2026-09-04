@@ -126,9 +126,7 @@ fn active_resident_rematerialization_reaches_machine_custody_on_both_architectur
         selected_lowering_budget(),
     )
     .unwrap();
-    crate::stages::machine::active_resident_rematerialization::corrupt_active_resident_rematerialization_custody_for_test(
-        &mut corrupted,
-    );
+    crate::corrupt_active_resident_rematerialization_custody_for_test(&mut corrupted);
     assert!(matches!(
         stage_optimized_machine_effects_after_active_resident_rematerialization(&corrupted),
         Err(

@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Optimizer module role: executable entrance. Active-resident pressure-rematerialization stage.
 //!
 //! The producer rebuilds all allocation facts from the transformed selected
@@ -17,7 +19,7 @@ use omega_regalloc::{
     PressureRematerializationPolicy, RecoveryClassificationPolicy, SpillChoicePolicy,
 };
 
-use crate::StagedOptimizedAllocationLegality;
+use omega_live_ranges_to_allocation_legality::StagedOptimizedAllocationLegality;
 
 #[allow(clippy::too_many_arguments)]
 pub fn stage_optimized_active_resident_rematerialization(
