@@ -1,6 +1,12 @@
 use sha2::{Digest, Sha256};
 use std::fmt;
 
+mod post_terminal;
+pub use post_terminal::{
+    PostTerminalOptimizationSelectionProjection, PostTerminalOptimizationSelections,
+    PreTerminalOptimizationSelection,
+};
+
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
 const SELECTION_ENCODING_VERSION: u32 = 15;
 const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v15\0";
@@ -307,30 +313,12 @@ pub struct PsiOptimizationSelectionProjection {
     selected: psi_optimization::PsiOptimizationSelections,
 }
 
-/// Omega-owned projection containing only phases that execute after Terminal
-/// Psi has been published.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PostTerminalOptimizationSelectionProjection {
-    complete_selection: OptimizationSelectionIdentity,
-    selected: OptimizationSelections,
-}
-
 impl PsiOptimizationSelectionProjection {
     pub const fn complete_selection(&self) -> OptimizationSelectionIdentity {
         self.complete_selection
     }
 
     pub const fn selections(&self) -> &psi_optimization::PsiOptimizationSelections {
-        &self.selected
-    }
-}
-
-impl PostTerminalOptimizationSelectionProjection {
-    pub const fn complete_selection(&self) -> OptimizationSelectionIdentity {
-        self.complete_selection
-    }
-
-    pub const fn selections(&self) -> &OptimizationSelections {
         &self.selected
     }
 }
@@ -424,23 +412,25 @@ impl OptimizationSelections {
     pub fn project_post_terminal(&self) -> PostTerminalOptimizationSelectionProjection {
         PostTerminalOptimizationSelectionProjection {
             complete_selection: self.identity(),
-            selected: Self {
-                selected: self
-                    .selected
-                    .iter()
-                    .copied()
-                    .filter(|optimization| match optimization.execution_phase() {
-                        OptimizationExecutionPhase::CheckedTrees
-                        | OptimizationExecutionPhase::Psi => false,
-                        OptimizationExecutionPhase::AbstractOperations
-                        | OptimizationExecutionPhase::TargetOperations
-                        | OptimizationExecutionPhase::SelectedLowering
-                        | OptimizationExecutionPhase::PreAllocation
-                        | OptimizationExecutionPhase::AllocationRecovery
-                        | OptimizationExecutionPhase::PostAllocationMachine
-                        | OptimizationExecutionPhase::FunctionRelativeLayout => true,
-                    })
-                    .collect(),
+            selected: PostTerminalOptimizationSelections {
+                selected: Self {
+                    selected: self
+                        .selected
+                        .iter()
+                        .copied()
+                        .filter(|optimization| match optimization.execution_phase() {
+                            OptimizationExecutionPhase::CheckedTrees
+                            | OptimizationExecutionPhase::Psi => false,
+                            OptimizationExecutionPhase::AbstractOperations
+                            | OptimizationExecutionPhase::TargetOperations
+                            | OptimizationExecutionPhase::SelectedLowering
+                            | OptimizationExecutionPhase::PreAllocation
+                            | OptimizationExecutionPhase::AllocationRecovery
+                            | OptimizationExecutionPhase::PostAllocationMachine
+                            | OptimizationExecutionPhase::FunctionRelativeLayout => true,
+                        })
+                        .collect(),
+                },
             },
         }
     }

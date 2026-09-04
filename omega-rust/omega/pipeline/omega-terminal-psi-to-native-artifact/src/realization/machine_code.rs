@@ -119,7 +119,7 @@ pub(crate) fn emit_realization_machine_code(
                 ));
             }
             let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
-                request.optimization_selections,
+                request.optimization_selections.selections(),
             );
             let optimized = omega_optimization_pipeline::optimize_verified_psi_input(
                 input,
@@ -148,7 +148,10 @@ pub(crate) fn emit_realization_machine_code(
                 ) => realization_error("optimized physical assignment", error),
                 omega_optimization_pipeline::OptimizedNativeContinuationError::SelectedPhysical(
                     error,
-                ) => selected_physical_pipeline_failed(request.optimization_selections, error),
+                ) => selected_physical_pipeline_failed(
+                    request.optimization_selections.selections(),
+                    error,
+                ),
             })?;
             match continuation {
                 omega_optimization_pipeline::StagedOptimizedNativeContinuation::CoverageFallbackAssigned(
@@ -187,7 +190,7 @@ pub(crate) fn emit_realization_machine_code(
                         })
                     }
                     other => Err(selected_physical_pipeline_not_publishable(
-                        request.optimization_selections,
+                        request.optimization_selections.selections(),
                         &other,
                     )),
                 },

@@ -2220,7 +2220,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         )
         .collect::<Vec<_>>();
     let profile = psi_proof_admission::AdmissionProfile::default();
-    let optimizations = omega_optimization_core::OptimizationSelections::default();
+    let optimizations = omega_optimization_core::PostTerminalOptimizationSelections::default();
     let permission_policy =
         omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
             proposal

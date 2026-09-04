@@ -796,9 +796,12 @@ fn terminal_product_retains_the_exact_pending_physical_selection() {
     let proposal = report
         .terminal_native_realization_proposal()
         .expect("target-constrained Terminal product retains its native proposal");
-    let expected = omega_optimization_core::OptimizationSelections::new([
-        Optimization::SelectedIncomingU12ExactAddImmediate,
-    ])
+    let expected = omega_optimization_core::PostTerminalOptimizationSelections::new(
+        omega_optimization_core::OptimizationSelections::new([
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap(),
+    )
     .unwrap();
     assert_eq!(
         proposal.post_terminal_optimizations().selections(),

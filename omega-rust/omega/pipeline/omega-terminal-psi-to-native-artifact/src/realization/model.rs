@@ -164,7 +164,8 @@ pub struct NativeRealizationRequest<'request> {
     pub terminal_authority_permission_policy:
         crate::realization::TerminalAuthorityPermissionPolicy,
     pub program_entry: NativeProgramEntrySettlement<'request>,
-    pub optimization_selections: &'request omega_optimization_core::OptimizationSelections,
+    pub optimization_selections:
+        &'request omega_optimization_core::PostTerminalOptimizationSelections,
     pub selected_provider_plans: &'request omega_effects::SelectedProviderPlanFacts,
     pub external_binding_rows: &'request [omega_calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'request>],
@@ -200,7 +201,8 @@ pub struct RequestedNativeRealizationRequest<'request> {
     pub terminal_authority_permission_policy:
         crate::realization::TerminalAuthorityPermissionPolicy,
     pub program_entry: NativeProgramEntrySettlement<'request>,
-    pub optimization_selections: &'request omega_optimization_core::OptimizationSelections,
+    pub optimization_selections:
+        &'request omega_optimization_core::PostTerminalOptimizationSelections,
     pub selected_provider_plans: &'request omega_effects::SelectedProviderPlanFacts,
     pub external_binding_rows: &'request [omega_calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'request>],
@@ -221,7 +223,8 @@ pub(crate) struct NativeRealizationCoreRequest<'request> {
     pub terminal_authority_permission_policy:
         crate::realization::TerminalAuthorityPermissionPolicy,
     pub program_entry: NativeProgramEntrySettlement<'request>,
-    pub optimization_selections: &'request omega_optimization_core::OptimizationSelections,
+    pub optimization_selections:
+        &'request omega_optimization_core::PostTerminalOptimizationSelections,
     pub selected_provider_plans: &'request omega_effects::SelectedProviderPlanFacts,
     pub external_binding_rows: &'request [omega_calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'request>],

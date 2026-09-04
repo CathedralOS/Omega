@@ -502,7 +502,7 @@ machine Main::main(&mut self) {
     let native = realize_retained_terminal_artifact_with_source_evaluated_imports(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         &[],
     )
     .unwrap_or_else(|diagnostics| panic!("FMA native custody failed: {diagnostics:#?}"));
@@ -647,7 +647,7 @@ machine Main::main(&mut self) {
     let native = realize_retained_terminal_artifact_with_source_evaluated_imports(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         &[],
     )
     .unwrap_or_else(|diagnostics| {

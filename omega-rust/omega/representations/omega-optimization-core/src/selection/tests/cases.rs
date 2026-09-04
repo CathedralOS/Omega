@@ -1,6 +1,6 @@
 use super::super::{
     Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
-    OptimizationSelections, SelectionDecodeError,
+    OptimizationSelections, PostTerminalOptimizationSelections, SelectionDecodeError,
 };
 use std::collections::BTreeSet;
 
@@ -277,7 +277,7 @@ fn post_terminal_projection_excludes_earlier_phases_and_retains_complete_identit
 
     assert_eq!(projection.complete_selection(), selections.identity());
     assert_eq!(
-        projection.selections().as_slice(),
+        projection.selections().selections().as_slice(),
         &[Optimization::SelectedIncomingU12ExactAddImmediate]
     );
 
@@ -285,4 +285,21 @@ fn post_terminal_projection_excludes_earlier_phases_and_retains_complete_identit
     let projection = psi_only.project_post_terminal();
     assert_eq!(projection.complete_selection(), psi_only.identity());
     assert!(projection.selections().is_empty());
+}
+
+#[test]
+fn post_terminal_selection_type_rejects_every_earlier_phase_name() {
+    for optimization in Optimization::ALL {
+        let selected = OptimizationSelections::new([optimization]).unwrap();
+        let result = PostTerminalOptimizationSelections::new(selected);
+        assert_eq!(
+            result.is_ok(),
+            !matches!(
+                optimization.execution_phase(),
+                OptimizationExecutionPhase::CheckedTrees | OptimizationExecutionPhase::Psi
+            ),
+            "post-Terminal classification drifted for {}",
+            optimization.build_case_name()
+        );
+    }
 }

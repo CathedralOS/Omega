@@ -1,4 +1,4 @@
-use omega_optimization_core::OptimizationSelections;
+use omega_optimization_core::{OptimizationSelections, PostTerminalOptimizationSelections};
 use psi_diagnostics::Diagnostic;
 
 pub(super) struct PreparedTerminalNativeArtifact {
@@ -64,7 +64,7 @@ pub(super) fn realize(
     profile: &psi_proof_admission::AdmissionProfile,
     terminal_authority_permission_policy:
         omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
-    optimization_selections: &OptimizationSelections,
+    optimization_selections: &PostTerminalOptimizationSelections,
     prepared_terminal: PreparedTerminalNativeArtifact,
     prepared_input: &omega_terminal_psi_to_native_artifact::PreparedNativeRealizationInput,
 ) -> Result<omega_terminal_psi_to_native_artifact::NativeArtifact, Vec<Diagnostic>> {

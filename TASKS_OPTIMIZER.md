@@ -20,8 +20,9 @@ needed for independent replay through publication.
   consume its validated result; retarget current Psi passes; then replace the
   remaining optional physical-optimizer context and empty-path physical
   continuation with explicit later phase results. Terminal-to-abstract native
-  admission is now unconditional. Keep the same representation on both sides
-  of a phase unless vocabulary, interpretation, invariants, or published-product
+  admission is now unconditional, and resumed lowering accepts only the closed
+  post-Terminal selection type. Keep the same representation on both sides of
+  a phase unless vocabulary, interpretation, invariants, or published-product
   identity change. Acceptance: empty and nonempty selections, standalone
   Terminal production, resumed lowering under a separate authority, and every
   native continuation traverse one stage graph with no optimization bypass or
