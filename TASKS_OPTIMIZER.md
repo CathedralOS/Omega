@@ -21,12 +21,11 @@ needed for independent replay through publication.
   remaining identity/selected physical fork with explicit later phase results.
   Terminal-to-abstract native admission is now unconditional, resumed lowering
   accepts only the closed post-Terminal selection type, and the transitional
-  physical continuation is an explicit `Identity | Selected` result rather
-  than selection absence. Selected execution now publishes a validated target-
-  operation stage result before physical routing instead of hiding both steps
-  behind one coordinator. Identity execution still reaches target lowering
-  through its role-specific conveyor, so the two continuations must converge.
-  Keep
+  optimization continuation is an explicit `Identity | Selected` result rather
+  than selection absence. Both cases now enter one target-lowering stage and
+  publish a closed target-stage result while retaining ordinary, ranked, and
+  selected authority separately. Physical assignment and optimization still
+  use distinct consumers of that result and must converge. Keep
   the same representation on both sides of a phase unless vocabulary,
   interpretation, invariants, or published-product identity change.
   Acceptance: empty and nonempty selections, standalone Terminal production,

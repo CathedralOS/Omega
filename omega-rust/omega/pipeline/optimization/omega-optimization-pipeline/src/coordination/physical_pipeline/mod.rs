@@ -1,22 +1,21 @@
 //! Optimizer module role: executable entrance. Compiler-facing physical optimizer coordination.
 //!
 //! This entrance consumes validated target operations, reads the exact selected
-//! phase set, and sends custody into one named route. [`input`] retains
-//! compatibility helpers that compose provider-aware target lowering with this
-//! entrance, [`model`] defines the returned carrier, [`error`] defines the
-//! closed failure surface, and [`routes`] owns the lower route taxonomy.
+//! phase set, and sends custody into one named route. [`model`] defines the
+//! returned carrier, [`error`] defines the closed failure surface, and
+//! [`routes`] owns the lower route taxonomy. The test-only [`input`] helper
+//! composes target lowering to exercise the complete route in isolation.
 
 mod error;
+#[cfg(test)]
 mod input;
 mod model;
 mod routes;
 
 use crate::ValidatedOptimizedTargetOperations;
 pub use error::OptimizedVerifiedPhysicalPipelineError;
-pub(crate) use input::{
-    stage_optimized_verified_physical_pipeline_with_provider_executions,
-    stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation,
-};
+#[cfg(test)]
+pub(crate) use input::stage_optimized_verified_physical_pipeline_with_provider_executions;
 pub use model::StagedOptimizedVerifiedPhysicalPipeline;
 
 pub(crate) use routes::{

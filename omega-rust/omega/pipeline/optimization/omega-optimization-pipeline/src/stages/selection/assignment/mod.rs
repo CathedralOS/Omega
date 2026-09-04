@@ -6,14 +6,9 @@
 
 mod construction;
 mod model;
-mod source;
 mod validation;
 
 pub use model::*;
-pub(crate) use source::{
-    stage_optimized_assignment_with_provider_executions,
-    stage_optimized_assignment_with_provider_executions_and_installation,
-};
 pub use validation::validate_optimized_assignment_custody;
 
 use crate::ValidatedOptimizedTargetOperations;
