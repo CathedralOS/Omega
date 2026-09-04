@@ -23,7 +23,7 @@ use psi_terminal::{
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
     TerminalAffineCleanupAction, TerminalDynamicDescriptorParameter, TerminalDynamicRequirement,
-    TerminalPsiIdentity,
+    TerminalPlacedViewInput, TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -63,6 +63,32 @@ pub struct TargetNativeCallbackArgument {
 pub struct TargetOperationPlanWithNativeCallbacks {
     pub plan: TargetOperationPlan,
     pub native_callback_arguments: Vec<TargetNativeCallbackArgument>,
+}
+
+/// One exact plan-laid input joined to its target pointer placement.
+///
+/// The referent geometry remains explicit audit data. The pointer placement
+/// carries no backing, lifetime, or access-event authority by itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetPlacedViewInput {
+    pub terminal: TerminalPlacedViewInput,
+    pub abi_parameter_ordinal: u32,
+    pub referent_byte_size: u64,
+    pub referent_alignment: u64,
+    pub placement: ValuePlacement,
+}
+
+/// Staging contract for the first direct-entry plan-laid ABI slice.
+///
+/// `entry_call_plan` is the complete entry ABI for this carrier. The nested
+/// ordinary plan intentionally retains its pre-existing ABI and cannot be
+/// mistaken for the placed-input-aware entry without explicitly unwrapping
+/// this type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetOperationPlanWithPlacedViewInputs {
+    pub plan: TargetOperationPlan,
+    pub entry_call_plan: CallPlan,
+    pub placed_view_inputs: Vec<TargetPlacedViewInput>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

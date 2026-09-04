@@ -872,6 +872,162 @@ machine Inspector::inspect(
 }
 
 #[test]
+fn direct_placed_view_input_reaches_exact_dual_target_entry_abi() {
+    let (main, inputs) = write_cross_package_program(
+        "placed-view-target-entry",
+        r#"
+data Inspector {}
+machine Inspector::inspect(
+    &mut self,
+    view: &mut Placed<UartPlacement, Registers>
+) {}
+"#,
+    );
+    let checked = compile_to_checked_with_packages(&main, None, inputs)
+        .expect("direct placed-view input should compile");
+    let inspect = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Inspector::inspect")
+        .expect("placed-view consumer");
+    let source_input = checked
+        .facts
+        .placed_view_inputs
+        .iter()
+        .find(|input| input.machine == inspect.symbol)
+        .expect("checked direct placed-view input");
+    let lowered =
+        lower_machine(&checked, "Inspector::inspect").expect("lower placed-view consumer");
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode placed-view Terminal module");
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("encode placed-view proof bundle");
+
+    assert!(matches!(
+        omega_psi_to_abstract_operations::lower_artifact_sections(
+            &semantic,
+            &proof,
+            &psi_proof_admission::AdmissionProfile::default(),
+        ),
+        Err(omega_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
+    let abstract_plan =
+        omega_psi_to_abstract_operations::lower_artifact_sections_with_placed_view_inputs(
+            &semantic,
+            &proof,
+            &psi_proof_admission::AdmissionProfile::default(),
+        )
+        .expect("retain exact placed-view custody");
+    let [terminal_input] = abstract_plan.placed_view_inputs.as_slice() else {
+        panic!("one retained placed-view input")
+    };
+    assert_eq!(
+        terminal_input,
+        &lowered.semantic_module.placed_view_inputs[0]
+    );
+    let selections = [
+        omega_abstract_operations_to_target_operations::SelectedPlacedViewInputPlan {
+            terminal_input,
+            placement_plan: &source_input.placement,
+        },
+    ];
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = omega_abstract_operations_to_target_operations::
+            lower_to_target_operations_with_placed_view_inputs(
+                &abstract_plan,
+                target,
+                &selections,
+            )
+            .expect("lower exact placed-view target entry ABI");
+        let [placed] = target_plan.placed_view_inputs.as_slice() else {
+            panic!("one target placed-view input")
+        };
+        assert_eq!(placed.terminal, *terminal_input);
+        assert_eq!(placed.abi_parameter_ordinal, 0);
+        assert_eq!(placed.referent_byte_size, 24);
+        assert_eq!(placed.referent_alignment, 8);
+        assert_eq!(placed.placement, target_plan.entry_call_plan.parameters[0]);
+        assert_eq!(
+            placed.placement.shape.byte_size as usize,
+            target.pointer_size
+        );
+        assert_eq!(
+            placed.placement.shape.alignment as usize,
+            target.pointer_alignment
+        );
+
+        let mut corrupted = target_plan.clone();
+        corrupted.placed_view_inputs[0]
+            .terminal
+            .placement_commitment[0] ^= 1;
+        assert_eq!(
+            omega_abstract_operations_to_target_operations::
+                validate_placed_view_input_translation(
+                    &abstract_plan,
+                    &selections,
+                    target,
+                    &corrupted,
+                ),
+            Err(omega_abstract_operations_to_target_operations::
+                PlacedViewInputTranslationError::CandidateInputRosterMismatch)
+        );
+
+        let mut corrupted = target_plan.clone();
+        corrupted.entry_call_plan.parameters[0].shape.byte_size = 4;
+        assert_eq!(
+            omega_abstract_operations_to_target_operations::
+                validate_placed_view_input_translation(
+                    &abstract_plan,
+                    &selections,
+                    target,
+                    &corrupted,
+                ),
+            Err(omega_abstract_operations_to_target_operations::
+                PlacedViewInputTranslationError::CandidateEntryCallPlanMismatch)
+        );
+
+        let other_target = if target == NativeTarget::linux_x64() {
+            NativeTarget::linux_arm64()
+        } else {
+            NativeTarget::linux_x64()
+        };
+        assert_eq!(
+            omega_abstract_operations_to_target_operations::
+                validate_placed_view_input_translation(
+                    &abstract_plan,
+                    &selections,
+                    other_target,
+                    &target_plan,
+                ),
+            Err(omega_abstract_operations_to_target_operations::
+                PlacedViewInputTranslationError::CandidatePlanMismatch)
+        );
+    }
+
+    let mut drifted = abstract_plan.clone();
+    drifted.placed_view_inputs[0].placement_report_fingerprint ^= 1;
+    let drifted_selections = [
+        omega_abstract_operations_to_target_operations::SelectedPlacedViewInputPlan {
+            terminal_input: &drifted.placed_view_inputs[0],
+            placement_plan: &source_input.placement,
+        },
+    ];
+    assert!(matches!(
+        omega_abstract_operations_to_target_operations::
+            lower_to_target_operations_with_placed_view_inputs(
+                &drifted,
+                NativeTarget::linux_x64(),
+                &drifted_selections,
+            ),
+        Err(omega_abstract_operations_to_target_operations::LoweringError::PlacedViewInput(
+            omega_abstract_operations_to_target_operations::PlacedViewInputTranslationError::PlacementPlanIdentityMismatch
+        ))
+    ));
+}
+
+#[test]
 fn placed_view_input_custody_excludes_open_and_nonchecked_machines() {
     let source = POLICY_SOURCE.replace(
         "data Main {}",

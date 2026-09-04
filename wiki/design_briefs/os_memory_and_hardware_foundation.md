@@ -1024,6 +1024,17 @@ This section records the implementation boundary, not its history. The P2
 [`TASKS.md`](../../TASKS.md) own the remaining source establishment,
 retirement, transfer, effect-footprint, and target-lowering work.
 
+One bounded target-lowering custody rung is live for a direct program-entry
+`Placed<P, T>` reference on an otherwise parameterless one-block Unit machine.
+The exact canonical Terminal input row survives into a distinct Abstract
+carrier, then rejoins the complete validated placement plan before target
+selection derives its pointer ABI. The target row retains referent size and
+alignment for audit, but the physical argument itself is only a pointer-shaped
+ABI value. It is deliberately not a structural parameter and does not assert
+ownership of `T`. No backing, access event, installation, or machine-code
+authority follows from this rung; consumers without the dedicated carrier fail
+closed.
+
 ## IPC and DMA
 
 Omega's responsibility stops at general range authority, mapping

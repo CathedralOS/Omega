@@ -3,6 +3,15 @@ use omega_target::NativeTarget;
 use omega_target_operations::BoundarySettlementRealization;
 use psi_core::{BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId};
 
+/// Exact sealed placement plan selected for one retained Terminal placed-view
+/// input. Construction grants no backing or access authority; lowering rejoins
+/// the complete plan identity and content commitment to the retained row.
+#[derive(Debug, Clone, Copy)]
+pub struct SelectedPlacedViewInputPlan<'plan> {
+    pub terminal_input: &'plan psi_terminal::TerminalPlacedViewInput,
+    pub placement_plan: &'plan psi_access_plans::ValidatedPlacementPlan,
+}
+
 /// Borrowed exact-plan and deployment inputs for one Terminal nearest-FMA
 /// occurrence. Construction grants no authority: the Abstract-to-Target
 /// coordinator independently rejoins every field before producing target IR.
@@ -56,6 +65,7 @@ pub enum LoweringError {
     /// Parameter-rooted path qualifications are preserved through the
     /// prephysical optimizer boundary but have no target-operation carrier yet.
     UnsupportedProjectedStructuralQualifications,
+    PlacedViewInput(PlacedViewInputTranslationError),
     InvalidRankedCountdown(MachineId),
     EntryFunctionMissing(MachineId),
     ProviderInstallationIdentityMismatch,
@@ -262,6 +272,28 @@ pub enum LoweringError {
         expected: usize,
         actual: usize,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlacedViewInputTranslationError {
+    UnsupportedInputCount(usize),
+    SelectionCountMismatch { expected: usize, actual: usize },
+    InputIsNotDirectEntry,
+    UnsupportedEntryFunctionShape(MachineId),
+    SelectionRowMismatch,
+    PlacementPlanIdentityMismatch,
+    PlacementPlanHasNoConcreteSize,
+    TargetPointerShapeUnsupported,
+    AbiPlan(PlanDiagnostic),
+    CandidatePlanMismatch,
+    CandidateEntryCallPlanMismatch,
+    CandidateInputRosterMismatch,
+}
+
+impl From<PlacedViewInputTranslationError> for LoweringError {
+    fn from(error: PlacedViewInputTranslationError) -> Self {
+        Self::PlacedViewInput(error)
+    }
 }
 
 impl From<crate::AbstractToTargetTranslationValidationError> for LoweringError {
