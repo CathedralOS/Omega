@@ -7,6 +7,9 @@
 use std::collections::BTreeSet;
 
 use omega_abstract_operations::AbstractOperation;
+use omega_abstract_operations_optimizer::{
+    built_in_psi_registry, replay_psi_pipeline, run_psi_pipeline,
+};
 use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use omega_optimization_validation::{
     OptimizationUnitValidationError, OptimizedAbstractPlanProjectionError,
@@ -14,7 +17,6 @@ use omega_optimization_validation::{
     PrePhysicalOptimizationManifestDecodeError, PrePhysicalOptimizationManifestError,
     validate_pre_physical_optimization_manifest,
 };
-use omega_psi_optimizer::{built_in_psi_registry, replay_psi_pipeline, run_psi_pipeline};
 use omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 use omega_target::NativeTarget;
 use psi_core::{

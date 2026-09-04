@@ -266,6 +266,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-abstract-operations-optimizer"
+version = "0.1.0"
+dependencies = [
+ "omega-abstract-operations",
+ "omega-optimization-core",
+ "omega-optimization-policy",
+ "omega-optimization-unit",
+ "omega-optimization-validation",
+ "omega-psi-to-abstract-operations",
+ "psi-core",
+ "psi-optimization",
+ "psi-proof-admission",
+ "psi-terminal",
+ "psi-terminal-codec",
+ "psi-terminal-fuel",
+ "psi-terminal-semantics",
+ "psi-terminal-verifier",
+]
+
+[[package]]
 name = "omega-abstract-operations-to-target-operations"
 version = "0.1.0"
 dependencies = [
@@ -939,6 +959,7 @@ name = "omega-native-differential-test"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
+ "omega-abstract-operations-optimizer",
  "omega-abstract-operations-to-target-operations",
  "omega-artifacts",
  "omega-assigned-target-operations",
@@ -964,7 +985,6 @@ dependencies = [
  "omega-optimization-validation",
  "omega-program-entry-plan",
  "omega-provider-planning",
- "omega-psi-optimizer",
  "omega-psi-to-abstract-operations",
  "omega-regalloc",
  "omega-register-model",
@@ -1030,6 +1050,7 @@ name = "omega-optimization-pipeline"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
+ "omega-abstract-operations-optimizer",
  "omega-abstract-operations-to-target-operations",
  "omega-assigned-target-operations",
  "omega-calling-conventions",
@@ -1044,7 +1065,6 @@ dependencies = [
  "omega-optimization-run-to-abstract-operations",
  "omega-optimization-unit",
  "omega-optimization-validation",
- "omega-psi-optimizer",
  "omega-psi-to-abstract-operations",
  "omega-regalloc",
  "omega-register-model",
@@ -1089,12 +1109,12 @@ name = "omega-optimization-run-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
+ "omega-abstract-operations-optimizer",
  "omega-abstract-operations-to-target-operations",
  "omega-optimization-core",
  "omega-optimization-policy",
  "omega-optimization-unit",
  "omega-optimization-validation",
- "omega-psi-optimizer",
  "omega-psi-to-abstract-operations",
  "omega-target",
  "omega-target-operations",
@@ -1311,26 +1331,6 @@ dependencies = [
  "psi-typed-trees-to-checked-trees",
  "psi-validation",
  "sha2",
-]
-
-[[package]]
-name = "omega-psi-optimizer"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-optimization-core",
- "omega-optimization-policy",
- "omega-optimization-unit",
- "omega-optimization-validation",
- "omega-psi-to-abstract-operations",
- "psi-core",
- "psi-optimization",
- "psi-proof-admission",
- "psi-terminal",
- "psi-terminal-codec",
- "psi-terminal-fuel",
- "psi-terminal-semantics",
- "psi-terminal-verifier",
 ]
 
 [[package]]

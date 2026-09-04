@@ -256,7 +256,10 @@ Migration proceeds in dependency order:
    boundaries become explicit; do not preserve that directory as an
    architectural layer. Deterministic optimization policy likewise lives at
    pipeline rank beside its consumers rather than beneath that directory, as
-   does the independent optimization-unit validator.
+   does the independent optimization-unit validator. The former
+   `omega-psi-optimizer` is now named `omega-abstract-operations-optimizer`:
+   its units are reconstructed from Terminal Psi and it runs after publication,
+   so it cannot stand in for the still-distinct portable Psi phase.
 6. Add checked-tree pruning only after its product-root identity, ownership,
    proof, effect, and boundary-retention rules are independently reconstructible.
 7. Remove transitional names, branches, and documentation only after ordinary,

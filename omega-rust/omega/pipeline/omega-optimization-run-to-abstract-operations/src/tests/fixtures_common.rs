@@ -227,7 +227,13 @@ pub(super) fn run(
     selections: OptimizationSelections,
 ) -> OptimizationRun {
     let registry = built_in_psi_registry(&selections).unwrap();
-    omega_psi_optimizer::run_psi_registry(verified, &selections, &registry, work_budget()).unwrap()
+    omega_abstract_operations_optimizer::run_psi_registry(
+        verified,
+        &selections,
+        &registry,
+        work_budget(),
+    )
+    .unwrap()
 }
 
 pub(super) fn run_pipeline(

@@ -622,7 +622,7 @@ route:
 | What checked selection reaches native compilation after release rollback? | `omega-compiler/src/compiler/optimization/mod.rs` -> `rollback/`, `native_realization.rs` |
 | Which Psi optimizations were explicitly requested, and what verified plan leaves? | `omega-optimization-pipeline/src/coordination/psi_optimization/mod.rs` |
 | Which physical phase composition runs next? | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` |
-| Which exact Psi passes and local rules are enabled? | `omega-psi-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
+| Which exact post-Terminal abstract-operation passes and local rules are enabled? | `omega-abstract-operations-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
 | Which selected-lowering or allocation-recovery rule is enabled? | `omega-regalloc/src/rules/<phase>/mod.rs` -> adjacent `catalog.rs` |
 | Which post-allocation machine rule is enabled for the ISA? | `omega-machine-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
 | How are recorded policy decisions admitted for offline work? | `omega-optimization-policy-offline/src/corpus/mod.rs` -> `capture.rs`, `validate.rs`, `identity.rs`, `split.rs` |
@@ -645,6 +645,8 @@ omega-rust/omega/
     omega-register-model/          # register views, units, aliases, ABI facts
     omega-selected-instructions/   # pre-allocation plan and admitted machine effects
   pipeline/
+    omega-abstract-operations-optimizer/
+                                      # post-Terminal abstract-operation analyses and rewrites
     omega-machine-optimizer/        # post-allocation symbolic-machine optimization stage
     omega-optimization-policy/      # deterministic decisions over validated candidates
     omega-optimization-validation/  # independent optimization-unit validation
@@ -660,7 +662,6 @@ omega-rust/omega/
     omega-terminal-psi-to-native-artifact/
                                       # settlement, realization, providers, wrapper encoding/object
     optimization/
-      omega-psi-optimizer/            # Psi analyses, catalog, rules, pass manager
       omega-optimization-pipeline/    # transitional cross-stage custody and compiler routes
   tooling/
     omega-optimization-policy-offline/ # corpus admission, source splits, reference training/evaluation

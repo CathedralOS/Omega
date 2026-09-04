@@ -1,11 +1,11 @@
 //! Typed rejection vocabulary for the projection boundary.
 
+use omega_abstract_operations_optimizer::RuleRegistryError;
 use omega_optimization_core::OptimizationCandidateIdentity;
 use omega_optimization_validation::{
     OptimizationUnitValidationError, OptimizedAbstractPlanProjectionError,
     PrePhysicalOptimizationManifestError,
 };
-use omega_psi_optimizer::RuleRegistryError;
 use psi_core::MachineId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

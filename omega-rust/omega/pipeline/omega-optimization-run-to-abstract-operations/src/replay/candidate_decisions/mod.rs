@@ -5,7 +5,7 @@ mod baseline;
 mod declarations;
 mod manifests;
 
-use omega_psi_optimizer::{OptimizationRun, OrderedRuleRegistry};
+use omega_abstract_operations_optimizer::{OptimizationRun, OrderedRuleRegistry};
 
 use super::commits::ReplayedCommits;
 use crate::OptimizedAbstractProjectionError;

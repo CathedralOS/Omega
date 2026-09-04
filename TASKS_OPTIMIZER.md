@@ -17,7 +17,8 @@ needed for independent replay through publication.
   [`optimization_phases.md`](wiki/architecture/pipeline/optimization_phases.md):
   establish phase-specific selections and identity execution; introduce the
   target-neutral pre-Terminal Psi optimization entrance; make terminalization
-  consume its validated result; retarget current Psi passes; then replace the
+  consume its validated result; port the applicable algorithms from the
+  post-Terminal abstract-operation optimizer; then replace the
   remaining identity/selected physical fork with explicit later phase results.
   Terminal-to-abstract native admission is now unconditional, resumed lowering
   accepts only the closed post-Terminal selection type, and the transitional

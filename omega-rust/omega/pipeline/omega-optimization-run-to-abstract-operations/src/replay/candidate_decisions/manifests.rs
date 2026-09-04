@@ -1,6 +1,6 @@
 //! Exact retained-declaration to pass-manifest custody.
 
-use omega_psi_optimizer::{OptimizationRun, OrderedRuleRegistry};
+use omega_abstract_operations_optimizer::{OptimizationRun, OrderedRuleRegistry};
 
 use crate::OptimizedAbstractProjectionError;
 use crate::error::{AppliedDecisionCustodyAxis, custody_error};

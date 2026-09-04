@@ -1,10 +1,10 @@
 //! Transformation-ledger, pass-manifest, and aggregate-usage replay.
 
+use omega_abstract_operations_optimizer::OptimizationRun;
 use omega_optimization_core::{
     OptimizationPassManifestRecord, OptimizationRuleSetIdentity, OptimizationWorkUsage,
 };
 use omega_optimization_unit::PsiTransformationRecord;
-use omega_psi_optimizer::OptimizationRun;
 
 use super::work_usage;
 use crate::OptimizedAbstractProjectionError;

@@ -1,6 +1,7 @@
 //! Applied-decision publication custody.
 
 use super::*;
+use omega_abstract_operations_optimizer::{OptimizationRun, PSI_PASS_CATALOG};
 use omega_optimization_core::{
     AcceptedObligationFactIdentity, AnalysisKind, AnalysisSet, OptimizationCandidateIdentity,
     OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationFactReference,
@@ -11,7 +12,6 @@ use omega_optimization_policy::{
     BaselinePolicy, ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionLog,
     ExternalDecisionPoint, ValidatedCandidateSummary,
 };
-use omega_psi_optimizer::{OptimizationRun, PSI_PASS_CATALOG};
 
 type Fixture = fn() -> VerifiedPsiOptimizationUnit;
 

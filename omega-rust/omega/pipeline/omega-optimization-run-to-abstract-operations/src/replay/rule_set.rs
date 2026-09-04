@@ -1,7 +1,7 @@
 //! Selected catalog reconstruction and canonical whole-run rule identity.
 
+use omega_abstract_operations_optimizer::{OrderedRuleRegistry, built_in_psi_registries};
 use omega_optimization_core::{OptimizationRuleSetIdentity, OptimizationSelections};
-use omega_psi_optimizer::{OrderedRuleRegistry, built_in_psi_registries};
 
 use crate::OptimizedAbstractProjectionError;
 

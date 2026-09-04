@@ -477,7 +477,7 @@ fn offline_policy_corpus_excludes_compiler_activation_and_process_owners() {
             "omega-build-evaluation",
             "omega-compiler",
             "omega-optimization-pipeline",
-            "omega-psi-optimizer",
+            "omega-abstract-operations-optimizer",
         ],
     );
 }
@@ -5560,7 +5560,7 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
 fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
     let root = workspace_root();
     let replay_root = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_induction",
+        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/analyses/control_flow/countdown_induction",
     );
     for relative in ["replay.rs", "replay/region.rs"] {
         let path = replay_root.join(relative);
@@ -5602,7 +5602,7 @@ fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
 fn countdown_invariant_constant_replay_is_independent_and_analysis_only() {
     let root = workspace_root();
     let analysis_root = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_invariant_constants",
+        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/analyses/control_flow/countdown_invariant_constants",
     );
     let replay = std::fs::read_to_string(analysis_root.join("replay.rs"))
         .expect("read countdown invariant-constant replay leaf");
@@ -5681,7 +5681,7 @@ fn countdown_invariant_constant_replay_is_independent_and_analysis_only() {
 fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_only() {
     let root = workspace_root();
     let analysis_root = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_invariant_constant_placement",
+        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/analyses/control_flow/countdown_invariant_constant_placement",
     );
     let replay = std::fs::read_to_string(analysis_root.join("replay.rs"))
         .expect("read countdown invariant-constant placement replay leaf");
@@ -5742,7 +5742,7 @@ fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_onl
 fn countdown_invariant_constant_relocation_is_exact_independent_and_atomic() {
     let root = workspace_root();
     let rewrite_root = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation",
+        "omega-rust/omega/pipeline/omega-abstract-operations-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation",
     );
     let validation = std::fs::read_to_string(rewrite_root.join("validate.rs"))
         .expect("read countdown invariant-constant relocation validator");

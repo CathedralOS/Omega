@@ -2,12 +2,12 @@
 
 use super::*;
 
-use omega_optimization_unit::{ProvenanceDisposition, PsiRealizationSite};
-use omega_psi_optimizer::{
+use omega_abstract_operations_optimizer::{
     CountdownInvariantConstantRelocationError, apply_countdown_invariant_constant_relocation,
     propose_countdown_invariant_constant_relocations,
     validate_countdown_invariant_constant_relocation,
 };
+use omega_optimization_unit::{ProvenanceDisposition, PsiRealizationSite};
 
 #[test]
 fn exact_pair_relocation_applies_atomically_and_ledgers_source_custody() {
