@@ -2,9 +2,10 @@
 
 //! Optimizer module role: crate map. Fail-closed optimized-native realization.
 //!
-//! The ordinary empty-selection compiler path never enters this crate. The
-//! explicit optimizer begins at [`coordination`], then descends through the
-//! named custody stages cataloged by [`stages`].
+//! Empty and nonempty selections share the same canonical Psi-phase entrance;
+//! empty is the validated identity schedule. The optimizer begins at
+//! [`coordination`], then descends through the named custody stages cataloged
+//! by [`stages`].
 
 mod coordination;
 mod stages;
