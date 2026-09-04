@@ -25,7 +25,16 @@ pub(in crate::flow) fn apply_call_invalidations(
         borrow,
         borrow_call,
         &mut ctx.state_mutation_summary_cache,
-    );
+    )
+    .and_then(|places| {
+        close_storage_places_over_aliases(
+            program,
+            machine.symbol,
+            state.symbol,
+            borrow_call.statement_index,
+            places,
+        )
+    });
     let invalidations_start = ctx.invalidations.events.len();
     let post_contexts = match mutated_places {
         None => HandleSpan::empty(),

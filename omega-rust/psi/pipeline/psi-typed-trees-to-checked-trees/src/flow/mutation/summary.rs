@@ -127,7 +127,9 @@ fn ensure_state_mutation_summaries(
         let Some(state) = find_state(program, borrow_state.state_symbol) else {
             continue;
         };
-        let mut writes = collect_state_mutation_summary_places(program, state);
+        let direct_writes = collect_state_mutation_summary_places(program, state);
+        let direct_complete = direct_writes.is_some();
+        let mut writes = direct_writes.unwrap_or_default();
         let core_receiver_write = core_method_mutates_receiver(program, state);
         if core_receiver_write
             && let Some(receiver) = state_receiver_summary_place(program, state)
@@ -138,7 +140,8 @@ fn ensure_state_mutation_summaries(
         cache.states.push(StateMutationSummary {
             state_symbol: state.symbol,
             complete: core_receiver_write
-                || (state_has_concrete_body_signature(program, state)
+                || (direct_complete
+                    && state_has_concrete_body_signature(program, state)
                     && inferred_completeness
                         .iter()
                         .find_map(|(symbol, complete)| {
@@ -303,7 +306,7 @@ fn state_summary_exposes_place(
 fn collect_state_mutation_summary_places(
     program: &psi_typed_trees::TypedTrees,
     state: &psi_typed_trees::state::State,
-) -> Vec<CanonicalPlace> {
+) -> Option<Vec<CanonicalPlace>> {
     let machine_symbol = program
         .machines()
         .iter()
@@ -328,18 +331,16 @@ fn collect_state_mutation_summary_places(
         .iter()
         .enumerate()
     {
-        let StatementNode::Assignment(assignment) = statement else {
+        let StatementNode::Assignment(_) = statement else {
             continue;
         };
-        let Some(mut place) = canonical_place_from_expression_in_state(
+        let place = super::local_origins::assignment_storage_place(
             program,
+            machine_symbol,
             state.symbol,
             statement_index,
-            assignment.target,
-        ) else {
-            continue;
-        };
-        normalize_write_only_range_place(program, state.symbol, &mut place);
+            statement,
+        )?;
         let psi_facts::PlaceRoot::Symbol(root_symbol) = place.root else {
             continue;
         };
@@ -350,7 +351,7 @@ fn collect_state_mutation_summary_places(
         }
     }
 
-    writes
+    Some(writes)
 }
 
 fn instantiate_call_relative_place(

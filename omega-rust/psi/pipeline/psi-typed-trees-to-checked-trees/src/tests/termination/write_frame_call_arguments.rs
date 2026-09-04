@@ -67,6 +67,63 @@ fn direct_frames_close_over_current_aliases_without_redirecting_prior_aliases() 
 }
 
 #[test]
+fn direct_alias_stores_invalidate_arithmetic_facts_in_both_spellings() {
+    let cases = [
+        (
+            "scalar alias to owner",
+            "self.value = 0;
+             let alias: &mut u8 = &mut self.value;
+             alias = 255;
+             self.value = self.value + 1;",
+        ),
+        (
+            "owner to scalar alias",
+            "let alias: &mut u8 = &mut self.value;
+             alias = 0;
+             self.value = 255;
+             self.value = alias + 1;",
+        ),
+        (
+            "record alias to owner",
+            "self.value = 0;
+             let receiver: &mut Main = &mut self;
+             receiver.value = 255;
+             self.value = self.value + 1;",
+        ),
+        (
+            "owner to record alias",
+            "let receiver: &mut Main = &mut self;
+             receiver.value = 0;
+             self.value = 255;
+             self.value = receiver.value + 1;",
+        ),
+    ];
+    let mut missing_overflow = Vec::new();
+    for (name, body) in cases {
+        let source = format!(
+            "data Main {{ value: u8; }}
+             machine Main::run(&mut self) {{ {body} }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+        match psi_validation::validate_program(&typed) {
+            Err(diagnostics)
+                if diagnostics.iter().any(|diagnostic| {
+                    let message = diagnostic.to_string();
+                    message.contains("Main::run") && message.contains("may overflow")
+                }) => {}
+            result => missing_overflow.push(format!("{name}: {result:?}")),
+        }
+    }
+    assert!(
+        missing_overflow.is_empty(),
+        "stale alias facts must not prove u8 overflow safety: {missing_overflow:?}"
+    );
+}
+
+#[test]
 fn local_receiver_calls_invalidate_arithmetic_facts_on_caller_storage() {
     for call in [
         "receiver.write();",

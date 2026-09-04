@@ -5,8 +5,11 @@
 //! call validation, alias-origin inference, or transition fixed points.
 
 use super::boundary_calls::receiver_requires_boundary_frame;
+use super::caller_aliases::{
+    AssignmentWriteTarget, LocalWriteOrigin, assignment_write_target,
+    local_write_origins_before_statement,
+};
 use super::caller_aliases::{CallerWriteSite, close_caller_aliases};
-use super::caller_aliases::{LocalWriteOrigin, local_write_origins_before_statement};
 use super::{
     coarse_place_path, known_boundary_call_written_paths,
     known_boundary_call_written_paths_for_parts, known_call_written_paths_for_parts,
@@ -48,6 +51,34 @@ pub struct CallFrameResolver<'program> {
 }
 
 impl<'program> CallFrameResolver<'program> {
+    pub fn assignment_write_target(
+        &self,
+        current_machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<AssignmentWriteTarget> {
+        assignment_write_target(self.program, current_machine, &self.symbols, statement)
+    }
+
+    /// Direct store only; operand calls have their own value-expression frame.
+    pub fn assignment_write_frame(
+        &self,
+        current_machine: &Machine,
+        statement: &StatementNode,
+    ) -> NormalizedWriteFrame {
+        let written = match self.assignment_write_target(current_machine, statement) {
+            Some(AssignmentWriteTarget::LocalBindingReplacement { path }) => Some(vec![path]),
+            Some(AssignmentWriteTarget::Storage { path }) => close_caller_aliases(
+                self.program,
+                current_machine,
+                &self.symbols,
+                CallerWriteSite::Statement(statement),
+                vec![path],
+            ),
+            None => None,
+        };
+        written.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+    }
+
     /// Recover the exact prefix origins shared with inferred state frames.
     /// `None` means the prefix cannot establish every write-capable local's
     /// origin; a consumer must not treat such locals as private storage.

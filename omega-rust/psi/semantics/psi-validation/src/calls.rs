@@ -35,7 +35,9 @@ pub(crate) use recursion::{
 };
 use result_use::validate_result_use;
 use write_frames::machine_state_by_symbol;
-pub use write_frames::{CallFrameResolver, LocalWriteOrigin, frame_paths_overlap};
+pub use write_frames::{
+    AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,
+};
 pub(crate) use write_frames::{
     boundary_trait_signature, free_machine_entry_state, statement_value_expression_roots,
 };

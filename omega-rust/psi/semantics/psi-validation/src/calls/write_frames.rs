@@ -52,7 +52,7 @@ use call_trees::{
     parameter_relative_expression_preserves_transparent_result,
     stable_alias_index_expression_preserves_origin,
 };
-pub use caller_aliases::LocalWriteOrigin;
+pub use caller_aliases::{AssignmentWriteTarget, LocalWriteOrigin};
 pub(crate) use demand::statement_value_expression_roots;
 pub use demand::{CallFrameResolver, frame_paths_overlap};
 use demand::{collect_expression_call_written_paths, syntactic_call_written_paths};
@@ -357,6 +357,12 @@ fn summarize_state_written_paths(
 struct StateWritePrefix {
     written: Vec<String>,
     aliases: Vec<(String, FramePlaceOrigin)>,
+    assignment: Option<AssignmentWriteTarget>,
+}
+
+enum StateWriteQuery<'statement> {
+    Before(&'statement StatementNode),
+    Assignment(&'statement StatementNode),
 }
 
 /// The same state transfer computes whole-body summaries and the alias context
@@ -369,7 +375,7 @@ fn walk_state_write_prefix(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
-    before: Option<&StatementNode>,
+    query: Option<StateWriteQuery<'_>>,
 ) -> Option<StateWritePrefix> {
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
@@ -384,12 +390,16 @@ fn walk_state_write_prefix(
     }
 
     for statement in program.statement_table.statements(state.statement_nodes) {
-        if before.is_some_and(|before| std::ptr::eq(before, statement)) {
+        if matches!(query, Some(StateWriteQuery::Before(before)) if std::ptr::eq(before, statement))
+        {
             return Some(StateWritePrefix {
                 written,
                 aliases: local_alias_origins,
+                assignment: None,
             });
         }
+        let queried_assignment = matches!(query,
+            Some(StateWriteQuery::Assignment(candidate)) if std::ptr::eq(candidate, statement));
         let declared_local_alias_origin = match statement {
             StatementNode::LocalData(local)
                 if type_may_carry_write(program, local.type_reference)
@@ -491,6 +501,15 @@ fn walk_state_write_prefix(
                         },
                     )?
                 {
+                    if queried_assignment {
+                        return Some(StateWritePrefix {
+                            written,
+                            aliases: local_alias_origins,
+                            assignment: Some(AssignmentWriteTarget::LocalBindingReplacement {
+                                path: relative.to_owned(),
+                            }),
+                        });
+                    }
                     continue;
                 }
                 let relative = stable_assignment_target_path(
@@ -504,6 +523,13 @@ fn walk_state_write_prefix(
                     &local_alias_origins,
                     symbols,
                 )?;
+                if queried_assignment {
+                    return Some(StateWritePrefix {
+                        written,
+                        aliases: local_alias_origins,
+                        assignment: Some(AssignmentWriteTarget::Storage { path: relative }),
+                    });
+                }
                 if relative_state_path_is_visible(&relative, parameters, &locals)?
                     && !written.contains(&relative)
                 {
@@ -634,9 +660,10 @@ fn walk_state_write_prefix(
         }
     }
 
-    before.is_none().then_some(StateWritePrefix {
+    query.is_none().then_some(StateWritePrefix {
         written,
         aliases: local_alias_origins,
+        assignment: None,
     })
 }
 
