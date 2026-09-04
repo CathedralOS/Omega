@@ -1,5 +1,5 @@
-// PRV4 step 1c: an EXTERNAL LEAF feeds the host-ABI merge -- the row
-// derived from `satisfies ... via` reaches the general-import lowering
+// PRV4 step 1c: an EXTERNAL LEAF row derived from `satisfies ... via` reaches
+// the selected target's general-import lowering
 // (Mach-O symbols are the _-prefixed spellings). COMPILE-scoped: the
 // general import path has a PRE-EXISTING argument-marshaling gap (the
 // old compatibility-row twin also lost the argument; the runtime exit pins

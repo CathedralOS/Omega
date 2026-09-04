@@ -1,7 +1,7 @@
 // std::time rung 5: the TimeHost seam bound NATIVELY on windows_x86_64 --
 // QueryPerformanceCounter/-Frequency and GetSystemTimePreciseAsFileTime as
 // OUT-PARAM u64 imports, plus the two wall-clock calibration CONSTANTS
-// lowered with no call at all (PlatformCallData::ConstantResult).
+// lowered with no call at all (a target-owned constant result).
 //
 // Native assertions are INEQUALITIES (the real clock moves); the sibling
 // runtime_time_host_virtual_exit asserts the interpreter's EXACT virtual

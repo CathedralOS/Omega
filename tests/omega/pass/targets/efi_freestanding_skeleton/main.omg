@@ -4,10 +4,10 @@
 // through RAX to the firmware).
 //
 // `subsystem efi_application` makes the target FREESTANDING: it trusts no host
-// boundary packages (absence = denial), so the backend builds against an empty
-// host ABI plan -- zero bindings, zero import thunks, and the PE emitter's
-// empty-import-table path produces a clean import-free PE32+ subsystem-10
-// image. With no data fields the image also has zero absolute fixups, so an
+// boundary packages (absence = denial), so target realization admits zero
+// external bindings and zero import thunks. The PE emitter's empty-import-table
+// path produces a clean import-free PE32+ subsystem-10 image. With no data
+// fields the image also has zero absolute fixups, so an
 // arbitrary-base load (OVMF) is trivially sound. The entry's literal terminal
 // lands in EAX and `ret` returns it to the firmware as the EFI_STATUS.
 data Main { }

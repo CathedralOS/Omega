@@ -23,8 +23,8 @@
 //!   correct default falls out of the type. `Unspecified(value)` is the
 //!   escape hatch: any loader value a platform invents, with no compiler
 //!   release.
-//! - `freestanding` ("trust no host packages" -> the empty host-ABI plan) is
-//!   stated as itself -- previously fused into the `efi_application` name.
+//! - `freestanding` ("trust no host packages") is stated as itself --
+//!   previously fused into the `efi_application` name.
 //! - Absent build.omg == an empty `build` machine == the zero `Build`: the
 //!   hosted console default.
 //! - `optimizations` is an exact set of individually named transformations.
@@ -274,7 +274,7 @@ impl BuildMachineFilesystemScope {
 pub struct BuildConfig {
     /// PE optional-header Subsystem word (console 3 when unstated).
     pub subsystem: u16,
-    /// Freestanding image: empty host-ABI plan, no import thunks.
+    /// Freestanding image: no ambient host packages or import thunks.
     pub freestanding: bool,
     /// Exact root-build optimization selections. Empty is the ordinary
     /// compiler path and constructs no optimizer machinery.

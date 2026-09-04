@@ -7,10 +7,7 @@ use omega_calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
 };
 use omega_effects::provider_plan::{
-    EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
-    EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
-    EvaluatedForeignImport, ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
-    ServiceSchema,
+    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
@@ -34,25 +31,6 @@ struct Fixture {
 
 fn symbol(index: u32) -> SymbolHandle {
     SymbolHandle::from_arena_index(index)
-}
-
-fn evaluated_import(locator: omega_effects::NormalizedForeignLocator) -> EvaluatedForeignImport {
-    let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)
-        .expect("valid fixture usage");
-    let receipt = EvaluatedBindingReceipt::from_evaluation(
-        None,
-        "fixture::producer".to_owned(),
-        EvaluatedBindingProducerClosureDigest::from_bytes([11; 32]).unwrap(),
-        1,
-        usage,
-        EvaluatedBindingEvaluationDigest::from_bytes([12; 32]).unwrap(),
-        1,
-        EvaluatedBindingMaterializationDigest::from_bytes([13; 32]).unwrap(),
-        locator.identity_digest(),
-    )
-    .expect("valid fixture receipt");
-    EvaluatedForeignImport::from_retained_evidence(locator, receipt)
-        .expect("receipt matches fixture locator")
 }
 
 fn fixture(inherited_owner: bool) -> Fixture {
@@ -407,57 +385,6 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
         "the requirement's semantic `self` carrier and ordinary value parameter both cross the external ABI",
     );
     assert!(entry.call.result.is_none());
-}
-
-#[test]
-fn normalized_locator_survives_provider_selection_and_host_abi_bridge_atomically() {
-    let mut fixture = fixture(false);
-    fixture.plans[0].target = "windows_x86_64".to_owned();
-    let locator = omega_effects::normalize_foreign_locator(
-        omega_effects::ForeignLocatorCandidate::PeByOrdinal {
-            library: b"opaque\xff.dll".to_vec(),
-            ordinal: 17,
-        },
-        omega_target::TargetProfile::WindowsX64,
-    )
-    .expect("valid normalized PE-by-ordinal locator");
-    fixture.plans[0].rows.push(ProviderPlanRow {
-        method: METHOD_NAME.to_owned(),
-        requirement_identity: fixture.requirement_identity.clone(),
-        requirement_lifetime_partition: Vec::new(),
-        binding: ProviderBinding::Import {
-            evaluated: evaluated_import(locator.clone()),
-        },
-    });
-
-    let rows = extract_external_binding_rows(
-        Some("windows_x86_64"),
-        omega_target::NativeTarget::windows_x64(),
-        &fixture.plans,
-        &fixture.realizations,
-        &fixture.typed,
-    )
-    .expect("normalized locator should cross the compiler ABI bridge");
-    assert!(matches!(
-        rows.as_slice(),
-        [omega_calling_conventions::ExternalBindingRow {
-            binding: omega_calling_conventions::ExternalBindingKind::Import {
-                locator: retained,
-            },
-            ..
-        }] if retained == &locator
-    ));
-
-    let mut host_abi =
-        omega_calling_conventions::build_host_abi_plan(omega_target::NativeTarget::windows_x64());
-    omega_calling_conventions::merge_external_binding_rows(&mut host_abi, &rows)
-        .expect("normalized locator should enter the host ABI plan");
-    assert!(host_abi.bindings.iter().any(|(_, binding)| matches!(
-        &binding.mechanism,
-        omega_calling_conventions::HostBindingMechanism::Import {
-            locator: omega_calling_conventions::HostImportLocator::Normalized(retained),
-        } if retained == &locator
-    )));
 }
 
 #[test]

@@ -586,11 +586,9 @@ pub fn evaluated_syscall_identity_digest(
     omega_target::evaluated_syscall_identity_digest(target, number)
 }
 
-/// How one method binds on one target -- the Binding sum's union with the
-/// platform tables' mechanisms. Aligned with the host-ABI plan's
-/// `HostBindingMechanism` so PRV4's relocation is a rename. Instructions are
-/// checked `asm` bodies whose catalog contracts contribute their obligations;
-/// they are deliberately not a second, bodiless provider-binding mechanism.
+/// How one method binds on one target. Instructions are checked `asm` bodies
+/// whose catalog contracts contribute their obligations; they are deliberately
+/// not a second, bodiless provider-binding mechanism.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderBinding {
     /// One evaluated, target-validated physical foreign locator. Its atomic
