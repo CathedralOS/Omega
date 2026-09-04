@@ -27,10 +27,10 @@ pub(super) const PRODUCTION: SemanticLadder = SemanticLadder {
 pub(super) const COVERAGE: SemanticLadder = SemanticLadder {
     family: "fixed/precolored segmented-home coverage",
     paths: &[
-        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/mod.rs",
-        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/fixture.rs",
-        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/positive.rs",
-        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/corruption.rs",
-        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/budget.rs",
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/mod.rs",
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/fixture.rs",
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/positive.rs",
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/corruption.rs",
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_segment_homes/budget.rs",
     ],
 };

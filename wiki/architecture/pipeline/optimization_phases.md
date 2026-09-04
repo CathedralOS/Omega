@@ -252,11 +252,12 @@ Migration proceeds in dependency order:
    authority carriers such as ranked execution without using them as optimization
    bypasses. Register allocation and the post-allocation machine optimizer are
    now ordinary pipeline stage crates rather than children of the transitional
-   `pipeline/optimization` island. Move the remaining stage owners out as their
-   boundaries become explicit; do not preserve that directory as an
-   architectural layer. Deterministic optimization policy likewise lives at
-   pipeline rank beside its consumers rather than beneath that directory, as
-   does the independent optimization-unit validator. The former
+   `pipeline/optimization` island. That directory is now removed rather than
+   preserved as an architectural layer. The remaining
+   `omega-optimization-pipeline` crate is a transitional cross-stage
+   coordinator to split and delete, not the replacement layer. Deterministic
+   optimization policy likewise lives at pipeline rank beside its consumers,
+   as does the independent optimization-unit validator. The former
    `omega-psi-optimizer` is now named `omega-abstract-operations-optimizer`:
    its units are reconstructed from Terminal Psi and it runs after publication,
    so it cannot stand in for the still-distinct portable Psi phase.

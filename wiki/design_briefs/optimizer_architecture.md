@@ -648,6 +648,7 @@ omega-rust/omega/
     omega-abstract-operations-optimizer/
                                       # post-Terminal abstract-operation analyses and rewrites
     omega-machine-optimizer/        # post-allocation symbolic-machine optimization stage
+    omega-optimization-pipeline/    # transitional cross-stage coordinator to dissolve
     omega-optimization-policy/      # deterministic decisions over validated candidates
     omega-optimization-validation/  # independent optimization-unit validation
     omega-regalloc/                 # physical analyses, allocation, recovery rules
@@ -661,8 +662,6 @@ omega-rust/omega/
                                       # legalization and selection stage entrances
     omega-terminal-psi-to-native-artifact/
                                       # settlement, realization, providers, wrapper encoding/object
-    optimization/
-      omega-optimization-pipeline/    # transitional cross-stage custody and compiler routes
   tooling/
     omega-optimization-policy-offline/ # corpus admission, source splits, reference training/evaluation
 ```
