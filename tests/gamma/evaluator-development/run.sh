@@ -36,8 +36,8 @@ import subprocess
 from pathlib import Path
 
 artifacts = (
-    ("BETA", 37095, "02618b10cf275e82b11821d7dfb0bb3bd2120410677bf4bcd2b6b555aa0d5e54"),
-    ("TAPE", 6934, "a72bc962c99eb5cec80ffd9246d19c8e7bee3c23229c47e25d846f1080d0cac2"),
+    ("BETA", 39299, "c41edb7fa686292b34b6cdf1698a8b9fadd39e99a886c6ef57acb5451b1d02bc"),
+    ("TAPE", 7303, "6d630367b9d472f4f17a4bc51e0c282f7ab0ff0129a81236e78a276751680bd2"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -116,6 +116,23 @@ for name, (source, sealed_input, expected) in positive.items():
     if run(source, sealed_input) != (0, expected):
         raise SystemExit(f"{name} did not evaluate as expected")
 
+application_results = {
+    "empty publication": (
+        b"(def main () Int (pair 0 1))\n", (0, b""),
+    ),
+    "published nonzero outcome": (
+        b"(def main () Int (let emitted Int (write 65) (pair 2 1)))\n",
+        (2, b"A"),
+    ),
+    "discarded failure output": (
+        b"(def main () Int (let emitted Int (write 65) (pair 249 0)))\n",
+        (249, b""),
+    ),
+}
+for name, (source, expected) in application_results.items():
+    if run(source) != expected:
+        raise SystemExit(f"{name} did not publish as expected")
+
 negative = {
     "missing main": (b"(def other () Int 0)\n", 1),
     "duplicate function": (
@@ -157,8 +174,20 @@ negative = {
     "pair write value": (
         b"(def main () Int (write (pair 1 2)))\n", 2,
     ),
-    "pair main result": (
+    "invalid application publish flag": (
         b"(def main () Int (pair 1 2))\n", 2,
+    ),
+    "pair application status": (
+        b"(def main () Int (pair (pair 1 2) 1))\n", 2,
+    ),
+    "unassigned application status": (
+        b"(def main () Int (pair 255 0))\n", 2,
+    ),
+    "discarded complete application": (
+        b"(def main () Int (pair 0 0))\n", 2,
+    ),
+    "empty nonzero publication": (
+        b"(def main () Int (pair 2 1))\n", 2,
     ),
     "division by zero": (
         b"(def main () Int (/ 1 0))\n", 2,

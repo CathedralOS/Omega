@@ -53,4 +53,42 @@ set -e
 [ "$STATUS" -eq 2 ]
 [ "$(cat "$TMP/not-published")" = unchanged ]
 
-echo "Gamma composed artifact: exact pair identity and atomic publication passed"
+cat > "$TMP/empty.gamma" <<'EOF'
+(def main () Int (pair 0 1))
+EOF
+printf 'unchanged' > "$TMP/empty-published"
+python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$TMP/empty.gamma" \
+        --output "$TMP/empty-published" --timeout 10
+[ ! -s "$TMP/empty-published" ]
+
+cat > "$TMP/published-failure.gamma" <<'EOF'
+(def main () Int
+    (let emitted Int (write 65)
+        (pair 2 1)))
+EOF
+printf 'unchanged' > "$TMP/failure-published"
+set +e
+python3 "$INVOKE" --evaluator "$TMP/evaluator" \
+        --source "$TMP/published-failure.gamma" \
+        --output "$TMP/failure-published" --timeout 10
+STATUS=$?
+set -e
+[ "$STATUS" -eq 2 ]
+[ "$(cat "$TMP/failure-published")" = A ]
+
+cat > "$TMP/discarded.gamma" <<'EOF'
+(def main () Int
+    (let emitted Int (write 65)
+        (pair 249 0)))
+EOF
+printf 'unchanged' > "$TMP/discarded-output"
+set +e
+python3 "$INVOKE" --evaluator "$TMP/evaluator" \
+        --source "$TMP/discarded.gamma" --output "$TMP/discarded-output" \
+        --timeout 10
+STATUS=$?
+set -e
+[ "$STATUS" -eq 249 ]
+[ "$(cat "$TMP/discarded-output")" = unchanged ]
+
+echo "Gamma composed artifact: exact identity and generic atomic publication passed"

@@ -38,7 +38,7 @@ def main() -> int:
         process.wait()
         return 3
 
-    if process.returncode != 0:
+    if process.returncode != 0 and not output:
         return process.returncode
 
     destination = Path(arguments.output)
@@ -53,7 +53,7 @@ def main() -> int:
     except BaseException:
         Path(temporary_name).unlink(missing_ok=True)
         raise
-    return 0
+    return process.returncode
 
 
 if __name__ == "__main__":
