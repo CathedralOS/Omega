@@ -1271,7 +1271,8 @@
                     (fail)))))))))))
 
 (def check_type_arms
-  ((index Int) (owner Int) (globals Int) (locals Int) (arm_type Int)) Int
+  ((index Int) (owner Int) (globals Int) (locals Int) (arm_type Int)
+   (seen Int) (arm_count Int)) Int
   (let arm Int (skip index)
     (if (eq (read arm) 40)
       (let pattern Int (skip (token_end arm))
@@ -1283,32 +1284,38 @@
                 (find_constructor_arity constructor constructor_end)
                 (if (eq actual_owner owner)
                   (if (pattern_shape_valid pattern constructor_end arity)
-                    (let arm_locals Int
-                      (if (eq arity 0)
-                        locals
-                        (collect_pattern_locals
-                          (skip constructor_end)
-                          (find_constructor_declaration_end
-                            constructor constructor_end)
-                          arity locals))
-                      (let body Int
-                        (check_type_expression
-                          (pattern_body pattern constructor_end arity)
-                          globals arm_locals)
-                        (let result_type Int
-                          (if (eq arm_type 0)
-                            (typed_value body)
-                            (if (eq arm_type (typed_value body))
-                              arm_type
-                              (fail)))
-                          (let arm_close Int (skip (typed_after body))
-                            (if (eq (read arm_close) 41)
-                              (let next Int (skip (token_end arm_close))
-                                (if (eq (read next) 41)
-                                  (pair (token_end next) result_type)
-                                  (check_type_arms
-                                    next owner globals locals result_type)))
-                              (fail))))))
+                    (let next_seen Int
+                      (name_trie_insert seen constructor_end constructor 1)
+                      (let arm_locals Int
+                        (if (eq arity 0)
+                          locals
+                          (collect_pattern_locals
+                            (skip constructor_end)
+                            (find_constructor_declaration_end
+                              constructor constructor_end)
+                            arity locals))
+                        (let body Int
+                          (check_type_expression
+                            (pattern_body pattern constructor_end arity)
+                            globals arm_locals)
+                          (let result_type Int
+                            (if (eq arm_type 0)
+                              (typed_value body)
+                              (if (eq arm_type (typed_value body))
+                                arm_type
+                                (fail)))
+                            (let arm_close Int (skip (typed_after body))
+                              (if (eq (read arm_close) 41)
+                                (let next Int (skip (token_end arm_close))
+                                  (if (eq (read next) 41)
+                                    (if (eq (+ arm_count 1)
+                                            (constructor_count owner))
+                                      (pair (token_end next) result_type)
+                                      (fail))
+                                    (check_type_arms
+                                      next owner globals locals result_type
+                                      next_seen (+ arm_count 1))))
+                                (fail)))))))
                     (fail))
                   (fail)))))))
       (fail))))
@@ -1318,7 +1325,8 @@
   (let typed Int (check_type_expression scrutinee globals locals)
     (if (lt 0 (typed_value typed))
       (check_type_arms
-        (typed_after typed) (typed_value typed) globals locals 0)
+        (typed_after typed) (typed_value typed) globals locals 0
+        (empty_name_trie) 0)
       (fail))))
 
 (def check_type_call
@@ -1860,12 +1868,14 @@
     pattern))
 
 (def pattern_body ((pattern Int) (constructor_end Int) (arity Int)) Int
-  (if (eq arity 0)
-    (skip constructor_end)
+  (if (eq (read pattern) 40)
     (let after_pattern Int (pattern_after_binders constructor_end arity)
       (if (eq after_pattern 0)
         (fail)
-        (skip after_pattern)))))
+        (skip after_pattern)))
+    (if (eq arity 0)
+      (skip constructor_end)
+      (fail))))
 
 (def pattern_after_binders ((index Int) (remaining Int)) Int
   (if (eq remaining 0)
@@ -1879,11 +1889,9 @@
         (pattern_after_binders (token_end binder) (- remaining 1))))))
 
 (def pattern_shape_valid ((pattern Int) (constructor_end Int) (arity Int)) Int
-  (if (eq arity 0)
-    (if (eq (read pattern) 40) 0 1)
-    (if (eq (read pattern) 40)
-      (if (eq (pattern_after_binders constructor_end arity) 0) 0 1)
-      0)))
+  (if (eq (read pattern) 40)
+    (if (eq (pattern_after_binders constructor_end arity) 0) 0 1)
+    (if (eq arity 0) 1 0)))
 
 (def emit_second_prefixes ((remaining Int)) Int
   (if (eq remaining 0)
@@ -1946,7 +1954,7 @@
                                     after_body))))))))))))))))))
 
 (def emit_match_arms
-  ((index Int) (expected_tag Int) (count Int) (owner Int) (match_start Int)
+  ((index Int) (arm_index Int) (count Int) (owner Int) (match_start Int)
    (globals Int)) Int
   (let arm Int (skip index)
     (if (eq (read arm) 40)
@@ -1957,10 +1965,9 @@
             (let actual_owner Int (find_constructor_owner constructor constructor_end)
               (let arity Int (find_constructor_arity constructor constructor_end)
               (if (pattern_shape_valid pattern constructor_end arity)
-              (if (eq actual_tag (+ expected_tag 1))
                 (if (eq actual_owner owner)
                   (let body Int (pattern_body pattern constructor_end arity)
-                    (if (eq (+ expected_tag 1) count)
+                    (if (eq (+ arm_index 1) count)
                       (let after_body Int
                         (emit_arm_body
                           body pattern constructor_end arity match_start globals)
@@ -1981,7 +1988,7 @@
                                     (let ignored7 Int (write '\s')
                                       (let ignored8 Int (emit_match_name match_start)
                                         (let ignored9 Int (write '\s')
-                                          (let ignored10 Int (emit_decimal expected_tag)
+                                          (let ignored10 Int (emit_decimal (- actual_tag 1))
                                             (let ignored11 Int (write ')')
                                               (let ignored12 Int (write '\s')
                                                 (let after_body Int
@@ -1994,13 +2001,12 @@
                                                         (let after_rest Int
                                                           (emit_match_arms
                                                             (token_end arm_close)
-                                                            (+ expected_tag 1)
+                                                            (+ arm_index 1)
                                                             count owner match_start globals)
                                                           (let ignored14 Int (write ')')
                                                             after_rest)))
                                                       (fail)))))))))))))))))))
                   (fail))
-                (fail))
               (fail))))))))
       (fail))))
 
