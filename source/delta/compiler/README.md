@@ -5,9 +5,9 @@ source transformer executed by the selected Beta-authored Gamma evaluator.
 `delta_compiler.composed` binds those exact source and evaluator-tape identities
 under `GammaComposedV1`.
 
-The current stage accepts the Gamma-shaped scalar core plus finite data whose
-constructors carry any finite number of `Int` or known nominal fields, and
-declaration-order exhaustive matches. It assigns constructor tags in declaration
+The current stage accepts the Gamma-shaped scalar core, immutable `Bytes`, and
+finite data whose constructors carry any finite number of `Int`, `Bytes`, or
+known nominal fields, plus declaration-order exhaustive matches. It assigns constructor tags in declaration
 order. Payload-bearing nominal values become immutable `(pair tag product)`
 nodes whose products are right-nested pairs. Nullary constructors in a payload
 type carry zero padding. Matches project the tag and product once and recover
@@ -50,7 +50,7 @@ individual match arms. It rejects unknown value atoms, self-reference from a
 `let` initializer, and any parameter, `let`, or pattern binder that duplicates
 an active local. Immutable roots give lexical pop without mutation: sibling
 expressions, branches, and disjoint match arms may reuse the same spelling.
-The pass checks every currently emitted scalar/nominal constructor field,
+The pass checks every currently emitted scalar, `Bytes`, and nominal constructor field,
 pattern binder, call argument, `let` initializer, operator, conditional, match
 arm, and declared result. Function and local names remain
 grammar-distinguished namespaces.
@@ -73,11 +73,17 @@ overflow. Division and remainder use Gamma's already-identical zero-divisor
 and `INT64_MIN / -1` traps. Compiler-generated tag arithmetic is structurally
 bounded and does not acquire redundant runtime checks.
 
+`Bytes` lowers to a private immutable Gamma-pair rope whose outer descriptor
+stores the exact logical length. The five closed builtins are statically typed
+and call generated helpers named with the capture-proof `$` prefix. Singleton
+construction checks `0..255`; lookup checks the complete half-open range and
+then traverses in proper tail position; concatenation computes and checks the
+logical-length sum before allocating its new rope descriptor. Programs that
+mention only the `Bytes` type receive no unused runtime helper.
+
 This is a meaningful early stage, not the complete Delta compiler. It does not
-yet provide normative `Bytes` or production application profiles. Closed
-`bytes_*` forms reject until their representation and lowering exist; the stage
-never publishes an unexecutable Gamma call as a purported receipt. Calls
-emitted in tail position remain in Gamma tail position through
+yet provide production application profiles or canonical compiler-boundary
+failures. Calls emitted in tail position remain in Gamma tail position through
 `if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
 construction and traversal in bounded call context. Static acceptance of the
 scalar/nominal slice is not full-language admission.
@@ -90,7 +96,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-1,821-line / 71,629-byte Gamma source
+2,020-line / 80,194-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -109,6 +115,12 @@ The downgraded full compiler remains separate under
 7-line / 277-byte proper-tail List fixture
   -> 4-line / 568-byte Gamma receipt
   -> constructs and traverses 100,000 nodes through if, let, and match
+10-line / 379-byte typed Bytes fixture
+  -> 10-line / 1,184-byte Gamma receipt
+  -> all five builtins produce byte 0x42
+5-line / 209-byte skewed Bytes fixture
+  -> 9-line / 1,000-byte Gamma receipt
+  -> 100,000-node lookup produces byte 0x5a in bounded call context
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199; staged transformation is
