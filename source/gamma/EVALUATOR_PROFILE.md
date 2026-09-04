@@ -49,15 +49,16 @@ environment, value-stack, activation, and nested-call limits where currently
 implemented.
 
 The selected implementation is
-[`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,254-line
-addressed Beta program assembling to a 6,545-byte Alpha tape. Its current
+[`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,314-line
+addressed Beta program assembling to a 6,880-byte Alpha tape. Its current
 SHA-256 identities are:
 
 ```text
-Beta source  aa028b9bc2f85ab7f01e1ceb887ec76de53137e28713fba329d593c9ef333b95
-Alpha tape   d00b1d5107b310e8a8411b56feff7efd0bce9b8d20dfc53d026085e39495e025
+Beta source  1b943437dece551712ae3a1406dff27804b4004f090613d8343c39fa833b14b2
+Alpha tape   69c2247323d226799ba9c5ee5697240d1b67a6fcc35173b545b04a2802429a83
 ```
 
 A complete capacity proof remains required before this profile can be admitted.
 Proper-tail execution, static validation of unreachable bodies, bounded output,
-and immutable-pair allocation are implemented and pinned by selected gates.
+and provenance-tagged immutable-pair allocation are implemented and pinned by
+selected gates.

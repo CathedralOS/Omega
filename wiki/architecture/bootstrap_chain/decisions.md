@@ -4106,3 +4106,37 @@ The current Epsilon size is therefore not primarily explained by these five
 missing mechanisms. Most growth remains Epsilon-owned parsing, diagnostic
 ordering, identity custody, type formation, resolution, control checking, and
 Alpha encoding. Delta remains unchanged.
+
+## D96 — Gamma pair references retain evaluator provenance
+
+D96 repairs the selected evaluator to enforce Gamma's existing private-pair
+contract. The prior implementation recognized a pair by heap range, node
+alignment, and an in-memory marker alone. After allocating the first node, the
+ordinary integer literal `33554432` therefore forged its address; arithmetic
+could produce the same word. `first` and `second` accepted either value even
+though the language permits pair references to be produced only by `pair` and
+does not expose addresses.
+
+Runtime values now carry one private kind word alongside the payload through
+the temporary stack, lexical rows, arguments, returns, tail transfers, and pair
+fields. `pair` alone creates the pair kind. Projections require that kind before
+checking the node's physical range, alignment, and marker, then restore the
+selected field's kind. Integer literals and operators create scalar kind;
+conditions, operators, compiler effects, and `main` require it. This also
+restores D66's ruled authored trap for pair equality while preserving nested
+pairs and pair values across ordinary and proper-tail calls.
+
+The explicit representation cost is 60 Beta lines and 335 Alpha-tape bytes:
+
+```text
+                              Lines  Source items  Labels  Control  Tape bytes
+selected Gamma after D94      1,254         1,005     160      459       6,545
+selected Gamma after D96      1,314         1,058     164      474       6,880
+```
+
+The selected gate pins rejection of literal and arithmetic address forgeries,
+pair-valued equality and conditions, and preservation through a proper-tail
+relay. Exact reconstruction, the 100,000-step tail witness, composed
+publication, and the staged Delta workload remain required. This is an
+enforcement correction, not a new Gamma feature; the complete capacity proof
+remains open.

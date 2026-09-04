@@ -51,6 +51,9 @@ Functions and lexical scopes isolate their bindings.
 `first` and `second` project its fields and trap when applied to any word that
 is not a live evaluator-created pair. Pairs may contain pairs and therefore
 represent recursive trees without exposing addresses or mutation to source.
+Pair references may flow only through bindings, calls, pair fields, and
+projections. Conditions, integer operators, compiler effects, and `main`'s
+returned byte require an ordinary integer word and trap on a pair reference.
 
 `+`, `-`, and `*` have Alpha's wrapping 64-bit behavior. `/` and `%`
 use Alpha's signed operations and trap for zero or `INT64_MIN / -1`. `eq` and

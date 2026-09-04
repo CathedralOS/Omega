@@ -77,8 +77,10 @@ def main() -> None:
     )
     print("functional_beta=" + ",".join(map(str, beta_metrics(functional_evaluator))))
     print(f"functional_compiler_lines={len(functional.splitlines())}")
-    print(f"functional_compiler_definitions={len(re.findall(r'^\(def ', functional, re.MULTILINE))}")
-    print(f"functional_compiler_lets={len(re.findall(r'\(let\b', functional))}")
+    definition_count = len(re.findall(r"^\(def ", functional, re.MULTILINE))
+    let_count = len(re.findall(r"\(let\b", functional))
+    print(f"functional_compiler_definitions={definition_count}")
+    print(f"functional_compiler_lets={let_count}")
 
 
 if __name__ == "__main__":
