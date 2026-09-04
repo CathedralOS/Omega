@@ -91,14 +91,14 @@ def evaluate(program, sealed_input=b""):
 compiler = Path(os.environ["DELTA"]).read_bytes()
 root = Path(os.environ["GATE_DIR"])
 artifacts = {
-    "span_flat": (15, 597, "5c448968a71639645e1472ba716546c219b768fca5803ea6f7580623d928bf5c", 1071,
-                  "537ad0e29bc17b69f8f878c170ce38304e8fa7ccccc071a6baff1b7996603848", b"\x0b"),
-    "span_wrapped": (19, 759, "8827d8f749a8f5af7609006d461006a51684c3871fb32bbf76878e2ae471d83b", 976,
-                     "0a7d974c6de6584c0f41eef4ce82c6ebad45172f2a122830ce1ecd1ba6355f9d", b"\x0b"),
-    "candidate_specialized": (54, 2533, "e379dc61da4f4a21d3ba95aed7c83a7fcf9d071b8cd6553722d7564145ba58ef", 3290,
-                              "2b14c45500d262c8abb03fff7bcbb8d1ac3e3faa448fd45914d917da4c0cb23a", b"!"),
-    "candidate_shared": (59, 2770, "4ea61a46da72f227290529fea23f3383e6b20af7d51610891bfd27be1df59ccf", 3487,
-                         "88ae471c1b9d43c61e81746141b6944141ec2f5b62f32a6fdd8a3c36330411c3", b"!"),
+    "span_flat": (15, 597, "5c448968a71639645e1472ba716546c219b768fca5803ea6f7580623d928bf5c", 1087,
+                  "72c11418963a4af00fbd9ee9d615bfb35117e48abcafcf53d8d2dc93454feae0", b"\x0b"),
+    "span_wrapped": (19, 759, "8827d8f749a8f5af7609006d461006a51684c3871fb32bbf76878e2ae471d83b", 1004,
+                     "3e3d72eeb3c38cfa7b7ac94e4e2b57e4ca1f0b7eefff1f0bc9325d001ee9c79a", b"\x0b"),
+    "candidate_specialized": (54, 2533, "e379dc61da4f4a21d3ba95aed7c83a7fcf9d071b8cd6553722d7564145ba58ef", 3354,
+                              "0f2b57db9f8adf1415374528129976613c396f8ab8a33e994ffcd84252ab5bef", b"!"),
+    "candidate_shared": (59, 2770, "4ea61a46da72f227290529fea23f3383e6b20af7d51610891bfd27be1df59ccf", 3567,
+                         "e8ad836a0a60d1b9be15aaf17eddd92f4c284a77d5f53311514e3c3a3a518df9", b"!"),
 }
 for name, (lines, size, digest, receipt_size, receipt_digest, result) in artifacts.items():
     source = root.joinpath(f"{name}.delta").read_bytes()
