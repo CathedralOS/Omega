@@ -5,7 +5,9 @@ use crate::realization::diagnostics::{
     realization_error, selected_physical_pipeline_failed,
     selected_physical_pipeline_not_publishable,
 };
-use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::model::{
+    NativeRealizationCoreRequest, NativeRealizationInput, PostTerminalPhysicalContinuation,
+};
 use crate::realization::selected_lowering_projection::{
     SelectedLoweringPublicationRequest, emit_return_only_selected_lowering,
 };
@@ -30,7 +32,10 @@ pub(crate) fn emit_realization_machine_code(
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<EmittedRealizationMachineCode, Vec<Diagnostic>> {
     match input.into_parts() {
-        (omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(plan), None) => {
+        (
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(plan),
+            PostTerminalPhysicalContinuation::Identity,
+        ) => {
             let target = match provider_installation {
                 Some(installation) => {
                     omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
@@ -74,7 +79,7 @@ pub(crate) fn emit_realization_machine_code(
             omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(
                 ranked,
             ),
-            None,
+            PostTerminalPhysicalContinuation::Identity,
         ) => {
             if provider_installation.is_some()
                 || !settlements.is_empty()
@@ -105,7 +110,7 @@ pub(crate) fn emit_realization_machine_code(
                 physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
-        (_, Some(input)) => {
+        (_, PostTerminalPhysicalContinuation::Selected(input)) => {
             if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
                 return Err(realization_error(
                     "optimized native callback custody",

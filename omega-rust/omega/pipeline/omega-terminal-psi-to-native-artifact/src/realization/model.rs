@@ -34,6 +34,29 @@ builtin_native_realization_conversion!(omega_target_operations::LinuxExitGroupI3
 builtin_native_realization_conversion!(omega_target_operations::LinuxReadByteRealization);
 builtin_native_realization_conversion!(omega_target_operations::ClaimCompletionOnlyRealization);
 
+/// Explicit continuation selected after the unconditional Terminal-to-abstract
+/// native stage.
+///
+/// An empty post-Terminal selection is the identity continuation, not absence
+/// of a stage. The selected variant retains the verifier context required by
+/// the transitional physical optimizer until its phases are split apart.
+#[derive(Debug, Clone)]
+pub(crate) enum PostTerminalPhysicalContinuation {
+    Identity,
+    Selected(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
+}
+
+impl PostTerminalPhysicalContinuation {
+    pub(crate) const fn selected(
+        &self,
+    ) -> Option<&omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput> {
+        match self {
+            Self::Identity => None,
+            Self::Selected(input) => Some(input),
+        }
+    }
+}
+
 /// One unconditional Terminal-to-abstract native stage result.
 ///
 /// `native` retains the role-specific ordinary or ranked native authority for
@@ -43,15 +66,15 @@ builtin_native_realization_conversion!(omega_target_operations::ClaimCompletionO
 #[derive(Debug, Clone)]
 pub(crate) struct NativeRealizationInput {
     native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
-    optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
+    physical_continuation: PostTerminalPhysicalContinuation,
 }
 
 impl NativeRealizationInput {
     pub(crate) fn new(
         native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
-        optimization: Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
+        physical_continuation: PostTerminalPhysicalContinuation,
     ) -> Result<Self, &'static str> {
-        if optimization.as_ref().is_some_and(|selected| {
+        if physical_continuation.selected().is_some_and(|selected| {
             selected.plan().psi != native.plan().psi || selected.plan().entry != native.plan().entry
         }) {
             return Err(
@@ -60,14 +83,14 @@ impl NativeRealizationInput {
         }
         Ok(Self {
             native,
-            optimization,
+            physical_continuation,
         })
     }
 
     pub(crate) fn plan(&self) -> &omega_abstract_operations::AbstractOperationPlan {
-        match &self.optimization {
-            Some(input) => input.plan(),
-            None => self.native.plan(),
+        match &self.physical_continuation {
+            PostTerminalPhysicalContinuation::Identity => self.native.plan(),
+            PostTerminalPhysicalContinuation::Selected(input) => input.plan(),
         }
     }
 
@@ -77,19 +100,17 @@ impl NativeRealizationInput {
         &self.native
     }
 
-    pub(crate) const fn optimization(
-        &self,
-    ) -> Option<&omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput> {
-        self.optimization.as_ref()
+    pub(crate) const fn physical_continuation(&self) -> &PostTerminalPhysicalContinuation {
+        &self.physical_continuation
     }
 
     pub(crate) fn into_parts(
         self,
     ) -> (
         omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
-        Option<omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
+        PostTerminalPhysicalContinuation,
     ) {
-        (self.native, self.optimization)
+        (self.native, self.physical_continuation)
     }
 
     pub(crate) fn physical_evidence_scope(
@@ -98,7 +119,13 @@ impl NativeRealizationInput {
             &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
         >,
     ) -> omega_native_artifact::NativePhysicalEvidenceScope {
-        physical_evidence_scope(self.optimization.is_none(), checked_scope)
+        physical_evidence_scope(
+            matches!(
+                self.physical_continuation,
+                PostTerminalPhysicalContinuation::Identity
+            ),
+            checked_scope,
+        )
     }
 }
 
