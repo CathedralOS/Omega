@@ -6,7 +6,8 @@
 //! against compiler-reviewed concrete type identities and an independently
 //! reviewed selected-application coordinate. The result is demand only: it is
 //! not a reachability-complete set and has no route to realization, coverage,
-//! `PackageInstance`, Terminal/native authority, or installation issuance.
+//! Terminal/native authority, or installation issuance. This compiler artifact
+//! composition helper is not an install/update prerequisite.
 
 use omega_boundary_applications::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryNominalIdentity,

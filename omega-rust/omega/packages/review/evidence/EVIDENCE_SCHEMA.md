@@ -26,7 +26,7 @@ stable requirement identity remains independent and must rejoin that exact
 coordinate at final substitution. This prevents same-path overloads from
 becoming ambiguous when separately reviewed producer, operator-owner, and
 selected-application artifacts meet. No realization, coverage,
-`PackageInstance`, Terminal/native authority, or installation authority is
+Terminal/native authority, or installation authority is
 introduced; recovery v23 only advances the envelope for the changed canonical
 row bytes.
 
