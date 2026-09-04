@@ -646,6 +646,7 @@ omega-rust/omega/
     omega-selected-instructions/   # pre-allocation plan and admitted machine effects
   pipeline/
     omega-machine-optimizer/        # post-allocation symbolic-machine optimization stage
+    omega-regalloc/                 # physical analyses, allocation, recovery rules
     omega-psi-to-abstract-operations/
                                       # artifact, optimizer-unit, provider, and lowering entrances
     omega-abstract-operations-to-target-operations/
@@ -659,7 +660,6 @@ omega-rust/omega/
     optimization/
       omega-psi-optimizer/            # Psi analyses, catalog, rules, pass manager
       omega-optimization-validation/  # independent Psi and unit validation
-      omega-regalloc/                 # physical analyses, allocation, recovery rules
       omega-optimization-pipeline/    # cross-stage custody and compiler routes
   tooling/
     omega-optimization-policy-offline/ # corpus admission, source splits, reference training/evaluation

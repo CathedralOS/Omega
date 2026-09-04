@@ -4,7 +4,7 @@ use super::{recursive_rust_source, workspace_root};
 fn replay_is_independent_and_the_artifact_remains_non_authoritative() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_split_requirements",
+        "omega-rust/omega/pipeline/omega-regalloc/src/analyses/fixed_precolored_split_requirements",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read fixed/precolored split-requirement entrance");

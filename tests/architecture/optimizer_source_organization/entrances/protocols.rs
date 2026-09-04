@@ -7,7 +7,7 @@ use crate::Audit;
 pub(super) fn check(audit: &mut Audit) {
     check_build_optimization_vocabulary(audit);
 
-    let codec_root = "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/";
+    let codec_root = "omega-rust/omega/pipeline/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/";
     let codec_entrance = format!("{codec_root}mod.rs");
     for path in audit
         .source_lines
