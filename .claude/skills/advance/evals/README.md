@@ -119,9 +119,11 @@ suites make load-sensitive tests fail spuriously. Doing this produced a
 `job_aggregate_cpu_limit_terminates_the_job` failure that was purely a
 measurement artifact.
 
-**`mbx test --workspace --lib` fails fast**, so it stops at the first failing
-crate and hides the rest. `harness.sh baseline` runs `--no-fail-fast` once to
-enumerate the real set. On a Windows host without symlink privilege,
+**The lib gate used to fail fast**, stopping at the first failing crate and
+hiding the rest — 7 of 110 lib targets on this host, with every `psi_*` crate
+among the 103 that never ran. `AGENTS.md` now carries `--no-fail-fast`, so the
+gate matches the coverage it always claimed; keep it on any command you add
+here. On a Windows host without symlink privilege,
 `cache_lock_open_does_not_follow_a_preexisting_symlink` fails deterministically
 (OS error 1314) — the repo is red before any agent touches it, and grading has to
 account for that or "gate honesty" is meaningless.

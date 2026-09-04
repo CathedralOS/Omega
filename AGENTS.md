@@ -49,11 +49,15 @@ cargo fmt --all -- --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx test -p omega-architecture-test --all-targets
 mbx check --workspace --all-targets
-mbx test --workspace --lib
+mbx test --workspace --lib --no-fail-fast
 ```
 
-`mbx test --workspace --lib` is the platform-portable subset: all library
-tests, no target-specific executable/runtime legs. Platform integration tests
+`mbx test --workspace --lib --no-fail-fast` is the platform-portable subset:
+all library tests, no target-specific executable/runtime legs. `--no-fail-fast`
+is not optional. Without it the run stops at the first failing crate, which on a
+Windows host is `omega-bounded-process` at position 7 of 110 lib targets, so 103
+crates including every `psi_*` one never execute and the gate reports a stop
+rather than a coverage gap. Platform integration tests
 are separate and must report an explicit skip when the host cannot run them.
 
 ### Driving the compiler

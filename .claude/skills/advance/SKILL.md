@@ -84,7 +84,8 @@ mbx check --workspace --all-targets
 plus the single filtered test for what you are changing.
 
 Then the full baseline gate list in `AGENTS.md` — fmt, clippy, the architecture
-test, check, and `mbx test --workspace --lib` — **on the tree you are about to
+test, check, and `mbx test --workspace --lib --no-fail-fast` — **on the tree
+you are about to
 commit**. Gates from before your edits describe a tree that no longer exists;
 they are orientation, not evidence. The list is also not conditional on which
 files you touched: fmt and clippy read every file, the architecture test reads
