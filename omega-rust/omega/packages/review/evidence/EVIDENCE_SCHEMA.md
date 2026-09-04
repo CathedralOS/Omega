@@ -13,6 +13,17 @@ implementation while redundant promotion machinery is simplified; no sealed
 certificates below answer actual compiler proof questions. Compiler proof/reach
 checks and native artifact validation remain independent of installation.
 
+The separate external-supply policy component uses
+`OMEGA-EXTERNAL-SUPPLY-POLICY` version 1, bounded to 4 MiB. It preserves the
+complete callable and requirement coordinates, all eight binding alternatives,
+the exact four foreign-locator forms, target, and producer identities. It omits
+evaluation accounting, evaluator/materializer schema markers, closure/evaluation/
+materialization digests, and reconstruction receipts. Its signature and
+requirement encoders share the full-review vocabulary; changes to those nested
+encodings must also version the policy component. Typed recovery and complete
+accepted-baseline integration remain separate work. This component does not
+change the full-review schema or any compiler validator.
+
 The ordinary obligation-semantics schema is version 7. Its result
 vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
 external executable supplies, and exact terminal-authority permissions open

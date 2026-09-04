@@ -12,11 +12,13 @@ use super::{
 };
 
 mod callables;
+mod external_policy;
 mod external_supply;
 mod traits;
 mod types;
 
 pub use callables::*;
+pub use external_policy::*;
 pub use external_supply::*;
 pub use traits::*;
 pub use types::*;

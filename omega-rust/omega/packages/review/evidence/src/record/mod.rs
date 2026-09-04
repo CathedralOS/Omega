@@ -100,10 +100,11 @@ pub use rows::{
     PackageReviewSourceLocationRole, PackageReviewSyntheticSourceKind,
 };
 pub use signatures::{
-    PackageReviewCallableConformance, PackageReviewCallableParameter,
-    PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
-    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
-    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
+    PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
+    PackagePolicyExternalExecutableSupply, PackageReviewCallableConformance,
+    PackageReviewCallableParameter, PackageReviewConformanceBound, PackageReviewConformanceShape,
+    PackageReviewConformanceSubject, PackageReviewEvaluatedBindingUsage,
+    PackageReviewEvaluatedImport, PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
     PackageReviewExternalCallableParameter, PackageReviewExternalCallableSignature,
     PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
     PackageReviewExternalStaticParameter, PackageReviewForeignLocator,
