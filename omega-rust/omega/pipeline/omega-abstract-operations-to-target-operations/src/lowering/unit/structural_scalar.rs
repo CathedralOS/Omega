@@ -7,7 +7,8 @@ use super::super::scalar::scalar_shape;
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_layout::{
-    direct_integer_field_offset, resolve_structural_field_path, structural_shape,
+    direct_boolean_field_offset, direct_integer_field_offset, resolve_structural_field_path,
+    structural_shape,
 };
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 pub(super) use dynamic_arguments::{
@@ -21,6 +22,7 @@ pub(super) fn lower_field_store(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
+    boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     operations: &mut Vec<TargetUnitOperation>,
@@ -64,38 +66,80 @@ pub(super) fn lower_field_store(
         .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ))?;
-    let ScalarType::Integer(integer_type) = value.scalar_type else {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
-    };
-    let known_value = scalar_values
-        .get(&value.value)
-        .copied()
-        .ok_or(LoweringError::UnknownValue(value.value))?;
-    let exact_source = match known_value {
-        KnownUnitInteger::Parameter {
-            parameter_index: 0,
-            scalar_type,
-        } => {
-            scalar_type == integer_type
-                && matches!(
-                    function.parameters.as_slice(),
-                    [parameter]
-                        if parameter.value == value.value
-                            && parameter.scalar_type == value.scalar_type
-                )
-        }
-        KnownUnitInteger::Immediate { scalar_type, .. } => {
-            scalar_type == integer_type && function.parameters.is_empty()
-        }
-        _ => false,
-    };
-    if !exact_source || function.structural_parameters.len() != 1 {
+    if function.structural_parameters.len() != 1 {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));
     }
+    let (source, field_byte_size) = match value.scalar_type {
+        ScalarType::Integer(integer_type) => {
+            let known_value = scalar_values
+                .get(&value.value)
+                .copied()
+                .ok_or(LoweringError::UnknownValue(value.value))?;
+            let exact_source = match known_value {
+                KnownUnitInteger::Parameter {
+                    parameter_index: 0,
+                    scalar_type,
+                } => {
+                    scalar_type == integer_type
+                        && matches!(
+                            function.parameters.as_slice(),
+                            [parameter]
+                                if parameter.value == value.value
+                                    && parameter.scalar_type == value.scalar_type
+                        )
+                }
+                KnownUnitInteger::Immediate { scalar_type, .. } => {
+                    scalar_type == integer_type && function.parameters.is_empty()
+                }
+                _ => false,
+            };
+            if !exact_source {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            }
+            (
+                known_value.into_target_source(value.value),
+                integer_type.bits().div_ceil(8),
+            )
+        }
+        ScalarType::Boolean => {
+            let source = if matches!(
+                function.parameters.as_slice(),
+                [parameter]
+                    if parameter.value == value.value
+                        && parameter.scalar_type == ScalarType::Boolean
+            ) {
+                TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: 0,
+                    source_value: value.value,
+                    scalar_type: ScalarType::Boolean,
+                }
+            } else if function.parameters.is_empty() {
+                let (defining_operation, immediate) = boolean_constants
+                    .get(&value.value)
+                    .copied()
+                    .ok_or(LoweringError::UnknownValue(value.value))?;
+                TargetUnitScalarArgumentSource::BooleanImmediate {
+                    defining_operation,
+                    source_value: value.value,
+                    value: immediate,
+                }
+            } else {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            };
+            (source, 1)
+        }
+        ScalarType::IeeeFloat(_) => {
+            return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                function.machine,
+            ));
+        }
+    };
     let (carrier_type, carrier_byte_offset) = if path.is_empty() {
         structural_shape(
             destination.structural_type,
@@ -114,13 +158,18 @@ pub(super) fn lower_field_store(
         )?;
         (carrier_type, carrier_byte_offset)
     };
-    let scalar_byte_offset =
-        direct_integer_field_offset(carrier_type, *field, integer_type, structural_types)?;
+    let scalar_byte_offset = match value.scalar_type {
+        ScalarType::Boolean => direct_boolean_field_offset(carrier_type, *field, structural_types)?,
+        ScalarType::Integer(integer_type) => {
+            direct_integer_field_offset(carrier_type, *field, integer_type, structural_types)?
+        }
+        ScalarType::IeeeFloat(_) => unreachable!("IEEE field stores were rejected above"),
+    };
     let field_byte_offset = carrier_byte_offset
         .checked_add(scalar_byte_offset)
         .filter(|offset| {
             offset
-                .checked_add(u32::from(integer_type.bits().div_ceil(8)))
+                .checked_add(u32::from(field_byte_size))
                 .is_some_and(|end| end <= u32::from(target_parameter.shape.byte_size))
         })
         .ok_or(LoweringError::StructuralTypeTooLarge(
@@ -133,7 +182,7 @@ pub(super) fn lower_field_store(
         field: *field,
         destination_placement: target_parameter.placement.clone(),
         field_byte_offset,
-        source: known_value.into_target_source(value.value),
+        source,
     });
     provenance.operations.push(*psi_operation);
     Ok(())

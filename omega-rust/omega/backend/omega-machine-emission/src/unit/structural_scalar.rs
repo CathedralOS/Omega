@@ -45,6 +45,7 @@ pub(super) fn emit_structural_scalar_field_store(
     x86_frame_bytes: u32,
     aarch64_frame_bytes: u32,
     established_integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
+    established_boolean_constants: &BTreeMap<ValueId, (OperationId, bool, usize)>,
     bytes: &mut Vec<u8>,
     operation_ordinal: usize,
     code_offset: usize,
@@ -66,7 +67,7 @@ pub(super) fn emit_structural_scalar_field_store(
         AssignedUnitScalarArgumentSource::Parameter {
             parameter_index,
             source_value,
-            scalar_type: ScalarType::Integer(scalar_type),
+            scalar_type,
             location,
         } => {
             let scalar_parameter_index = usize::try_from(parameter_index).map_err(|_| invalid())?;
@@ -74,7 +75,13 @@ pub(super) fn emit_structural_scalar_field_store(
                 .scalar_parameters
                 .get(scalar_parameter_index)
                 .ok_or_else(invalid)?;
-            let width = require_native_integer_width(source_value, scalar_type)? / 8;
+            let width = match scalar_type {
+                ScalarType::Boolean => 1,
+                ScalarType::Integer(integer) => {
+                    require_native_integer_width(source_value, integer)? / 8
+                }
+                ScalarType::IeeeFloat(_) => return Err(invalid()),
+            };
             let parameter_shapes = body
                 .scalar_parameters
                 .iter()
@@ -118,7 +125,7 @@ pub(super) fn emit_structural_scalar_field_store(
                 || body.scalar_parameters.len() != 1
                 || scalar_parameter_index != 0
                 || scalar_parameter.value != source_value
-                || scalar_parameter.scalar_type != ScalarType::Integer(scalar_type)
+                || scalar_parameter.scalar_type != scalar_type
                 || location != expected_location
                 || body.call_plan != expected_plan
                 || body.call_plan.parameters.first() != Some(&scalar_parameter.placement)
@@ -141,7 +148,7 @@ pub(super) fn emit_structural_scalar_field_store(
                 InternalUnitScalarArgumentSourceRecord::Parameter {
                     parameter_index,
                     source_value,
-                    scalar_type: ScalarType::Integer(scalar_type),
+                    scalar_type,
                     location,
                 },
                 width,
@@ -168,6 +175,30 @@ pub(super) fn emit_structural_scalar_field_store(
                 },
                 require_native_integer_width(source_value, scalar_type)? / 8,
                 Some(integer_bits(source_value, scalar_type, value)?),
+            )
+        }
+        AssignedUnitScalarArgumentSource::BooleanImmediate {
+            defining_operation,
+            source_value,
+            value,
+        } => {
+            let Some((retained_operation, retained_value, definition_ordinal)) =
+                established_boolean_constants.get(&source_value).copied()
+            else {
+                return Err(invalid());
+            };
+            if retained_operation != defining_operation || retained_value != value {
+                return Err(invalid());
+            }
+            (
+                InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                    defining_operation,
+                    source_value,
+                    value,
+                    definition_ordinal,
+                },
+                1,
+                Some(u64::from(value)),
             )
         }
         _ => return Err(invalid()),

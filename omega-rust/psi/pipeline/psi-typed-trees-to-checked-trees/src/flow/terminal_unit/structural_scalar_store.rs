@@ -101,7 +101,9 @@ pub(super) fn build_structural_scalar_field_store(
         return None;
     }
     let primitive_type = program.primitive_type_reference(field.type_reference)?;
-    if !primitive_type.accepts_integer_literal() || primitive_type == PrimitiveType::Addr {
+    if primitive_type != PrimitiveType::Bool
+        && (!primitive_type.accepts_integer_literal() || primitive_type == PrimitiveType::Addr)
+    {
         return None;
     }
     let source_path =
@@ -129,17 +131,35 @@ pub(super) fn build_structural_scalar_field_store(
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
     let exact_source = match scalar_parameters {
-        [] => matches!(value, CheckedScalarExpression::IntegerLiteral { .. }),
+        [] => match value {
+            CheckedScalarExpression::IntegerLiteral { .. } => {
+                primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
+            }
+            CheckedScalarExpression::Boolean(boolean) => {
+                primitive_type == PrimitiveType::Bool
+                    && matches!(
+                        boolean.as_ref(),
+                        psi_checked_trees::CheckedBooleanExpression::Constant(_)
+                    )
+            }
+            _ => false,
+        },
         [scalar_parameter] => {
             scalar_parameter.source_position == 1
                 && scalar_parameter.primitive_type == primitive_type
-                && matches!(
-                    value,
+                && match value {
                     CheckedScalarExpression::Parameter {
                         position: 0,
                         primitive_type: source_type,
-                    } if *source_type == primitive_type
-                )
+                    } => *source_type == primitive_type,
+                    CheckedScalarExpression::Boolean(boolean) => {
+                        matches!(
+                            boolean.as_ref(),
+                            psi_checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+                        ) && primitive_type == PrimitiveType::Bool
+                    }
+                    _ => false,
+                }
         }
         _ => false,
     };

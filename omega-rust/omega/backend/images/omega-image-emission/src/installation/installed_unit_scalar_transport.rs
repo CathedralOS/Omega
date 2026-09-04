@@ -390,9 +390,6 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     scalar_type,
                     location,
                 } => {
-                    let psi_core::ScalarType::Integer(_) = scalar_type else {
-                        return Err(invalid());
-                    };
                     let abi = function.unit_scalar_abi.as_ref().ok_or_else(invalid)?;
                     let scalar_parameter_index =
                         usize::try_from(parameter_index).map_err(|_| invalid())?;
@@ -502,6 +499,43 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                         ),
                     )
                 }
+                omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                    defining_operation,
+                    source_value,
+                    value,
+                    definition_ordinal,
+                } => {
+                    let definition_count = record
+                        .semantic_code_attribution
+                        .iter()
+                        .filter(|attribution| {
+                            attribution.machine == function.machine
+                                && attribution.attribution.site
+                                    == SemanticCodeSite::Operation(defining_operation)
+                                && attribution.attribution.operation_ordinal == definition_ordinal
+                                && attribution.attribution.code_offset <= store.code_offset
+                                && attribution.attribution.byte_count == 0
+                        })
+                        .count();
+                    (
+                        definition_ordinal < store.operation_ordinal
+                            && definition_count == 1
+                            && function.unit_integer_constants.iter().all(|constant| {
+                                constant.defining_operation != defining_operation
+                                    && constant.source_value != source_value
+                            })
+                            && function.unit_scalar_homes.iter().all(|home| {
+                                home.defining_operation != defining_operation
+                                    && home.source_value != source_value
+                            })
+                            && installed_projected_zero_code_source_is_consistent(
+                                function,
+                                store.source,
+                            ),
+                        1,
+                        Some(u64::from(value)),
+                    )
+                }
                 _ => return Err(invalid()),
             };
             let expected_bytes = match store.source {
@@ -593,6 +627,38 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
         }
     }
     Ok(())
+}
+
+fn installed_projected_zero_code_source_is_consistent(
+    function: &InstalledFunction,
+    source: omega_machine_code::InternalUnitScalarArgumentSourceRecord,
+) -> bool {
+    let omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+        defining_operation,
+        source_value,
+        ..
+    } = source
+    else {
+        return false;
+    };
+    function
+        .unit_structural_scalar_field_stores
+        .iter()
+        .all(|candidate| {
+            let candidate_source = candidate.source;
+            if matches!(
+                candidate_source,
+                omega_machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                    defining_operation: candidate_operation,
+                    source_value: candidate_value,
+                    ..
+                } if candidate_operation == defining_operation || candidate_value == source_value
+            ) {
+                candidate_source == source
+            } else {
+                true
+            }
+        })
 }
 
 pub(super) fn validate_installed_unit_write_only_primitive_stores(

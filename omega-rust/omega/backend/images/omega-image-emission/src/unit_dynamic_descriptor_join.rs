@@ -29,12 +29,17 @@ pub(super) fn validate_unit_dynamic_descriptor_join(
         && function.semantic_code_attribution.len() == 2
         && function.provenance.operations.len() == 1
         && function.provenance.edges.len() == 1;
+    let projected_store_shape = function.unit_structural_scalar_field_stores.len() == 1
+        && function.forwarded_dynamic_descriptor_calls.is_empty()
+        && function.semantic_code_attribution.len() == 2
+        && function.provenance.operations.len() == 1
+        && function.provenance.edges.len() == 1;
     let ordinary_unit_call_shape = function.internal_unit_calls.len() == 1
         && function.forwarded_dynamic_descriptor_calls.is_empty()
         && function.semantic_code_attribution.len() == 2
         && function.provenance.operations.len() == 1
         && function.provenance.edges.len() == 1;
-    if primitive_store_shape || ordinary_unit_call_shape {
+    if primitive_store_shape || projected_store_shape || ordinary_unit_call_shape {
         return Ok(());
     }
     if !boolean_parameter && !joined_shape_hint {
