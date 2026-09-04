@@ -108,7 +108,7 @@ use psi_terminal::{
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator,
+    Terminator, is_bounded_structural_scalar_store_path,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
@@ -944,9 +944,7 @@ fn validate_operation_foundation(
                     | psi_terminal::StructuralAccess::WriteOnlyBorrow
             ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || !path.iter().all(
-                    |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
-                )
+                || !is_bounded_structural_scalar_store_path(path)
                 || machine
                     .entry_claims
                     .iter()

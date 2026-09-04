@@ -57,29 +57,44 @@ pub(super) fn lower_structural_scalar_store_destination(
         ))?;
     let mut field_owner = declaration;
     let mut path = Vec::with_capacity(store.carrier_path.len());
+    let mut reached_array = false;
     for segment in &store.carrier_path {
-        let CheckedUnitStructuralPathSegment::Field(identity) = segment else {
-            return unsupported("structural scalar store carrier path is unsupported");
-        };
-        if identity.is_empty() {
-            return unsupported("structural scalar store carrier path is unsupported");
-        }
-        let StructuralTypeShape::Record { fields } = &field_owner.shape else {
-            return unsupported("structural scalar store carrier is not a record");
-        };
-        let carriers = fields
-            .iter()
-            .filter(|field| {
-                field.identity == *identity
-                    && !field.relevance.is_erased()
-                    && matches!(field.field_type, StructuralFieldType::Structural(_))
-            })
-            .collect::<Vec<_>>();
-        let [carrier] = carriers.as_slice() else {
-            return unsupported("structural scalar store carrier is absent or ambiguous");
-        };
-        let StructuralFieldType::Structural(nested) = carrier.field_type else {
-            unreachable!("carrier shape was checked above")
+        let nested = match segment {
+            CheckedUnitStructuralPathSegment::Field(identity)
+                if !reached_array && !identity.is_empty() =>
+            {
+                let StructuralTypeShape::Record { fields } = &field_owner.shape else {
+                    return unsupported("structural scalar store carrier is not a record");
+                };
+                let carriers = fields
+                    .iter()
+                    .filter(|field| {
+                        field.identity == *identity
+                            && !field.relevance.is_erased()
+                            && matches!(field.field_type, StructuralFieldType::Structural(_))
+                    })
+                    .collect::<Vec<_>>();
+                let [carrier] = carriers.as_slice() else {
+                    return unsupported("structural scalar store carrier is absent or ambiguous");
+                };
+                let StructuralFieldType::Structural(nested) = carrier.field_type else {
+                    unreachable!("carrier shape was checked above")
+                };
+                path.push(StructuralPathSegment::Field(identity.clone()));
+                nested
+            }
+            CheckedUnitStructuralPathSegment::FixedIndex(index) if !reached_array => {
+                reached_array = true;
+                let StructuralTypeShape::FixedArray { element, length } = &field_owner.shape else {
+                    return unsupported("structural scalar store carrier is not a fixed array");
+                };
+                if *index >= *length {
+                    return unsupported("structural scalar store fixed index is out of bounds");
+                }
+                path.push(StructuralPathSegment::FixedIndex(*index));
+                *element
+            }
+            _ => return unsupported("structural scalar store carrier path is unsupported"),
         };
         field_owner = structural_types
             .iter()
@@ -87,7 +102,6 @@ pub(super) fn lower_structural_scalar_store_destination(
             .ok_or(LoweringError::Unsupported(
                 "structural scalar store nested carrier type is absent",
             ))?;
-        path.push(StructuralPathSegment::Field(identity.clone()));
     }
     let StructuralTypeShape::Record { fields } = &field_owner.shape else {
         return unsupported("structural scalar store field owner is not a record");

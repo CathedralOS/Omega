@@ -8,7 +8,7 @@ use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_layout::{
     direct_boolean_field_offset, direct_integer_field_offset, resolve_structural_field_path,
-    structural_shape,
+    resolve_structural_projection_path, structural_shape,
 };
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 pub(super) use dynamic_arguments::{
@@ -46,9 +46,7 @@ pub(super) fn lower_field_store(
             destination.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
-        || path
-            .iter()
-            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+        || !psi_terminal::is_bounded_structural_scalar_store_path(path)
     {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
@@ -161,7 +159,7 @@ pub(super) fn lower_field_store(
         )?;
         (destination.structural_type, 0)
     } else {
-        let (carrier_type, _, carrier_byte_offset) = resolve_structural_field_path(
+        let (carrier_type, _, carrier_byte_offset) = resolve_structural_projection_path(
             destination.structural_type,
             path,
             structural_types,

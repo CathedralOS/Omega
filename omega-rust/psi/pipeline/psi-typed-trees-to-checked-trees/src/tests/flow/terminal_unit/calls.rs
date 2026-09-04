@@ -713,6 +713,8 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
         data Pair { left: u8; right: u16; }
         data Inner { value: u8; }
         data Outer { inner: Inner; }
+        data Cell [copy] { prefix: u8; value: u16; }
+        data Matrix { prefix: u8; cells: [Cell; 3]; }
         data Sink {}
 
         machine Sink::direct(pair: &write Pair) {
@@ -721,6 +723,10 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
 
         machine Sink::nested(outer: &write Outer) {
             outer.inner.value = 9;
+        }
+
+        machine Sink::indexed(matrix: &write Matrix) {
+            matrix.cells[2].value = 13;
         }
 
         machine Sink::mutable(pair: &mut Pair) {
@@ -735,6 +741,9 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
     let nested = plans
         .for_machine(machine_named(&checked, "Sink::nested"))
         .expect("nested record-field store plan");
+    let indexed = plans
+        .for_machine(machine_named(&checked, "Sink::indexed"))
+        .expect("literal-indexed record-field store plan");
 
     let [
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(direct_store),
@@ -771,6 +780,23 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
         nested_store.value,
         CheckedScalarExpression::IntegerLiteral { ref literal }
             if literal.value_u64() == Some(9)
+    ));
+
+    assert!(matches!(
+        indexed.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] if matches!(
+            store.carrier_path.as_slice(),
+            [
+                CheckedUnitStructuralPathSegment::Field(identity),
+                CheckedUnitStructuralPathSegment::FixedIndex(2),
+            ] if !identity.is_empty()
+        ) && store.primitive_type == PrimitiveType::U16
+            && matches!(store.value,
+                CheckedScalarExpression::IntegerLiteral { ref literal }
+                    if literal.value_u64() == Some(13))
     ));
 
     let mutable = plans

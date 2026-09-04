@@ -360,6 +360,61 @@ fn write_only_record_field_assignment(
     })
 }
 
+/// Admit one relevant primitive field beneath one literal fixed-array element
+/// reached through an otherwise ordinary common-field record path. The array
+/// element stays a closed unrestricted record, and the literal index fixes the
+/// complete write footprint without observing the referent.
+fn write_only_literal_indexed_record_field_assignment(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+) -> bool {
+    let ExpressionNode::Member(final_member) = program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    if final_member.case_variant.is_some() {
+        return false;
+    }
+    let ExpressionNode::Indexed(indexed) =
+        program.expression_table.expression(final_member.receiver)
+    else {
+        return false;
+    };
+    let Some(collection_type) = write_only_record_field_type(program, indexed.collection, roots)
+    else {
+        return false;
+    };
+    let Some((element_type, length)) =
+        fixed_unrestricted_write_only_array_shape(program, collection_type)
+    else {
+        return false;
+    };
+    let Some(index) = program
+        .expression_table
+        .constant_integer_value(indexed.index)
+        .and_then(|value| usize::try_from(value).ok())
+    else {
+        return false;
+    };
+    if index >= length {
+        return false;
+    }
+    let Some(definition) = write_only_record(program, element_type) else {
+        return false;
+    };
+    program.data_members(definition).iter().any(|candidate| {
+        let DataMember::Field(field) = candidate else {
+            return false;
+        };
+        ((final_member.member_symbol.is_valid() && field.symbol == final_member.member_symbol)
+            || (!final_member.member_symbol.is_valid()
+                && field.name.as_str() == final_member.member.as_str()))
+            && !field.relevance.is_erased()
+            && is_unrestricted_scalar(program, field.type_reference)
+    })
+}
+
 fn validate_statement(
     program: &TypedTrees,
     machine_definition: &Machine,
@@ -388,6 +443,13 @@ fn validate_statement(
             } else if write_only_record_field_assignment(program, assignment.target, roots) {
                 // One content-independent common-field-path store. The exact
                 // field place is retained by the ordinary checked mutation facts.
+            } else if write_only_literal_indexed_record_field_assignment(
+                program,
+                assignment.target,
+                roots,
+            ) {
+                // One literal fixed-array element and its exact relevant
+                // primitive record field form a content-independent place.
             } else if validate_write_only_fixed_array_range_assignment(
                 program,
                 machine_definition,
@@ -713,7 +775,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 

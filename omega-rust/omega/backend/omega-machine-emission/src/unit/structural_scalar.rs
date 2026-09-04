@@ -242,6 +242,7 @@ pub(super) fn emit_structural_scalar_field_store(
         || parameter.access != destination.access
         || parameter.projected_qualifications != destination.projected_qualifications
         || &parameter.placement != destination_placement
+        || !psi_terminal::is_bounded_structural_scalar_store_path(path)
     {
         return Err(EmissionError::InvalidStructuralScalarFieldStoreCustody(
             *psi_operation,

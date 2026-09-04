@@ -949,6 +949,35 @@ impl<'program> ShapeCollector<'program> {
         )
     }
 
+    fn is_unrestricted_material_record(&self, type_reference: TypeReferenceHandle) -> bool {
+        let TypeReferenceNode::Named { symbol, .. } = self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        else {
+            return false;
+        };
+        self.program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *symbol)
+            .is_some_and(|data| {
+                let members = self.program.data_members(data);
+                data.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
+                    && data.lifetime_parameters.is_empty()
+                    && self.program.data_type_parameters(data).is_empty()
+                    && data.quotient.is_none()
+                    && data.where_facts.is_empty()
+                    && !data.zero_gated
+                    && data.properties.multiplicity == Multiplicity::Unrestricted
+                    && psi_typed_trees::data::DataDefinition::shape_kind_from_members(members)
+                        == DataShapeKind::Record
+                    && members.iter().all(|member| {
+                        matches!(member, DataMember::Field(field) if !field.relevance.is_erased())
+                    })
+            })
+    }
+
     fn is_literal_array_of_unrestricted_primitive(
         &self,
         mut type_reference: TypeReferenceHandle,
@@ -1047,6 +1076,8 @@ impl<'program> ShapeCollector<'program> {
         {
             let unrestricted_primitive_element =
                 self.is_unrestricted_nonatomic_primitive(*element_type);
+            let unrestricted_material_record_element =
+                self.is_unrestricted_material_record(*element_type);
             let unrestricted_nested_primitive_array_element =
                 self.is_literal_array_of_unrestricted_primitive(*element_type);
             if *length == 0
@@ -1060,6 +1091,7 @@ impl<'program> ShapeCollector<'program> {
                 || (crate::checks::type_multiplicity(self.program, *element_type)
                     != Multiplicity::Linear
                     && !unrestricted_primitive_element
+                    && !unrestricted_material_record_element
                     && !unrestricted_nested_primitive_array_element)
                 || !self.in_progress.insert(identity.clone())
             {

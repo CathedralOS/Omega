@@ -1536,8 +1536,9 @@ pub enum CheckedUnitEffectOperationPlan {
         destination_parameter_index: u32,
         value: CheckedScalarExpression,
     },
-    /// Replace one relevant primitive field through an exact field-only path
-    /// below an exclusive structural parameter. This shares the same checked
+    /// Replace one relevant primitive field through an exact common-field
+    /// path, optionally followed by one literal fixed-array index, below an
+    /// exclusive structural parameter. This shares the same checked
     /// path/value custody as dynamic realization stores, but is an ordinary
     /// attached-Unit effect and therefore carries no dispatch authority. The
     /// bounded result form reads only the exact fixed-integer local produced

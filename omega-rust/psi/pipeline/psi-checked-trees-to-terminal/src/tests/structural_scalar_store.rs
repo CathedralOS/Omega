@@ -4,6 +4,8 @@ const SOURCE: &str = r#"
     data Pair { left: u8; right: u16; }
     data Inner { value: u8; }
     data Outer { inner: Inner; }
+    data Cell [copy] { prefix: u8; value: u16; }
+    data Matrix { prefix: u8; cells: [Cell; 3]; }
     data Sink {}
 
     machine Sink::direct(pair: &write Pair) {
@@ -12,6 +14,10 @@ const SOURCE: &str = r#"
 
     machine Sink::nested(outer: &write Outer) {
         outer.inner.value = 9;
+    }
+
+    machine Sink::indexed(matrix: &write Matrix) {
+        matrix.cells[2].value = 13;
     }
 "#;
 
@@ -35,9 +41,11 @@ const RESULT_SOURCE: &str = r#"
 #[test]
 fn lowers_direct_and_nested_write_only_record_field_stores() {
     let checked = checked_source(SOURCE);
-    for (machine_name, expected_path_len, expected_value) in
-        [("Sink::direct", 0_usize, 7_u128), ("Sink::nested", 1, 9)]
-    {
+    for (machine_name, expected_path_len, expected_value) in [
+        ("Sink::direct", 0_usize, 7_u128),
+        ("Sink::nested", 1, 9),
+        ("Sink::indexed", 2, 13),
+    ] {
         let lowered = lower_machine(&checked, machine_name).expect("field store lowers");
         psi_terminal_verifier::validate_module(&lowered.semantic_module)
             .expect("field store module verifies");
@@ -95,6 +103,39 @@ fn rejects_checked_record_field_store_path_corruption() {
         lower_machine(&checked, "Sink::nested"),
         Err(LoweringError::Unsupported(
             "structural scalar store field is absent or ambiguous"
+        ))
+    ));
+}
+
+#[test]
+fn rejects_checked_literal_indexed_store_bound_corruption() {
+    let mut checked = checked_source(SOURCE);
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Sink::indexed")
+        .expect("literal-indexed machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == machine)
+        .expect("literal-indexed Unit plan");
+    let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = &mut plan.operations[0]
+    else {
+        panic!("checked literal-indexed structural store")
+    };
+    let CheckedUnitStructuralPathSegment::FixedIndex(index) = &mut store.carrier_path[1] else {
+        panic!("checked literal index")
+    };
+    *index = 3;
+    assert!(matches!(
+        lower_machine(&checked, "Sink::indexed"),
+        Err(LoweringError::Unsupported(
+            "structural scalar store fixed index is out of bounds"
         ))
     ));
 }

@@ -1,6 +1,7 @@
 //! Bounded scalar-field mutation and observation below structural parameters.
 
 use super::*;
+use psi_terminal::is_bounded_structural_scalar_store_path;
 
 fn parameter_for(
     machine: &TerminalMachine,
@@ -96,9 +97,7 @@ pub(super) fn structural_scalar_field_store_type(
         parameter.access,
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
     ) || !has_empty_structural_custody(machine, destination)
-        || !path.iter().all(
-            |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
-        )
+        || !is_bounded_structural_scalar_store_path(path)
     {
         return Err(invalid());
     }

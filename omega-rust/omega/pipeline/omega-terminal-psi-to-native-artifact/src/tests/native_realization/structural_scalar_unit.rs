@@ -33,6 +33,8 @@ const WRITE_ONLY_SOURCE: &str = r#"
     data Inner { prefix: u8; value: u16; }
     data Outer { prefix: u8; inner: Inner; }
     data Flags { prefix: u8; target: bool; }
+    data Cell [copy] { prefix: u8; value: u16; }
+    data Matrix { prefix: u8; cells: [Cell; 3]; }
     data Sink {}
 
     machine Sink::direct(pair: &write Pair) {
@@ -53,6 +55,10 @@ const WRITE_ONLY_SOURCE: &str = r#"
 
     machine Sink::boolean_parameter(flags: &write Flags, replacement: bool) {
         flags.target = replacement;
+    }
+
+    machine Sink::indexed(matrix: &write Matrix) {
+        matrix.cells[2].value = 29;
     }
 
     machine Sink::stack_parameter(
@@ -530,11 +536,12 @@ fn assert_parameter_sourced_field_store(
 }
 
 #[test]
-fn direct_and_nested_write_only_field_stores_reach_both_linux_targets() {
+fn record_and_literal_indexed_write_only_field_stores_reach_both_linux_targets() {
     let checked = checked(WRITE_ONLY_SOURCE);
     for (machine_name, path_len, field_byte_offset) in [
         ("Sink::direct", 0_usize, 2_u32),
         ("Sink::nested", 1, 4),
+        ("Sink::indexed", 2, 12),
         ("Sink::boolean_literal", 0, 1),
     ] {
         let terminal =
@@ -557,6 +564,37 @@ fn direct_and_nested_write_only_field_stores_reach_both_linux_targets() {
                     target,
                 )
                 .expect("write-only field store reaches target custody");
+            if machine_name == "Sink::indexed" {
+                let mut changed = target_plan.clone();
+                let entry = changed.entry;
+                let path = changed
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == entry)
+                    .and_then(|function| match &mut function.operation {
+                        omega_target_operations::TargetOperation::UnitBody(body) => body
+                            .operations
+                            .iter_mut()
+                            .find_map(|operation| match operation {
+                                omega_target_operations::TargetUnitOperation::StructuralScalarFieldStore {
+                                    path,
+                                    ..
+                                } => Some(path),
+                                _ => None,
+                            }),
+                        _ => None,
+                    })
+                    .expect("literal-indexed target store path");
+                path[1] = psi_terminal::StructuralPathSegment::FixedIndex(3);
+                assert!(matches!(
+                    omega_target_operations_to_assigned_target_operations::assign_registers(
+                        &changed
+                    ),
+                    Err(
+                        omega_target_operations_to_assigned_target_operations::AssignmentError::StructuralScalarFieldStoreCustodyMismatch { .. }
+                    )
+                ));
+            }
             let assigned = omega_target_operations_to_assigned_target_operations::assign_registers(
                 &target_plan,
             )

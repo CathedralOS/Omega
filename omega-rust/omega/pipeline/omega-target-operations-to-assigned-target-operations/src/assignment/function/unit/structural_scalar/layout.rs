@@ -157,15 +157,13 @@ pub(in crate::assignment::function) fn scalar_field_offset_at_path(
     scalar_type: ScalarType,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<u32> {
-    if !path.iter().all(
-        |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
-    ) {
+    if !psi_terminal::is_bounded_structural_scalar_store_path(path) {
         return None;
     }
     let (field_owner, path_offset) = if path.is_empty() {
         (structural_type, 0)
     } else {
-        let (nested, _, offset) = resolve_field_path(structural_type, path, declarations)?;
+        let (nested, _, offset) = resolve_projection_path(structural_type, path, declarations)?;
         (nested, offset)
     };
     path_offset.checked_add(direct_scalar_field_offset(
