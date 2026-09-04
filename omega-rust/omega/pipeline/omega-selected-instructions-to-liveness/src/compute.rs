@@ -1,6 +1,6 @@
 use omega_regalloc::{ValidatedLiveness, analyze_liveness};
 
-use crate::StagedOptimizedSelectedInstructions;
+use omega_target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 
 use super::model::OptimizedLivenessCustodyError;
 

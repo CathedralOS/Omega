@@ -1,6 +1,8 @@
 use omega_regalloc::{ValidatedLiveRanges, validate_live_ranges};
 
-use crate::{StagedOptimizedLiveness, validate_optimized_liveness_custody};
+use omega_selected_instructions_to_liveness::{
+    StagedOptimizedLiveness, validate_optimized_liveness_custody,
+};
 
 use super::custody::live_range_custody_receipt;
 use super::model::{OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt};

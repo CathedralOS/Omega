@@ -7,7 +7,9 @@ use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
-use crate::{OptimizedSelectionCustodyError, StagedOptimizedSelectedInstructions};
+use omega_target_operations_to_selected_instructions::{
+    OptimizedSelectionCustodyError, StagedOptimizedSelectedInstructions,
+};
 
 /// Opt-in liveness staging over the complete selected-instruction custody
 /// carrier. This grants no interval, allocation, emission, or publication

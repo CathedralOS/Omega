@@ -853,6 +853,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-liveness-to-live-ranges"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+ "omega-regalloc",
+ "omega-register-model",
+ "omega-selected-instructions",
+ "omega-selected-instructions-to-liveness",
+ "omega-target",
+ "psi-core",
+ "psi-terminal",
+]
+
+[[package]]
 name = "omega-machine-code"
 version = "0.1.0"
 dependencies = [
@@ -1051,6 +1065,7 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-legalized-operations",
+ "omega-liveness-to-live-ranges",
  "omega-machine-code",
  "omega-machine-optimizer",
  "omega-object-file",
@@ -1062,6 +1077,7 @@ dependencies = [
  "omega-regalloc",
  "omega-register-model",
  "omega-selected-instructions",
+ "omega-selected-instructions-to-liveness",
  "omega-target",
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
@@ -1457,6 +1473,20 @@ dependencies = [
  "psi-core",
  "psi-terminal",
  "sha2",
+]
+
+[[package]]
+name = "omega-selected-instructions-to-liveness"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+ "omega-regalloc",
+ "omega-register-model",
+ "omega-selected-instructions",
+ "omega-target",
+ "omega-target-operations-to-selected-instructions",
+ "psi-core",
+ "psi-terminal",
 ]
 
 [[package]]

@@ -1,6 +1,8 @@
-//! Optimizer module role: executable entrance. Selected-CFG liveness staging.
+#![forbid(unsafe_code)]
+
+//! Pipeline stage from selected instructions to validated liveness.
 //!
-//! This entrance owns the analysis-to-independent-replay join. No liveness
+//! This crate owns the analysis-to-independent-replay join. No liveness
 //! result receives stage custody before replay reconstructs its exact receipt.
 
 mod compute;
@@ -11,7 +13,7 @@ mod validation;
 pub use model::*;
 pub use validation::validate_optimized_liveness_custody;
 
-use crate::StagedOptimizedSelectedInstructions;
+use omega_target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 
 pub fn stage_optimized_liveness(
     selected: StagedOptimizedSelectedInstructions,
