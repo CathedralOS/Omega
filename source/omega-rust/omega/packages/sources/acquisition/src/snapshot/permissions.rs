@@ -58,6 +58,12 @@ pub(crate) fn verify_open_snapshot_tree_modes(
         } else if metadata.is_file() {
             let mut options = CapabilityOpenOptions::new();
             options.read(true).follow(FollowSymlinks::No);
+            #[cfg(not(unix))]
+            if !metadata.permissions().readonly() {
+                // Windows needs a writable handle to change the readonly
+                // attribute. Already-sealed files need only a read handle.
+                options.write(true);
+            }
             let file = root.open_with(&name, &options).map_err(|error| {
                 cache_custody_invalid(
                     kind,
@@ -198,7 +204,12 @@ pub(crate) fn make_open_snapshot_read_only(
                     "snapshot file changed during read-only finalization",
                 ));
             }
+            #[cfg(unix)]
             set_open_snapshot_file_mode(&file, &path, capability_is_executable(&metadata))?;
+            #[cfg(not(unix))]
+            if !opened.permissions().readonly() {
+                set_open_snapshot_file_mode(&file, &path, false)?;
+            }
         }
     }
     set_open_snapshot_directory_read_only(root, display_root)
@@ -209,11 +220,6 @@ fn capability_is_executable(metadata: &CapabilityMetadata) -> bool {
     use cap_fs_ext::OsMetadataExt;
 
     metadata.mode() & 0o111 != 0
-}
-
-#[cfg(not(unix))]
-fn capability_is_executable(_metadata: &CapabilityMetadata) -> bool {
-    false
 }
 
 #[cfg(unix)]
@@ -325,6 +331,10 @@ fn set_snapshot_directory_read_only(_path: &Path) -> Result<(), SourceResolveErr
     Ok(())
 }
 
+// Clearing the read-only bit is the precise Windows permission operation;
+// Clippy's portability lint recommends Unix mode bits, which this branch does
+// not compile.
+#[allow(clippy::permissions_set_readonly_false)]
 pub(crate) fn make_open_tree_owner_writable(root: &CapabilityDirectory) {
     #[cfg(unix)]
     {
@@ -383,10 +393,13 @@ pub(crate) fn make_open_tree_owner_writable(root: &CapabilityDirectory) {
 }
 
 #[cfg(test)]
-pub(crate) fn make_tree_owner_writable(root: &Path) {
+#[allow(clippy::permissions_set_readonly_false)]
+pub(crate) fn make_tree_owner_writable(_root: &Path) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+
+        let root = _root;
 
         if let Ok(metadata) = std::fs::symlink_metadata(root)
             && metadata.is_dir()
@@ -403,6 +416,31 @@ pub(crate) fn make_tree_owner_writable(root: &Path) {
                                 &path,
                                 std::fs::Permissions::from_mode(0o600),
                             );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let root = _root;
+        if let Ok(metadata) = std::fs::symlink_metadata(root)
+            && metadata.is_dir()
+        {
+            let mut permissions = metadata.permissions();
+            permissions.set_readonly(false);
+            let _ = std::fs::set_permissions(root, permissions);
+            if let Ok(entries) = std::fs::read_dir(root) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Ok(metadata) = std::fs::symlink_metadata(&path) {
+                        if metadata.is_dir() {
+                            make_tree_owner_writable(&path);
+                        } else if metadata.is_file() {
+                            let mut permissions = metadata.permissions();
+                            permissions.set_readonly(false);
+                            let _ = std::fs::set_permissions(&path, permissions);
                         }
                     }
                 }

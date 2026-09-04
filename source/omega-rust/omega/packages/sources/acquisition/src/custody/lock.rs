@@ -147,7 +147,7 @@ impl CacheEntryLock {
         Ok(file)
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn acquire_with_budget(
         path: &Path,
         budget: &impl CacheLockBudget,
@@ -413,12 +413,20 @@ pub(crate) fn verify_retained_cache_parent_path(
     verify_cache_custody_root(parent_path, kind)?;
     let current_parent = open_absolute_directory_nofollow(parent_path)
         .map_err(|error| cache_custody_invalid(kind, parent_path, error.to_string()))?;
-    let retained_metadata = retained_parent
-        .dir_metadata()
-        .map_err(|error| io_error(parent_path, error))?;
-    let current_metadata = current_parent
-        .dir_metadata()
-        .map_err(|error| io_error(parent_path, error))?;
+    let retained_metadata = retained_parent.dir_metadata().map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            parent_path,
+            format!("could not inspect the retained cache parent: {error}"),
+        )
+    })?;
+    let current_metadata = current_parent.dir_metadata().map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            parent_path,
+            format!("could not inspect the current cache parent: {error}"),
+        )
+    })?;
     if !same_capability_file_identity(&retained_metadata, &current_metadata) {
         return Err(cache_custody_invalid(
             kind,

@@ -14,6 +14,7 @@ fn git_source_fetches_only_the_selected_revision_depth() {
 
     let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
     let output = Command::new("git")
+        .args(["-c", "core.longpaths=true"])
         .arg("-C")
         .arg(&repository)
         .args(["rev-list", "--count", "FETCH_HEAD"])

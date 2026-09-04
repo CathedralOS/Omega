@@ -48,7 +48,18 @@ pub(in crate::git::objects) fn read_git_blobs_batch(
     let stdout_limit = git_batch_output_limit(entries, limits)?;
     let request_bytes = git_batch_request_bytes(entries);
     repository.verify_identity()?;
-    let mut request = PendingGitBatchRequest::create(&repository.entry, &repository.entry_root)?;
+    let cache_root =
+        repository
+            .entry_root
+            .parent()
+            .ok_or_else(|| SourceResolveError::GitCacheInvalid {
+                path: repository.entry_root.clone(),
+                message: "Git cache entry has no retained parent".to_owned(),
+            })?;
+    // The verified cache entry is reopened as immutable custody. Keep the
+    // transient cat-file request beside it in the retained mutable cache lane;
+    // a Windows read-only directory handle cannot create children.
+    let mut request = PendingGitBatchRequest::create(&repository.cache_parent, cache_root)?;
     let operation_result = (|| {
         let request_path = request.display_path.clone();
         write_git_batch_request(request.file_mut(), &request_path, &request_bytes)?;

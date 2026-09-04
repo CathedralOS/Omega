@@ -205,9 +205,20 @@ fn push_entry(
         });
     }
     entries.push(SourceEntry {
-        relative_bytes: raw_os_bytes(relative.as_os_str()),
+        relative_bytes: canonical_relative_path_bytes(&relative),
         relative_path: relative,
         kind,
     });
     Ok(())
+}
+
+fn canonical_relative_path_bytes(relative: &Path) -> Vec<u8> {
+    let mut encoded = Vec::new();
+    for component in relative.components() {
+        if !encoded.is_empty() {
+            encoded.push(b'/');
+        }
+        encoded.extend_from_slice(raw_os_bytes(component.as_os_str()).as_slice());
+    }
+    encoded
 }

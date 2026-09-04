@@ -228,6 +228,10 @@ fn resolve_git_snapshot_in_collection(
             "finalized snapshot did not preserve the authenticated Git tree exactly",
         ));
     }
+    // Windows will not rename the retained stage while a descendant directory
+    // handle remains open. Verification is complete, so release it before the
+    // atomic publication rename.
+    drop(source_directory);
     pending.publish(collection_path, &publication)?;
 
     // The returned identity is always calculated from the atomically published tree, never from

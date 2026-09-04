@@ -720,7 +720,9 @@ fn nested_boolean_result_conditional_reaches_native_control() {
             .expect("nested Boolean control emits for each architecture");
         assert!(!emitted.functions[0].bytes.is_empty());
     }
+    #[cfg(unix)]
     let assigned = assign_registers(&host_target).expect("host Boolean control assigns");
+    #[cfg(unix)]
     let machine_code = emit_machine_code(&assigned).expect("host Boolean control emits");
     #[cfg(unix)]
     for (outer, inner, expected) in [

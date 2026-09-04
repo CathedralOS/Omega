@@ -1831,12 +1831,14 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
             &[
                 "admission",
                 "catalogs",
+                "closed_sum",
                 "custody",
                 "dynamic_result",
                 "emission",
                 "internal_calls",
                 "nested_control",
                 "prefixed_control",
+                "routing",
             ][..],
         ),
     ] {

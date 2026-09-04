@@ -1,3 +1,8 @@
+// The embedded Omega programs use `format!` only to keep their many source
+// braces visually paired; spelling each as a Rust raw string would require a
+// second, error-prone fixture representation.
+#![allow(clippy::useless_format)]
+
 use omega_compiler::{compile_to_checked, compile_to_checked_with_packages_in_sponsored_build_dir};
 use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,

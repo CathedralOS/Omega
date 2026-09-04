@@ -8,18 +8,18 @@ use cap_std::fs::Dir as CapabilityDirectory;
 
 use crate::SourceResolveError;
 use crate::custody::platform::same_capability_file_identity;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use crate::custody::publication::direct_cache_child_name;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use crate::custody::tree::{CacheCustodyKind, verify_git_cache_root_custody};
 use crate::limits::GIT_CACHE_METADATA;
 use crate::tree::filesystem::io_error;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use crate::tree::filesystem::open_absolute_directory_nofollow;
 
 use crate::error::cache_invalid;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn invalidate_git_cache_entry_from_retained_parent(
     entry_root: &Path,
 ) -> Result<(), SourceResolveError> {
@@ -68,10 +68,26 @@ pub(crate) fn invalidate_git_cache_entry_from_open_parent(
     entry_directory
         .remove_file(GIT_CACHE_METADATA)
         .map_err(|error| io_error(&entry_root.join(GIT_CACHE_METADATA), error))?;
+    synchronize_cache_parent(cache_directory, cache_root)
+}
+
+#[cfg(unix)]
+fn synchronize_cache_parent(
+    cache_directory: &CapabilityDirectory,
+    cache_root: &Path,
+) -> Result<(), SourceResolveError> {
     cache_directory
         .try_clone()
         .map_err(|error| io_error(cache_root, error))?
         .into_std_file()
         .sync_all()
         .map_err(|error| io_error(cache_root, error))
+}
+
+#[cfg(not(unix))]
+fn synchronize_cache_parent(
+    _cache_directory: &CapabilityDirectory,
+    _cache_root: &Path,
+) -> Result<(), SourceResolveError> {
+    Ok(())
 }

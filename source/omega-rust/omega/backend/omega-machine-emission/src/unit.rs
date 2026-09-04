@@ -1539,10 +1539,7 @@ pub(super) fn emit_unit_body(
                                 && payload.home.defining_operation
                                     == source.requirement.defining_operation
                                 && payload.home.byte_offset
-                                    == source
-                                        .byte_offset
-                                        .checked_add(payload.field_byte_offset)
-                                        .unwrap_or(u32::MAX)
+                                    == source.byte_offset.saturating_add(payload.field_byte_offset)
                         })
                 });
                 if pending_conditional.is_some()
@@ -3560,8 +3557,7 @@ fn validate_assigned_unit_frame(
                                     || payload.home.byte_offset
                                         != source
                                             .byte_offset
-                                            .checked_add(payload.field_byte_offset)
-                                            .unwrap_or(u32::MAX)
+                                            .saturating_add(payload.field_byte_offset)
                             })
                     })
                 {

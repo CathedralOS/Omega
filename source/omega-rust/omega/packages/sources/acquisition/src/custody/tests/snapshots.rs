@@ -13,6 +13,10 @@ use super::{
 use std::path::Path;
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "Windows prevents replacement while the retained snapshot-parent handle is open"
+)]
 fn materialized_snapshot_writes_and_cleanup_remain_bound_to_the_open_stage() {
     let root = temp_root("retained-materialized-stage");
     let snapshots = root.join("snapshots");
@@ -51,6 +55,10 @@ fn materialized_snapshot_writes_and_cleanup_remain_bound_to_the_open_stage() {
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "Windows prevents replacement while the retained cache-entry handle is open"
+)]
 fn git_snapshot_bootstrap_and_staging_remain_bound_to_the_retained_entry() {
     let (repo, _) = create_git_source("retained-snapshot-bootstrap-source");
     let cache = temp_root("retained-snapshot-bootstrap-cache");
@@ -110,6 +118,10 @@ fn git_snapshot_bootstrap_and_staging_remain_bound_to_the_retained_entry() {
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "Windows prevents replacement while the retained snapshot-stage handle is open"
+)]
 fn materialized_snapshot_publication_rejects_a_replaced_stage_name() {
     let root = temp_root("replaced-materialized-stage");
     let snapshots = root.join("snapshots");

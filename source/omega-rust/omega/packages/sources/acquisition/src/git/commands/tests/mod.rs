@@ -1,8 +1,12 @@
 //! Command execution regression tests grouped by resolver behavior.
 
-use super::{capture::*, command::*, invocation::*, reconciliation::*};
+#[cfg(unix)]
+use super::invocation::*;
+use super::{capture::*, command::*, reconciliation::*};
 use crate::error::SourceResolveError;
-use crate::git::executable::{budget::*, executor::*};
+#[cfg(unix)]
+use crate::git::executable::budget::*;
+use crate::git::executable::executor::*;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::*;
 use crate::test_support::*;

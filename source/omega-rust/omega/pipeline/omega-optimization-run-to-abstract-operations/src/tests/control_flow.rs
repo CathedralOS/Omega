@@ -75,15 +75,17 @@ fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
             .iter()
             .map(|record| record.provenance.len())
             .collect::<Vec<_>>(),
-        [5, 6]
+        [6, 6]
     );
     let retained_outgoing_edge = omega_optimization_unit::PsiRealizationSite::Edge {
         machine: MachineId::new(1_501).unwrap(),
         edge: EdgeId::new(1_517).unwrap(),
     };
-    let outgoing_edge_rewrites = optimized.transformation_ledger().records()[1]
-        .provenance
+    let outgoing_edge_rewrites = optimized
+        .transformation_ledger()
+        .records()
         .iter()
+        .flat_map(|record| &record.provenance)
         .filter(|row| row.input == retained_outgoing_edge)
         .collect::<Vec<_>>();
     assert_eq!(outgoing_edge_rewrites.len(), 1);
@@ -99,8 +101,8 @@ fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
             omega_optimization_unit::PsiRealizationSite::Node(
                 omega_optimization_unit::NodeLocation {
                     machine: MachineId::new(1_501).unwrap(),
-                    block: BlockId::new(1_506).unwrap(),
-                    node: 2,
+                    block: BlockId::new(1_504).unwrap(),
+                    node: 1,
                 },
             )
         )

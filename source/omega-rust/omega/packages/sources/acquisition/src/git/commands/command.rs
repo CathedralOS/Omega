@@ -65,6 +65,11 @@ pub(crate) fn sealed_git_command(
         .env("GIT_PROTOCOL_FROM_USER", "0")
         .env("GIT_TERMINAL_PROMPT", "0")
         .arg("--no-replace-objects")
+        // Git for Windows does not opt into Win32 long-path handling by
+        // default. Source custody deliberately uses deep, identity-bearing
+        // cache paths, so make that execution property explicit for every
+        // sealed Git operation rather than shortening canonical identities.
+        .args(windows_long_path_configuration())
         .arg("-c")
         .arg(format!("core.hooksPath={}", null_device()))
         .args(["-c", "protocol.allow=never"])
@@ -125,6 +130,16 @@ pub(crate) fn sealed_git_command(
             "filter.lfs.required=false",
         ]);
     Ok(command)
+}
+
+#[cfg(windows)]
+fn windows_long_path_configuration() -> [&'static str; 2] {
+    ["-c", "core.longpaths=true"]
+}
+
+#[cfg(not(windows))]
+fn windows_long_path_configuration() -> [&'static str; 0] {
+    []
 }
 
 #[cfg(unix)]

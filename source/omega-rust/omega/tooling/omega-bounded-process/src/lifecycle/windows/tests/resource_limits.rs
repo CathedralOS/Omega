@@ -5,7 +5,9 @@ use super::support::{JOB_LIMIT_TEST_LOCK, MIB, run_worker, test_limits};
 
 #[test]
 fn job_active_process_limit_rejects_excess_descendant() {
-    let _serial = JOB_LIMIT_TEST_LOCK.lock().expect("lock Job limit tests");
+    let _serial = JOB_LIMIT_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let control = test_limits(4, 512, 1024, Duration::from_secs(30));
     let (status, events) = run_worker("fanout", "2,1", control, Duration::from_secs(10));
     assert!(status.success(), "below-limit fanout should succeed");
@@ -22,7 +24,9 @@ fn job_active_process_limit_rejects_excess_descendant() {
 
 #[test]
 fn job_process_memory_limit_blocks_excess_commit() {
-    let _serial = JOB_LIMIT_TEST_LOCK.lock().expect("lock Job limit tests");
+    let _serial = JOB_LIMIT_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let control = test_limits(4, 256, 512, Duration::from_secs(30));
     let (status, events) = run_worker(
         "touch",
@@ -49,7 +53,9 @@ fn job_process_memory_limit_blocks_excess_commit() {
 
 #[test]
 fn job_aggregate_memory_limit_spans_descendants() {
-    let _serial = JOB_LIMIT_TEST_LOCK.lock().expect("lock Job limit tests");
+    let _serial = JOB_LIMIT_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let control = test_limits(4, 256, 512, Duration::from_secs(30));
     let (status, events) = run_worker(
         "aggregate-memory",
@@ -79,13 +85,18 @@ fn job_aggregate_memory_limit_spans_descendants() {
 
 #[test]
 fn job_aggregate_cpu_limit_terminates_the_job() {
-    let _serial = JOB_LIMIT_TEST_LOCK.lock().expect("lock Job limit tests");
+    let _serial = JOB_LIMIT_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let control = test_limits(2, 256, 512, Duration::from_secs(5));
     let (status, events) = run_worker("spin", "100", control, Duration::from_secs(10));
     assert!(status.success(), "below-limit aggregate CPU should succeed");
     assert!(!events.contains(&JobLimitEvent::AggregateCpu));
 
-    let limited = test_limits(2, 256, 512, Duration::from_secs(1));
+    // Keep the CPU threshold well below the worker's wall-clock spin. On a
+    // heavily loaded test host, one second of user time need not accrue during
+    // five seconds of wall time.
+    let limited = test_limits(2, 256, 512, Duration::from_millis(100));
     let (status, events) = run_worker("spin", "5000", limited, Duration::from_secs(10));
     assert!(!status.success(), "over-limit aggregate CPU must terminate");
     assert!(events.contains(&JobLimitEvent::AggregateCpu));

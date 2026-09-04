@@ -1,9 +1,8 @@
 use super::*;
 
 fn application_build() -> String {
-    format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"cross-target-canary\");\n}}\n"
-    )
+    "machine build(builder: &mut Build) {\n    builder.application(\"cross-target-canary\");\n}\n"
+        .to_owned()
 }
 
 #[test]

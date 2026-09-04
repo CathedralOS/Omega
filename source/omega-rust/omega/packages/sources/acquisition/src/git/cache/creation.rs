@@ -169,6 +169,9 @@ pub(crate) fn create_git_cache_entry(
         pending.verify_ambient_path_identity(cache_dir),
         None,
     )?;
+    // Windows cannot rename a directory while this metadata file is retained.
+    // Its bytes and custody have already been synchronized and verified.
+    drop(metadata);
     pending.publish(cache_dir, entry_root, entry_name)?;
     Ok(())
 }

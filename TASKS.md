@@ -23,8 +23,9 @@ and leave a link plus the next executable step.
 Before starting work, fetch `main`, inspect the newest commits in that lane, and
 avoid overlapping an active change. Commit and push coherent milestones.
 Engineering difficulty is not a design blocker. Owner decisions belong in
-`OWNER_QUESTIONS.md`; research without a current customer belongs at the end of
-this file.
+`OWNER_QUESTIONS.md`. Research without a current customer does not belong on
+the execution board; recover it from its design document or Git history when a
+real customer appears.
 
 ## Ownership firewall
 
@@ -48,8 +49,6 @@ implementation. They take precedence over adding another evidence carrier that
 has no exercising program. The finite definition of Rust-product completion is
 the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_contract.md).
 
-## Omega-written product compiler
-
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two
   sibling Omega packages: target-neutral phases under `source/psi/` and the
   Terminal-Psi-consuming product under `source/omega/`, with hosted entrypoints
@@ -63,11 +62,10 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
-- **OMEGA-RUST-COMPARATOR.** Maintain `source/omega-rust/` as the production
-  implementation until the Rust completion contract closes and later as a
-  differential implementation only while its bug-finding value justifies the
-  cost. Rust agreement must not become bootstrap authority, and Rust-specific
-  code must not migrate into the Omega-owned compiler source.
+`source/omega-rust/` remains the production implementation until that contract
+closes. It may remain afterward as a differential implementation while it finds
+real bugs, but Rust agreement is not bootstrap authority and Rust-specific
+machinery must not migrate into the Omega-written compiler source.
 
 ## P1 - Authority, roots, and entry
 
@@ -413,20 +411,3 @@ These are pointers, not duplicate specifications.
   path.
 - Keep unavailable hosts structurally tested and report the missing runtime leg
   explicitly.
-
-## Deferred until a real customer
-
-- cross-package operational recursion with a compositional public termination
-  interface;
-- matching logic as a proof/semantics interchange experiment;
-- fault-tolerant component restart and owner-death protocols;
-- concurrent whole-system deadlock, starvation, memory, and response proofs;
-- richer measured-recursion guards and lexicographic cycles;
-- reduced-rational divisibility theory beyond current quotient work;
-- asynchronous extent revocation beyond provider quiescence;
-- non-blocking executable-visibility tokens;
-- runtime-generated code, JIT, and arbitrary self-modifying code;
-- independent final-byte CFI certificates and optional CET/PAC/shadow stacks;
-- universe levels before a full math-library replay goal;
-- reusable fragmented allocation before a customer defines its lifecycle; and
-- optimizer work beyond the active checklist in `TASKS_OPTIMIZER.md`.

@@ -2505,15 +2505,11 @@ pub(super) fn lower_attached_unit_closure_including(
                             );
                     let direct_parameter = match value {
                         CheckedScalarExpression::Parameter { position, .. } => {
-                            usize::try_from(*position)
-                                .ok()
-                                .is_some_and(|position| position < scalar_parameters.len())
+                            *position < scalar_parameters.len()
                         }
                         CheckedScalarExpression::Boolean(expression) => match expression.as_ref() {
                             psi_checked_trees::CheckedBooleanExpression::Parameter { position } => {
-                                usize::try_from(*position)
-                                    .ok()
-                                    .is_some_and(|position| position < scalar_parameters.len())
+                                *position < scalar_parameters.len()
                             }
                             _ => false,
                         },

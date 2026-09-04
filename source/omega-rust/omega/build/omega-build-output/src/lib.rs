@@ -1621,6 +1621,7 @@ mod tests {
         assert!(replayed_ordinary_files(&[(b"nested/file.bin", b"bytes")]).is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn replayed_file_commitment_binds_compiler_derived_executable_class() {
         let ordinary = replayed_files(&[(b"tool.bin", b"tool", false)]).unwrap();

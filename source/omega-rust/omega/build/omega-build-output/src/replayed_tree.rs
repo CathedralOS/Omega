@@ -220,11 +220,11 @@ mod tests {
         let mixed = replayed_output_tree(&[
             ReplayedBuildOutputEntry::directory(b"generated"),
             ReplayedBuildOutputEntry::regular_file(b"generated/data.bin", b"data", false),
-            ReplayedBuildOutputEntry::regular_file(b"tool", b"executable", true),
+            ReplayedBuildOutputEntry::regular_file(b"tool", b"ordinary", false),
         ])
         .expect("mixed receipted tree");
         let reordered_siblings = replayed_output_tree(&[
-            ReplayedBuildOutputEntry::regular_file(b"tool", b"executable", true),
+            ReplayedBuildOutputEntry::regular_file(b"tool", b"ordinary", false),
             ReplayedBuildOutputEntry::directory(b"generated"),
             ReplayedBuildOutputEntry::regular_file(b"generated/data.bin", b"data", false),
         ])
@@ -232,9 +232,10 @@ mod tests {
 
         assert_eq!(mixed, reordered_siblings);
         assert_eq!(mixed.entry_count(), 3);
-        assert_eq!(mixed.file_bytes(), 14);
+        assert_eq!(mixed.file_bytes(), 12);
     }
 
+    #[cfg(unix)]
     #[test]
     fn retains_inert_symbolic_links_with_exact_target_spelling() {
         let mixed = replayed_output_tree(&[
@@ -265,6 +266,26 @@ mod tests {
             &mixed.entries[3].kind,
             RetainedStagedOutputEntryKind::Symlink { target } if target == b"../tool"
         ));
+    }
+
+    #[cfg(not(unix))]
+    #[test]
+    fn rejects_tree_kinds_the_host_cannot_faithfully_materialize() {
+        assert!(
+            replayed_output_tree(&[ReplayedBuildOutputEntry::regular_file(
+                b"tool",
+                b"executable",
+                true,
+            )])
+            .is_err()
+        );
+        assert!(
+            replayed_output_tree(&[ReplayedBuildOutputEntry::symbolic_link(
+                b"current",
+                b"artifact",
+            )])
+            .is_err()
+        );
     }
 
     #[test]

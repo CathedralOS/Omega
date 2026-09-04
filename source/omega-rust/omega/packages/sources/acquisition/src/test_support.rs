@@ -36,9 +36,16 @@ pub(crate) fn temp_root(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock")
         .as_nanos();
+    #[cfg(not(windows))]
     let temporary_directory = std::env::temp_dir()
         .canonicalize()
         .expect("canonicalize test temporary directory");
+    // Windows canonicalization introduces a `\\?\` spelling. The resolver
+    // accepts that spelling, but fixture Git processes also receive these
+    // paths through configuration variables and `-C`, where Git for Windows
+    // does not consistently accept the verbatim prefix.
+    #[cfg(windows)]
+    let temporary_directory = std::env::temp_dir();
     temporary_directory.join(format!(
         "omega-package-source-{name}-{}-{stamp}",
         std::process::id()
@@ -251,6 +258,7 @@ pub(crate) fn open_verified_git_repository(
     .expect("retain verified Git repository")
 }
 
+#[cfg(unix)]
 pub(crate) fn first_regular_descendant(root: &Path) -> PathBuf {
     let mut pending = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {

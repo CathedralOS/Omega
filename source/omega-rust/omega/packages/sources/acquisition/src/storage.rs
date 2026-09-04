@@ -420,6 +420,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "Windows prevents replacement while the retained storage-root handle is open"
+    )]
     fn retained_private_root_rejects_path_replacement() {
         let base = isolated_base("replacement");
         std::fs::create_dir_all(&base).expect("create isolated cache base");
@@ -439,6 +443,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "Windows prevents replacement while the retained storage-lane handle is open"
+    )]
     fn retained_private_lane_rejects_path_replacement() {
         let base = isolated_base("lane-replacement");
         std::fs::create_dir_all(&base).expect("create isolated cache base");

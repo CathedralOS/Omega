@@ -124,6 +124,10 @@ fn cache_lock_open_does_not_follow_a_preexisting_symlink() {
     let _ = std::fs::remove_dir_all(&root);
 }
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "Windows prevents replacement while the retained parent handle is open"
+)]
 fn cache_lock_identity_rejects_a_replaced_parent_path() {
     for (name, kind) in [
         ("git", CacheCustodyKind::Git),
