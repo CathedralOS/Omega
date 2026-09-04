@@ -1,3 +1,56 @@
+//! One place that knows what a two-word descriptor looks like, so nothing else
+//! open-codes `2 * pointer_size`.
+//!
+//! Every carrier here falls out of a single number the target hands us:
+//! `pointer_size`. A slice, a text window, and a borrowed dynamic-trait value
+//! are all two pointer-sized words:
+//!
+//! ```text
+//!   offset 0              offset pointer_size
+//!   +---------------------+---------------------+
+//!   | ptr                 | len                 |  slice: len counts elements
+//!   | ptr                 | len                 |  text:  len counts bytes
+//!   | instance            | table               |  dynamic trait: table pointer
+//!   +---------------------+---------------------+
+//! ```
+//!
+//! On a 64-bit target that is 16 bytes, 8-aligned, second word at offset 8.
+//! Subslicing is the only arithmetic in the crate and it is uniform across the
+//! carriers that have a length: `new.ptr = base.ptr + start *
+//! element_byte_size`, `new.len = end - start`.
+
+//! Those three rows having identical layout is exactly why we do not model
+//! them as one type with three tags. `Slice` and `TextWindow` do share
+//! `FatDescriptorAbi`, because in both the second word really is a count and a
+//! subslice of either means the same multiply-and-add. The dynamic-trait
+//! carrier gets its own type, because its second word is a selected-conformance
+//! table pointer. Fold it in as a third `FatDescriptorKind` and `subslice()`
+//! becomes callable on it: a caller would compute `end - start` over a pointer
+//! and get back a descriptor that looks well-formed and addresses nothing.
+//! The duplicated `total_size`/`align` bodies are what we pay to make that call
+//! impossible to write.
+
+//! `omega-layout` is the only crate that depends on this one, through
+//! `sizing.rs::fat_descriptor_layout` and `dynamic_trait_descriptor_layout`.
+//! Both take only `total_size()` and `align()`.
+//!
+//! @Cleanup: the crate claims to own this geometry and does not. The terminal
+//! emission lane carries its own copy through `AssignedDynamicTraitDescriptorAbi`
+//! and re-derives the same invariant by hand in
+//! `omega-machine-emission/src/unit/dynamic.rs::descriptor_record` —
+//! `table_byte_offset == pointer_size`, `total_byte_size == 2 * pointer_size`,
+//! and rejects the unit if they disagree. Two independent derivations of one
+//! layout is how the drift this crate exists to prevent gets back in.
+//!
+//! @Cleanup: of the public surface below, only `build_runtime_abi_plan`,
+//! `slice_descriptor`, `dynamic_trait_descriptor`, `total_size` and `align`
+//! have a caller. `FatDescriptorKind`, `text_descriptor`, `ptr_offset`,
+//! `len_offset`, `len_size`, `subslice`, and both `*_descriptor_size` shims are
+//! reached only from this crate's own tests. They were written ahead of the
+//! text-window and subslice lowering that has not landed; if that lowering
+//! lands somewhere else, delete them rather than leaving a second answer to
+//! the same question sitting here.
+
 use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,12 +80,14 @@ pub enum FatDescriptorKind {
     TextWindow,
 }
 
-/// The single, canonical fat-descriptor shape `{ ptr @ 0, len @ pointer_size }`.
+/// The fat-descriptor shape `{ ptr @ 0, len @ pointer_size }` for both slices
+/// and text windows.
 ///
-/// This is the ONE owner of the `{ptr,len}` layout used by both slices and text
-/// windows. `omega-layout` and instruction-selection are CONSUMERS: they must
-/// derive descriptor size, the length-half offset, and alignment from here
-/// rather than re-deriving `+ pointer_size` / `2 * pointer_size` independently.
+/// Meant to be the one owner of that layout: a consumer asks here for size, the
+/// length-half offset, and alignment instead of re-deriving `+ pointer_size` /
+/// `2 * pointer_size` on its own. Today only `omega-layout` actually does;
+/// instruction selection and the terminal emission lane still carry their own
+/// derivations. See the @Cleanup at the top of the file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FatDescriptorAbi {
     pointer_size: usize,

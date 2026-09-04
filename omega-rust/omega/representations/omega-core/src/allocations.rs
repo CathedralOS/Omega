@@ -1,3 +1,36 @@
+//! Process-wide allocation counters behind a `GlobalAlloc` wrapper, so a phase
+//! can report what it allocated without threading an allocator through its own
+//! call graph.
+//!
+//! Four `AtomicU64` statics that only ever go up, and `Ordering::Relaxed` on
+//! every touch. We are not synchronizing anything with these numbers, we are
+//! counting, and a stronger ordering on every `malloc` in a compiler that
+//! allocates constantly would land in the very timings this exists to feed.
+//! What we give up is that a `snapshot()` taken while other threads allocate is
+//! not one consistent instant — the four fields can come from slightly
+//! different moments. That is why the useful type is `AllocationDelta` from
+//! `delta_since` rather than the snapshot itself: across a phase lasting
+//! milliseconds the skew is a handful of allocations against millions.
+//!
+//! `realloc` counts as a deallocation of the old size plus an allocation of the
+//! new one, so `allocation_calls` is larger than the number of distinct objects
+//! a phase created, by exactly its reallocation count. A growing `Vec` shows up
+//! here once per growth.
+//!
+//! `delta_since` saturates instead of wrapping, so a snapshot pair passed in
+//! the wrong order reads as zero rather than as eighteen quintillion bytes.
+//! `net_live_bytes` widens to `i128` because a phase that frees more than it
+//! allocated — it inherited the memory from an earlier phase — is ordinary, and
+//! the honest answer there is negative.
+//!
+//! @Robustness: none of this counts anything unless a binary installs the
+//! wrapper. `omega/src/command.rs` does, with `#[global_allocator] static
+//! GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();`. Under a
+//! test binary, a bench harness, or any other host, every snapshot reads zero
+//! and the phase report shows zero bytes allocated — which reads as a
+//! measurement rather than as an absent one. There is nothing in the API that
+//! lets a caller tell the two apart.
+
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicU64, Ordering};
 
