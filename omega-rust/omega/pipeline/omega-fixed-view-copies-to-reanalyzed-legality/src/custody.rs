@@ -1,6 +1,6 @@
 use omega_regalloc::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness};
 
-use crate::StagedOptimizedFixedViewCopyCustodyReceipt;
+use omega_allocation_legality_to_fixed_view_copies::StagedOptimizedFixedViewCopyCustodyReceipt;
 
 use super::model::StagedOptimizedSelectedReanalysisCustodyReceipt;
 

@@ -3,7 +3,7 @@ use omega_regalloc::{
     ValidatedLiveRanges, ValidatedLiveness,
 };
 
-use crate::{
+use omega_allocation_legality_to_fixed_view_copies::{
     OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopies,
     StagedOptimizedFixedViewCopyCustodyReceipt,
 };

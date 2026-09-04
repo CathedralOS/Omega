@@ -40,9 +40,9 @@ direct transition-free path. It still grants no machine-emission authority.
 
 ## Implementation Map
 
-- `pipeline/optimization/omega-regalloc/src/selected_analysis_input.rs` owns the sealed
+- `pipeline/omega-regalloc` owns the sealed
   validated-analysis boundary.
-- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/selected_reanalysis.rs` owns
-  complete transformed analysis custody.
+- `pipeline/omega-fixed-view-copies-to-reanalyzed-legality` owns complete
+  transformed analysis custody.
 - `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/register_homes.rs` owns the
   separate post-copy home carrier.

@@ -32,6 +32,7 @@ omega-selected-instructions-to-liveness = { path = "../omega-selected-instructio
 omega-liveness-to-live-ranges = { path = "../omega-liveness-to-live-ranges" }
 omega-live-ranges-to-allocation-legality = { path = "../omega-live-ranges-to-allocation-legality" }
 omega-allocation-legality-to-fixed-view-copies = { path = "../omega-allocation-legality-to-fixed-view-copies" }
+omega-fixed-view-copies-to-reanalyzed-legality = { path = "../omega-fixed-view-copies-to-reanalyzed-legality" }
 omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 omega-target = { path = "../../representations/omega-target" }
