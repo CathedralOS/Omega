@@ -19,6 +19,7 @@ members = [
     "omega-rust/psi/representations/psi-facts",
     "omega-rust/psi/representations/psi-effects",
     "omega-rust/psi/representations/psi-checked-trees",
+    "omega-rust/psi/representations/psi-optimization",
     "omega-rust/psi/representations/psi-terminal",
     "omega-rust/psi/pipeline/psi-source-files-to-tokens",
     "omega-rust/psi/pipeline/psi-tokens-to-syntax-trees",

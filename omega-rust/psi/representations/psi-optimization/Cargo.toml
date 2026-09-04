@@ -1,13 +1,12 @@
 [package]
-name = "omega-optimization-core"
+name = "psi-optimization"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_optimization_core"
+name = "psi_optimization"
 path = "src/lib.rs"
 
 [dependencies]
-psi-optimization = { path = "../../../psi/representations/psi-optimization" }
 sha2 = "0.10.9"

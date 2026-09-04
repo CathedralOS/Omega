@@ -1021,6 +1021,7 @@ dependencies = [
 name = "omega-optimization-core"
 version = "0.1.0"
 dependencies = [
+ "psi-optimization",
  "sha2",
 ]
 
@@ -1842,6 +1843,13 @@ version = "0.1.0"
 
 [[package]]
 name = "psi-numerics"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "psi-optimization"
 version = "0.1.0"
 dependencies = [
  "sha2",

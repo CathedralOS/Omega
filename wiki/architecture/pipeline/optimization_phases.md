@@ -115,6 +115,14 @@ Every optimization belongs to exactly one phase. A stage consumes only its own
 projection. No later coordinator rescans the global set and invents a second
 schedule.
 
+The unified build vocabulary is not imported into Psi. Target-neutral Psi pass
+identities and their canonical selection encoding are Psi-owned; target,
+instruction, allocation, machine, and layout identities remain Omega-owned. The
+build coordinator performs one exhaustive structural projection and retains the
+complete build-selection identity beside the Psi-local selection. Adding a pass
+therefore forces its owning phase to be classified, while a standalone Psi
+consumer never learns names such as an x86 materialization rule.
+
 ## Stage contract
 
 Every optimization phase, including the identity case, has one entrance that:
