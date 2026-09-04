@@ -5118,3 +5118,21 @@ preceding Console call remains in either trap observation. The evaluator is
 Gamma receipt. Retained controls cover let-bound exit 7, successful assert,
 write then Assertion, and NonBoolean. Arithmetic, parameters, mutable storage,
 calls, states, and general Console arguments remain open.
+
+## D128 — Epsilon core arithmetic traps before state execution
+
+The evaluator now recursively executes grouped scalar expressions containing
+checked addition, subtraction, multiplication, unary negation, equality, and
+ordered comparisons. Operands evaluate left to right through exact local
+binding custody. A mathematical result outside `i32` produces trap code 1
+(`Overflow`) before the enclosing let or assert commits; prior Console output is
+preserved.
+
+Arithmetic uses a separate staging outcome carrier so established optional
+scalar lookup remains unchanged. Console arguments continue to consume the
+stable scalar path; D-shaped computations stage through typed locals before
+calling Console. The evaluator is 8,976 lines and 447,126 bytes and compiles
+with its driver to a 527,397-byte Gamma receipt. Retained controls cover nested
+add/multiply success, comparison, output-prefix addition overflow,
+multiplication overflow, and negation overflow. Logical, bitwise, shift,
+division, and remainder execution remain open.

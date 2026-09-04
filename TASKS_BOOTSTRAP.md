@@ -49,7 +49,7 @@ Epsilon evaluator.
   Gamma emission. DCREQ framing and `ConformanceBytesV1` are executable;
   implement canonical DCOUT boundary failures without Delta-specific Gamma
   primitives. Direct Epsilon-to-Alpha profile ID 2 is retired.
-  The current 441,260-byte Epsilon evaluator source plus a diagnostic entry
+  The current 447,126-byte Epsilon evaluator source plus a diagnostic entry
   compiles through the selected lower route;
   continue reducing general transformation costs rather than admitting a
   customer-specific shortcut.
