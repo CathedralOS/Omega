@@ -1,0 +1,18 @@
+[package]
+name = "omega-allocation-legality-to-active-resident-rematerialization"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_allocation_legality_to_active_resident_rematerialization"
+path = "src/lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+omega-live-ranges-to-allocation-legality = { path = "../omega-live-ranges-to-allocation-legality" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-regalloc = { path = "../omega-regalloc" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }

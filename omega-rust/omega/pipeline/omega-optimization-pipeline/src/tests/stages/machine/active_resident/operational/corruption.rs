@@ -46,9 +46,7 @@ fn active_resident_rule_rejects_action_and_enclosing_custody_corruption() {
     ));
 
     let mut corrupted_custody = staged;
-    crate::stages::machine::active_resident_rematerialization::corrupt_active_resident_rematerialization_custody_for_test(
-        &mut corrupted_custody,
-    );
+    crate::corrupt_active_resident_rematerialization_custody_for_test(&mut corrupted_custody);
     assert_eq!(
         validate_optimized_active_resident_rematerialization(&corrupted_custody),
         Err(OptimizedActiveResidentRematerializationError::ReceiptMismatch)

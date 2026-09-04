@@ -8,7 +8,7 @@ use omega_regalloc::{
     ValidatedRecoveryClassifications, ValidatedRegisterHomes, ValidatedSpillChoices,
 };
 
-use crate::{
+use omega_live_ranges_to_allocation_legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt,
 };
@@ -190,8 +190,9 @@ impl std::fmt::Display for OptimizedActiveResidentRematerializationError {
 
 impl std::error::Error for OptimizedActiveResidentRematerializationError {}
 
-#[cfg(test)]
-pub(crate) fn corrupt_active_resident_rematerialization_custody_for_test(
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub fn corrupt_active_resident_rematerialization_custody_for_test(
     staged: &mut StagedOptimizedActiveResidentRematerialization,
 ) {
     staged.custody.rewritten_use_count += 1;

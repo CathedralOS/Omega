@@ -66,9 +66,7 @@ fn active_resident_stage_rejects_corrupted_vertical_custody() {
         selected_lowering_budget(),
     )
     .unwrap();
-    crate::stages::machine::active_resident_rematerialization::corrupt_active_resident_rematerialization_custody_for_test(
-        &mut staged,
-    );
+    crate::corrupt_active_resident_rematerialization_custody_for_test(&mut staged);
     assert_eq!(
         validate_optimized_active_resident_rematerialization(&staged),
         Err(OptimizedActiveResidentRematerializationError::ReceiptMismatch)

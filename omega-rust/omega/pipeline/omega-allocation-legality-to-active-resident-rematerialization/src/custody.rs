@@ -4,7 +4,7 @@ use omega_regalloc::{
     ValidatedRecoveryClassifications, ValidatedRegisterHomes, ValidatedSpillChoices,
 };
 
-use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
+use omega_live_ranges_to_allocation_legality::StagedOptimizedAllocationLegalityCustodyReceipt;
 
 use super::model::StagedOptimizedActiveResidentRematerializationCustodyReceipt;
 
