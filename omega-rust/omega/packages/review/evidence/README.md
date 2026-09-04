@@ -74,6 +74,14 @@ local reconstruction question: recovered producer rows remain inert until the
 selected local compiler reconstructs the complete row set and requires exact
 equality.
 
+External executable supplies expose a separate `policy_projection()` retaining
+the complete callable signature, requirement, binding, target, and producer
+identity while omitting evaluator accounting and reconstruction receipts. Its
+bounded `OMEGA-EXTERNAL-SUPPLY-POLICY` component encoding is version 1. The
+existing full-review encoding and validators are unchanged. This component
+still needs typed recovery and integration into the complete normalized policy
+baseline; it is not an accepted-lock record or an acceptance decision.
+
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or
 exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins
@@ -100,7 +108,7 @@ total-direct `define` and position-preserving transport-backed `lift`
 correspondences. The manager owns comparison and policy; neither entrance
 admits a package or executable operation.
 
-The canonical review schema is version 128, row schema version 86, and
-canonical-row recovery envelope version 22. Exact vocabulary and revision
+The canonical review schema is version 130, row schema version 88, and
+canonical-row recovery envelope version 23. Exact vocabulary and revision
 notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

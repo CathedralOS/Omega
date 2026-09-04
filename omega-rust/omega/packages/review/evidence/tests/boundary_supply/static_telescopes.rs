@@ -351,6 +351,21 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
     let [supply] = review.external_executable_supply() else {
         panic!("one bounded external executable-supply row")
     };
+    let policy = supply.policy_projection();
+    assert_eq!(policy.callable(), supply.callable());
+    assert_eq!(policy.signature(), supply.signature());
+    assert_eq!(policy.requirement(), supply.requirement());
+    let policy_bytes = policy
+        .canonical_bytes()
+        .expect("checked external supply projects to policy without native emission");
+    assert!(policy_bytes.starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x01\x00"));
+    assert_eq!(
+        policy_bytes,
+        supply
+            .policy_projection()
+            .canonical_bytes()
+            .expect("repeat checked external-supply policy projection"),
+    );
     let [static_parameter] = supply.signature().static_parameters() else {
         panic!("one exact external static parameter")
     };
