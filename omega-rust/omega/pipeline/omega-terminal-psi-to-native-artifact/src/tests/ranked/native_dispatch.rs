@@ -153,6 +153,11 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_semantic_code_attribution
         let canonical = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
             &lowered.semantic_module,
             &lowered.proof_bundle,
+            &psi_terminal_codec::build_identity_optimization_execution_record(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+            )
+            .expect("identity optimization execution"),
             None,
         )
         .expect("encode canonical ranked artifact");

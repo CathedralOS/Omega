@@ -1,8 +1,8 @@
 //! Canonical, source-free Terminal-Psi handoff artifact.
 //!
 //! This is the exact ownership seam between Psi semantic production and Omega
-//! target realization. It contains only canonical semantic, proof, and
-//! optional debug bytes plus their manifest identity. Target selection,
+//! target realization. It contains canonical semantic, proof, pre-Terminal
+//! optimization, and optional debug bytes plus their manifest identity. Target selection,
 //! provider realization, deployment policy, output paths, and installation
 //! authority are deliberately absent.
 
@@ -10,14 +10,16 @@ use psi_terminal::TerminalModule;
 use psi_terminal_verifier::ProofBundle;
 
 use crate::{
-    ArtifactManifestError, CodecError, DebugMapError, ProofCodecError, TerminalArtifactManifest,
-    TerminalDebugMap, build_artifact_manifest, decode_debug_map, decode_module,
-    decode_proof_bundle, encode_debug_map, encode_module, encode_proof_bundle,
+    ArtifactManifestError, CodecError, DebugMapError, ProofCodecError,
+    PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordDecodeError,
+    TerminalArtifactManifest, TerminalDebugMap, build_artifact_manifest, decode_debug_map,
+    decode_module, decode_proof_bundle, decode_psi_optimization_execution_record, encode_debug_map,
+    encode_module, encode_proof_bundle, encode_psi_optimization_execution_record,
     validate_artifact_manifest,
 };
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
-const ARTIFACT_FORMAT_MARKER: u16 = 1;
+const ARTIFACT_FORMAT_MARKER: u16 = 2;
 
 /// One exact canonical Terminal-Psi semantic/proof artifact.
 #[derive(Debug, PartialEq, Eq)]
@@ -25,6 +27,8 @@ const ARTIFACT_FORMAT_MARKER: u16 = 1;
 pub struct CanonicalTerminalArtifact {
     semantic_bytes: Vec<u8>,
     proof_bytes: Vec<u8>,
+    optimization_bytes: Vec<u8>,
+    optimization: PsiOptimizationExecutionRecord,
     debug_bytes: Option<Vec<u8>>,
     manifest: TerminalArtifactManifest,
 }
@@ -34,24 +38,33 @@ impl CanonicalTerminalArtifact {
     pub fn from_parts(
         semantic_module: &TerminalModule,
         proof_bundle: &ProofBundle,
+        optimization: &PsiOptimizationExecutionRecord,
         debug_map: Option<&TerminalDebugMap>,
     ) -> Result<Self, CanonicalTerminalArtifactError> {
         let semantic_bytes =
             encode_module(semantic_module).map_err(CanonicalTerminalArtifactError::Semantic)?;
         let proof_bytes =
             encode_proof_bundle(proof_bundle).map_err(CanonicalTerminalArtifactError::Proof)?;
+        let optimization_bytes = encode_psi_optimization_execution_record(optimization);
         let debug_bytes = debug_map
             .map(|debug_map| {
                 encode_debug_map(semantic_module, debug_map)
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let manifest =
-            build_artifact_manifest(semantic_module, proof_bundle, None, debug_bytes.as_deref())
-                .map_err(CanonicalTerminalArtifactError::Manifest)?;
+        let manifest = build_artifact_manifest(
+            semantic_module,
+            proof_bundle,
+            optimization,
+            None,
+            debug_bytes.as_deref(),
+        )
+        .map_err(CanonicalTerminalArtifactError::Manifest)?;
         let artifact = Self {
             semantic_bytes,
             proof_bytes,
+            optimization_bytes,
+            optimization: optimization.clone(),
             debug_bytes,
             manifest,
         };
@@ -65,6 +78,11 @@ impl CanonicalTerminalArtifact {
             .map_err(CanonicalTerminalArtifactError::Semantic)?;
         let proof_bundle = decode_proof_bundle(&self.proof_bytes)
             .map_err(CanonicalTerminalArtifactError::Proof)?;
+        let optimization = decode_psi_optimization_execution_record(&self.optimization_bytes)
+            .map_err(CanonicalTerminalArtifactError::Optimization)?;
+        if optimization != self.optimization {
+            return Err(CanonicalTerminalArtifactEnvelopeError::NonCanonicalSections.into());
+        }
         if let Some(debug_bytes) = self.debug_bytes.as_deref() {
             decode_debug_map(&semantic_module, debug_bytes)
                 .map_err(CanonicalTerminalArtifactError::Debug)?;
@@ -72,6 +90,7 @@ impl CanonicalTerminalArtifact {
         validate_artifact_manifest(
             &semantic_module,
             &proof_bundle,
+            &optimization,
             None,
             self.debug_bytes.as_deref(),
             self.manifest,
@@ -87,16 +106,18 @@ impl CanonicalTerminalArtifact {
         let capacity = ARTIFACT_MAGIC
             .len()
             .saturating_add(2)
-            .saturating_add(16)
+            .saturating_add(24)
             .saturating_add(debug_header_bytes)
             .saturating_add(self.semantic_bytes.len())
             .saturating_add(self.proof_bytes.len())
+            .saturating_add(self.optimization_bytes.len())
             .saturating_add(self.debug_bytes.as_ref().map_or(0, Vec::len));
         let mut bytes = Vec::with_capacity(capacity);
         bytes.extend_from_slice(ARTIFACT_MAGIC);
         bytes.extend_from_slice(&ARTIFACT_FORMAT_MARKER.to_le_bytes());
         encode_section_len(&mut bytes, self.semantic_bytes.len());
         encode_section_len(&mut bytes, self.proof_bytes.len());
+        encode_section_len(&mut bytes, self.optimization_bytes.len());
         match &self.debug_bytes {
             None => bytes.push(0),
             Some(debug) => {
@@ -106,6 +127,7 @@ impl CanonicalTerminalArtifact {
         }
         bytes.extend_from_slice(&self.semantic_bytes);
         bytes.extend_from_slice(&self.proof_bytes);
+        bytes.extend_from_slice(&self.optimization_bytes);
         if let Some(debug) = &self.debug_bytes {
             bytes.extend_from_slice(debug);
         }
@@ -128,6 +150,7 @@ impl CanonicalTerminalArtifact {
         }
         let semantic_len = cursor.section_len("semantic")?;
         let proof_len = cursor.section_len("proof")?;
+        let optimization_len = cursor.section_len("optimization")?;
         let debug_len = match cursor.byte()? {
             0 => None,
             1 => Some(cursor.section_len("debug")?),
@@ -135,6 +158,7 @@ impl CanonicalTerminalArtifact {
         };
         let semantic_bytes = cursor.take(semantic_len)?;
         let proof_bytes = cursor.take(proof_len)?;
+        let optimization_bytes = cursor.take(optimization_len)?;
         let debug_bytes = debug_len.map(|len| cursor.take(len)).transpose()?;
         if cursor.remaining() != 0 {
             return Err(
@@ -146,15 +170,23 @@ impl CanonicalTerminalArtifact {
             decode_module(semantic_bytes).map_err(CanonicalTerminalArtifactError::Semantic)?;
         let proof_bundle =
             decode_proof_bundle(proof_bytes).map_err(CanonicalTerminalArtifactError::Proof)?;
+        let optimization = decode_psi_optimization_execution_record(optimization_bytes)
+            .map_err(CanonicalTerminalArtifactError::Optimization)?;
         let debug_map = debug_bytes
             .map(|debug| {
                 decode_debug_map(&semantic_module, debug)
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let artifact = Self::from_parts(&semantic_module, &proof_bundle, debug_map.as_ref())?;
+        let artifact = Self::from_parts(
+            &semantic_module,
+            &proof_bundle,
+            &optimization,
+            debug_map.as_ref(),
+        )?;
         if artifact.semantic_bytes() != semantic_bytes
             || artifact.proof_bytes() != proof_bytes
+            || artifact.optimization_bytes() != optimization_bytes
             || artifact.debug_bytes() != debug_bytes
         {
             return Err(CanonicalTerminalArtifactEnvelopeError::NonCanonicalSections.into());
@@ -168,6 +200,14 @@ impl CanonicalTerminalArtifact {
 
     pub fn proof_bytes(&self) -> &[u8] {
         &self.proof_bytes
+    }
+
+    pub fn optimization_bytes(&self) -> &[u8] {
+        &self.optimization_bytes
+    }
+
+    pub const fn optimization(&self) -> &PsiOptimizationExecutionRecord {
+        &self.optimization
     }
 
     pub fn debug_bytes(&self) -> Option<&[u8]> {
@@ -237,6 +277,7 @@ impl<'bytes> ArtifactCursor<'bytes> {
 pub enum CanonicalTerminalArtifactError {
     Semantic(CodecError),
     Proof(ProofCodecError),
+    Optimization(PsiOptimizationExecutionRecordDecodeError),
     Debug(DebugMapError),
     Manifest(ArtifactManifestError),
     Envelope(CanonicalTerminalArtifactEnvelopeError),

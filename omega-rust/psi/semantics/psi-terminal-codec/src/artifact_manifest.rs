@@ -3,13 +3,14 @@ use psi_terminal_verifier::ProofBundle;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    CodecError, ProofBundleFingerprint, ProofCodecError, TerminalObligationLedgerFingerprint,
-    TerminalPsiIdentity, TrustGraphError, build_terminal_obligation_ledger,
-    current_terminal_trust_graph, proof_bundle_fingerprint, terminal_obligation_ledger_fingerprint,
-    terminal_psi_identity,
+    CodecError, ProofBundleFingerprint, ProofCodecError, PsiOptimizationExecutionIdentity,
+    PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordError,
+    TerminalObligationLedgerFingerprint, TerminalPsiIdentity, TrustGraphError,
+    build_terminal_obligation_ledger, current_terminal_trust_graph, proof_bundle_fingerprint,
+    terminal_obligation_ledger_fingerprint, terminal_psi_identity,
 };
 
-const MANIFEST_FORMAT_MARKER: u16 = 2;
+const MANIFEST_FORMAT_MARKER: u16 = 3;
 const INSTALLATION_DOMAIN: &[u8] = b"psi-terminal-installation-section\0";
 const DEBUG_DOMAIN: &[u8] = b"psi-terminal-debug-section\0";
 const ARTIFACT_DOMAIN: &[u8] = b"psi-terminal-artifact-manifest\0";
@@ -61,6 +62,7 @@ pub struct TerminalArtifactManifest {
     semantic: TerminalPsiIdentity,
     obligations: TerminalObligationLedgerFingerprint,
     proof: ProofBundleFingerprint,
+    optimization: PsiOptimizationExecutionIdentity,
     installation: Option<SectionFingerprint>,
     debug: Option<SectionFingerprint>,
     identity: TerminalArtifactIdentity,
@@ -79,6 +81,10 @@ impl TerminalArtifactManifest {
         self.obligations
     }
 
+    pub const fn optimization(self) -> PsiOptimizationExecutionIdentity {
+        self.optimization
+    }
+
     pub const fn installation(self) -> Option<SectionFingerprint> {
         self.installation
     }
@@ -95,6 +101,7 @@ impl TerminalArtifactManifest {
 pub fn build_artifact_manifest(
     semantic_module: &TerminalModule,
     proof_bundle: &ProofBundle,
+    optimization: &PsiOptimizationExecutionRecord,
     installation_record: Option<&[u8]>,
     debug_maps: Option<&[u8]>,
 ) -> Result<TerminalArtifactManifest, ArtifactManifestError> {
@@ -106,13 +113,25 @@ pub fn build_artifact_manifest(
     let obligations = terminal_obligation_ledger_fingerprint(&obligation_ledger)
         .map_err(ArtifactManifestError::Obligations)?;
     let proof = proof_bundle_fingerprint(proof_bundle).map_err(ArtifactManifestError::Proof)?;
+    optimization
+        .validate_output(semantic, proof)
+        .map_err(ArtifactManifestError::Optimization)?;
     let installation = installation_record.map(|bytes| hash_section(INSTALLATION_DOMAIN, bytes));
     let debug = debug_maps.map(|bytes| hash_section(DEBUG_DOMAIN, bytes));
-    let identity = artifact_identity(semantic, obligations, proof, installation, debug);
+    let optimization_identity = optimization.identity();
+    let identity = artifact_identity(
+        semantic,
+        obligations,
+        proof,
+        optimization_identity,
+        installation,
+        debug,
+    );
     Ok(TerminalArtifactManifest {
         semantic,
         obligations,
         proof,
+        optimization: optimization_identity,
         installation,
         debug,
         identity,
@@ -122,6 +141,7 @@ pub fn build_artifact_manifest(
 pub fn validate_artifact_manifest(
     semantic_module: &TerminalModule,
     proof_bundle: &ProofBundle,
+    optimization: &PsiOptimizationExecutionRecord,
     installation_record: Option<&[u8]>,
     debug_maps: Option<&[u8]>,
     manifest: TerminalArtifactManifest,
@@ -129,6 +149,7 @@ pub fn validate_artifact_manifest(
     let expected = build_artifact_manifest(
         semantic_module,
         proof_bundle,
+        optimization,
         installation_record,
         debug_maps,
     )?;
@@ -146,6 +167,7 @@ fn artifact_identity(
     semantic: TerminalPsiIdentity,
     obligations: TerminalObligationLedgerFingerprint,
     proof: ProofBundleFingerprint,
+    optimization: PsiOptimizationExecutionIdentity,
     installation: Option<SectionFingerprint>,
     debug: Option<SectionFingerprint>,
 ) -> TerminalArtifactIdentity {
@@ -155,6 +177,7 @@ fn artifact_identity(
     bytes.extend_from_slice(semantic.program_fingerprint.as_bytes());
     bytes.extend_from_slice(obligations.as_bytes());
     bytes.extend_from_slice(proof.as_bytes());
+    bytes.extend_from_slice(optimization.as_bytes());
     encode_optional_fingerprint(&mut bytes, installation);
     encode_optional_fingerprint(&mut bytes, debug);
     TerminalArtifactIdentity(hash(ARTIFACT_DOMAIN, &bytes))
@@ -192,6 +215,7 @@ pub enum ArtifactManifestError {
     TrustGraph(TrustGraphError),
     Obligations(CodecError),
     Proof(ProofCodecError),
+    Optimization(PsiOptimizationExecutionRecordError),
     ManifestMismatch,
 }
 

@@ -1018,9 +1018,14 @@ mod tests {
                 },
             }],
         };
+        let proof = ProofBundle::default();
+        let optimization =
+            psi_terminal_codec::build_identity_optimization_execution_record(&module, &proof)
+                .expect("identity optimization execution");
         let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
             &module,
-            &ProofBundle::default(),
+            &proof,
+            &optimization,
             None,
         )
         .expect("canonical framing does not prove contract evidence");

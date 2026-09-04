@@ -288,12 +288,13 @@ mod tests {
             state.state,
         )
         .expect("bounded callback Terminal lowering");
-        let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
-            &lowered.terminal.semantic_module,
-            &lowered.terminal.proof_bundle,
-            lowered.terminal.debug_map.as_ref(),
+        let optimized = psi_checked_trees_to_terminal::run_psi_optimization(
+            lowered.terminal,
+            psi_optimization::PsiOptimizationSelections::default(),
         )
-        .expect("canonical callback artifact");
+        .expect("callback identity Psi optimization");
+        let artifact = psi_checked_trees_to_terminal::finalize_terminal_artifact(&optimized)
+            .expect("canonical callback artifact");
         let signature = omega_calling_conventions::CallSignature {
             parameters: vec![omega_calling_conventions::ValueShape::integer(8, 8)],
             result: Some(omega_calling_conventions::ValueShape::integer(8, 8)),

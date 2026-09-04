@@ -1866,6 +1866,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
                 &module,
                 &proof,
+                parts.psi_artifact.optimization(),
                 debug.as_ref(),
             )
             .expect("reconstruct canonical Terminal artifact"),

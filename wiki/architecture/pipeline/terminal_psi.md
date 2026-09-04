@@ -39,9 +39,13 @@ and compiler-builtin proposals travel as an exact owned companion beside the
 target-neutral semantic module; they do not grant the consumer authority. The
 consumer accepts the full proposal using its target catalog and local
 admissions or rejects realization without invalidating the Psi semantics. The
-portable artifact envelope owns the canonical semantic and proof sections plus
-the optional canonical debug section; its manifest is reconstructed from those
-sections rather than serialized as trusted redundant input. The compiler
+portable artifact envelope owns the canonical semantic, proof, and
+pre-Terminal optimization-execution sections plus the optional canonical debug
+section. The execution section retains the exact Psi-local selection and both
+the input and output semantic/proof identities; the manifest binds its strong
+identity and decoding rejoins its output to the decoded semantic and proof
+sections. The manifest is reconstructed from those sections rather than
+serialized as trusted redundant input. The compiler
 Terminal-product canary writes that envelope in one process, lets the producer
 exit, and decodes, verifies, and interprets it under freshly supplied authority
 in a second process. No checked compilation or other frontend object can cross

@@ -60,9 +60,15 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
             .expect("the source producer should retain its debug map"),
     )
     .expect("source-produced debug map should encode canonically");
+    let optimization = psi_terminal_codec::build_identity_optimization_execution_record(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+    )
+    .expect("source-produced identity optimization execution");
     let artifact_manifest = build_artifact_manifest(
         &lowered.semantic_module,
         &lowered.proof_bundle,
+        &optimization,
         None,
         Some(&canonical_debug_bytes),
     )
@@ -77,6 +83,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
     validate_artifact_manifest(
         &semantic_module,
         &proof_bundle,
+        &optimization,
         None,
         Some(&canonical_debug_bytes),
         artifact_manifest,
