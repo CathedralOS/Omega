@@ -1,10 +1,10 @@
 use omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 
 use crate::{
-    ValidatedLegalizedOperations, ValidatedSelectedInstructions,
-    ValidatedTargetRegisterEnvironment, validate_legalized_operations,
+    ValidatedLegalizedOperations, ValidatedSelectedInstructions, validate_legalized_operations,
     validate_selected_instructions,
 };
+use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::constraints::selection_constraints;
 use super::model::{OptimizedSelectionCustodyError, StagedOptimizedSelectionCustodyReceipt};

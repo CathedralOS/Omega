@@ -31,6 +31,6 @@ silently reconstruct the environment.
   invokes the selected ISA's semantic validator.
 - `src/model.rs` owns the inseparable validated carrier and typed failures.
 
-The native coordinator may temporarily expose a baseline convenience wrapper,
-but the production pipeline is the explicit sequence: construct environment,
-then pass it to instruction selection.
+Production coordination constructs the register environment as its own stage,
+then passes the validated carrier to instruction selection. Selection never
+reconstructs the environment implicitly.
