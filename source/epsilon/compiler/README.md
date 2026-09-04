@@ -286,7 +286,10 @@ following executable construct at the exact terminating delimiter, and still
 visits every later authored child. D53's five-effect carrier settles local
 falloff, explicit returns, machine continuations, `never` calls, and state
 transfers without a reachability/fixed-point pass. Remaining transition/control
-candidates still require the rest of the D37 premise DAG. The
+candidates still require the rest of the D37 premise DAG. The completed body
+candidate bucket now promotes no candidate to acceptance, one exact reason to
+rejection, and a distinct same-coordinate reason tie to internal failure while
+the separate fact-producing entry remains available to diagnostic probes. The
 fact pass now
 implements D38's accepted receiver/result, exact contextual failures, and
 `array.as_slice()` value-call rejection; D37 still fixes how the remaining

@@ -5032,3 +5032,19 @@ nonempty identity cases publish exactly, authored traps return 249, the
 source. Raw source is retained only for frontend development gates. Canonical
 DCOUT failure frames and `EpsilonCompilerV1` remain unfinished rather than being
 represented by host interpretation or a second lower route.
+
+## D124 — Epsilon body candidates promote without reason priority
+
+The retained body/control fact walk continues to expose its complete custody
+ledger for focused diagnostics. A separate final body-check entry now promotes
+the candidate bucket into the public local-resolution outcome: no candidate
+accepts, one reason at the minimum coordinate rejects with that exact pair, and
+two distinct reasons at the same coordinate produce internal failure. Reason
+codes never select between a tie.
+
+An ephemeral direct-carrier control exercised all three branches and returned
+byte `0x07` through the selected Delta compiler and Gamma evaluator. The exact
+Epsilon source is now 9,460 lines and 468,672 bytes with 552 definitions; a
+scalar diagnostic entry compiled to a 546,575-byte Gamma receipt in 122.9
+seconds. This closes candidate promotion, not the remaining body judgments or
+AST-to-Alpha lowering.
