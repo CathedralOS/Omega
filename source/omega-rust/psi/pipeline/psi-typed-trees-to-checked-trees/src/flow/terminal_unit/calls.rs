@@ -590,7 +590,7 @@ fn exact_direct_intrinsic_signature(
         && is_unit(program, return_type)
 }
 
-pub(super) enum ExpectedBoundaryValueResult<'result> {
+pub(super) enum ExpectedCallValueResult<'result> {
     Scalar(PrimitiveType),
     Structural(&'result CheckedUnitStructuralResultBindingPlan),
 }
@@ -598,13 +598,13 @@ pub(super) enum ExpectedBoundaryValueResult<'result> {
 fn boundary_value_result_matches(
     program: &TypedTrees,
     return_type: psi_typed_trees::types::TypeReferenceHandle,
-    expected: &ExpectedBoundaryValueResult<'_>,
+    expected: &ExpectedCallValueResult<'_>,
 ) -> bool {
     match expected {
-        ExpectedBoundaryValueResult::Scalar(expected) => {
+        ExpectedCallValueResult::Scalar(expected) => {
             program.primitive_type_reference(return_type) == Some(*expected)
         }
-        ExpectedBoundaryValueResult::Structural(expected) => {
+        ExpectedCallValueResult::Structural(expected) => {
             program.primitive_type_reference(return_type).is_none()
                 && !is_unit(program, return_type)
                 && !is_reference(program, return_type)
@@ -627,7 +627,7 @@ pub(super) fn build_call_operation(
     entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &psi_checked_trees::FlowCallFact,
     allow_field_path_projection: bool,
-    expected_boundary_result: Option<ExpectedBoundaryValueResult<'_>>,
+    expected_call_result: Option<ExpectedCallValueResult<'_>>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(call.statement_index).ok()?,
@@ -876,7 +876,7 @@ pub(super) fn build_call_operation(
                         )
                         && !routed_service_parameter_receiver)
             }
-            || match expected_boundary_result {
+            || match expected_call_result {
                 None => !is_unit(program, signature.return_type),
                 Some(ref expected) => {
                     !boundary_value_result_matches(program, signature.return_type, expected)
@@ -937,14 +937,20 @@ pub(super) fn build_call_operation(
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     let boundary = target_machine.supply_mode.is_boundary_declaration();
     if if boundary {
-        match expected_boundary_result {
+        match expected_call_result {
             None => !is_unit(program, target_state.return_type),
             Some(ref expected) => {
                 !boundary_value_result_matches(program, target_state.return_type, expected)
             }
         }
     } else {
-        expected_boundary_result.is_some() || !is_unit(program, target_state.return_type)
+        match &expected_call_result {
+            None => !is_unit(program, target_state.return_type),
+            Some(ExpectedCallValueResult::Scalar(expected)) => {
+                program.primitive_type_reference(target_state.return_type) != Some(*expected)
+            }
+            Some(ExpectedCallValueResult::Structural(_)) => true,
+        }
     } {
         return None;
     }
@@ -1062,6 +1068,10 @@ pub(super) fn build_call_operation(
             structural_arguments,
             completion_receipts: transfers,
         })
+    } else if expected_call_result.is_some()
+        && (!structural_arguments.is_empty() || !transfers.is_empty())
+    {
+        None
     } else {
         Some(CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,

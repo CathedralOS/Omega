@@ -24,6 +24,28 @@ reaches Host
 }
 "#;
 
+const ORDINARY_SOURCE: &str = r#"
+data Scalar {}
+
+machine Scalar::identity(value: i32) -> i32
+requires value == value
+ensures result == value
+{
+    transition { _ -> value }
+}
+
+data Sink {}
+
+machine Sink::finish(value: i32) {}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let result: i32 = Scalar::identity(23);
+    Sink::finish(result);
+}
+"#;
+
 fn checked_from_source(source: &str) -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -34,6 +56,10 @@ fn checked_from_source(source: &str) -> psi_checked_trees::CheckedTrees {
 
 fn checked() -> psi_checked_trees::CheckedTrees {
     checked_from_source(SOURCE)
+}
+
+fn ordinary_checked() -> psi_checked_trees::CheckedTrees {
+    checked_from_source(ORDINARY_SOURCE)
 }
 
 fn checked_with_dependent_scalar_local() -> psi_checked_trees::CheckedTrees {
@@ -108,6 +134,149 @@ fn attached_unit_scalar_boundary_result_reaches_later_call_in_terminal_psi() {
         consumer.result,
         psi_terminal::OperationResult::Unit
     ));
+}
+
+#[test]
+fn attached_unit_ordinary_scalar_result_reaches_later_call_in_terminal_psi() {
+    let checked = ordinary_checked();
+    let operations = &checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == main_symbol(&checked))
+        .expect("Main::main Unit plan")
+        .operations;
+    assert!(matches!(
+        operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::ScalarCall {
+                result,
+                scalar_arguments,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::CallUnit {
+                scalar_arguments: consumer_arguments,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] if result.binding_ordinal == 0
+            && matches!(
+                scalar_arguments.as_slice(),
+                [CheckedScalarExpression::IntegerLiteral { .. }]
+            )
+            && matches!(
+                consumer_arguments.as_slice(),
+                [CheckedScalarExpression::Local { position: 0, .. }]
+            )
+    ));
+
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::main")
+        .expect("ordinary scalar result flow should lower");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let calls = entry.blocks[0]
+        .operations
+        .iter()
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                psi_terminal::OperationKind::Call { .. }
+                    | psi_terminal::OperationKind::CallUnit { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    let [producer, consumer] = calls.as_slice() else {
+        panic!("entry should retain the scalar producer and Unit consumer")
+    };
+    let psi_terminal::OperationResult::Scalar(result) = producer.result else {
+        panic!("ordinary call should publish its scalar result")
+    };
+    assert!(matches!(
+        producer.kind,
+        psi_terminal::OperationKind::Call { .. }
+    ));
+    let psi_terminal::OperationKind::CallUnit { arguments, .. } = &consumer.kind else {
+        panic!("consumer should remain an ordinary Unit call")
+    };
+    assert_eq!(arguments, &[result.id]);
+    assert!(matches!(
+        consumer.result,
+        psi_terminal::OperationResult::Unit
+    ));
+}
+
+#[test]
+fn attached_unit_ordinary_scalar_result_rejects_contract_and_argument_fact_drift() {
+    let mut contract = ordinary_checked();
+    let CheckedUnitEffectOperationPlan::ScalarCall {
+        target_contract_commitment,
+        ..
+    } = &mut main_operations_mut(&mut contract)[0]
+    else {
+        panic!("first operation should bind the ordinary scalar result")
+    };
+    *target_contract_commitment =
+        psi_checked_trees::MachineContractCommitment::from_digest([0x5a; 32]);
+    assert_eq!(
+        rejection_message(&contract),
+        "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach"
+    );
+
+    let mut argument = ordinary_checked();
+    let main = main_symbol(&argument);
+    let state = argument
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == main)
+        .expect("Main::main Unit plan")
+        .state;
+    let (state, statement_ordinal, role) = {
+        let CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. } =
+            &main_operations_mut(&mut argument)[0]
+        else {
+            panic!("first operation should bind the ordinary scalar result")
+        };
+        (
+            state,
+            coordinate.statement_index,
+            psi_checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                call_ordinal: coordinate.call_ordinal,
+                argument_ordinal: 0,
+            },
+        )
+    };
+    let duplicate = argument
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter()
+        .find(|candidate| {
+            candidate.state == state
+                && candidate.statement_ordinal == statement_ordinal
+                && candidate.role == role
+        })
+        .expect("ordinary scalar argument fact")
+        .clone();
+    argument
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .push(duplicate);
+    assert_eq!(
+        rejection_message(&argument),
+        "ordinary Unit scalar call arguments drifted from checked value facts"
+    );
 }
 
 #[test]

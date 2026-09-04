@@ -87,7 +87,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     &parameter_types,
                                     &locals,
                                     exact_integer_casts,
-                                    false,
+                                    true,
                                 )
                             {
                                 expressions.extend(arguments);

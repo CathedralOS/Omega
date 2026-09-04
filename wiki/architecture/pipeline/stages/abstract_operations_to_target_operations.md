@@ -106,19 +106,22 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   incoming register source; this closes register cycles, duplicate sources,
   and register/stack crossings while keeping semantic argument order. A call
   may instead materialize one exact preceding Boolean literal directly into
-  that scalar prefix. Literal definition custody remains distinct from
-  caller-parameter custody. Computed nonliteral sources, IEEE runtime sources,
-  and non-native integer carriers remain fail closed. Terminal and Abstract IR
+  that scalar prefix, or load the durable result home of one exact preceding
+  ordinary fixed-integer scalar call. Literal definition, caller-parameter,
+  and result-home custody remain distinct. Arithmetic locals, Boolean and IEEE
+  call results, IEEE runtime sources, and non-native integer carriers remain
+  fail closed. Terminal and Abstract IR
   verify, canonically bind, and retain scalar arguments on ordinary `CallUnit`,
   including optimizer identity and dataflow. This stage now derives the exact
   target call plan, retaining scalar arguments as its prefix and structural
   arguments as its suffix. Physical assignment independently replays that plan
-  and preserves either the caller parameter's exact type and incoming location
-  or the Boolean literal's preceding definition. Machine emission admits exact
-  same-register forwarding for native fixed integers and Boolean, plus direct
-  Boolean materialization, and retains scalar call custody beside the
-  structural copies. Object and installation validation independently rejoin
-  the Unit callee ABI, source definition or location, scalar transfer,
+  and preserves either the caller parameter's exact type and incoming location,
+  the Boolean literal's preceding definition, or the earlier call result's
+  exact durable home. Machine emission admits cycle-safe scalar forwarding,
+  direct Boolean materialization, and exact result-home loads while retaining
+  scalar call custody beside the structural copies. Object and installation
+  validation independently rejoin the Unit callee ABI, source definition or
+  location, result home, scalar transfer,
   aggregate copy, stack evidence, and call bytes on Linux x86-64 and AArch64.
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw

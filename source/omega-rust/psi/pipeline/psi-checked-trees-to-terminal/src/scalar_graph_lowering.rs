@@ -169,7 +169,7 @@ pub(super) fn lower_selected_scalar_graph_machine(
     machine: psi_symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    let prepared = prepare_selected_scalar_graph_machine(checked, machine, graph)?;
+    let prepared = prepare_embedded_scalar_graph_machine(checked, machine, graph)?;
     let machine_ids = [(machine, machine_id(1))];
     let requirement_counts = [(machine, usize::from(prepared.contract_value.is_some()))];
     let mut lowered = build_scalar_graph_module(
@@ -214,11 +214,11 @@ fn prepare_standalone_scalar_graph_machine(
     )
 }
 
-/// Prepare an exact selected-adapter body for inclusion beneath an attached
-/// Unit root. Provider settlement and the retained checked contract identity
-/// authorize this exact body; unlike the ordinary standalone scalar lane, its
-/// parameter-relative contract need not reduce to one closed literal.
-pub(super) fn prepare_selected_scalar_graph_machine(
+/// Prepare an exact scalar body for inclusion beneath an attached Unit root.
+/// The enclosing checked call retains the target contract identity; unlike the
+/// standalone scalar lane, a parameter-relative contract need not reduce to
+/// one closed literal when the caller consumes only the runtime value.
+pub(super) fn prepare_embedded_scalar_graph_machine(
     checked: &CheckedTrees,
     machine: psi_symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
@@ -227,7 +227,7 @@ pub(super) fn prepare_selected_scalar_graph_machine(
         checked,
         machine,
         graph,
-        ScalarContractMode::SelectedByEnclosingAdmission,
+        ScalarContractMode::EmbeddedByEnclosingCall,
     )
 }
 
@@ -235,7 +235,7 @@ pub(super) fn prepare_selected_scalar_graph_machine(
 enum ScalarContractMode {
     ClosedRuntimeValue,
     StandaloneProofOnlyFloatResult,
-    SelectedByEnclosingAdmission,
+    EmbeddedByEnclosingCall,
 }
 
 fn prepare_scalar_graph_machine_with_contract_mode(
@@ -429,7 +429,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         )
     });
     let expected_value = evaluate_known_scalar_graph(&lowered_states);
-    let contract_value = if contract_mode == ScalarContractMode::SelectedByEnclosingAdmission {
+    let contract_value = if contract_mode == ScalarContractMode::EmbeddedByEnclosingCall {
         closed_scalar_contract_plan(checked, machine)?;
         None
     } else if has_return {

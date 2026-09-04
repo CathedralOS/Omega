@@ -1337,7 +1337,7 @@ pub(super) fn build_checked_machine(
                     &entry_claims,
                     call,
                     false,
-                    Some(ExpectedBoundaryValueResult::Structural(&result)),
+                    Some(ExpectedCallValueResult::Structural(&result)),
                 )?
                 else {
                     return None;
@@ -1364,17 +1364,7 @@ pub(super) fn build_checked_machine(
                 {
                     return None;
                 }
-                let CheckedUnitEffectOperationPlan::BoundaryCall {
-                    coordinate,
-                    source_site,
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    service_reach,
-                    scalar_arguments,
-                    structural_arguments,
-                    completion_receipts,
-                } = build_call_operation(
+                let call_operation = build_call_operation(
                     program,
                     facts,
                     machine,
@@ -1385,22 +1375,56 @@ pub(super) fn build_checked_machine(
                     &entry_claims,
                     call,
                     false,
-                    Some(ExpectedBoundaryValueResult::Scalar(result.primitive_type)),
-                )?
-                else {
-                    return None;
-                };
-                operations.push(CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                    coordinate,
-                    source_site,
-                    result,
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    service_reach,
-                    scalar_arguments,
-                    structural_arguments,
-                    completion_receipts,
+                    Some(ExpectedCallValueResult::Scalar(result.primitive_type)),
+                )?;
+                operations.push(match call_operation {
+                    CheckedUnitEffectOperationPlan::BoundaryCall {
+                        coordinate,
+                        source_site,
+                        target_machine,
+                        target_state,
+                        target_contract_report_fingerprint,
+                        service_reach,
+                        scalar_arguments,
+                        structural_arguments,
+                        completion_receipts,
+                    } => CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                        coordinate,
+                        source_site,
+                        result,
+                        target_machine,
+                        target_state,
+                        target_contract_report_fingerprint,
+                        service_reach,
+                        scalar_arguments,
+                        structural_arguments,
+                        completion_receipts,
+                    },
+                    CheckedUnitEffectOperationPlan::CallUnit {
+                        coordinate,
+                        target_machine,
+                        target_state,
+                        target_contract_report_fingerprint,
+                        service_reach,
+                        scalar_arguments,
+                        structural_arguments,
+                        claim_transfers,
+                    } if structural_arguments.is_empty() && claim_transfers.is_empty() => {
+                        CheckedUnitEffectOperationPlan::ScalarCall {
+                            coordinate,
+                            result,
+                            target_machine,
+                            target_state,
+                            target_contract_report_fingerprint,
+                            target_contract_commitment: facts
+                                .contract_plans
+                                .for_machine(target_machine)?
+                                .commitment,
+                            service_reach,
+                            scalar_arguments,
+                        }
+                    }
+                    _ => return None,
                 });
                 operations.extend(scalar_expression_locals.iter().cloned().map(
                     |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
@@ -1467,6 +1491,7 @@ pub(super) fn build_checked_machine(
                 })
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
+            | CheckedUnitEffectOperationPlan::ScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }

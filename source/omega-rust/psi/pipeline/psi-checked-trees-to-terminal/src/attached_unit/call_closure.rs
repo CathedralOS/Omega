@@ -38,11 +38,10 @@ pub(crate) fn checked_unit_call_closure_including(
     Ok(closure)
 }
 
-/// Discover the scalar graphs rooted by exact selected operator applications
-/// in an attached Unit plan. Selected roots retain their provider attachment;
-/// every transitive ordinary scalar callee must pass the generic signature
-/// fence.
-pub(super) fn checked_selected_scalar_call_closure(
+/// Discover the scalar graphs rooted by exact result-bearing calls in an
+/// attached Unit plan. Embedded roots retain their caller attachment; every
+/// transitive ordinary scalar callee must pass the generic signature fence.
+pub(super) fn checked_scalar_call_closure(
     checked: &CheckedTrees,
     roots: &[psi_symbols::SymbolHandle],
 ) -> Result<Vec<psi_symbols::SymbolHandle>, LoweringError> {
@@ -52,7 +51,7 @@ pub(super) fn checked_selected_scalar_call_closure(
             closure.push(*root);
         }
     }
-    let selected_roots = closure.clone();
+    let embedded_roots = closure.clone();
     let mut next = 0_usize;
     while let Some(machine) = closure.get(next).copied() {
         next += 1;
@@ -65,18 +64,16 @@ pub(super) fn checked_selected_scalar_call_closure(
             .filter(|selection| selection.machine == machine)
             .collect::<Vec<_>>();
         let [selection] = selections.as_slice() else {
-            return unsupported(
-                "selected scalar realization has no unique checked terminal selection",
-            );
+            return unsupported("embedded scalar call has no unique checked terminal selection");
         };
-        let expected_signature = if selected_roots.contains(&machine) {
+        let expected_signature = if embedded_roots.contains(&machine) {
             CheckedTerminalSignatureEligibility::Attached
         } else {
             CheckedTerminalSignatureEligibility::Eligible
         };
         if selection.name.is_empty() || selection.signature != expected_signature {
             return unsupported(
-                "selected scalar realization closure has an unsupported terminal signature",
+                "embedded scalar call closure has an unsupported terminal signature",
             );
         }
         let graph = checked
@@ -85,7 +82,7 @@ pub(super) fn checked_selected_scalar_call_closure(
             .terminal_scalar_graphs
             .for_machine(machine)
             .ok_or(LoweringError::Unsupported(
-                "selected scalar realization has no checked scalar graph",
+                "embedded scalar call has no checked scalar graph",
             ))?;
         for target in graph.states.iter().flat_map(|state| {
             state.bindings.iter().filter_map(|binding| {
@@ -222,7 +219,10 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
             | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
-            CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            CheckedUnitEffectOperationPlan::ScalarCall {
+                coordinate, result, ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
                 coordinate, result, ..
             }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
