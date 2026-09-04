@@ -102,52 +102,6 @@ fn canonical_three_pass_suite_retains_each_manifest_and_one_ledger() {
         &optimized.plan().functions[0].operations[3],
         AbstractOperation::Return { value, .. } if *value == ValueId::new(2_006).unwrap()
     ));
-    let target =
-        lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
-    let staged = stage_optimized_assignment(target).unwrap();
-    assert_eq!(staged.assigned().functions.len(), 1);
-    assert_eq!(
-        staged.register_environment().target(),
-        NativeTarget::linux_x64()
-    );
-    assert_eq!(
-        staged
-            .register_environment()
-            .physical()
-            .model()
-            .architecture,
-        omega_target::Architecture::X86_64
-    );
-    assert_eq!(staged.custody().function_count(), 1);
-    assert_eq!(
-        staged.custody().register_environment(),
-        staged.register_environment().identity()
-    );
-    assert_eq!(
-        staged.custody().optimization(),
-        staged
-            .optimized_target()
-            .optimized()
-            .identity_bundle()
-            .identity()
-    );
-    assert_eq!(
-        staged.custody().projection(),
-        staged
-            .optimized_target()
-            .optimized()
-            .validation()
-            .identity()
-    );
-    assert_eq!(
-        staged.custody().manifest(),
-        staged
-            .optimized_target()
-            .optimized()
-            .pre_physical_manifest()
-            .record()
-            .identity
-    );
 }
 
 #[test]

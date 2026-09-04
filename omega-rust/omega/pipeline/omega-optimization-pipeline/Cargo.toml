@@ -21,10 +21,8 @@ omega-register-model = { path = "../../representations/omega-register-model" }
 omega-legalized-operations = { path = "../../representations/omega-legalized-operations" }
 omega-machine-code = { path = "../../representations/omega-machine-code" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
-omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-abstract-operations-to-target-operations = { path = "../omega-abstract-operations-to-target-operations" }
 omega-psi-to-abstract-operations = { path = "../omega-psi-to-abstract-operations" }
-omega-target-operations-to-assigned-target-operations = { path = "../omega-target-operations-to-assigned-target-operations" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-target-operations-to-selected-instructions = { path = "../omega-target-operations-to-selected-instructions" }
 omega-target-to-register-environment = { path = "../omega-target-to-register-environment" }

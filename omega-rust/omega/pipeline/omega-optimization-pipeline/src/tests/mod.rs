@@ -66,9 +66,18 @@ use psi_terminal_verifier::{ObligationEvidence, ProofBundle, reconstruct_operati
 
 use super::*;
 use crate::coordination::physical_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions;
-use crate::stages::selection::assignment::{
-    stage_optimized_assignment, validate_optimized_assignment_custody,
-};
+
+/// Test shorthand for the production target-setup then instruction-selection sequence.
+fn stage_optimized_instruction_selection(
+    optimized_target: ValidatedOptimizedTargetOperations,
+) -> Result<StagedOptimizedSelectedInstructions, OptimizedSelectionPipelineError> {
+    let environment = baseline_target_register_environment(optimized_target.target())
+        .expect("the baseline test register environment must validate");
+    omega_target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+        optimized_target,
+        environment,
+    )
+}
 
 pub(crate) mod fixtures;
 
