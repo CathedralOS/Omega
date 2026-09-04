@@ -1,3 +1,5 @@
+//! The mutable arena-backed object plan the image builders consume.
+
 use crate::{
     FunctionSymbolPlan, NormalizedImportPlan, ObjectSymbolHandle, SectionPlan, SymbolPlan,
 };

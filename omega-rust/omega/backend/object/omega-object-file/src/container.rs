@@ -1,3 +1,6 @@
+//! The OMGOBJ container: fixed 44-byte header, then symbols, relocations, and
+//! the raw text and data bytes appended verbatim with no padding.
+
 use crate::{ObjectPlan, RelocationPlan};
 use bytes::{write_u32, write_u64};
 use ids::{architecture_id, object_format_id};

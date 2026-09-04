@@ -1,3 +1,6 @@
+//! The OMGTRO container and the four-of-six target admission that decides whether
+//! a relocation-free plan is canonical at all.
+
 use std::collections::BTreeSet;
 
 use crate::{SectionKind, section_name};

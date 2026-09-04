@@ -1,3 +1,6 @@
+//! Symbol rows and the two import carriers - normalized foreign locator and the
+//! string-backed bootstrap library - that deliberately coexist.
+
 use crate::SectionKind;
 use omega_function_identity::MachineFunctionIdentity;
 use psi_arena::Handle;

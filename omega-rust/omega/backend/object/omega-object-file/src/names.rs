@@ -1,3 +1,6 @@
+//! Symbol spellings derived from compiler-private identity rather than source
+//! names, and the lookups that answer with an invalid handle when two rows match.
+
 use crate::{ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolPlan, SymbolSection};
 use omega_core::runtime_storage::RuntimeStorageRegion;
 use omega_function_identity::MachineFunctionIdentity;

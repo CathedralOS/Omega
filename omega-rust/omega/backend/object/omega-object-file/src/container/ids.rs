@@ -1,3 +1,6 @@
+//! The OMGOBJ tag tables, 1-based so a zero word is never a valid discriminant,
+//! and the only one of the crate's three architecture/format mappings under test.
+
 use crate::{RelocationKind, SectionKind, SymbolKind};
 use omega_target::{Architecture, ObjectFormat};
 
