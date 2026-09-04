@@ -1,8 +1,9 @@
 use crate::{
     StagedOptimizedVerifiedPhysicalPipeline, ValidatedOptimizedTargetOperations,
-    run_selected_lowering_optimizations, stage_function_relative_layout_optimization_realization,
-    stage_optimized_allocation_legality, stage_optimized_allocation_legality_for_frameless_leaf,
-    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
+    baseline_target_register_environment, run_selected_lowering_optimizations,
+    stage_function_relative_layout_optimization_realization, stage_optimized_allocation_legality,
+    stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_live_ranges,
+    stage_optimized_liveness,
     stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_catalog_entry,
     stage_optimized_post_allocation_machine_optimization_for_catalog_entry,
     stage_optimized_post_allocation_machine_plan,
@@ -21,7 +22,13 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_allocation_recovery_
     optimized_target: ValidatedOptimizedTargetOperations,
     composition: ResolvedNonAllocationComposition,
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
-    let selected = stage_optimized_instruction_selection(optimized_target)
+    let register_environment = baseline_target_register_environment(optimized_target.target())
+        .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
+    let selected =
+        omega_target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+            optimized_target,
+            register_environment,
+        )
         .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)?;
     let liveness = stage_optimized_liveness(selected)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;

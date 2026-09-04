@@ -13,19 +13,22 @@ pub use omega_abstract_operations_to_target_operations::{
 pub use omega_target_operations_to_selected_instructions::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
+    validate_optimized_selection_custody,
+};
+pub use omega_target_to_register_environment::{
     TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
-    baseline_target_register_environment, validate_optimized_selection_custody,
-    validate_target_register_environment, validate_target_register_environment_with_reservations,
+    baseline_target_register_environment, validate_target_register_environment,
+    validate_target_register_environment_with_reservations,
 };
 
-/// Transitional convenience entrance for callers that have not yet split
-/// target-register construction from instruction selection. Production
-/// coordination should sequence those stages explicitly.
-pub fn stage_optimized_instruction_selection(
+/// Internal test shorthand. Production coordination must preserve the target
+/// register environment as its own stage and pass it into instruction selection.
+#[cfg(test)]
+pub(crate) fn stage_optimized_instruction_selection(
     optimized_target: ValidatedOptimizedTargetOperations,
 ) -> Result<StagedOptimizedSelectedInstructions, OptimizedSelectionPipelineError> {
     let environment = baseline_target_register_environment(optimized_target.target())
-        .map_err(OptimizedSelectionPipelineError::RegisterEnvironment)?;
+        .expect("the baseline test register environment must validate");
     omega_target_operations_to_selected_instructions::stage_optimized_instruction_selection(
         optimized_target,
         environment,

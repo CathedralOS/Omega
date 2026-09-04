@@ -18,11 +18,6 @@ pub use legalization::{
     legalization_validator_identity_v20_legacy, legalize_target_operations,
     validate_legalized_operations,
 };
-pub use omega_target_to_register_environment::{
-    TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
-    baseline_target_register_environment, validate_target_register_environment,
-    validate_target_register_environment_with_reservations,
-};
 pub use optimized::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,

@@ -4,7 +4,7 @@ use omega_selected_instructions::{SelectedFixedInputConstraint, SelectedSelectio
 use omega_target_operations::MachineRegister;
 use psi_core::MachineId;
 
-use crate::ValidatedTargetRegisterEnvironment;
+use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn selection_constraints(
     legalized: &ValidatedLegalizedOperations,

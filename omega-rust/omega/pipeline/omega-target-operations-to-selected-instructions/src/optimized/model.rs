@@ -8,10 +8,10 @@ use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
 use crate::{
-    LegalizationError, SelectedInstructionError, TargetRegisterEnvironmentValidationError,
-    ValidatedLegalizedOperations, ValidatedSelectedInstructions,
-    ValidatedTargetRegisterEnvironment,
+    LegalizationError, SelectedInstructionError, ValidatedLegalizedOperations,
+    ValidatedSelectedInstructions,
 };
+use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Opt-in selected-instruction staging with complete optimized lowering and
 /// target-register custody. This grants no liveness, allocation, emission, or
@@ -135,7 +135,6 @@ pub enum OptimizedSelectionCustodyError {
 
 #[derive(Debug)]
 pub enum OptimizedSelectionPipelineError {
-    RegisterEnvironment(TargetRegisterEnvironmentValidationError),
     Legalization(LegalizationError),
     Selection(SelectedInstructionError),
     Custody(OptimizedSelectionCustodyError),

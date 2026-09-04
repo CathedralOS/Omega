@@ -8,7 +8,7 @@ use omega_optimization_core::Optimization;
 
 use crate::{
     StagedOptimizedVerifiedPhysicalPipeline, ValidatedOptimizedTargetOperations,
-    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
+    baseline_target_register_environment, stage_optimized_live_ranges, stage_optimized_liveness,
 };
 
 use super::super::OptimizedVerifiedPhysicalPipelineError;
@@ -20,7 +20,13 @@ pub(in crate::coordination::physical_pipeline) fn stage_allocation_recovery_pipe
     rule: Optimization,
     post_allocation: Option<PostAllocationMachineRuleCatalogEntry>,
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
-    let selected = stage_optimized_instruction_selection(optimized_target)
+    let register_environment = baseline_target_register_environment(optimized_target.target())
+        .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
+    let selected =
+        omega_target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+            optimized_target,
+            register_environment,
+        )
         .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)?;
     let liveness = stage_optimized_liveness(selected)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;
