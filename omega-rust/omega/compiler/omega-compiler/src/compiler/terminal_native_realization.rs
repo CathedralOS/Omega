@@ -163,6 +163,12 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
         proposal
             .validate_for_artifact(&artifact)
             .map_err(|message| diagnostic("Terminal native proposal", message))?;
+        if proposal.post_terminal_optimizations().selections() != optimization_selections {
+            return Err(diagnostic(
+                "Terminal native proposal",
+                "receiving lowerer selections differ from the exact post-Terminal build proposal",
+            ));
+        }
         super::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
         proposal.package_terminal_authority_permissions(),
         &accepted_package_terminal_authority_permission_policy,
