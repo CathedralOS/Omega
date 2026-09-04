@@ -43,8 +43,8 @@ required by Delta's grammar-distinguished namespaces. Name recursion advances
 once per complete byte; a 200-byte identifier witness guards practical Gamma
 call-context headroom, while the Epsilon customer currently tops out at 56.
 
-The emitted slice also validates identifier spelling at declarations, types,
-parameters, local binders, constructor patterns, atoms, and application heads.
+The frontend validates identifier spelling at declarations, types, parameters,
+local binders, constructor patterns, atoms, and application heads.
 Keywords, `Int`, `Bytes`, and the five closed `bytes_*` builtin names cannot be
 redeclared. Decimal literals are scanned without overflow and admit exactly
 `INT64_MIN..INT64_MAX`. The global census also rejects repeated parameter names
@@ -61,6 +61,14 @@ The pass checks every currently emitted scalar, `Bytes`, and nominal constructor
 pattern binder, call argument, `let` initializer, operator, conditional, match
 arm, and declared result. Function and local names remain
 grammar-distinguished namespaces.
+
+The complete type-check pass finishes before the first output byte. Emission
+therefore consumes that established preflight instead of revalidating data
+declarations, parameter annotations, function results, or `let` annotations.
+It still parses every source coordinate needed to construct canonical Gamma.
+The malformed-source gate requires every rejected program to leave output
+empty, including programs whose defects occur after otherwise emit-capable
+declarations.
 
 Each match check retains its seen constructors in another immutable exact-name
 trie. Same-owner validation plus duplicate rejection and exact constructor-count
@@ -112,7 +120,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,029-line / 80,787-byte Gamma source
+1,992-line / 79,294-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -143,7 +151,7 @@ The downgraded full compiler remains separate under
 828-line / 30,608-byte Epsilon declaration census
   -> exact 21-byte scalar Gamma receipt within the evaluator watchdog
 8,733-line / 437,283-byte current Epsilon source plus diagnostic entry
-  -> 503,658-byte Gamma receipt in 73.2 seconds on the development host
+  -> 503,658-byte Gamma receipt in 69.3 seconds on the development host
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199; staged transformation is

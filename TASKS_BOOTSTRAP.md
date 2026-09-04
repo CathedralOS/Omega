@@ -50,8 +50,9 @@ Epsilon compiler.
   are **OWNER-BLOCKED on Q5**; all independent frontend and pure-lowering work
   continues. Do not expand Gamma with Delta-specific primitives.
   The current 437,283-byte Epsilon source plus a diagnostic entry compiles in
-  73.2 seconds after declaration metadata indexing; continue reducing general
-  transformation costs rather than admitting a customer-specific shortcut.
+  69.3 seconds after declaration metadata indexing and emission cleanup;
+  continue reducing general transformation costs rather than admitting a
+  customer-specific shortcut.
   Acceptance: conformance and malformed-source suites pass, the complete
   Epsilon compiler compiles, exact receipts compose to Alpha, and no host or
   retired compiler participates.

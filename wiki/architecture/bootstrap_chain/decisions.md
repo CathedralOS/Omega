@@ -4710,3 +4710,30 @@ owner-blocked on Q5 and are unaffected.
 
 The exact selected subject is now 2,029 Gamma lines and 80,787 bytes, with 178
 definitions and 639 lexical `let` binders.
+
+## D114 — Delta emission consumes the completed static preflight
+
+The selected compiler already finishes its complete global and expression type
+check before either the optional `Bytes` runtime or the program emitter can
+write an output byte. Emission nevertheless repeated validation of every data
+declaration, function result annotation, parameter declaration, and `let`
+declaration. Those checks could not strengthen acceptance: the same source
+coordinates and global catalogs had already passed the authoritative preflight,
+and a failure in emission would have occurred after publication began.
+
+Emission now parses those declarations only far enough to recover the source
+coordinates required by canonical Gamma construction. It consumes the
+preflight result instead of recomputing static validity. Global cataloging and
+`check_program_types` remain separate, complete passes, and both still finish
+before the first `write`. No validation moved later, no host state or mutable
+cache entered the compiler, and no Delta or Gamma semantic rule changed.
+
+The malformed-source gate now requires empty output for every rejected fixture,
+not only non-exhaustive and duplicate matches. All exact staged receipts remain
+byte-identical. On the 437,283-byte current Epsilon source plus a diagnostic
+entry, the transformation emits the unchanged 503,658-byte receipt in 69.3
+seconds, down from 73.2 on the same development host. This remains a diagnostic
+measurement rather than a language limit or acceptance threshold.
+
+The exact selected subject is now 1,992 Gamma lines and 79,294 bytes, with 175
+definitions and 631 lexical `let` binders.
