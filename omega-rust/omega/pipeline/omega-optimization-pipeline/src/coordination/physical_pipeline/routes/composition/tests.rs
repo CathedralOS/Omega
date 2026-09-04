@@ -128,11 +128,8 @@ fn expected_pair(
                 actual: architecture,
             };
         }
-        return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::NonAllocation(
-            ResolvedNonAllocationComposition::PostAllocationMachine {
-                entry,
-                after_selected_lowering: selected_lowering != 0,
-            },
+        return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::Realization(
+            ResolvedRealizationPlan::PostAllocationMachine { entry },
         ));
     }
 
@@ -146,12 +143,12 @@ fn expected_pair(
             };
         }
         if selected_lowering != 0 {
-            return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::NonAllocation(
-                ResolvedNonAllocationComposition::SelectedLoweringWithFunctionRelativeLayout,
+            return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::Realization(
+                ResolvedRealizationPlan::SelectedLowering,
             ));
         }
-        return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::NonAllocation(
-            ResolvedNonAllocationComposition::FunctionRelativeLayout,
+        return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::Realization(
+            ResolvedRealizationPlan::FunctionRelativeLayout,
         ));
     }
 
@@ -168,12 +165,12 @@ fn expected_pair(
         });
     }
     if selected_lowering != 0 {
-        return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::NonAllocation(
-            ResolvedNonAllocationComposition::SelectedLowering,
+        return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::Realization(
+            ResolvedRealizationPlan::SelectedLowering,
         ));
     }
-    ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::NonAllocation(
-        ResolvedNonAllocationComposition::Identity,
+    ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::Realization(
+        ResolvedRealizationPlan::Identity,
     ))
 }
 
@@ -297,10 +294,9 @@ fn selected_lowering_triples_have_explicit_supported_and_rejected_routes() {
         let selections = physical_phases(selections);
         assert_eq!(
             resolve_physical_phase_composition(&selections, architecture).unwrap(),
-            ResolvedPhysicalPhaseComposition::NonAllocation(
-                ResolvedNonAllocationComposition::PostAllocationMachine {
+            ResolvedPhysicalPhaseComposition::Realization(
+                ResolvedRealizationPlan::PostAllocationMachine {
                     entry: post_allocation_entry(machine),
-                    after_selected_lowering: true,
                 }
             )
         );
@@ -315,9 +311,7 @@ fn selected_lowering_triples_have_explicit_supported_and_rejected_routes() {
     let with_layout = physical_phases(with_layout);
     assert_eq!(
         resolve_physical_phase_composition(&with_layout, Architecture::X86_64).unwrap(),
-        ResolvedPhysicalPhaseComposition::NonAllocation(
-            ResolvedNonAllocationComposition::SelectedLoweringWithFunctionRelativeLayout
-        )
+        ResolvedPhysicalPhaseComposition::Realization(ResolvedRealizationPlan::SelectedLowering)
     );
 
     let machine_and_layout = OptimizationSelections::new([

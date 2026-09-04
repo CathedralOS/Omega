@@ -306,3 +306,49 @@ fn rematerialization_uses_the_common_encoding_and_layout_stages() {
             .contains("StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout")
     );
 }
+
+#[test]
+fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_history() {
+    let root = repository().join(
+        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/coordination/physical_pipeline",
+    );
+    let composition = std::fs::read_to_string(root.join("routes/composition/model.rs")).unwrap();
+    assert!(!composition.contains("after_selected_lowering"));
+    assert!(!composition.contains("SelectedLoweringWithFunctionRelativeLayout"));
+    let entrance = std::fs::read_to_string(root.join("mod.rs")).unwrap();
+    assert_eq!(
+        entrance
+            .matches("::stage_optimized_instruction_selection(")
+            .count(),
+        1
+    );
+    for route in [
+        "routes/selected_phases.rs",
+        "routes/allocation_recovery/mod.rs",
+    ] {
+        let source = std::fs::read_to_string(root.join(route)).unwrap();
+        assert!(!source.contains("::stage_optimized_instruction_selection("));
+        assert!(!source.contains("stage_optimized_liveness("));
+    }
+    let machine_route = std::fs::read_to_string(root.join("routes/selected_phases.rs")).unwrap();
+    assert_eq!(
+        machine_route
+            .matches("stage_post_allocation_machine_function_relative_realization(")
+            .count(),
+        1
+    );
+    assert!(machine_route.contains("stage_register_allocation(ranges)"));
+    let recovery = rust_source(&root.join("routes/allocation_recovery"));
+    for owned_by_allocation in [
+        "SpillChoicePolicy",
+        "RecoveryClassificationPolicy",
+        "FixedViewCopyPolicy",
+        "stage_optimized_selected_reanalysis(",
+        "budget_per_pass()",
+    ] {
+        assert!(
+            !recovery.contains(owned_by_allocation),
+            "coordinator owns allocation details: {owned_by_allocation}"
+        );
+    }
+}

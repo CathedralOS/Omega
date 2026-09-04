@@ -23,6 +23,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     Liveness(OptimizedLivenessCustodyError),
     LiveRanges(OptimizedLiveRangeCustodyError),
     AllocationLegality(OptimizedAllocationLegalityCustodyError),
+    RegisterAllocation(omega_selected_instructions_to_register_homes::RegisterAllocationError),
     FixedPrecoloredSegmentHomes(OptimizedFixedPrecoloredSegmentHomeCustodyError),
     RegisterHomes(OptimizedRegisterHomeCustodyError),
     SelectedLowering(OptimizedLiteralFoldCustodyError),

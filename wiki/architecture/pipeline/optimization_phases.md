@@ -175,6 +175,13 @@ Rematerialized programs use the ordinary encoding and resolved-layout stages.
 The separate active-resident encoding crate and its layout/realization wrappers
 have been removed; their byte and corruption controls exercise the shared paths.
 
+Physical coordination performs instruction selection, liveness, and live ranges
+once before allocation dispatch. Ordinary allocation, selected lowering, and
+recovery feed one post-allocation machine path; the allocation owner executes
+the retained rule policies, including recovery availability and reanalysis.
+Optional later layout execution is read from its phase
+selection, not encoded as a second selected-lowering route variant.
+
 Crate extraction alone does not satisfy this migration. Several physical
 stages still own `StagedOptimized...` wrappers containing preceding stage
 objects, and the coordinator still branches by optimization history. Those

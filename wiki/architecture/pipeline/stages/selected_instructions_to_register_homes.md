@@ -6,6 +6,14 @@
 explicit pre-allocation rewrites, mandatory reanalysis, and register assignment.
 These are internal parts of one allocation phase, not a crate per optimization.
 
+`stage_register_allocation` executes ordinary assignment, selected lowering,
+fixed-view recovery, or active-resident rematerialization and publishes the same
+admitted allocation output. The owner retains the rules' exact availability,
+budget, reanalysis, and assignment policies. Unsupported rule combinations
+reject before execution. The outer coordinator no longer carries an
+`after_selected_lowering` flag into machine optimization, and recovery followed
+by a machine rule uses that same downstream path.
+
 Its implementation areas are `analyses/`, `rewrites/`, `assignment/`, and
 `output/`. The existing algorithms and independent replay remain separate;
 consolidation does not replace validation with producer receipts.

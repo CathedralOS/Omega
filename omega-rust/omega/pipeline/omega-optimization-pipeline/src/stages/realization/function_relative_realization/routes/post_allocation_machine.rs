@@ -20,18 +20,22 @@ use crate::{
     validate_whole_function_exit_contract_with_post_allocation_machine_optimization,
 };
 
-pub fn stage_post_allocation_machine_function_relative_realization(
-    source: impl TryInto<RetainedAllocation, Error = AllocationReplayError>,
+pub fn stage_post_allocation_machine_function_relative_realization<Source>(
+    source: Source,
     machine: StagedOptimizedPostAllocationMachinePlan,
     optimization: StagedOptimizedPostAllocationMachineOptimization,
 ) -> Result<
     StagedPostAllocationMachineFunctionRelativeRealization,
     FunctionRelativeOptimizationRealizationError,
-> {
+>
+where
+    Source: TryInto<RetainedAllocation>,
+    AllocationReplayError: From<Source::Error>,
+{
     // Conversion replays and admits the owned inputs before exposing current facts.
     let allocation = source
         .try_into()
-        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+        .map_err(|error| FunctionRelativeOptimizationRealizationError::Allocation(error.into()))?;
     let current = allocation.current();
     validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;

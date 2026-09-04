@@ -8,17 +8,15 @@ pub(crate) enum ResolvedPhysicalPhaseComposition {
         rule: Optimization,
         post_allocation: Option<PostAllocationMachineRuleCatalogEntry>,
     },
-    NonAllocation(ResolvedNonAllocationComposition),
+    Realization(ResolvedRealizationPlan),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ResolvedNonAllocationComposition {
+pub(crate) enum ResolvedRealizationPlan {
     Identity,
     SelectedLowering,
-    SelectedLoweringWithFunctionRelativeLayout,
     PostAllocationMachine {
         entry: PostAllocationMachineRuleCatalogEntry,
-        after_selected_lowering: bool,
     },
     FunctionRelativeLayout,
 }
