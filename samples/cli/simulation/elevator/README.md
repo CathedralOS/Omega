@@ -22,7 +22,7 @@ OpenDoor   -> door_open=1
 Final state: `floor=1`, `moves=3`, `door_open=1`. Exits **70**.
 
 ```
-omega --target windows_x64 --build-dir build samples/elevator/main.omg
+omega --target windows_x64 --build-dir build samples/cli/simulation/elevator/main.omg
 ./build/omega-program.exe   # exit 70
 ```
 

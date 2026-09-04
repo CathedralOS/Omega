@@ -6,7 +6,7 @@ indexed writes (`self.scores[0]`), `[copy]` aggregate state, and
 case dispatch routing to scalar-argument substates. Runs to exit **70**.
 
 ```
-omega --target windows_x64 --build-dir build samples/score_tracker/main.omg
+omega --target windows_x64 --build-dir build samples/cli/games/score_tracker/main.omg
 ./build/omega-program.exe   # exit 70
 ```
 

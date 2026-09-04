@@ -26,7 +26,7 @@ Win detection reads `board[0]`, `board[1]`, `board[2]` and confirms all
 equal 1. Exits **70** when the sequence and board state are correct.
 
 ```
-omega --target windows_x64 --build-dir build samples/tic_tac_toe/main.omg
+omega --target windows_x64 --build-dir build samples/cli/games/tic_tac_toe/main.omg
 ./build/omega-program.exe   # exit 70
 ```
 

@@ -21,6 +21,6 @@ The fix and a minimal regression canary are in
 ## Build
 
 ```
-omega --target windows_x64 --build-dir build samples/vending_machine/main.omg
+omega --target windows_x64 --build-dir build samples/cli/games/vending_machine/main.omg
 ./build/omega-program.exe   # exit code reports the run
 ```
