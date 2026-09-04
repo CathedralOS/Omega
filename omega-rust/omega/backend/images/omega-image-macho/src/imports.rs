@@ -1,3 +1,6 @@
+//! The dylib roster, the jump thunks, the eager bind stream, and the post-relocation
+//! re-check that the thunk opcodes survived.
+
 use crate::layout::align_to;
 use crate::load_commands::MachoDylib;
 use omega_calling_conventions::{

@@ -1,3 +1,6 @@
+//! Little-endian appends for the file, and big-endian ones for the code signature,
+//! which is the one structure here that is not little-endian.
+
 pub(super) fn write_be_u32(bytes: &mut Vec<u8>, value: u32) {
     bytes.extend(value.to_be_bytes());
 }

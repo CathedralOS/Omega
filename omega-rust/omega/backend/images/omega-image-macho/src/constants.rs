@@ -1,3 +1,6 @@
+//! Mach-O arm64 fixed geometry: the four-gigabyte load base, the 16 KiB page and
+//! its log2 twin, and every load command's byte size.
+
 pub(super) const MACHO_EXECUTABLE_BASE: u64 = 0x1_0000_0000;
 pub(super) const MACHO_ARM64_PAGE_SIZE: usize = 0x4000;
 pub(super) const MACHO_HEADER_SIZE: usize = 32;

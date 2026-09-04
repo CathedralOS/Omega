@@ -1,3 +1,6 @@
+//! The entry point's offset within text, resolved from the final image's entry
+//! symbol.
+
 use omega_image::{FinalImage, FinalImageSection, final_image_symbol_name};
 use psi_diagnostics::Diagnostic;
 

@@ -1,3 +1,5 @@
+//! Alignment rounding for segment and blob boundaries.
+
 pub(super) fn alignment_power(alignment: usize) -> u32 {
     alignment.max(1).trailing_zeros()
 }

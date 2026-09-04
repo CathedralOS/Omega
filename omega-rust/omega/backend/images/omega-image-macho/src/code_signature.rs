@@ -1,3 +1,6 @@
+//! The ad-hoc CodeDirectory: a SHA-256 per 16 KiB page of the finished file, which
+//! is why it can only be built last.
+
 use sha2::{Digest, Sha256};
 
 use super::bytes::{write_be_u32, write_be_u64};
