@@ -171,6 +171,21 @@ input or output validation.
 
 ## Migration from the current implementation
 
+Crate extraction alone does not satisfy this migration. Several physical
+stages still own `StagedOptimized...` wrappers containing preceding stage
+objects, and the coordinator still branches by optimization history. Those
+wrappers and branches must be replaced at coherent representation boundaries;
+they are not additional canonical pipeline phases.
+
+The selected-program effect boundary now consumes one validated selected
+program and an explicit target environment. Its single analysis/replay entrance
+returns effects bound to that current program, without a five-way optimizer
+lineage sum. Post-allocation construction replays the upstream transformation
+before entering the common analysis. Persisted effect rows, identities, and
+encoding are selected-representation-owned; analysis and admission remain
+pipeline-owned. This closes that boundary only, not the remaining allocation,
+machine-optimization, realization, or outer identity/selected routing splits.
+
 The current implementation projects the complete effective build selection in
 two directions. The Psi projection runs at the checked-to-Terminal entrance and
 is retained in the sealed artifact. For a target-constrained Terminal product,

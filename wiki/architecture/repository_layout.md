@@ -27,6 +27,30 @@ is retained in [Bootstrap chain alternatives](../design_briefs/bootstrap_chain_a
   named subsystems.
 - Do not add a crate until a module boundary has stopped moving.
 
+## Representation entrances and ownership
+
+A program representation has one named root file beside `lib.rs`. That file
+defines the root program struct and maps its subordinate concepts. For example,
+`omega-selected-instructions/src/selected_instructions.rs` owns
+`SelectedInstructionPlan`; `selected_instructions/` contains control flow,
+virtual values, instructions, structural calls, constraints, provenance, and
+effects. Effect catalogs describe target mechanisms; effect program rows
+describe a particular selected program and own their canonical encoding.
+
+Subfolders follow actual semantic areas rather than a universal template or a
+file-count target. A concept such as ownership can change form or be discharged
+between stages. Each representation must explain where the remaining facts live
+and how their identities connect to the next representation. Empty placeholder
+areas do not satisfy this requirement.
+
+Pipeline stages consume and produce these representations. Their private
+working state and admission results may remain local, but public program data
+and its serialization belong to the representation owner. A stage result must
+not become a second program representation by accumulating earlier stage
+objects. Selected optimization passes preserve the representation vocabulary;
+later analysis consumes the current program rather than matching the history of
+which passes ran.
+
 Legend:
 
 - `[CRATE]` means a Cargo workspace package.

@@ -13,47 +13,20 @@ needed for independent replay through publication.
 
 ## Immediate gate
 
-- **PIPELINE-PHASE-INTEGRATION.** Implement the migration in
-  [`optimization_phases.md`](wiki/architecture/pipeline/optimization_phases.md):
-  establish phase-specific selections and identity execution; introduce the
-  target-neutral pre-Terminal Psi optimization entrance; make terminalization
-  consume its validated result; port the applicable algorithms from the
-  post-Terminal abstract-operation optimizer; then replace the
-  remaining identity/selected physical fork with explicit later phase results.
-  Terminal-to-abstract native admission is now unconditional, resumed lowering
-  accepts only the closed post-Terminal selection type, and the transitional
-  optimization continuation is an explicit `Identity | Selected` result rather
-  than selection absence. Both cases now enter an explicit post-Terminal
-  optimization stage before one target-lowering stage; target lowering cannot
-  schedule the optimizer or inspect the earlier continuation. Empty selection
-  retains verified optimizer input, executes canonical identity validation, and
-  rejects any changed abstract plan rather than bypassing the stage. Its closed
-  result retains ordinary, ranked, and optimized authority separately before
-  entering one physical-routing stage. Machine emission consumes that closed
-  result and performs no assignment or optimizer scheduling. The physical entrance now
-  projects the closed
-  post-Terminal selection once into phase-local inputs; composition does not
-  rescan the global set, and a post-Terminal phase with no implemented stage
-  rejects instead of disappearing. Each executable physical catalog accepts
-  only an `OptimizationPhaseSelections` input and rejects a projection owned by
-  another phase; catalogs cannot recover policy by rescanning a global set. The
-  optimizer-owned physical routes now converge at one validated
-  function-relative postcondition, including explicit unit, structural-unit,
-  and fixed-frame identity executions. The remaining mixed-depth fork is the
-  outer Terminal-to-native carrier: its ordinary/ranked identity arms still
-  hold assigned operations while its optimized arm holds the completed optimizer
-  result. Every optimizer-owned route now enters one fragment-emission stage;
-  native projection admits the exact return-only Unit shape rather than one
-  named optimizer variant. Converge the outer arms and extend that projection
-  to the remaining validated fragment shapes. Ranked native authority now
-  rejects selected optimization instead of being discarded into the ordinary
-  optimized route; a future ranked optimizer path must retain that authority
-  explicitly through the common postcondition.
-  Keep the same representation on both sides of a phase unless vocabulary,
-  interpretation, invariants, or published-product identity change.
+- **PIPELINE-PHASE-INTEGRATION.** Complete the migration in
+  [`optimization_phases.md`](wiki/architecture/pipeline/optimization_phases.md).
+  Replace public stage-ancestry wrappers with representation-owned program data;
+  consolidate per-rule packages into their owning phases; remove optimization-
+  history routing from allocation, machine optimization, and realization.
+  Converge the outer Terminal-to-native ordinary/ranked assigned-plan arms and
+  completed optimized arm at one physical postcondition, retaining each role's
+  authority. Port applicable target-neutral passes to the pre-Terminal entrance.
   Acceptance: empty and nonempty selections, standalone Terminal production,
   resumed lowering under a separate authority, and every native continuation
-  traverse one stage graph with no optimization bypass or fallback.
+  traverse one stage graph with no optimization bypass or fallback. Each program
+  representation has one named root and coherent subordinate concept owners;
+  physical pipeline stages consume current representations and explicit policy,
+  never reach backward through earlier stage objects to recover inputs.
 
 - **CHECKED-TREE-PRODUCT-PRUNING.** After all authored code has been checked,
   add an exact opt-in checked-tree phase for whole-product/root selection and

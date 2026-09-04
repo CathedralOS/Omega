@@ -92,7 +92,7 @@ pub(super) fn expected_manifest(
         pre_physical_manifest: post.pre_physical,
         post_allocation_manifest: post.identity,
         selected,
-        pre_allocation_machine_effects: machine.effects().effects().receipt().identity(),
+        pre_allocation_machine_effects: machine.effects().receipt().identity(),
         post_allocation_machine: machine_receipt.identity(),
         baseline_pre_layout: encoding.identity(),
         pre_layout: encoding.identity(),

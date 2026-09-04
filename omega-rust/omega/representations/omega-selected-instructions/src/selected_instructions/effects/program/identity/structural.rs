@@ -1,9 +1,9 @@
-use omega_optimization_unit::EffectLink;
-use omega_selected_instructions::{
+use crate::{
     MachineCleanupEffect, MachineTrapBehavior, SelectedMicrosoftX64OwnedIndirectPairLayout,
     StructuralUnitCallBarrier, StructuralUnitCallEffect, StructuralUnitCallEffectDeclaration,
     StructuralUnitCallFrameEffect, StructuralUnitCallMemoryEffect,
 };
+use omega_optimization_unit::EffectLink;
 use omega_target_operations::MachineRegister;
 
 use crate::StructuralUnitCallMachineEffects;
@@ -12,7 +12,7 @@ use super::ownership::encode_ownership;
 use super::provenance::encode_provenance;
 use super::values::{encode_constraint_key, encode_len, encode_units};
 
-pub(crate) fn encode_structural_call(bytes: &mut Vec<u8>, call: &StructuralUnitCallMachineEffects) {
+pub fn encode_structural_call(bytes: &mut Vec<u8>, call: &StructuralUnitCallMachineEffects) {
     bytes.extend_from_slice(&call.instruction.0.to_le_bytes());
     bytes.extend_from_slice(&call.operation.get().to_le_bytes());
     bytes.extend_from_slice(&call.callee.get().to_le_bytes());
@@ -32,7 +32,7 @@ pub(crate) fn encode_structural_call(bytes: &mut Vec<u8>, call: &StructuralUnitC
     encode_declaration(bytes, call.declaration);
 }
 
-pub(crate) fn encode_effect_link(bytes: &mut Vec<u8>, effect: EffectLink) {
+pub fn encode_effect_link(bytes: &mut Vec<u8>, effect: EffectLink) {
     bytes.extend_from_slice(&effect.input.to_le_bytes());
     bytes.extend_from_slice(&effect.output.to_le_bytes());
 }

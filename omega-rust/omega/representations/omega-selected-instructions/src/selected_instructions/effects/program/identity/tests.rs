@@ -1,15 +1,15 @@
-use omega_optimization_core::OptimizationUnitIdentity;
-use omega_register_model::{
-    RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
-    RegisterUnitId, TargetRegisterEnvironmentIdentity,
-};
-use omega_selected_instructions::{
+use crate::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectCatalogIdentity, MachineEncodedEffects, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSizeKnowledge, MachineTrapBehavior, SelectedBlockId,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance,
+};
+use omega_optimization_core::OptimizationUnitIdentity;
+use omega_register_model::{
+    RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
+    RegisterUnitId, TargetRegisterEnvironmentIdentity,
 };
 use omega_target::NativeTarget;
 use psi_core::{FuelScheduleIdentity, MachineId};

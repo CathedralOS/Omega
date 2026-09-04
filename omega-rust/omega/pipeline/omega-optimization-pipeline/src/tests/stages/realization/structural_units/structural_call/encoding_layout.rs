@@ -37,7 +37,7 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
     assert!(
         omega_machine_optimizer::validate_post_allocation_machine_plan(
             range_stage.liveness_stage().selected_stage().selected(),
-            post.effects().effects(),
+            post.effects(),
             range_stage.ranges(),
             legality_stage.legality(),
             homes.homes(),

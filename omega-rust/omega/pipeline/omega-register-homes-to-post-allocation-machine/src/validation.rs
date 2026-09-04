@@ -17,13 +17,7 @@ use omega_literal_folds_to_register_homes::{
     validate_optimized_register_home_after_literal_fold_custody,
     validate_optimized_register_home_after_selected_lowering_custody,
 };
-use omega_selected_instructions_to_machine_effects::{
-    validate_optimized_machine_effect_custody,
-    validate_optimized_machine_effect_custody_after_active_resident_rematerialization,
-    validate_optimized_machine_effect_custody_after_fixed_view_copies,
-    validate_optimized_machine_effect_custody_after_literal_folds,
-    validate_optimized_machine_effect_custody_after_selected_lowering,
-};
+use omega_selected_instructions_to_machine_effects::validate_machine_effects;
 use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::{
@@ -50,8 +44,6 @@ pub fn validate_optimized_post_allocation_machine_plan_custody(
         .live_range_stage()
         .liveness_stage()
         .selected_stage();
-    validate_optimized_machine_effect_custody(selected_stage, staged.effects().effects())
-        .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
     let environment = selected_stage.register_environment();
     let machine = replay(
         selected_stage.selected(),
@@ -64,7 +56,7 @@ pub fn validate_optimized_post_allocation_machine_plan_custody(
     )?;
     Ok(post_allocation_machine_custody(
         StagedOptimizedPostAllocationMachineSourceCustodyReceipt::RegisterHomes(source_receipt),
-        staged.effects().effects(),
+        staged.effects(),
         &machine,
     ))
 }
@@ -83,11 +75,6 @@ pub fn validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_cus
     )
     .map_err(OptimizedPostAllocationMachinePipelineError::FixedViewCopies)?;
     let copies = source.reanalysis_stage().transformation_stage();
-    validate_optimized_machine_effect_custody_after_fixed_view_copies(
-        copies,
-        staged.effects().effects(),
-    )
-    .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
     let selected_stage = copies
         .source_legality_stage()
         .live_range_stage()
@@ -104,7 +91,7 @@ pub fn validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_cus
     )?;
     Ok(post_allocation_machine_custody(
         StagedOptimizedPostAllocationMachineSourceCustodyReceipt::FixedViewCopies(source_receipt),
-        staged.effects().effects(),
+        staged.effects(),
         &machine,
     ))
 }
@@ -119,11 +106,6 @@ pub fn validate_optimized_post_allocation_machine_plan_after_literal_fold_custod
     let source_receipt = validate_optimized_register_home_after_literal_fold_custody(source)
         .map_err(OptimizedPostAllocationMachinePipelineError::LiteralFolds)?;
     let folds = source.fold_stage();
-    validate_optimized_machine_effect_custody_after_literal_folds(
-        folds,
-        staged.effects().effects(),
-    )
-    .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
     let selected_stage = folds
         .source_legality_stage()
         .live_range_stage()
@@ -140,7 +122,7 @@ pub fn validate_optimized_post_allocation_machine_plan_after_literal_fold_custod
     )?;
     Ok(post_allocation_machine_custody(
         StagedOptimizedPostAllocationMachineSourceCustodyReceipt::LiteralFolds(source_receipt),
-        staged.effects().effects(),
+        staged.effects(),
         &machine,
     ))
 }
@@ -155,11 +137,6 @@ pub fn validate_optimized_post_allocation_machine_plan_after_selected_lowering_c
     let source_receipt = validate_optimized_register_home_after_selected_lowering_custody(source)
         .map_err(OptimizedPostAllocationMachinePipelineError::SelectedLowering)?;
     let run = source.selected_lowering_run();
-    validate_optimized_machine_effect_custody_after_selected_lowering(
-        run,
-        staged.effects().effects(),
-    )
-    .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
     let selected_stage = run
         .source_legality_stage()
         .live_range_stage()
@@ -188,7 +165,7 @@ pub fn validate_optimized_post_allocation_machine_plan_after_selected_lowering_c
     }?;
     Ok(post_allocation_machine_custody(
         StagedOptimizedPostAllocationMachineSourceCustodyReceipt::SelectedLowering(source_receipt),
-        staged.effects().effects(),
+        staged.effects(),
         &machine,
     ))
 }
@@ -202,15 +179,6 @@ pub fn validate_optimized_post_allocation_machine_plan_after_active_resident_rem
 > {
     let source_receipt = validate_optimized_active_resident_rematerialization(source)
         .map_err(OptimizedPostAllocationMachinePipelineError::ActiveResidentRematerialization)?;
-    let effects_receipt =
-        validate_optimized_machine_effect_custody_after_active_resident_rematerialization(
-            source,
-            staged.effects().effects(),
-        )
-        .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
-    if &effects_receipt != staged.effects().custody() {
-        return Err(OptimizedPostAllocationMachinePipelineError::ReceiptMismatch);
-    }
     let selected_stage = source
         .source()
         .live_range_stage()
@@ -229,7 +197,7 @@ pub fn validate_optimized_post_allocation_machine_plan_after_active_resident_rem
         StagedOptimizedPostAllocationMachineSourceCustodyReceipt::ActiveResidentRematerialization(
             source_receipt,
         ),
-        staged.effects().effects(),
+        staged.effects(),
         &machine,
     );
     if &receipt != staged.custody() {
@@ -248,9 +216,11 @@ fn replay<S: omega_regalloc::ValidatedSelectedAnalysis>(
     manifest: &omega_regalloc::ValidatedPostAllocationOptimizationManifest,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedPostAllocationMachinePlan, OptimizedPostAllocationMachinePipelineError> {
+    validate_machine_effects(selected, environment, staged.effects())
+        .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
     let replayed = validate_post_allocation_machine_plan(
         selected,
-        staged.effects().effects(),
+        staged.effects(),
         ranges,
         legality,
         homes,

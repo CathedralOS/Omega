@@ -1,4 +1,4 @@
-use omega_selected_instructions::{
+use crate::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineSizeKnowledge,

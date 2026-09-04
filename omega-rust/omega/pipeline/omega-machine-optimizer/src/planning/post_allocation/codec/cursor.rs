@@ -1,6 +1,6 @@
 //! Cursor primitives and pre-allocation field-error translation.
 
-use crate::analyses::pre_allocation_effects::codec as effect_codec;
+use omega_selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 
 use super::PostAllocationMachineDecodeError;
 

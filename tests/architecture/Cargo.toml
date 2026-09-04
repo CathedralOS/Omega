@@ -13,6 +13,10 @@ name = "layering"
 path = "layering.rs"
 
 [[test]]
+name = "representation_ownership"
+path = "representation_ownership.rs"
+
+[[test]]
 name = "optimizer_source_organization"
 path = "optimizer_source_organization/mod.rs"
 

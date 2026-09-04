@@ -3,7 +3,7 @@ use psi_terminal::{StructuralPathSegment, TerminalAffineCleanupAction};
 
 use super::values::{encode_ids, encode_len};
 
-pub(crate) fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
+pub fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
     encode_len(bytes, ownership.len());
     for event in ownership {
         match event {

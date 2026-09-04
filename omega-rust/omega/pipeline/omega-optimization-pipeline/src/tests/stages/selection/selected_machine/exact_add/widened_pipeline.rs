@@ -201,10 +201,10 @@ fn widened_u8_exact_add_reaches_selected_effect_and_register_pipelines_on_both_a
             Err(SelectedInstructionError::VirtualRegisterProjectionMismatch { .. })
         ));
 
-        let effects = stage_optimized_machine_effects(&staged).unwrap();
-        assert_eq!(effects.custody().instruction_count(), 10);
+        let effects =
+            analyze_machine_effects(staged.selected(), staged.register_environment()).unwrap();
+        assert_eq!(effects.receipt().instruction_count(), 10);
         let adds = effects
-            .effects()
             .plan()
             .functions
             .iter()

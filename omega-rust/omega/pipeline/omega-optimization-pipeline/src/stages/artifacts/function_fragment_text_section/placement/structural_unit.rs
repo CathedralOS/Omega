@@ -33,7 +33,7 @@ pub(super) fn place(
     let selected_plan = source.source().selected_plan();
     let environment = source.source().register_environment();
     let machine_plan = realization.machine().machine().plan();
-    let effects_plan = realization.machine().effects().effects().plan();
+    let effects_plan = realization.machine().effects().plan();
     let encoding = realization.encoding();
     let layout = realization.layout();
     let exit = realization.exit_contract().contract();

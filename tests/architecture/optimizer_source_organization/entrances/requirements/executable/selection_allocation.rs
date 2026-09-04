@@ -2,7 +2,7 @@ use super::super::RequiredCoordinationEntrance;
 
 pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/mod.rs",
+        path: "omega-rust/omega/representations/omega-selected-instructions/src/selected_instructions/effects/catalog.rs",
         coordination_marker: "pub fn validate_machine_effect_catalog",
     },
     RequiredCoordinationEntrance {

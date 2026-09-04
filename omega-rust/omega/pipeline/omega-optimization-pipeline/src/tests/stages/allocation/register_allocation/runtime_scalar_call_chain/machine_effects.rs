@@ -27,9 +27,9 @@ fn first_call(
 fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let selected = staged_selected(target);
-        let effects = stage_optimized_machine_effects(&selected).unwrap();
+        let effects =
+            analyze_machine_effects(selected.selected(), selected.register_environment()).unwrap();
         let function = effects
-            .effects()
             .plan()
             .functions
             .iter()
@@ -116,11 +116,11 @@ fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
             }
         }
 
-        let encoded_effects = effects.effects().plan().encode();
+        let encoded_effects = effects.plan().encode();
         assert_eq!(
             omega_machine_optimizer::PreAllocationMachineEffectPlan::decode(&encoded_effects)
                 .unwrap(),
-            effects.effects().plan().clone()
+            effects.plan().clone()
         );
         let mut legacy_effects = encoded_effects;
         legacy_effects[8..12].copy_from_slice(&8_u32.to_le_bytes());
@@ -166,7 +166,8 @@ fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
 fn scalar_call_effect_corruption_fails_independent_replay() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let selected = staged_selected(target);
-        let effects = stage_optimized_machine_effects(&selected).unwrap();
+        let effects =
+            analyze_machine_effects(selected.selected(), selected.register_environment()).unwrap();
         let environment = selected.register_environment();
         let catalog = match target.architecture {
             Architecture::X86_64 => {
@@ -208,27 +209,27 @@ fn scalar_call_effect_corruption_fails_independent_replay() {
                 plan,
             )
         };
-        let mut corrupted = effects.effects().plan().clone();
+        let mut corrupted = effects.plan().clone();
         first_call(&mut corrupted).unit_clobbers.pop();
         assert!(replay(corrupted).is_err());
 
-        let mut corrupted = effects.effects().plan().clone();
+        let mut corrupted = effects.plan().clone();
         first_call(&mut corrupted).call = MachineCallEffect::DirectInternalNormalReturnV1 {
             pre_call_stack_alignment: 8,
         };
         assert!(replay(corrupted).is_err());
 
-        let mut corrupted = effects.effects().plan().clone();
+        let mut corrupted = effects.plan().clone();
         first_call(&mut corrupted).alternatives[0].encoded.control =
             MachineEncodedControlEffect::FallThroughV1;
         assert!(replay(corrupted).is_err());
 
-        let mut corrupted = effects.effects().plan().clone();
+        let mut corrupted = effects.plan().clone();
         first_call(&mut corrupted).alternatives[0].encoded.trap =
             MachineEncodedTrapBehavior::NeverV1;
         assert!(replay(corrupted).is_err());
 
-        let mut corrupted = effects.effects().plan().clone();
+        let mut corrupted = effects.plan().clone();
         let call = first_call(&mut corrupted);
         if let MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
             return_address_byte_count,

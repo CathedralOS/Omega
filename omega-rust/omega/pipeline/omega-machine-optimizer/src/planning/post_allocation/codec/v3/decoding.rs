@@ -11,12 +11,12 @@ use omega_selected_instructions::{
 };
 use psi_core::MachineId;
 
-use crate::analyses::pre_allocation_effects::codec as effect_codec;
 use crate::{
     MachineAlternativeChoiceRule, PostAllocationMachineBlock, PostAllocationMachineFunction,
     PostAllocationMachineIdentity, PostAllocationMachinePlan, PostAllocationStructuralUnitFunction,
     PreAllocationMachineEffectIdentity,
 };
+use omega_selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 
 use super::instruction::decode_instruction;
 

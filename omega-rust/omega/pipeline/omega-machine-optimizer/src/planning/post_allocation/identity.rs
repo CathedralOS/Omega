@@ -86,21 +86,21 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
             None => bytes.push(0),
             Some(call) => {
                 bytes.push(1);
-                crate::analyses::pre_allocation_effects::identity::encode_structural_call(
+                omega_selected_instructions::selected_instructions::effects::program::identity::encode_structural_call(
                     &mut bytes, call,
                 );
             }
         }
         encode_instruction(&mut bytes, &function.return_instruction);
-        crate::analyses::pre_allocation_effects::identity::encode_provenance(
+        omega_selected_instructions::selected_instructions::effects::program::identity::encode_provenance(
             &mut bytes,
             &function.return_provenance,
         );
-        crate::analyses::pre_allocation_effects::identity::encode_effect_link(
+        omega_selected_instructions::selected_instructions::effects::program::identity::encode_effect_link(
             &mut bytes,
             function.return_effect,
         );
-        crate::analyses::pre_allocation_effects::identity::encode_ownership(
+        omega_selected_instructions::selected_instructions::effects::program::identity::encode_ownership(
             &mut bytes,
             &function.return_ownership,
         );

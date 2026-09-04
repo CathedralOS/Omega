@@ -1,4 +1,4 @@
-use omega_selected_instructions::{
+use crate::{
     MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineMemoryEffect,
     MachineTrapBehavior, SelectedInstructionKind,
 };

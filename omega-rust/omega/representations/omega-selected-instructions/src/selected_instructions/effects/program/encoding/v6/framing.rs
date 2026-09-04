@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) fn encode_terminal_pre_allocation_machine_effect_plan(
+pub fn encode_terminal_pre_allocation_machine_effect_plan(
     plan: &PreAllocationMachineEffectPlan,
 ) -> Vec<u8> {
     let content = identity::encode_terminal_pre_allocation_machine_effect_content(plan);
@@ -12,7 +12,7 @@ pub(crate) fn encode_terminal_pre_allocation_machine_effect_plan(
     encoded
 }
 
-pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
+pub fn decode_terminal_pre_allocation_machine_effect_plan(
     encoded: &[u8],
 ) -> Result<PreAllocationMachineEffectPlan, PreAllocationMachineEffectDecodeError> {
     let mut cursor = Cursor::new(encoded);
@@ -87,9 +87,9 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
         structural_unit_functions,
     };
     let expected_identity = match version {
-        LEGACY_V6_VERSION => crate::analyses::pre_allocation_effects::identity::pre_allocation_machine_effect_identity_v5_legacy(&plan),
-        LEGACY_V7_VERSION => crate::analyses::pre_allocation_effects::identity::pre_allocation_machine_effect_identity_v6_legacy(&plan),
-        LEGACY_V8_VERSION => crate::analyses::pre_allocation_effects::identity::pre_allocation_machine_effect_identity_v7_legacy(&plan),
+        LEGACY_V6_VERSION => crate::selected_instructions::effects::program::identity::pre_allocation_machine_effect_identity_v5_legacy(&plan),
+        LEGACY_V7_VERSION => crate::selected_instructions::effects::program::identity::pre_allocation_machine_effect_identity_v6_legacy(&plan),
+        LEGACY_V8_VERSION => crate::selected_instructions::effects::program::identity::pre_allocation_machine_effect_identity_v7_legacy(&plan),
         VERSION => pre_allocation_machine_effect_identity(&plan),
         _ => unreachable!("wire version admitted above"),
     };

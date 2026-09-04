@@ -157,7 +157,7 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         assert!(
             omega_machine_optimizer::validate_post_allocation_machine_plan(
                 selected_stage.selected(),
-                post.effects().effects(),
+                post.effects(),
                 range_stage.ranges(),
                 legality_stage.legality(),
                 homes.homes(),

@@ -12,10 +12,10 @@ mod v3;
 
 pub use error::PostAllocationMachineDecodeError;
 
-use crate::analyses::pre_allocation_effects::codec as effect_codec;
 use crate::{
     PostAllocationMachineIdentity, PostAllocationMachinePlan, post_allocation_machine_identity,
 };
+use omega_selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
 const LEGACY_V3_VERSION: u32 = 3;

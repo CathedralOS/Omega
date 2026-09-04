@@ -8,12 +8,7 @@ use omega_optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitId
 
 use super::super::identity;
 use super::{Cursor, PreAllocationMachineEffectDecodeError};
-use omega_optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
-use omega_register_model::{
-    RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
-    RegisterUnitId, TargetRegisterEnvironmentIdentity,
-};
-use omega_selected_instructions::{
+use crate::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectCatalogIdentity, MachineEncodedControlEffect, MachineEncodedEffects,
@@ -24,6 +19,11 @@ use omega_selected_instructions::{
     SelectedMicrosoftX64OwnedIndirectPairLayout, SelectedStructuralUnitIndirectBinding,
     StructuralUnitCallBarrier, StructuralUnitCallEffect, StructuralUnitCallEffectDeclaration,
     StructuralUnitCallFrameEffect, StructuralUnitCallMemoryEffect,
+};
+use omega_optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
+use omega_register_model::{
+    RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
+    RegisterUnitId, TargetRegisterEnvironmentIdentity,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use psi_core::{
@@ -44,20 +44,20 @@ mod ownership;
 mod structural;
 mod values;
 
-pub(crate) use framing::{
+pub use framing::{
     decode_terminal_pre_allocation_machine_effect_plan,
     encode_terminal_pre_allocation_machine_effect_plan,
 };
 use instruction::decode_instruction;
-pub(crate) use instruction::{
+pub use instruction::{
     decode_alternative, decode_alternative_legacy, decode_alternative_without_scalar_call,
     decode_provenance,
 };
-pub(crate) use ownership::decode_ownership;
+pub use ownership::decode_ownership;
 use structural::decode_structural_function;
-pub(crate) use structural::{decode_effect_link, decode_structural_call};
+pub use structural::{decode_effect_link, decode_structural_call};
 use values::{decode_constraint_key, decode_ids, decode_machine, decode_obligation};
-pub(crate) use values::{decode_target, decode_units};
+pub use values::{decode_target, decode_units};
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 const LEGACY_V6_VERSION: u32 = 6;

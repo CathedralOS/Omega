@@ -486,26 +486,35 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
                 .receipt()
                 .transformed_selected()
         );
-        let machine_effects =
-            stage_optimized_machine_effects_after_literal_folds(&staged_folds).unwrap();
+        let machine_effects = analyze_machine_effects(
+            staged_folds.final_step().fold(),
+            staged_folds
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+        )
+        .unwrap();
         assert_eq!(
-            machine_effects.effects().receipt().selected(),
+            machine_effects.receipt().selected(),
             staged_folds.custody().final_selected()
         );
         assert_eq!(
-            machine_effects.custody().source(),
-            &StagedOptimizedMachineEffectSourceCustodyReceipt::LiteralFolds(
-                staged_folds.custody().clone()
-            )
+            machine_effects.receipt().selected(),
+            staged_folds.custody().final_selected()
         );
-        assert_eq!(
-            &validate_optimized_machine_effect_custody_after_literal_folds(
-                &staged_folds,
-                machine_effects.effects(),
-            )
-            .unwrap(),
-            machine_effects.custody()
-        );
+        validate_machine_effects(
+            staged_folds.final_step().fold(),
+            staged_folds
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            &machine_effects,
+        )
+        .unwrap();
         let expected_transformations = staged_folds
             .custody()
             .transformations()
