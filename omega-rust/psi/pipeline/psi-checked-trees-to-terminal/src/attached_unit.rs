@@ -685,6 +685,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }
         }
@@ -2559,6 +2560,42 @@ pub(super) fn lower_attached_unit_closure_including(
                     );
                     OperationKind::WriteOnlyPrimitiveStore {
                         destination: destination.place,
+                        value,
+                    }
+                }
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+                    let destination = parameters
+                        .iter()
+                        .find(|parameter| {
+                            parameter.position == store.destination_parameter_position
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "structural scalar store names an unknown parameter",
+                        ))?;
+                    let lowered =
+                        crate::structural_scalar_store::lower_structural_scalar_store_destination(
+                            store,
+                            store.statement_index,
+                            destination,
+                            &structural_types,
+                            crate::structural_scalar_store::StoreAccessPolicy::Exclusive,
+                        )?;
+                    let value = lower_checked_scalar_expression(&store.value)?;
+                    if value.scalar_type() != lowered.scalar_type {
+                        return unsupported(
+                            "structural scalar store value type disagrees with its field",
+                        );
+                    }
+                    let value = emit_direct_expression(
+                        &value,
+                        &scalar_result_values,
+                        &mut next_value_identity,
+                        &mut operations,
+                    );
+                    OperationKind::StructuralScalarFieldStore {
+                        destination: destination.place,
+                        path: lowered.path,
+                        field: lowered.field,
                         value,
                     }
                 }

@@ -47,6 +47,7 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }

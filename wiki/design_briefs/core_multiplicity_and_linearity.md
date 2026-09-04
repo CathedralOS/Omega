@@ -162,6 +162,19 @@ independently. Further arithmetic locals, Boolean and IEEE call results, and
 IEEE runtime sources remain fenced.
 Provider non-observation authority remains absent.
 
+The first projected replacement sibling accepts one fixed-integer literal
+assignment through a finite field-only path of plain invariant-free records.
+The destination is the machine's sole structural parameter and may carry
+mutable or write-only access; the final field must be relevant, fixed-width,
+and non-address. Checked planning requires the exact complete mutation frame,
+retains every carrier-field identity plus the final scalar field separately,
+and emits no read of the referent. Direct root fields use an empty carrier path;
+nested fields retain each enclosing record field. Terminal verification,
+target layout, both Linux ABIs, machine emission, object replay, and installed
+custody preserve the same store and exact byte offset. Additional assignments,
+scalar parameters, generics, domains/invariants, quotients, sums, arrays,
+erased fields, and nonliteral values remain outside this rung.
+
 ## Consumers and cleanup
 
 A linear value must reach exactly one authorized terminal consumer on every

@@ -6,7 +6,9 @@ use psi_language_semantics::{
     CarryPolicy, Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary,
 };
 
-use crate::{CheckedScalarExpression, NominalMachineUseSite};
+use crate::{
+    CheckedScalarExpression, CheckedStructuralScalarFieldStorePlan, NominalMachineUseSite,
+};
 
 /// Stable machine identities and names used to select the bootstrap terminal
 /// producer without reopening the typed machine table.
@@ -1534,6 +1536,11 @@ pub enum CheckedUnitEffectOperationPlan {
         destination_parameter_index: u32,
         value: CheckedScalarExpression,
     },
+    /// Replace one relevant primitive field through an exact field-only path
+    /// below an exclusive structural parameter. This shares the same checked
+    /// path/value custody as dynamic realization stores, but is an ordinary
+    /// attached-Unit effect and therefore carries no dispatch authority.
+    StructuralScalarFieldStore(CheckedStructuralScalarFieldStorePlan),
     ReturnUnit {
         statement_index: u32,
         /// Exact local declaration coordinates cleaned before parameters, in

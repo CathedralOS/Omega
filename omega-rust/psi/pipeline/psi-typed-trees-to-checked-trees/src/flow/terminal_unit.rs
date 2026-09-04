@@ -18,15 +18,16 @@ use psi_checked_trees::{
     CheckedStructuralCallReturnPlans, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
-    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnCleanupAction,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
-    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
-    CheckedTraitOperatorScalarReturnMachinePlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarFieldStorePlan,
+    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
+    CheckedStructuralScalarIntegerBoundRequirementPlan, CheckedStructuralScalarParameterPlan,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
+    CheckedStructuralUnitControlTerminatorPlan, CheckedTraitOperatorScalarReturnMachinePlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
+    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
@@ -64,6 +65,7 @@ mod scalar_locals;
 mod selected_ieee_float;
 pub(super) mod selected_operator;
 pub(crate) mod shared_convergence;
+mod structural_scalar_store;
 pub(super) mod types;
 
 use calls::*;
@@ -77,6 +79,7 @@ use scalar_locals::*;
 use selected_ieee_float::*;
 use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
+use structural_scalar_store::build_structural_scalar_field_store;
 use types::*;
 
 pub(super) fn cleanup_type_is_unit(
@@ -250,6 +253,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. } => true,
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }

@@ -37,6 +37,7 @@ mod scalar_graph;
 mod service_reach_contracts;
 mod structural_control_cases;
 mod structural_return_cases;
+mod structural_scalar_store;
 mod unit_cleanup;
 
 fn checked_source(source: &str) -> psi_checked_trees::CheckedTrees {

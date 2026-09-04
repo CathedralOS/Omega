@@ -44,7 +44,6 @@ pub(super) fn lower_field_store(
             destination.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
-        || path.is_empty()
         || path
             .iter()
             .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
@@ -81,13 +80,24 @@ pub(super) fn lower_field_store(
             function.machine,
         ));
     }
-    let (carrier_type, _, carrier_byte_offset) = resolve_structural_field_path(
-        destination.structural_type,
-        path,
-        structural_types,
-        shape_cache,
-        active,
-    )?;
+    let (carrier_type, carrier_byte_offset) = if path.is_empty() {
+        structural_shape(
+            destination.structural_type,
+            structural_types,
+            shape_cache,
+            active,
+        )?;
+        (destination.structural_type, 0)
+    } else {
+        let (carrier_type, _, carrier_byte_offset) = resolve_structural_field_path(
+            destination.structural_type,
+            path,
+            structural_types,
+            shape_cache,
+            active,
+        )?;
+        (carrier_type, carrier_byte_offset)
+    };
     let scalar_byte_offset =
         direct_integer_field_offset(carrier_type, *field, integer_type, structural_types)?;
     let field_byte_offset = carrier_byte_offset

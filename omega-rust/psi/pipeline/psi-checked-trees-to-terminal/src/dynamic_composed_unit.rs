@@ -821,7 +821,10 @@ fn validate_exact_dynamic_plan(
         && (store.statement_index != 0
             || store.destination_parameter_position != plan.source_parameter_position
             || store.carrier_path != plan.source_path
-            || !checked_store_literal_matches(&store.value, store.primitive_type))
+            || !crate::structural_scalar_store::checked_store_literal_matches(
+                &store.value,
+                store.primitive_type,
+            ))
     {
         return unsupported("direct dynamic caller store drifted from checked custody");
     }
@@ -1033,21 +1036,6 @@ fn validate_forwarded_dynamic_call_coordinates(
         && call.target_symbol == requirement
         && call.has_receiver
         && call.service_reach == checked_call_service_reach)
-}
-
-fn checked_store_literal_matches(
-    value: &CheckedScalarExpression,
-    primitive_type: PrimitiveType,
-) -> bool {
-    match (value, primitive_type) {
-        (CheckedScalarExpression::IntegerLiteral { .. }, primitive_type) => {
-            primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
-        }
-        (CheckedScalarExpression::Boolean(boolean), PrimitiveType::Bool) => {
-            matches!(boolean.as_ref(), CheckedBooleanExpression::Constant(_))
-        }
-        _ => false,
-    }
 }
 
 fn validate_and_lower_source(
@@ -2641,73 +2629,16 @@ fn lower_realization_store_operation(
     next_operation: &mut u64,
     next_value: &mut u64,
 ) -> Result<Vec<Operation>, LoweringError> {
-    if parameter.access != StructuralAccess::MutableBorrow
-        || store.statement_index
-            != u32::try_from(statement_index)
-                .map_err(|_| LoweringError::Unsupported("dynamic store index exceeds u32"))?
-        || store.destination_parameter_position != parameter.position
-        || !checked_store_literal_matches(&store.value, store.primitive_type)
-    {
-        return unsupported("dynamic realization store lost exact mutable-self custody");
-    }
-    let scalar_type = terminal_scalar_type(store.primitive_type)?;
-    let declaration = structural_types
-        .iter()
-        .find(|declaration| declaration.id == parameter.structural_type)
-        .ok_or(LoweringError::Unsupported(
-            "dynamic realization store self type is absent",
-        ))?;
-    let mut field_owner = declaration;
-    let mut path = Vec::with_capacity(store.carrier_path.len());
-    for segment in &store.carrier_path {
-        let CheckedUnitStructuralPathSegment::Field(identity) = segment else {
-            return unsupported("dynamic realization store carrier path is unsupported");
-        };
-        if identity.is_empty() {
-            return unsupported("dynamic realization store carrier path is unsupported");
-        }
-        let psi_terminal::StructuralTypeShape::Record { fields } = &field_owner.shape else {
-            return unsupported("dynamic realization store self must be a record");
-        };
-        let carriers = fields
-            .iter()
-            .filter(|field| {
-                field.identity == *identity
-                    && !field.relevance.is_erased()
-                    && matches!(
-                        field.field_type,
-                        psi_terminal::StructuralFieldType::Structural(_)
-                    )
-            })
-            .collect::<Vec<_>>();
-        let [carrier] = carriers.as_slice() else {
-            return unsupported("dynamic realization store carrier is absent or ambiguous");
-        };
-        let psi_terminal::StructuralFieldType::Structural(nested) = carrier.field_type else {
-            unreachable!("carrier shape was checked above")
-        };
-        field_owner = structural_types
-            .iter()
-            .find(|candidate| candidate.id == nested)
-            .ok_or(LoweringError::Unsupported(
-                "dynamic realization store nested carrier type is absent",
-            ))?;
-        path.push(psi_terminal::StructuralPathSegment::Field(identity.clone()));
-    }
-    let psi_terminal::StructuralTypeShape::Record { fields } = &field_owner.shape else {
-        return unsupported("dynamic realization store self must be a record");
-    };
-    let matching = fields
-        .iter()
-        .filter(|field| {
-            field.identity == store.field_identity
-                && !field.relevance.is_erased()
-                && field.field_type == psi_terminal::StructuralFieldType::Scalar(scalar_type)
-        })
-        .collect::<Vec<_>>();
-    let [field] = matching.as_slice() else {
-        return unsupported("dynamic realization store field is absent or ambiguous");
-    };
+    let expected_statement_index = u32::try_from(statement_index)
+        .map_err(|_| LoweringError::Unsupported("dynamic store index exceeds u32"))?;
+    let lowered = crate::structural_scalar_store::lower_structural_scalar_store_destination(
+        store,
+        expected_statement_index,
+        parameter,
+        structural_types,
+        crate::structural_scalar_store::StoreAccessPolicy::MutableOnly,
+    )?;
+    let scalar_type = lowered.scalar_type;
     let constant = match &store.value {
         CheckedScalarExpression::IntegerLiteral { literal }
             if store.primitive_type.accepts_integer_literal()
@@ -2747,8 +2678,8 @@ fn lower_realization_store_operation(
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
                 destination: parameter.place,
-                path,
-                field: field.id,
+                path: lowered.path,
+                field: lowered.field,
                 value: constant_value,
             },
         },
