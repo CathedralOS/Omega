@@ -85,10 +85,11 @@ needed for independent replay through publication.
   preserving exact register-unit aliases, liveness, and target custody.
 
 - **FRAME-LAYOUT.** Extend the replayed System V AMD64/AAPCS64 ordinary-call
-  frame geometry through actual save/restore and stack-adjustment emission,
-  then add Microsoft shadow space, red-zone policy, probing, unwind information,
-  stable-address loans, and dynamic-allocation constraints. Requirements
-  artifacts remain non-authoritative until exact physical accesses replay.
+  frame geometry and packed target-owned save/restore encodings through
+  function-relative layout and emission, then add Microsoft shadow space,
+  red-zone policy, probing, unwind information, stable-address loans, and
+  dynamic-allocation constraints. Requirements artifacts remain
+  non-authoritative until exact physical accesses replay.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
