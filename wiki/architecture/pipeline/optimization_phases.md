@@ -171,6 +171,10 @@ input or output validation.
 
 ## Migration from the current implementation
 
+Rematerialized programs use the ordinary encoding and resolved-layout stages.
+The separate active-resident encoding crate and its layout/realization wrappers
+have been removed; their byte and corruption controls exercise the shared paths.
+
 Crate extraction alone does not satisfy this migration. Several physical
 stages still own `StagedOptimized...` wrappers containing preceding stage
 objects, and the coordinator still branches by optimization history. Those

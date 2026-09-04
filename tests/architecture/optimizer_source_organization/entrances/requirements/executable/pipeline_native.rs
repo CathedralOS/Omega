@@ -86,16 +86,8 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_register_homes_after_literal_folds",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-active-resident-rematerialization-to-selected-form-encoding/src/lib.rs",
-        coordination_marker: "pub fn stage_optimized_active_resident_rematerialization_selected_form_encoding",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-post-allocation-machine-to-selected-form-encoding/src/lib.rs",
         coordination_marker: "stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/active_resident_resolved_selected_form_layout/mod.rs",
-        coordination_marker: "pub fn stage_optimized_active_resident_rematerialization_resolved_selected_form_layout",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout/mod.rs",
@@ -136,10 +128,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/realization/structural_unit_function_relative_realization/mod.rs",
         coordination_marker: "pub fn stage_optimized_structural_unit_function_relative_realization",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/realization/active_resident_function_relative_realization/mod.rs",
-        coordination_marker: "pub fn stage_optimized_active_resident_rematerialization_function_relative_realization",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/realization/allocation_recovery_function_relative_realization/mod.rs",

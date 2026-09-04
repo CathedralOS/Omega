@@ -12,7 +12,6 @@ pub use omega_abstract_operations_to_target_operations::{
     lower_optimized_to_target_operations_with_provider_executions,
     lower_optimized_to_target_operations_with_provider_executions_and_installation,
 };
-pub use omega_active_resident_rematerialization_to_selected_form_encoding::*;
 pub use omega_callee_saved_requirements_to_save_storage::*;
 pub use omega_frame_layout_to_frame_protocol::*;
 pub use omega_post_allocation_machine_to_frame_layout::*;
