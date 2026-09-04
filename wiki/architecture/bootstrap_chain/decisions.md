@@ -5101,3 +5101,20 @@ receipt. Retained empty, write/exit, and write/ByteRange programs produce
 respectively `00`, `41 07`, and `41 85` in the experiment observation. This
 closes only direct literal Console statements; general expression evaluation,
 locals, state transfer, read, write_line, and D execution remain open.
+
+## D127 — Epsilon scalar locals reuse checked binding identity
+
+The evaluator stores one runtime scalar value beside the exact retained
+`EpsilonLetLocal` statement identity. Name expressions consume the checker-owned
+resolved-local ledger and use that declaration identity for lookup; execution
+does not repeat string resolution or invent a numeric symbol. Grouping preserves
+the same scalar result.
+
+Entry execution now admits scalar `let` and `assert` statements. A true assert
+continues, false produces trap code 8 (`Assertion`), and any scalar other than
+zero or one produces trap code 7 (`NonBoolean`). Output already committed by a
+preceding Console call remains in either trap observation. The evaluator is
+8,863 lines and 441,260 bytes; its eight-line driver compiles to a 520,260-byte
+Gamma receipt. Retained controls cover let-bound exit 7, successful assert,
+write then Assertion, and NonBoolean. Arithmetic, parameters, mutable storage,
+calls, states, and general Console arguments remain open.
