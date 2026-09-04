@@ -184,13 +184,14 @@ selection presence is inspected. A closed `Identity | Selected` optimization
 continuation makes empty execution explicit instead of encoding it as a missing
 context. Both cases enter one target-lowering stage, whose closed result retains
 ordinary identity, ranked identity, or validated selected custody. Machine
-emission consumes only that result and no longer schedules abstract optimization
-or target lowering itself. The remaining physical consumers are transitional:
-identity assignment/emission and selected physical optimization still take
-different routes, and the selected side still groups several later Omega-owned
-phases into one optimizer unit. The public request surface uses the closed post-
-Terminal selection type, so this transitional branch cannot reopen an earlier
-phase.
+emission sends that result through one physical-routing stage and consumes its
+closed output. It no longer schedules abstract optimization, target lowering,
+physical assignment, or physical optimization itself. The physical result is
+still transitional: its identity variants contain assigned operations while its
+selected variant may contain a result from a later phase, because the selected
+side still groups several Omega-owned phases into one optimizer unit. The public
+request surface uses the closed post-Terminal selection type, so this
+transitional branch cannot reopen an earlier phase.
 
 Migration proceeds in dependency order:
 
@@ -208,13 +209,14 @@ Migration proceeds in dependency order:
    and lowering produce one stage result regardless of selection presence.
    Ranked execution remains role-specific authority inside that result. There
    are currently no cataloged abstract-operation rewrites to move.
-5. **Target-stage convergence is complete; physical convergence remains.**
-   Identity and selected execution enter one target-lowering stage and return a
-   closed typed result. Replace its remaining identity/selected physical
-   consumers with one sequence of explicit assignment, instruction-selection,
-   allocation, layout, and emission phase results. Preserve role-specific
-   authority carriers such as ranked execution without using them as
-   optimization bypasses.
+5. **Target staging and physical routing are explicit; phase-depth convergence
+   remains.** Identity and selected execution enter one target-lowering stage
+   and then one physical-routing stage. Machine emission consumes their closed
+   results without scheduling either stage. Split the selected optimizer unit
+   and replace the different-depth physical variants with one sequence of
+   explicit assignment, instruction-selection, allocation, layout, and emission
+   phase results. Preserve role-specific authority carriers such as ranked
+   execution without using them as optimization bypasses.
 6. Add checked-tree pruning only after its product-root identity, ownership,
    proof, effect, and boundary-retention rules are independently reconstructible.
 7. Remove transitional names, branches, and documentation only after ordinary,

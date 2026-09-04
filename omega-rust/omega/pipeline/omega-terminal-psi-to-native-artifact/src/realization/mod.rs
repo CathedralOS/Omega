@@ -10,6 +10,7 @@ mod machine_code;
 mod model;
 mod native_artifact;
 mod output;
+mod physical_stage;
 mod program_entry;
 pub(crate) mod providers;
 mod selected_lowering_projection;

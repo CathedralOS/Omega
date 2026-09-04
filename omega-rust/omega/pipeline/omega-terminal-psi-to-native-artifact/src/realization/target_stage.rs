@@ -18,7 +18,7 @@ use psi_diagnostics::Diagnostic;
 pub(crate) enum NativeTargetStageResult {
     IdentityOrdinary(omega_target_operations::TargetOperationPlanWithNativeCallbacks),
     IdentityRanked(omega_target_operations::TargetOperationPlan),
-    Selected(omega_optimization_pipeline::ValidatedOptimizedTargetOperations),
+    Selected(Box<omega_optimization_pipeline::ValidatedOptimizedTargetOperations>),
 }
 
 pub(crate) fn lower_realization_target_stage(
@@ -106,7 +106,9 @@ pub(crate) fn lower_realization_target_stage(
                 ),
             }
             .map_err(|error| realization_error("optimized target lowering", error))?;
-            Ok(NativeTargetStageResult::Selected(optimized_target))
+            Ok(NativeTargetStageResult::Selected(Box::new(
+                optimized_target,
+            )))
         }
     }
 }

@@ -1,15 +1,15 @@
-use crate::realization::callback_machine_code::{
-    emit_callback_thunks, validate_callback_thunk_assignments,
-};
+use crate::realization::callback_machine_code::emit_callback_thunks;
 use crate::realization::diagnostics::{
-    realization_error, selected_physical_pipeline_failed,
-    selected_physical_pipeline_not_publishable,
+    realization_error, selected_physical_pipeline_not_publishable,
 };
 use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::physical_stage::{
+    NativePhysicalStageResult, lower_realization_physical_stage,
+};
 use crate::realization::selected_lowering_projection::{
     SelectedLoweringPublicationRequest, emit_return_only_selected_lowering,
 };
-use crate::realization::target_stage::{NativeTargetStageResult, lower_realization_target_stage};
+use crate::realization::target_stage::lower_realization_target_stage;
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use omega_boundary_applications::TerminalBoundaryApplicationCoverage;
 use omega_machine_code::MachineCodePlanWithPrivateFunctions;
@@ -32,16 +32,11 @@ pub(crate) fn emit_realization_machine_code(
 ) -> Result<EmittedRealizationMachineCode, Vec<Diagnostic>> {
     let target_stage =
         lower_realization_target_stage(input, provider_installation, settlements, request)?;
-    match target_stage {
-        NativeTargetStageResult::IdentityOrdinary(target) => {
-            let assigned = omega_target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(&target)
-                .map_err(|error| realization_error("ordinary physical assignment", error))?;
+    let physical_stage = lower_realization_physical_stage(target_stage, request)?;
+    match physical_stage {
+        NativePhysicalStageResult::IdentityOrdinary(assigned) => {
             let private_functions =
                 emit_callback_thunks(request.callback_thunks, request.target, request.profile)?;
-            validate_callback_thunk_assignments(
-                request.callback_thunks,
-                &assigned.native_callback_arguments,
-            )?;
             let plan = omega_machine_emission::emit_machine_code_with_native_callbacks(&assigned)
                 .map_err(|error| realization_error("machine-code emission", error))?;
             Ok(EmittedRealizationMachineCode {
@@ -52,10 +47,7 @@ pub(crate) fn emit_realization_machine_code(
                 physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
-        NativeTargetStageResult::IdentityRanked(target) => {
-            let assigned =
-                omega_target_operations_to_assigned_target_operations::assign_registers(&target)
-                    .map_err(|error| realization_error("ranked physical assignment", error))?;
+        NativePhysicalStageResult::IdentityRanked(assigned) => {
             let plan = omega_machine_emission::emit_machine_code(&assigned)
                 .map_err(|error| realization_error("ranked machine-code emission", error))?;
             Ok(EmittedRealizationMachineCode {
@@ -66,33 +58,21 @@ pub(crate) fn emit_realization_machine_code(
                 physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
-        NativeTargetStageResult::Selected(optimized_target) => {
-            let optimized_plan = optimized_target.optimized().plan().clone();
-            let optimized_validation = optimized_target.optimized().validation();
-            let has_provider_installation = optimized_target.provider_installation().is_some();
-            let physical = omega_optimization_pipeline::stage_optimized_verified_physical_pipeline(
-                optimized_target,
-            )
-            .map_err(|error| {
-                selected_physical_pipeline_failed(
-                    request.optimization_selections.selections(),
-                    error,
-                )
-            })?;
-            match physical {
+        NativePhysicalStageResult::Selected(selected) => {
+            match selected.physical {
                 omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering {
                     realization,
                 } => {
                     let (plan, physical_evidence_scope) = emit_return_only_selected_lowering(
                         realization,
                         SelectedLoweringPublicationRequest {
-                            has_provider_installation,
+                            has_provider_installation: selected.has_provider_installation,
                             has_boundary_settlements: !settlements.is_empty(),
                             boundary_application_coverage,
-                            optimized_plan: &optimized_plan,
-                            terminal: optimized_validation.psi(),
-                            validation: optimized_validation.identity(),
-                            final_unit: optimized_validation.final_unit(),
+                            optimized_plan: &selected.optimized_plan,
+                            terminal: selected.terminal,
+                            validation: selected.validation,
+                            final_unit: selected.final_unit,
                         },
                     )?;
                     Ok(EmittedRealizationMachineCode {
