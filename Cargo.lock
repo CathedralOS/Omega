@@ -294,6 +294,7 @@ dependencies = [
  "omega-effects",
  "omega-function-identity",
  "omega-installation-evidence",
+ "omega-optimization-run-to-abstract-operations",
  "omega-psi-to-abstract-operations",
  "omega-target",
  "omega-target-operations",
@@ -1528,8 +1529,21 @@ dependencies = [
  "omega-selected-instructions",
  "omega-target",
  "omega-target-operations",
+ "omega-target-to-register-environment",
  "psi-core",
  "psi-terminal",
+]
+
+[[package]]
+name = "omega-target-to-register-environment"
+version = "0.1.0"
+dependencies = [
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
+ "omega-register-model",
+ "omega-selected-instructions",
+ "omega-target",
+ "omega-target-operations",
 ]
 
 [[package]]

@@ -9,18 +9,21 @@ mod construction;
 mod model;
 mod validation;
 
-#[cfg(test)]
-pub(crate) use constraints::selection_constraints;
+pub use constraints::selection_constraints;
 pub use model::*;
 pub use validation::validate_optimized_selection_custody;
 
-use crate::ValidatedOptimizedTargetOperations;
+use omega_abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
+use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn stage_optimized_instruction_selection(
     optimized_target: ValidatedOptimizedTargetOperations,
+    register_environment: ValidatedTargetRegisterEnvironment,
 ) -> Result<StagedOptimizedSelectedInstructions, OptimizedSelectionPipelineError> {
-    let (register_environment, legalized, selected) =
-        construction::construct_optimized_instruction_selection(&optimized_target)?;
+    let (legalized, selected) = construction::construct_optimized_instruction_selection(
+        &optimized_target,
+        &register_environment,
+    )?;
     let custody = validate_optimized_selection_custody(
         &optimized_target,
         &register_environment,

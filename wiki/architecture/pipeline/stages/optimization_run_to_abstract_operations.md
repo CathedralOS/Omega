@@ -42,9 +42,9 @@ inseparable from its validation receipt.
   multipass behavior, all 35 mutable logical-field mutations, dynamic wire-
   offset reconstruction, and 16 exact wire rejection axes. Singleton Rust
   enums are corrupted only through their closed wire tags.
-- `omega-optimization-pipeline/src/stages/selection/optimized_target_operations.rs` owns the
-  later orchestration join to target operations; it is intentionally not part
-  of this stage.
+- `omega-abstract-operations-to-target-operations/src/optimized.rs` owns the
+  later custody-preserving join to target operations; it is intentionally not
+  part of this stage.
 
 ## Ownership Rules
 
@@ -53,5 +53,6 @@ inseparable from its validation receipt.
   provider, allocate registers, or claim native-publication authority.
 - Must preserve the exact Terminal-Psi root, selections, decision log,
   transformation ledger, pass manifests, and independent validation identity.
-- Target-aware custody belongs to orchestration because it joins distinct
-  pipeline stages and deployment evidence.
+- Target-aware custody belongs to the target-lowering stage that constructs and
+  independently validates the target projection. The coordinator only sequences
+  that typed stage result.

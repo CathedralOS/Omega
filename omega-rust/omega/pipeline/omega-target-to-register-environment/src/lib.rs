@@ -1,6 +1,8 @@
-//! Optimizer module role: executable entrance. Target register-environment construction and validation stage.
+#![forbid(unsafe_code)]
+
+//! Optimizer module role: executable entrance. Native target to validated register environment.
 //!
-//! This entrance is the visible join between exact target declarations,
+//! This crate is the visible join between exact target declarations,
 //! reservation policy, and the independently validated allocator environment.
 
 mod catalog;

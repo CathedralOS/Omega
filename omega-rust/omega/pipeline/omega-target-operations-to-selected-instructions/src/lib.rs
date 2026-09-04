@@ -6,6 +6,7 @@
 //! `selection/mod.rs` for the legal-operation to selected-CFG join.
 
 mod legalization;
+mod optimized;
 mod selection;
 
 pub use legalization::{
@@ -16,6 +17,17 @@ pub use legalization::{
     legalization_validator_identity_v18_legacy, legalization_validator_identity_v19_legacy,
     legalization_validator_identity_v20_legacy, legalize_target_operations,
     validate_legalized_operations,
+};
+pub use omega_target_to_register_environment::{
+    TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
+    baseline_target_register_environment, validate_target_register_environment,
+    validate_target_register_environment_with_reservations,
+};
+pub use optimized::{
+    OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
+    StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
+    selection_constraints, stage_optimized_instruction_selection,
+    validate_optimized_selection_custody,
 };
 pub use selection::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,

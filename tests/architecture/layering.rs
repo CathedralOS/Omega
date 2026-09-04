@@ -2515,10 +2515,9 @@ fn optimization_projection_stops_before_target_realization() {
         "the retired flat Applied-only decision replay must not return",
     );
 
-    let realization_root = root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/selection/optimized_target_operations",
-    );
-    let realization_entrance_path = realization_root.join("mod.rs");
+    let realization_root =
+        root.join("omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src");
+    let realization_entrance_path = realization_root.join("optimized.rs");
     let realization_entrance =
         std::fs::read_to_string(&realization_entrance_path).unwrap_or_else(|error| {
             panic!(
@@ -2526,7 +2525,7 @@ fn optimization_projection_stops_before_target_realization() {
                 realization_entrance_path.display()
             )
         });
-    let realization_model_path = realization_root.join("model.rs");
+    let realization_model_path = realization_root.join("optimized.rs");
     let realization_model =
         std::fs::read_to_string(&realization_model_path).unwrap_or_else(|error| {
             panic!(
@@ -4513,7 +4512,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     );
 
     let optimized_entrance = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/selection/optimized_target_operations/mod.rs",
+        "omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/optimized.rs",
     ))
     .expect("read optimized target-operation entrance");
     assert!(
