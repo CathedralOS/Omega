@@ -11,10 +11,8 @@ use super::model::{
     StagedAllocationRecoveryFunctionRelativeRealization,
     StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt,
 };
-use super::source::{
-    StagedAllocationRecoveryFunctionRelativeSource, validate_active_resident_source,
-    validate_fixed_view_source,
-};
+use super::selection::validate_phase_selection;
+use omega_selected_instructions_to_register_homes::AllocationSource;
 
 pub fn validate_allocation_recovery_function_relative_realization(
     staged: &StagedAllocationRecoveryFunctionRelativeRealization,
@@ -22,33 +20,16 @@ pub fn validate_allocation_recovery_function_relative_realization(
     StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt,
     AllocationRecoveryFunctionRelativeRealizationError,
 > {
-    staged.source.validate_phase_selection()?;
-    let source_custody = match &staged.source {
-        StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) => {
-            let custody = validate_fixed_view_source(homes)?;
-            validate_optimized_post_allocation_machine_plan_custody(homes, &staged.machine)
-                .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
-            validate_selected(
-                homes.reanalysis_stage().transformation_stage().copies(),
-                staged,
-            )?;
-            custody
-        }
-        StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-            rematerialization,
-        ) => {
-            let custody = validate_active_resident_source(rematerialization)?;
-            validate_optimized_post_allocation_machine_plan_custody(
-                rematerialization,
-                &staged.machine,
-            )
-            .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
-            validate_selected(rematerialization.rematerialization(), staged)?;
-            custody
-        }
-    };
+    let current = staged
+        .allocation
+        .replay_allocation()
+        .map_err(AllocationRecoveryFunctionRelativeRealizationError::Allocation)?;
+    validate_phase_selection(&current)?;
+    validate_optimized_post_allocation_machine_plan_custody(&current, &staged.machine)
+        .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
+    validate_selected(current.selected(), staged)?;
     let manifest = expected_manifest(
-        &staged.source,
+        &current,
         &staged.machine,
         &staged.encoding,
         &staged.layout,
@@ -58,7 +39,7 @@ pub fn validate_allocation_recovery_function_relative_realization(
         return Err(AllocationRecoveryFunctionRelativeRealizationError::RootMismatch);
     }
     let expected = receipt(
-        source_custody,
+        current.evidence().clone(),
         &staged.machine,
         &staged.encoding,
         &staged.layout,
@@ -75,7 +56,11 @@ fn validate_selected<S: omega_regalloc::ValidatedSelectedAnalysis>(
     selected: &S,
     staged: &StagedAllocationRecoveryFunctionRelativeRealization,
 ) -> Result<(), AllocationRecoveryFunctionRelativeRealizationError> {
-    let physical = staged.source.register_environment().physical();
+    let physical = staged
+        .allocation
+        .current()
+        .register_environment()
+        .physical();
     validate_optimized_layout_independent_selected_form_encoding(
         selected,
         &staged.machine,

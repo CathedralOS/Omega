@@ -1,16 +1,15 @@
 use omega_optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
 
 use crate::{
-    FunctionRelativeOptimizationRealizationError, OptimizedActiveResidentRematerializationError,
-    OptimizedPostAllocationMachinePipelineError, OptimizedPostCopyRegisterHomeCustodyError,
+    FunctionRelativeOptimizationRealizationError, OptimizedPostAllocationMachinePipelineError,
     OptimizedResolvedSelectedFormLayoutError, OptimizedSelectedFormEncodingError,
     StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
     StagedOptimizedSelectedFormEncoding, ValidatedFunctionRelativeOptimizationRealizationManifest,
     ValidatedWholeFunctionExitContract, WholeFunctionExitContractError,
 };
 
-use super::source::{
-    StagedAllocationRecoveryFunctionRelativeSource, StagedAllocationRecoverySourceCustodyReceipt,
+use omega_selected_instructions_to_register_homes::{
+    AllocationEvidence, AllocationReplayError, RetainedAllocation,
 };
 
 /// Final frameless, function-relative custody for one allocation-recovery
@@ -18,7 +17,7 @@ use super::source::{
 /// authority.
 #[derive(Debug)]
 pub struct StagedAllocationRecoveryFunctionRelativeRealization {
-    pub(super) source: StagedAllocationRecoveryFunctionRelativeSource,
+    pub(super) allocation: RetainedAllocation,
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
@@ -28,8 +27,8 @@ pub struct StagedAllocationRecoveryFunctionRelativeRealization {
 }
 
 impl StagedAllocationRecoveryFunctionRelativeRealization {
-    pub const fn source(&self) -> &StagedAllocationRecoveryFunctionRelativeSource {
-        &self.source
+    pub const fn allocation(&self) -> &RetainedAllocation {
+        &self.allocation
     }
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         &self.machine
@@ -55,7 +54,7 @@ impl StagedAllocationRecoveryFunctionRelativeRealization {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt {
-    pub(super) source: StagedAllocationRecoverySourceCustodyReceipt,
+    pub(super) source: AllocationEvidence,
     pub(super) machine: omega_machine_optimizer::PostAllocationMachineIdentity,
     pub(super) encoding: crate::SelectedFormEncodingIdentity,
     pub(super) layout: crate::ResolvedSelectedFormLayoutIdentity,
@@ -64,7 +63,7 @@ pub struct StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt {
 }
 
 impl StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt {
-    pub const fn source(&self) -> &StagedAllocationRecoverySourceCustodyReceipt {
+    pub const fn source(&self) -> &AllocationEvidence {
         &self.source
     }
     pub const fn machine(&self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
@@ -86,8 +85,7 @@ impl StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationRecoveryFunctionRelativeRealizationError {
-    FixedViewSource(OptimizedPostCopyRegisterHomeCustodyError),
-    ActiveResidentSource(OptimizedActiveResidentRematerializationError),
+    Allocation(AllocationReplayError),
     Machine(OptimizedPostAllocationMachinePipelineError),
     Encoding(OptimizedSelectedFormEncodingError),
     Layout(OptimizedResolvedSelectedFormLayoutError),

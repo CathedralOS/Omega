@@ -276,11 +276,11 @@ fn compiler_facing_physical_pipeline_routes_aarch64_movn_through_the_generic_pos
             .is_some()
     );
     assert!(staged.post_allocation_machine_optimization().is_some());
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
-        &mut staged
-    else {
-        panic!("the exact MOVN selection must use its function-relative realization")
-    };
+    let realization = (staged)
+        .post_allocation_machine_mut_for_test()
+        .unwrap_or_else(|| {
+            panic!("the exact MOVN selection must use its function-relative realization")
+        });
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) =
         realization.optimization()
     else {
@@ -382,11 +382,9 @@ fn staged_direct_aarch64_movn_physical_pipeline() -> StagedOptimizedVerifiedPhys
 #[test]
 fn generic_post_allocation_realization_rejects_manifest_and_exit_corruption() {
     let mut staged = staged_direct_aarch64_movn_physical_pipeline();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
-        &mut staged
-    else {
-        unreachable!()
-    };
+    let realization = (staged)
+        .post_allocation_machine_mut_for_test()
+        .unwrap_or_else(|| unreachable!());
     realization
         .manifest_mut()
         .record_mut()
@@ -397,11 +395,9 @@ fn generic_post_allocation_realization_rejects_manifest_and_exit_corruption() {
     );
 
     let mut staged = staged_direct_aarch64_movn_physical_pipeline();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
-        &mut staged
-    else {
-        unreachable!()
-    };
+    let realization = (staged)
+        .post_allocation_machine_mut_for_test()
+        .unwrap_or_else(|| unreachable!());
     realization
         .exit_contract_mut()
         .contract_mut()
@@ -437,10 +433,9 @@ fn aarch64_movn_function_relative_realization_composes_after_exact_selected_lowe
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = &staged
-    else {
-        panic!("selected lowering must retain custody before MOVN realization")
-    };
+    let realization = (staged)
+        .post_allocation_machine_for_test()
+        .unwrap_or_else(|| panic!("selected lowering must retain custody before MOVN realization"));
     let allocation = realization.allocation().current();
     assert!(matches!(
         allocation.evidence(),

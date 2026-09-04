@@ -24,6 +24,28 @@ enum History {
 }
 
 impl RetainedAllocation {
+    #[cfg(feature = "test-support")]
+    pub fn fixed_view_copy_proof_for_test(
+        &self,
+    ) -> Option<&omega_regalloc::ValidatedFixedViewCopies> {
+        match &self.history {
+            History::FixedView(source) => {
+                Some(source.reanalysis_stage().transformation_stage().copies())
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "test-support")]
+    pub fn rematerialization_availability_for_test(
+        &self,
+    ) -> Option<&omega_regalloc::ValidatedAllocatorAvailability> {
+        match &self.history {
+            History::Rematerialization(source) => Some(source.source().allocator_availability()),
+            _ => None,
+        }
+    }
+
     /// Inspect exact rewrite proof details in cross-phase corruption controls.
     /// Production consumers cannot use this to select a source-history route.
     #[cfg(feature = "test-support")]

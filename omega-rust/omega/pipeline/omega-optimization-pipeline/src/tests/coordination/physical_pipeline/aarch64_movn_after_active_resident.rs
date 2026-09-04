@@ -30,10 +30,11 @@ fn active_resident_composes_with_movn_through_publication() {
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = &staged
-    else {
-        panic!("the admitted pair must reach the generic post-allocation realization")
-    };
+    let realization = (staged)
+        .post_allocation_machine_for_test()
+        .unwrap_or_else(|| {
+            panic!("the admitted pair must reach the generic post-allocation realization")
+        });
     let allocation = realization.allocation().current();
     let omega_selected_instructions_to_register_homes::AllocationEvidence::ActiveResidentRematerialization(recovery_custody) = allocation.evidence() else {
         panic!("allocation must retain independently replayed rematerialization evidence")
@@ -126,10 +127,9 @@ fn active_resident_composes_with_movn_through_publication() {
         })
         .collect::<Vec<_>>();
 
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = staged
-    else {
-        unreachable!()
-    };
+    let realization = (staged)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| unreachable!());
     let emitted = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )
@@ -158,11 +158,9 @@ fn active_resident_composes_with_movn_through_publication() {
 #[test]
 fn active_resident_movn_rejects_realization_corruption() {
     let mut staged = staged_pair();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
-        &mut staged
-    else {
-        unreachable!()
-    };
+    let realization = (staged)
+        .post_allocation_machine_mut_for_test()
+        .unwrap_or_else(|| unreachable!());
     realization
         .manifest_mut()
         .record_mut()
@@ -173,11 +171,9 @@ fn active_resident_movn_rejects_realization_corruption() {
     );
 
     let mut staged = staged_pair();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
-        &mut staged
-    else {
-        unreachable!()
-    };
+    let realization = (staged)
+        .post_allocation_machine_mut_for_test()
+        .unwrap_or_else(|| unreachable!());
     realization
         .exit_contract_mut()
         .contract_mut()

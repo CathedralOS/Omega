@@ -9,19 +9,17 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let staged = staged_active_resident_allocation_recovery_realization(target);
         let source = &staged;
-        let StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-            rematerialization,
-        ) = staged.source()
+        let current = staged.allocation().current();
+        let rematerialization = staged
+            .allocation()
+            .rematerialization_proof_for_test()
+            .unwrap();
+        let AllocationEvidence::ActiveResidentRematerialization(recovery_receipt) =
+            current.evidence()
         else {
-            panic!("fixture must retain recovery evidence")
+            panic!("fixture must retain rematerialization evidence")
         };
-        let physical = rematerialization
-            .source()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .register_environment()
-            .physical();
+        let physical = current.register_environment().physical();
         let admitted_names = match target.architecture {
             omega_target::Architecture::X86_64 => ["rax", "rcx"],
             omega_target::Architecture::Aarch64 => ["x0", "x1"],
@@ -30,12 +28,12 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
             .into_iter()
             .map(|name| physical.model().view_named(name).unwrap().id)
             .collect::<BTreeSet<_>>();
-        let AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views } =
-            &rematerialization
-                .source()
-                .allocator_availability()
-                .plan()
-                .policy
+        let AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views } = &staged
+            .allocation()
+            .rematerialization_availability_for_test()
+            .unwrap()
+            .plan()
+            .policy
         else {
             panic!("pressure fixture must retain an explicit caller-saved allowlist")
         };
@@ -43,15 +41,12 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
             views.iter().copied().collect::<BTreeSet<_>>(),
             admitted_views
         );
-        let action = rematerialization.rematerialization().plan().functions[0]
+        let action = rematerialization.plan().functions[0]
             .action
             .as_ref()
             .expect("the explicit active-resident staging route must rematerialize");
         let fresh = action.fresh_materialize;
-        let transformed_selected = rematerialization
-            .rematerialization()
-            .receipt()
-            .transformed_selected();
+        let transformed_selected = rematerialization.receipt().transformed_selected();
         let fresh_layout_row = source
             .layout()
             .functions()
@@ -83,14 +78,11 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
         assert_eq!(manifest.function_relative_layout_selections, empty);
         assert_eq!(
             manifest.pre_physical_manifest,
-            rematerialization.custody().source().manifest()
+            (*recovery_receipt).source().manifest()
         );
         assert_eq!(
             manifest.post_allocation_manifest,
-            rematerialization
-                .post_allocation_manifest()
-                .record()
-                .identity
+            current.post_allocation_manifest().record().identity
         );
         assert_eq!(manifest.selected, transformed_selected);
         assert_eq!(manifest.baseline_pre_layout, manifest.pre_layout);
@@ -99,13 +91,13 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
         assert_eq!(manifest.post_allocation_machine_optimization, None);
         assert_eq!(manifest.target, target);
         assert_eq!(
-            rematerialization
+            current
                 .post_allocation_manifest()
                 .record()
                 .selected_transformations,
             [
                 PostAllocationSelectedTransformation::PressureRematerialization(
-                    rematerialization.rematerialization().receipt().identity(),
+                    rematerialization.receipt().identity(),
                 )
             ]
         );
@@ -139,9 +131,7 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
         );
         assert_eq!(
             staged.custody().source(),
-            &StagedAllocationRecoverySourceCustodyReceipt::ActiveResidentRematerialization(
-                rematerialization.custody()
-            )
+            &AllocationEvidence::ActiveResidentRematerialization(*recovery_receipt)
         );
         assert_eq!(
             staged.custody().exit_contract(),
@@ -225,12 +215,7 @@ fn active_resident_function_relative_realization_rejects_unexecuted_later_phase_
         ).unwrap();
         let machine = stage_optimized_post_allocation_machine_plan(&source).unwrap();
         assert!(matches!(
-            stage_allocation_recovery_function_relative_realization(
-                StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-                    Box::new(source)
-                ),
-                machine,
-            ),
+            stage_allocation_recovery_function_relative_realization(source, machine,),
             Err(AllocationRecoveryFunctionRelativeRealizationError::UnsupportedSelections)
         ));
     }

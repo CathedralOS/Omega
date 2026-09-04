@@ -2,14 +2,12 @@ use omega_abstract_operations_to_target_operations::LoweringError;
 
 use crate::{
     AllocationRecoveryFunctionRelativeRealizationError,
-    FunctionRelativeOptimizationRealizationError, OptimizedActiveResidentRematerializationError,
-    OptimizedAllocationLegalityCustodyError, OptimizedFixedPrecoloredSegmentHomeCustodyError,
-    OptimizedFixedViewCopyCustodyError, OptimizedLiteralFoldCustodyError,
-    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
-    OptimizedPostAllocationMachineOptimizationError, OptimizedPostAllocationMachinePipelineError,
-    OptimizedPostCopyRegisterHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    OptimizedRegisterHomeCustodyError, OptimizedSelectedReanalysisError,
-    OptimizedSelectionPipelineError, OptimizedStructuralUnitFunctionRelativeRealizationError,
+    FunctionRelativeOptimizationRealizationError, OptimizedAllocationLegalityCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
+    OptimizedLivenessCustodyError, OptimizedPostAllocationMachineOptimizationError,
+    OptimizedPostAllocationMachinePipelineError, OptimizedPostSelectedLoweringHomeCustodyError,
+    OptimizedRegisterHomeCustodyError, OptimizedSelectionPipelineError,
+    OptimizedStructuralUnitFunctionRelativeRealizationError,
     OptimizedUnitFunctionRelativeRealizationError,
 };
 
@@ -24,7 +22,6 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     LiveRanges(OptimizedLiveRangeCustodyError),
     AllocationLegality(OptimizedAllocationLegalityCustodyError),
     RegisterAllocation(omega_selected_instructions_to_register_homes::RegisterAllocationError),
-    FixedPrecoloredSegmentHomes(OptimizedFixedPrecoloredSegmentHomeCustodyError),
     RegisterHomes(OptimizedRegisterHomeCustodyError),
     SelectedLowering(OptimizedLiteralFoldCustodyError),
     SelectedLoweringHomes(OptimizedPostSelectedLoweringHomeCustodyError),
@@ -36,10 +33,6 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     SelectedLoweringRuleCatalog(omega_regalloc::SelectedLoweringRuleCatalogError),
     AllocationRecoveryRuleCatalog(omega_regalloc::AllocationRecoveryRuleCatalogError),
     FunctionRelativeLayoutRuleCatalog(crate::FunctionRelativeLayoutCatalogError),
-    FixedViewCopies(OptimizedFixedViewCopyCustodyError),
-    SelectedReanalysis(OptimizedSelectedReanalysisError),
-    PostCopyRegisterHomes(OptimizedPostCopyRegisterHomeCustodyError),
-    ActiveResidentRematerialization(OptimizedActiveResidentRematerializationError),
     AllocationRecoveryFunctionRelative(Box<AllocationRecoveryFunctionRelativeRealizationError>),
     UnitFunctionRelativeRealization(OptimizedUnitFunctionRelativeRealizationError),
     StructuralUnitFunctionRelativeRealization(

@@ -24,23 +24,26 @@ fn fixed_view_copy_recovery_reaches_fragments_object_and_callable_on_both_archit
             &[],
         )
         .unwrap();
-        let StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { realization } = physical
-        else {
-            panic!("the fixed-view rule must complete the shared recovery realization")
+        let realization = (physical)
+            .into_allocation_recovery_for_test()
+            .unwrap_or_else(|| {
+                panic!("the fixed-view rule must complete the shared recovery realization")
+            });
+        let current = realization.allocation().current();
+        let copies = realization
+            .allocation()
+            .fixed_view_copy_proof_for_test()
+            .unwrap();
+        let AllocationEvidence::FixedViewCopies(_) = current.evidence() else {
+            panic!("fixture must retain fixed-view evidence")
         };
-        let StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) =
-            realization.source()
-        else {
-            panic!("the generic recovery carrier must retain fixed-view source custody")
-        };
-        let transformation = homes.reanalysis_stage().transformation_stage();
         assert_eq!(
-            homes
+            current
                 .post_allocation_manifest()
                 .record()
                 .selected_transformations,
             [PostAllocationSelectedTransformation::FixedViewCopy(
-                transformation.copies().receipt().identity(),
+                copies.receipt().identity(),
             )]
         );
         assert_eq!(

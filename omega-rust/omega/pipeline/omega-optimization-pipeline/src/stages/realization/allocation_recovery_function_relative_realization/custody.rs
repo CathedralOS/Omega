@@ -5,10 +5,10 @@ use crate::{
 };
 
 use super::model::StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt;
-use super::source::StagedAllocationRecoverySourceCustodyReceipt;
+use omega_selected_instructions_to_register_homes::AllocationEvidence;
 
 pub(super) fn receipt(
-    source: StagedAllocationRecoverySourceCustodyReceipt,
+    source: AllocationEvidence,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,

@@ -23,10 +23,9 @@ fn relocation_free_fragment_emission_accepts_both_selected_lowering_compositions
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } = x86_physical
-    else {
-        panic!("combined x86 suite must retain selected-lowering custody")
-    };
+    let realization = (x86_physical)
+        .into_selected_lowering_for_test()
+        .unwrap_or_else(|| panic!("combined x86 suite must retain selected-lowering custody"));
     let x86 = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(realization)),
     )
@@ -70,11 +69,9 @@ fn relocation_free_fragment_emission_accepts_both_selected_lowering_compositions
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
-        arm_physical
-    else {
-        panic!("combined AArch64 suite must retain both phase completions")
-    };
+    let realization = (arm_physical)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| panic!("combined AArch64 suite must retain both phase completions"));
     let arm = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )

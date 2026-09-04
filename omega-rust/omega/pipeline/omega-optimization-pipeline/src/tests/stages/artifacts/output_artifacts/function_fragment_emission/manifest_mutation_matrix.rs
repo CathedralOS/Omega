@@ -28,9 +28,11 @@ fn staged_fragment_emission() -> StagedOptimizedFunctionFragmentEmission {
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } = physical else {
-        panic!("exact incoming-u12 selection must retain selected-lowering realization")
-    };
+    let realization = (physical)
+        .into_selected_lowering_for_test()
+        .unwrap_or_else(|| {
+            panic!("exact incoming-u12 selection must retain selected-lowering realization")
+        });
     stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(realization)),
     )

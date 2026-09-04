@@ -78,9 +78,9 @@ fn direct_realization_for(subtract: bool) -> StagedFunctionRelativeLayoutOptimiz
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } = staged
-    else {
-        panic!("the exact rel8 selection must use the direct layout realization route")
-    };
-    realization
+    (staged)
+        .into_function_relative_layout_for_test()
+        .unwrap_or_else(|| {
+            panic!("the exact rel8 selection must use the direct layout realization route")
+        })
 }

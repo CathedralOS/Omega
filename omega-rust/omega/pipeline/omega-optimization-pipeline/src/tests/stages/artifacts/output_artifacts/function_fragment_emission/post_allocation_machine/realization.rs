@@ -26,10 +26,11 @@ pub(super) fn realize(case: HostedCase) -> RealizedCase {
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = physical
-    else {
-        panic!("an exact machine rule must use the post-allocation realization route")
-    };
+    let realization = (physical)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| {
+            panic!("an exact machine rule must use the post-allocation realization route")
+        });
     assert_eq!(realization.optimization().optimization(), case.rule);
     match case.actions {
         ExpectedActions::Zero => assert_eq!(realization.optimization().action_count(), 0),

@@ -26,16 +26,14 @@ pub(super) fn staged_object_artifact(
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let source = match physical {
-        StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } => {
-            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization))
-        }
-        StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } => {
-            StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(
-                realization,
-            ))
-        }
-        _ => panic!("equal-zero fixture must complete an exact function-relative route"),
+    let source = {
+        let source = (physical).into_function_fragment_emission_source();
+        assert!(matches!(
+            &source,
+            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(_)
+                | StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(_)
+        ));
+        source
     };
     let fragments = stage_optimized_function_fragment_emission(source).unwrap();
     let text = stage_optimized_relocation_free_text_section(fragments).unwrap();

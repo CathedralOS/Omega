@@ -16,10 +16,11 @@ pub(super) fn assert_no_candidate_reaches_object_and_callable(
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = physical
-    else {
-        panic!("the exact post-allocation selection must use the generic machine route")
-    };
+    let realization = (physical)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| {
+            panic!("the exact post-allocation selection must use the generic machine route")
+        });
     assert_eq!(realization.optimization().optimization(), rule);
     assert_eq!(realization.optimization().action_count(), 0);
 

@@ -26,10 +26,9 @@ fn optimized_rel8_object_artifact_binds_replays_and_reports_without_authority() 
     assert_eq!(physical_report.text_section(), None);
     assert_eq!(physical_report.object_container(), None);
     assert_eq!(physical_report.object_artifact(), None);
-    let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } = physical
-    else {
-        panic!("rel8 must complete its direct realization")
-    };
+    let realization = (physical)
+        .into_function_relative_layout_for_test()
+        .unwrap_or_else(|| panic!("rel8 must complete its direct realization"));
     let emitted = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
     )

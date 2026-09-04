@@ -8,6 +8,7 @@ use crate::{
     validate_selected_lowering_function_relative_realization_custody,
 };
 use omega_machine_code::FunctionFragmentEmissionPlan;
+use omega_optimization_core::OptimizationSelections;
 use omega_target::Architecture;
 
 use super::error::FunctionFragmentEmissionError;
@@ -52,6 +53,34 @@ pub(super) fn validate_source(
             validate_fixed_frame_function_relative_realization(realization)
                 .map_err(FunctionFragmentEmissionError::Source)?;
         }
+    }
+    let expected_allocation_recovery = match source {
+        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) => {
+            realization
+                .allocation()
+                .current()
+                .selections()
+                .for_phase(omega_optimization_core::OptimizationExecutionPhase::AllocationRecovery)
+                .identity()
+        }
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
+            realization
+                .allocation()
+                .current()
+                .selections()
+                .for_phase(omega_optimization_core::OptimizationExecutionPhase::AllocationRecovery)
+                .identity()
+        }
+        _ => OptimizationSelections::default().identity(),
+    };
+    let source_manifest = source.function_relative_manifest().record();
+    if source_manifest.allocation_recovery_selections != expected_allocation_recovery
+        || matches!(
+            source,
+            StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(_)
+        ) && source_manifest.selections != expected_allocation_recovery
+    {
+        return Err(FunctionFragmentEmissionError::RootMismatch);
     }
     Ok(())
 }

@@ -50,6 +50,13 @@ Retained histories inside allocation and in the remaining layout/realization
 adapters are transitional. Consolidation does not make those histories a new
 canonical program representation or complete the outer pipeline convergence.
 
+Plain recovery realization also owns `RetainedAllocation`, not a second
+fixed-view/rematerialization source taxonomy. Its encoding, layout, exit, and
+emission consume current facts; independent replay rechecks the exact recovery
+role and selected transformations. A non-recovery allocation or an unexecuted
+later selection cannot enter this plain realization. There is one coordinator
+entrance for both recovery rules, with their choice owned by allocation.
+
 ## Internal analysis and rewrite contracts
 
 - [Liveness](selected_instructions_to_liveness.md)

@@ -6,36 +6,23 @@ use crate::tests::*;
 fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let realization = staged_active_resident_allocation_recovery_realization(target);
-        let StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-            rematerialization,
-        ) = realization.source()
-        else {
-            unreachable!("fixture selects active-resident recovery")
+        let current = realization.allocation().current();
+        let rematerialization = realization
+            .allocation()
+            .rematerialization_proof_for_test()
+            .unwrap();
+        let AllocationEvidence::ActiveResidentRematerialization(_) = current.evidence() else {
+            panic!("fixture must retain rematerialization evidence")
         };
-        let action = rematerialization.rematerialization().plan().functions[0]
+        let action = rematerialization.plan().functions[0]
             .action
             .as_ref()
             .expect("the admitted source must retain its rematerialization action");
         let fresh = action.fresh_materialize;
-        let transformed_selected = rematerialization
-            .rematerialization()
-            .receipt()
-            .transformed_selected();
-        let transformed_homes = rematerialization.homes().receipt();
-        let register_environment = rematerialization
-            .source()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .register_environment()
-            .identity();
-        let optimized_source = rematerialization
-            .source()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .optimized_target()
-            .optimized();
+        let transformed_selected = rematerialization.receipt().transformed_selected();
+        let transformed_homes = current.homes().receipt();
+        let register_environment = current.register_environment().identity();
+        let optimized_source = current.target_input().optimized();
         let pre_physical = optimized_source.pre_physical_manifest().record().identity;
         let verified_input = optimized_source.verified_input().clone();
         let source_manifest = realization.manifest().record().clone();

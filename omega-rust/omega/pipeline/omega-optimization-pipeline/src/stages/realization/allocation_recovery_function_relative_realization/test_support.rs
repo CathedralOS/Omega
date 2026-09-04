@@ -11,7 +11,7 @@ pub(crate) fn swap_allocation_recovery_realization_source_for_test(
     staged: &mut StagedAllocationRecoveryFunctionRelativeRealization,
     foreign: &mut StagedAllocationRecoveryFunctionRelativeRealization,
 ) {
-    std::mem::swap(&mut staged.source, &mut foreign.source);
+    std::mem::swap(&mut staged.allocation, &mut foreign.allocation);
 }
 
 pub(crate) fn corrupt_allocation_recovery_realization_encoding_for_test(

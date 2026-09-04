@@ -39,22 +39,18 @@ pub(in crate::coordination::physical_pipeline) fn stage_identity_function_relati
 
     match route {
         IdentityFunctionRelativeRoute::Unit => stage_optimized_unit_function_relative_realization(homes)
-            .map(|realization| StagedOptimizedVerifiedPhysicalPipeline::UnitBaseline { realization })
+            .map(StagedOptimizedVerifiedPhysicalPipeline::from)
             .map_err(OptimizedVerifiedPhysicalPipelineError::UnitFunctionRelativeRealization),
         IdentityFunctionRelativeRoute::StructuralUnit => {
             stage_optimized_structural_unit_function_relative_realization(homes)
-                .map(|realization| StagedOptimizedVerifiedPhysicalPipeline::StructuralUnit {
-                    realization,
-                })
+                .map(StagedOptimizedVerifiedPhysicalPipeline::from)
                 .map_err(
                     OptimizedVerifiedPhysicalPipelineError::StructuralUnitFunctionRelativeRealization,
                 )
         }
         IdentityFunctionRelativeRoute::FixedFrame => {
             stage_fixed_frame_function_relative_realization(homes, budget)
-                .map(|realization| StagedOptimizedVerifiedPhysicalPipeline::FixedFrame {
-                    realization,
-                })
+                .map(StagedOptimizedVerifiedPhysicalPipeline::from)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)
         }
     }

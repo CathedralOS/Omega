@@ -6,7 +6,7 @@ use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, FunctionRelativeOptimizationUnavailableData,
     NativeTarget, Optimization, OptimizationReportRequest, OptimizationSelections,
     OptimizedVerifiedPhysicalPipelineError, StagedOptimizedFunctionFragmentEmissionSource,
-    StagedOptimizedVerifiedPhysicalPipeline, conditional_exact_binary_artifact,
+    conditional_exact_binary_artifact,
     lower_optimized_to_target_operations_with_provider_executions, optimization_pipeline_report,
     optimize_artifact_sections, selected_lowering_budget,
     stage_optimized_verified_physical_pipeline,
@@ -36,10 +36,7 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
             &[],
         )
         .unwrap();
-        assert!(matches!(
-            staged,
-            StagedOptimizedVerifiedPhysicalPipeline::FixedFrame { .. }
-        ));
+        assert!(staged.fixed_frame_for_test().is_some());
         assert_eq!(staged.selections(), psi_only_selections.identity());
         assert_eq!(staged.selected_lowering_completion(), None);
         assert!(
@@ -95,10 +92,9 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
                 &[],
             )
             .unwrap();
-            let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } = &staged
-            else {
+            let realization = (staged).selected_lowering_for_test().unwrap_or_else(|| {
                 panic!("selected-lowering phase must run when its exact family is selected")
-            };
+            });
             let homes = realization.homes();
             let machine = realization.machine();
             assert_eq!(staged.selections(), selections.identity());

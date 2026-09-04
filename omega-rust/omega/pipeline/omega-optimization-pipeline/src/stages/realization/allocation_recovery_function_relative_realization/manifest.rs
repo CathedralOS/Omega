@@ -14,10 +14,11 @@ use crate::{
 };
 
 use super::model::AllocationRecoveryFunctionRelativeRealizationError;
-use super::source::StagedAllocationRecoveryFunctionRelativeSource;
+use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::{AllocationEvidence, AllocationOutput};
 
 pub(super) fn expected_manifest(
-    source: &StagedAllocationRecoveryFunctionRelativeSource,
+    source: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -26,32 +27,26 @@ pub(super) fn expected_manifest(
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     AllocationRecoveryFunctionRelativeRealizationError,
 > {
-    let selections = source.optimized_target().optimized().selections();
+    let selections = source.target_input().optimized().selections();
     let post = source.post_allocation_manifest().record();
-    let selected = source.selected_identity();
+    let selected = source.selected().selected_identity();
     let machine_receipt = machine.machine().receipt();
-    let expected_transformations = match source {
-        StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) => {
+    let expected_transformations = match source.evidence() {
+        AllocationEvidence::FixedViewCopies(receipt) => {
             vec![PostAllocationSelectedTransformation::FixedViewCopy(
-                homes
-                    .reanalysis_stage()
-                    .transformation_stage()
-                    .copies()
-                    .receipt()
-                    .identity(),
+                receipt.source().source().transformation(),
             )]
         }
-        StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
-            rematerialization,
-        ) => vec![
+        AllocationEvidence::ActiveResidentRematerialization(receipt) => vec![
             PostAllocationSelectedTransformation::PressureRematerialization(
-                rematerialization.rematerialization().receipt().identity(),
+                receipt.rematerialization(),
             ),
         ],
+        _ => return Err(AllocationRecoveryFunctionRelativeRealizationError::UnsupportedSelections),
     };
     if post.pre_physical
         != source
-            .optimized_target()
+            .target_input()
             .optimized()
             .pre_physical_manifest()
             .record()

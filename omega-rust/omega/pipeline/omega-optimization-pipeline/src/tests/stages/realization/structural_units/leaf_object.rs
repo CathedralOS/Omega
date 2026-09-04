@@ -16,9 +16,11 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
         &[],
     )
     .expect("the structural Unit leaf must reach physical custody");
-    let StagedOptimizedVerifiedPhysicalPipeline::StructuralUnit { realization } = physical else {
-        panic!("the PSI-only request must reach structural-Unit function-relative custody")
-    };
+    let realization = (physical)
+        .into_structural_unit_for_test()
+        .unwrap_or_else(|| {
+            panic!("the PSI-only request must reach structural-Unit function-relative custody")
+        });
     let exit = realization.exit_contract().contract();
     assert_eq!(
         exit.policy,

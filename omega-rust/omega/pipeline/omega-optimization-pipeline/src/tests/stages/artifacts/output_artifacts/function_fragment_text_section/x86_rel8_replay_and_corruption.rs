@@ -20,10 +20,9 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } = physical
-    else {
-        panic!("rel8 must complete its direct function-relative realization")
-    };
+    let realization = (physical)
+        .into_function_relative_layout_for_test()
+        .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
     let emitted = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
     )

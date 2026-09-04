@@ -21,10 +21,9 @@ fn relocation_free_cbnz_object_container_retains_zero_span_source_and_private_en
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = physical
-    else {
-        panic!("CBNZ must complete its direct function-relative realization")
-    };
+    let realization = (physical)
+        .into_post_allocation_machine_for_test()
+        .unwrap_or_else(|| panic!("CBNZ must complete its direct function-relative realization"));
     let emitted = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )

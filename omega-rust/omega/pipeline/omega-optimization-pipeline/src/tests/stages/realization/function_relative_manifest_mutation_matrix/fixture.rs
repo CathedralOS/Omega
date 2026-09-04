@@ -30,11 +30,11 @@ fn direct_rel8_realization_for(
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } = physical
-    else {
-        panic!("the exact rel8 selection must use direct function-relative realization")
-    };
-    realization
+    (physical)
+        .into_function_relative_layout_for_test()
+        .unwrap_or_else(|| {
+            panic!("the exact rel8 selection must use direct function-relative realization")
+        })
 }
 
 pub(super) fn post_allocation_realization() -> StagedPostAllocationMachineFunctionRelativeRealization

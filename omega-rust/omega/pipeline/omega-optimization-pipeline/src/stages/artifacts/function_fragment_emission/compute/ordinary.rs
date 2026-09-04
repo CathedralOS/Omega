@@ -1,10 +1,5 @@
 use omega_machine_code::FunctionFragmentEmissionPlan;
-use omega_optimization_core::{FunctionFragmentEmissionIdentity, OptimizationSelections};
-use omega_regalloc::ValidatedSelectedAnalysis;
-
-use crate::{
-    FunctionRelativeOptimizationRealizationManifest, StagedOptimizedResolvedSelectedFormLayout,
-};
+use omega_optimization_core::FunctionFragmentEmissionIdentity;
 
 use super::super::{
     FunctionFragmentEmissionError, StagedOptimizedFunctionFragmentEmissionSource,
@@ -19,40 +14,20 @@ pub(super) type Emission = (
 
 pub(super) fn compute(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
-    selected: &impl ValidatedSelectedAnalysis,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
-    source_manifest: &FunctionRelativeOptimizationRealizationManifest,
 ) -> Result<Emission, FunctionFragmentEmissionError> {
-    let selected_plan = selected.selected_plan();
-    let expected_allocation_recovery = match source {
-        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) => {
-            realization
-                .source()
-                .expected_allocation_recovery_selections()
-                .identity()
-        }
-        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
-            realization
-                .allocation()
-                .current()
-                .selections()
-                .for_phase(omega_optimization_core::OptimizationExecutionPhase::AllocationRecovery)
-                .identity()
-        }
-        _ => OptimizationSelections::default().identity(),
-    };
-    if selected.selected_identity() != layout.selected()
+    let selected_plan = source.selected_plan();
+    // Both emission and replay validate the source before entering compute;
+    // that validation joins this identity to the retained selected program.
+    let selected_identity = source.post_allocation_manifest().record().selected;
+    let layout = source.resolved_layout();
+    let source_manifest = source.function_relative_manifest().record();
+    if selected_identity != layout.selected()
         || selected_plan.target != layout.target()
         || selected_plan.functions.len() != layout.functions().len()
         || !selected_plan.structural_unit_functions.is_empty()
         || !layout.structural_unit_functions().is_empty()
-        || source_manifest.selected != selected.selected_identity()
+        || source_manifest.selected != selected_identity
         || source_manifest.resolved_layout != layout.identity()
-        || source_manifest.allocation_recovery_selections != expected_allocation_recovery
-        || matches!(
-            source,
-            StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(_)
-        ) && source_manifest.selections != expected_allocation_recovery
     {
         return Err(FunctionFragmentEmissionError::RootMismatch);
     }
@@ -72,7 +47,7 @@ pub(super) fn compute(
         identity: FunctionFragmentEmissionIdentity::from_canonical_bytes(b"pending"),
         psi: selected_plan.psi,
         fuel_schedule: selected_plan.fuel_schedule,
-        selected: selected.selected_identity(),
+        selected: selected_identity,
         target: selected_plan.target,
         entry: selected_plan.entry,
         functions,

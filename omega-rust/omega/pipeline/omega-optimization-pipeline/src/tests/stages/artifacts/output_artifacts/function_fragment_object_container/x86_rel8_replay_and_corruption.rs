@@ -30,10 +30,9 @@ fn relocation_free_rel8_object_container_reconstructs_replays_and_rejects_corrup
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } = physical
-    else {
-        panic!("rel8 must complete its direct function-relative realization")
-    };
+    let realization = (physical)
+        .into_function_relative_layout_for_test()
+        .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
     let emitted = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
     )

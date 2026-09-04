@@ -4,9 +4,9 @@ use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, FunctionFragmentEmissionSourceKind, IntegerSign,
     IntegerType, NativeTarget, Optimization, OptimizationSelections, ProofBundle,
     StagedOptimizedFunctionFragmentEmissionSource,
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedVerifiedPhysicalPipeline,
-    WholeFunctionExitLayoutCustody, canonical_artifact, conditional_immediate_machine,
-    conditional_immediate_module, optimize_artifact_sections, selected_lowering_budget,
+    StagedOptimizedPostAllocationMachineOptimization, WholeFunctionExitLayoutCustody,
+    canonical_artifact, conditional_immediate_machine, conditional_immediate_module,
+    optimize_artifact_sections, selected_lowering_budget,
     stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
     stage_optimized_relocation_free_text_section,
     stage_optimized_verified_physical_pipeline_with_provider_executions,
@@ -52,11 +52,11 @@ fn x86_xor_zero_uses_the_generic_post_allocation_join_for_both_source_routes() {
             &[],
         )
         .unwrap();
-        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
-            &staged
-        else {
-            panic!("XOR-zero must reach the generic post-allocation realization")
-        };
+        let realization = (staged)
+            .post_allocation_machine_for_test()
+            .unwrap_or_else(|| {
+                panic!("XOR-zero must reach the generic post-allocation realization")
+            });
         assert_eq!(staged.selections(), selections.identity());
         let allocation = realization.allocation().current();
         assert_eq!(
@@ -117,10 +117,9 @@ fn x86_xor_zero_uses_the_generic_post_allocation_join_for_both_source_routes() {
             } if artifact_identity == custody.artifact_identity()
         ));
 
-        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = staged
-        else {
-            unreachable!()
-        };
+        let realization = (staged)
+            .into_post_allocation_machine_for_test()
+            .unwrap_or_else(|| unreachable!());
         let emitted = stage_optimized_function_fragment_emission(
             StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(
                 realization,

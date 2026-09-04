@@ -17,16 +17,10 @@ fn staged_fixed_view_allocation_recovery_realization(
         ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
     )
     .unwrap();
-    match stage_optimized_verified_physical_pipeline_with_provider_executions(
-        optimized,
-        target,
-        &[],
-    )
-    .unwrap()
-    {
-        StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { realization } => *realization,
-        _ => panic!("fixed-view fixture must complete allocation recovery"),
-    }
+    *(stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
+        .unwrap())
+    .into_allocation_recovery_for_test()
+    .expect("fixture must complete allocation recovery")
 }
 
 #[test]
