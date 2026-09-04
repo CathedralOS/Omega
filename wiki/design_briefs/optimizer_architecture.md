@@ -341,6 +341,16 @@ unwind state, or grant machine/publication authority. Later executable lowering
 must reconcile this allocation-visible requirement against final machine
 effects before any preservation protocol can be admitted.
 
+Fixed-frame application consumes only fragment emission whose retained source
+is the exact fixed-frame realization; separately supplied frame or protocol
+artifacts cannot be substituted at that boundary. One prologue remains outside
+the semantic entry block, while one authenticated epilogue site binds every
+retained selected return block, instruction, and Psi edge. The currently
+admitted three-block/two-return scalar diamond reflows those insertions on
+System V AMD64 and AAPCS64, including branch targets, displacements, and later
+internal-fixup coordinates. Production uses target encoders; independent replay
+uses target decoders before fixed-frame text, object, and callable publication.
+
 The adjacent non-authoritative callee-save storage stage answers only how the
 target ABI groups those required units into storage carriers. A target-owned,
 identity-bound catalog declares the exact preservation view, full unit image,

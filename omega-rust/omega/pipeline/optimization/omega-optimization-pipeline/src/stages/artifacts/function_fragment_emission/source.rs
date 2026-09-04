@@ -23,6 +23,15 @@ pub enum StagedOptimizedFunctionFragmentEmissionSource {
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
+    pub const fn fixed_frame_realization(
+        &self,
+    ) -> Option<&StagedFixedFrameFunctionRelativeRealization> {
+        match self {
+            Self::FixedFrame(realization) => Some(realization),
+            _ => None,
+        }
+    }
+
     pub fn selected_plan(&self) -> &omega_selected_instructions::SelectedInstructionPlan {
         match self {
             Self::X86Rel8Direct(realization) => realization

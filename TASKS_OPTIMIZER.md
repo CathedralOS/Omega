@@ -106,12 +106,12 @@ needed for independent replay through publication.
   preserving exact register-unit aliases, liveness, and target custody.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the current
-  single-block System V AMD64/AAPCS64 family: general CFG return placement,
-  Microsoft shadow space, red-zone policy, probing, unwind information,
-  stable-address loans, and dynamic-allocation constraints. Acceptance: every
-  admitted frame policy replays its exact physical accesses through callable
-  publication; requirements artifacts remain non-authoritative until that
-  replay succeeds.
+  single-block and canonical three-block/two-return System V AMD64/AAPCS64
+  family: broader CFG admission, Microsoft shadow space, red-zone policy,
+  probing, unwind information, stable-address loans, and dynamic-allocation
+  constraints. Acceptance: every admitted frame policy replays its exact
+  physical accesses through callable publication; requirements artifacts
+  remain non-authoritative until that replay succeeds.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general

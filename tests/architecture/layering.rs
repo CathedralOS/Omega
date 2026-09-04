@@ -4802,6 +4802,38 @@ fn resolved_layout_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn frame_application_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/artifacts/function_fragment_frame_application",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read function-fragment frame-application entrance");
+    assert!(
+        entrance.contains("validation::validate(staged)"),
+        "frame application must send candidate artifacts into independent validation",
+    );
+    let validation = ["validation.rs", "validation_branch.rs"]
+        .into_iter()
+        .map(|leaf| {
+            std::fs::read_to_string(stage.join(leaf))
+                .unwrap_or_else(|error| panic!("failed to read {leaf}: {error}"))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in ["compute::", "encode_x86", "encode_aarch64"] {
+        assert!(
+            !validation.contains(forbidden),
+            "frame-application validation must not call producer mechanic `{forbidden}`",
+        );
+    }
+    assert!(
+        validation.contains("validate_x86") && validation.contains("validate_aarch64"),
+        "frame-application replay must decode candidate branches through both target owners",
+    );
+}
+
+#[test]
 fn selected_lowering_fragment_admission_is_rule_independent() {
     let root = workspace_root();
     let stage = root.join(
