@@ -40,7 +40,10 @@ needed for independent replay through publication.
   result. Every optimizer-owned route now enters one fragment-emission stage;
   native projection admits the exact return-only Unit shape rather than one
   named optimizer variant. Converge the outer arms and extend that projection
-  to the remaining validated fragment shapes.
+  to the remaining validated fragment shapes. Ranked native authority now
+  rejects selected optimization instead of being discarded into the ordinary
+  optimized route; a future ranked optimizer path must retain that authority
+  explicitly through the common postcondition.
   Keep the same representation on both sides of a phase unless vocabulary,
   interpretation, invariants, or published-product identity change.
   Acceptance: empty and nonempty selections, standalone Terminal production,

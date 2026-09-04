@@ -204,7 +204,11 @@ in its optimized arm. Every optimizer-owned arm then enters one function-fragmen
 emission stage; the first native projection admits an exact return-only Unit
 shape and does not inspect which physical optimization variant produced it. The
 public request surface uses the closed post-Terminal selection type, so this
-transitional branch cannot reopen an earlier phase.
+transitional branch cannot reopen an earlier phase. Ranked-countdown native
+authority currently rejects a nonempty post-Terminal selection: the ordinary
+optimized target route cannot substitute for the independently admitted ranked
+native route. Supporting that combination requires a ranked-aware optimizer
+carrier through the same physical postcondition.
 
 Migration proceeds in dependency order:
 
