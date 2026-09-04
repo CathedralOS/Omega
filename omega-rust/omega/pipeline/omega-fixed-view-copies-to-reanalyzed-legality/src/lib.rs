@@ -1,4 +1,6 @@
-//! Optimizer module role: executable entrance. Complete reanalysis after selected-CFG transformation.
+#![forbid(unsafe_code)]
+
+//! Pipeline stage for complete reanalysis after selected-CFG transformation.
 //!
 //! No source analysis fact is reused. This entrance validates transformed
 //! source custody, recomputes liveness/ranges/legality, independently replays
@@ -13,7 +15,7 @@ mod validation;
 pub use model::*;
 pub use validation::validate_optimized_selected_reanalysis_custody;
 
-use crate::StagedOptimizedFixedViewCopies;
+use omega_allocation_legality_to_fixed_view_copies::StagedOptimizedFixedViewCopies;
 
 pub fn stage_optimized_selected_reanalysis(
     transformation: StagedOptimizedFixedViewCopies,

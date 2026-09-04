@@ -3,7 +3,7 @@ use omega_regalloc::{
     analyze_allocation_legality, analyze_live_ranges, analyze_liveness,
 };
 
-use crate::StagedOptimizedFixedViewCopies;
+use omega_allocation_legality_to_fixed_view_copies::StagedOptimizedFixedViewCopies;
 
 use super::invariants::require_no_transitions;
 use super::model::OptimizedSelectedReanalysisError;
