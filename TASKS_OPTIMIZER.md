@@ -36,9 +36,11 @@ needed for independent replay through publication.
   function-relative postcondition, including explicit unit, structural-unit,
   and fixed-frame identity executions. The remaining mixed-depth fork is the
   outer Terminal-to-native carrier: its ordinary/ranked identity arms still
-  hold assigned operations while its selected arm holds the completed optimizer
-  result. Converge those arms before widening native publication beyond the
-  currently admitted selected-lowering route.
+  hold assigned operations while its optimized arm holds the completed optimizer
+  result. Every optimizer-owned route now enters one fragment-emission stage;
+  native projection admits the exact return-only Unit shape rather than one
+  named optimizer variant. Converge the outer arms and extend that projection
+  to the remaining validated fragment shapes.
   Keep the same representation on both sides of a phase unless vocabulary,
   interpretation, invariants, or published-product identity change.
   Acceptance: empty and nonempty selections, standalone Terminal production,

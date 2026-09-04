@@ -1,9 +1,11 @@
-//! Narrow publication projection for the first selected-lowering cohort.
+//! Narrow publication projection for the first optimized fragment cohort.
 //!
 //! The optimizer owns instruction selection and fragment validation. This
 //! module only rejoins the already validated, return-only Unit fragments to
 //! the established native object/image path. It deliberately does not infer
-//! evidence for calls, frames, spills, effects, or scalar results.
+//! evidence for calls, frames, spills, effects, or scalar results. Admission
+//! is based on the emitted fragment shape, not the optimization route that
+//! produced it.
 
 use omega_machine_code::{
     MachineCodeFunction, MachineCodePlan, SemanticCodeAttribution, SemanticCodeSite,
@@ -15,7 +17,7 @@ use omega_optimization_pipeline::{
 use omega_selected_instructions::MachineAlternativeFamily;
 use psi_diagnostics::Diagnostic;
 
-pub(super) struct SelectedLoweringPublicationRequest<'request> {
+pub(super) struct OptimizedFragmentPublicationRequest<'request> {
     pub(super) has_provider_installation: bool,
     pub(super) has_boundary_settlements: bool,
     pub(super) boundary_application_coverage:
@@ -26,9 +28,9 @@ pub(super) struct SelectedLoweringPublicationRequest<'request> {
     pub(super) final_unit: omega_optimization_core::OptimizationUnitIdentity,
 }
 
-pub(super) fn emit_return_only_selected_lowering(
-    realization: omega_optimization_pipeline::StagedSelectedLoweringFunctionRelativeRealization,
-    request: SelectedLoweringPublicationRequest<'_>,
+pub(super) fn emit_return_only_optimized_fragments(
+    physical: omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline,
+    request: OptimizedFragmentPublicationRequest<'_>,
 ) -> Result<
     (
         MachineCodePlan,
@@ -38,36 +40,33 @@ pub(super) fn emit_return_only_selected_lowering(
 > {
     if request.has_provider_installation || request.has_boundary_settlements {
         return Err(super::diagnostics::realization_error(
-            "selected-lowering native publication",
+            "optimized fragment native publication",
             "the first return-only publication cohort admits no provider installation or boundary settlements",
         ));
     }
+    let selected_lowering_completion = physical.selected_lowering_completion();
     let fragments = omega_optimization_pipeline::stage_optimized_function_fragment_emission(
-        omega_optimization_pipeline::StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(
-            Box::new(realization),
-        ),
+        physical.into_function_fragment_emission_source(),
     )
     .map_err(|error| {
-        super::diagnostics::realization_error(
-            "selected-lowering function-fragment emission",
-            error,
-        )
+        super::diagnostics::realization_error("optimized function-fragment emission", error)
     })?;
     let plan = project_return_only_unit_fragments(&fragments).map_err(|error| {
-        super::diagnostics::realization_error("selected-lowering native publication", error)
+        super::diagnostics::realization_error("optimized fragment native publication", error)
     })?;
-    let physical_evidence_scope = match request.boundary_application_coverage {
-        Some(coverage) => {
+    let physical_evidence_scope = match (
+        request.boundary_application_coverage,
+        selected_lowering_completion,
+    ) {
+        (Some(coverage), Some(completion)) => {
             let fragment_manifest = fragments.manifest().record();
             let realization_manifest = fragments.function_relative_manifest().record();
-            let completion = realization_manifest
-                .selected_lowering_completion
-                .ok_or_else(|| {
-                    super::diagnostics::realization_error(
-                        "selected-lowering physical-evidence projection",
-                        "selected-lowering realization omitted its completion identity",
-                    )
-                })?;
+            if realization_manifest.selected_lowering_completion != Some(completion) {
+                return Err(super::diagnostics::realization_error(
+                    "optimized physical-evidence projection",
+                    "physical route and function-relative manifest disagree on selected-lowering completion",
+                ));
+            }
             let publication = omega_native_artifact::SelectedLoweringNativePublicationInput::new(
                 fragment_manifest.selections,
                 completion,
@@ -88,12 +87,18 @@ pub(super) fn emit_return_only_selected_lowering(
             )
             .map_err(|error| {
                 super::diagnostics::realization_error(
-                    "selected-lowering physical-evidence projection",
+                    "optimized physical-evidence projection",
                     error,
                 )
             })?
         }
-        None => omega_native_artifact::NativePhysicalEvidenceScope::Unavailable,
+        (Some(_), None) => {
+            return Err(super::diagnostics::realization_error(
+                "optimized physical-evidence projection",
+                "the selected physical route has no admitted native evidence projection; no coverage was discarded",
+            ));
+        }
+        (None, _) => omega_native_artifact::NativePhysicalEvidenceScope::Unavailable,
     };
     Ok((plan, physical_evidence_scope))
 }
@@ -102,18 +107,16 @@ fn project_return_only_unit_fragments(
     staged: &StagedOptimizedFunctionFragmentEmission,
 ) -> Result<MachineCodePlan, &'static str> {
     validate_optimized_function_fragment_emission(staged)
-        .map_err(|_| "selected-lowering fragment custody failed replay")?;
+        .map_err(|_| "optimized fragment custody failed replay")?;
     let fragments = staged.fragments();
     if fragments.target.architecture != omega_target::Architecture::X86_64
         || fragments.target.pointer_size != 8
         || fragments.target.pointer_alignment != 8
     {
-        return Err("selected-lowering return-only publication currently requires x86-64");
+        return Err("optimized return-only publication currently requires x86-64");
     }
     if !fragments.structural_unit_functions.is_empty() {
-        return Err(
-            "selected-lowering native publication does not yet admit structural Unit fragments",
-        );
+        return Err("optimized native publication does not yet admit structural Unit fragments");
     }
 
     let functions = fragments
@@ -122,7 +125,7 @@ fn project_return_only_unit_fragments(
         .map(project_function)
         .collect::<Result<Vec<_>, _>>()?;
     if functions.is_empty() {
-        return Err("selected-lowering native publication requires at least one function");
+        return Err("optimized native publication requires at least one function");
     }
 
     Ok(MachineCodePlan {
@@ -138,18 +141,18 @@ fn project_function(
 ) -> Result<MachineCodeFunction, &'static str> {
     let [block] = fragment.blocks.as_slice() else {
         return Err(
-            "selected-lowering native publication currently admits one return-only block per function",
+            "optimized native publication currently admits one return-only block per function",
         );
     };
     let [instruction] = block.instructions.as_slice() else {
         return Err(
-            "selected-lowering native publication currently admits one return-only instruction per function",
+            "optimized native publication currently admits one return-only instruction per function",
         );
     };
     let omega_machine_code::FunctionFragmentControlProvenance::Return { psi_return_edge } =
         instruction.control
     else {
-        return Err("selected-lowering native publication currently admits only Unit returns");
+        return Err("optimized native publication currently admits only Unit returns");
     };
     if instruction.alternative.family != MachineAlternativeFamily::ReturnUnit
         || instruction.branch.is_some()
@@ -166,9 +169,7 @@ fn project_function(
         || instruction.bytes != fragment.bytes
         || usize::try_from(fragment.byte_count).ok() != Some(fragment.bytes.len())
     {
-        return Err(
-            "selected-lowering Unit return fragment is not an exact publication projection",
-        );
+        return Err("optimized Unit return fragment is not an exact publication projection");
     }
 
     Ok(MachineCodeFunction {

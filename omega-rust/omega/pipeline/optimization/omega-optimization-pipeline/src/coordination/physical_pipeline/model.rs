@@ -45,6 +45,51 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
 }
 
 impl StagedOptimizedVerifiedPhysicalPipeline {
+    /// Consume the completed physical route into the one fragment-emission
+    /// entrance. Route identity remains explicit in the source discriminant;
+    /// callers cannot reclassify one realization as another.
+    pub fn into_function_fragment_emission_source(
+        self,
+    ) -> crate::StagedOptimizedFunctionFragmentEmissionSource {
+        match self {
+            Self::UnitBaseline { realization } => {
+                crate::StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(Box::new(
+                    realization,
+                ))
+            }
+            Self::StructuralUnit { realization } => {
+                crate::StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(Box::new(
+                    realization,
+                ))
+            }
+            Self::FixedFrame { realization } => {
+                crate::StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(Box::new(
+                    realization,
+                ))
+            }
+            Self::PostAllocationMachine { realization } => {
+                crate::StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(
+                    Box::new(realization),
+                )
+            }
+            Self::AllocationRecovery { realization } => {
+                crate::StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(
+                    realization,
+                )
+            }
+            Self::FunctionRelativeLayout { realization } => {
+                crate::StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(
+                    realization,
+                ))
+            }
+            Self::SelectedLowering { realization } => {
+                crate::StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(
+                    realization,
+                ))
+            }
+        }
+    }
+
     pub fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
         match self {
             Self::UnitBaseline { realization } => realization

@@ -1989,6 +1989,15 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let physical_stage = std::fs::read_to_string(&physical_stage_path).unwrap_or_else(|error| {
         panic!("failed to read {}: {error}", physical_stage_path.display())
     });
+    let optimized_fragment_projection_path =
+        realization_root.join("optimized_fragment_projection.rs");
+    let optimized_fragment_projection =
+        std::fs::read_to_string(&optimized_fragment_projection_path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                optimized_fragment_projection_path.display()
+            )
+        });
     let callback_machine_code_path = realization_root.join("callback_machine_code.rs");
     let callback_machine_code = std::fs::read_to_string(&callback_machine_code_path)
         .unwrap_or_else(|error| {
@@ -2004,7 +2013,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let model = std::fs::read_to_string(&model_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_path.display()));
     let production_realization = format!(
-        "{realization}\n{api}\n{input}\n{target_stage}\n{physical_stage}\n{machine_code}\n{callback_machine_code}"
+        "{realization}\n{api}\n{input}\n{target_stage}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}\n{callback_machine_code}"
     );
     let selection_path =
         root.join("omega-rust/omega/representations/omega-optimization-core/src/selection.rs");
@@ -2119,6 +2128,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && optimizer_physical_model.contains(
                 ") -> &ValidatedFunctionRelativeOptimizationRealizationManifest"
             )
+            && optimizer_physical_model.contains("into_function_fragment_emission_source(")
             && optimizer_selected_phases
                 .contains("stage_identity_function_relative_pipeline(homes)")
             && optimizer_identity_route
@@ -2151,9 +2161,18 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && target_stage
                 .contains("lower_optimized_to_target_operations_with_provider_executions")
             && physical_stage.contains("enum NativePhysicalStageResult")
+            && physical_stage.contains("Optimized(Box<OptimizedNativePhysicalStage>)")
             && physical_stage.contains("stage_optimized_verified_physical_pipeline(")
             && machine_code.contains("lower_realization_target_stage(")
             && machine_code.contains("lower_realization_physical_stage(")
+            && machine_code.contains("emit_return_only_optimized_fragments(")
+            && !machine_code.contains(
+                "StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering"
+            )
+            && optimized_fragment_projection
+                .contains("physical.into_function_fragment_emission_source()")
+            && optimized_fragment_projection
+                .contains("stage_optimized_function_fragment_emission(")
             && !machine_code.contains("optimize_verified_psi_input(")
             && !machine_code.contains("stage_optimized_verified_physical_pipeline(")
             && !machine_code
