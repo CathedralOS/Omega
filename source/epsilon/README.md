@@ -57,10 +57,12 @@ compilers and must not both be called “the Epsilon compiler.”
 - `compiler/` owns the in-progress `epsilon_compiler.delta`, its eventual
   canonical Alpha tape, and refinement evidence. The retained source currently
   contains final compiler material through complete parsing, the D22/D24
-  source-shaped identity census including D36's receiver restriction and the
-  superseded case/machine collision registry, D31 structural type formation,
-  the source-backed resolution catalog, ordered local-value resolution, exact scalar and
-  aggregate value/place facts, one generalized callable ledger, direct
+  source-shaped identity census including D36's receiver restriction and
+  D51's removal of the superseded case/machine collision registry, D31
+  structural type formation including D56's final reserved entry-shape
+  judgment, the source-backed resolution catalog, ordered local-value
+  resolution, exact scalar and aggregate value/place facts, one generalized
+  callable ledger, direct
   qualified applications, grouped/unqualified machine applications and
   discarded postfix-statement category admission in settled non-continuation
   contexts, the superseded special receiver-scoped `self` carrier, named-data
@@ -74,8 +76,9 @@ compilers and must not both be called “the Epsilon compiler.”
   D50 fixes bare-state-transfer spelling, D51 retires static qualified
   machines plus special `self` resolution, D52 fixes resultless-argument
   anchoring, D53 fixes local block exits, D56 fixes entry diagnostics, and D57
-  fixes transition-pattern and coverage diagnostics. Their implementation
-  remains alongside final body/control checking, the remaining D37
+  fixes transition-pattern and coverage diagnostics. D50, D51's collision-
+  census deletion, D52, and D56 are implemented; the remaining rulings remain
+  alongside final body/control checking, the remaining D37
   control/terminal premise DAG, D38 executable controls, storage realization/
   lowering, `main`, and publication are incomplete, so it exposes no compiler
   artifact yet. The

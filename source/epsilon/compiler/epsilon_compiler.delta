@@ -381,7 +381,6 @@
   (EpsilonParameterTypePlacement)
   (EpsilonLocalTypePlacement)
   (EpsilonReturnTypePlacement)
-  (EpsilonMainConsoleTypePlacement)
   (EpsilonNestedTypePlacement))
 
 (data EpsilonTypeFormationCandidate
@@ -3262,28 +3261,33 @@
     ((EpsilonBoundaryMachineSyntax start end name parameters returnType) name)))
 
 (def epsilon_census_boundary_machine_against ((source Bytes)
-  (nameValue EpsilonName)
-  (machines EpsilonBoundaryMachineList)) EpsilonCensusCandidate
+  (owner EpsilonName) (nameValue EpsilonName)
+  (machines EpsilonBoundaryMachineList) (hasEntry Int)) EpsilonCensusCandidate
   (match machines
     (NoEpsilonBoundaryMachines NoEpsilonCensusCandidate)
     ((MoreEpsilonBoundaryMachines item rest)
       (let current EpsilonCensusCandidate
         (if (epsilon_names_equal source nameValue
           (epsilon_boundary_machine_name item))
-          (epsilon_census_duplicate (epsilon_boundary_machine_start item))
+          (if (if hasEntry (epsilon_name_is_console_type source owner) 0)
+            NoEpsilonCensusCandidate
+            (epsilon_census_duplicate (epsilon_boundary_machine_start item)))
           NoEpsilonCensusCandidate)
         (epsilon_census_min current
-          (epsilon_census_boundary_machine_against source nameValue rest))))))
+          (epsilon_census_boundary_machine_against source owner nameValue rest
+            hasEntry))))))
 
 (def epsilon_census_boundary_machine_duplicates ((source Bytes)
-  (machines EpsilonBoundaryMachineList)) EpsilonCensusCandidate
+  (owner EpsilonName) (machines EpsilonBoundaryMachineList)
+  (hasEntry Int)) EpsilonCensusCandidate
   (match machines
     (NoEpsilonBoundaryMachines NoEpsilonCensusCandidate)
     ((MoreEpsilonBoundaryMachines item rest)
       (epsilon_census_min
         (epsilon_census_boundary_machine_against source
-          (epsilon_boundary_machine_name item) rest)
-        (epsilon_census_boundary_machine_duplicates source rest)))))
+          owner (epsilon_boundary_machine_name item) rest hasEntry)
+        (epsilon_census_boundary_machine_duplicates source owner rest
+          hasEntry)))))
 
 (def epsilon_census_boundary_machine_parameters ((source Bytes)
   (machines EpsilonBoundaryMachineList)) EpsilonCensusCandidate
@@ -3306,27 +3310,34 @@
     ((EpsilonFieldMember start end name typeValue) name)
     ((EpsilonCaseMember start end name payload) name)))
 
-(def epsilon_census_data_member_against ((source Bytes) (nameValue EpsilonName)
-  (members EpsilonDataMemberList)) EpsilonCensusCandidate
+(def epsilon_census_data_member_against ((source Bytes) (owner EpsilonName)
+  (nameValue EpsilonName) (members EpsilonDataMemberList)
+  (hasEntry Int)) EpsilonCensusCandidate
   (match members
     (NoEpsilonDataMembers NoEpsilonCensusCandidate)
     ((MoreEpsilonDataMembers item rest)
       (let current EpsilonCensusCandidate
         (if (epsilon_names_equal source nameValue (epsilon_data_member_name item))
-          (epsilon_census_duplicate (epsilon_data_member_start item))
+          (if (if hasEntry
+                (epsilon_is_main_console_field source owner nameValue)
+                0)
+            NoEpsilonCensusCandidate
+            (epsilon_census_duplicate (epsilon_data_member_start item)))
           NoEpsilonCensusCandidate)
         (epsilon_census_min current
-          (epsilon_census_data_member_against source nameValue rest))))))
+          (epsilon_census_data_member_against source owner nameValue rest
+            hasEntry))))))
 
 (def epsilon_census_data_member_duplicates ((source Bytes)
-  (members EpsilonDataMemberList)) EpsilonCensusCandidate
+  (owner EpsilonName) (members EpsilonDataMemberList)
+  (hasEntry Int)) EpsilonCensusCandidate
   (match members
     (NoEpsilonDataMembers NoEpsilonCensusCandidate)
     ((MoreEpsilonDataMembers item rest)
       (epsilon_census_min
         (epsilon_census_data_member_against source
-          (epsilon_data_member_name item) rest)
-        (epsilon_census_data_member_duplicates source rest)))))
+          owner (epsilon_data_member_name item) rest hasEntry)
+        (epsilon_census_data_member_duplicates source owner rest hasEntry)))))
 
 (def epsilon_census_data_payload_parameters ((source Bytes)
   (members EpsilonDataMemberList)) EpsilonCensusCandidate
@@ -3453,77 +3464,8 @@
             (MoreEpsilonMachineRows (EpsilonMachineRowSyntax start name)
               accumulator)))))))
 
-; Superseded by D51: constructor and receiver-machine syntax now select
-; disjoint namespaces, so this former D36 cross-kind collision census is
-; deletion work rather than accepted semantics.
-(def epsilon_census_later_callable_start ((leftStart Int)
-  (rightStart Int)) Int
-  (if (lt leftStart rightStart) rightStart leftStart))
-
-(def epsilon_census_case_against_machine_rows ((source Bytes)
-  (owner EpsilonName) (caseStart Int) (caseName EpsilonName)
-  (machines EpsilonMachineRowList)) EpsilonCensusCandidate
-  (match machines
-    (NoEpsilonMachineRows NoEpsilonCensusCandidate)
-    ((MoreEpsilonMachineRows item rest)
-      (match item
-        ((EpsilonMachineRowSyntax machineStart qualifiedName)
-          (let current EpsilonCensusCandidate
-            (match qualifiedName
-              ((EpsilonUnqualifiedName nameStart nameEnd machineName)
-                NoEpsilonCensusCandidate)
-              ((EpsilonQualifiedNameSyntax nameStart nameEnd machineOwner
-                machineName)
-                (if (if (epsilon_names_equal source owner machineOwner)
-                      (epsilon_names_equal source caseName machineName)
-                      0)
-                  (epsilon_census_duplicate
-                    (epsilon_census_later_callable_start caseStart machineStart))
-                  NoEpsilonCensusCandidate)))
-            (epsilon_census_min current
-              (epsilon_census_case_against_machine_rows source owner caseStart
-                caseName rest))))))))
-
-(def epsilon_census_data_callable_members ((source Bytes) (owner EpsilonName)
-  (members EpsilonDataMemberList)
-  (machines EpsilonMachineRowList)) EpsilonCensusCandidate
-  (match members
-    (NoEpsilonDataMembers NoEpsilonCensusCandidate)
-    ((MoreEpsilonDataMembers item rest)
-      (match item
-        ((EpsilonFieldMember start end name typeValue)
-          (epsilon_census_data_callable_members source owner rest machines))
-        ((EpsilonCaseMember start end name payload)
-          (epsilon_census_min
-            (epsilon_census_case_against_machine_rows source owner start name
-              machines)
-            (epsilon_census_data_callable_members source owner rest machines)))))))
-
-(def epsilon_census_callable_collisions ((source Bytes)
-  (declarations EpsilonDeclarationList) (owners EpsilonOwnerRowList)
-  (machines EpsilonMachineRowList)) EpsilonCensusCandidate
-  (match declarations
-    (NoEpsilonDeclarations NoEpsilonCensusCandidate)
-    ((MoreEpsilonDeclarations item rest)
-      (let current EpsilonCensusCandidate
-        (match item
-          ((EpsilonBoundaryDeclaration start end name boundaryMachines)
-            NoEpsilonCensusCandidate)
-          ((EpsilonDataDeclaration start end name members)
-            (match (epsilon_owner_identity_for_rows source name owners)
-              (OneEpsilonDataOwner
-                (epsilon_census_data_callable_members source name members
-                  machines))
-              (NoEpsilonOwnerIdentity NoEpsilonCensusCandidate)
-              (OneEpsilonBoundaryOwner NoEpsilonCensusCandidate)
-              (AmbiguousEpsilonOwnerIdentity NoEpsilonCensusCandidate)))
-          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
-            NoEpsilonCensusCandidate))
-        (epsilon_census_min current
-          (epsilon_census_callable_collisions source rest owners machines))))))
-
 (def epsilon_census_owner_name_against ((source Bytes) (nameValue EpsilonName)
-  (declarations EpsilonDeclarationList)) EpsilonCensusCandidate
+  (declarations EpsilonDeclarationList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarations
     (NoEpsilonDeclarations NoEpsilonCensusCandidate)
     ((MoreEpsilonDeclarations item rest)
@@ -3531,64 +3473,80 @@
         ((EpsilonBoundaryDeclaration start end name machines)
           (let current EpsilonCensusCandidate
             (if (epsilon_names_equal source nameValue name)
-              (epsilon_census_duplicate start)
+              (if (if hasEntry
+                    (epsilon_name_is_reserved_entry_owner source nameValue)
+                    0)
+                NoEpsilonCensusCandidate
+                (epsilon_census_duplicate start))
               NoEpsilonCensusCandidate)
             (epsilon_census_min current
-              (epsilon_census_owner_name_against source nameValue rest))))
+              (epsilon_census_owner_name_against source nameValue rest
+                hasEntry))))
         ((EpsilonDataDeclaration start end name members)
           (let current EpsilonCensusCandidate
             (if (epsilon_names_equal source nameValue name)
-              (epsilon_census_duplicate start)
+              (if (if hasEntry
+                    (epsilon_name_is_reserved_entry_owner source nameValue)
+                    0)
+                NoEpsilonCensusCandidate
+                (epsilon_census_duplicate start))
               NoEpsilonCensusCandidate)
             (epsilon_census_min current
-              (epsilon_census_owner_name_against source nameValue rest))))
+              (epsilon_census_owner_name_against source nameValue rest
+                hasEntry))))
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
-          (epsilon_census_owner_name_against source nameValue rest))))))
+          (epsilon_census_owner_name_against source nameValue rest
+            hasEntry))))))
 
 (def epsilon_census_owner_against ((source Bytes)
   (declarationValue EpsilonDeclaration)
-  (rest EpsilonDeclarationList)) EpsilonCensusCandidate
+  (rest EpsilonDeclarationList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarationValue
     ((EpsilonBoundaryDeclaration start end name machines)
-      (epsilon_census_owner_name_against source name rest))
+      (epsilon_census_owner_name_against source name rest hasEntry))
     ((EpsilonDataDeclaration start end name members)
-      (epsilon_census_owner_name_against source name rest))
+      (epsilon_census_owner_name_against source name rest hasEntry))
     ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
       NoEpsilonCensusCandidate)))
 
 (def epsilon_census_machine_name_against ((source Bytes)
   (nameValue EpsilonQualifiedName)
-  (declarations EpsilonDeclarationList)) EpsilonCensusCandidate
+  (declarations EpsilonDeclarationList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarations
     (NoEpsilonDeclarations NoEpsilonCensusCandidate)
     ((MoreEpsilonDeclarations item rest)
       (match item
         ((EpsilonBoundaryDeclaration start end name machines)
-          (epsilon_census_machine_name_against source nameValue rest))
+          (epsilon_census_machine_name_against source nameValue rest hasEntry))
         ((EpsilonDataDeclaration start end name members)
-          (epsilon_census_machine_name_against source nameValue rest))
+          (epsilon_census_machine_name_against source nameValue rest hasEntry))
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           (let current EpsilonCensusCandidate
             (if (epsilon_qualified_names_equal source nameValue name)
-              (epsilon_census_duplicate start)
+              (if (if hasEntry
+                    (epsilon_qualified_name_is_main_entry source nameValue)
+                    0)
+                NoEpsilonCensusCandidate
+                (epsilon_census_duplicate start))
               NoEpsilonCensusCandidate)
             (epsilon_census_min current
-              (epsilon_census_machine_name_against source nameValue rest))))))))
+              (epsilon_census_machine_name_against source nameValue rest
+                hasEntry))))))))
 
 (def epsilon_census_machine_against ((source Bytes)
   (declarationValue EpsilonDeclaration)
-  (rest EpsilonDeclarationList)) EpsilonCensusCandidate
+  (rest EpsilonDeclarationList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarationValue
     ((EpsilonBoundaryDeclaration start end name machines)
       NoEpsilonCensusCandidate)
     ((EpsilonDataDeclaration start end name members)
       NoEpsilonCensusCandidate)
     ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
-      (epsilon_census_machine_name_against source name rest))))
+      (epsilon_census_machine_name_against source name rest hasEntry))))
 
 (def epsilon_census_invalid_boundary ((source Bytes)
   (declarationValue EpsilonDeclaration)
-  (owners EpsilonOwnerRowList)) EpsilonCensusCandidate
+  (owners EpsilonOwnerRowList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarationValue
     ((EpsilonBoundaryDeclaration start end name machines)
       NoEpsilonCensusCandidate)
@@ -3602,39 +3560,45 @@
           (match (epsilon_owner_identity_for_rows source owner owners)
             (NoEpsilonOwnerIdentity NoEpsilonCensusCandidate)
             (OneEpsilonBoundaryOwner
-              (EpsilonCensusCandidateAt InvalidBoundary start))
+              (if (if hasEntry
+                    (epsilon_qualified_name_is_main_entry source name)
+                    0)
+                NoEpsilonCensusCandidate
+                (EpsilonCensusCandidateAt InvalidBoundary start)))
             (OneEpsilonDataOwner NoEpsilonCensusCandidate)
             (AmbiguousEpsilonOwnerIdentity NoEpsilonCensusCandidate)))))))
 
 (def epsilon_census_declaration_contents ((source Bytes)
-  (declarationValue EpsilonDeclaration)) EpsilonCensusCandidate
+  (declarationValue EpsilonDeclaration) (hasEntry Int)) EpsilonCensusCandidate
   (match declarationValue
     ((EpsilonBoundaryDeclaration start end name machines)
       (epsilon_census_min
-        (epsilon_census_boundary_machine_duplicates source machines)
+        (epsilon_census_boundary_machine_duplicates source name machines
+          hasEntry)
         (epsilon_census_boundary_machine_parameters source machines)))
     ((EpsilonDataDeclaration start end name members)
       (epsilon_census_min
-        (epsilon_census_data_member_duplicates source members)
+        (epsilon_census_data_member_duplicates source name members hasEntry)
         (epsilon_census_data_payload_parameters source members)))
     ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
       (epsilon_census_machine_scope source inputs bodyValue))))
 
 (def epsilon_census_declarations ((source Bytes)
   (declarations EpsilonDeclarationList)
-  (owners EpsilonOwnerRowList)) EpsilonCensusCandidate
+  (owners EpsilonOwnerRowList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarations
     (NoEpsilonDeclarations NoEpsilonCensusCandidate)
     ((MoreEpsilonDeclarations item rest)
       (epsilon_census_min
-        (epsilon_census_owner_against source item rest)
+        (epsilon_census_owner_against source item rest hasEntry)
         (epsilon_census_min
-          (epsilon_census_machine_against source item rest)
+          (epsilon_census_machine_against source item rest hasEntry)
           (epsilon_census_min
-            (epsilon_census_invalid_boundary source item owners)
+            (epsilon_census_invalid_boundary source item owners hasEntry)
             (epsilon_census_min
-              (epsilon_census_declaration_contents source item)
-              (epsilon_census_declarations source rest owners))))))))
+              (epsilon_census_declaration_contents source item hasEntry)
+              (epsilon_census_declarations source rest owners
+                hasEntry))))))))
 
 (def epsilon_collect_program_identities ((source Bytes)
   (program EpsilonProgram)) EpsilonCensusOutcome
@@ -3646,17 +3610,16 @@
       (let owners EpsilonOwnerRowList (epsilon_collect_owner_rows_acc declarations NoEpsilonOwnerRows)
         (let machines EpsilonMachineRowList
           (epsilon_collect_machine_rows_acc declarations NoEpsilonMachineRows)
-          (let candidate EpsilonCensusCandidate
-            (epsilon_census_min
-              (epsilon_census_declarations source declarations owners)
-              (epsilon_census_callable_collisions source declarations owners
-                machines))
+          (let hasEntry Int
+            (epsilon_declarations_have_entry_name source declarations)
+            (let candidate EpsilonCensusCandidate
+              (epsilon_census_declarations source declarations owners hasEntry)
             (match candidate
               (NoEpsilonCensusCandidate
                 (EpsilonCensusAccepted
                   (EpsilonCollectedProgramSyntax program owners machines)))
               ((EpsilonCensusCandidateAt reasonValue errorOffset)
-                (EpsilonCensusRejected reasonValue errorOffset)))))))))
+                (EpsilonCensusRejected reasonValue errorOffset))))))))))
 
 (def epsilon_parse_and_collect_program ((source Bytes)) EpsilonCensusOutcome
   (match (epsilon_parse_program_syntax source)
@@ -3708,6 +3671,35 @@
     ((EpsilonNameSpan start end)
       (epsilon_span_is_4 source start end 77 97 105 110))))
 
+(def epsilon_name_is_entry_main ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_4 source start end 109 97 105 110))))
+
+(def epsilon_qualified_name_is_main_entry ((source Bytes)
+  (nameValue EpsilonQualifiedName)) Int
+  (match nameValue
+    ((EpsilonUnqualifiedName start end name) 0)
+    ((EpsilonQualifiedNameSyntax start end owner name)
+      (if (epsilon_name_is_main source owner)
+        (epsilon_name_is_entry_main source name)
+        0))))
+
+(def epsilon_declarations_have_entry_name ((source Bytes)
+  (declarations EpsilonDeclarationList)) Int
+  (match declarations
+    (NoEpsilonDeclarations 0)
+    ((MoreEpsilonDeclarations item rest)
+      (match item
+        ((EpsilonBoundaryDeclaration start end name machines)
+          (epsilon_declarations_have_entry_name source rest))
+        ((EpsilonDataDeclaration start end name members)
+          (epsilon_declarations_have_entry_name source rest))
+        ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+          (if (epsilon_qualified_name_is_main_entry source name)
+            1
+            (epsilon_declarations_have_entry_name source rest)))))))
+
 (def epsilon_name_is_console_field ((source Bytes)
   (nameValue EpsilonName)) Int
   (match nameValue
@@ -3719,6 +3711,12 @@
   (match nameValue
     ((EpsilonNameSpan start end)
       (epsilon_span_is_7 source start end 67 111 110 115 111 108 101))))
+
+(def epsilon_name_is_reserved_entry_owner ((source Bytes)
+  (nameValue EpsilonName)) Int
+  (if (epsilon_name_is_main source nameValue)
+    1
+    (epsilon_name_is_console_type source nameValue)))
 
 (def epsilon_is_main_console_field ((source Bytes) (owner EpsilonName)
   (field EpsilonName)) Int
@@ -3736,8 +3734,6 @@
     (EpsilonLocalTypePlacement
       (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonReturnTypePlacement NoEpsilonTypeFormationCandidate)
-    (EpsilonMainConsoleTypePlacement
-      (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonNestedTypePlacement
       (EpsilonTypeFormationCandidateAt TypeMismatch start))))
 
@@ -3755,10 +3751,6 @@
       (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonReturnTypePlacement
       (EpsilonTypeFormationCandidateAt TypeMismatch start))
-    ; This placement is structurally stored. D56's final type-formation
-    ; entry-shape subjudgment owns a `Main.console` field whose type is not the
-    ; sealed capability.
-    (EpsilonMainConsoleTypePlacement NoEpsilonTypeFormationCandidate)
     (EpsilonNestedTypePlacement NoEpsilonTypeFormationCandidate)))
 
 (def epsilon_named_type_formation_candidate ((source Bytes) (start Int)
@@ -3774,7 +3766,6 @@
         (EpsilonTypeFormationCandidateAt InvalidEntry start))
       (EpsilonReturnTypePlacement
         (EpsilonTypeFormationCandidateAt InvalidEntry start))
-      (EpsilonMainConsoleTypePlacement NoEpsilonTypeFormationCandidate)
       (EpsilonNestedTypePlacement
         (EpsilonTypeFormationCandidateAt InvalidEntry start)))
     (if (epsilon_owner_name_exists source nameValue owners)
@@ -3817,8 +3808,6 @@
           (epsilon_validate_formed_type source elementType owners
             EpsilonNestedTypePlacement))
         (EpsilonReturnTypePlacement
-          (EpsilonTypeFormationCandidateAt EscapingView start))
-        (EpsilonMainConsoleTypePlacement
           (EpsilonTypeFormationCandidateAt EscapingView start))
         (EpsilonNestedTypePlacement
           (EpsilonTypeFormationCandidateAt EscapingView start))))))
@@ -3863,8 +3852,7 @@
         (match item
           ((EpsilonFieldMember start end name typeValue)
             (if (epsilon_is_main_console_field source owner name)
-              (epsilon_validate_formed_type source typeValue owners
-                EpsilonMainConsoleTypePlacement)
+              NoEpsilonTypeFormationCandidate
               (epsilon_validate_formed_type source typeValue owners
                 EpsilonStoredTypePlacement)))
           ((EpsilonCaseMember start end name payload)
@@ -4026,6 +4014,339 @@
     EpsilonSumShape
     EpsilonRecordShape))
 
+; ---- D56 reserved entry shape -------------------------------------------
+
+(def epsilon_name_is_exit_process ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (if (eq (- end start) 12)
+        (if (epsilon_span_is_8 source start (+ start 8)
+              101 120 105 116 95 112 114 111)
+          (if (eq (bytes_get source (+ start 8)) 99)
+            (if (eq (bytes_get source (+ start 9)) 101)
+              (if (eq (bytes_get source (+ start 10)) 115)
+                (eq (bytes_get source (+ start 11)) 115)
+                0)
+              0)
+            0)
+          0)
+        0))))
+
+(def epsilon_name_is_write_byte ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_10 source start end
+        119 114 105 116 101 95 98 121 116 101))))
+
+(def epsilon_name_is_read_byte ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (if (eq (- end start) 9)
+        (if (epsilon_span_is_8 source start (+ start 8)
+              114 101 97 100 95 98 121 116)
+          (eq (bytes_get source (+ start 8)) 101)
+          0)
+        0))))
+
+(def epsilon_name_is_write_line ((source Bytes) (nameValue EpsilonName)) Int
+  (match nameValue
+    ((EpsilonNameSpan start end)
+      (epsilon_span_is_10 source start end
+        119 114 105 116 101 95 108 105 110 101))))
+
+(def epsilon_console_member_kind ((source Bytes) (nameValue EpsilonName)) Int
+  (if (epsilon_name_is_exit_process source nameValue) 1
+    (if (epsilon_name_is_write_byte source nameValue) 2
+      (if (epsilon_name_is_read_byte source nameValue) 3
+        (if (epsilon_name_is_write_line source nameValue) 4 0)))))
+
+(def epsilon_type_is_never ((typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) 0)
+    ((EpsilonU8Type start end) 0)
+    ((EpsilonNeverType start end) 1)
+    ((EpsilonNamedType start end name) 0)
+    ((EpsilonArrayType start end element lengthValue) 0)
+    ((EpsilonViewType start end element) 0)))
+
+(def epsilon_type_is_console ((source Bytes) (typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) 0)
+    ((EpsilonU8Type start end) 0)
+    ((EpsilonNeverType start end) 0)
+    ((EpsilonNamedType start end name)
+      (epsilon_name_is_console_type source name))
+    ((EpsilonArrayType start end element lengthValue) 0)
+    ((EpsilonViewType start end element) 0)))
+
+(def epsilon_type_is_view_u8 ((typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonI32Type start end) 0)
+    ((EpsilonU8Type start end) 0)
+    ((EpsilonNeverType start end) 0)
+    ((EpsilonNamedType start end name) 0)
+    ((EpsilonArrayType start end element lengthValue) 0)
+    ((EpsilonViewType start end element)
+      (match element
+        ((EpsilonI32Type elementStart elementEnd) 0)
+        ((EpsilonU8Type elementStart elementEnd) 1)
+        ((EpsilonNeverType elementStart elementEnd) 0)
+        ((EpsilonNamedType elementStart elementEnd name) 0)
+        ((EpsilonArrayType elementStart elementEnd nested lengthValue) 0)
+        ((EpsilonViewType elementStart elementEnd nested) 0)))))
+
+(def epsilon_parameters_are_none ((parameters EpsilonParameterList)) Int
+  (match parameters
+    (NoEpsilonParameters 1)
+    ((MoreEpsilonParameters item rest) 0)))
+
+(def epsilon_parameters_are_one_i32 ((parameters EpsilonParameterList)) Int
+  (match parameters
+    (NoEpsilonParameters 0)
+    ((MoreEpsilonParameters item rest)
+      (match rest
+        (NoEpsilonParameters
+          (match item
+            ((EpsilonParameterSyntax start end name typeValue)
+              (epsilon_type_is_i32 typeValue))))
+        ((MoreEpsilonParameters next more) 0)))))
+
+(def epsilon_parameters_are_one_view_u8
+  ((parameters EpsilonParameterList)) Int
+  (match parameters
+    (NoEpsilonParameters 0)
+    ((MoreEpsilonParameters item rest)
+      (match rest
+        (NoEpsilonParameters
+          (match item
+            ((EpsilonParameterSyntax start end name typeValue)
+              (epsilon_type_is_view_u8 typeValue))))
+        ((MoreEpsilonParameters next more) 0)))))
+
+(def epsilon_return_is_none ((returnType EpsilonOptionalType)) Int
+  (match returnType
+    (NoEpsilonType 1)
+    ((SomeEpsilonType start end typeValue) 0)))
+
+(def epsilon_return_is_i32 ((returnType EpsilonOptionalType)) Int
+  (match returnType
+    (NoEpsilonType 0)
+    ((SomeEpsilonType start end typeValue) (epsilon_type_is_i32 typeValue))))
+
+(def epsilon_return_is_never ((returnType EpsilonOptionalType)) Int
+  (match returnType
+    (NoEpsilonType 0)
+    ((SomeEpsilonType start end typeValue) (epsilon_type_is_never typeValue))))
+
+(def epsilon_console_signature_valid ((kind Int)
+  (parameters EpsilonParameterList) (returnType EpsilonOptionalType)) Int
+  (if (eq kind 1)
+    (if (epsilon_parameters_are_one_i32 parameters)
+      (epsilon_return_is_never returnType)
+      0)
+    (if (eq kind 2)
+      (if (epsilon_parameters_are_one_i32 parameters)
+        (epsilon_return_is_none returnType)
+        0)
+      (if (eq kind 3)
+        (if (epsilon_parameters_are_none parameters)
+          (epsilon_return_is_i32 returnType)
+          0)
+        (if (eq kind 4)
+          (if (epsilon_parameters_are_one_view_u8 parameters)
+            (epsilon_return_is_none returnType)
+            0)
+          0)))))
+
+(def epsilon_console_members_candidate ((source Bytes)
+  (machines EpsilonBoundaryMachineList) (extent Int)
+  (seenExit Int) (seenWriteByte Int) (seenReadByte Int) (seenWriteLine Int))
+  EpsilonTypeFormationCandidate
+  (match machines
+    (NoEpsilonBoundaryMachines
+      (if (if seenExit
+            (if seenWriteByte (if seenReadByte seenWriteLine 0) 0)
+            0)
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonBoundaryMachines item rest)
+      (match item
+        ((EpsilonBoundaryMachineSyntax start end name parameters returnType)
+          (let kind Int (epsilon_console_member_kind source name)
+            (let duplicate Int
+              (if (eq kind 1) seenExit
+                (if (eq kind 2) seenWriteByte
+                  (if (eq kind 3) seenReadByte
+                    (if (eq kind 4) seenWriteLine 0))))
+              (let current EpsilonTypeFormationCandidate
+                (if (if (eq kind 0) 1 duplicate)
+                  (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                  (if (epsilon_console_signature_valid kind parameters returnType)
+                    NoEpsilonTypeFormationCandidate
+                    (EpsilonTypeFormationCandidateAt InvalidEntry start)))
+                (epsilon_type_formation_candidate_min current
+                  (epsilon_console_members_candidate source rest extent
+                    (if (eq kind 1) 1 seenExit)
+                    (if (eq kind 2) 1 seenWriteByte)
+                    (if (eq kind 3) 1 seenReadByte)
+                    (if (eq kind 4) 1 seenWriteLine)))))))))))
+
+(def epsilon_console_declarations_candidate ((source Bytes)
+  (declarations EpsilonDeclarationList) (extent Int) (seenConsole Int))
+  EpsilonTypeFormationCandidate
+  (match declarations
+    (NoEpsilonDeclarations
+      (if seenConsole
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonDeclarations item rest)
+      (let current EpsilonTypeFormationCandidate
+        (match item
+          ((EpsilonBoundaryDeclaration start end name machines)
+            (if (epsilon_name_is_console_type source name)
+              (epsilon_type_formation_candidate_min
+                (if seenConsole
+                  (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                  NoEpsilonTypeFormationCandidate)
+                (epsilon_console_members_candidate source machines extent
+                  0 0 0 0))
+              (EpsilonTypeFormationCandidateAt InvalidEntry start)))
+          ((EpsilonDataDeclaration start end name members)
+            (if (epsilon_name_is_console_type source name)
+              (EpsilonTypeFormationCandidateAt InvalidEntry start)
+              NoEpsilonTypeFormationCandidate))
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            NoEpsilonTypeFormationCandidate))
+        (epsilon_type_formation_candidate_min current
+          (epsilon_console_declarations_candidate source rest extent
+            (match item
+              ((EpsilonBoundaryDeclaration start end name machines)
+                (if (epsilon_name_is_console_type source name) 1 seenConsole))
+              ((EpsilonDataDeclaration start end name members) seenConsole)
+              ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+                seenConsole))))))))
+
+(def epsilon_main_members_candidate ((source Bytes)
+  (members EpsilonDataMemberList) (extent Int) (seenConsole Int))
+  EpsilonTypeFormationCandidate
+  (match members
+    (NoEpsilonDataMembers
+      (if seenConsole
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonDataMembers item rest)
+      (let isConsole Int
+        (epsilon_name_is_console_field source (epsilon_data_member_name item))
+        (let current EpsilonTypeFormationCandidate
+          (if isConsole
+            (if seenConsole
+              (EpsilonTypeFormationCandidateAt InvalidEntry
+                (epsilon_data_member_start item))
+              (match item
+                ((EpsilonFieldMember start end name typeValue)
+                  (if (epsilon_type_is_console source typeValue)
+                    NoEpsilonTypeFormationCandidate
+                    (EpsilonTypeFormationCandidateAt InvalidEntry
+                      (epsilon_type_start typeValue))))
+                ((EpsilonCaseMember start end name payload)
+                  (EpsilonTypeFormationCandidateAt InvalidEntry start))))
+            NoEpsilonTypeFormationCandidate)
+          (epsilon_type_formation_candidate_min current
+            (epsilon_main_members_candidate source rest extent
+              (if isConsole 1 seenConsole))))))))
+
+(def epsilon_main_declarations_candidate ((source Bytes)
+  (declarations EpsilonDeclarationList) (extent Int) (seenMain Int))
+  EpsilonTypeFormationCandidate
+  (match declarations
+    (NoEpsilonDeclarations
+      (if seenMain
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonDeclarations item rest)
+      (let isMain Int
+        (match item
+          ((EpsilonBoundaryDeclaration start end name machines)
+            (epsilon_name_is_main source name))
+          ((EpsilonDataDeclaration start end name members)
+            (epsilon_name_is_main source name))
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            0))
+        (let current EpsilonTypeFormationCandidate
+          (if isMain
+            (match item
+              ((EpsilonBoundaryDeclaration start end name machines)
+                (EpsilonTypeFormationCandidateAt InvalidEntry start))
+              ((EpsilonDataDeclaration start end name members)
+                (epsilon_type_formation_candidate_min
+                  (if seenMain
+                    (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                    NoEpsilonTypeFormationCandidate)
+                  (epsilon_type_formation_candidate_min
+                    (if (epsilon_data_members_have_case members)
+                      (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                      NoEpsilonTypeFormationCandidate)
+                    (epsilon_main_members_candidate source members extent 0))))
+              ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+                NoEpsilonTypeFormationCandidate))
+            NoEpsilonTypeFormationCandidate)
+          (epsilon_type_formation_candidate_min current
+            (epsilon_main_declarations_candidate source rest extent
+              (if isMain 1 seenMain))))))))
+
+(def epsilon_entry_signature_valid ((inputs EpsilonMachineInputs)
+  (returnType EpsilonOptionalType)) Int
+  (match inputs
+    ((NoEpsilonMachineInputs start end) 0)
+    ((EpsilonPlainMachineInputs start end parameters) 0)
+    ((EpsilonReceiverMachineInputs start end receiverStart receiverEnd parameters)
+      (if (epsilon_parameters_are_none parameters)
+        (epsilon_return_is_none returnType)
+        0))))
+
+(def epsilon_entry_declarations_candidate ((source Bytes)
+  (declarations EpsilonDeclarationList) (extent Int) (seenEntry Int))
+  EpsilonTypeFormationCandidate
+  (match declarations
+    (NoEpsilonDeclarations
+      (if seenEntry
+        NoEpsilonTypeFormationCandidate
+        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+    ((MoreEpsilonDeclarations item rest)
+      (let isEntry Int
+        (match item
+          ((EpsilonBoundaryDeclaration start end name machines) 0)
+          ((EpsilonDataDeclaration start end name members) 0)
+          ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+            (epsilon_qualified_name_is_main_entry source name)))
+        (let current EpsilonTypeFormationCandidate
+          (if isEntry
+            (match item
+              ((EpsilonBoundaryDeclaration start end name machines)
+                NoEpsilonTypeFormationCandidate)
+              ((EpsilonDataDeclaration start end name members)
+                NoEpsilonTypeFormationCandidate)
+              ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+                (if (if seenEntry 1
+                      (if (epsilon_entry_signature_valid inputs returnType) 0 1))
+                  (EpsilonTypeFormationCandidateAt InvalidEntry start)
+                  NoEpsilonTypeFormationCandidate)))
+            NoEpsilonTypeFormationCandidate)
+          (epsilon_type_formation_candidate_min current
+            (epsilon_entry_declarations_candidate source rest extent
+              (if isEntry 1 seenEntry))))))))
+
+(def epsilon_entry_shape_candidate ((source Bytes)
+  (declarations EpsilonDeclarationList)) EpsilonTypeFormationCandidate
+  (let extent Int (bytes_length source)
+    (if (epsilon_declarations_have_entry_name source declarations)
+      (epsilon_type_formation_candidate_min
+        (epsilon_console_declarations_candidate source declarations extent 0)
+        (epsilon_type_formation_candidate_min
+          (epsilon_main_declarations_candidate source declarations extent 0)
+          (epsilon_entry_declarations_candidate source declarations extent 0)))
+      (EpsilonTypeFormationCandidateAt MissingEntry extent))))
+
 (def epsilon_reverse_data_shape_rows ((input EpsilonDataShapeRowList)
   (output EpsilonDataShapeRowList)) EpsilonDataShapeRowList
   (match input
@@ -4126,8 +4447,10 @@
       (let next EpsilonValueEdgeList
         (match item
           ((EpsilonFieldMember start end name typeValue)
-            (epsilon_collect_type_value_edges source ownerStart owner typeValue
-              declarations accumulator))
+            (if (epsilon_is_main_console_field source owner name)
+              accumulator
+              (epsilon_collect_type_value_edges source ownerStart owner typeValue
+                declarations accumulator)))
           ((EpsilonCaseMember start end name payload)
             (epsilon_collect_payload_value_edges source ownerStart owner payload
               declarations accumulator)))
@@ -4226,8 +4549,10 @@
                 (epsilon_type_formation_candidate_min
                   (epsilon_validate_declaration_formed_types source declarations
                     owners)
-                  (epsilon_validate_recursive_edges source valueEdges
-                    valueEdges)))
+                  (epsilon_type_formation_candidate_min
+                    (epsilon_validate_recursive_edges source valueEdges
+                      valueEdges)
+                    (epsilon_entry_shape_candidate source declarations))))
               (match candidate
                 (NoEpsilonTypeFormationCandidate
                   (EpsilonTypeFormationAccepted

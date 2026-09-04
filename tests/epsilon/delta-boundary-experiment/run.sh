@@ -26,10 +26,10 @@ expect_metric() {
     }
 }
 
-expect_metric 'source_lines=8732'
-expect_metric 'top_level_forms=663'
+expect_metric 'source_lines=9057'
+expect_metric 'top_level_forms=685'
 expect_metric 'data_forms=158'
-expect_metric 'definition_forms=505'
+expect_metric 'definition_forms=527'
 expect_metric 'optional_forms=7'
 expect_metric 'optional_lines=21'
 expect_metric 'optional_shapes=0/1:3,0/3:4'
@@ -52,8 +52,8 @@ expect_metric 'catalog_lookup_lines=23'
 expect_metric 'catalog_lookup_shapes=0/1:4,0/1/2:1,0/2:1,0/2/2:1'
 expect_metric 'catalog_function_forms=9'
 expect_metric 'catalog_function_lines=183'
-expect_metric 'span_function_forms=29'
-expect_metric 'span_function_lines=164'
+expect_metric 'span_function_forms=28'
+expect_metric 'span_function_lines=161'
 expect_metric 'candidate_forms=3'
 expect_metric 'candidate_lines=10'
 expect_metric 'minimum_function_forms=6'
@@ -64,10 +64,10 @@ expect_metric 'exact_list_family_forms=50'
 expect_metric 'exact_list_family_lines=248'
 expect_metric 'exact_list_family_bytes=11525'
 expect_metric 'catalog_gross_ceiling_lines=206'
-expect_metric 'span_gross_ceiling_lines=164'
+expect_metric 'span_gross_ceiling_lines=161'
 expect_metric 'candidate_gross_ceiling_lines=77'
-expect_metric 'combined_gross_ceiling_lines=808'
-expect_metric 'combined_gross_ceiling_per_mille=92'
+expect_metric 'combined_gross_ceiling_lines=805'
+expect_metric 'combined_gross_ceiling_per_mille=88'
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EVALUATOR="$TMP/evaluator" DELTA="$DELTA" EPSILON="$EPSILON" \

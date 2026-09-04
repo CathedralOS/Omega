@@ -4782,3 +4782,44 @@ array-length, unknown-type, and recursive-value producer. The exact 8,732-line,
 Delta stage to a 503,401-byte Gamma receipt in 69.5 seconds on the development
 host. D56's final entry-shape subjudgment and its entry fixtures remain open;
 this checkpoint closes only the candidate-identity prerequisite.
+
+## D117 — Epsilon reserved entry closure executes in type formation
+
+The Delta-authored Epsilon implementation now executes D56's final whole-
+program entry subjudgment before promoting a formed program. It first detects
+the raw authored `Main::main` owner/name spelling. Without that gate it derives
+only the entry verdict `MissingEntry` at source extent. With the gate, it
+requires one data-record `Main`, one `console: Console` field, one exact
+receiver-only resultless entry, and the unordered exact four-member `Console`
+boundary. Binder spelling remains irrelevant; missing support uses source
+extent and authored defects use their construct or type start.
+
+The earlier D22 census now has only the D56 exceptions needed to preserve that
+ownership. When the raw entry gate exists, duplicate `Main`/`Console` owners,
+`Console` members, `Main.console` fields, and exact `Main::main` declarations
+are deferred to `InvalidEntry`. Unrelated duplicates remain `DuplicateName`,
+and sources without the gate retain the ordinary census. The obsolete D36
+case-versus-qualified-machine collision scan is deleted under D51, so a sum
+case and receiver method may share their owner-local spelling. An exact
+`Main::main` on a malformed boundary-kind `Main` likewise reaches D56 rather
+than being preempted by `InvalidBoundary`.
+
+`Main.console` is wholly entry-owned: generic named-type placement and
+recursive-value-edge collection skip that exact field. Every other `Console`
+placement retains D31's `InvalidEntry`. The entry candidate stays in
+`EpsilonTypeFormationCandidate`; it is never copied into or coordinate-merged
+with the later body/control carrier.
+
+An ephemeral 19-case authored-source matrix exercised canonical and reordered
+valid forms, binder renaming, missing gate/support, wrong signatures and field
+types, wrong owner kinds, duplicate reserved components, unrelated duplicate
+preservation, case/receiver-method spelling reuse, and an entry defect beside a
+body `UnknownName`. The corrected tail returned byte `0x7f`. The largest
+one-shot probe compiled a 603,389-byte temporary Delta source to 605,816 Gamma
+bytes in 92.2 seconds; generated fixtures are not retained as a second semantic
+owner or default slow gate.
+
+The exact selected Epsilon source is now 9,057 lines and 450,806 bytes with 527
+definitions. Appending a scalar diagnostic entry compiles through the selected
+Delta stage to a 525,037-byte Gamma receipt in 71.8 seconds on the development
+host.

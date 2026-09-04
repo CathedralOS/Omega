@@ -254,6 +254,15 @@ Classification requires one unique owner identity. A boundary/data owner
 collision contributes `DuplicateName`; qualified bodies under that ambiguous
 spelling contribute no inferred owner-kind failure.
 
+The fixed entry shape has one narrow phase-ownership exception. If the source
+contains an authored `Main::main` owner/name candidate, duplicate `Main` and
+`Console` owners, `Console` member identities, `Main.console` fields, and exact
+`Main::main` declarations are reserved for the type-formation entry judgment
+and reject as `InvalidEntry`. This exception exists so malformed reserved entry
+support cannot be preempted by the generic census. It does not suppress any
+unrelated duplicate, and without an authored entry-name candidate the ordinary
+D22 census remains unchanged.
+
 A sum case and receiver machine under one data owner may share a spelling.
 `Owner::name(...)` selects the case namespace, while `value.name(...)` selects
 the receiver-machine namespace; neither expected type nor arity chooses between
