@@ -4857,3 +4857,33 @@ five definitions from the D117 baseline. The exact selected Epsilon source is
 now 8,856 lines and 439,460 bytes with 522 definitions. Appending a scalar
 diagnostic entry compiles through the selected Delta stage to a 511,906-byte
 Gamma receipt in 70.3 seconds on the development host.
+
+## D119 — Epsilon wildcard finality is owned by the transition grammar
+
+The D57 transition parser now distinguishes nonwildcard arms from its one
+optional final wildcard arm. The common pattern parser cannot produce a
+wildcard. When the arm-list parser encounters `_`, it parses that arm and then
+requires the transition-closing `}`. A following ordinary pattern or second
+wildcard is therefore `UnexpectedToken` at that next token; EOF after the
+wildcard continuation remains `UnexpectedEnd` at source extent. Empty
+transition bodies still reject at their closing `}`.
+
+Because successful syntax can no longer contain a nonfinal wildcard, the later
+semantic scan and unresolved-coverage fallback for that impossible AST shape
+are deleted. This does not claim D57's remaining replacement of the broad
+`Resolved | Complete` pattern-progress carrier; name resolution, subject
+admission, semantic identity, payload arity, and completed-pattern custody
+remain the next semantic work.
+
+An ephemeral six-source probe checked a lone wildcard, enumerated arms plus a
+final wildcard, an ordinary arm after wildcard, a repeated wildcard, an empty
+body, and EOF after a wildcard continuation. Its combined predicate executed
+as byte `0x3f` through the selected Delta compiler and Gamma evaluator. The
+443,835-byte temporary source compiled to a 516,940-byte receipt in 70.8
+seconds; the fixture is not retained as a second semantic owner or default slow
+gate.
+
+The exact selected Epsilon source is now 8,880 lines and 440,439 bytes with 524
+definitions. Appending a scalar diagnostic entry compiles through the selected
+Delta stage to a 512,344-byte Gamma receipt in 71.2 seconds on the development
+host.
