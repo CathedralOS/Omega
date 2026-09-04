@@ -150,8 +150,8 @@ The downgraded full compiler remains separate under
   -> all nullary, unary, and three-field constructor shapes produce byte 7
 828-line / 30,608-byte Epsilon declaration census
   -> exact 21-byte scalar Gamma receipt within the evaluator watchdog
-9,057-line / 450,806-byte current Epsilon source plus diagnostic entry
-  -> 525,037-byte Gamma receipt in 71.8 seconds on the development host
+8,856-line / 439,460-byte current Epsilon source plus diagnostic entry
+  -> 511,906-byte Gamma receipt in 70.3 seconds on the development host
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199; staged transformation is

@@ -4823,3 +4823,37 @@ The exact selected Epsilon source is now 9,057 lines and 450,806 bytes with 527
 definitions. Appending a scalar diagnostic entry compiles through the selected
 Delta stage to a 525,037-byte Gamma receipt in 71.8 seconds on the development
 host.
+
+## D118 — Epsilon qualified-machine syntax owns receiver semantics
+
+D51 now executes across parsing, local identity, and call resolution. Every
+owner-qualified machine declaration must begin with its exact `&mut self`
+receiver; a receiverless declaration fails at `)` or the first ordinary
+parameter rather than entering a legacy static-machine path. The parser retains
+the authored `self` name span and emits the ordinary name-expression form.
+
+Local resolution installs that name as an ordinary owner-typed receiver local
+for the machine entry and its states. The special self expression, nameless
+self local, self-only lookup, and the parallel optional-name binding lookup are
+deleted. An undeclared `self` therefore follows the same `UnknownName` judgment
+as every other missing local.
+
+Syntax also fixes the callable namespace without contextual fallback. A direct
+`Owner::name()` expression selects only a data constructor; a
+`receiver.name()` expression selects only a receiver method. A case and method
+may consequently share an owner-local spelling, and the receiver call still
+selects the method. The former direct-qualified machine application and
+qualified-head transfer paths are deleted.
+
+An ephemeral five-source probe checked both receiverless declaration anchors,
+ordinary receiver lookup in an entry and states, direct construction beside a
+same-spelled receiver method, direct method-only refusal, and `self` refusal in
+a free machine. Its combined predicate executed as byte `0x7f` through the
+selected Delta compiler and Gamma evaluator. The fixture is not retained as a
+second semantic owner or default slow gate.
+
+This change removes 201 source lines, 11,346 bytes, two data declarations, and
+five definitions from the D117 baseline. The exact selected Epsilon source is
+now 8,856 lines and 439,460 bytes with 522 definitions. Appending a scalar
+diagnostic entry compiles through the selected Delta stage to a 511,906-byte
+Gamma receipt in 70.3 seconds on the development host.
