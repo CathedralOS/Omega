@@ -131,49 +131,6 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn reject_preservati
     Ok(())
 }
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn reject_transformed_preservation_writes(
-    encoding: &crate::SelectedFormEncodingRow,
-    callee_saved: &BTreeSet<RegisterUnitId>,
-    link_units: &BTreeSet<RegisterUnitId>,
-    instruction: SelectedInstructionId,
-) -> Result<(), WholeFunctionExitContractError> {
-    let footprint = match &encoding.state {
-        SelectedFormEncodingState::Encoded { footprint, .. }
-        | SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. } => footprint,
-        SelectedFormEncodingState::DeferredControl { .. } => return Ok(()),
-    };
-    reject_implicit_unit_writes(
-        &footprint.implicit_defs,
-        &footprint.implicit_clobbers,
-        callee_saved,
-        link_units,
-        instruction,
-    )
-}
-
-fn reject_implicit_unit_writes(
-    implicit_defs: &[RegisterUnitId],
-    implicit_clobbers: &[RegisterUnitId],
-    callee_saved: &BTreeSet<RegisterUnitId>,
-    link_units: &BTreeSet<RegisterUnitId>,
-    instruction: SelectedInstructionId,
-) -> Result<(), WholeFunctionExitContractError> {
-    for unit in implicit_defs.iter().chain(implicit_clobbers) {
-        if callee_saved.contains(unit) {
-            return Err(WholeFunctionExitContractError::CalleeSavedWrite {
-                instruction,
-                unit: *unit,
-            });
-        }
-        if link_units.contains(unit) {
-            return Err(WholeFunctionExitContractError::LinkRegisterWrite(
-                instruction,
-            ));
-        }
-    }
-    Ok(())
-}
-
 pub(in crate::stages::layout::whole_function_exit_contract) fn transformed_implicit_writes_any(
     encoding: &crate::SelectedFormEncodingRow,
     units: &BTreeSet<RegisterUnitId>,
@@ -406,44 +363,4 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn validate_return(
         trap: effects.trap,
         mechanism,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeSet;
-
-    use omega_register_model::RegisterUnitId;
-    use omega_selected_instructions::SelectedInstructionId;
-
-    use super::reject_implicit_unit_writes;
-
-    #[test]
-    fn transformed_rflags_clobbers_pass_when_not_abi_preserved() {
-        let rflags = RegisterUnitId(91);
-        assert!(
-            reject_implicit_unit_writes(
-                &[],
-                &[rflags],
-                &BTreeSet::new(),
-                &BTreeSet::new(),
-                SelectedInstructionId(7),
-            )
-            .is_ok()
-        );
-    }
-
-    #[test]
-    fn transformed_implicit_writes_cannot_bypass_abi_preservation() {
-        let preserved = RegisterUnitId(13);
-        assert!(
-            reject_implicit_unit_writes(
-                &[],
-                &[preserved],
-                &BTreeSet::from([preserved]),
-                &BTreeSet::new(),
-                SelectedInstructionId(8),
-            )
-            .is_err()
-        );
-    }
 }

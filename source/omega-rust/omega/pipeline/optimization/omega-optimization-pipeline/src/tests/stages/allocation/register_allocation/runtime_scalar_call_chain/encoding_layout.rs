@@ -373,6 +373,49 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
                 | WholeFunctionExitContractError::NonReturnStackEffect(_)
                 | WholeFunctionExitContractError::LinkRegisterWrite(_)
         ));
+
+        let contract = stage_whole_function_exit_contract_with_frame(
+            selected_stage.selected(),
+            &post,
+            physical,
+            &encoding,
+            &layout,
+            &frame,
+            &protocol,
+        )
+        .unwrap();
+        validate_whole_function_exit_contract_with_frame(
+            selected_stage.selected(),
+            &post,
+            physical,
+            &encoding,
+            &layout,
+            &frame,
+            &protocol,
+            &contract,
+        )
+        .unwrap();
+        assert_eq!(
+            contract.contract().frame,
+            WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+                layout: frame.receipt().identity(),
+                protocol: protocol.receipt().identity(),
+            }
+        );
+        assert_eq!(
+            contract.contract().policy,
+            match target.architecture {
+                Architecture::X86_64 => WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1,
+                Architecture::Aarch64 => WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1,
+            }
+        );
+        let caller_exit = contract
+            .contract()
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine())
+            .unwrap();
+        assert!(!caller_exit.modified_callee_saved_units.is_empty());
     }
 }
 

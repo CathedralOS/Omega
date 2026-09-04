@@ -2,11 +2,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
-use omega_selected_instructions::SelectedTerminator;
+use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 
 use crate::{
     StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding,
+    StagedOptimizedSelectedFormEncoding, ValidatedTargetFrameLayout,
+    ValidatedTargetFrameProtocolEncoding,
 };
 
 use super::{
@@ -15,13 +16,13 @@ use super::{
     model::{
         WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
         WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
-        WholeFunctionHardeningPolicy,
+        WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
     },
     validation_rules::{
-        EntryAssumptionKind, reject_preservation_writes, reject_transformed_preservation_writes,
-        target_contract_inputs, transformed_implicit_writes_any, unique_encoding_rows,
-        unique_layout_rows, validate_layout_custody, validate_non_return, validate_return,
-        validate_structural_unit_functions, view,
+        EntryAssumptionKind, frame_permissions, target_contract_inputs,
+        transformed_implicit_writes_any, unique_encoding_rows, unique_layout_rows,
+        validate_internal_call, validate_layout_custody, validate_non_return,
+        validate_preservation_writes, validate_return, validate_structural_unit_functions, view,
     },
 };
 
@@ -32,6 +33,51 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
     layout_custody: WholeFunctionExitLayoutCustody,
+) -> Result<WholeFunctionExitContract, WholeFunctionExitContractError> {
+    compute_inner(
+        selected,
+        staged_machine,
+        physical,
+        encoding,
+        layout,
+        layout_custody,
+        None,
+    )
+}
+
+pub(super) fn compute_with_frame<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    staged_machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout_custody: WholeFunctionExitLayoutCustody,
+    frame: &ValidatedTargetFrameLayout,
+    protocol: &ValidatedTargetFrameProtocolEncoding,
+) -> Result<WholeFunctionExitContract, WholeFunctionExitContractError> {
+    compute_inner(
+        selected,
+        staged_machine,
+        physical,
+        encoding,
+        layout,
+        layout_custody,
+        Some((frame, protocol)),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compute_inner<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    staged_machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout_custody: WholeFunctionExitLayoutCustody,
+    frame_inputs: Option<(
+        &ValidatedTargetFrameLayout,
+        &ValidatedTargetFrameProtocolEncoding,
+    )>,
 ) -> Result<WholeFunctionExitContract, WholeFunctionExitContractError> {
     validate_layout_custody(staged_machine, encoding, layout, layout_custody)?;
     let selected_plan = selected.selected_plan();
@@ -50,8 +96,41 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     }
 
     let target = machine.target;
-    let (ordinary_policy, convention, stack_name, link_name, entry_assumption) =
+    let (frameless_policy, convention, stack_name, link_name, entry_assumption) =
         target_contract_inputs(physical, target)?;
+    let (ordinary_policy, frame_disposition) = match frame_inputs {
+        None => (frameless_policy, WholeFunctionFrameDisposition::FramelessV1),
+        Some((frame, protocol)) => {
+            if frame.receipt().post_allocation_machine() != machine.identity
+                || frame.plan().register_environment != machine.register_environment
+                || frame.plan().physical_register_model != machine.physical_register_model
+                || frame.receipt().target() != target
+                || protocol.receipt().frame_layout() != frame.receipt().identity()
+                || protocol.receipt().target() != target
+            {
+                return Err(WholeFunctionExitContractError::RootMismatch);
+            }
+            let policy = match frameless_policy {
+                WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1 => {
+                    WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1
+                }
+                WholeFunctionExitPolicy::Aapcs64FramelessLeafV1 => {
+                    WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1
+                }
+                WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => {
+                    WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1
+                }
+                _ => return Err(WholeFunctionExitContractError::UnsupportedTargetPolicy),
+            };
+            (
+                policy,
+                WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+                    layout: frame.receipt().identity(),
+                    protocol: protocol.receipt().identity(),
+                },
+            )
+        }
+    };
     if convention.result_views.len() != 1 || convention.stack_alignment == 0 {
         return Err(WholeFunctionExitContractError::InvalidConvention);
     }
@@ -104,7 +183,8 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         .unwrap_or_default();
 
     if !selected_plan.structural_unit_functions.is_empty() {
-        if ordinary_policy != WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1
+        if frameless_policy != WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1
+            || frame_inputs.is_some()
             || !selected_plan.functions.is_empty()
             || !machine.functions.is_empty()
             || !encoding.rows().is_empty()
@@ -146,6 +226,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             layout_custody,
             target,
             policy,
+            frame: frame_disposition,
             hardening: WholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
             entry_assumption,
             stack_pointer,
@@ -165,8 +246,48 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
+    let frame_functions = frame_inputs
+        .map(|(frame, _)| {
+            frame
+                .plan()
+                .functions
+                .iter()
+                .map(|function| (function.machine, function))
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    let protocol_functions = frame_inputs
+        .map(|(_, protocol)| {
+            protocol
+                .plan()
+                .functions
+                .iter()
+                .map(|function| (function.machine, function))
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    if frame_inputs.is_some()
+        && (frame_functions.len() != selected_plan.functions.len()
+            || protocol_functions.len() != selected_plan.functions.len())
+    {
+        return Err(WholeFunctionExitContractError::RootMismatch);
+    }
     let mut functions = Vec::with_capacity(selected_plan.functions.len());
     for function in &selected_plan.functions {
+        let function_frame = frame_inputs
+            .map(|_| {
+                frame_functions.get(&function.machine).copied().ok_or(
+                    WholeFunctionExitContractError::FunctionRosterMismatch(function.machine),
+                )
+            })
+            .transpose()?;
+        if frame_inputs.is_some() && !protocol_functions.contains_key(&function.machine) {
+            return Err(WholeFunctionExitContractError::FunctionRosterMismatch(
+                function.machine,
+            ));
+        }
+        let (allowed_callee_saved, allow_link_write) = frame_permissions(physical, function_frame)?;
+        let mut modified_callee_saved = BTreeSet::new();
         let machine_function = machine_functions.get(&function.machine).ok_or(
             WholeFunctionExitContractError::FunctionRosterMismatch(function.machine),
         )?;
@@ -262,17 +383,15 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                         instruction.id,
                     ));
                 }
-                reject_preservation_writes(
+                validate_preservation_writes(
                     machine_instruction,
-                    &callee_saved,
-                    &link_units,
-                    instruction.id,
-                )?;
-                reject_transformed_preservation_writes(
                     encoding_row,
                     &callee_saved,
                     &link_units,
+                    &allowed_callee_saved,
+                    allow_link_write,
                     instruction.id,
+                    &mut modified_callee_saved,
                 )?;
                 if let Some(psi_return_edge) = return_edge {
                     let layout_block_end = resolved_block
@@ -293,6 +412,21 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                         layout_block_end,
                     )?);
                 } else {
+                    if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
+                        if function_frame.is_none() {
+                            return Err(WholeFunctionExitContractError::NonReturnControlEffect(
+                                instruction.id,
+                            ));
+                        }
+                        validate_internal_call(
+                            target,
+                            stack_pointer,
+                            instruction.id,
+                            encoding_row,
+                            resolved_row,
+                        )?;
+                        continue;
+                    }
                     if machine_instruction
                         .unit_defs
                         .iter()
@@ -318,11 +452,16 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                 function.machine,
             ));
         }
+        if function_frame.is_some() && modified_callee_saved != allowed_callee_saved {
+            return Err(WholeFunctionExitContractError::FramePreservationMismatch(
+                function.machine,
+            ));
+        }
         functions.push(WholeFunctionExitEvidence {
             machine: function.machine,
             entry_block: function.entry_block,
             body_stack_delta: 0,
-            modified_callee_saved_units: Vec::new(),
+            modified_callee_saved_units: modified_callee_saved.into_iter().collect(),
             returns,
         });
     }
@@ -339,6 +478,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         layout_custody,
         target,
         policy: ordinary_policy,
+        frame: frame_disposition,
         hardening: WholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
         entry_assumption,
         stack_pointer,

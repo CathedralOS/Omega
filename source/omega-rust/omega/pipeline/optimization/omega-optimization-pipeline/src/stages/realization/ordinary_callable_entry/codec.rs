@@ -426,6 +426,9 @@ pub(super) fn exit_policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
         WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => 4,
         WholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1 => 5,
         WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1 => 6,
+        WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1 => 7,
+        WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1 => 8,
+        WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1 => 9,
     }
 }
 pub(super) fn decode_exit_policy(
@@ -438,6 +441,9 @@ pub(super) fn decode_exit_policy(
         4 => Ok(WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1),
         5 => Ok(WholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1),
         6 => Ok(WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1),
+        7 => Ok(WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1),
+        8 => Ok(WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1),
+        9 => Ok(WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1),
         tag => Err(OptimizedOrdinaryCallableEntryDecodeError::UnknownExitPolicy(tag)),
     }
 }

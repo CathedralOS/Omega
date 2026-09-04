@@ -36,7 +36,7 @@ use crate::{
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGOER\0\0";
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGOEM\0\0";
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 mod codec;
 mod model;
