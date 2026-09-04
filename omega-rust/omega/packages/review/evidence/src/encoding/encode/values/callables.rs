@@ -10,6 +10,7 @@ use crate::record::{
     PackageReviewExternalBinding, PackageReviewExternalCallableSignature,
     PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
     PackageReviewExternalStaticParameter, PackageReviewForeignLocator,
+    PackageReviewNominalIdentity,
 };
 
 use super::contracts::encode_callable_contract;
@@ -107,9 +108,23 @@ pub(crate) fn encode_external_executable_supply_key(
     encoder: &mut Encoder,
     supply: &PackageReviewExternalExecutableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
-    encode_nominal(encoder, &supply.callable)?;
-    encode_external_callable_signature(encoder, &supply.signature)?;
-    match &supply.requirement {
+    encode_external_executable_supply_coordinate(
+        encoder,
+        &supply.callable,
+        &supply.signature,
+        &supply.requirement,
+    )
+}
+
+pub(super) fn encode_external_executable_supply_coordinate(
+    encoder: &mut Encoder,
+    callable: &PackageReviewNominalIdentity,
+    signature: &PackageReviewExternalCallableSignature,
+    requirement: &PackageReviewExternalRequirement,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, callable)?;
+    encode_external_callable_signature(encoder, signature)?;
+    match requirement {
         PackageReviewExternalRequirement::Trait(conformance) => {
             encoder.byte(0);
             encode_callable_conformance(encoder, conformance)
