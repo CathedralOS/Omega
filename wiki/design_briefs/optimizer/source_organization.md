@@ -528,11 +528,12 @@ The registered semantic ladder therefore exposes the whole descent from one
 small meaningful entrance without granting frame layout, executable memory,
 fault, unwind, probing, encoding, emission, or publication authority.
 
-Allocation-visible callee-save discovery enters through the adjacent 31-line
-`allocation/callee_saved_requirements/mod.rs` coordinator. That file visibly
+Allocation-visible callee-save discovery enters through the dedicated
+`omega-register-homes-to-callee-saved-requirements` stage crate. Its small
+`callee_saved_requirements/mod.rs` entrance visibly
 joins `compute::derive` to `validate_allocated_callee_saved_requirements` and
 does no hidden traversal. Shared immutable target convention selection lives in
-`allocation/abi_preservation/`; the requirement carrier, identity, custody,
+`omega-target-to-register-environment`; the requirement carrier, identity, custody,
 errors, and validator remain named top-level leaves. Positional production
 descends through `compute/{ordinary,structural,state,work}`, while independent
 keyed reconstruction descends through

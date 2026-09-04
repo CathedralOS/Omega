@@ -274,7 +274,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn constrain_abstract_spill_accesses",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/callee_saved_requirements/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements/src/callee_saved_requirements/mod.rs",
         coordination_marker: "pub fn stage_allocated_callee_saved_requirements",
     },
     RequiredCoordinationEntrance {
