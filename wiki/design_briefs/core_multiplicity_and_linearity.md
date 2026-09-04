@@ -172,8 +172,9 @@ Provider non-observation authority remains absent.
 
 The first projected replacement sibling accepts one fixed-integer or Boolean
 literal, one exact same-typed fixed-integer or Boolean parameter, or the exact
-fixed-integer result of one immediately preceding ordinary scalar call through
-a finite field-only path of plain invariant-free records.
+fixed-integer result of one immediately preceding ordinary scalar call or
+selected boundary-operator realization through a finite field-only path of
+plain invariant-free records.
 The destination is the machine's sole structural parameter and may carry
 mutable or write-only access; the final field must be relevant and either
 Boolean or fixed-width non-address integer. Checked planning requires the exact complete mutation frame,
@@ -189,8 +190,8 @@ than trusted from an emitted record. Boolean definitions
 retain their zero-code semantic ordinal and exact one-byte store rather than
 borrowing an integer-definition carrier.
 Additional assignments, generics, domains/invariants, quotients, sums, arrays,
-erased fields, selected-operator and boundary result homes, delayed result
-uses, and other nonliteral values remain outside this rung.
+erased fields, bodyless boundary result homes, delayed result uses, and other
+nonliteral values remain outside this rung.
 
 ## Consumers and cleanup
 

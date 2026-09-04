@@ -1541,7 +1541,8 @@ pub enum CheckedUnitEffectOperationPlan {
     /// path/value custody as dynamic realization stores, but is an ordinary
     /// attached-Unit effect and therefore carries no dispatch authority. The
     /// bounded result form reads only the exact fixed-integer local produced
-    /// by the immediately preceding ordinary scalar call.
+    /// by the immediately preceding ordinary scalar call or selected
+    /// boundary-operator realization.
     StructuralScalarFieldStore(CheckedStructuralScalarFieldStorePlan),
     ReturnUnit {
         statement_index: u32,

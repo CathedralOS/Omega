@@ -1093,6 +1093,7 @@ pub(super) fn build_checked_machine(
                 &scalar_parameters,
                 statements,
                 scalar_result_local.as_ref(),
+                selected_write_only_scalar_result_local,
             )
         })
         .flatten();
@@ -1325,7 +1326,15 @@ pub(super) fn build_checked_machine(
         }
         operations.push(store);
     } else if let Some(store) = structural_scalar_field_store {
-        if let Some(result) = scalar_result_local {
+        if let Some((application, result)) = selected_scalar_result_local {
+            operations.push(build_selected_operator_scalar_call(
+                program,
+                facts,
+                state,
+                application,
+                result,
+            )?);
+        } else if let Some(result) = scalar_result_local {
             let call = calls.first()?;
             if call.statement_index != usize::try_from(result.statement_index).ok()?
                 || call.call_ordinal != 0

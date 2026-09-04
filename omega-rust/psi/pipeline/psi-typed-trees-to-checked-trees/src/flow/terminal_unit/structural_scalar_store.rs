@@ -11,8 +11,10 @@ pub(super) fn build_structural_scalar_field_store(
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statements: &[StatementNode],
     scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
+    selected_scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
 ) -> Option<CheckedStructuralScalarFieldStorePlan> {
-    let (statement_index, assignment) = match (scalar_result_local, statements) {
+    let result_local = scalar_result_local.or(selected_scalar_result_local);
+    let (statement_index, assignment) = match (result_local, statements) {
         (None, [StatementNode::Assignment(assignment)]) => (0, assignment),
         (
             Some(result),
@@ -122,15 +124,22 @@ pub(super) fn build_structural_scalar_field_store(
         destination.position,
         source_path.strip_prefix(&source_root)?,
     );
-    let mutation_paths = facts
+    let frame = &facts
         .mutation
         .for_machine(machine.symbol)?
         .state_write_frames
         .iter()
         .find(|frame| frame.state == state.symbol)?
-        .frame
-        .complete_paths()?;
-    if !matches!(mutation_paths, [path] if path == &expected_mutation_path) {
+        .frame;
+    let exact_frame =
+        matches!(frame.complete_paths(), Some([path]) if path == &expected_mutation_path);
+    // Provider selection resolves the boundary initializer after ordinary
+    // mutation analysis, so that initializer leaves the pre-selection frame
+    // opaque. The exact selected result, two-statement body, and canonical
+    // projected destination are independently rejoined above and below.
+    let unresolved_selected_frame = selected_scalar_result_local.is_some()
+        && frame.completeness() == psi_facts::WriteFrameCompleteness::Opaque;
+    if !exact_frame && !unresolved_selected_frame {
         return None;
     }
     let value = facts.values.scalar_expressions.expression_at(
@@ -139,7 +148,7 @@ pub(super) fn build_structural_scalar_field_store(
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
     let direct_result_is_exact = matches!(
-        (scalar_result_local, value),
+        (result_local, value),
         (
             Some(result),
             CheckedScalarExpression::Local {
