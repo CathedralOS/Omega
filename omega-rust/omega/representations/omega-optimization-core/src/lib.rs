@@ -47,5 +47,6 @@ pub use manifest::{
 };
 pub use selection::{
     DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
-    OptimizationSelectionIdentity, OptimizationSelections, SelectionDecodeError,
+    OptimizationPhaseSelections, OptimizationSelectionIdentity, OptimizationSelections,
+    SelectionDecodeError,
 };

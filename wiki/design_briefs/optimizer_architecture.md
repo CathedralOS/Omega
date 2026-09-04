@@ -3,9 +3,10 @@
 Status: active architecture contract.
 
 Omega exposes optimizations by exact name. It does not expose `O1`, `O2`,
-`O3`, `debug`, or `release` aliases. An empty selection is the ordinary build
-path and constructs no optimizer machinery. A build opts in with entries such
-as:
+`O3`, `debug`, or `release` aliases. An empty selection executes each applicable
+optimization phase as its identity transformation: it constructs no rule
+candidates or pass manifests, but it does not select another pipeline. A build
+opts in with entries such as:
 
 ```omega
 builder.optimizations.enable(Optimization::GlobalValueNumbering);
@@ -40,6 +41,10 @@ the execution checklist lives in [`TASKS_OPTIMIZER.md`](../../TASKS_OPTIMIZER.md
    explicit budget and deterministic tie-breaking.
 9. Release rollback is an exact-name, subtractive overlay. It never mutates
    the authored build selection, enables a rule, or introduces a profile.
+10. Optimization phases are explicit and do not hide inside lowering or
+    emission. A phase normally preserves its representation type; a vocabulary,
+    interpretation, invariant, or publication-boundary change earns a distinct
+    representation.
 
 ## The coordination shape
 
@@ -137,9 +142,15 @@ does not invent a second catalog or hide the parent schedule.
 ## Pipeline
 
 ```text
-checked Psi
-  -> Terminal Psi optimization
+checked trees
+  -> selected checked-tree optimization
+  -> optimizable Psi
+  -> selected Psi optimization
+  -> immutable Terminal Psi
+  -> abstract operations
+  -> selected abstract-operation optimization
   -> target/legalized operations
+  -> selected target-operation optimization
   -> selected instructions with virtual registers
   -> liveness, ranges, constraints, and allocation
   -> post-allocation symbolic-machine optimization
@@ -150,11 +161,21 @@ checked Psi
   -> callable-entry publication
 ```
 
+The complete phase boundary and migration from the current post-Terminal
+optimizer entrance are specified in [Optimization
+Phases](../architecture/pipeline/optimization_phases.md). Terminal Psi is an
+output of Psi optimization. Later passes retain its semantic identity while
+transforming Omega-owned representations; they do not mutate or replace the
+published Terminal module.
+
 The major optimization phases are:
 
 | Phase | Input | Output | Examples |
 |---|---|---|---|
-| Psi | validated optimization unit | validated transformed unit | CFG cleanup, SCCP, copy propagation, GVN, dead scalar elimination, proof-check elision |
+| Checked tree | checked program | validated checked program | root/closure selection, unreachable-declaration pruning |
+| Psi | validated pre-Terminal optimization unit | validated transformed unit | CFG cleanup, SCCP, copy propagation, GVN, dead scalar elimination, proof-check elision |
+| Abstract operation | abstract operation plan | validated transformed plan | target-neutral rewrites that require the lowered operation vocabulary |
+| Target operation | legalized target operations | validated transformed target operations | address and target-form simplification before instruction selection |
 | Selected lowering | selected virtual-register program | validated selected rewrite plan | exact incoming-immediate folds |
 | Allocation recovery | selected program plus allocation facts | revalidated physical homes | fixed-view copies, bounded rematerialization |
 | Post-allocation machine | physical symbolic instructions plus liveness | validated form-substitution plan | AArch64 CBNZ/MOVN, x86 XOR-zero/MOV-r32-imm32/MOV-r64-imm32 |

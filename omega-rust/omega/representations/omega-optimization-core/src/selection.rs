@@ -9,12 +9,34 @@ const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v15\0";
 /// projection routes a complete source-visible suite; it never replaces that
 /// suite's identity or creates an optimization-level alias.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
 pub enum OptimizationExecutionPhase {
-    Psi,
-    SelectedLowering,
-    AllocationRecovery,
-    PostAllocationMachine,
-    FunctionRelativeLayout,
+    CheckedTrees = 1,
+    Psi = 2,
+    AbstractOperations = 3,
+    TargetOperations = 4,
+    SelectedLowering = 5,
+    PreAllocation = 6,
+    AllocationRecovery = 7,
+    PostAllocationMachine = 8,
+    FunctionRelativeLayout = 9,
+}
+
+impl OptimizationExecutionPhase {
+    /// Canonical pipeline order, including phases whose current exact
+    /// selection is necessarily empty. Empty phases still execute as identity
+    /// validation boundaries rather than selecting another pipeline.
+    pub const ALL: [Self; 9] = [
+        Self::CheckedTrees,
+        Self::Psi,
+        Self::AbstractOperations,
+        Self::TargetOperations,
+        Self::SelectedLowering,
+        Self::PreAllocation,
+        Self::AllocationRecovery,
+        Self::PostAllocationMachine,
+        Self::FunctionRelativeLayout,
+    ];
 }
 
 macro_rules! optimization_vocabulary {
@@ -213,6 +235,36 @@ pub struct OptimizationSelections {
     selected: Vec<Optimization>,
 }
 
+/// Exact phase-local projection of one complete authored selection.
+///
+/// The projection may be empty. It retains the complete selection identity so
+/// a stage cannot present its local subset as though it were the complete
+/// build-owned policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizationPhaseSelections {
+    phase: OptimizationExecutionPhase,
+    complete_selection: OptimizationSelectionIdentity,
+    selected: OptimizationSelections,
+}
+
+impl OptimizationPhaseSelections {
+    pub const fn phase(&self) -> OptimizationExecutionPhase {
+        self.phase
+    }
+
+    pub const fn complete_selection(&self) -> OptimizationSelectionIdentity {
+        self.complete_selection
+    }
+
+    pub const fn selections(&self) -> &OptimizationSelections {
+        &self.selected
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.selected.is_empty()
+    }
+}
+
 impl OptimizationSelections {
     pub fn new(
         selected: impl IntoIterator<Item = Optimization>,
@@ -249,6 +301,17 @@ impl OptimizationSelections {
                 .copied()
                 .filter(|optimization| optimization.execution_phase() == phase)
                 .collect(),
+        }
+    }
+
+    /// Bind one phase-local selection to the identity of the complete authored
+    /// set. This is the preferred stage input; `for_phase` remains the
+    /// compatibility projection for existing consumers.
+    pub fn project_phase(&self, phase: OptimizationExecutionPhase) -> OptimizationPhaseSelections {
+        OptimizationPhaseSelections {
+            phase,
+            complete_selection: self.identity(),
+            selected: self.for_phase(phase),
         }
     }
 
@@ -591,5 +654,41 @@ mod tests {
                 .for_phase(OptimizationExecutionPhase::Psi)
                 .identity()
         );
+    }
+
+    #[test]
+    fn phase_projection_retains_complete_policy_and_represents_identity_phases() {
+        let selections = OptimizationSelections::new([
+            Optimization::CopyPropagation,
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
+        ])
+        .unwrap();
+        let complete = selections.identity();
+
+        let psi = selections.project_phase(OptimizationExecutionPhase::Psi);
+        assert_eq!(psi.phase(), OptimizationExecutionPhase::Psi);
+        assert_eq!(psi.complete_selection(), complete);
+        assert_eq!(
+            psi.selections().as_slice(),
+            &[Optimization::CopyPropagation]
+        );
+
+        let checked = selections.project_phase(OptimizationExecutionPhase::CheckedTrees);
+        assert_eq!(checked.phase(), OptimizationExecutionPhase::CheckedTrees);
+        assert_eq!(checked.complete_selection(), complete);
+        assert!(checked.is_empty());
+
+        for phase in OptimizationExecutionPhase::ALL {
+            let projection = selections.project_phase(phase);
+            assert_eq!(projection.phase(), phase);
+            assert_eq!(projection.complete_selection(), complete);
+            assert!(
+                projection
+                    .selections()
+                    .as_slice()
+                    .iter()
+                    .all(|optimization| optimization.execution_phase() == phase)
+            );
+        }
     }
 }

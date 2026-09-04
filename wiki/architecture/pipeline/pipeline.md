@@ -5,12 +5,14 @@ Each stage should have one primary job, one input representation, and one output
 representation.
 
 The target architecture has one named language/realization boundary. Psi owns
-Omega-file parsing and every target-neutral stage through immutable terminal
-Psi. Omega consumes terminal Psi and owns installation, optimization, ABI and
-storage realization, target operations, and native artifacts. See
-[Terminal Psi Architecture](terminal_psi.md). The stage list and matrix below
-describe the one production path. Unsupported Terminal-Psi vocabulary rejects;
-the compiler does not retain a second source-shaped backend as a fallback.
+Omega-file parsing and every target-neutral stage, including selected Psi
+optimization, through immutable terminal Psi. Omega consumes terminal Psi and
+owns installation, later representation-specific optimization, ABI and storage
+realization, target operations, and native artifacts. See [Terminal Psi
+Architecture](terminal_psi.md) and [Optimization
+Phases](optimization_phases.md). The stage list and matrix below describe the
+one production path. Unsupported Terminal-Psi vocabulary rejects; the compiler
+does not retain a second source-shaped backend as a fallback.
 
 The same semantic nouns should be recognizable across stages, but their data
 shape changes as they become more resolved. Source-shaped IR can only say "this
@@ -325,6 +327,13 @@ Current preferred shapes:
   complete typed artifacts between stages rather than rebuilding semantic facts
   from source-shaped trees.
 
+An explicit optimization stage does not by itself require another representation
+type. It normally returns the same representation under a validated phase
+result. A new representation is reserved for a vocabulary, interpretation,
+invariant, or published-product boundary. In particular, optimizable Psi is
+sealed into Terminal Psi only after selected Psi passes have completed; Terminal
+Psi is not the mutable input to those passes.
+
 This is not ceremony. It makes it obvious whether a pass is changing executable
 shape, preserving semantic evidence, or doing both. If a stage starts reaching
 through unrelated roots to answer a question, that is a sign the query belongs
@@ -352,9 +361,12 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Syntax Trees To Symbol Resolved Trees | identity | identity | identity | none | none | none | identity | identity | identity | identity |
 | Symbol Resolved Trees To Typed Trees | typed | typed | typed | type surface | planned | planned | typed | typed | typed | typed |
 | Typed Trees To Checked Trees | checked | checked | checked | checked | checked | checked | checked | checked | checked | checked |
-| Checked Trees To Terminal Psi | lowered | lowered | preserved | lowered | lowered | lowered | lowered | lowered | preserved | lowered |
+| Checked-Tree Optimization | checked | checked | checked | checked | checked | checked | checked | checked | checked | checked |
+| Checked Trees To Psi Optimization Unit | lowered | lowered | preserved | lowered | lowered | lowered | lowered | lowered | preserved | lowered |
+| Psi Optimization | optimized | optimized | validated | optimized | optimized | optimized | optimized | optimized | preserved | preserved |
+| Psi Terminalization | sealed | sealed | sealed | sealed | sealed | sealed | sealed | sealed | sealed | sealed |
 | Terminal Psi To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | metadata |
-| Optimization Run To Abstract Operations | projected | projected | validated metadata | assertion | projected op | projected op | projected op | projected op | projected metadata | validated metadata |
+| Abstract-Operation Optimization | optimized | optimized | validated metadata | assertion | optimized op | optimized op | optimized op | optimized op | preserved metadata | validated metadata |
 | Abstract Operations To Target Operations | target | target | metadata | assertion | target op | target op | target op | target op | target op | target metadata |
 | Target Operations To Selected Instructions | selected | selected | metadata | none | selected | selected | selected | selected | selected | selected metadata |
 | Selected Instructions Through Allocation | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
@@ -378,6 +390,7 @@ Current deliberate gaps:
 ## Stages
 
 - [Terminal Psi target architecture and migration](terminal_psi.md)
+- [Optimization phases and migration](optimization_phases.md)
 
 - [Source Files To Tokens](stages/source_files_to_tokens.md)
 - [Tokens To Syntax Trees](stages/tokens_to_syntax_trees.md)
