@@ -4,7 +4,8 @@ use omega_machine_optimizer::{
     validate_aarch64_cbnz_fusion,
 };
 use omega_optimization_core::{
-    Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
+    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
+    OptimizationSelections, OptimizationWorkBudget,
 };
 use omega_regalloc::{ValidatedLiveness, ValidatedSelectedAnalysis};
 use omega_register_model::ValidatedPhysicalRegisterModel;
@@ -194,8 +195,10 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     selections: &OptimizationSelections,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedAarch64CbnzFusion, OptimizedPostAllocationMachineOptimizationError> {
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
         machine.machine().plan().target.architecture,
     )?;
@@ -224,8 +227,10 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedAarch64CbnzFusionCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
         machine.machine().plan().target.architecture,
     )?;

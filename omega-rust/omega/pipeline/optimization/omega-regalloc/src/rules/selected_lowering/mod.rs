@@ -10,7 +10,9 @@ pub(crate) mod literal_fold;
 #[cfg(test)]
 mod tests;
 
-use omega_optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
+use omega_optimization_core::{
+    OptimizationExecutionPhase, OptimizationPhaseSelections, OptimizationSelections,
+};
 
 pub use catalog::*;
 pub use literal_fold::*;
@@ -21,9 +23,11 @@ pub use literal_fold::*;
 /// separately declared combined rule. Appending a row therefore requires an
 /// explicit payload and cannot fall through an old whole-catalog special case.
 pub fn resolve_selected_lowering_rules(
-    selections: &OptimizationSelections,
+    selections: &OptimizationPhaseSelections,
 ) -> Result<(OptimizationSelections, LiteralFoldPolicy), SelectedLoweringRuleCatalogError> {
-    let phase = selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
+    let phase = selections
+        .require_phase(OptimizationExecutionPhase::SelectedLowering)
+        .map_err(SelectedLoweringRuleCatalogError::WrongPhase)?;
     if phase.is_empty() {
         return Err(SelectedLoweringRuleCatalogError::MissingSelection);
     }
@@ -42,5 +46,5 @@ pub fn resolve_selected_lowering_rules(
         .fold(LiteralFoldPolicy::empty(), |policy, entry| {
             policy.union(entry.payload().policy())
         });
-    Ok((phase, policy))
+    Ok((phase.clone(), policy))
 }

@@ -2062,6 +2062,17 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 optimizer_physical_composition_path.display()
             )
         });
+    let physical_catalog_entrances = [
+        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/mod.rs",
+        "omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/mod.rs",
+        "omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/mod.rs",
+        "omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/catalog.rs",
+    ]
+    .map(|relative| {
+        let path = root.join(relative);
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+    });
     assert!(
         realization.contains("pub fn realize_native_artifact(")
             && realization.contains("artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
@@ -2095,6 +2106,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && optimizer_physical_composition
                 .contains("phases: &PhysicalOptimizationPhaseSelections")
             && !optimizer_physical_composition.contains(".for_phase(")
+            && physical_catalog_entrances.iter().all(|catalog| {
+                catalog.contains("selections: &OptimizationPhaseSelections")
+                    && catalog.contains(".require_phase(")
+                    && !catalog.contains(".for_phase(")
+            })
             && target_stage.contains("optimize_verified_psi_input(")
             && target_stage
                 .contains("lower_optimized_to_target_operations_with_provider_executions")

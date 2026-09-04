@@ -2,7 +2,9 @@ use omega_machine_optimizer::{
     ValidatedX86MovR32Imm32Materialization, optimize_x86_materialize_i64_with_mov_r32_imm32,
     require_post_allocation_machine_rule, validate_x86_mov_r32_imm32_materialization,
 };
-use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
+use omega_optimization_core::{
+    Optimization, OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
+};
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
@@ -203,8 +205,10 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedX86MovR32Imm32Materialization,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
         machine.machine().plan().target.architecture,
     )?;
@@ -234,8 +238,10 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedX86MovR32Imm32MaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
         machine.machine().plan().target.architecture,
     )?;

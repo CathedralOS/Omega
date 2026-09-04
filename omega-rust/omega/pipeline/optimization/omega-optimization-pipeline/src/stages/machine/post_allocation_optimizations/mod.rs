@@ -40,6 +40,7 @@ pub enum OptimizedPostAllocationMachineOptimizationError {
     X86MovR64Imm32SignExtendedMaterialization(
         omega_machine_optimizer::X86MovR64Imm32SignExtendedMaterializationError,
     ),
+    SelectionProjectionMismatch,
     ReceiptMismatch,
 }
 
@@ -48,6 +49,9 @@ impl From<omega_machine_optimizer::PostAllocationMachineRuleCatalogError>
 {
     fn from(error: omega_machine_optimizer::PostAllocationMachineRuleCatalogError) -> Self {
         match error {
+            omega_machine_optimizer::PostAllocationMachineRuleCatalogError::WrongPhase(_) => {
+                Self::SelectionProjectionMismatch
+            }
             omega_machine_optimizer::PostAllocationMachineRuleCatalogError::MissingSelection => {
                 Self::MissingPostAllocationMachineOptimization
             }

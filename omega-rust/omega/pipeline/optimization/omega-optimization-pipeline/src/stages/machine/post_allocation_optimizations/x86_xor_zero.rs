@@ -4,7 +4,8 @@ use omega_machine_optimizer::{
     validate_x86_xor_zero_materialization,
 };
 use omega_optimization_core::{
-    Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
+    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
+    OptimizationSelections, OptimizationWorkBudget,
 };
 use omega_regalloc::{ValidatedLiveness, ValidatedSelectedAnalysis};
 use omega_register_model::ValidatedPhysicalRegisterModel;
@@ -260,8 +261,10 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedX86XorZeroMaterialization, OptimizedPostAllocationMachineOptimizationError>
 {
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         Optimization::X86SelectXorZeroI64MaterializationV1,
         machine.machine().plan().target.architecture,
     )?;
@@ -293,8 +296,10 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedX86XorZeroMaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         Optimization::X86SelectXorZeroI64MaterializationV1,
         machine.machine().plan().target.architecture,
     )?;

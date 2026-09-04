@@ -5,7 +5,8 @@ pub(in crate::stages::realization::function_relative_realization) fn rel8_select
     selections: &OptimizationSelections,
     architecture: omega_target::Architecture,
 ) -> Result<bool, FunctionRelativeOptimizationRealizationError> {
-    crate::stages::layout::x86_branch_relaxation::x86_rel8_selected(selections, architecture)
+    let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+    crate::stages::layout::x86_branch_relaxation::x86_rel8_selected(&phase, architecture)
         .map_err(FunctionRelativeOptimizationRealizationError::RuleCatalog)
 }
 

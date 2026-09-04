@@ -176,7 +176,10 @@ pub fn validate_selected_lowering_optimization_custody(
         .optimized_target()
         .optimized();
     let expected_budget = optimized.budget_per_pass();
-    let (projected, fold_policy) = resolve_selected_lowering_rules(&run.selections)?;
+    let selected_lowering = run
+        .selections
+        .project_phase(omega_optimization_core::OptimizationExecutionPhase::SelectedLowering);
+    let (projected, fold_policy) = resolve_selected_lowering_rules(&selected_lowering)?;
     if run.selections != *optimized.selections()
         || run.custody.selections != optimized.selections().identity()
         || run.custody.budget != expected_budget
