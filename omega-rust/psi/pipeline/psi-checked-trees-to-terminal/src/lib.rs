@@ -527,6 +527,7 @@ pub struct ProducedProgramEntryTerminalArtifact {
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     receipt: CheckedProgramEntryTerminalReceipt,
     boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
+    selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
 }
 
 impl ProducedProgramEntryTerminalArtifact {
@@ -542,14 +543,24 @@ impl ProducedProgramEntryTerminalArtifact {
         &self.boundary_operator_scope
     }
 
+    pub fn selected_ieee_float_fma_occurrences(&self) -> &[LoweredSelectedIeeeFloatFmaOccurrence] {
+        &self.selected_ieee_float_fma_occurrences
+    }
+
     pub fn into_parts(
         self,
     ) -> (
         psi_terminal_codec::CanonicalTerminalArtifact,
         CheckedProgramEntryTerminalReceipt,
         CheckedBoundaryOperatorApplicationScope,
+        Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     ) {
-        (self.artifact, self.receipt, self.boundary_operator_scope)
+        (
+            self.artifact,
+            self.receipt,
+            self.boundary_operator_scope,
+            self.selected_ieee_float_fma_occurrences,
+        )
     }
 }
 
@@ -1862,16 +1873,35 @@ pub fn produce_program_entry_terminal_artifact(
     machine_name: &str,
     source_signature_identity: [u8; 32],
 ) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
+    produce_program_entry_terminal_artifact_with_optimizations(
+        checked,
+        machine_name,
+        source_signature_identity,
+        psi_optimization::PsiOptimizationSelections::default(),
+    )
+}
+
+/// Receipt-coupled `ProgramEntry` production with explicit target-neutral
+/// optimization selections.
+pub fn produce_program_entry_terminal_artifact_with_optimizations(
+    checked: &CheckedTrees,
+    machine_name: &str,
+    source_signature_identity: [u8; 32],
+    optimization_selections: psi_optimization::PsiOptimizationSelections,
+) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
     let selection = select_terminal_machine(checked, machine_name)
         .map_err(TerminalArtifactProductionError::Lowering)?;
     let source_machine_name = selection.name.clone();
     let lowered =
         lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    let entry_matches = lowered
+    let optimized = run_psi_optimization(lowered, optimization_selections)
+        .map_err(TerminalArtifactProductionError::Optimization)?;
+    let optimized_lowered = optimized.lowered();
+    let entry_matches = optimized_lowered
         .semantic_module
         .machines
         .iter()
-        .filter(|machine| machine.id == lowered.semantic_module.entry)
+        .filter(|machine| machine.id == optimized_lowered.semantic_module.entry)
         .collect::<Vec<_>>();
     let [entry] = entry_matches.as_slice() else {
         return Err(TerminalArtifactProductionError::EntryReceipt(
@@ -1883,15 +1913,10 @@ pub fn produce_program_entry_terminal_artifact(
             ProgramEntryTerminalReceiptError::NonUnitEntry,
         ));
     }
-    let terminal_psi_identity = terminal_psi_identity(&lowered.semantic_module)
+    let terminal_psi_identity = terminal_psi_identity(&optimized_lowered.semantic_module)
         .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)
         .map_err(TerminalArtifactProductionError::EntryReceipt)?;
-    let terminal_entry = lowered.semantic_module.entry;
-    let optimized = run_psi_optimization(
-        lowered,
-        psi_optimization::PsiOptimizationSelections::default(),
-    )
-    .map_err(TerminalArtifactProductionError::Optimization)?;
+    let terminal_entry = optimized_lowered.semantic_module.entry;
     let artifact = finalize_terminal_artifact(&optimized)
         .map_err(TerminalArtifactProductionError::Artifact)?;
     let lowered = optimized.into_lowered();
@@ -1911,6 +1936,7 @@ pub fn produce_program_entry_terminal_artifact(
             terminal_psi_identity,
             terminal_entry,
         },
+        selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
     })
 }
 

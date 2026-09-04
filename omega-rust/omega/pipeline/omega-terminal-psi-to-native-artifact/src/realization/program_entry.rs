@@ -18,7 +18,13 @@ pub fn realize_program_entry_native_artifact(
     produced: ProducedProgramEntryTerminalArtifact,
     request: NativeRealizationRequest<'_>,
 ) -> Result<SettledNativeArtifact, Vec<Diagnostic>> {
-    let (artifact, checked_entry, checked_scope) = produced.into_parts();
+    let (artifact, checked_entry, checked_scope, selected_ieee_float_fma_occurrences) =
+        produced.into_parts();
+    if !selected_ieee_float_fma_occurrences.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "receipt-coupled ProgramEntry realization does not yet consume retained IEEE-FMA occurrence custody",
+        )]);
+    }
     let program_entry = validate_native_program_entry_settlement(
         &artifact,
         &checked_entry,

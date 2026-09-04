@@ -2508,7 +2508,8 @@ fn retained_native_product_enters_only_terminal_realization() {
         "the StateGraph compatibility compiler must stay deleted"
     );
     for required in [
-        "produce_terminal_artifact_with_checked_boundary_operator_scope_and_optimizations(",
+        "produce_program_entry_terminal_artifact_with_optimizations(",
+        "validate_native_program_entry_settlement(",
         "realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(",
         "from_retained_native_artifact(",
     ] {
