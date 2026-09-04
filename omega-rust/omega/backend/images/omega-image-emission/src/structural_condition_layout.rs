@@ -1,8 +1,8 @@
-//! Target-neutral layout replay for structural Boolean conditions.
+//! Target-neutral structural layout replay.
 //!
-//! This module reconstructs exact aggregate shapes and the selected Boolean
-//! field offset from retained terminal structural declarations. It does not
-//! select target instructions or assign a new layout.
+//! This module reconstructs exact aggregate shapes and projected offsets from
+//! retained Terminal structural declarations. It does not select target
+//! instructions or assign a new layout.
 
 use omega_calling_conventions::ValueShape;
 use psi_core::{ScalarType, StructuralFieldId, StructuralTypeId};
@@ -30,9 +30,19 @@ fn replay_structural_shape(
     }
     let declaration = declarations.get(&structural_type)?;
     let shape = match &declaration.shape {
-        // Primitive roots in the write-only store rung have no readable
-        // Boolean-field aggregate layout in this consumer.
-        psi_terminal::StructuralTypeShape::PrimitiveScalar(_) => return None,
+        psi_terminal::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
+            ValueShape::integer(1, 1)
+        }
+        psi_terminal::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) => {
+            let size = integer.bits().div_ceil(8);
+            ValueShape::integer(size, size.next_power_of_two().min(8))
+        }
+        psi_terminal::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+            psi_core::IeeeFloatFormat::Binary32,
+        )) => ValueShape::float(4),
+        psi_terminal::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+            psi_core::IeeeFloatFormat::Binary64,
+        )) => ValueShape::float(8),
         // First-class byte views are not Boolean-field aggregates and have no
         // native condition layout in this consumer.
         psi_terminal::StructuralTypeShape::ByteSequence(_) => return None,
@@ -87,6 +97,81 @@ pub(super) fn replay_structural_value_shape(
     let mut cache = std::collections::BTreeMap::new();
     let mut active = std::collections::BTreeSet::new();
     replay_structural_shape(structural_type, &declarations, &mut cache, &mut active)
+}
+
+pub(super) fn replay_structural_projection(
+    mut structural_type: StructuralTypeId,
+    path: &[psi_terminal::StructuralPathSegment],
+    declarations: &[psi_terminal::StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, ValueShape, u32)> {
+    let declaration_count = declarations.len();
+    let declarations = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if declarations.len() != declaration_count {
+        return None;
+    }
+    let mut cache = std::collections::BTreeMap::new();
+    let mut active = std::collections::BTreeSet::new();
+    let mut total_offset = 0_u32;
+    let mut selected_shape = None;
+    for segment in path {
+        let (selected_type, shape, local_offset) = match segment {
+            psi_terminal::StructuralPathSegment::Field(identity) => {
+                let declaration = declarations.get(&structural_type)?;
+                let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape
+                else {
+                    return None;
+                };
+                let mut field_offset = 0_u32;
+                let mut selected = None;
+                for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                    let shape = replay_structural_field_shape(
+                        &field.field_type,
+                        &declarations,
+                        &mut cache,
+                        &mut active,
+                    )?;
+                    field_offset = checked_align_up(field_offset, u32::from(shape.alignment))?;
+                    if field.identity == *identity {
+                        let psi_terminal::StructuralFieldType::Structural(nested) =
+                            field.field_type
+                        else {
+                            return None;
+                        };
+                        selected = Some((nested, shape, field_offset));
+                        break;
+                    }
+                    field_offset = field_offset.checked_add(u32::from(shape.byte_size))?;
+                }
+                selected?
+            }
+            psi_terminal::StructuralPathSegment::FixedIndex(index) => {
+                let declaration = declarations.get(&structural_type)?;
+                let psi_terminal::StructuralTypeShape::FixedArray { element, length } =
+                    declaration.shape
+                else {
+                    return None;
+                };
+                if *index >= length {
+                    return None;
+                }
+                let shape =
+                    replay_structural_shape(element, &declarations, &mut cache, &mut active)?;
+                let stride =
+                    checked_align_up(u32::from(shape.byte_size), u32::from(shape.alignment))?;
+                let offset = u64::from(stride)
+                    .checked_mul(*index)
+                    .and_then(|offset| u32::try_from(offset).ok())?;
+                (element, shape, offset)
+            }
+        };
+        total_offset = total_offset.checked_add(local_offset)?;
+        structural_type = selected_type;
+        selected_shape = Some(shape);
+    }
+    Some((structural_type, selected_shape?, total_offset))
 }
 
 fn replay_structural_field_shape(

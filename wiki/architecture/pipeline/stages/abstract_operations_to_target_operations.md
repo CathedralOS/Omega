@@ -162,6 +162,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   successor edges; none is a general CFG legalization path.
 - `lowering/unit/projected_argument.rs` owns the shared target-layout lowering
   for one structural argument projected from an attached Unit parameter.
+- `lowering/unit/structural_call.rs` walks a direct unrestricted write-only
+  argument's finite `Field* FixedIndex+` path, derives its exact primitive leaf
+  and byte offset, and keeps the legacy affine-array cleanup metadata absent.
+  It does not authorize dynamic/range projection or broaden other access modes.
 - `lowering/unit/boundary_call.rs` also owns the bounded native
   installed-provider scalar join: one fixed signed `i32` caller parameter is
   matched directly to the boundary and selected candidate declarations and to

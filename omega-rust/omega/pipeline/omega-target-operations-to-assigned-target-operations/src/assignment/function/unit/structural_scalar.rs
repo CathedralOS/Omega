@@ -16,7 +16,8 @@ use psi_terminal::{
 use std::collections::BTreeSet;
 
 pub(in crate::assignment::function) use layout::{
-    declaration_map, direct_scalar_field_offset, resolve_field_path, scalar_field_offset_at_path,
+    declaration_map, direct_scalar_field_offset, resolve_field_path, resolve_projection_path,
+    scalar_field_offset_at_path, structural_value_shape,
 };
 
 #[allow(clippy::too_many_arguments)]

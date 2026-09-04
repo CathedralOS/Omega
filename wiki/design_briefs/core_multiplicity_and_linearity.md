@@ -110,6 +110,12 @@ The direct-call subloan may select a finite nonempty suffix of literal indexes
 through recursively literal fixed arrays only when every bound is static and
 the ultimate leaf is an unrestricted non-Atomic primitive. Dynamic, range, and
 aggregate-leaf projections remain outside that rung.
+Native direct-Unit lowering now realizes that complete path as a borrowed
+pointer plus its independently reconstructed byte offset on Linux x86-64 and
+AArch64. Array-cleanup length/stride fields remain absent because this is an
+unrestricted subloan, not an affine element transfer. Assignment, object
+construction, and installation replay the declarations, path, leaf type,
+access, offset, ABI placement, and emitted pointer-adjustment bytes.
 
 Post-restoration call evidence now admits one direct exclusive child, one
 shared child, or one exact two- or three-member concurrent shared-freeze

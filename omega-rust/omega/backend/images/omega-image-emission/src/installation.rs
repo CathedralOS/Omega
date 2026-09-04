@@ -2915,6 +2915,22 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         } else {
             function.scalar_structural_parameter_homes.as_slice()
         };
+        let exact_write_only_argument =
+            |index: usize, argument: &omega_machine_code::InternalUnitCallArgumentRecord| {
+                parameter_homes
+                    .iter()
+                    .find(|home| home.place == argument.place)
+                    .zip(callee_unit_parameters.get(index))
+                    .zip(affine_cleanup)
+                    .is_some_and(|((source, destination), cleanup)| {
+                        crate::unit_call_custody::exact_write_only_projection(
+                            argument,
+                            source,
+                            destination,
+                            &cleanup.structural_types,
+                        )
+                    })
+            };
         let function_unit_calls = record
             .internal_unit_calls
             .iter()
@@ -3261,7 +3277,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .arguments
                 .iter()
                 .zip(&plan.parameters[scalar_count..])
-                .any(|(argument, destination)| {
+                .enumerate()
+                .any(|(argument_index, (argument, destination))| {
                     let parameter_source = parameter_homes
                         .iter()
                         .find(|home| home.place == argument.place)
@@ -3353,6 +3370,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     || argument.fixed_array_length.is_some()
                                     || argument.element_stride.is_some()
                             }
+                            _ if exact_write_only_argument(argument_index, argument) => false,
                             [StructuralPathSegment::FixedIndex(index)] => {
                                 let expected_stride = u32::from(argument.shape.byte_size)
                                     .next_multiple_of(u32::from(argument.shape.alignment));
@@ -3430,6 +3448,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 let Some(argument) = custody.arguments.get(*index) else {
                     return true;
                 };
+                if exact_write_only_argument(*index, argument) {
+                    return false;
+                }
                 argument.path.is_empty()
                     || (!fully_consumed_affine_pair
                         && affine_cleanup.is_none_or(|cleanup| {

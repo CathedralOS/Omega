@@ -19,7 +19,10 @@ use super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_memory_load, expected_aarch64_stack_load,
     expected_x86_memory_load, expected_x86_stack_load, x86_terminal_register,
 };
-use super::unit_scalar_call_custody::{expected_argument_bytes, validate_source};
+use super::unit_scalar_call_custody::{
+    expected_aarch64_stack_store, expected_argument_bytes, expected_x86_stack_store,
+    validate_source,
+};
 use super::{ObjectError, ObjectScalarCallStack, ObjectUnitCallStack, ObjectUnitStack};
 
 pub(super) fn validate_unit_affine_scalar_records(
@@ -242,6 +245,79 @@ pub(super) fn structural_result_matches_return(
         }
         psi_terminal::StructuralMultiplicity::Unrestricted => false,
     }
+}
+
+pub(super) fn exact_write_only_projection(
+    argument: &omega_machine_code::InternalUnitCallArgumentRecord,
+    source: &omega_machine_code::UnitParameterHomeRecord,
+    destination: &omega_machine_code::UnitParameterRecord,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+) -> bool {
+    let Some(first_index) = argument
+        .path
+        .iter()
+        .position(|segment| matches!(segment, psi_terminal::StructuralPathSegment::FixedIndex(_)))
+    else {
+        return false;
+    };
+    if argument.access != psi_terminal::StructuralAccess::WriteOnlyBorrow
+        || source.access != psi_terminal::StructuralAccess::WriteOnlyBorrow
+        || destination.access != psi_terminal::StructuralAccess::WriteOnlyBorrow
+        || source.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
+        || destination.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
+        || argument.fixed_array_length.is_some()
+        || argument.element_stride.is_some()
+        || !argument.path[..first_index].iter().all(|segment| {
+            matches!(segment,
+                psi_terminal::StructuralPathSegment::Field(identity) if !identity.is_empty())
+        })
+        || !argument.path[first_index..]
+            .iter()
+            .all(|segment| matches!(segment, psi_terminal::StructuralPathSegment::FixedIndex(_)))
+    {
+        return false;
+    }
+    let Some((leaf_type, leaf_shape, byte_offset)) =
+        super::structural_condition_layout::replay_structural_projection(
+            source.structural_type,
+            &argument.path,
+            structural_types,
+        )
+    else {
+        return false;
+    };
+    let Some(root_shape) = super::structural_condition_layout::replay_structural_value_shape(
+        source.structural_type,
+        structural_types,
+    ) else {
+        return false;
+    };
+    let leaf_is_primitive = structural_types.iter().any(|declaration| {
+        declaration.id == leaf_type
+            && matches!(
+                declaration.shape,
+                psi_terminal::StructuralTypeShape::PrimitiveScalar(_)
+            )
+    });
+    let expected_shape = ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment);
+    leaf_is_primitive
+        && argument.place == source.place
+        && argument.root_structural_type == source.structural_type
+        && argument.structural_type == leaf_type
+        && destination.structural_type == leaf_type
+        && argument.shape == expected_shape
+        && destination.shape == expected_shape
+        && source.shape
+            == ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment)
+        && argument.source_byte_offset == byte_offset
+        && argument.source == source.source
+        && argument.source.shape == source.shape
+        && argument.source_home_byte_offset == source.byte_offset
+        && source.indirect
+        && matches!(
+            source.source.locations.as_slice(),
+            [omega_calling_conventions::ValueLocation::Indirect { .. }]
+        )
 }
 
 pub(super) fn validate_internal_unit_call_custody(
@@ -633,6 +709,22 @@ pub(super) fn validate_internal_unit_call_custody(
         }
         Some(home)
     };
+    let exact_write_only_argument =
+        |index: usize, argument: &omega_machine_code::InternalUnitCallArgumentRecord| {
+            parameter_homes
+                .iter()
+                .find(|home| home.place == argument.place)
+                .zip(callee_unit_parameters.get(index))
+                .zip(affine_cleanup)
+                .is_some_and(|((source, destination), cleanup)| {
+                    exact_write_only_projection(
+                        argument,
+                        source,
+                        destination,
+                        &cleanup.structural_types,
+                    )
+                })
+        };
     let scalar_count = custody.scalar_arguments.len();
     if custody.byte_count == 0
         || custody.code_offset > relocation.offset
@@ -659,7 +751,8 @@ pub(super) fn validate_internal_unit_call_custody(
             .arguments
             .iter()
             .zip(&expected_plan.parameters[scalar_count..])
-            .any(|(argument, destination)| {
+            .enumerate()
+            .any(|(argument_index, (argument, destination))| {
                 let parameter_source = parameter_homes
                     .iter()
                     .find(|home| home.place == argument.place)
@@ -798,6 +891,7 @@ pub(super) fn validate_internal_unit_call_custody(
                                 || argument.fixed_array_length.is_some()
                                 || argument.element_stride.is_some()
                         }
+                        _ if exact_write_only_argument(argument_index, argument) => false,
                         [psi_terminal::StructuralPathSegment::FixedIndex(index)] => {
                             let expected_stride = u32::from(argument.shape.byte_size)
                                 .next_multiple_of(u32::from(argument.shape.alignment));
@@ -879,6 +973,9 @@ pub(super) fn validate_internal_unit_call_custody(
             let Some(argument) = custody.arguments.get(*index) else {
                 return true;
             };
+            if exact_write_only_argument(*index, argument) {
+                return false;
+            }
             argument.path.is_empty()
                 || (!fully_consumed_affine_pair
                     && affine_cleanup.is_none_or(|cleanup| {
@@ -1048,6 +1145,98 @@ pub(super) fn expected_projected_copy_bytes(
     target: NativeTarget,
     argument: &omega_machine_code::InternalUnitCallArgumentRecord,
 ) -> Option<Vec<u8>> {
+    if argument.shape.class == omega_calling_conventions::ValueClass::BorrowedReference
+        && argument.source.shape.class == omega_calling_conventions::ValueClass::BorrowedReference
+    {
+        let [
+            omega_calling_conventions::ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: None,
+                byte_size,
+                alignment,
+            },
+        ] = argument.destination.locations.as_slice()
+        else {
+            return None;
+        };
+        if *byte_size != argument.shape.byte_size || *alignment != argument.shape.alignment {
+            return None;
+        }
+        let home = argument
+            .call_stack_bytes
+            .checked_add(argument.source_home_byte_offset)?;
+        return match target.architecture {
+            Architecture::X86_64 => {
+                let destination = match *pointer {
+                    omega_calling_conventions::IndirectPointerLocation::Register(register) => {
+                        x86_terminal_register(register)?
+                    }
+                    omega_calling_conventions::IndirectPointerLocation::Stack { .. } => 11,
+                };
+                let mut bytes = Vec::new();
+                expected_x86_stack_load(&mut bytes, destination, home, 8)?;
+                if argument.source_byte_offset != 0 {
+                    bytes.extend_from_slice(&[
+                        0x48 | ((destination >> 3) & 1),
+                        0x81,
+                        0xc0 | (destination & 7),
+                    ]);
+                    bytes.extend_from_slice(&argument.source_byte_offset.to_le_bytes());
+                }
+                if let omega_calling_conventions::IndirectPointerLocation::Stack {
+                    stack_byte_offset,
+                    ..
+                } = *pointer
+                {
+                    expected_x86_stack_store(&mut bytes, destination, stack_byte_offset);
+                }
+                Some(bytes)
+            }
+            Architecture::Aarch64 => {
+                let destination = match *pointer {
+                    omega_calling_conventions::IndirectPointerLocation::Register(register) => {
+                        aarch64_terminal_register(register)?
+                    }
+                    omega_calling_conventions::IndirectPointerLocation::Stack { .. } => 9,
+                };
+                let mut instructions = vec![expected_aarch64_stack_load(destination, home, 8)?];
+                let upper = argument.source_byte_offset >> 12;
+                let lower = argument.source_byte_offset & 0xfff;
+                if upper != 0 {
+                    instructions.push(
+                        0x9140_0000
+                            | (upper << 10)
+                            | (u32::from(destination) << 5)
+                            | u32::from(destination),
+                    );
+                }
+                if lower != 0 {
+                    instructions.push(
+                        0x9100_0000
+                            | (lower << 10)
+                            | (u32::from(destination) << 5)
+                            | u32::from(destination),
+                    );
+                }
+                if let omega_calling_conventions::IndirectPointerLocation::Stack {
+                    stack_byte_offset,
+                    ..
+                } = *pointer
+                {
+                    instructions.push(expected_aarch64_stack_store(
+                        destination,
+                        stack_byte_offset,
+                    )?);
+                }
+                Some(
+                    instructions
+                        .into_iter()
+                        .flat_map(u32::to_le_bytes)
+                        .collect(),
+                )
+            }
+        };
+    }
     let [
         omega_calling_conventions::ValueLocation::Register {
             register,

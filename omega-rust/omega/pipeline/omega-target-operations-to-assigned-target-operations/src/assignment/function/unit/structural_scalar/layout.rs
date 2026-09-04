@@ -19,6 +19,18 @@ pub(in crate::assignment::function) fn declaration_map(
     (map.len() == declarations.len()).then_some(map)
 }
 
+pub(in crate::assignment::function) fn structural_value_shape(
+    structural_type: StructuralTypeId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<ValueShape> {
+    structural_shape(
+        structural_type,
+        declarations,
+        &mut BTreeMap::new(),
+        &mut Vec::new(),
+    )
+}
+
 pub(in crate::assignment::function) fn resolve_field_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -62,6 +74,44 @@ pub(in crate::assignment::function) fn resolve_field_path(
         let (nested, shape, offset) = selected?;
         total_offset = total_offset.checked_add(offset)?;
         structural_type = nested;
+        selected_shape = Some(shape);
+    }
+    Some((structural_type, selected_shape?, total_offset))
+}
+
+pub(in crate::assignment::function) fn resolve_projection_path(
+    mut structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<(StructuralTypeId, ValueShape, u32)> {
+    let mut total_offset = 0_u32;
+    let mut selected_shape = None;
+    let mut cache = BTreeMap::new();
+    let mut active = Vec::new();
+    for segment in path {
+        let (selected_type, shape, local_offset) = match segment {
+            StructuralPathSegment::Field(_) => {
+                resolve_field_path(structural_type, std::slice::from_ref(segment), declarations)?
+            }
+            StructuralPathSegment::FixedIndex(index) => {
+                let StructuralTypeShape::FixedArray { element, length } =
+                    declarations.get(&structural_type)?.shape
+                else {
+                    return None;
+                };
+                if *index >= length {
+                    return None;
+                }
+                let shape = structural_shape(element, declarations, &mut cache, &mut active)?;
+                let stride = align(u32::from(shape.byte_size), u32::from(shape.alignment))?;
+                let offset = u64::from(stride)
+                    .checked_mul(*index)
+                    .and_then(|offset| u32::try_from(offset).ok())?;
+                (element, shape, offset)
+            }
+        };
+        total_offset = total_offset.checked_add(local_offset)?;
+        structural_type = selected_type;
         selected_shape = Some(shape);
     }
     Some((structural_type, selected_shape?, total_offset))
@@ -140,6 +190,17 @@ fn structural_shape(
     }
     active.push(structural_type);
     let shape = match &declarations.get(&structural_type)?.shape {
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) => {
+            let size = integer.bits().div_ceil(8);
+            ValueShape::integer(size, size.next_power_of_two().min(8))
+        }
+        StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => {
+            ValueShape::float(4)
+        }
+        StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)) => {
+            ValueShape::float(8)
+        }
         StructuralTypeShape::Record { fields } => {
             let mut size = 0_u32;
             let mut alignment = 1_u16;

@@ -166,7 +166,10 @@ storage containing no live `T` is a separate feature.
 > through recursively literal fixed arrays, either directly or after the
 > eligible field prefix, when the ultimate leaf is an unrestricted non-Atomic
 > primitive. The ordered fields and `FixedIndex` suffix cross checked and
-> Terminal replay.
+> Terminal replay. Direct Unit calls also carry that exact path through native
+> assignment, pointer adjustment, object construction, and installed replay on
+> Linux x86-64 and AArch64; each stage reconstructs the offset from the retained
+> structural declarations.
 > It cannot be retained in a local alias. Dynamic and range
 > subloans remain gated, as do whole nested-array and aggregate elements,
 > record-held slice descriptors, sum projection, and opaque providers.

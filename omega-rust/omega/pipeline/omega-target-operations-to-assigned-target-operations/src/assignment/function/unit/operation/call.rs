@@ -2,6 +2,63 @@
 
 use super::*;
 
+fn exact_write_only_projection(
+    body: &omega_target_operations::TargetUnitBody,
+    source: &omega_target_operations::TargetStructuralParameter,
+    argument: &omega_target_operations::TargetStructuralArgument,
+) -> bool {
+    let Some(first_index) = argument
+        .path
+        .iter()
+        .position(|segment| matches!(segment, psi_terminal::StructuralPathSegment::FixedIndex(_)))
+    else {
+        return false;
+    };
+    if argument.access != psi_terminal::StructuralAccess::WriteOnlyBorrow
+        || source.access != psi_terminal::StructuralAccess::WriteOnlyBorrow
+        || source.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
+        || argument.fixed_array_length.is_some()
+        || argument.element_stride.is_some()
+        || !argument.path[..first_index].iter().all(|segment| {
+            matches!(segment,
+                psi_terminal::StructuralPathSegment::Field(identity) if !identity.is_empty())
+        })
+        || !argument.path[first_index..]
+            .iter()
+            .all(|segment| matches!(segment, psi_terminal::StructuralPathSegment::FixedIndex(_)))
+    {
+        return false;
+    }
+    let Some(declarations) = structural_scalar::declaration_map(&body.structural_types) else {
+        return false;
+    };
+    let Some((leaf_type, leaf_shape, byte_offset)) = structural_scalar::resolve_projection_path(
+        source.structural_type,
+        &argument.path,
+        &declarations,
+    ) else {
+        return false;
+    };
+    let Some(root_shape) =
+        structural_scalar::structural_value_shape(source.structural_type, &declarations)
+    else {
+        return false;
+    };
+    matches!(
+        declarations
+            .get(&leaf_type)
+            .map(|declaration| &declaration.shape),
+        Some(psi_terminal::StructuralTypeShape::PrimitiveScalar(_))
+    ) && argument.root_structural_type == source.structural_type
+        && source.projected_qualifications.is_empty()
+        && source.shape
+            == ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment)
+        && argument.structural_type == leaf_type
+        && argument.shape
+            == ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment)
+        && argument.source_byte_offset == byte_offset
+}
+
 pub(super) fn assign(
     machine: MachineId,
     body: &omega_target_operations::TargetUnitBody,
@@ -141,11 +198,21 @@ pub(super) fn assign(
             })
             .collect::<Result<Vec<_>, AssignmentError>>()?;
         if arguments.iter().any(|argument| {
-                let parameter_source = body.parameters.iter().any(|parameter| {
+                let parameter_source = body.parameters.iter().find(|parameter| {
                     parameter.place == argument.place
                         && parameter.structural_type == argument.root_structural_type
                         && parameter.shape == argument.source.shape
                         && parameter.placement == argument.source
+                });
+                let parameter_source = parameter_source.is_some_and(|parameter| {
+                    if argument.path.iter().any(|segment| {
+                        matches!(segment, psi_terminal::StructuralPathSegment::FixedIndex(_))
+                    }) && argument.access == psi_terminal::StructuralAccess::WriteOnlyBorrow
+                    {
+                        exact_write_only_projection(body, parameter, argument)
+                    } else {
+                        true
+                    }
                 });
                 let trivial_local_source = preceding_operations
                     .iter()
