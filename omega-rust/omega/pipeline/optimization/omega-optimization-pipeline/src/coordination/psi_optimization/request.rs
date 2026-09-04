@@ -77,8 +77,8 @@ impl From<ExplicitOptimizationRequest> for OptimizationPipelineRequest {
 /// optimization level or an intensity preset.
 pub fn compiler_baseline_request_v1(
     selections: &OptimizationSelections,
-) -> Result<ExplicitOptimizationRequest, EmptyOptimizationSelections> {
-    ExplicitOptimizationRequest::new(selections.clone(), compiler_baseline_budget_v1())
+) -> OptimizationPipelineRequest {
+    OptimizationPipelineRequest::new(selections.clone(), compiler_baseline_budget_v1())
 }
 
 fn compiler_baseline_budget_v1() -> OptimizationWorkBudget {
