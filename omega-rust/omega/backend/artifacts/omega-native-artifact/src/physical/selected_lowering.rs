@@ -115,7 +115,7 @@ pub(crate) fn validate_selected_lowering_publication_object(
 }
 
 fn validate_return_only_machine_plan(plan: &MachineCodePlan) -> Result<(), &'static str> {
-    validate_cohort_target(plan.target)?;
+    let return_bytes = cohort_return_bytes(plan.target)?;
     if plan.functions.is_empty() {
         return Err("selected-lowering publication requires at least one machine function");
     }
@@ -127,7 +127,7 @@ fn validate_return_only_machine_plan(plan: &MachineCodePlan) -> Result<(), &'sta
         }
         previous = Some(function.machine);
         entry_count += usize::from(function.machine == plan.entry);
-        validate_return_only_machine_function(function)?;
+        validate_return_only_machine_function(function, return_bytes)?;
     }
     if entry_count != 1 {
         return Err("selected-lowering machine plan does not contain exactly one entry");
@@ -137,6 +137,7 @@ fn validate_return_only_machine_plan(plan: &MachineCodePlan) -> Result<(), &'sta
 
 fn validate_return_only_machine_function(
     function: &MachineCodeFunction,
+    return_bytes: &[u8],
 ) -> Result<(), &'static str> {
     let [return_edge] = function.provenance.edges.as_slice() else {
         return Err("selected-lowering return-only function requires one Terminal return edge");
@@ -151,7 +152,7 @@ fn validate_return_only_machine_function(
         return Err("selected-lowering return-only function requires Unit cleanup custody");
     };
     if !function.provenance.operations.is_empty()
-        || function.bytes.as_slice() != [0xc3]
+        || function.bytes.as_slice() != return_bytes
         || function.fixed_integer_scalar_abi.is_some()
         || function.mixed_structural_scalar_abi.is_some()
         || function.structural_call_scalar_return.is_some()
@@ -207,7 +208,7 @@ fn validate_return_only_machine_function(
 fn validate_return_only_object(
     object: &omega_image_emission::ObjectArtifact,
 ) -> Result<(), &'static str> {
-    validate_cohort_target(object.target())?;
+    let return_bytes = cohort_return_bytes(object.target())?;
     if object.functions().is_empty()
         || !object.private_functions().is_empty()
         || object.relocations().record_count() != 0
@@ -239,7 +240,7 @@ fn validate_return_only_object(
         expected_text_offset = expected_text_offset
             .checked_add(function.byte_count)
             .ok_or("selected-lowering object text size overflows")?;
-        validate_return_only_object_function(object, function)?;
+        validate_return_only_object_function(object, function, return_bytes)?;
     }
     if entry_count != 1 || expected_text_offset != object.text_bytes().len() {
         return Err(
@@ -252,6 +253,7 @@ fn validate_return_only_object(
 fn validate_return_only_object_function(
     object: &omega_image_emission::ObjectArtifact,
     function: &omega_image_emission::ObjectFunction,
+    return_bytes: &[u8],
 ) -> Result<(), &'static str> {
     let [return_edge] = function.provenance.edges.as_slice() else {
         return Err("selected-lowering object function requires one Terminal return edge");
@@ -271,7 +273,7 @@ fn validate_return_only_object_function(
         return Err("selected-lowering object function requires one edge attribution");
     };
     if !function.provenance.operations.is_empty()
-        || function.bytes(object) != [0xc3]
+        || function.bytes(object) != return_bytes
         || function.fixed_integer_scalar_abi.is_some()
         || function.mixed_structural_scalar_abi.is_some()
         || function.structural_call_scalar_return.is_some()
@@ -322,14 +324,21 @@ fn validate_return_only_object_function(
     Ok(())
 }
 
-fn validate_cohort_target(target: NativeTarget) -> Result<(), &'static str> {
-    if target.architecture != Architecture::X86_64
-        || target.pointer_size != 8
-        || target.pointer_alignment != 8
-    {
-        return Err("selected-lowering return-only publication currently requires x86-64");
+/// Exact return encoding the cohort admits for this target.
+///
+/// The cohort is one bare return instruction, so the architecture is fully
+/// described by the bytes it must contain. Returning them here keeps the
+/// admitted target set and the admitted text in one place.
+fn cohort_return_bytes(target: NativeTarget) -> Result<&'static [u8], &'static str> {
+    if target.pointer_size != 8 || target.pointer_alignment != 8 {
+        return Err(
+            "selected-lowering return-only publication requires an eight-byte pointer target",
+        );
     }
-    Ok(())
+    Ok(match target.architecture {
+        Architecture::X86_64 => &[0xc3],
+        Architecture::Aarch64 => &[0xc0, 0x03, 0x5f, 0xd6],
+    })
 }
 
 fn machine_projection_from_plan(plan: &MachineCodePlan) -> [u8; 32] {

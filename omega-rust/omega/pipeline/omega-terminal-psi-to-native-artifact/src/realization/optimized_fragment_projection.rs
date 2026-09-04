@@ -109,12 +109,17 @@ fn project_return_only_unit_fragments(
     validate_optimized_function_fragment_emission(staged)
         .map_err(|_| "optimized fragment custody failed replay")?;
     let fragments = staged.fragments();
-    if fragments.target.architecture != omega_target::Architecture::X86_64
-        || fragments.target.pointer_size != 8
-        || fragments.target.pointer_alignment != 8
-    {
-        return Err("optimized return-only publication currently requires x86-64");
-    }
+    let return_bytes: &[u8] = match (
+        fragments.target.architecture,
+        fragments.target.pointer_size,
+        fragments.target.pointer_alignment,
+    ) {
+        (omega_target::Architecture::X86_64, 8, 8) => &[0xc3],
+        (omega_target::Architecture::Aarch64, 8, 8) => &[0xc0, 0x03, 0x5f, 0xd6],
+        _ => {
+            return Err("optimized return-only publication requires an eight-byte pointer target");
+        }
+    };
     if !fragments.structural_unit_functions.is_empty() {
         return Err("optimized native publication does not yet admit structural Unit fragments");
     }
@@ -122,7 +127,7 @@ fn project_return_only_unit_fragments(
     let functions = fragments
         .functions
         .iter()
-        .map(project_function)
+        .map(|fragment| project_function(fragment, return_bytes))
         .collect::<Result<Vec<_>, _>>()?;
     if functions.is_empty() {
         return Err("optimized native publication requires at least one function");
@@ -138,6 +143,7 @@ fn project_return_only_unit_fragments(
 
 fn project_function(
     fragment: &omega_machine_code::FunctionFragment,
+    return_bytes: &[u8],
 ) -> Result<MachineCodeFunction, &'static str> {
     let [block] = fragment.blocks.as_slice() else {
         return Err(
@@ -162,7 +168,7 @@ fn project_function(
         || instruction.provenance.edges.as_slice() != [psi_return_edge]
         || !fragment.provenance.operations.is_empty()
         || fragment.provenance.edges.as_slice() != [psi_return_edge]
-        || fragment.bytes.as_slice() != [0xc3]
+        || fragment.bytes.as_slice() != return_bytes
         || block.offset != 0
         || block.byte_count != fragment.byte_count
         || instruction.offset != 0
@@ -247,8 +253,12 @@ mod tests {
     use omega_target_operations::TerminalPsiProvenance;
     use psi_core::{EdgeId, MachineId};
 
-    fn return_fragment() -> FunctionFragment {
+    const X86_RETURN: &[u8] = &[0xc3];
+    const AARCH64_RETURN: &[u8] = &[0xc0, 0x03, 0x5f, 0xd6];
+
+    fn return_fragment(return_bytes: &[u8]) -> FunctionFragment {
         let edge = EdgeId::new(7).expect("edge");
+        let byte_count = return_bytes.len() as u64;
         FunctionFragment {
             machine: MachineId::new(3).expect("machine"),
             attachment: None,
@@ -256,12 +266,12 @@ mod tests {
                 operations: Vec::new(),
                 edges: vec![edge],
             },
-            byte_count: 1,
-            bytes: vec![0xc3],
+            byte_count,
+            bytes: return_bytes.to_vec(),
             blocks: vec![FunctionFragmentBlockSpan {
                 block: SelectedBlockId(0),
                 offset: 0,
-                byte_count: 1,
+                byte_count,
                 instructions: vec![FunctionFragmentInstructionSpan {
                     instruction: SelectedInstructionId(0),
                     alternative: MachineAlternativeKey {
@@ -269,7 +279,7 @@ mod tests {
                         variant: 0,
                     },
                     offset: 0,
-                    bytes: vec![0xc3],
+                    bytes: return_bytes.to_vec(),
                     branch: None,
                     internal_machine_fixup: None,
                     provenance: SelectedInstructionProvenance {
@@ -289,22 +299,36 @@ mod tests {
 
     #[test]
     fn exact_return_projects_explicit_empty_unit_custody() {
-        let projected = project_function(&return_fragment()).expect("exact Unit return");
-        assert_eq!(projected.bytes, [0xc3]);
-        assert!(projected.unit_stack.is_some());
-        assert!(projected.unit_affine_cleanup.is_some());
-        assert_eq!(projected.semantic_code_attribution.len(), 1);
+        for return_bytes in [X86_RETURN, AARCH64_RETURN] {
+            let projected = project_function(&return_fragment(return_bytes), return_bytes)
+                .expect("exact Unit return");
+            assert_eq!(projected.bytes, return_bytes);
+            let stack = projected.unit_stack.expect("Unit stack evidence");
+            assert!(stack.frame.is_none());
+            assert!(stack.aarch64_return_link.is_none());
+            assert_eq!(stack.stack_alignment, 16);
+            assert!(projected.unit_affine_cleanup.is_some());
+            assert_eq!(projected.semantic_code_attribution.len(), 1);
+        }
     }
 
     #[test]
     fn altered_return_family_or_bytes_rejects() {
-        let mut wrong_family = return_fragment();
-        wrong_family.blocks[0].instructions[0].alternative.family =
-            MachineAlternativeFamily::ReturnI64;
-        assert!(project_function(&wrong_family).is_err());
+        for return_bytes in [X86_RETURN, AARCH64_RETURN] {
+            let mut wrong_family = return_fragment(return_bytes);
+            wrong_family.blocks[0].instructions[0].alternative.family =
+                MachineAlternativeFamily::ReturnI64;
+            assert!(project_function(&wrong_family, return_bytes).is_err());
 
-        let mut wrong_bytes = return_fragment();
-        wrong_bytes.blocks[0].instructions[0].bytes[0] = 0x90;
-        assert!(project_function(&wrong_bytes).is_err());
+            let mut wrong_bytes = return_fragment(return_bytes);
+            wrong_bytes.blocks[0].instructions[0].bytes[0] = 0x90;
+            assert!(project_function(&wrong_bytes, return_bytes).is_err());
+        }
+    }
+
+    #[test]
+    fn one_architectures_return_encoding_rejects_under_the_other() {
+        assert!(project_function(&return_fragment(X86_RETURN), AARCH64_RETURN).is_err());
+        assert!(project_function(&return_fragment(AARCH64_RETURN), X86_RETURN).is_err());
     }
 }
