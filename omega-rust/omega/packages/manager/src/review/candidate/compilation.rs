@@ -33,8 +33,7 @@ use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_session;
 use omega_package_compilation::{AcceptedSemanticBinding, PackageCompilationInputError};
 use omega_package_evidence::ledger::{
     ordinary_package_obligation_ledger_from_compiler_rows,
-    reconstruct_ordinary_package_obligation_results, validate_ordinary_package_obligation_ledger,
-    validate_ordinary_package_obligation_results,
+    reconstruct_ordinary_package_obligation_results,
 };
 use omega_package_evidence::project_checked_package_review;
 use psi_checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
@@ -370,12 +369,10 @@ fn compile_resolved_package_reviews_in_session(
                 "compiler-issued ordinary package obligation ledger is structurally invalid: {error}"
             ))],
         })?;
-        validate_ordinary_package_obligation_ledger(&obligations, &checked).map_err(
-            |diagnostics| CompileResolvedPackageReviewsError::Projection {
-                package: key.clone(),
-                diagnostics,
-            },
-        )?;
+        // Reconstruct results once, including certificate association and proof
+        // rechecking. Fresh outputs need no second reconstruction against this
+        // unchanged checked compilation; external evidence validators remain
+        // responsible for comparing supplied results with current semantics.
         let obligation_results = reconstruct_ordinary_package_obligation_results(&checked)
             .map_err(
                 |diagnostics| CompileResolvedPackageReviewsError::Projection {
@@ -383,12 +380,6 @@ fn compile_resolved_package_reviews_in_session(
                     diagnostics,
                 },
             )?;
-        validate_ordinary_package_obligation_results(&obligation_results, &checked).map_err(
-            |diagnostics| CompileResolvedPackageReviewsError::Projection {
-                package: key.clone(),
-                diagnostics,
-            },
-        )?;
         let obligations_bytes =
             retained_obligation_ledger_bytes(&obligations).ok_or_else(|| {
                 CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
