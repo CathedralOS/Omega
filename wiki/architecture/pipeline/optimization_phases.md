@@ -200,8 +200,11 @@ route and silently fall back. Consequently every selected-pipeline result owns a
 non-optional function-relative manifest. The remaining transitional split is one
 layer out: `NativePhysicalStageResult` still carries assigned operations in its
 ordinary and ranked identity arms but a completed optimizer-owned physical result
-in its selected arm. The public request surface uses the closed post-Terminal
-selection type, so this transitional branch cannot reopen an earlier phase.
+in its optimized arm. Every optimizer-owned arm then enters one function-fragment
+emission stage; the first native projection admits an exact return-only Unit
+shape and does not inspect which physical optimization variant produced it. The
+public request surface uses the closed post-Terminal selection type, so this
+transitional branch cannot reopen an earlier phase.
 
 Migration proceeds in dependency order:
 
@@ -227,11 +230,13 @@ Migration proceeds in dependency order:
    realization; it does not try one route and fall back to another. Its public
    function-relative manifest is therefore non-optional for every route. The
    outer Terminal-to-native physical result still mixes assigned ordinary/ranked
-   identity plans with the selected optimizer result. Replace that mixed-depth
-   carrier with one common physical postcondition, then widen fragment emission
-   and publication beyond the selected-lowering route. Preserve role-specific
-   authority carriers such as ranked execution without using them as
-   optimization bypasses.
+   identity plans with the optimized result. Optimizer-owned routes already
+   converge through function-fragment emission and the bounded native projection
+   is shape-driven rather than variant-driven. Replace the remaining mixed-depth
+   outer carrier with one common physical postcondition, then extend native
+   projection to the remaining validated fragment shapes. Preserve role-specific
+   authority carriers such as ranked execution without using them as optimization
+   bypasses.
 6. Add checked-tree pruning only after its product-root identity, ownership,
    proof, effect, and boundary-retention rules are independently reconstructible.
 7. Remove transitional names, branches, and documentation only after ordinary,

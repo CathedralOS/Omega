@@ -7,7 +7,7 @@ use crate::realization::target_stage::NativeTargetStageResult;
 use psi_diagnostics::Diagnostic;
 
 #[derive(Debug)]
-pub(crate) struct SelectedNativePhysicalStage {
+pub(crate) struct OptimizedNativePhysicalStage {
     pub(crate) physical: omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline,
     pub(crate) optimized_plan: omega_abstract_operations::AbstractOperationPlan,
     pub(crate) terminal: psi_terminal::TerminalPsiIdentity,
@@ -25,7 +25,7 @@ pub(crate) struct SelectedNativePhysicalStage {
 pub(crate) enum NativePhysicalStageResult {
     IdentityOrdinary(omega_assigned_target_operations::AssignedOperationPlanWithNativeCallbacks),
     IdentityRanked(omega_assigned_target_operations::AssignedOperationPlan),
-    Selected(Box<SelectedNativePhysicalStage>),
+    Optimized(Box<OptimizedNativePhysicalStage>),
 }
 
 pub(crate) fn lower_realization_physical_stage(
@@ -62,8 +62,8 @@ pub(crate) fn lower_realization_physical_stage(
                     error,
                 )
             })?;
-            Ok(NativePhysicalStageResult::Selected(Box::new(
-                SelectedNativePhysicalStage {
+            Ok(NativePhysicalStageResult::Optimized(Box::new(
+                OptimizedNativePhysicalStage {
                     physical,
                     optimized_plan,
                     terminal: optimized_validation.psi(),

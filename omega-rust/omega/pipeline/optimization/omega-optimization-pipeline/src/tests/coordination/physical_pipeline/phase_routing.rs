@@ -5,8 +5,8 @@ use omega_optimization_core::PostTerminalOptimizationSelections;
 use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, FunctionRelativeOptimizationUnavailableData,
     NativeTarget, Optimization, OptimizationReportRequest, OptimizationSelections,
-    OptimizedVerifiedPhysicalPipelineError, StagedOptimizedVerifiedPhysicalPipeline,
-    conditional_exact_binary_artifact,
+    OptimizedVerifiedPhysicalPipelineError, StagedOptimizedFunctionFragmentEmissionSource,
+    StagedOptimizedVerifiedPhysicalPipeline, conditional_exact_binary_artifact,
     lower_optimized_to_target_operations_with_provider_executions, optimization_pipeline_report,
     optimize_artifact_sections, selected_lowering_budget,
     stage_optimized_verified_physical_pipeline,
@@ -67,6 +67,10 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
         assert!(text.contains("[pre-physical]"));
         assert!(text.contains("[post-allocation]"));
         assert!(text.contains("[function-relative realization]"));
+        assert!(matches!(
+            staged.into_function_fragment_emission_source(),
+            StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(_)
+        ));
 
         for selections in [
             OptimizationSelections::new([

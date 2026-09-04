@@ -1,13 +1,11 @@
 use crate::realization::callback_machine_code::emit_callback_thunks;
-use crate::realization::diagnostics::{
-    realization_error, selected_physical_pipeline_not_publishable,
-};
+use crate::realization::diagnostics::realization_error;
 use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::optimized_fragment_projection::{
+    OptimizedFragmentPublicationRequest, emit_return_only_optimized_fragments,
+};
 use crate::realization::physical_stage::{
     NativePhysicalStageResult, lower_realization_physical_stage,
-};
-use crate::realization::selected_lowering_projection::{
-    SelectedLoweringPublicationRequest, emit_return_only_selected_lowering,
 };
 use crate::realization::target_stage::lower_realization_target_stage;
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
@@ -58,36 +56,26 @@ pub(crate) fn emit_realization_machine_code(
                 physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
-        NativePhysicalStageResult::Selected(selected) => {
-            match selected.physical {
-                omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering {
-                    realization,
-                } => {
-                    let (plan, physical_evidence_scope) = emit_return_only_selected_lowering(
-                        realization,
-                        SelectedLoweringPublicationRequest {
-                            has_provider_installation: selected.has_provider_installation,
-                            has_boundary_settlements: !settlements.is_empty(),
-                            boundary_application_coverage,
-                            optimized_plan: &selected.optimized_plan,
-                            terminal: selected.terminal,
-                            validation: selected.validation,
-                            final_unit: selected.final_unit,
-                        },
-                    )?;
-                    Ok(EmittedRealizationMachineCode {
-                        machine_code: MachineCodePlanWithPrivateFunctions {
-                            plan,
-                            private_functions: Vec::new(),
-                        },
-                        physical_evidence_scope,
-                    })
-                }
-                other => Err(selected_physical_pipeline_not_publishable(
-                    request.optimization_selections.selections(),
-                    &other,
-                )),
-            }
+        NativePhysicalStageResult::Optimized(optimized) => {
+            let (plan, physical_evidence_scope) = emit_return_only_optimized_fragments(
+                optimized.physical,
+                OptimizedFragmentPublicationRequest {
+                    has_provider_installation: optimized.has_provider_installation,
+                    has_boundary_settlements: !settlements.is_empty(),
+                    boundary_application_coverage,
+                    optimized_plan: &optimized.optimized_plan,
+                    terminal: optimized.terminal,
+                    validation: optimized.validation,
+                    final_unit: optimized.final_unit,
+                },
+            )?;
+            Ok(EmittedRealizationMachineCode {
+                machine_code: MachineCodePlanWithPrivateFunctions {
+                    plan,
+                    private_functions: Vec::new(),
+                },
+                physical_evidence_scope,
+            })
         }
     }
 }
