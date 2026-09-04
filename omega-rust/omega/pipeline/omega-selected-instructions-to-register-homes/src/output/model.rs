@@ -112,3 +112,9 @@ impl std::fmt::Display for AllocationReplayError {
 }
 
 impl std::error::Error for AllocationReplayError {}
+
+impl From<std::convert::Infallible> for AllocationReplayError {
+    fn from(error: std::convert::Infallible) -> Self {
+        match error {}
+    }
+}

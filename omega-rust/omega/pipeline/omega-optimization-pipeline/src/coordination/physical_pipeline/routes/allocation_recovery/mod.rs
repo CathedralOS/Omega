@@ -3,46 +3,24 @@
 mod active_resident;
 mod fixed_view;
 
-use omega_machine_optimizer::PostAllocationMachineRuleCatalogEntry;
 use omega_optimization_core::Optimization;
 
-use crate::{
-    StagedOptimizedVerifiedPhysicalPipeline, ValidatedOptimizedTargetOperations,
-    baseline_target_register_environment, stage_optimized_live_ranges, stage_optimized_liveness,
-};
+use crate::{StagedOptimizedLiveRanges, StagedOptimizedVerifiedPhysicalPipeline};
 
 use super::super::OptimizedVerifiedPhysicalPipelineError;
 use active_resident::stage_active_resident;
 use fixed_view::stage_fixed_view;
 
 pub(in crate::coordination::physical_pipeline) fn stage_allocation_recovery_pipeline(
-    optimized_target: ValidatedOptimizedTargetOperations,
+    ranges: StagedOptimizedLiveRanges,
     rule: Optimization,
-    post_allocation: Option<PostAllocationMachineRuleCatalogEntry>,
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
-    let register_environment = baseline_target_register_environment(optimized_target.target())
-        .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
-    let selected =
-        omega_target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-            optimized_target,
-            register_environment,
-        )
-        .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)?;
-    let liveness = stage_optimized_liveness(selected)
-        .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;
-    let ranges = stage_optimized_live_ranges(liveness)
-        .map_err(OptimizedVerifiedPhysicalPipelineError::LiveRanges)?;
     match rule {
         Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
-            if post_allocation.is_some() {
-                return Err(
-                    OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
-                );
-            }
             stage_fixed_view(ranges)
         }
         Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1 => {
-            stage_active_resident(ranges, post_allocation)
+            stage_active_resident(ranges)
         }
         _ => Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition),
     }

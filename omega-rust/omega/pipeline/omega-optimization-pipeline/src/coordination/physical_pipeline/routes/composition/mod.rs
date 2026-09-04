@@ -10,7 +10,7 @@ mod tests;
 use super::super::OptimizedVerifiedPhysicalPipelineError;
 use super::super::PhysicalOptimizationPhaseSelections;
 use crate::stages::layout::x86_branch_relaxation::x86_rel8_selected;
-pub(crate) use model::{ResolvedNonAllocationComposition, ResolvedPhysicalPhaseComposition};
+pub(crate) use model::{ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan};
 use omega_machine_optimizer::selected_post_allocation_machine_rule;
 use omega_optimization_core::Optimization;
 use omega_regalloc::{resolve_selected_lowering_rules, selected_allocation_recovery_rule};
@@ -78,23 +78,17 @@ pub(crate) fn resolve_physical_phase_composition(
     if !post_allocation.is_empty() {
         let (entry, _) = selected_post_allocation_machine_rule(post_allocation_phase, architecture)
             .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog)?;
-        return Ok(ResolvedPhysicalPhaseComposition::NonAllocation(
-            ResolvedNonAllocationComposition::PostAllocationMachine {
-                entry,
-                after_selected_lowering: !selected_lowering.is_empty(),
-            },
+        return Ok(ResolvedPhysicalPhaseComposition::Realization(
+            ResolvedRealizationPlan::PostAllocationMachine { entry },
         ));
     }
 
     let function_relative_layout = x86_rel8_selected(function_relative_phase, architecture)
         .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeLayoutRuleCatalog)?;
     let route = match (selected_lowering.is_empty(), function_relative_layout) {
-        (true, false) => ResolvedNonAllocationComposition::Identity,
-        (true, true) => ResolvedNonAllocationComposition::FunctionRelativeLayout,
-        (false, false) => ResolvedNonAllocationComposition::SelectedLowering,
-        (false, true) => {
-            ResolvedNonAllocationComposition::SelectedLoweringWithFunctionRelativeLayout
-        }
+        (true, false) => ResolvedRealizationPlan::Identity,
+        (true, true) => ResolvedRealizationPlan::FunctionRelativeLayout,
+        (false, _) => ResolvedRealizationPlan::SelectedLowering,
     };
-    Ok(ResolvedPhysicalPhaseComposition::NonAllocation(route))
+    Ok(ResolvedPhysicalPhaseComposition::Realization(route))
 }
