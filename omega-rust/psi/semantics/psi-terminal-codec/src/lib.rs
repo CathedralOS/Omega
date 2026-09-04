@@ -20,6 +20,7 @@ mod legacy_result_path_wire_tests;
 mod machine_wire;
 mod module_wire;
 mod obligation_ledger;
+mod optimization_execution;
 mod program_local_root_catalog;
 mod proof_bundle;
 mod proof_declaration_wire;
@@ -56,6 +57,12 @@ pub use obligation_ledger::{
     build_terminal_obligation_ledger, decode_terminal_obligation_ledger,
     encode_terminal_obligation_ledger, terminal_obligation_ledger_fingerprint,
     validate_terminal_obligation_ledger,
+};
+pub use optimization_execution::{
+    PsiOptimizationExecutionIdentity, PsiOptimizationExecutionRecord,
+    PsiOptimizationExecutionRecordBuildError, PsiOptimizationExecutionRecordDecodeError,
+    PsiOptimizationExecutionRecordError, build_identity_optimization_execution_record,
+    decode_psi_optimization_execution_record, encode_psi_optimization_execution_record,
 };
 pub use program_local_root_catalog::{
     ProgramLocalRootProducerCatalogError, VerifiedProgramLocalRootProducerCatalog,

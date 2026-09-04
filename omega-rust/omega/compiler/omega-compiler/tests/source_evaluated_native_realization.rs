@@ -37,6 +37,7 @@ fn replay_native_artifact_parts(
         psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
             &module,
             &proof,
+            parts.psi_artifact.optimization(),
             debug.as_ref(),
         )
         .expect("reconstruct canonical Terminal artifact"),

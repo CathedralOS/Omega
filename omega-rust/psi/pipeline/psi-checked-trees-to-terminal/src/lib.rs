@@ -1688,6 +1688,7 @@ pub fn finalize_terminal_artifact(
     psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
         &lowered.semantic_module,
         &lowered.proof_bundle,
+        optimized.execution(),
         lowered.debug_map.as_ref(),
     )
 }

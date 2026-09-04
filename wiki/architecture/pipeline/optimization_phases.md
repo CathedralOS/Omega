@@ -90,6 +90,15 @@ verified Terminal module and an Omega abstract operation plan, so it cannot be
 inserted at this seam unchanged: its target-neutral state must move to Psi or
 its target/lowering-shaped fields must be replaced.
 
+The canonical Terminal artifact retains the complete Psi optimization
+execution record: the exact selected pass set plus the semantic and proof
+identities before and after the stage. The artifact manifest binds the strong
+execution identity, and decoding independently checks that the record's output
+identities equal the decoded semantic and proof sections. An empty selection
+may claim only identical input and output products. Thus stopping compilation
+at Psi does not discard which target-neutral phase produced the portable
+artifact, and a later lowerer does not need frontend state to recover it.
+
 ## Checked-tree pruning
 
 Whole-program selection and unreachable-declaration pruning may earn a

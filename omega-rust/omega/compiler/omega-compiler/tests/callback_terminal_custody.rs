@@ -246,8 +246,13 @@ fn replay_copy_terminal_artifact(
         psi_terminal_codec::decode_debug_map(&module, bytes)
             .expect("decode copied Terminal debug map")
     });
-    psi_terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &proof, debug.as_ref())
-        .expect("rebuild independently replayed Terminal artifact")
+    psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &module,
+        &proof,
+        artifact.optimization(),
+        debug.as_ref(),
+    )
+    .expect("rebuild independently replayed Terminal artifact")
 }
 
 fn assert_custody_diagnostic(

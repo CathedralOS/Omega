@@ -16,7 +16,10 @@ pub(crate) fn canonical_artifact(
 ) -> psi_terminal_codec::CanonicalTerminalArtifact {
     let module = psi_terminal_codec::decode_module(semantic).unwrap();
     let proof = psi_terminal_codec::decode_proof_bundle(proof).unwrap();
-    psi_terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &proof, None).unwrap()
+    let optimization =
+        psi_terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
+    psi_terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &proof, &optimization, None)
+        .unwrap()
 }
 
 /// Build certificates for exact integer operations in a fixture.

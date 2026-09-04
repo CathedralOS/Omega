@@ -46,6 +46,7 @@ sha2 = "0.10.9"
 omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-optimization = { path = "../../../psi/representations/psi-optimization" }
 psi-terminal-interpreter = { path = "../../../psi/semantics/psi-terminal-interpreter" }
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }

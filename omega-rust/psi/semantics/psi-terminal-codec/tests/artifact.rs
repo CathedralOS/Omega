@@ -24,10 +24,22 @@ use psi_terminal::{
 };
 use psi_terminal_codec::{
     ArtifactManifestError, CanonicalTerminalArtifact, ProofCodecError, build_artifact_manifest,
-    current_rust_operation_semantics_trust_identity, current_terminal_trust_graph, decode_module,
-    decode_proof_bundle, encode_proof_bundle, proof_bundle_fingerprint,
-    render_verified_proof_synopsis, terminal_psi_identity, validate_artifact_manifest,
+    build_identity_optimization_execution_record, current_rust_operation_semantics_trust_identity,
+    current_terminal_trust_graph, decode_module, decode_proof_bundle, encode_proof_bundle,
+    proof_bundle_fingerprint, render_verified_proof_synopsis, terminal_psi_identity,
+    validate_artifact_manifest,
 };
+
+fn canonical_artifact(
+    module: &TerminalModule,
+    proof: &ProofBundle,
+    debug: Option<&psi_terminal_codec::TerminalDebugMap>,
+) -> CanonicalTerminalArtifact {
+    let optimization = build_identity_optimization_execution_record(module, proof)
+        .expect("identity optimization execution");
+    CanonicalTerminalArtifact::from_parts(module, proof, &optimization, debug)
+        .expect("canonical Terminal artifact")
+}
 use psi_terminal_verifier::{
     ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
     proof_recursive_component_identity, reconstruct_proof_recursive_component_obligations,
@@ -141,8 +153,7 @@ fn canonical_terminal_artifact_owns_and_replays_exact_sections() {
     verify_module(&module, &proof, &AdmissionProfile::default())
         .expect("representative Terminal module verifies");
 
-    let artifact = CanonicalTerminalArtifact::from_parts(&module, &proof, None)
-        .expect("canonical Terminal artifact");
+    let artifact = canonical_artifact(&module, &proof, None);
     artifact
         .validate()
         .expect("canonical artifact independently replays");
@@ -152,25 +163,44 @@ fn canonical_terminal_artifact_owns_and_replays_exact_sections() {
     );
     assert_eq!(decode_module(artifact.semantic_bytes()), Ok(module));
     assert_eq!(decode_proof_bundle(artifact.proof_bytes()), Ok(proof));
+    assert!(artifact.optimization().selections().is_empty());
+    assert_eq!(
+        artifact.manifest().optimization(),
+        artifact.optimization().identity()
+    );
     assert!(artifact.debug_bytes().is_none());
     assert!(artifact.manifest().installation().is_none());
 }
 
 #[test]
 fn canonical_terminal_artifact_transport_round_trips_without_producer_objects() {
-    let artifact =
-        CanonicalTerminalArtifact::from_parts(&semantic_module(), &kernel_bundle(), None)
-            .expect("canonical Terminal artifact");
+    let artifact = canonical_artifact(&semantic_module(), &kernel_bundle(), None);
     let identity = artifact.manifest().identity();
     let bytes = artifact.to_bytes();
     drop(artifact);
 
     assert_eq!(&bytes[..8], b"PSIART\0\0");
-    assert_eq!(&bytes[8..10], &1_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &2_u16.to_le_bytes());
     let decoded = CanonicalTerminalArtifact::from_bytes(&bytes)
         .expect("source-free Terminal artifact envelope");
     assert_eq!(decoded.manifest().identity(), identity);
     assert_eq!(decoded.to_bytes(), bytes);
+
+    let semantic_len = usize::try_from(u64::from_le_bytes(bytes[10..18].try_into().unwrap()))
+        .expect("semantic section length");
+    let proof_len = usize::try_from(u64::from_le_bytes(bytes[18..26].try_into().unwrap()))
+        .expect("proof section length");
+    let optimization_start = 35 + semantic_len + proof_len;
+    let mut corrupt_optimization = bytes.clone();
+    corrupt_optimization[optimization_start] ^= 1;
+    assert!(matches!(
+        CanonicalTerminalArtifact::from_bytes(&corrupt_optimization),
+        Err(
+            psi_terminal_codec::CanonicalTerminalArtifactError::Optimization(
+                psi_terminal_codec::PsiOptimizationExecutionRecordDecodeError::InvalidMagic
+            )
+        )
+    ));
 
     let mut wrong_magic = bytes.clone();
     wrong_magic[0] ^= 1;
@@ -184,13 +214,13 @@ fn canonical_terminal_artifact_transport_round_trips_without_producer_objects() 
     ));
 
     let mut stale = bytes.clone();
-    stale[8..10].copy_from_slice(&2_u16.to_le_bytes());
+    stale[8..10].copy_from_slice(&1_u16.to_le_bytes());
     assert!(matches!(
         CanonicalTerminalArtifact::from_bytes(&stale),
         Err(
             psi_terminal_codec::CanonicalTerminalArtifactError::Envelope(
                 psi_terminal_codec::CanonicalTerminalArtifactEnvelopeError::UnsupportedFormatMarker(
-                    2
+                    1
                 )
             )
         )
@@ -2089,12 +2119,22 @@ fn proof_replacement_and_attached_sections_change_only_their_identities() {
     verify_module(&module, &certificate, &AdmissionProfile::default()).unwrap();
 
     let semantic_identity = terminal_psi_identity(&module).unwrap();
-    let first =
-        build_artifact_manifest(&module, &kernel, Some(b"provider=A"), Some(b"source-map=A"))
-            .unwrap();
+    let kernel_optimization =
+        build_identity_optimization_execution_record(&module, &kernel).unwrap();
+    let certificate_optimization =
+        build_identity_optimization_execution_record(&module, &certificate).unwrap();
+    let first = build_artifact_manifest(
+        &module,
+        &kernel,
+        &kernel_optimization,
+        Some(b"provider=A"),
+        Some(b"source-map=A"),
+    )
+    .unwrap();
     let replacement = build_artifact_manifest(
         &module,
         &certificate,
+        &certificate_optimization,
         Some(b"provider=A"),
         Some(b"source-map=A"),
     )
@@ -2107,30 +2147,53 @@ fn proof_replacement_and_attached_sections_change_only_their_identities() {
     assert_eq!(first.installation(), replacement.installation());
     assert_eq!(first.debug(), replacement.debug());
 
-    let reinstalled =
-        build_artifact_manifest(&module, &kernel, Some(b"provider=B"), Some(b"source-map=A"))
-            .unwrap();
+    let reinstalled = build_artifact_manifest(
+        &module,
+        &kernel,
+        &kernel_optimization,
+        Some(b"provider=B"),
+        Some(b"source-map=A"),
+    )
+    .unwrap();
     assert_eq!(first.semantic(), reinstalled.semantic());
     assert_eq!(first.obligations(), reinstalled.obligations());
     assert_eq!(first.proof(), reinstalled.proof());
     assert_ne!(first.installation(), reinstalled.installation());
     assert_ne!(first.identity(), reinstalled.identity());
 
-    let stripped_debug =
-        build_artifact_manifest(&module, &kernel, Some(b"provider=A"), None).unwrap();
+    let stripped_debug = build_artifact_manifest(
+        &module,
+        &kernel,
+        &kernel_optimization,
+        Some(b"provider=A"),
+        None,
+    )
+    .unwrap();
     assert_eq!(first.semantic(), stripped_debug.semantic());
     assert_eq!(first.proof(), stripped_debug.proof());
     assert_eq!(first.installation(), stripped_debug.installation());
     assert_ne!(first.debug(), stripped_debug.debug());
     assert_ne!(first.identity(), stripped_debug.identity());
 
-    let empty_debug =
-        build_artifact_manifest(&module, &kernel, Some(b"provider=A"), Some(b"")).unwrap();
+    let empty_debug = build_artifact_manifest(
+        &module,
+        &kernel,
+        &kernel_optimization,
+        Some(b"provider=A"),
+        Some(b""),
+    )
+    .unwrap();
     assert_ne!(stripped_debug.debug(), empty_debug.debug());
     assert_ne!(stripped_debug.identity(), empty_debug.identity());
 
-    let equal_payloads =
-        build_artifact_manifest(&module, &kernel, Some(b"same"), Some(b"same")).unwrap();
+    let equal_payloads = build_artifact_manifest(
+        &module,
+        &kernel,
+        &kernel_optimization,
+        Some(b"same"),
+        Some(b"same"),
+    )
+    .unwrap();
     assert_ne!(
         equal_payloads.installation(),
         equal_payloads.debug(),
@@ -2140,6 +2203,7 @@ fn proof_replacement_and_attached_sections_change_only_their_identities() {
     validate_artifact_manifest(
         &module,
         &kernel,
+        &kernel_optimization,
         Some(b"provider=A"),
         Some(b"source-map=A"),
         first,
@@ -2149,6 +2213,7 @@ fn proof_replacement_and_attached_sections_change_only_their_identities() {
         validate_artifact_manifest(
             &module,
             &certificate,
+            &certificate_optimization,
             Some(b"provider=A"),
             Some(b"source-map=A"),
             first,

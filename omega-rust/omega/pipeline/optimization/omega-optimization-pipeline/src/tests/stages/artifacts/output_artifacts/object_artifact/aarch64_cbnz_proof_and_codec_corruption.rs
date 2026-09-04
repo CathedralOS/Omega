@@ -35,9 +35,16 @@ fn optimized_cbnz_object_artifact_retains_zero_span_and_rejects_detached_proof()
     let module = psi_terminal_codec::decode_module(&semantic).unwrap();
     let mut detached_proof = psi_terminal_codec::decode_proof_bundle(&proof).unwrap();
     detached_proof.evidence.pop();
-    let detached =
-        psi_terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &detached_proof, None)
+    let optimization =
+        psi_terminal_codec::build_identity_optimization_execution_record(&module, &detached_proof)
             .unwrap();
+    let detached = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &module,
+        &detached_proof,
+        &optimization,
+        None,
+    )
+    .unwrap();
     assert!(matches!(
         stage_validated_optimized_object_artifact(detached, object),
         Err(OptimizedObjectArtifactError::ProofMismatch)

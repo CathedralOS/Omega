@@ -192,6 +192,11 @@ fn selected_proof_closure_lowers_exact_recursive_component() {
     let _artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
         &lowered.semantic_module,
         &lowered.proof_bundle,
+        &psi_terminal_codec::build_identity_optimization_execution_record(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+        )
+        .expect("identity optimization execution"),
         lowered.debug_map.as_ref(),
     )
     .expect("canonical artifact");
@@ -245,6 +250,11 @@ fn selected_singleton_proof_closure_uses_the_grouped_certificate_path() {
     let _artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
         &lowered.semantic_module,
         &lowered.proof_bundle,
+        &psi_terminal_codec::build_identity_optimization_execution_record(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+        )
+        .expect("identity optimization execution"),
         lowered.debug_map.as_ref(),
     )
     .expect("canonical artifact");

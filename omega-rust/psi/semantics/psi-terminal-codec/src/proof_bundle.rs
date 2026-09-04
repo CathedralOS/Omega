@@ -41,6 +41,10 @@ const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 pub struct ProofBundleFingerprint([u8; 32]);
 
 impl ProofBundleFingerprint {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }

@@ -4,18 +4,14 @@
 //! publication. The phase consumes the complete unsealed Psi product and
 //! returns the only carrier accepted by canonical Terminal publication.
 
-mod identity;
 mod model;
 mod validation;
 
 use psi_optimization::PsiOptimizationSelections;
 
 use crate::LoweredTerminalPsi;
-use identity::execution_identity;
-pub use model::{
-    PsiOptimizationExecutionIdentity, PsiOptimizationExecutionRecord, PsiOptimizationStageError,
-    PsiOptimizationStageResult,
-};
+pub use model::{PsiOptimizationStageError, PsiOptimizationStageResult};
+pub use psi_terminal_codec::{PsiOptimizationExecutionIdentity, PsiOptimizationExecutionRecord};
 use validation::validate_carrier;
 
 /// Execute the selected target-neutral optimization phase over the complete
@@ -34,21 +30,14 @@ pub fn run_psi_optimization(
     }
 
     let (output_semantic, output_proof) = validate_carrier(&lowered)?;
-    let selection = selections.identity();
     let execution = PsiOptimizationExecutionRecord::new(
-        selection,
+        selections.clone(),
         input_semantic,
         input_proof,
         output_semantic,
         output_proof,
-        execution_identity(
-            selection,
-            input_semantic,
-            input_proof,
-            output_semantic,
-            output_proof,
-        ),
-    );
+    )
+    .map_err(PsiOptimizationStageError::InvalidExecutionRecord)?;
     Ok(PsiOptimizationStageResult::new(
         lowered, selections, execution,
     ))
