@@ -3,13 +3,11 @@
 pub(crate) mod artifacts;
 pub(crate) mod encoding;
 pub(crate) mod layout;
-pub(crate) mod machine;
 pub(crate) mod realization;
 
 pub use artifacts::*;
 pub use encoding::*;
 pub use layout::*;
-pub use machine::*;
 pub use omega_abstract_operations_to_target_operations::{
     ValidatedOptimizedTargetOperations, lower_optimized_to_target_operations,
     lower_optimized_to_target_operations_with_ieee_float_fma_settlements,
@@ -25,6 +23,7 @@ pub use omega_fixed_view_copies_to_reanalyzed_legality::*;
 pub use omega_literal_folds_to_register_homes::*;
 pub use omega_live_ranges_to_allocation_legality::*;
 pub use omega_liveness_to_live_ranges::*;
+pub use omega_post_allocation_machine_to_optimized_machine::*;
 pub use omega_regalloc::ORDERED_ALLOCATION_RECOVERY_RULES;
 pub use omega_register_homes_to_callee_saved_requirements::*;
 pub use omega_register_homes_to_post_allocation_machine::*;
