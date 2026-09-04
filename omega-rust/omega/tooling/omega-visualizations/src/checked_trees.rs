@@ -1,3 +1,6 @@
+//! Eight JSON manifests over the checked trees, each panicking rather than emitting
+//! a row it could not resolve exactly.
+
 use psi_checked_trees::CheckedTrees;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::machine::Machine;

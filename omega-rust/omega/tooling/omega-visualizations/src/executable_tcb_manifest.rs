@@ -1,3 +1,6 @@
+//! The trusted-computing-base manifest as JSON, rendered from omega-effects
+//! carriers.
+
 use omega_effects::{
     ExecutableEntryOrigin, ExecutableIdentity, ExecutableTcbEntry, ExecutionScope,
     ImplementationEvidence, IncompleteCause, OpaqueInProcessBinding, ProviderIdentity,
