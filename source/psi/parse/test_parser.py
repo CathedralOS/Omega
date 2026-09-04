@@ -23,7 +23,8 @@ class Observation:
     ]
     data_members: tuple[tuple[int, int, int, int, int], ...]
     fields: tuple[tuple[int, int, int, int, int, int, int], ...]
-    cases: tuple[tuple[int, int, int, int, int, int], ...]
+    payload_fields: tuple[tuple[int, int, int, int, int, int, int], ...]
+    cases: tuple[tuple[int, int, int, int, int, int, int, int], ...]
     type_references: tuple[tuple[int, int, int, int, int, int, int], ...]
 
 
@@ -69,8 +70,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR3\0"
-    assert reader.u64() == 3
+    assert reader.bytes(8) == b"OMGPAR4\0"
+    assert reader.u64() == 4
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -121,8 +122,22 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    payload_fields = tuple(
+        (
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
     cases = tuple(
         (
+            reader.u64(),
+            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -155,6 +170,7 @@ def decode(payload: bytes) -> Observation:
         data_items,
         data_members,
         fields,
+        payload_fields,
         cases,
         type_references,
     )
@@ -239,8 +255,9 @@ def accepted(
     ] = (),
     data_members: tuple[tuple[int, int, int, int, int], ...] = (),
     fields: tuple[tuple[int, int, int, int, int, int, int], ...] = (),
-    cases: tuple[tuple[int, int, int, int, int, int], ...] = (),
+    cases: tuple[tuple[int, int, int, int, int, int, int, int], ...] = (),
     type_references: tuple[tuple[int, int, int, int, int, int, int], ...] = (),
+    payload_fields: tuple[tuple[int, int, int, int, int, int, int], ...] = (),
 ) -> None:
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
@@ -255,6 +272,7 @@ def accepted(
         data_items,
         data_members,
         fields,
+        payload_fields,
         cases,
         type_references,
     )
@@ -272,6 +290,7 @@ def rejected(
     data_count: int = 0,
     data_member_count: int = 0,
     field_count: int = 0,
+    payload_field_count: int = 0,
     case_count: int = 0,
     type_reference_count: int = 0,
 ) -> None:
@@ -286,6 +305,7 @@ def rejected(
     assert len(actual.data_items) == data_count, (name, actual)
     assert len(actual.data_members) == data_member_count, (name, actual)
     assert len(actual.fields) == field_count, (name, actual)
+    assert len(actual.payload_fields) == payload_field_count, (name, actual)
     assert len(actual.cases) == case_count, (name, actual)
     assert len(actual.type_references) == type_reference_count, (name, actual)
 
@@ -398,13 +418,102 @@ def main() -> None:
             (1, 50, 55, 1, 1, 50, 63),
         ),
         (
-            (1, 29, 34, 1, 24, 35),
-            (1, 69, 73, 1, 64, 74),
+            (1, 29, 34, 1, 24, 35, 0, 0),
+            (1, 69, 73, 1, 64, 74, 0, 0),
         ),
         (
             (1, 1, 42, 48, 1, 42, 48),
             (1, 1, 57, 62, 1, 57, 62),
         ),
+    )
+    accepted(
+        program,
+        "empty-case-payload",
+        b"data Empty { case None(); }",
+        ((2, 0, 1, 0, 27),),
+        (),
+        (),
+        ((1, 5, 10, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 27),),
+        ((2, 0, 1, 13, 25),),
+        (),
+        ((1, 18, 22, 1, 13, 25, 0, 0),),
+    )
+    accepted(
+        program,
+        "one-case-payload-field",
+        b"data One { case Some(value: T); }",
+        ((2, 0, 1, 0, 33),),
+        (),
+        (),
+        ((1, 5, 8, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 33),),
+        ((2, 0, 1, 11, 31),),
+        (),
+        ((1, 16, 20, 1, 11, 31, 0, 1),),
+        ((1, 1, 28, 29, 1, 28, 29),),
+        payload_fields=((1, 21, 26, 0, 1, 21, 29),),
+    )
+    accepted(
+        program,
+        "multiple-case-payload-fields",
+        b"data Pair { case Both(left: L, right: R); }",
+        ((2, 0, 1, 0, 43),),
+        (),
+        (),
+        ((1, 5, 9, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 43),),
+        ((2, 0, 1, 12, 41),),
+        (),
+        ((1, 17, 21, 1, 12, 41, 0, 2),),
+        (
+            (1, 1, 28, 29, 1, 28, 29),
+            (1, 1, 38, 39, 1, 38, 39),
+        ),
+        payload_fields=(
+            (1, 22, 26, 0, 1, 22, 30),
+            (1, 31, 36, 1, 1, 31, 39),
+        ),
+    )
+    accepted(
+        program,
+        "trailing-comma-case-payload",
+        b"data Trailing { case Some(value: T,); }",
+        ((2, 0, 1, 0, 39),),
+        (),
+        (),
+        ((1, 5, 13, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 39),),
+        ((2, 0, 1, 16, 37),),
+        (),
+        ((1, 21, 25, 1, 16, 37, 0, 1),),
+        ((1, 1, 33, 34, 1, 33, 34),),
+        payload_fields=((1, 26, 31, 0, 1, 26, 35),),
+    )
+    accepted(
+        program,
+        "mixed-direct-and-case-payload-fields",
+        b"data Mixed { common: C; case None; case Some(value: V); tail: T; }",
+        ((2, 0, 1, 0, 66),),
+        (),
+        (),
+        ((1, 5, 10, 0, 4, 0, 2, 0, 2, 0, False, 1, 0, 66),),
+        (
+            (1, 0, 1, 13, 23),
+            (2, 0, 1, 24, 34),
+            (2, 1, 1, 35, 55),
+            (1, 1, 1, 56, 64),
+        ),
+        (
+            (1, 13, 19, 0, 1, 13, 23),
+            (1, 56, 60, 2, 1, 56, 64),
+        ),
+        (
+            (1, 29, 33, 1, 24, 34, 0, 0),
+            (1, 40, 44, 1, 35, 55, 0, 1),
+        ),
+        (
+            (1, 1, 21, 22, 1, 21, 22),
+            (1, 1, 52, 53, 1, 52, 53),
+            (1, 1, 62, 63, 1, 62, 63),
+        ),
+        payload_fields=((1, 45, 50, 1, 1, 45, 53),),
     )
 
     rejected(program, "missing-first-member", b"use;", 3, (3, 4))
@@ -435,8 +544,23 @@ def main() -> None:
         ("duplicate-copy-property", b"data X [copy copy] {}", 19, (13, 17)),
         ("missing-case-name", b"data X { case ; }", 20, (14, 15)),
         ("missing-case-semicolon", b"data X { case A }", 21, (16, 17)),
-        ("case-payload-not-yet-supported", b"data X { case A(value: T); }", 21, (15, 16)),
         ("case-discriminant-is-retired", b"data X { case A = 1; }", 21, (16, 17)),
+        ("missing-case-payload-field", b"data X { case A(: T); }", 24, (16, 17)),
+        ("unnamed-case-payload-field", b"data X { case A(T); }", 25, (17, 18)),
+        ("missing-case-payload-colon", b"data X { case A(value T); }", 25, (22, 23)),
+        ("missing-case-payload-type", b"data X { case A(value: ); }", 26, (23, 24)),
+        (
+            "missing-case-payload-comma",
+            b"data X { case A(left: L right: R); }",
+            27,
+            (24, 29),
+        ),
+        (
+            "unterminated-case-payload",
+            b"data X { case A(value: T",
+            27,
+            (24, 24),
+        ),
         ("legacy-bare-case-is-rejected", b"data X { A; }", 12, (10, 11)),
         ("array-types-not-yet-supported", b"data X { field: [u8; 4]; }", 13, (16, 17)),
         ("qualified-types-not-yet-supported", b"data X { field: T in Domain; }", 14, (18, 20)),
@@ -524,6 +648,30 @@ def main() -> None:
         (overflowing_case_name_start, overflowing_case_name_start + 8),
         data_member_count=512,
         case_count=512,
+    )
+
+    payload_prefix = b"data Payloads { case Many("
+    exact_payload_body = b"".join(
+        f"f{index}: T, ".encode() for index in range(1024)
+    )
+    exact_payload_fields = payload_prefix + exact_payload_body + b"); }"
+    exact_payload_status, exact_payload = run(program, exact_payload_fields)
+    assert exact_payload_status == 0
+    exact_payload_observation = decode(exact_payload)
+    assert len(exact_payload_observation.data_members) == 1
+    assert len(exact_payload_observation.fields) == 0
+    assert len(exact_payload_observation.payload_fields) == 1024
+    assert len(exact_payload_observation.cases) == 1
+    assert len(exact_payload_observation.type_references) == 1024
+    overflow_payload_field_start = len(payload_prefix) + len(exact_payload_body)
+    rejected(
+        program,
+        "case-payload-field-capacity-plus-one",
+        payload_prefix + exact_payload_body + b"overflow: T); }",
+        28,
+        (overflow_payload_field_start, overflow_payload_field_start + 8),
+        payload_field_count=1024,
+        type_reference_count=1024,
     )
 
     exact_mixed = b"data Mixed { " + b"".join(
@@ -615,14 +763,14 @@ def main() -> None:
 
     repeat_source = (
         b"use repeated::observation; data Stable [copy] { "
-        b"value: Value; case Ready; }"
+        b"value: Value; case Ready; case Payload(left: L, right: R,); }"
     )
     first = run(program, repeat_source)
     second = run(program, repeat_source)
     assert first == second, "parser observation is not deterministic"
 
     print(
-        "Psi parser slices: 45 cases passed; "
+        "Psi parser slices: 57 cases passed; "
         f"lexical profile parity: {len(lexical_cases)} cases passed"
     )
 

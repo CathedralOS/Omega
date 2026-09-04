@@ -142,10 +142,11 @@ invokes Console;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR3\0`, version
-// 3, acceptance and diagnostic fields, followed by ordered root, use-item,
-// path-member, data-item, authored data-member, data-field, data-case, and
-// type-reference tables. This is hosted development tooling, not an Omega ABI.
+// and count is little-endian u64. The stream begins with `OMGPAR4\0`, version
+// 4, acceptance and diagnostic fields, followed by ordered root, use-item,
+// path-member, data-item, authored data-member, direct data-field, case-payload
+// field, data-case, and type-reference tables. This is hosted development
+// tooling, not an Omega ABI.
 machine ParserHarness::write_parse_observation(&mut self) {
     self.write_byte(79);
     self.write_byte(77);
@@ -153,9 +154,9 @@ machine ParserHarness::write_parse_observation(&mut self) {
     self.write_byte(80);
     self.write_byte(65);
     self.write_byte(82);
-    self.write_byte(51);
+    self.write_byte(52);
     self.write_byte(0);
-    self.write_u64(3);
+    self.write_u64(4);
     transition self.parser.output.accepted {
         true -> parse_accepted_header()
         _ -> parse_rejected_header()
@@ -193,6 +194,11 @@ machine ParserHarness::write_parse_observation(&mut self) {
             ParseDiagnosticCode::ExpectedDataCaseEnd -> parse_diagnostic(21)
             ParseDiagnosticCode::DataMemberCapacityExceeded -> parse_diagnostic(22)
             ParseDiagnosticCode::DataCaseCapacityExceeded -> parse_diagnostic(23)
+            ParseDiagnosticCode::ExpectedDataCasePayloadField -> parse_diagnostic(24)
+            ParseDiagnosticCode::ExpectedDataCasePayloadFieldColon -> parse_diagnostic(25)
+            ParseDiagnosticCode::ExpectedDataCasePayloadFieldType -> parse_diagnostic(26)
+            ParseDiagnosticCode::ExpectedDataCasePayloadSeparatorOrEnd -> parse_diagnostic(27)
+            ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded -> parse_diagnostic(28)
         }
     }
 
@@ -461,13 +467,44 @@ machine ParserHarness::write_parse_observation(&mut self) {
         let next: u64 = index + 1;
         transition next < self.parser.output.field_count {
             true -> parse_field_bound(next)
-            _ -> parse_case_count()
+            _ -> parse_payload_field_count()
         }
     }
 
     state parse_field_bound(&mut self, next: u64) {
         transition next < 1024 {
             true -> parse_field(next)
+            _ -> parse_payload_field_count()
+        }
+    }
+
+    state parse_payload_field_count(&mut self) {
+        self.write_u64(self.parser.output.payload_field_count);
+        transition self.parser.output.payload_field_count > 0 {
+            true -> parse_payload_field(0)
+            _ -> parse_case_count()
+        }
+    }
+
+    state parse_payload_field(&mut self, index: u64 [0..=1023]) {
+        let field: DataField = self.parser.output.payload_fields[index];
+        self.write_u64(field.name.source_span.source.value as u64);
+        self.write_u64(field.name.source_span.span.start);
+        self.write_u64(field.name.source_span.span.end);
+        self.write_u64(field.type_reference);
+        self.write_u64(field.source_span.source.value as u64);
+        self.write_u64(field.source_span.span.start);
+        self.write_u64(field.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.payload_field_count {
+            true -> parse_payload_field_bound(next)
+            _ -> parse_case_count()
+        }
+    }
+
+    state parse_payload_field_bound(&mut self, next: u64) {
+        transition next < 1024 {
+            true -> parse_payload_field(next)
             _ -> parse_case_count()
         }
     }
@@ -488,6 +525,8 @@ machine ParserHarness::write_parse_observation(&mut self) {
         self.write_u64(data_case.source_span.source.value as u64);
         self.write_u64(data_case.source_span.span.start);
         self.write_u64(data_case.source_span.span.end);
+        self.write_u64(data_case.first_payload_field);
+        self.write_u64(data_case.payload_field_count);
         let next: u64 = index + 1;
         transition next < self.parser.output.case_count {
             true -> parse_case_bound(next)

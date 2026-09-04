@@ -321,6 +321,7 @@ machine Parser::parse_data(
     ) {
         self.case_name_start = start;
         self.case_name_end = end;
+        self.case_first_payload_field = self.output.payload_field_count;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
         transition self.cursor < self.input.token_count {
@@ -340,10 +341,277 @@ machine Parser::parse_data(
             Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> retain_case(
                 token.end
             )
+            Token::Punctuation { punctuation: PunctuationKind::LeftParen } -> begin_case_payload()
             _ -> expected_data_case_end(
                 token.start,
                 token.end
             )
+        }
+    }
+
+    state begin_case_payload(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.input.token_count {
+            true -> case_payload_item_or_end()
+            _ -> expected_case_payload_field_at_end()
+        }
+    }
+
+    state case_payload_item_or_end(&mut self) {
+        self.load_current();
+        transition { _ -> case_payload_item_or_end_loaded() }
+    }
+
+    state case_payload_item_or_end_loaded(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::RightParen } -> finish_case_payload()
+            Token::Identifier -> payload_field_capacity(token.start, token.end)
+            Token::Keyword { keyword } -> payload_field_name_keyword(
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_case_payload_field(token.start, token.end)
+        }
+    }
+
+    state payload_field_name_keyword(
+        &mut self,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::SelfType -> expected_case_payload_field(start, end)
+            KeywordKind::SelfValue -> expected_case_payload_field(start, end)
+            _ -> payload_field_capacity(start, end)
+        }
+    }
+
+    state payload_field_capacity(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.output.payload_field_count < 1024 {
+            true -> retain_payload_field_name(start, end)
+            _ -> payload_field_full()
+        }
+    }
+
+    state retain_payload_field_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.payload_field_start = start;
+        self.payload_field_name_start = start;
+        self.payload_field_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.input.token_count {
+            true -> payload_field_colon()
+            _ -> expected_payload_field_colon_at_end()
+        }
+    }
+
+    state payload_field_colon(&mut self) {
+        self.load_current();
+        transition { _ -> payload_field_colon_loaded() }
+    }
+
+    state payload_field_colon_loaded(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Colon } -> payload_field_type_start()
+            _ -> expected_payload_field_colon(token.start, token.end)
+        }
+    }
+
+    state payload_field_type_start(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.input.token_count {
+            true -> payload_field_type()
+            _ -> expected_payload_field_type_at_end()
+        }
+    }
+
+    state payload_field_type(&mut self) {
+        self.load_current();
+        transition { _ -> payload_field_type_loaded() }
+    }
+
+    state payload_field_type_loaded(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> payload_type_reference_capacity(token.start, token.end)
+            Token::Keyword { keyword } -> payload_field_type_keyword(
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_payload_field_type(token.start, token.end)
+        }
+    }
+
+    state payload_field_type_keyword(
+        &mut self,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::SelfType -> expected_payload_field_type(start, end)
+            KeywordKind::SelfValue -> expected_payload_field_type(start, end)
+            _ -> payload_type_reference_capacity(start, end)
+        }
+    }
+
+    state payload_type_reference_capacity(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_payload_type_name(start, end)
+            _ -> type_reference_full()
+        }
+    }
+
+    state retain_payload_type_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.payload_type_name_start = start;
+        self.payload_type_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.input.token_count {
+            true -> payload_field_end()
+            _ -> expected_payload_separator_or_end_at_end()
+        }
+    }
+
+    state payload_field_end(&mut self) {
+        self.load_current();
+        transition { _ -> payload_field_end_loaded() }
+    }
+
+    state payload_field_end_loaded(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Comma } -> retain_payload_type_reference(
+                token.end,
+                true
+            )
+            Token::Punctuation { punctuation: PunctuationKind::RightParen } -> retain_payload_type_reference(
+                self.payload_type_name_end,
+                false
+            )
+            _ -> expected_payload_separator_or_end(token.start, token.end)
+        }
+    }
+
+    state retain_payload_type_reference(
+        &mut self,
+        field_end: u64 in Trapping,
+        has_more: bool
+    ) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_payload_type_reference_bounded(field_end, has_more)
+            _ -> type_reference_full()
+        }
+    }
+
+    state retain_payload_type_reference_bounded(
+        &mut self,
+        field_end: u64 in Trapping,
+        has_more: bool
+    ) {
+        let type_index: u64 in Trapping = self.output.type_reference_count;
+        self.output.type_references[self.output.type_reference_count] = TypeReference {
+            kind: TypeReferenceKind::Named,
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span {
+                        start: self.payload_type_name_start,
+                        end: self.payload_type_name_end
+                    }
+                }
+            },
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span {
+                    start: self.payload_type_name_start,
+                    end: self.payload_type_name_end
+                }
+            }
+        };
+        self.output.type_reference_count = self.output.type_reference_count + 1;
+        transition { _ -> retain_payload_field(field_end, type_index, has_more) }
+    }
+
+    state retain_payload_field(
+        &mut self,
+        field_end: u64 in Trapping,
+        type_index: u64 in Trapping,
+        has_more: bool
+    ) {
+        transition self.output.payload_field_count < 1024 {
+            true -> retain_payload_field_bounded(field_end, type_index, has_more)
+            _ -> payload_field_full()
+        }
+    }
+
+    state retain_payload_field_bounded(
+        &mut self,
+        field_end: u64 in Trapping,
+        type_index: u64 in Trapping,
+        has_more: bool
+    ) {
+        self.output.payload_fields[self.output.payload_field_count] = DataField {
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span {
+                        start: self.payload_field_name_start,
+                        end: self.payload_field_name_end
+                    }
+                }
+            },
+            type_reference: type_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.payload_field_start, end: field_end }
+            }
+        };
+        self.output.payload_field_count = self.output.payload_field_count + 1;
+        transition has_more {
+            true -> advance_payload_field()
+            _ -> finish_case_payload()
+        }
+    }
+
+    state advance_payload_field(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.input.token_count {
+            true -> case_payload_item_or_end()
+            _ -> expected_case_payload_field_at_end()
+        }
+    }
+
+    state finish_case_payload(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.input.token_count {
+            true -> case_end()
+            _ -> expected_data_case_end_at_end()
         }
     }
 
@@ -363,6 +631,8 @@ machine Parser::parse_data(
                     span: Span { start: self.case_name_start, end: self.case_name_end }
                 }
             },
+            first_payload_field: self.case_first_payload_field,
+            payload_field_count: self.output.payload_field_count - self.case_first_payload_field,
             source_span: SourceSpan {
                 source: self.source,
                 span: Span { start: self.case_start, end: case_end }
@@ -746,6 +1016,16 @@ machine Parser::parse_data(
         self.output.reject(ParseDiagnosticCode::DataCaseCapacityExceeded, self.source, token.start, token.end);
     }
 
+    state payload_field_full(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
+        self.output.reject(
+            ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded,
+            self.source,
+            token.start,
+            token.end
+        );
+    }
+
     state expected_data_property_at_end(&mut self) {
         self.output.reject(ParseDiagnosticCode::ExpectedDataProperty, self.source, self.source_length, self.source_length);
     }
@@ -776,6 +1056,58 @@ machine Parser::parse_data(
 
     state expected_data_case_end(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
         self.output.reject(ParseDiagnosticCode::ExpectedDataCaseEnd, self.source, start, end);
+    }
+
+    state expected_case_payload_field_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataCasePayloadField,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_case_payload_field(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCasePayloadField, self.source, start, end);
+    }
+
+    state expected_payload_field_colon_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataCasePayloadFieldColon,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_payload_field_colon(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCasePayloadFieldColon, self.source, start, end);
+    }
+
+    state expected_payload_field_type_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataCasePayloadFieldType,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_payload_field_type(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCasePayloadFieldType, self.source, start, end);
+    }
+
+    state expected_payload_separator_or_end_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataCasePayloadSeparatorOrEnd,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_payload_separator_or_end(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCasePayloadSeparatorOrEnd, self.source, start, end);
     }
 
     state expected_data_name_at_end(&mut self) {

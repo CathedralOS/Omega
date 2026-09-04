@@ -32,6 +32,8 @@ pub data DataField [copy] {
 
 pub data DataCase [copy] {
     name: IdentifierSpan;
+    first_payload_field: u64 in Trapping;
+    payload_field_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -100,6 +102,11 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedDataCaseEnd;
     case DataMemberCapacityExceeded;
     case DataCaseCapacityExceeded;
+    case ExpectedDataCasePayloadField;
+    case ExpectedDataCasePayloadFieldColon;
+    case ExpectedDataCasePayloadFieldType;
+    case ExpectedDataCasePayloadSeparatorOrEnd;
+    case DataCasePayloadFieldCapacityExceeded;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -122,6 +129,8 @@ pub data SyntaxTrees {
     data_member_count: u64 [0..=1024];
     cases: [DataCase; 512] in Trapping;
     case_count: u64 [0..=512];
+    payload_fields: [DataField; 1024] in Trapping;
+    payload_field_count: u64 [0..=1024];
     type_references: [TypeReference; 1024] in Trapping;
     type_reference_count: u64 [0..=1024];
     diagnostic: ParseDiagnostic;
@@ -136,6 +145,7 @@ pub machine SyntaxTrees::clear(&mut self, source: SourceId) {
     self.field_count = 0;
     self.data_member_count = 0;
     self.case_count = 0;
+    self.payload_field_count = 0;
     self.type_reference_count = 0;
     self.accepted = true;
     self.diagnostic.code = ParseDiagnosticCode::None;

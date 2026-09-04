@@ -31,4 +31,10 @@ pub data Parser {
     case_keyword_end: u64 in Trapping;
     case_name_start: u64 in Trapping;
     case_name_end: u64 in Trapping;
+    case_first_payload_field: u64 in Trapping;
+    payload_field_start: u64 in Trapping;
+    payload_field_name_start: u64 in Trapping;
+    payload_field_name_end: u64 in Trapping;
+    payload_type_name_start: u64 in Trapping;
+    payload_type_name_end: u64 in Trapping;
 }
