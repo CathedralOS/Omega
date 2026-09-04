@@ -518,8 +518,9 @@ mirrored pipeline test owns both victim lineages, targets, corruption, and all
 five budget axes; architecture guards register the complete ladder and prohibit
 executable memory, frame, fault, alias, encoding, or publication claims.
 
-Non-authoritative spill-frame requirements enter through the adjacent
-pipeline-owned `allocation/frame_requirements/mod.rs` coordinator. It visibly
+Non-authoritative spill-frame requirements enter through the dedicated
+`omega-spill-access-constraints-to-frame-requirements` stage crate. Its
+`frame_requirements/mod.rs` entrance visibly
 joins authenticated abstract access constraints to the validated register
 environment, delegates direct derivation and independent replay to distinct
 `compute.rs` and `replay.rs` leaves, and seals only after `validation.rs` agrees;

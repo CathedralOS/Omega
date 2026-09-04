@@ -40,6 +40,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/omega-regalloc",
     "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements",
     "omega-rust/omega/pipeline/omega-selected-instructions-to-liveness",
+    "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements",
     "omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
     "omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
     "omega-rust/omega/pipeline/omega-target-to-register-environment",
