@@ -1,13 +1,10 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: crate map. Deterministic target-neutral analyses and rewrite orchestration for verified
-//! Psi optimization units.
+//! Optimizer module role: crate map.
+//! Deterministic target-neutral analyses and rewrites for verified Psi units.
 //!
-//! The canonical empty Psi selection is the identity schedule. Compiler
-//! integration may bypass construction for that case, but callers that do
-//! enter this crate receive the same empty schedule before creating an
-//! [`AnalysisManager`].
-
+//! Empty selection is the identity schedule. Integration may bypass its
+//! construction; crate callers receive it before creating an [`AnalysisManager`].
 mod analyses;
 mod pass_manager;
 mod ranked_rewrites;
