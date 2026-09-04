@@ -48,7 +48,7 @@ impl<'evidence> SourceEvaluatedImportSettlement<'evidence> {
 pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
     retained: omega_compilation_report::RetainedTerminalArtifact,
     profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
     imports: &[SourceEvaluatedImportSettlement<'_>],
 ) -> Result<omega_compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
     let accepted_package_permissions =
@@ -85,7 +85,7 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
 pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
     retained: omega_compilation_report::RetainedTerminalArtifact,
     profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
     terminal_authority_policy: omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicy,
     accepted_package_terminal_authority_permission_policy:
         omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
@@ -133,7 +133,7 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
 pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
     retained: omega_compilation_report::RetainedTerminalArtifact,
     profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
     terminal_authority_policy: omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicy,
     accepted_package_terminal_authority_permission_policy:
         omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,

@@ -73,7 +73,7 @@ pub fn realize_accepted_terminal_artifact_with_source_evaluated_imports_and_poli
     report: omega_compiler::CompileReport,
     evidence: &AcceptedOrdinaryClosureEvidence,
     profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
     imports: &[omega_compiler::SourceEvaluatedImportSettlement<'_>],
@@ -105,7 +105,7 @@ pub fn realize_accepted_reviewed_package_candidate_with_source_evaluated_imports
     candidate: crate::review::ReviewedPackageProductionCandidate,
     evidence: &AcceptedOrdinaryClosureEvidence,
     profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
     imports: &[omega_compiler::SourceEvaluatedImportSettlement<'_>],
@@ -148,6 +148,7 @@ pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_
     let effective_optimizations = rollback_receipt
         .as_ref()
         .map_or(build_selected, |receipt| receipt.effective().clone());
+    let post_terminal_optimizations = effective_optimizations.project_post_terminal();
     let (_reviews, root_path, checked_root) = candidate.into_production_parts();
     let report = omega_compiler::retained_terminal_report_from_checked_package(
         root_path,
@@ -169,7 +170,7 @@ pub fn realize_accepted_reviewed_package_candidate_report_with_source_evaluated_
         omega_compiler::realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
             retained,
             profile,
-            &effective_optimizations,
+            post_terminal_optimizations.selections(),
             terminal_authority_policy,
             accepted_permission_policy,
             receiving_terminal_authority_permission_policy,

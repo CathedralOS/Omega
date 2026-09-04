@@ -1998,18 +1998,35 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_path.display()));
     let production_realization =
         format!("{realization}\n{api}\n{input}\n{machine_code}\n{callback_machine_code}");
+    let selection_path =
+        root.join("omega-rust/omega/representations/omega-optimization-core/src/selection.rs");
+    let selection = std::fs::read_to_string(&selection_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", selection_path.display()));
+    let post_terminal_selection_path = root.join(
+        "omega-rust/omega/representations/omega-optimization-core/src/selection/post_terminal.rs",
+    );
+    let post_terminal_selection = std::fs::read_to_string(&post_terminal_selection_path)
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                post_terminal_selection_path.display()
+            )
+        });
     assert!(
         realization.contains("pub fn realize_native_artifact(")
             && realization.contains("artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
         "Omega native realization must receive the complete Psi-owned artifact by value"
     );
     assert!(
-        input.contains("reject_pre_terminal_selections(")
-            && input.contains("sealed Terminal optimization custody")
+        selection.contains("mod post_terminal;")
+            && post_terminal_selection.contains("pub struct PostTerminalOptimizationSelections")
+            && post_terminal_selection.contains("OptimizationExecutionPhase::CheckedTrees")
+            && post_terminal_selection.contains("OptimizationExecutionPhase::Psi")
+            && !input.contains("reject_pre_terminal_selections(")
             && machine_code.contains("optimize_verified_psi_input(")
             && machine_code
                 .contains("stage_optimized_native_continuation_with_provider_executions"),
-        "a resumed lowerer must reject pre-Terminal selections and route only later selected work through its verified physical continuation"
+        "a resumed lowerer must make pre-Terminal selections unrepresentable and route only later selected work through its verified physical continuation"
     );
     let native_stage = input
         .find("let native = omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization")

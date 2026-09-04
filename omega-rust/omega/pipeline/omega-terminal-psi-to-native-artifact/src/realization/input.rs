@@ -33,7 +33,7 @@ impl PreparedNativeRealizationInput {
         &self,
         terminal_artifact_identity: psi_terminal_codec::TerminalArtifactIdentity,
         profile: &psi_proof_admission::AdmissionProfile,
-        optimization_selections: &omega_optimization_core::OptimizationSelections,
+        optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
     ) -> bool {
         self.terminal_artifact_identity == terminal_artifact_identity
             && self.profile == *profile
@@ -64,7 +64,7 @@ impl PreparedNativeRealizationInput {
 pub fn prepare_native_realization_input(
     artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
     profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
 ) -> Result<PreparedNativeRealizationInput, Vec<Diagnostic>> {
     artifact
         .validate()
@@ -83,34 +83,12 @@ pub fn prepare_native_realization_input(
     })
 }
 
-fn reject_pre_terminal_selections(
-    optimization_selections: &omega_optimization_core::OptimizationSelections,
-) -> Result<(), Vec<Diagnostic>> {
-    if let Some(selection) = optimization_selections.as_slice().iter().find(|selection| {
-        matches!(
-            selection.execution_phase(),
-            omega_optimization_core::OptimizationExecutionPhase::CheckedTrees
-                | omega_optimization_core::OptimizationExecutionPhase::Psi
-        )
-    }) {
-        return Err(realization_error(
-            "sealed Terminal optimization custody",
-            format!(
-                "pre-Terminal optimization `{}` cannot be selected by a Terminal-to-native lowerer; consume the sealed artifact's optimization execution record",
-                selection.build_case_name()
-            ),
-        ));
-    }
-    Ok(())
-}
-
 pub(crate) fn lower_realization_input(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    optimization_selections: &omega_optimization_core::PostTerminalOptimizationSelections,
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
-    reject_pre_terminal_selections(optimization_selections)?;
     let native = omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
         semantic_bytes,
         proof_bytes,
@@ -187,7 +165,7 @@ mod tests {
     fn prepared_input_is_bound_to_artifact_profile_and_entrance() {
         let artifact = artifact_fixture();
         let profile = AdmissionProfile::default();
-        let empty = omega_optimization_core::OptimizationSelections::default();
+        let empty = omega_optimization_core::PostTerminalOptimizationSelections::default();
         let prepared = prepare_native_realization_input(&artifact, &profile, &empty)
             .expect("prepare target-neutral input");
         assert!(prepared.matches(artifact.manifest().identity(), &profile, &empty));
@@ -197,40 +175,48 @@ mod tests {
             &empty,
         ));
         assert!(!prepared.matches(artifact.manifest().identity(), &nonempty_profile(), &empty,));
-        let selected = omega_optimization_core::OptimizationSelections::new([
-            omega_optimization_core::Optimization::ControlFlowCleanup,
-        ])
-        .expect("one optimization");
+        let selected = omega_optimization_core::PostTerminalOptimizationSelections::new(
+            omega_optimization_core::OptimizationSelections::new([
+                omega_optimization_core::Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .expect("one optimization"),
+        )
+        .expect("one post-Terminal optimization");
         assert!(!prepared.matches(artifact.manifest().identity(), &profile, &selected,));
     }
 
     #[test]
-    fn sealed_terminal_artifact_rejects_preterminal_reselection() {
-        let artifact = artifact_fixture();
+    fn post_terminal_selection_type_rejects_preterminal_reselection() {
         let selections = omega_optimization_core::OptimizationSelections::new([
             omega_optimization_core::Optimization::ControlFlowCleanup,
         ])
         .expect("one optimization");
-        let diagnostics =
-            prepare_native_realization_input(&artifact, &AdmissionProfile::default(), &selections)
-                .expect_err("a resumed lowerer must not rerun a Psi optimization");
-        assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].message.contains("pre-Terminal optimization"));
-        assert!(diagnostics[0].message.contains("ControlFlowCleanup"));
+        let error = omega_optimization_core::PostTerminalOptimizationSelections::new(selections)
+            .expect_err("a resumed lowerer cannot represent a Psi optimization");
+        assert_eq!(
+            error.0,
+            omega_optimization_core::Optimization::ControlFlowCleanup
+        );
     }
 
     #[test]
     fn prepared_input_retains_native_authority_and_exact_physical_selection() {
         let artifact = artifact_fixture();
         let profile = AdmissionProfile::default();
-        let selected = omega_optimization_core::OptimizationSelections::new([
-            omega_optimization_core::Optimization::SelectedIncomingU12ExactAddImmediate,
-        ])
-        .expect("one physical optimization");
-        let substituted = omega_optimization_core::OptimizationSelections::new([
-            omega_optimization_core::Optimization::SelectedIncomingU12ExactSubtractImmediate,
-        ])
-        .expect("a different physical optimization");
+        let selected = omega_optimization_core::PostTerminalOptimizationSelections::new(
+            omega_optimization_core::OptimizationSelections::new([
+                omega_optimization_core::Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .expect("one physical optimization"),
+        )
+        .expect("one post-Terminal optimization");
+        let substituted = omega_optimization_core::PostTerminalOptimizationSelections::new(
+            omega_optimization_core::OptimizationSelections::new([
+                omega_optimization_core::Optimization::SelectedIncomingU12ExactSubtractImmediate,
+            ])
+            .expect("a different physical optimization"),
+        )
+        .expect("a different post-Terminal optimization");
         let prepared = prepare_native_realization_input(&artifact, &profile, &selected)
             .expect("prepare the unconditional native stage plus selected physical context");
 

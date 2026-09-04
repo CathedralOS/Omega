@@ -4812,7 +4812,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             .expect("exact receiving permission policy")
     };
     let profile = psi_proof_admission::AdmissionProfile::default();
-    let optimizations = omega_optimization_core::OptimizationSelections::default();
+    let optimizations = omega_optimization_core::PostTerminalOptimizationSelections::default();
     let accepted_permission_policy = || {
         permission_policy(
             &[omega_effects::TerminalAuthorityClass::ProcessTermination],

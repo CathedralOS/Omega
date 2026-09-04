@@ -148,7 +148,11 @@ instruction, allocation, machine, and layout identities remain Omega-owned. The
 build coordinator performs one exhaustive structural projection and retains the
 complete build-selection identity beside the Psi-local selection. Adding a pass
 therefore forces its owning phase to be classified, while a standalone Psi
-consumer never learns names such as an x86 materialization rule.
+consumer never learns names such as an x86 materialization rule. Conversely,
+the Terminal-to-native API accepts `PostTerminalOptimizationSelections`, whose
+constructor excludes checked-tree and Psi names. Earlier phases are therefore
+unrepresentable at resumed lowering rather than global names accepted and then
+rejected by convention.
 
 ## Stage contract
 
@@ -179,7 +183,8 @@ abstract native admission and lowering now run unconditionally before
 selection presence is inspected. The remaining optional physical-optimizer
 context is transitional: it still groups several later Omega-owned phases into
 one optimizer unit and the empty path still uses the ordinary physical
-continuation.
+continuation. Its public request surface uses the closed post-Terminal selection
+type, so this transitional branch cannot reopen an earlier phase.
 
 Migration proceeds in dependency order:
 

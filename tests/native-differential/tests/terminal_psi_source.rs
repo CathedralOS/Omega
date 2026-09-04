@@ -198,6 +198,7 @@ fn stage_terminal_component(
                 "terminal component artifact production failed: {error}"
             ))]
         })?;
+    let post_terminal_optimizations = checked.optimization_selections().project_post_terminal();
     let native_artifact = realize_native_artifact(
         artifact,
         omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
@@ -215,7 +216,7 @@ fn stage_terminal_component(
                     .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry)),
                 selected_program_entry.fused_service_establishments(),
             ),
-            optimization_selections: checked.optimization_selections(),
+            optimization_selections: post_terminal_optimizations.selections(),
             selected_provider_plans: checked.selected_provider_plans(),
             external_binding_rows: checked.external_binding_rows(),
             settlements,
@@ -919,43 +920,23 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
 }
 
 #[test]
-fn selected_optimizer_source_cannot_create_a_second_native_pipeline() {
+fn selected_preterminal_optimizers_rejoin_one_native_pipeline() {
     let checked = compile_to_checked(&selected_optimizer_source_canary(), Some("linux_x64"))
         .expect("selected optimizer source should reach checked compilation");
-    let diagnostics = stage_terminal_component(
+    let candidate = stage_terminal_component(
         &checked,
         NativeTarget::linux_x64(),
         3,
         &AdmissionProfile::default(),
         &[],
     )
-    .expect_err("selected physical work is not a second production backend");
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("`SparseConditionalConstantPropagation`, `CopyPropagation`"),
-        "{}",
-        diagnostics[0].message
-    );
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("cannot yet enter native production"),
-        "{}",
-        diagnostics[0].message
-    );
-    assert!(
-        diagnostics[0]
-            .message
-            .contains(
-                "continuation does not cover baseline frame/exit, executable-image, and publication validation"
-            ),
-        "{}",
-        diagnostics[0].message
-    );
-    assert!(!diagnostics[0].message.contains("UnsupportedSourceShape"));
-    assert!(diagnostics[0].message.contains("no output was installed"));
+    .expect("selected pre-Terminal work should rejoin the ordinary native continuation");
+    candidate
+        .native_artifact()
+        .validate()
+        .expect("the rejoined native artifact must replay");
+    assert_eq!(candidate.object().entry(), candidate.stack_demand().entry());
+    assert!(!candidate.image().output().bytes.is_empty());
 }
 
 #[test]
@@ -986,17 +967,19 @@ fn lower_only_optimizer_source_rejoins_the_existing_native_pipeline() {
 fn control_flow_cleanup_source_reaches_the_publication_gate() {
     let checked = compile_to_checked(&unsupported_optimizer_source_canary(), Some("linux_x64"))
         .expect("explicit optimizer selection is retained through checking");
-    let diagnostics = stage_terminal_component(
+    let candidate = stage_terminal_component(
         &checked,
         NativeTarget::linux_x64(),
         3,
         &AdmissionProfile::default(),
         &[],
     )
-    .expect_err("optimized publication remains unavailable");
-    assert_eq!(diagnostics.len(), 1);
-    assert!(diagnostics[0].message.contains("ControlFlowCleanup"));
-    assert!(diagnostics[0].message.contains("no output was installed"));
+    .expect("checked-tree optimization should complete before ordinary native staging");
+    candidate
+        .native_artifact()
+        .validate()
+        .expect("the staged native artifact must replay");
+    assert!(!candidate.image().output().bytes.is_empty());
 }
 
 #[test]

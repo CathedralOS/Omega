@@ -11,7 +11,7 @@ use crate::{
 fn native_realization_returns_exact_ordered_callback_custody_on_success() {
     let (artifact, _, source) = hosted_custody();
     let profile = psi_proof_admission::AdmissionProfile::default();
-    let optimizations = omega_optimization_core::OptimizationSelections::default();
+    let optimizations = omega_optimization_core::PostTerminalOptimizationSelections::default();
     let providers = omega_effects::SelectedProviderPlanFacts::default();
     let custody = vec![(11u64, "first"), (29u64, "second")];
 
@@ -51,7 +51,7 @@ fn native_realization_returns_exact_ordered_callback_custody_on_success() {
 fn native_realization_rejection_returns_callback_custody_without_reordering() {
     let (artifact, _, source) = hosted_custody();
     let profile = psi_proof_admission::AdmissionProfile::default();
-    let optimizations = omega_optimization_core::OptimizationSelections::default();
+    let optimizations = omega_optimization_core::PostTerminalOptimizationSelections::default();
     let providers = omega_effects::SelectedProviderPlanFacts::default();
     let swapped = vec![(29u64, "second"), (11u64, "first")];
 

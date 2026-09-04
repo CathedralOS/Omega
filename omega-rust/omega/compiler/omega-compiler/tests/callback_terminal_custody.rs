@@ -815,7 +815,7 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,

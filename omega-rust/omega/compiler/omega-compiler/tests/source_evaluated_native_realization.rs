@@ -423,7 +423,7 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
@@ -481,7 +481,7 @@ fn windows_evaluated_u32_result_reaches_a_later_pe_import_through_exact_home_cus
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
@@ -537,7 +537,7 @@ fn windows_evaluated_result_rejects_cross_wired_same_stack_custody() {
     let diagnostics = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
@@ -785,7 +785,7 @@ fn realize_linux_dynamic(
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
@@ -861,7 +861,7 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
         realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
             rejected,
             &psi_proof_admission::AdmissionProfile::default(),
-            &omega_optimization_core::OptimizationSelections::default(),
+            &omega_optimization_core::PostTerminalOptimizationSelections::default(),
             policy,
             omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
             permission_policy,
@@ -892,7 +892,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     let diagnostics = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         missing,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         missing_policy,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         missing_permission_policy,
@@ -917,7 +917,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
@@ -1371,10 +1371,13 @@ fn retained_terminal_import_rejects_optimization_selection_substitution() {
         );
         let policy = terminal_authority_policy(&retained);
         let permission_policy = terminal_authority_permission_policy(&retained);
-        let optimizations = omega_optimization_core::OptimizationSelections::new([
-            omega_optimization_core::Optimization::ControlFlowCleanup,
-        ])
-        .expect("one verified Psi optimization selection");
+        let optimizations = omega_optimization_core::PostTerminalOptimizationSelections::new(
+            omega_optimization_core::OptimizationSelections::new([
+                omega_optimization_core::Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .expect("one physical optimization selection"),
+        )
+        .expect("one post-Terminal optimization selection");
         let diagnostics =
             realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
                 retained,
@@ -1415,7 +1418,7 @@ fn retained_source_evaluated_fixed_u32_import_requires_complete_d32_custody() {
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
@@ -1614,7 +1617,7 @@ fn retained_source_evaluated_fixed_i32_result_requires_complete_d32_custody() {
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
+        &omega_optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
