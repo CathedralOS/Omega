@@ -36,8 +36,10 @@ pub fn stage_optimized_post_allocation_machine_optimization_after_active_residen
     StagedOptimizedPostAllocationMachineOptimization,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase = source_lineage::active_resident_selections(source)
+        .project_phase(omega_optimization_core::OptimizationExecutionPhase::PostAllocationMachine);
     let entry = selected_post_allocation_machine_rule(
-        source_lineage::active_resident_selections(source),
+        &phase,
         machine.machine().plan().target.architecture,
     )?
     .0;
@@ -53,8 +55,10 @@ pub fn stage_optimized_post_allocation_machine_optimization(
     StagedOptimizedPostAllocationMachineOptimization,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase = source_lineage::register_home_selections(source)
+        .project_phase(omega_optimization_core::OptimizationExecutionPhase::PostAllocationMachine);
     let entry = selected_post_allocation_machine_rule(
-        source_lineage::register_home_selections(source),
+        &phase,
         machine.machine().plan().target.architecture,
     )?
     .0;
@@ -68,8 +72,10 @@ pub fn stage_optimized_post_allocation_machine_optimization_after_selected_lower
     StagedOptimizedPostAllocationMachineOptimization,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase = source_lineage::selected_lowering_selections(source)
+        .project_phase(omega_optimization_core::OptimizationExecutionPhase::PostAllocationMachine);
     let entry = selected_post_allocation_machine_rule(
-        source_lineage::selected_lowering_selections(source),
+        &phase,
         machine.machine().plan().target.architecture,
     )?
     .0;

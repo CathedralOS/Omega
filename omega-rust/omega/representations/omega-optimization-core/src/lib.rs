@@ -47,7 +47,8 @@ pub use manifest::{
 };
 pub use selection::{
     DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
-    OptimizationPhaseSelections, OptimizationSelectionIdentity, OptimizationSelections,
-    PostTerminalOptimizationSelectionProjection, PostTerminalOptimizationSelections,
-    PreTerminalOptimizationSelection, PsiOptimizationSelectionProjection, SelectionDecodeError,
+    OptimizationPhaseMismatch, OptimizationPhaseSelections, OptimizationSelectionIdentity,
+    OptimizationSelections, PostTerminalOptimizationSelectionProjection,
+    PostTerminalOptimizationSelections, PreTerminalOptimizationSelection,
+    PsiOptimizationSelectionProjection, SelectionDecodeError,
 };

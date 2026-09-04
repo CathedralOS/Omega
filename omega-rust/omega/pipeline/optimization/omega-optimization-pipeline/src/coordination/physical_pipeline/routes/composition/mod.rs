@@ -20,17 +20,19 @@ pub(crate) fn resolve_physical_phase_composition(
     phases: &PhysicalOptimizationPhaseSelections,
     architecture: Architecture,
 ) -> Result<ResolvedPhysicalPhaseComposition, OptimizedVerifiedPhysicalPipelineError> {
-    let selected_lowering = phases.selected_lowering().selections();
+    let selected_lowering_phase = phases.selected_lowering();
+    let selected_lowering = selected_lowering_phase.selections();
     if !selected_lowering.is_empty() {
-        resolve_selected_lowering_rules(selected_lowering)
+        resolve_selected_lowering_rules(selected_lowering_phase)
             .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLoweringRuleCatalog)?;
     }
 
-    let allocation_recovery =
-        selected_allocation_recovery_rule(phases.allocation_recovery().selections())
-            .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationRecoveryRuleCatalog)?;
-    let post_allocation = phases.post_allocation_machine().selections();
-    let function_relative = phases.function_relative_layout().selections();
+    let allocation_recovery = selected_allocation_recovery_rule(phases.allocation_recovery())
+        .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationRecoveryRuleCatalog)?;
+    let post_allocation_phase = phases.post_allocation_machine();
+    let post_allocation = post_allocation_phase.selections();
+    let function_relative_phase = phases.function_relative_layout();
+    let function_relative = function_relative_phase.selections();
 
     if let Some(rule) = allocation_recovery {
         if !selected_lowering.is_empty() || !function_relative.is_empty() {
@@ -57,7 +59,7 @@ pub(crate) fn resolve_physical_phase_composition(
                 );
             }
             Some(
-                selected_post_allocation_machine_rule(post_allocation, architecture)
+                selected_post_allocation_machine_rule(post_allocation_phase, architecture)
                     .map_err(
                         OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog,
                     )?
@@ -74,7 +76,7 @@ pub(crate) fn resolve_physical_phase_composition(
         return Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition);
     }
     if !post_allocation.is_empty() {
-        let (entry, _) = selected_post_allocation_machine_rule(post_allocation, architecture)
+        let (entry, _) = selected_post_allocation_machine_rule(post_allocation_phase, architecture)
             .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog)?;
         return Ok(ResolvedPhysicalPhaseComposition::NonAllocation(
             ResolvedNonAllocationComposition::PostAllocationMachine {
@@ -84,7 +86,7 @@ pub(crate) fn resolve_physical_phase_composition(
         ));
     }
 
-    let function_relative_layout = x86_rel8_selected(function_relative, architecture)
+    let function_relative_layout = x86_rel8_selected(function_relative_phase, architecture)
         .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeLayoutRuleCatalog)?;
     let route = match (selected_lowering.is_empty(), function_relative_layout) {
         (true, false) => ResolvedNonAllocationComposition::Identity,

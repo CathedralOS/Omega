@@ -29,7 +29,10 @@ needed for independent replay through publication.
   optimizer scheduling. The physical entrance now projects the closed
   post-Terminal selection once into phase-local inputs; composition does not
   rescan the global set, and a post-Terminal phase with no implemented stage
-  rejects instead of disappearing. Those physical variants still represent
+  rejects instead of disappearing. Each executable physical catalog accepts
+  only an `OptimizationPhaseSelections` input and rejects a projection owned by
+  another phase; catalogs cannot recover policy by rescanning a global set.
+  Those physical variants still represent
   different phase depths and must converge into explicit later-stage results.
   Keep the same representation on both sides of a phase unless vocabulary,
   interpretation, invariants, or published-product identity change.

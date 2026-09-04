@@ -53,8 +53,9 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
         let architecture = descriptor.payload().architecture();
         assert_eq!(descriptor.payload().kind(), expected_kind);
         let selections = OptimizationSelections::new([optimization]).unwrap();
+        let phase = selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
         let (scheduled, phase) =
-            selected_post_allocation_machine_rule(&selections, architecture).unwrap();
+            selected_post_allocation_machine_rule(&phase, architecture).unwrap();
         assert_eq!(scheduled, descriptor);
         assert_eq!(phase, selections);
 
@@ -63,7 +64,10 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
             Architecture::X86_64 => Architecture::Aarch64,
         };
         assert_eq!(
-            selected_post_allocation_machine_rule(&selections, wrong),
+            selected_post_allocation_machine_rule(
+                &selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine),
+                wrong,
+            ),
             Err(PostAllocationMachineRuleCatalogError::UnsupportedTarget {
                 optimization,
                 required: architecture,
@@ -71,11 +75,10 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
             })
         );
     }
+    let composition = OptimizationSelections::new(ORDERED_POST_ALLOCATION_MACHINE_RULES).unwrap();
+    let phase = composition.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     assert!(matches!(
-        selected_post_allocation_machine_rule(
-            &OptimizationSelections::new(ORDERED_POST_ALLOCATION_MACHINE_RULES).unwrap(),
-            Architecture::Aarch64,
-        ),
+        selected_post_allocation_machine_rule(&phase, Architecture::Aarch64),
         Err(PostAllocationMachineRuleCatalogError::UnsupportedComposition(_))
     ));
 }

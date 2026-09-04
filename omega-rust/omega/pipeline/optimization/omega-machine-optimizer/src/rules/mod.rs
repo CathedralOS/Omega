@@ -13,7 +13,9 @@ mod peephole_matching;
 #[cfg(test)]
 mod tests;
 
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+use omega_optimization_core::{
+    Optimization, OptimizationExecutionPhase, OptimizationPhaseSelections, OptimizationSelections,
+};
 use omega_target::Architecture;
 
 pub use catalog::{
@@ -25,7 +27,7 @@ pub use catalog::{
 /// Select the single post-allocation machine rule currently admitted by the
 /// physical pipeline, preserving the exact phase-selection identity.
 pub fn selected_post_allocation_machine_rule(
-    selections: &OptimizationSelections,
+    selections: &OptimizationPhaseSelections,
     architecture: Architecture,
 ) -> Result<
     (
@@ -34,7 +36,9 @@ pub fn selected_post_allocation_machine_rule(
     ),
     PostAllocationMachineRuleCatalogError,
 > {
-    let phase = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
+    let phase = selections
+        .require_phase(OptimizationExecutionPhase::PostAllocationMachine)
+        .map_err(PostAllocationMachineRuleCatalogError::WrongPhase)?;
     match phase.as_slice() {
         [selected] => {
             let Some(descriptor) = POST_ALLOCATION_MACHINE_RULE_CATALOG
@@ -53,7 +57,7 @@ pub fn selected_post_allocation_machine_rule(
                     actual: architecture,
                 });
             }
-            Ok((*descriptor, phase))
+            Ok((*descriptor, phase.clone()))
         }
         [] => Err(PostAllocationMachineRuleCatalogError::MissingSelection),
         selected => Err(PostAllocationMachineRuleCatalogError::UnsupportedComposition(selected[0])),
@@ -62,7 +66,7 @@ pub fn selected_post_allocation_machine_rule(
 
 /// Require one exact post-allocation rule at a rule-specific custody join.
 pub fn require_post_allocation_machine_rule(
-    selections: &OptimizationSelections,
+    selections: &OptimizationPhaseSelections,
     expected: Optimization,
     architecture: Architecture,
 ) -> Result<OptimizationSelections, PostAllocationMachineRuleCatalogError> {

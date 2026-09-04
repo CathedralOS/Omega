@@ -1,4 +1,6 @@
-use omega_optimization_core::{Optimization, OptimizationCatalogDescriptor};
+use omega_optimization_core::{
+    Optimization, OptimizationCatalogDescriptor, OptimizationPhaseMismatch,
+};
 
 use super::super::RegisterAllocationRuleTargetApplicability;
 use super::LiteralFoldPolicy;
@@ -48,6 +50,7 @@ pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 2] = [
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedLoweringRuleCatalogError {
+    WrongPhase(OptimizationPhaseMismatch),
     MissingSelection,
     UnsupportedSelection(Optimization),
 }

@@ -5,8 +5,9 @@ use omega_machine_optimizer::{
 use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 use omega_psi_optimizer::{PSI_PASS_CATALOG, PsiPassTargetApplicability, built_in_psi_registries};
 use omega_regalloc::{
-    ALLOCATION_RECOVERY_RULE_CATALOG, RegisterAllocationRuleTargetApplicability,
-    SELECTED_LOWERING_RULE_CATALOG, resolve_selected_lowering_rules,
+    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogError,
+    RegisterAllocationRuleTargetApplicability, SELECTED_LOWERING_RULE_CATALOG,
+    SelectedLoweringRuleCatalogError, resolve_selected_lowering_rules,
     selected_allocation_recovery_rule,
 };
 use omega_target::{Architecture, NativeTarget};
@@ -20,6 +21,29 @@ use crate::{
 enum TestTargetDisposition {
     TargetIndependent,
     Architecture(Architecture),
+}
+
+#[test]
+fn every_physical_catalog_rejects_a_projection_for_another_phase() {
+    let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+    let psi = selections.project_phase(OptimizationExecutionPhase::Psi);
+
+    assert!(matches!(
+        resolve_selected_lowering_rules(&psi),
+        Err(SelectedLoweringRuleCatalogError::WrongPhase(_))
+    ));
+    assert!(matches!(
+        selected_allocation_recovery_rule(&psi),
+        Err(AllocationRecoveryRuleCatalogError::WrongPhase(_))
+    ));
+    assert!(matches!(
+        selected_post_allocation_machine_rule(&psi, Architecture::X86_64),
+        Err(PostAllocationMachineRuleCatalogError::WrongPhase(_))
+    ));
+    assert!(matches!(
+        x86_rel8_selected(&psi, Architecture::X86_64),
+        Err(FunctionRelativeLayoutCatalogError::WrongPhase(_))
+    ));
 }
 
 fn declared_catalog() -> Vec<(
@@ -138,6 +162,7 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
 
     for (optimization, phase, disposition) in declared_catalog() {
         let selections = OptimizationSelections::new([optimization]).unwrap();
+        let phase_selections = selections.project_phase(phase);
         for (target_name, target) in targets {
             let applicable = match disposition {
                 TestTargetDisposition::TargetIndependent => true,
@@ -148,19 +173,22 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
                     assert_eq!(built_in_psi_registries(&selections).unwrap().len(), 1);
                 }
                 (OptimizationExecutionPhase::SelectedLowering, true) => {
-                    resolve_selected_lowering_rules(&selections).unwrap();
+                    resolve_selected_lowering_rules(&phase_selections).unwrap();
                 }
                 (OptimizationExecutionPhase::AllocationRecovery, true) => {
                     assert_eq!(
-                        selected_allocation_recovery_rule(&selections),
+                        selected_allocation_recovery_rule(&phase_selections),
                         Ok(Some(optimization))
                     );
                 }
                 (OptimizationExecutionPhase::PostAllocationMachine, true) => {
                     assert_eq!(
-                        selected_post_allocation_machine_rule(&selections, target.architecture)
-                            .unwrap()
-                            .0,
+                        selected_post_allocation_machine_rule(
+                            &phase_selections,
+                            target.architecture
+                        )
+                        .unwrap()
+                        .0,
                         *POST_ALLOCATION_MACHINE_RULE_CATALOG
                             .iter()
                             .find(|entry| entry.optimization() == optimization)
@@ -169,7 +197,7 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
                 }
                 (OptimizationExecutionPhase::FunctionRelativeLayout, true) => {
                     assert_eq!(
-                        x86_rel8_selected(&selections, target.architecture),
+                        x86_rel8_selected(&phase_selections, target.architecture),
                         Ok(true)
                     );
                 }
@@ -178,7 +206,10 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
                         unreachable!()
                     };
                     assert_eq!(
-                        selected_post_allocation_machine_rule(&selections, target.architecture),
+                        selected_post_allocation_machine_rule(
+                            &phase_selections,
+                            target.architecture,
+                        ),
                         Err(PostAllocationMachineRuleCatalogError::UnsupportedTarget {
                             optimization,
                             required,
@@ -192,7 +223,7 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
                         unreachable!()
                     };
                     assert_eq!(
-                        x86_rel8_selected(&selections, target.architecture),
+                        x86_rel8_selected(&phase_selections, target.architecture),
                         Err(FunctionRelativeLayoutCatalogError::UnsupportedTarget {
                             optimization,
                             required,

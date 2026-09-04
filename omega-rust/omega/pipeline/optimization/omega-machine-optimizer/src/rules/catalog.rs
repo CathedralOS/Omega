@@ -1,4 +1,6 @@
-use omega_optimization_core::{Optimization, OptimizationCatalogDescriptor};
+use omega_optimization_core::{
+    Optimization, OptimizationCatalogDescriptor, OptimizationPhaseMismatch,
+};
 use omega_target::Architecture;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -119,6 +121,7 @@ pub const ORDERED_POST_ALLOCATION_MACHINE_RULES: [Optimization; 9] = [
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PostAllocationMachineRuleCatalogError {
+    WrongPhase(OptimizationPhaseMismatch),
     MissingSelection,
     UnsupportedSelection(Optimization),
     UnsupportedComposition(Optimization),

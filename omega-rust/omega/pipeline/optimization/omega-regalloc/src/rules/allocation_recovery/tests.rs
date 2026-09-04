@@ -24,15 +24,16 @@ fn catalog_exactly_matches_the_allocation_recovery_vocabulary() {
     }));
     for optimization in ORDERED_ALLOCATION_RECOVERY_RULES {
         let selections = OptimizationSelections::new([optimization]).unwrap();
+        let phase = selections.project_phase(OptimizationExecutionPhase::AllocationRecovery);
         assert_eq!(
-            selected_allocation_recovery_rule(&selections),
+            selected_allocation_recovery_rule(&phase),
             Ok(Some(optimization))
         );
     }
+    let composition = OptimizationSelections::new(ORDERED_ALLOCATION_RECOVERY_RULES).unwrap();
+    let phase = composition.project_phase(OptimizationExecutionPhase::AllocationRecovery);
     assert_eq!(
-        selected_allocation_recovery_rule(
-            &OptimizationSelections::new(ORDERED_ALLOCATION_RECOVERY_RULES).unwrap()
-        ),
+        selected_allocation_recovery_rule(&phase),
         Err(AllocationRecoveryRuleCatalogError::UnsupportedComposition)
     );
 }

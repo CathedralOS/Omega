@@ -9,8 +9,9 @@ use super::fixture::*;
 #[test]
 fn exact_subtract_rule_is_disabled_by_the_default_selected_lowering_projection() {
     let disabled = OptimizationSelections::default();
+    let phase = disabled.project_phase(OptimizationExecutionPhase::SelectedLowering);
     assert_eq!(
-        resolve_selected_lowering_rules(&disabled),
+        resolve_selected_lowering_rules(&phase),
         Err(SelectedLoweringRuleCatalogError::MissingSelection)
     );
 

@@ -11,7 +11,9 @@ pub(crate) mod pressure_rematerialization;
 #[cfg(test)]
 mod tests;
 
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+use omega_optimization_core::{
+    Optimization, OptimizationExecutionPhase, OptimizationPhaseSelections,
+};
 
 pub use catalog::*;
 pub use fixed_view_copy::*;
@@ -20,9 +22,11 @@ pub use pressure_rematerialization::*;
 /// Select the single allocation-recovery rule currently admitted by the
 /// physical pipeline. Empty phase selections deliberately return `None`.
 pub fn selected_allocation_recovery_rule(
-    selections: &OptimizationSelections,
+    selections: &OptimizationPhaseSelections,
 ) -> Result<Option<Optimization>, AllocationRecoveryRuleCatalogError> {
-    let phase = selections.for_phase(OptimizationExecutionPhase::AllocationRecovery);
+    let phase = selections
+        .require_phase(OptimizationExecutionPhase::AllocationRecovery)
+        .map_err(AllocationRecoveryRuleCatalogError::WrongPhase)?;
     match phase.as_slice() {
         [] => Ok(None),
         [selected]

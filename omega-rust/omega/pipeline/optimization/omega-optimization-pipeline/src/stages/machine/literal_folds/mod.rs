@@ -39,6 +39,9 @@ pub use omega_regalloc::ORDERED_SELECTED_LOWERING_RULES;
 impl From<omega_regalloc::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {
     fn from(error: omega_regalloc::SelectedLoweringRuleCatalogError) -> Self {
         match error {
+            omega_regalloc::SelectedLoweringRuleCatalogError::WrongPhase(_) => {
+                Self::SelectionProjectionMismatch
+            }
             omega_regalloc::SelectedLoweringRuleCatalogError::MissingSelection => {
                 Self::MissingSelectedLoweringOptimization
             }
@@ -61,6 +64,8 @@ pub fn run_selected_lowering_optimizations(
         .optimized()
         .selections()
         .clone();
-    let (selected, fold_policy) = resolve_selected_lowering_rules(&selections)?;
+    let selected_lowering = selections
+        .project_phase(omega_optimization_core::OptimizationExecutionPhase::SelectedLowering);
+    let (selected, fold_policy) = resolve_selected_lowering_rules(&selected_lowering)?;
     execution::execute_selected_lowering_optimizations(source, selections, selected, fold_policy)
 }

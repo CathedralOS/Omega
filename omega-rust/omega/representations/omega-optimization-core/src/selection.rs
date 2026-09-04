@@ -304,6 +304,13 @@ pub struct OptimizationPhaseSelections {
     selected: OptimizationSelections,
 }
 
+/// A phase-local selection was presented to the wrong executable stage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptimizationPhaseMismatch {
+    pub expected: OptimizationExecutionPhase,
+    pub actual: OptimizationExecutionPhase,
+}
+
 /// Omega-owned bridge from the complete build selection to the independently
 /// encoded target-neutral Psi selection. Coordinators retain the complete
 /// identity; Psi consumes only `selected`.
@@ -334,6 +341,20 @@ impl OptimizationPhaseSelections {
 
     pub const fn selections(&self) -> &OptimizationSelections {
         &self.selected
+    }
+
+    /// Expose the local set only to the stage that owns this exact phase.
+    pub fn require_phase(
+        &self,
+        expected: OptimizationExecutionPhase,
+    ) -> Result<&OptimizationSelections, OptimizationPhaseMismatch> {
+        if self.phase != expected {
+            return Err(OptimizationPhaseMismatch {
+                expected,
+                actual: self.phase,
+            });
+        }
+        Ok(&self.selected)
     }
 
     pub fn is_empty(&self) -> bool {

@@ -4,7 +4,8 @@ use omega_machine_optimizer::{
     validate_aarch64_movn_materialization,
 };
 use omega_optimization_core::{
-    Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
+    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
+    OptimizationSelections, OptimizationWorkBudget,
 };
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
@@ -258,8 +259,10 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedAarch64MovnMaterialization,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
         machine.machine().plan().target.architecture,
     )?;
@@ -288,8 +291,10 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedAarch64MovnMaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
         machine.machine().plan().target.architecture,
     )?;

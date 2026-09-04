@@ -11,7 +11,9 @@ use omega_machine_optimizer::{
     validate_aarch64_same_view_copy_i64_before_compare_i64_right_operand,
     validate_aarch64_same_view_copy_i64_before_compare_zero,
 };
-use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
+use omega_optimization_core::{
+    Optimization, OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
+};
 use omega_regalloc::{ValidatedLiveness, ValidatedSelectedAnalysis};
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
@@ -36,8 +38,10 @@ pub(super) fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedAarch64SameViewCopyElision,
     OptimizedPostAllocationMachineOptimizationError,
 > {
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         optimization,
         machine.machine().plan().target.architecture,
     )?;
@@ -101,8 +105,10 @@ pub(super) fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     OptimizedPostAllocationMachineOptimizationError,
 > {
     let staged_custody = staged.custody();
+    let phase_selections =
+        selections.project_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let phase = require_post_allocation_machine_rule(
-        selections,
+        &phase_selections,
         staged_custody.optimization(),
         machine.machine().plan().target.architecture,
     )?;

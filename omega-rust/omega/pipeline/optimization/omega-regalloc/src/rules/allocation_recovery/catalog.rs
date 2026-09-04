@@ -1,4 +1,6 @@
-use omega_optimization_core::{Optimization, OptimizationCatalogDescriptor};
+use omega_optimization_core::{
+    Optimization, OptimizationCatalogDescriptor, OptimizationPhaseMismatch,
+};
 
 use super::super::RegisterAllocationRuleTargetApplicability;
 
@@ -40,6 +42,7 @@ pub const ORDERED_ALLOCATION_RECOVERY_RULES: [Optimization; 2] = [
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AllocationRecoveryRuleCatalogError {
+    WrongPhase(OptimizationPhaseMismatch),
     UnsupportedSelection(Optimization),
     UnsupportedComposition,
 }

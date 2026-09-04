@@ -189,7 +189,9 @@ closed output. It no longer schedules abstract optimization, target lowering,
 physical assignment, or physical optimization itself. The physical entrance
 projects its closed post-Terminal selection once into exact phase-local inputs;
 composition does not rescan the global set, and a post-Terminal phase without
-an implemented stage rejects rather than disappearing. The physical result is
+an implemented stage rejects rather than disappearing. Executable physical
+catalogs accept only `OptimizationPhaseSelections`, validate the owning phase,
+and cannot rediscover policy by scanning the global selection. The physical result is
 still transitional: its identity variants contain assigned operations while its
 selected variant may contain a result from a later phase, because the selected
 side still groups several Omega-owned phases into one optimizer unit. The public
