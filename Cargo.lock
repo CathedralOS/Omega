@@ -433,7 +433,6 @@ name = "omega-calling-conventions"
 version = "0.1.0"
 dependencies = [
  "omega-target",
- "psi-arena",
  "sha2",
 ]
 
