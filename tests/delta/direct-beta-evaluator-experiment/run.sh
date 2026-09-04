@@ -15,7 +15,7 @@ command -v python3 >/dev/null 2>&1 || {
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 SYMBOLIC="$GATE_DIR/direct_delta_evaluator.sbeta"
-GAMMA_SYMBOLIC="$OMEGA_REPO_ROOT/tests/gamma/evaluator-development/gamma_evaluator.sbeta"
+GAMMA_BETA="$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE"
 RESOLVER="$OMEGA_REPO_ROOT/tests/gamma/evaluator-development/resolve.py"
 
 python3 "$RESOLVER" "$SYMBOLIC" "$TMP/evaluator.beta"
@@ -26,7 +26,7 @@ stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
 
 EVALUATOR="$TMP/evaluator" BETA="$TMP/evaluator.beta" \
     TAPE="$TMP/evaluator.tape" SYMBOLIC="$SYMBOLIC" \
-    GAMMA_SYMBOLIC="$GAMMA_SYMBOLIC" GATE_DIR="$GATE_DIR" python3 - <<'PY'
+    GAMMA_BETA="$GAMMA_BETA" GATE_DIR="$GATE_DIR" python3 - <<'PY'
 import hashlib
 import os
 import re
@@ -107,6 +107,9 @@ def metrics(path):
     instructions = []
     labels = 0
     for line in lines:
+        if re.fullmatch(r"0x[0-9a-f]+: ; [a-z][a-z0-9_]*:", line):
+            labels += 1
+            continue
         code = line.split(";", 1)[0].strip()
         if re.fullmatch(r"[a-z][a-z0-9_]*:", code):
             labels += 1
@@ -117,7 +120,7 @@ def metrics(path):
     control = branches + calls + instructions.count("ret")
     return len(lines), len(instructions), labels, control, branches, calls
 
-if metrics(os.environ["GAMMA_SYMBOLIC"]) != (1314, 1058, 164, 474, 207, 201):
+if metrics(os.environ["GAMMA_BETA"]) != (1325, 1065, 165, 479, 208, 203):
     raise SystemExit("Gamma comparison metrics changed")
 if metrics(os.environ["SYMBOLIC"]) != (2019, 1655, 262, 836, 346, 387):
     raise SystemExit("direct Delta comparison metrics changed")

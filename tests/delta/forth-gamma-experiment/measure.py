@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 LABEL = re.compile(r"[a-z][a-z0-9_]*:")
+ADDRESSED_LABEL = re.compile(r"0x[0-9a-f]+: ; [a-z][a-z0-9_]*:")
 
 
 def beta_metrics(path: str) -> tuple[int, int, int, int, int, int]:
@@ -13,6 +14,9 @@ def beta_metrics(path: str) -> tuple[int, int, int, int, int, int]:
     instructions = []
     labels = 0
     for line in lines:
+        if ADDRESSED_LABEL.fullmatch(line):
+            labels += 1
+            continue
         code = line.split(";", 1)[0].strip()
         if LABEL.fullmatch(code):
             labels += 1

@@ -38,15 +38,6 @@ Epsilon compiler.
   correspondence. Acceptance: an independent reviewer can trace every
   operation to one Beta rule and reproduce the executed tape byte-for-byte.
 
-- **GAMMA-EVALUATOR.** Complete the direct Beta evaluator for
-  `source/gamma/LANGUAGE.md`. Retain direct source evaluation and declaration
-  census; do not add an AST, generated code, general mutable store, ambient
-  host access, or Delta-shaped primitives. Acceptance: reached and unreachable
-  malformed definitions reject before publication, 100,000-step tail recursion
-  uses constant activation storage, every resource boundary has an exact
-  profile-owned outcome, and source/tape identities reconstruct without host
-  semantic translation.
-
 ## P1 - Gamma checker
 
 - **GAMMA-DERIVATION-CHECKER.** Implement the smallest proof checker required

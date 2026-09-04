@@ -1,7 +1,7 @@
-# Direct Beta Gamma evaluator development
+# Direct Beta Gamma evaluator validation
 
-This test-owned development source implements typed scalar/effect Gamma
-directly in addressed Beta, without Gamma:
+This test-owned gate validates the selected typed scalar/effect Gamma evaluator,
+which is implemented directly in addressed Beta:
 
 ```text
 Beta compiler -> Gamma evaluator tape
@@ -19,15 +19,14 @@ emits no Gamma or Alpha code.
 ## Measurements
 
 ```text
-1,314-line / 30,532-byte symbolic addressed-Beta source
-81-line / 2,070-byte test-only label resolver
-1,314-line / 36,674-byte canonical addressed Beta with named control targets
-6,880-byte evaluator tape
+1,325-line / 37,095-byte canonical addressed Beta with named control targets
+6,934-byte evaluator tape
 ```
 
-The resolver only computes numeric addresses and the gate pins the resulting
-Beta and tape hashes. A promoted implementation would retain the addressed Beta
-directly and would not trust the Python resolver.
+The gate compiles that canonical Beta directly and pins the Beta and tape
+hashes. The adjacent 81-line label resolver remains only for nonauthoritative
+experiments elsewhere under `tests/`; it does not reconstruct or participate in
+the selected evaluator.
 
 For comparison, the current Gamma route above the common Beta compiler contains:
 
@@ -44,27 +43,30 @@ The direct evaluator runs the unchanged 85-line Gamma `const` augmenter,
 requires its exact 51-byte Gamma receipt, and evaluates that receipt to byte 42.
 It also covers literals, lexical bindings, every scalar operator, true/false
 branches, forward and parameterized calls, recursion, compiler I/O, and quiet
-invalid/trap outcomes.
+invalid/trap outcomes. Exact and adjacent gates pin the 4,096-function census,
+255-list syntax depth, and 256-context ordinary-call limits without inflating
+the routine gate with multi-megabyte output or heap witnesses.
 
 ## Limitations
 
-This is not yet an admitted Gamma evaluator:
+The remaining admission work is outside evaluator semantics:
 
 - Non-tail calls and source nesting retain explicit bounds.
 - Integer parsing and arithmetic are deliberately wrapping Gamma operations;
   Delta owns checked arithmetic.
-- Resource partitions and detailed profile outcomes are experimental.
+- The Beta root and the eventual Gamma derivation checker retain their own
+  independent admission obligations.
 
-The remaining capacity proof requires real work, but the measured margin remains:
-the direct candidate is 1,314 Beta lines versus 2,337 lines across the former
-concatenative route. More importantly, its state is held in documented
-registers and explicit memory regions rather than hidden behind a generic
-stack-machine expansion.
+The measured margin remains: the direct candidate is 1,325 Beta lines versus
+2,337 lines across the former concatenative route. More importantly, its state
+is held in documented registers and explicit memory regions rather than hidden
+behind a generic stack-machine expansion.
 
 ## Finding
 
 The former concatenative Gamma is not earned as a permanent bootstrap rung.
 Direct Beta already executes the high-level Gamma-authored augmentation workflow
 at less than half the authored line surface and about one fifth the Alpha tape
-size of the compiled seed alone. The remaining decision is whether proper tail
-execution and static validation preserve the evaluator's local auditability.
+size of the compiled seed alone. Proper-tail execution, whole-program static
+validation, private pair provenance, and exact resource outcomes preserve that
+local auditability without another semantic layer.

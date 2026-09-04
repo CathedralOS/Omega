@@ -14,13 +14,14 @@ functions, polymorphism, modules, and ambient host access.
 Its exact contract is
 [`source/gamma/LANGUAGE.md`](../../../../source/gamma/LANGUAGE.md). Its customers
 are the staged Delta compiler and explicitly justified small bootstrap tools.
-The provisional 1,314-line Beta evaluator assembles to a 6,880-byte tape and runs
+The selected 1,325-line Beta evaluator assembles to a 6,934-byte tape and runs
 the scalar/effect plus self-augmentation gates. It executes the unchanged
 85-line source augmenter, produces its exact source receipt, and evaluates the
 expanded program to byte 42.
 
-Proper tail execution, static validation of unreachable bodies, and private
-pair-reference provenance are complete.
-Complete resource outcomes and admission remain open. The former
+Proper tail execution, static validation of unreachable bodies, private
+pair-reference provenance, and profile-owned arithmetic traps are complete.
+Its exact resource outcomes are closed. Beta-root audit and the Gamma derivation
+checker remain separate admission obligations. The former
 concatenative Gamma implementation is retained only under
 `source/gamma/bootstrap/concatenative/`.

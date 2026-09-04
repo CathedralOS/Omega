@@ -4140,3 +4140,46 @@ relay. Exact reconstruction, the 100,000-step tail witness, composed
 publication, and the staged Delta workload remain required. This is an
 enforcement correction, not a new Gamma feature; the complete capacity proof
 remains open.
+
+## D97 — Gamma evaluator closes its bounded outcome profile
+
+D97 closes the `GAMMA-EVALUATOR` implementation task without broadening Gamma.
+The exact profile now names every retained representation and effective limit:
+16,777,216 request bytes, 4,096 functions, 65,536 active bindings, 524,288
+tagged temporary values, 255 nested expression lists, 256 live call contexts,
+257 reachable function frames, 5,033,164 immutable pairs, and 67,108,864
+successful output bytes.
+
+Function, environment, value, frame, context, pair, and output allocation all
+preflight the complete next extent before mutation. Function and environment
+insertion formerly reported `Incomplete` after filling their last physical
+slot; their checks now occur before address derivation, so the published exact
+counts complete and the adjacent insertion returns status 3 without an
+out-of-range store. The call-context check likewise admits its complete 256-row
+logical profile before refusing the adjacent context. Exact/adjacent gates pin
+the function, syntax-depth, and ordinary-call boundaries; the request edge and
+larger linear arenas follow from the same checked extent arithmetic in the
+exact hashed source.
+
+The hidden Alpha return stack is contained independently. Census admits at
+most 255 nested expression lists, ordinary evaluation admits at most 256 live
+non-tail contexts, and proper-tail paths add no Alpha recursion. The evaluator
+call graph has no other recursive cycle. Even the conservative bound of 16
+Alpha return slots per expression level per active Gamma frame plus 512 fixed
+helper slots consumes 8,425,472 bytes, while the pair heap reserves 33,554,432
+bytes below Alpha's initial stack pointer.
+
+The outcome audit also found that dynamic `/` and `%` had leaked Alpha's
+illegal-instruction trap for zero and `INT64_MIN / -1`. The evaluator now
+prechecks both cases and returns Gamma authored-trap status 2; all four
+division/remainder cases are gated. Framing or static source defects remain
+status 1, every bounded-storage refusal is status 3, evaluator contradictions
+are status 4, and nontermination remains divergence rather than a fabricated
+resource result.
+
+The final exact subject is 1,325 addressed-Beta lines and a 6,934-byte Alpha
+tape. Canonical Beta reconstruction, unreachable-body validation, the
+100,000-step proper-tail witness, pair provenance, composed atomic publication,
+and the complete staged Delta workload remain green. Beta-root audit and the
+Gamma derivation checker remain open independent tasks; they do not reopen the
+evaluator's language or resource behavior.
