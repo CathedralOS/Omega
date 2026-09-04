@@ -4,8 +4,10 @@ use omega_package_manager::resolution::graph::{
 };
 use omega_package_manager::resolution::source::ResolvePackageSourceError;
 use omega_package_manager::review::{
-    CompileResolvedPackageReviewsError, compile_resolved_package_candidate_for_production,
-    compile_resolved_package_reviews,
+    CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
+    compare_review_only_initial_capabilities, compile_resolved_package_candidate_for_production,
+    compile_resolved_package_reviews, resolve_review_only_root_policy_decisions,
 };
 use omega_package_source::{
     LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage,
@@ -131,5 +133,62 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
             .any(|callable| { callable.identity().path() == "consume_generated_table" })
     );
 
+    let target = closure.for_exact_target(omega_target::TargetProfile::WindowsX64);
+    let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
+    let conflicts = compare_review_only_initial_capabilities(&reviews, &target, conflict_limits)
+        .expect("derive exact generated-source review decisions");
+    let decisions = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| {
+            package
+                .conflicts()
+                .iter()
+                .filter(|conflict| conflict.is_blocking())
+                .map(|conflict| {
+                    package
+                        .root_policy_decision(
+                            conflict,
+                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+                        )
+                        .expect("bind generated-source decision to its exact package row")
+                })
+        })
+        .collect::<Vec<_>>();
+    let policy = (!decisions.is_empty()).then(|| {
+        resolve_review_only_root_policy_decisions(&conflicts, &decisions)
+            .expect("resolve generated-source blockers")
+    });
+    let accepted = accept_ordinary_closure_evidence(
+        &target,
+        &reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+        conflict_limits,
+        policy.as_ref(),
+    )
+    .expect("source-only acceptance retains generated-source ownership");
+    for review in reviews.reviews() {
+        let package = accepted
+            .packages()
+            .iter()
+            .find(|package| package.package() == review.key())
+            .expect("accepted package");
+        assert_eq!(
+            package.generated_sources(),
+            review.generated_source_bundle(),
+            "each package keeps its own complete generated-source bundle"
+        );
+        assert_eq!(
+            package.source_consumption(),
+            review.source_consumption_commitment()
+        );
+        assert_eq!(
+            package.build_observation(),
+            review.build_observation_summary(),
+            "acceptance preserves the observed build rather than executing it again"
+        );
+    }
+
     let _ = std::fs::remove_dir_all(temporary);
 }
+use omega_package_manager::admission::accept_ordinary_closure_evidence;

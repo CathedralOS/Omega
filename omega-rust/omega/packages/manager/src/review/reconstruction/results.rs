@@ -6,14 +6,13 @@ use super::{
 };
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
-use crate::review::CompilerIssuedPackageReviewSet;
+use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use omega_package_evidence::ledger::{
     OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentAssumptionDischarge,
     OrdinaryPackageContractEntailmentOpenObligation, OrdinaryPackageDangerousAuthorityObligation,
     OrdinaryPackageExternalExecutableSupplyObligation, OrdinaryPackageObligationResultSet,
     OrdinaryPackageTerminalAuthorityPermissionObligation,
 };
-use std::collections::BTreeMap;
 
 /// One package's locally reconstructed result set within an exact source
 /// closure. No producer policy decision is representable here.
@@ -94,18 +93,23 @@ impl LocallyComposedPackageObligationResults {
         reviews: &CompilerIssuedPackageReviewSet,
         limits: CanonicalPackageReconstructionQuestionLimits,
     ) -> Result<Self, CanonicalPackageReconstructionQuestionError> {
-        let question = CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
-            target_closure,
-            reviews,
-            limits,
-        )?;
-        let mut reviews_by_package = BTreeMap::new();
-        for review in reviews.reviews() {
-            if reviews_by_package.insert(review.key(), review).is_some() {
-                return Err(CanonicalPackageReconstructionQuestionError::new(
-                    "package obligation composition contains a duplicate review",
-                ));
-            }
+        let (question, associated_reviews) =
+            CanonicalPackageReconstructionQuestion::associate_resolved_reviews(
+                target_closure,
+                reviews,
+                limits,
+            )?;
+        Self::from_associated_reviews(question, &associated_reviews)
+    }
+
+    pub(super) fn from_associated_reviews(
+        question: CanonicalPackageReconstructionQuestion,
+        reviews: &[&CompilerIssuedPackageReview],
+    ) -> Result<Self, CanonicalPackageReconstructionQuestionError> {
+        if question.entries().len() != reviews.len() {
+            return Err(CanonicalPackageReconstructionQuestionError::new(
+                "package obligation composition is missing a reviewed package",
+            ));
         }
 
         let mut entries = Vec::new();
@@ -122,16 +126,10 @@ impl LocallyComposedPackageObligationResults {
         let mut open_external_supply_count = 0usize;
         let mut open_dangerous_authority_count = 0usize;
         let mut open_terminal_authority_permission_count = 0usize;
-        for question_entry in question.entries() {
-            let review = reviews_by_package
-                .remove(question_entry.package())
-                .ok_or_else(|| {
-                    CanonicalPackageReconstructionQuestionError::new(
-                        "package obligation composition is missing a reviewed package",
-                    )
-                })?;
+        for (question_entry, review) in question.entries().iter().zip(reviews) {
             let results = review.obligation_results();
-            if results.package() != question_entry.package().identity()
+            if review.key() != question_entry.package()
+                || results.package() != question_entry.package().identity()
                 || results.schema() != question_entry.obligations().schema()
                 || results.target() != question_entry.obligations().target()
                 || results.dependency_closure() != question_entry.obligations().dependency_closure()
@@ -188,12 +186,6 @@ impl LocallyComposedPackageObligationResults {
                 results: results.clone(),
             });
         }
-        if !reviews_by_package.is_empty() {
-            return Err(CanonicalPackageReconstructionQuestionError::new(
-                "package obligation composition contains a review outside the source closure",
-            ));
-        }
-
         let mut root_open_accepted_claims = Vec::new();
         root_open_accepted_claims
             .try_reserve_exact(open_claim_count)

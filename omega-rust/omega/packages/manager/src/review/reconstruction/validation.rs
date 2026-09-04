@@ -42,6 +42,11 @@ pub(super) fn validate_association(
     }
 
     let expected_target = entries[0].obligations.target();
+    if expected_target != source_closure.target_profile() {
+        return Err(CanonicalPackageReconstructionQuestionError::new(
+            "package reconstruction obligation target does not match the source closure target",
+        ));
+    }
     let mut total_ledger_bytes = 0usize;
     for (source, entry) in source_closure.packages().iter().zip(entries) {
         if entry.package != *source.key() {

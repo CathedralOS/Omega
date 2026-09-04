@@ -8,8 +8,8 @@ use omega_package_manager::admission::{
     accept_ordinary_closure_evidence, accepted_terminal_authority_permission_policy,
 };
 use omega_package_manager::resolution::graph::{
-    PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
-    resolve_external_local_package_closure_with_storage,
+    CanonicalSourceClosureSubject, PackageSourceClosureLimits, ResolveWorkspacePackageClosureError,
+    ResolvedPackageSourceClosure, resolve_external_local_package_closure_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
 use omega_package_manager::resolution::source::ResolvePackageSourceError;
@@ -116,6 +116,131 @@ fn graph_workbench_question() -> (
     (temporary, closure, reviews, question)
 }
 
+fn claim_free_review_fixture(
+    label: &str,
+) -> (
+    PathBuf,
+    ResolvedPackageSourceClosure,
+    omega_package_manager::review::CompilerIssuedPackageReviewSet,
+) {
+    let temporary = temporary_root(label);
+    let root = temporary.join("root");
+    std::fs::create_dir_all(&root).expect("create claim-free review root");
+    std::fs::write(
+        root.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"association-canary\"); }\n",
+    )
+    .expect("write package declaration");
+    std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n")
+        .expect("write reviewed source");
+    let closure = resolve_external_closure(&root, temporary.join("cache"));
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &temporary.join("build"),
+    )
+    .expect("compile source-only review");
+    (temporary, closure, reviews)
+}
+
+#[test]
+fn all_fresh_association_paths_reject_reviews_for_another_requested_target() {
+    let (temporary, closure, reviews) = claim_free_review_fixture("requested-target");
+    let limits = CanonicalPackageReconstructionQuestionLimits::default();
+    let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
+    let target = closure.for_exact_target(omega_target::TargetProfile::WindowsX64);
+    let original = CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
+        &target, &reviews, limits,
+    )
+    .expect("question for the reviewed target");
+    accept_ordinary_closure_evidence(&target, &reviews, limits, conflict_limits, None)
+        .expect("matching source-only review needs no synthetic policy");
+
+    let other_target = closure.for_exact_target(omega_target::TargetProfile::LinuxX64);
+    assert!(
+        CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
+            &other_target,
+            &reviews,
+            limits,
+        )
+        .is_err(),
+        "a source subject cannot relabel Windows review as Linux review"
+    );
+    assert!(
+        LocallyComposedPackageObligationResults::from_resolved_and_reviews(
+            &other_target,
+            &reviews,
+            limits,
+        )
+        .is_err(),
+        "composition must retain the caller's exact requested target"
+    );
+    assert!(
+        bind_fresh_package_root_policy(&other_target, &reviews, limits, conflict_limits, None)
+            .is_err(),
+        "root-policy binding cannot pair a different requested target"
+    );
+    assert!(
+        accept_ordinary_closure_evidence(&other_target, &reviews, limits, conflict_limits, None)
+            .is_err(),
+        "in-memory acceptance cannot promote cross-target review"
+    );
+
+    let alternate_subject =
+        CanonicalSourceClosureSubject::from_resolved(&other_target, limits.source_closure)
+            .expect("canonical source subject for the other target");
+    let (version, _, ledgers) = split_question(original.canonical_bytes());
+    assert!(
+        CanonicalPackageReconstructionQuestion::recover(
+            &join_question(version, alternate_subject.canonical_bytes(), &ledgers),
+            limits,
+        )
+        .is_err(),
+        "recovery must rejoin the source target and ledger target too"
+    );
+    remove_temporary_tree(&temporary);
+}
+
+#[test]
+fn all_fresh_association_paths_reject_stale_review_for_same_named_source() {
+    let (temporary, original_closure, reviews) = claim_free_review_fixture("stale-review");
+    let root = temporary.join("root");
+    std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 2 }\n")
+        .expect("change implementation without changing package name or public signature");
+    let changed_closure = resolve_external_closure(&root, temporary.join("changed-cache"));
+    assert_eq!(
+        original_closure.graph().root(),
+        changed_closure.graph().root(),
+        "the immutable revision changes beneath the same source-qualified package key"
+    );
+    let target = changed_closure.for_exact_target(omega_target::TargetProfile::WindowsX64);
+    let limits = CanonicalPackageReconstructionQuestionLimits::default();
+    let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
+    assert!(
+        CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
+            &target, &reviews, limits
+        )
+        .is_err()
+    );
+    assert!(
+        LocallyComposedPackageObligationResults::from_resolved_and_reviews(
+            &target, &reviews, limits
+        )
+        .is_err()
+    );
+    assert!(
+        bind_fresh_package_root_policy(&target, &reviews, limits, conflict_limits, None).is_err()
+    );
+    assert!(
+        accept_ordinary_closure_evidence(&target, &reviews, limits, conflict_limits, None).is_err()
+    );
+
+    let fresh_reviews = compile_resolved_package_reviews(&target, &temporary.join("changed-build"))
+        .expect("compile the changed source at its own immutable resolution");
+    accept_ordinary_closure_evidence(&target, &fresh_reviews, limits, conflict_limits, None)
+        .expect("fresh source review remains acceptable without native emission");
+    remove_temporary_tree(&temporary);
+}
+
 #[test]
 fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     let (temporary, closure, reviews, question) = graph_workbench_question();
@@ -154,6 +279,11 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         limits,
     )
     .expect("compose graph-workbench open obligations");
+    assert_eq!(
+        composed.question(),
+        &question,
+        "composition retains the exact canonical question and encoding"
+    );
     let dangerous_authorities = composed
         .root_open_dangerous_authorities()
         .collect::<Vec<_>>();
@@ -232,6 +362,11 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     )
     .expect("every exact graph-workbench blocker is accepted");
     assert_eq!(accepted.root_policy(), Some(&accepted_policy));
+    assert_eq!(
+        accepted.obligations().question(),
+        &question,
+        "root decisions do not change the canonical source/review association"
+    );
     let evidence = accept_ordinary_closure_evidence(
         &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
@@ -240,6 +375,11 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         Some(&accepted_policy),
     )
     .expect("fresh reconstruction and exact root policy issue accepted evidence");
+    assert_eq!(
+        evidence.acceptance().obligations().question(),
+        &question,
+        "in-memory acceptance preserves every canonical question byte"
+    );
     assert_eq!(
         evidence.schema().version(),
         ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION
