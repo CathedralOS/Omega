@@ -6,7 +6,7 @@ description: Drive the Omega Rust reference compiler toward completion by workin
 # Advance the Omega compiler
 
 One iteration of the completion loop: pick major work, build it, gate it, land it.
-`CLAUDE.md` already carries the commands, architecture, crate placement rule, and
+`AGENTS.md` already carries the commands, architecture, crate placement rule, and
 conventions; `TASKS.md` already carries board hygiene and the ownership firewall.
 Do not restate them — this skill is the loop that runs on top.
 
@@ -55,6 +55,7 @@ Priorities specific to this codebase, in the order they bite:
   the only portable boundary. A native shortcut that skips it is not progress.
 - **Arena-backed packed allocation over fragmented `Vec`s.** `Handle<T>` and
   `HandleSpan<T>` for repeated child lists in lowered representations.
+
 Do not add a crate until a module boundary has stopped moving. **Once a boundary
 has earned a stage doc, it has earned a crate.** A stage doc under
 `wiki/architecture/pipeline/stages/` with no matching `X-to-Y` crate is drift:
@@ -63,21 +64,38 @@ line on it.
 
 ## Gate it
 
+Run `mbx --version` first. It must report 1.7.0 or newer. If it does not, stop
+and report the missing prerequisite; never substitute direct Cargo. Every
+compiling command in this section uses `mbx`, including commands run in a
+temporary clone or background job. Only `cargo fmt` and `cargo clean` remain
+direct Cargo commands.
+
+Run the gate list once before you edit anything. A repository is not reliably
+green, and a red gate you cannot attribute leads to both expensive mistakes at
+once: chasing someone else's failure into a second front, or landing your own
+under cover of it. One run up front settles which is which.
+
 Inner loop, while iterating:
 
 ```bash
-cargo check --workspace --all-targets
+mbx check --workspace --all-targets
 ```
 
 plus the single filtered test for what you are changing.
 
-Before commit, the full baseline gate list in `CLAUDE.md` — fmt, clippy, the
-architecture test, check, and `cargo test --workspace --lib`. The architecture
-test is not optional: it is the only thing that catches a wrong-direction
-dependency.
+Then the full baseline gate list in `AGENTS.md` — fmt, clippy, the architecture
+test, check, and `mbx test --workspace --lib` — **on the tree you are about to
+commit**. Gates from before your edits describe a tree that no longer exists;
+they are orientation, not evidence. The list is also not conditional on which
+files you touched: fmt and clippy read every file, the architecture test reads
+crate layout, and library tests read checked-in fixtures, so a commit with no
+`.rs` file in it can still move all three. The architecture test is the only
+thing that catches a wrong-direction dependency.
 
-Report gate results honestly. A failing gate that you describe as passing costs
-more than the failure did.
+Report gate results against that pre-existing set: what is red now, what was
+already red, and which gates you did not run. A failing gate you describe as
+passing costs more than the failure did, and so does a gate list you imply you
+ran.
 
 ## Land it
 
