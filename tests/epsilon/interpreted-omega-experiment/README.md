@@ -20,12 +20,14 @@ the Delta-written Epsilon implementation. Removing that duplicate backend
 and adding the first execution slice reduces the current Epsilon source from
 9,460 lines / 468,672 bytes to 8,658 lines / 430,747 bytes.
 
-The first executable slice runs complete checking, locates the fixed
-`Main::main`, and executes an accepted empty entry sequence as exit zero with
-empty stdout. Every nonempty entry remains explicitly `Unsupported`; that
-staging outcome is not an Epsilon observation and cannot survive in the final
-evaluator. The exact evaluator plus six-line driver compiles to a 507,153-byte
-Gamma receipt, and the retained fixture executes to control byte `0x07`.
+The executable slice runs complete checking, locates the fixed `Main::main`,
+and executes an empty entry or direct literal `Console.write_byte` and
+`Console.exit_process` statements. It preserves output before exit and before a
+`ByteRange` trap. Every other entry statement remains explicitly `Unsupported`;
+that staging outcome is not an Epsilon observation and cannot survive in the
+final evaluator. The exact evaluator plus eight-line driver compiles to a
+517,400-byte Gamma receipt. Retained controls produce `00`, `41 07`, and
+`41 85` for empty falloff, write then exit 7, and write then ByteRange.
 
 This is executable boundary evidence, not a completed interpreter edge.
 Acceptance still requires execution of all Epsilon statements, expressions,

@@ -5083,3 +5083,21 @@ require the Delta-written Epsilon implementation to emit Alpha or reserve
 `EpsilonCompilerV1` profile ID 2. Their Epsilon language semantics, Alpha tape
 format and capacity, common compiler-boundary discipline, and unrelated
 resource decisions remain in force.
+
+## D126 — Epsilon execution begins from checked callable custody
+
+The first evaluator extension consumes the existing exact resolved-callable
+ledger rather than resolving Console names again. In the entry sequence it
+executes direct calls to sealed `Console.write_byte` and
+`Console.exit_process` when their one argument is an integer, character, or
+Boolean literal. Every other expression or statement remains an explicit
+staging `Unsupported`, not a guessed Epsilon observation.
+
+`write_byte` appends one exact byte or produces trap code 5 (`ByteRange`) while
+preserving prior output. `exit_process` preserves prior output and returns its
+exact literal `i32` status. The evaluator is now 8,794 lines and 437,763 bytes;
+its eight-line observation driver compiles with it to a 517,400-byte Gamma
+receipt. Retained empty, write/exit, and write/ByteRange programs produce
+respectively `00`, `41 07`, and `41 85` in the experiment observation. This
+closes only direct literal Console statements; general expression evaluation,
+locals, state transfer, read, write_line, and D execution remain open.
