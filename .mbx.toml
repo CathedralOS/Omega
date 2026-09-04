@@ -1,0 +1,23 @@
+# mbx build-policy switches for this workspace.
+#
+# build_script_execution caches build-script RUNS, keyed on Cargo's freshness
+# inputs. It is broken here as of mbx 1.8.0: the executable mbx materializes at
+# target/debug/build/<pkg>/<hash>/out/build_script_build is byte-identical to
+# the mbx binary itself, so Cargo runs mbx in place of the build script, gets
+# its usage text on stderr and exit 2, and the build fails on proc-macro2,
+# quote, serde, rustversion, generic-array and every other dependency with a
+# build script.
+#
+# It fails on a cold compile with an empty store, so it is not stale cache
+# content, and it survives `mbx gc --max-size 0` plus `cargo clean`. It also
+# poisons target/: once those files exist, plain `cargo` fails the same way,
+# because Cargo re-runs the existing build script rather than recompiling it.
+# `cargo clean` is required after any build made with this setting on.
+# `mbx doctor` and `mbx cache verify` both report healthy, because the cached
+# bytes are hash-consistent with what was stored - they are simply the wrong
+# bytes.
+#
+# Turning this one switch off leaves the rest of mbx working: a cold build of
+# omega-image-pe still reports 10 cache hits. Re-enable it only after mbx fixes
+# the defect and a cold `cargo clean && mbx check -p omega-image-pe` succeeds.
+build_script_execution = false
