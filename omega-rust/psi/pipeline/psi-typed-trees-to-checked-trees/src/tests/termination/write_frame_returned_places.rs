@@ -1,6 +1,183 @@
 use super::*;
 
 #[test]
+fn aggregate_assignment_frames_require_exact_array_context() {
+    let source = r#"
+    data Cell { value: u64; }
+    data OtherCell { value: u64; }
+    data Main { cells: [Cell; 2]; result: u64; source: u64; }
+    machine compute(value: &mut u64) -> u64 { value = 1; 0 }
+    machine assign<'cells, 'result, 'source>(
+        cells: &'cells mut [Cell; 2], result: &'result mut u64, source: &'source mut u64
+    ) -> &'result mut u64 {
+        cells = $ELEMENTS;
+        result
+    }
+    machine Main::entry(&mut self) {
+        let alias: &mut u64 = assign(&mut self.cells, &mut self.result, &mut self.source);
+        alias = 3;
+    }
+    "#;
+    for (elements, complete) in [
+        ("[Cell { value: compute(source) }, Cell { value: 0 }]", true),
+        ("[Cell { value: compute(source) }]", false),
+        (
+            "[OtherCell { value: compute(source) }, OtherCell { value: 0 }]",
+            false,
+        ),
+    ] {
+        let source = source.replace("$ELEMENTS", elements);
+        let tokens = Lexer::new(&source).tokenize().expect("source tokenizes");
+        let syntax = parse_syntax_trees(&tokens).expect("source parses");
+        let resolved = lower_syntax_trees(&syntax).expect("source resolves");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("source types");
+        let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::entry")
+            .expect("caller machine");
+        let state = typed.machine_states(machine).first().expect("entry state");
+        let frame = resolver.inferred_state_write_frame(machine, state);
+        if complete {
+            assert_eq!(
+                frame.complete_paths(),
+                Some(
+                    ["self.cells", "self.result", "self.source"]
+                        .map(str::to_owned)
+                        .as_slice()
+                ),
+                "the exact contextual array publishes its writes"
+            );
+        } else {
+            assert!(
+                !frame.is_complete(),
+                "{elements} cannot satisfy the declared array context"
+            );
+        }
+    }
+}
+
+#[test]
+fn finite_mixed_assignment_shapes_retain_all_leaf_effects() {
+    let mut declarations = "data Layer0 { value: u64; audit: u64; }\n".to_owned();
+    let computation = (0..64).fold("compute(first)".to_owned(), |value, _| {
+        format!("~({value})")
+    });
+    let mut literal = format!("Layer0 {{ value: {computation}, audit: compute(second) }}");
+    for level in 1..=8 {
+        declarations.push_str(&format!(
+            "data Layer{level} {{ children: [Layer{}; 1]; audit: u64; }}\n",
+            level - 1
+        ));
+        literal = format!("Layer{level} {{ children: [{literal}], audit: compute(second) }}");
+    }
+    let source = r#"
+    $DECLARATIONS
+    data Main { aggregate: Layer8; result: u64; first: u64; second: u64; }
+    machine compute(value: &mut u64) -> u64 { value = 1; 0 }
+    machine recursive_compute(value: &mut u64) -> u64 { recursive_compute(value) }
+    machine assign<'target, 'result, 'first, 'second>(
+        target: &'target mut Layer8, result: &'result mut u64,
+        first: &'first mut u64, second: &'second mut u64
+    ) -> &'result mut u64 {
+        target = $LITERAL;
+        result
+    }
+    machine project<'result, 'first, 'second>(
+        result: &'result mut u64, first: &'first mut u64, second: &'second mut u64
+    ) -> &'result mut u64 {
+        result = ($LITERAL).audit;
+        result
+    }
+    machine reborrow<'target, 'result, 'first, 'second>(
+        target: &'target mut Layer8, result: &'result mut u64,
+        first: &'first mut u64, second: &'second mut u64
+    ) -> &'result mut u64 {
+        target = $REBIND;
+        result
+    }
+    machine recursive<'target, 'result, 'first, 'second>(
+        target: &'target mut Layer8, result: &'result mut u64,
+        first: &'first mut u64, second: &'second mut u64
+    ) -> &'result mut u64 {
+        target = $RECURSIVE;
+        result
+    }
+    machine Main::assigned(&mut self) {
+        let alias: &mut u64 = assign(
+            &mut self.aggregate, &mut self.result, &mut self.first, &mut self.second
+        );
+        alias = 3;
+    }
+    machine Main::projected(&mut self) {
+        let alias: &mut u64 = project(&mut self.result, &mut self.first, &mut self.second);
+        alias = 3;
+    }
+    machine Main::reborrowed(&mut self) {
+        let alias: &mut u64 = reborrow(
+            &mut self.aggregate, &mut self.result, &mut self.first, &mut self.second
+        );
+        alias = 3;
+    }
+    machine Main::recursive(&mut self) {
+        let alias: &mut u64 = recursive(
+            &mut self.aggregate, &mut self.result, &mut self.first, &mut self.second
+        );
+        alias = 3;
+    }
+    "#
+    .replace("$DECLARATIONS", &declarations)
+    .replace("$LITERAL", &literal)
+    .replace(
+        "$REBIND",
+        &literal.replace("compute(first)", "compute(&mut first)"),
+    )
+    .replace(
+        "$RECURSIVE",
+        &literal.replace("compute(second)", "recursive_compute(second)"),
+    );
+    let tokens = Lexer::new(&source).tokenize().expect("source tokenizes");
+    let syntax = parse_syntax_trees(&tokens).expect("source parses");
+    let resolved = lower_syntax_trees(&syntax).expect("source resolves");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("source types");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
+    for (name, expected) in [
+        (
+            "Main::assigned",
+            Some(vec![
+                "self.aggregate",
+                "self.first",
+                "self.result",
+                "self.second",
+            ]),
+        ),
+        (
+            "Main::projected",
+            Some(vec!["self.first", "self.result", "self.second"]),
+        ),
+        ("Main::reborrowed", None),
+        ("Main::recursive", None),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let state = typed.machine_states(machine).first().expect("entry state");
+        let expected =
+            expected.map(|paths| paths.into_iter().map(str::to_owned).collect::<Vec<_>>());
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, state)
+                .complete_paths(),
+            expected.as_deref(),
+            "{name} must retain every eager leaf effect and reject an invalid sibling"
+        );
+    }
+}
+
+#[test]
 fn transparent_returned_place_accepts_complete_indexed_target_calls() {
     let source = r#"
     data Bucket {
@@ -1838,6 +2015,14 @@ fn transparent_returned_place_accepts_finite_value_call_assignments() {
             vec!["self.cells", "self.pair", "self.value"],
         ),
         (
+            "Main::three_computed_record_field_assignment_result",
+            vec!["self.cells", "self.pair", "self.value"],
+        ),
+        (
+            "Main::deeper_record_value_call_assignment_result",
+            vec!["self.cells", "self.deeper_pair", "self.value"],
+        ),
+        (
             "Main::cast_record_field_assignment_result",
             vec!["self.cells", "self.pair", "self.value"],
         ),
@@ -1924,10 +2109,8 @@ fn transparent_returned_place_accepts_finite_value_call_assignments() {
         "Main::binding_reborrow_value_call_assignment_result",
         "Main::recursive_value_call_assignment_result",
         "Main::generic_record_value_call_assignment_result",
-        "Main::three_computed_record_field_assignment_result",
         "Main::reference_projected_record_field_assignment_result",
         "Main::generic_case_value_call_assignment_result",
-        "Main::deeper_record_value_call_assignment_result",
         "Main::generic_nested_case_value_call_assignment_result",
     ] {
         let machine = typed
@@ -1949,7 +2132,7 @@ fn transparent_returned_place_accepts_finite_value_call_assignments() {
 }
 
 #[test]
-fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
+fn transparent_returned_place_accepts_finite_direct_scalar_computations() {
     let source = r#"
     data Pair {
         first: u64;
@@ -2632,6 +2815,7 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
         "Main::thirty_one_computed_scalar_result",
         "Main::thirty_two_computed_scalar_result",
         "Main::thirty_three_computed_scalar_result",
+        "Main::thirty_four_computed_scalar_result",
         "Main::three_projected_computed_scalar_result",
     ] {
         let machine = typed
@@ -2674,12 +2858,11 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
                     .map(str::to_owned)
                     .as_slice()
             ),
-            "{name} must admit the bounded computed value through its primitive mutable-reference target"
+            "{name} must admit the computed value through its primitive mutable-reference target"
         );
     }
 
     for name in [
-        "Main::thirty_four_computed_scalar_result",
         "Main::binding_reborrow_computed_scalar_result",
         "Main::recursive_computed_scalar_result",
         "Main::reference_projection_computed_scalar_result",
@@ -2697,13 +2880,13 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded primitive scalar rung"
+            "{name} must reject invalid call-result provenance or incomplete frames"
         );
     }
 }
 
 #[test]
-fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
+fn transparent_returned_place_accepts_finite_fixed_array_assignment_values() {
     let source = r#"
     data Pair {
         first: u64;
@@ -2951,6 +3134,14 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
             "Main::five_array_calls_result",
             vec!["self.cells", "self.first", "self.values"],
         ),
+        (
+            "Main::four_array_levels_result",
+            vec!["self.cells", "self.first", "self.hypercube"],
+        ),
+        (
+            "Main::three_array_computations_result",
+            vec!["self.cells", "self.first", "self.values"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -2972,13 +3163,11 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
                     .collect::<Vec<_>>()
                     .as_slice()
             ),
-            "{name} must publish each bounded fixed-array element call write"
+            "{name} must publish every fixed-array element call write"
         );
     }
 
     for name in [
-        "Main::four_array_levels_result",
-        "Main::three_array_computations_result",
         "Main::array_binding_reborrow_result",
         "Main::recursive_array_value_result",
         "ReferenceMain::reference_array_result",
@@ -2996,7 +3185,7 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded fixed-array rung"
+            "{name} must reject reference-bearing elements, binding reborrows, or recursive calls"
         );
     }
 }
@@ -3400,7 +3589,7 @@ fn transparent_returned_place_composes_mixed_aggregate_assignment_values() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must remain opaque outside the bounded mixed-aggregate rung"
+            "{name} must reject unproven aggregate types, binding reborrows, or recursive calls"
         );
     }
 }
@@ -3874,7 +4063,7 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
                 .map(str::to_owned)
                 .as_slice()
         ),
-        "the member and field computations must share the depth-two budget and publish every field write"
+        "the member and field computations must publish every eagerly evaluated field write"
     );
 
     let nested = typed
@@ -3895,7 +4084,7 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
                 .map(str::to_owned)
                 .as_slice()
         ),
-        "the literal member must share the aggregate-depth-two and reduced computation budgets while publishing every nested write"
+        "the literal member must retain every nested aggregate and computation write"
     );
 
     let array_field = typed
@@ -3922,7 +4111,7 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
             .map(str::to_owned)
             .as_slice()
         ),
-        "the literal member must carry its reduced computation budget through the nested fixed array and publish every element and sibling write"
+        "the literal member must publish every nested array element and sibling write"
     );
 
     for name in [
@@ -3931,6 +4120,27 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         "Main::third_aggregate_literal_member_result",
         "Main::array_field_two_shells_result",
         "Main::record_array_record_literal_member_result",
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed.machine_states(machine).first().expect("entry state");
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some(
+                ["self.cells", "self.first", "self.target"]
+                    .map(str::to_owned)
+                    .as_slice()
+            ),
+            "{name} must publish writes through finite aggregate and computation nesting"
+        );
+    }
+
+    for name in [
         "Main::generic_literal_member_result",
         "Main::reborrow_literal_member_result",
         "Main::recursive_literal_member_result",

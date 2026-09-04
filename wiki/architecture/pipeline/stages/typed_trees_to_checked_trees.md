@@ -708,26 +708,32 @@ Current ownership is:
   Value-shaped assignments may write through those origins without changing
   the relation when the right-hand side is effect-free or a typed
   non-reference direct-call tree with complete frames. Reference-valued roots
-  keep their existing relational handling. A direct primitive scalar assignment
-  value may wrap complete caller-isolated call producers in up to thirty-three
-  unary, binary, primitive-cast, member-projection, or indexing shells; a
-  thirty-fourth shell and generic/reference/unknown call results remain
-  conservative. Aggregate fields and projected concrete record, selected-case,
-  or fixed-array literals retain their separate two-shell computation budget.
-  Direct typed assignment values may nest concrete primitive-only record,
-  selected-case, and literal fixed-array aggregates through depth three. Each
-  primitive leaf may contain a finite non-reference direct-call tree, with up
-  to two scalar computation shells around it. A fourth direct aggregate level,
-  generic, recursive, or reference-bearing call result, and other computed
-  field shapes remain fences. Projected record/case fields and direct
-  fixed-array indexing retain their separate aggregate-depth-two rule.
-  A primitive assignment may project one direct field from an admitted
-  caller-isolated record or selected-case literal, or index an admitted
-  fixed-array literal. That projection consumes one of the existing two
-  computation shells; either one element computation shell or one outer
-  scalar shell may use the remainder, but combining both remains a third-shell
-  fence. Every eagerly evaluated field or element publishes its call writes.
-  A third aggregate level remains conservative at these projection sites.
+  keep their existing relational handling.
+  `calls/write_frames/assignment_values.rs` uses a shared worklist to admit
+  finite compositions of primitive computations and concrete caller-isolated
+  aggregate literals. Root, field, element,
+  member-receiver, and index-collection positions carry their available type
+  evidence; no scalar-shell or aggregate-depth counter supplies that evidence.
+  Unary and binary operations, primitive casts, member projections, and indexes
+  require a primitive destination at computed-value entry. Calls below a direct
+  scalar computation additionally require caller-isolated results; whole-value
+  and aggregate-leaf calls retain their known non-reference result requirement.
+  Every call still needs a complete non-rebinding frame.
+  Named record and selected-case literals must have a unique concrete,
+  nongeneric, caller-isolated declaration, including all declared variants.
+  Their fields supply the expected types for nested aggregates and primitive
+  computations. Typed fixed-array literals require an exact literal length and
+  matching element types. A literal below a member projection or array index
+  is checked in that operand position, not admitted as an arbitrary operator
+  operand. A projected array literal has no contextual nominal element type:
+  its effectful elements may be arrays, direct calls, or primitive computations,
+  but not record literals with an inferred contextual type. Every eagerly
+  evaluated field and element publishes its call writes, including unselected
+  fields or elements of a projected literal.
+  Unsupported type or expression shapes, reference-bearing or generic aggregate
+  declarations, recursive calls, and binding reborrows remain fences. Pure
+  children are neutral after container validation; a pure root still follows
+  the separate alias-replacement rules where applicable.
   Indexed assignment targets, statement arguments, terminal returned places,
   stable mutable-alias initializers, and direct alias replacements share the
   origin algebra: exact member suffixes compose before the first index; that

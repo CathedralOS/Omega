@@ -38,15 +38,6 @@ pub(super) fn isolated_local_initializer_has_direct_call_tree(
     true
 }
 
-pub(super) fn struct_literal_field_is_primitive(
-    program: &TypedTrees,
-    literal: &TableStructLiteral,
-    field_name: &str,
-) -> bool {
-    struct_literal_field_type(program, literal, field_name)
-        .is_some_and(|field_type| program.primitive_type_reference(field_type).is_some())
-}
-
 pub(super) fn struct_literal_field_type(
     program: &TypedTrees,
     literal: &TableStructLiteral,
