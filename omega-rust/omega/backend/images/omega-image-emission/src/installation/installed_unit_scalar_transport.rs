@@ -451,17 +451,16 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     .map_err(|_| invalid())?;
                     (
                         function.unit_parameters.len() == 1
-                            && abi.parameters.len() == 1
-                            && scalar_parameter_index == 0
                             && scalar_parameter.value == source_value
                             && scalar_parameter.scalar_type == scalar_type
                             && scalar_parameter.placement.shape == scalar_shape
                             && placed_byte_size == width
                             && location == expected_location
                             && abi.call_plan == expected_plan
-                            && abi.call_plan.parameters.first()
+                            && abi.call_plan.parameters.get(scalar_parameter_index)
                                 == Some(&scalar_parameter.placement)
-                            && abi.call_plan.parameters.get(1) == Some(&home.source),
+                            && abi.call_plan.parameters.get(abi.parameters.len())
+                                == Some(&home.source),
                         width,
                         None,
                     )

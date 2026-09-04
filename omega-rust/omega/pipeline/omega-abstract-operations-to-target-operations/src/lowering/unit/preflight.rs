@@ -64,12 +64,9 @@ fn has_parameter_sourced_store_shape(function: &AbstractFunction) -> bool {
         [
             AbstractOperation::StructuralScalarFieldStore { value, .. },
             AbstractOperation::ReturnUnit { .. },
-        ] => matches!(
-            function.parameters.as_slice(),
-            [parameter]
-                if value.value == parameter.value
-                    && value.scalar_type == parameter.scalar_type
-        ),
+        ] => function.parameters.iter().any(|parameter| {
+            value.value == parameter.value && value.scalar_type == parameter.scalar_type
+        }),
         _ => false,
     }
 }

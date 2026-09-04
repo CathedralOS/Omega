@@ -79,16 +79,17 @@ pub(super) fn lower_field_store(
                 .ok_or(LoweringError::UnknownValue(value.value))?;
             let exact_source = match known_value {
                 KnownUnitInteger::Parameter {
-                    parameter_index: 0,
+                    parameter_index,
                     scalar_type,
                 } => {
+                    let parameter_index = usize::try_from(parameter_index).ok();
                     scalar_type == integer_type
-                        && matches!(
-                            function.parameters.as_slice(),
-                            [parameter]
-                                if parameter.value == value.value
+                        && parameter_index
+                            .and_then(|index| function.parameters.get(index))
+                            .is_some_and(|parameter| {
+                                parameter.value == value.value
                                     && parameter.scalar_type == value.scalar_type
-                        )
+                            })
                 }
                 KnownUnitInteger::Immediate { scalar_type, .. } => {
                     scalar_type == integer_type && function.parameters.is_empty()
@@ -106,14 +107,17 @@ pub(super) fn lower_field_store(
             )
         }
         ScalarType::Boolean => {
-            let source = if matches!(
-                function.parameters.as_slice(),
-                [parameter]
-                    if parameter.value == value.value
-                        && parameter.scalar_type == ScalarType::Boolean
-            ) {
+            let source = if let Some((parameter_index, _)) = function
+                .parameters
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| {
+                    parameter.value == value.value && parameter.scalar_type == ScalarType::Boolean
+                }) {
                 TargetUnitScalarArgumentSource::Parameter {
-                    parameter_index: 0,
+                    parameter_index: u32::try_from(parameter_index).map_err(|_| {
+                        LoweringError::UnitFunctionHasScalarParameters(function.machine)
+                    })?,
                     source_value: value.value,
                     scalar_type: ScalarType::Boolean,
                 }

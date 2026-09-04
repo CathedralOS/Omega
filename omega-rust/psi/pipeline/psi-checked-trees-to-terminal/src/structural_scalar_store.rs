@@ -109,28 +109,36 @@ fn checked_store_source_matches(
     primitive_type: PrimitiveType,
     scalar_parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
 ) -> bool {
-    match scalar_parameters {
-        [] => checked_store_literal_matches(value, primitive_type),
-        [parameter] => {
-            parameter.source_position == 1
-                && parameter.primitive_type == primitive_type
-                && match value {
-                    CheckedScalarExpression::Parameter {
-                        position: 0,
-                        primitive_type: source_type,
-                    } => *source_type == primitive_type,
-                    CheckedScalarExpression::Boolean(boolean) => {
-                        primitive_type == PrimitiveType::Bool
-                            && matches!(
-                                boolean.as_ref(),
-                                CheckedBooleanExpression::Parameter { position: 0 }
-                            )
-                    }
-                    _ => false,
-                }
-        }
-        _ => false,
+    if scalar_parameters.is_empty() {
+        return checked_store_literal_matches(value, primitive_type);
     }
+    let (position, source_type) = match value {
+        CheckedScalarExpression::Parameter {
+            position,
+            primitive_type,
+        } => (*position, *primitive_type),
+        CheckedScalarExpression::Boolean(boolean) => {
+            let CheckedBooleanExpression::Parameter { position } = boolean.as_ref() else {
+                return false;
+            };
+            (*position, PrimitiveType::Bool)
+        }
+        _ => return false,
+    };
+    scalar_parameters.get(position).is_some_and(|parameter| {
+        Some(parameter.source_position) == authored_scalar_position(position)
+            && parameter.primitive_type == primitive_type
+            && source_type == primitive_type
+    }) && scalar_parameters
+        .iter()
+        .enumerate()
+        .all(|(index, parameter)| {
+            Some(parameter.source_position) == authored_scalar_position(index)
+        })
+}
+
+fn authored_scalar_position(dense_position: usize) -> Option<u32> {
+    u32::try_from(dense_position).ok()?.checked_add(1)
 }
 
 pub(super) fn checked_store_literal_matches(

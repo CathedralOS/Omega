@@ -140,14 +140,14 @@ pub(super) fn assign_field_store(
                 _ => return Err(invalid()),
             };
             if body.parameters.len() != 1
-                || body.scalar_parameters.len() != 1
-                || scalar_parameter_index != 0
                 || scalar_parameter.value != source_value
                 || scalar_parameter.scalar_type != source_type
                 || scalar_parameter.placement.shape != expected_shape
                 || body.call_plan != expected_plan
-                || body.call_plan.parameters.first() != Some(&scalar_parameter.placement)
-                || body.call_plan.parameters.get(1) != Some(destination_placement)
+                || body.call_plan.parameters.get(scalar_parameter_index)
+                    != Some(&scalar_parameter.placement)
+                || body.call_plan.parameters.get(body.scalar_parameters.len())
+                    != Some(destination_placement)
             {
                 return Err(invalid());
             }

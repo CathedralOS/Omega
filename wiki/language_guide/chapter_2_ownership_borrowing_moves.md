@@ -227,13 +227,14 @@ construction and installation format 73 rejoin and transport all three
 families. Opaque-provider non-observation guarantees remain fail closed.
 The projected-record sibling carries one fixed-integer or Boolean literal, or
 one exact same-typed fixed-integer or Boolean parameter, into a relevant
-primitive field through a finite field-only path. The parameter form keeps a single structural
-destination followed by a single scalar source; target assignment, machine
-emission, object construction, and installed replay reconstruct its exact ABI
-location and field offset on both Linux targets.
+primitive field through a finite field-only path. The parameter form keeps one
+structural destination plus an ordered scalar roster and selects one exact
+source; target assignment, machine emission, object construction, and installed
+replay reconstruct its register or incoming-stack ABI location and exact field
+offset on both Linux targets.
 Boolean sources retain their own one-byte ABI and definition custody without
 an integer surrogate.
-Wider scalar rosters and result-home sources remain gated for projected stores.
+Result-home sources remain gated for projected stores.
 
 A partial write must leave `T` valid at the ordinary invariant-window
 consumption points. The checker may prove that from the written inputs, static
