@@ -280,3 +280,29 @@ fn post_allocation_realization_and_emission_do_not_select_allocation_history() {
         assert!(!carriers.contains(obsolete));
     }
 }
+
+#[test]
+fn rematerialization_uses_the_common_encoding_and_layout_stages() {
+    let pipeline = repository().join("omega-rust/omega/pipeline");
+    assert!(
+        !pipeline
+            .join("omega-active-resident-rematerialization-to-selected-form-encoding/Cargo.toml")
+            .exists()
+    );
+    let stages = pipeline.join("omega-optimization-pipeline/src/stages");
+    for retired in [
+        "layout/active_resident_resolved_selected_form_layout/mod.rs",
+        "realization/active_resident_function_relative_realization/mod.rs",
+    ] {
+        assert!(
+            !stages.join(retired).exists(),
+            "retired history-specific stage: {retired}"
+        );
+    }
+    let source = rust_source(&stages);
+    assert!(!source.contains("StagedOptimizedActiveResidentRematerializationSelectedFormEncoding"));
+    assert!(
+        !source
+            .contains("StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout")
+    );
+}

@@ -2,25 +2,19 @@
 
 use std::collections::BTreeSet;
 
-use crate::tests::{
-    AllocatorAvailabilityPolicy, FunctionRelativeOptimizationRealizationManifest, NativeTarget,
-    Optimization, OptimizationSelections,
-    OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
-    OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError,
-    OptimizedResolvedSelectedFormLayoutError, PostAllocationSelectedTransformation,
-    WholeFunctionExitContractError, WholeFunctionExitLayoutCustody,
-    stage_optimized_active_resident_rematerialization_function_relative_realization,
-    staged_active_resident_function_relative_realization,
-    staged_active_resident_resolved_layout_with_selections,
-    validate_optimized_active_resident_rematerialization_function_relative_realization,
-};
+use crate::tests::*;
 
 #[test]
 fn active_resident_rematerialization_reaches_function_relative_exit_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let staged = staged_active_resident_function_relative_realization(target);
-        let source = staged.source();
-        let rematerialization = source.pre_layout().source();
+        let staged = staged_active_resident_allocation_recovery_realization(target);
+        let source = &staged;
+        let StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
+            rematerialization,
+        ) = staged.source()
+        else {
+            panic!("fixture must retain recovery evidence")
+        };
         let physical = rematerialization
             .source()
             .live_range_stage()
@@ -140,13 +134,15 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
             Ok(manifest.clone())
         );
         assert_eq!(
-            validate_optimized_active_resident_rematerialization_function_relative_realization(
-                &staged,
-            )
-            .unwrap(),
+            validate_allocation_recovery_function_relative_realization(&staged,).unwrap(),
             staged.custody().clone()
         );
-        assert_eq!(staged.custody().source(), source.custody());
+        assert_eq!(
+            staged.custody().source(),
+            &StagedAllocationRecoverySourceCustodyReceipt::ActiveResidentRematerialization(
+                rematerialization.custody()
+            )
+        );
         assert_eq!(
             staged.custody().exit_contract(),
             staged.exit_contract().identity()
@@ -159,74 +155,48 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
 fn active_resident_function_relative_realization_rejects_corrupt_or_detached_custody() {
     let target = NativeTarget::linux_x64();
 
-    let mut source_corruption = staged_active_resident_function_relative_realization(target);
-    crate::stages::realization::active_resident_function_relative_realization::corrupt_active_resident_function_relative_source_for_test(
-        &mut source_corruption,
-    );
+    let mut source_corruption = staged_active_resident_allocation_recovery_realization(target);
+    corrupt_allocation_recovery_realization_layout_for_test(&mut source_corruption);
     assert!(matches!(
-        validate_optimized_active_resident_rematerialization_function_relative_realization(
-            &source_corruption,
-        ),
-        Err(
-            OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::Source(
-                OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError::Layout(
-                    OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch,
-                ),
-            ),
-        )
+        validate_allocation_recovery_function_relative_realization(&source_corruption,),
+        Err(AllocationRecoveryFunctionRelativeRealizationError::Layout(
+            OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
+        ),)
     ));
 
-    let mut exit_corruption = staged_active_resident_function_relative_realization(target);
-    crate::stages::realization::active_resident_function_relative_realization::corrupt_active_resident_function_relative_exit_for_test(
-        &mut exit_corruption,
-    );
+    let mut exit_corruption = staged_active_resident_allocation_recovery_realization(target);
+    corrupt_allocation_recovery_realization_exit_for_test(&mut exit_corruption);
     assert_eq!(
-        validate_optimized_active_resident_rematerialization_function_relative_realization(
-            &exit_corruption,
-        ),
+        validate_allocation_recovery_function_relative_realization(&exit_corruption,),
         Err(
-            OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::ExitContract(
+            AllocationRecoveryFunctionRelativeRealizationError::ExitContract(
                 WholeFunctionExitContractError::ArtifactMismatch,
             ),
         )
     );
 
-    let mut manifest_corruption = staged_active_resident_function_relative_realization(target);
-    crate::stages::realization::active_resident_function_relative_realization::corrupt_active_resident_function_relative_manifest_for_test(
-        &mut manifest_corruption,
-    );
+    let mut manifest_corruption = staged_active_resident_allocation_recovery_realization(target);
+    corrupt_allocation_recovery_realization_manifest_for_test(&mut manifest_corruption);
     assert_eq!(
-        validate_optimized_active_resident_rematerialization_function_relative_realization(
-            &manifest_corruption,
-        ),
-        Err(OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::RootMismatch,)
+        validate_allocation_recovery_function_relative_realization(&manifest_corruption,),
+        Err(AllocationRecoveryFunctionRelativeRealizationError::RootMismatch,)
     );
 
-    let mut receipt_corruption = staged_active_resident_function_relative_realization(target);
-    crate::stages::realization::active_resident_function_relative_realization::corrupt_active_resident_function_relative_receipt_for_test(
-        &mut receipt_corruption,
-    );
+    let mut receipt_corruption = staged_active_resident_allocation_recovery_realization(target);
+    corrupt_allocation_recovery_realization_custody_for_test(&mut receipt_corruption);
     assert_eq!(
-        validate_optimized_active_resident_rematerialization_function_relative_realization(
-            &receipt_corruption,
-        ),
-        Err(
-            OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::ReceiptMismatch,
-        )
+        validate_allocation_recovery_function_relative_realization(&receipt_corruption,),
+        Err(AllocationRecoveryFunctionRelativeRealizationError::ReceiptMismatch,)
     );
 
-    let mut detached = staged_active_resident_function_relative_realization(target);
-    let foreign = staged_active_resident_function_relative_realization(NativeTarget::linux_arm64());
-    crate::stages::realization::active_resident_function_relative_realization::replace_active_resident_function_relative_exit_for_test(
-        &mut detached,
-        &foreign,
-    );
+    let mut detached = staged_active_resident_allocation_recovery_realization(target);
+    let foreign =
+        staged_active_resident_allocation_recovery_realization(NativeTarget::linux_arm64());
+    replace_allocation_recovery_realization_exit_for_test(&mut detached, &foreign);
     assert_eq!(
-        validate_optimized_active_resident_rematerialization_function_relative_realization(
-            &detached,
-        ),
+        validate_allocation_recovery_function_relative_realization(&detached,),
         Err(
-            OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::ExitContract(
+            AllocationRecoveryFunctionRelativeRealizationError::ExitContract(
                 WholeFunctionExitContractError::ArtifactMismatch,
             ),
         )
@@ -246,17 +216,22 @@ fn active_resident_function_relative_realization_rejects_unexecuted_later_phase_
             later,
         ])
         .unwrap();
-        let source = staged_active_resident_resolved_layout_with_selections(
-            NativeTarget::linux_x64(),
-            selections,
-        );
+        let source = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality_with_selections(NativeTarget::linux_x64(), selections),
+            SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        ).unwrap();
+        let machine = stage_optimized_post_allocation_machine_plan(&source).unwrap();
         assert!(matches!(
-            stage_optimized_active_resident_rematerialization_function_relative_realization(
-                source,
+            stage_allocation_recovery_function_relative_realization(
+                StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
+                    Box::new(source)
+                ),
+                machine,
             ),
-            Err(
-                OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::LaterPhaseSelected,
-            )
+            Err(AllocationRecoveryFunctionRelativeRealizationError::UnsupportedSelections)
         ));
     }
 }

@@ -1,7 +1,6 @@
 //! Active-resident pressure fixtures and their allocation/realization compositions.
 
 use super::baseline::request;
-use crate::stage_optimized_active_resident_rematerialization_function_relative_realization;
 use crate::tests::{
     AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
     MachineContract, MachineId, NativeTarget, ObligationId, Operation, OperationId, OperationKind,
@@ -9,16 +8,12 @@ use crate::tests::{
     RecoveryClassificationPolicy, ScalarType, SpillChoicePolicy,
     StagedAllocationRecoveryFunctionRelativeRealization,
     StagedAllocationRecoveryFunctionRelativeSource, StagedOptimizedActiveResidentRematerialization,
-    StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
-    StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout,
     StagedOptimizedAllocationLegality, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
     lower_optimized_to_target_operations, operation_proof_bundle, optimize_artifact_sections,
     selected_lowering_budget, stage_allocation_recovery_function_relative_realization,
     stage_optimized_active_resident_rematerialization,
-    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout,
-    stage_optimized_active_resident_rematerialization_selected_form_encoding,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
     stage_optimized_post_allocation_machine_plan,
@@ -453,46 +448,6 @@ pub(crate) fn staged_active_resident_rematerialization_and_machine(
     .unwrap();
     let machine = stage_optimized_post_allocation_machine_plan(&source).unwrap();
     (source, machine)
-}
-
-pub(crate) fn staged_active_resident_resolved_layout(
-    target: NativeTarget,
-) -> StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout {
-    let (source, machine) = staged_active_resident_rematerialization_and_machine(target);
-    let pre_layout =
-        stage_optimized_active_resident_rematerialization_selected_form_encoding(source, machine)
-            .unwrap();
-    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout(pre_layout)
-        .unwrap()
-}
-
-pub(crate) fn staged_active_resident_resolved_layout_with_selections(
-    target: NativeTarget,
-    selections: OptimizationSelections,
-) -> StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout {
-    let source = stage_optimized_active_resident_rematerialization(
-        staged_active_resident_two_view_legality_with_selections(target, selections),
-        SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
-        RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
-        PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
-        selected_lowering_budget(),
-    )
-    .unwrap();
-    let machine = stage_optimized_post_allocation_machine_plan(&source).unwrap();
-    let pre_layout =
-        stage_optimized_active_resident_rematerialization_selected_form_encoding(source, machine)
-            .unwrap();
-    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout(pre_layout)
-        .unwrap()
-}
-
-pub(crate) fn staged_active_resident_function_relative_realization(
-    target: NativeTarget,
-) -> StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization {
-    stage_optimized_active_resident_rematerialization_function_relative_realization(
-        staged_active_resident_resolved_layout(target),
-    )
-    .unwrap()
 }
 
 pub(crate) fn staged_active_resident_allocation_recovery_realization(

@@ -1,157 +1,102 @@
-//! Resolved layout projection and mutation rejection.
-
-use crate::tests::{
-    NativeTarget, OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError,
-    OptimizedActiveResidentRematerializationSelectedFormEncodingError,
-    OptimizedResolvedSelectedFormLayoutError, OptimizedSelectedFormEncodingError,
-    SelectedFunctionLayoutPolicy,
-    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout,
-    stage_optimized_active_resident_rematerialization_selected_form_encoding,
-    staged_active_resident_rematerialization_and_machine, staged_active_resident_resolved_layout,
-    validate_optimized_active_resident_rematerialization_resolved_selected_form_layout,
-};
+//! The ordinary layout stage preserves rematerialized instructions and rejects corruption.
+use crate::tests::*;
 
 #[test]
 fn active_resident_rematerialization_reaches_resolved_layout_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (source, machine) = staged_active_resident_rematerialization_and_machine(target);
-        let fresh_materialize = source.rematerialization().plan().functions[0]
+        let fresh = source.rematerialization().plan().functions[0]
             .action
             .as_ref()
             .unwrap()
             .fresh_materialize;
-        let physical = source
-            .source()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .register_environment()
-            .physical()
-            .identity();
-        let pre_layout = stage_optimized_active_resident_rematerialization_selected_form_encoding(
-            source, machine,
+        let current = source.replay_allocation().unwrap();
+        let physical = current.register_environment().physical();
+        let encoding = stage_optimized_layout_independent_selected_form_encoding(
+            current.selected(),
+            &machine,
+            physical,
         )
         .unwrap();
-        let pre_layout_custody = pre_layout.custody().clone();
-        let selected = pre_layout.encoding().selected();
-        let machine = pre_layout.encoding().machine();
-        let pre_layout_encoding = pre_layout.encoding().identity();
-
-        let staged =
-            stage_optimized_active_resident_rematerialization_resolved_selected_form_layout(
-                pre_layout,
-            )
-            .unwrap();
-        let layout = staged.layout();
-        let custody = staged.custody();
-        assert_eq!(custody.pre_layout_custody(), &pre_layout_custody);
-        assert_eq!(custody.selected(), selected);
-        assert_eq!(custody.machine(), machine);
-        assert_eq!(custody.pre_layout(), pre_layout_encoding);
-        assert_eq!(custody.physical(), physical);
-        assert_eq!(custody.layout(), layout.identity());
-        assert_eq!(custody.target(), target);
+        let layout = stage_optimized_resolved_selected_form_layout(
+            current.selected(),
+            &machine,
+            physical,
+            &encoding,
+        )
+        .unwrap();
+        assert_eq!(layout.selected(), encoding.selected());
+        assert_eq!(layout.machine(), encoding.machine());
+        assert_eq!(layout.pre_layout(), encoding.identity());
+        assert_eq!(layout.target(), target);
         assert_eq!(
-            custody.policy(),
+            layout.policy(),
             SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1
         );
-        assert_eq!(custody.function_count(), 1);
-        assert_eq!(custody.block_count(), 3);
-        assert_eq!(
-            custody.instruction_count(),
-            custody.pre_layout_custody().row_count()
-        );
-        assert_eq!(
-            custody.instruction_count(),
-            layout
-                .functions()
-                .iter()
-                .flat_map(|function| &function.blocks)
-                .map(|block| block.instructions.len())
-                .sum::<usize>()
-        );
-        assert_eq!(
-            custody.byte_count(),
-            layout
-                .functions()
-                .iter()
-                .map(|function| function.byte_count)
-                .sum::<u64>()
-        );
-        assert_eq!(custody.resolved_branch_count(), 1);
+        assert_eq!(layout.functions().len(), 1);
+        assert_eq!(layout.functions()[0].blocks.len(), 3);
         let rows = layout
             .functions()
             .iter()
             .flat_map(|function| &function.blocks)
             .flat_map(|block| &block.instructions)
             .collect::<Vec<_>>();
-        let fresh_row = rows
-            .iter()
-            .find(|row| row.instruction == fresh_materialize)
-            .expect("fresh rematerialization must survive resolved layout");
+        assert_eq!(rows.len(), encoding.rows().len());
+        assert_eq!(rows.iter().filter(|row| row.branch.is_some()).count(), 1);
+        let fresh_row = rows.iter().find(|row| row.instruction == fresh).unwrap();
         assert_eq!(
             fresh_row.alternative.family,
             omega_selected_instructions::MachineAlternativeFamily::MaterializeI64
         );
         assert!(!fresh_row.bytes.is_empty());
         assert_eq!(
-            rows.iter().filter(|row| row.branch.is_some()).count(),
-            custody.resolved_branch_count()
+            rows.iter().map(|row| row.bytes.len() as u64).sum::<u64>(),
+            layout
+                .functions()
+                .iter()
+                .map(|function| function.byte_count)
+                .sum::<u64>()
         );
-        assert_eq!(
-            validate_optimized_active_resident_rematerialization_resolved_selected_form_layout(
-                &staged,
-            )
-            .unwrap(),
-            custody.clone()
-        );
+        validate_optimized_resolved_selected_form_layout(
+            current.selected(),
+            &machine,
+            physical,
+            &encoding,
+            &layout,
+        )
+        .unwrap();
     }
 }
 
 #[test]
 fn active_resident_resolved_layout_rejects_pre_layout_layout_and_receipt_mutation() {
-    let mut corrupt_pre_layout = staged_active_resident_resolved_layout(NativeTarget::linux_x64());
-    crate::stages::layout::active_resident_resolved_selected_form_layout::corrupt_active_resident_resolved_layout_pre_layout_byte_for_test(
-        &mut corrupt_pre_layout,
-    );
-    assert_eq!(
-        validate_optimized_active_resident_rematerialization_resolved_selected_form_layout(
-            &corrupt_pre_layout,
-        ),
+    let mut corrupt_encoding =
+        staged_active_resident_allocation_recovery_realization(NativeTarget::linux_x64());
+    corrupt_allocation_recovery_realization_encoding_for_test(&mut corrupt_encoding);
+    assert!(matches!(
+        validate_allocation_recovery_function_relative_realization(&corrupt_encoding),
         Err(
-            OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError::PreLayout(
-                OptimizedActiveResidentRematerializationSelectedFormEncodingError::Encoding(
-                    OptimizedSelectedFormEncodingError::ArtifactMismatch,
-                ),
-            ),
+            AllocationRecoveryFunctionRelativeRealizationError::Encoding(
+                OptimizedSelectedFormEncodingError::ArtifactMismatch
+            )
         )
-    );
+    ));
 
-    let mut corrupt_layout = staged_active_resident_resolved_layout(NativeTarget::linux_x64());
-    crate::stages::layout::active_resident_resolved_selected_form_layout::corrupt_active_resident_resolved_layout_byte_for_test(
-        &mut corrupt_layout,
-    );
-    assert_eq!(
-        validate_optimized_active_resident_rematerialization_resolved_selected_form_layout(
-            &corrupt_layout,
-        ),
-        Err(
-            OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError::Layout(
-                OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch,
-            ),
-        )
-    );
+    let mut corrupt_layout =
+        staged_active_resident_allocation_recovery_realization(NativeTarget::linux_x64());
+    corrupt_allocation_recovery_realization_layout_for_test(&mut corrupt_layout);
+    assert!(matches!(
+        validate_allocation_recovery_function_relative_realization(&corrupt_layout),
+        Err(AllocationRecoveryFunctionRelativeRealizationError::Layout(
+            OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
+        ))
+    ));
 
-    let mut corrupt_receipt = staged_active_resident_resolved_layout(NativeTarget::linux_x64());
-    crate::stages::layout::active_resident_resolved_selected_form_layout::corrupt_active_resident_resolved_layout_receipt_for_test(
-        &mut corrupt_receipt,
-    );
-    assert_eq!(
-        validate_optimized_active_resident_rematerialization_resolved_selected_form_layout(
-            &corrupt_receipt,
-        ),
-        Err(
-            OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError::ReceiptMismatch,
-        )
-    );
+    let mut corrupt_receipt =
+        staged_active_resident_allocation_recovery_realization(NativeTarget::linux_x64());
+    corrupt_allocation_recovery_realization_custody_for_test(&mut corrupt_receipt);
+    assert!(matches!(
+        validate_allocation_recovery_function_relative_realization(&corrupt_receipt),
+        Err(AllocationRecoveryFunctionRelativeRealizationError::ReceiptMismatch)
+    ));
 }

@@ -1,5 +1,12 @@
 use super::model::StagedAllocationRecoveryFunctionRelativeRealization;
 
+pub(crate) fn replace_allocation_recovery_realization_exit_for_test(
+    staged: &mut StagedAllocationRecoveryFunctionRelativeRealization,
+    foreign: &StagedAllocationRecoveryFunctionRelativeRealization,
+) {
+    staged.exit_contract = foreign.exit_contract.clone();
+}
+
 pub(crate) fn swap_allocation_recovery_realization_source_for_test(
     staged: &mut StagedAllocationRecoveryFunctionRelativeRealization,
     foreign: &mut StagedAllocationRecoveryFunctionRelativeRealization,
