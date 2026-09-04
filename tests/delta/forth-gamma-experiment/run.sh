@@ -48,9 +48,9 @@ forth_compiler_jumps=171
 forth_compiler_stack_ops=77
 forth_compiler_cell_ops=20
 functional_beta=1325,1065,165,479,208,203
-functional_compiler_lines=1276
+functional_compiler_lines=1280
 functional_compiler_definitions=120
-functional_compiler_lets=379'
+functional_compiler_lets=377'
 [ "$METRICS" = "$EXPECTED_METRICS" ] || {
     printf '%s\n' "$METRICS"
     echo "Forth-Gamma audit metrics changed" >&2

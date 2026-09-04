@@ -1,6 +1,7 @@
 ; First selected Gamma-authored Delta stage.
 ; Lowers finite nullary algebraic data and declaration-order exhaustive matches
-; into ordinary scalar Gamma. Generated match binders use the reserved __m prefix.
+; into ordinary scalar Gamma. Generated match binders use a $ prefix that no
+; authored Delta identifier can contain.
 
 (def fail () Int
   (read (input)))
@@ -496,22 +497,19 @@
       (write (+ 48 (% value 10))))))
 
 (def emit_match_name ((match_start Int)) Int
-  (let ignored0 Int (write '_')
-    (let ignored1 Int (write '_')
-      (let ignored2 Int (write 'm')
-        (emit_decimal match_start)))))
+  (let ignored0 Int (write '$')
+    (let ignored1 Int (write 'm')
+      (emit_decimal match_start))))
 
 (def emit_match_payload_name ((match_start Int)) Int
-  (let ignored0 Int (write '_')
-    (let ignored1 Int (write '_')
-      (let ignored2 Int (write 'p')
-        (emit_decimal match_start)))))
+  (let ignored0 Int (write '$')
+    (let ignored1 Int (write 'p')
+      (emit_decimal match_start))))
 
 (def emit_match_value_name ((match_start Int)) Int
-  (let ignored0 Int (write '_')
-    (let ignored1 Int (write '_')
-      (let ignored2 Int (write 'v')
-        (emit_decimal match_start)))))
+  (let ignored0 Int (write '$')
+    (let ignored1 Int (write 'v')
+      (emit_decimal match_start))))
 
 (def emit_pair_prefix () Int
   (let ignored0 Int (write '(')
@@ -677,7 +675,8 @@
           (name_child (second node) (read index) 1)
           end (+ index 1))))))
 
-(def count_function_parameters ((index Int) (count Int)) Int
+(def count_function_parameters
+  ((index Int) (count Int) (locals Int)) Int
   (let item Int (skip index)
     (if (eq (read item) 41)
       count
@@ -688,15 +687,20 @@
               (let type_end Int (token_end type_name)
                 (let close Int (skip type_end)
                   (if (eq (read close) 41)
-                    (count_function_parameters
-                      (token_end close) (+ count 1))
+                    (let checked Int
+                      (validate_local_declaration
+                        name name_end type_name type_end)
+                      (count_function_parameters
+                        (token_end close) (+ count 1)
+                        (name_trie_insert locals name_end name 1)))
                     (fail)))))))
         (fail)))))
 
 (def function_arity_at ((name_end Int)) Int
   (let open Int (skip name_end)
     (if (eq (read open) 40)
-      (count_function_parameters (token_end open) 0)
+      (count_function_parameters
+        (token_end open) 0 (empty_name_trie))
       (fail))))
 
 (def validate_global_data

@@ -4407,3 +4407,30 @@ candidates are rejected, and Delta remains unchanged. Reopen derived or
 parametric lists only if another independently justified feature supplies most
 of the required compiler machinery and a fused implementation demonstrably
 falls below the 223-line break-even including its proof obligations.
+
+## D104 — Lowering names are outside the authored Delta alphabet
+
+Compiler-generated match temporaries now begin with `$`: `$m` holds a nullary
+tag, while `$v` and `$p` hold the evaluated nominal value and its payload.
+Gamma admits these names, but Delta's identifier grammar does not admit `$` at
+all. The two namespaces are therefore disjoint by construction. Lowering no
+longer relies on a supposedly reserved authored prefix such as `__m`, and an
+exact match witness retains and reads an authored `__m63` local at the source
+offset that the old lowering also named `__m63`.
+
+This is a compiler hygiene property, not a new Delta reservation. A future
+generated name should use the same outside-the-source-alphabet rule; expanding
+Delta's identifier alphabet to include `$` would require revisiting this
+decision first.
+
+The global census also uses its existing persistent exact-name trie to reject
+duplicate parameters within each function. This closes the first local-scope
+ambiguity before emission without imposing a name-length bound or host lookup.
+Duplicate active `let` and pattern binders, unknown local references, and the
+complete expression/result type relation remain open.
+
+The exact selected subject is now 1,280 Gamma lines and 49,175 bytes, with 120
+definitions and 377 lexical `let` binders. Generated-name shortening changes
+only canonical receipt text: the nullary, payload, recursive, List, and rope
+receipts are respectively 165, 230, 251, 328, and 1,056 bytes. Their evaluated
+outcomes are unchanged, and the 3,001-function witness remains 78,271 bytes.
