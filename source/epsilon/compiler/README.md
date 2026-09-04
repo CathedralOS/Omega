@@ -48,9 +48,9 @@ facts; explicit state applications and state/machine collision classification
 are retained separately. Transition subjects, resolved patterns, typed payload
 binders, and sum coverage now have separate exact custody. D57 settles subject
 admission before semantic duplicate identity, duplicate identity before payload
-arity, and coverage after completed pattern premises. D50 settles bare states
-and D52 settles resultless argument anchoring; their branches and the remaining
-body/control judgments stay with the rest of D37's premise-DAG composition.
+arity, and coverage after completed pattern premises. D50's bare-state
+judgment and D52's resultless-argument anchor are implemented within D37's
+premise-DAG composition; the remaining body/control judgments stay open.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
@@ -194,8 +194,8 @@ static receiver spellings, and complete field/scalar values receive category
 failures before dependent checking; same-spelled authored fields remain fields
 without call syntax. D50 requires authored argument syntax for every state
 transfer: a state-only bare spelling contributes `InvalidControlTarget` at the
-continuation start without entering the state-application ledger. Its compiler
-branch remains to be implemented. D53 settles machine-continuation exit effects
+continuation start without entering the state-application ledger. That branch
+is implemented. D53 settles machine-continuation exit effects
 as local block facts and requires no reachability pass; its branch remains to
 be implemented.
 
@@ -250,12 +250,22 @@ an embedded `never` result is `InvalidTerminal`. The contract gives every
 authored argument its independently anchored category branch regardless of
 enclosing-callee admission and arity. D52 fixes resultless `TypeMismatch` at
 the authored argument expression start, including outer grouping, while grouped `never`
-retains its exact call-head anchor; the resultless branch remains implementation
-work. Let and `assert`
+retains its exact call-head anchor; both branches are implemented. Let and
+`assert`
 relations consume only complete values. Assignment checks its left value/place
 and right value branches independently, and compares against the retained
 storage type only after both facts exist; this admits `i32` establishment into
 `u8` storage without treating its zero-extended read type as the place type.
+
+A one-shot diagnostic harness appended to the exact source constructs these
+premise ledgers directly. It proves that a bare state publishes only
+`InvalidControlTarget` at the continuation start and retains no state
+application; a grouped resultless argument publishes only `TypeMismatch` at
+the outer group start; and the adjacent grouped `never` case still publishes
+only `InvalidTerminal` at its inner call head. The three predicates execute as
+byte `0x07` after compilation through the selected Delta stage. This remains
+development evidence, not a claim that the incomplete Epsilon compiler edge or
+its final application profile exists.
 The enclosing machine's optional return type now reaches entry, state, and arm
 returns. Explicit absence/value relations use D37's exact anchors and category
 premises without resolving the expression twice. A source-shaped statement

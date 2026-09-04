@@ -4737,3 +4737,31 @@ measurement rather than a language limit or acceptance threshold.
 
 The exact selected subject is now 1,992 Gamma lines and 79,294 bytes, with 175
 definitions and 631 lexical `let` binders.
+
+## D115 — Settled Epsilon argument and bare-state diagnostics execute locally
+
+D50's state-only bare continuation branch now contributes exactly
+`InvalidControlTarget` at the authored continuation start. It does not retain a
+resolved or complete state application because no application syntax was
+authored. The existing state/machine collision and machine-only branches remain
+distinct upstream causes with the same public reason, as D50 requires.
+
+D52's resultless-argument sibling now contributes `TypeMismatch` at the outer
+authored argument expression start. It does not manufacture a value fact or
+enter the later all-value signature join. The adjacent `never` sibling still
+contributes only `InvalidTerminal` at the recursively exposed call head, so
+grouping deliberately produces different anchors for the two result
+categories.
+
+An ephemeral diagnostic `main` appended to the complete source constructed the
+exact candidate, callable, state-application, and typed-expression ledgers. Its
+three independent predicates—bare state, grouped resultless, and grouped
+`never`—executed as byte `0x07` through the selected Delta compiler and Gamma
+evaluator. The probe is not retained as a default gate: compiling the complete
+in-progress Epsilon source takes about 69 seconds, and copying a smaller private
+checker slice would create a second semantic owner. The exact 8,735-line,
+437,255-byte source plus a scalar diagnostic entry does compile, producing a
+503,796-byte Gamma receipt in 69.4 seconds on the development host.
+
+This closes only the two settled local judgments. D51, D53, D56, D57,
+AST-to-Alpha lowering, `main`, and Q5's application boundary remain open.
