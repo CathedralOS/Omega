@@ -1,7 +1,7 @@
 use crate::support::*;
 
 #[test]
-fn dangerous_hardware_authorities_require_exact_toolchain_provenance() {
+fn declared_hardware_service_reach_does_not_infer_physical_authority() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -31,29 +31,9 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
     .expect("canonical hardware-authority fixture should check");
     let canonical_review = project_checked_package_review(&canonical_checked)
         .expect("canonical hardware-authority review should close");
-    let classes = canonical_review
-        .dangerous_authorities()
-        .iter()
-        .map(|authority| authority.class())
-        .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(
-        classes,
-        std::collections::BTreeSet::from([
-            PackageReviewDangerousAuthorityClass::MachineControl,
-            PackageReviewDangerousAuthorityClass::PortIo,
-            PackageReviewDangerousAuthorityClass::InterruptControl,
-            PackageReviewDangerousAuthorityClass::InterruptEntry,
-            PackageReviewDangerousAuthorityClass::RootMemory,
-        ])
-    );
     assert!(
-        canonical_review
-            .dangerous_authorities()
-            .iter()
-            .all(|authority| matches!(
-                authority.service().owner(),
-                PackageReviewNominalOwner::ToolchainSource(_)
-            ))
+        canonical_review.dangerous_authorities().is_empty(),
+        "toolchain service identities do not classify exercised terminal mechanisms"
     );
     let hardware = canonical_review
         .callables()
@@ -67,23 +47,9 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
             concrete,
         } if realized.is_empty() && concrete.is_empty()
     ));
-    let slack_classes = canonical_review
-        .dangerous_authority_slack()
-        .iter()
-        .map(|slack| slack.class())
-        .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(slack_classes, classes);
     assert!(
-        canonical_review
-            .dangerous_authority_slack()
-            .iter()
-            .all(|slack| {
-                slack.callable().path() == "exercise_hardware"
-                    && matches!(
-                        slack.service().owner(),
-                        PackageReviewNominalOwner::ToolchainSource(_)
-                    )
-            })
+        canonical_review.dangerous_authority_slack().is_empty(),
+        "unexercised service reach does not mint physical-authority slack"
     );
     let slack_rows = canonical_review
         .canonical_rows()
@@ -91,17 +57,7 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
         .into_iter()
         .filter(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthoritySlack)
         .collect::<Vec<_>>();
-    assert_eq!(slack_rows.len(), 5);
-    assert!(slack_rows.iter().all(|row| {
-        row.risk() == PackageReviewCanonicalRowRisk::AuditRecommended
-            && row.source().authored_locations().is_some_and(|locations| {
-                locations.iter().any(|location| {
-                    location.role() == PackageReviewSourceLocationRole::AuthorityDeclaration
-                }) && locations.iter().any(|location| {
-                    location.role() == PackageReviewSourceLocationRole::AuthorityExposure
-                })
-            })
-    }));
+    assert!(slack_rows.is_empty());
 
     let lookalike = TempPackage::new();
     lookalike.write(

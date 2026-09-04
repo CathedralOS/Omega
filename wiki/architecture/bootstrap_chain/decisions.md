@@ -2093,10 +2093,10 @@ reject. This rung covers PE-by-name, PE-by-ordinal, versioned ELF, and Mach-O;
 it does not yet prove complete selected-provider-closure traversal or the
 service/schema containment join.
 
-String-backed imports are never durable classification identities. Before
-foreign-import classification replaces the transitional filename-and-trait
-review, the structural locator vocabulary first gains Mach-O, ordinary source
-binding evaluation then converts authored `DllImport` values to exact
+String-backed imports are never durable classification identities. Foreign-
+import classification uses a structural locator vocabulary that includes
+Mach-O, while ordinary source binding evaluation converts authored `DllImport`
+values to exact
 `NormalizedForeignLocator` roles, and target policy supplies rows for those
 locators. PE-by-name, PE-by-ordinal, versioned ELF, and Mach-O identities remain
 distinct. A string bridge may normalize only when it losslessly reconstructs
@@ -2105,11 +2105,10 @@ realization proposal. The same structural-identity requirement applies to
 table, firmware, and intrinsic strings that have not completed their catalog
 join.
 
-Once the intrinsic table and the locator/evaluator/policy joins are live,
-package review replaces the blessed `(filename, trait-name)` dangerous-
-authority classifier with the exact service-identity/schema permission table
-and binding-derived containment. The filename table is not extended during
-filesystem faceting. Tests retain at
+The intrinsic table and locator/evaluator/policy joins are live. Exact service-
+identity/schema permissions and binding-derived containment have replaced the
+blessed `(filename, trait-name)` dangerous-authority classifier; no filename
+table remains to extend during filesystem faceting. Tests retain at
 least: explicit-empty versus unknown, target-distinct equal syscall numbers,
 argument-union versus proof-bound narrowing, adapter cycles and missing leaves,
 unknown intrinsic family members, every normalized import role including
@@ -2132,8 +2131,9 @@ which grant nothing. Root policy must accept the exact row, and direct native
 compilation requires the resolved row to match the independently supplied
 receiving permission policy. This is the first migration seam, not permission
 completion: retained-Terminal realization, portable filesystem facets, and
-complete replacement of every broad legacy row remain required before the
-filename classifier is deleted.
+complete replacement of every broad legacy row remain required. Q4's unresolved
+filesystem control/lifecycle dispositions block that legacy-row retirement,
+not deletion of the filename classifier.
 
 Accepted ordinary closure evidence now derives the canonical exact accepted-
 permission set only from obligations that survived fresh root-policy replay.

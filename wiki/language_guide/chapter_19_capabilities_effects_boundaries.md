@@ -611,12 +611,12 @@ labels are transitional review summaries, not terminal-policy identities.
 The temporary string-backed import bridge must normalize losslessly to the
 same exact foreign-locator identity as ordinary imports before classification.
 It is not a second durable terminal-root vocabulary. The normalized locator
-sum must cover PE-by-name, PE-by-ordinal, versioned ELF, and Mach-O before
-Darwin imports can enter installed-authority review. Source binding evaluation
-produces that structural locator before the historical package-review
-classifier keyed by blessed `(filename, trait-name)` pairs is replaced by the
-exact service/schema permission table and binding-derived containment;
-extending the transitional filename table for new service facets is forbidden.
+sum covers PE-by-name, PE-by-ordinal, versioned ELF, and Mach-O, including
+Darwin installed-authority review. Source binding evaluation produces that
+structural locator. Exact service/schema permissions and binding-derived
+containment have replaced the historical package-review classifier keyed by
+blessed `(filename, trait-name)` pairs; authority classes are never inferred
+from source coordinates or readable declaration names.
 
 Portable requirements do not enumerate operating systems. A Linux syscall, a
 Windows import, and a firmware-table call may separately satisfy the same exact
