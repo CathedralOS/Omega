@@ -24,13 +24,11 @@ fn staged_fixed_frame_callable(
     let budget =
         OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000).unwrap();
     let realization = stage_fixed_frame_function_relative_realization(homes, budget).unwrap();
-    let frame = realization.frame().clone();
-    let protocol = realization.protocol().clone();
     let fragments = stage_optimized_function_fragment_emission(
         StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(Box::new(realization)),
     )
     .unwrap();
-    let applied = stage_function_fragment_frame_application(fragments, frame, protocol).unwrap();
+    let applied = stage_function_fragment_frame_application(fragments).unwrap();
     let application = applied.receipt().identity();
     let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
     let object = stage_optimized_relocation_free_object_container(text).unwrap();

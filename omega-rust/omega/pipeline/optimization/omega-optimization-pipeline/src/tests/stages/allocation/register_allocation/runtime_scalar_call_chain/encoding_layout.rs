@@ -436,8 +436,6 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             ),
             Ok(realization.manifest().record().clone())
         );
-        let route_frame = realization.frame().clone();
-        let route_protocol = realization.protocol().clone();
         let fragments = stage_optimized_function_fragment_emission(
             StagedOptimizedFunctionFragmentEmissionSource::FixedFrame(Box::new(realization)),
         )
@@ -467,9 +465,7 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             .iter()
             .map(|row| row.byte_count)
             .sum::<u64>();
-        let applied =
-            stage_function_fragment_frame_application(fragments, route_frame, route_protocol)
-                .unwrap();
+        let applied = stage_function_fragment_frame_application(fragments).unwrap();
         validate_function_fragment_frame_application(&applied).unwrap();
         assert!(
             applied

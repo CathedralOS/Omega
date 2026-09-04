@@ -1426,13 +1426,19 @@ post-allocation formats retain and independently replay those rows, while older
 formats remain decode-only and cannot acquire scalar-call vocabulary. That
 exact attached-Unit chain now also retains replayed callee-saved requirements/
 storage, System V AMD64 or AAPCS64 frame layout and protocol, frame-aware exit
-custody, fixed-frame realization, body-fragment emission, single-block frame
-application, three resolved internal calls, fixed-frame text custody,
-relocation-free object/container bytes, and optimized-object-artifact
-publication. Its attached Unit signature still cannot become an ordinary
-scalar callable. This grants no nonzero-frame general-CFG return placement,
-Microsoft shadow space, red-zone policy, probing, unwind information, stable-
-address loans, dynamic allocation, or general scalar-call authority.
+custody, fixed-frame realization, body-fragment emission, frame application,
+three resolved internal calls, fixed-frame text custody, relocation-free
+object/container bytes, and optimized-object-artifact publication. Its attached
+Unit signature still cannot become an ordinary scalar callable. Separately, the
+canonical three-block/two-return scalar diamond carries a real nonzero
+callee-save frame through ordinary callable publication on both ISAs. Frame
+application records one entry prologue and an ordered epilogue site for every
+retained selected return, reflows block/row/fixup coordinates, and re-encodes
+each conditional branch through target-owned encoders. Independent replay uses
+the corresponding target decoders and rejects reauthenticated site or branch
+corruption. This grants no broader CFG admission, Microsoft shadow space,
+red-zone policy, probing, unwind information, stable-address loans, dynamic
+allocation, or general scalar-call authority.
 
 Applied selected-lowering publication coverage crosses both exact incoming-u12
 rules with every hosted target: Linux x64, Windows x64, Linux Arm64, and macOS
