@@ -48,6 +48,163 @@ fn root_git_selection(
 }
 
 #[test]
+fn readable_source_subject_preserves_git_lineages_object_formats_and_targets() {
+    let limits = CanonicalSourceClosureSubjectLimits::default();
+    for locator in [
+        "https://github.com/CathedralOS/codec.git",
+        "git@github.com:CathedralOS/codec.git",
+        "https://gitlab.com/team/subgroup/codec.git",
+        "https://git.example.org:8443/team/codec.git",
+        "ssh://builder@git.example.org:2222/team/codec.git",
+        "builder@git.example.org:team/codec.git",
+    ] {
+        for object_digits in [40, 64] {
+            let source = ResolvedSourceIdentity::new(
+                PackageKey::new(
+                    PackageName::parse("codec").unwrap(),
+                    SourceLineage::git(locator).unwrap(),
+                ),
+                ImmutableSourceResolution::git(
+                    GitCommitId::parse_hex(&"1".repeat(object_digits)).unwrap(),
+                    GitTreeId::parse_hex(&"2".repeat(object_digits)).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            for target in omega_target::TargetProfile::ALL {
+                let original = CanonicalSourceClosureSubject::finish_for_target(
+                    target,
+                    root_git_selection(locator, &source),
+                    vec![source.clone()],
+                    vec![PackageSourceNavigation::Root],
+                    Vec::new(),
+                    limits,
+                )
+                .unwrap();
+                let text = original.canonical_text(limits).unwrap();
+                assert!(
+                    text.contains(locator),
+                    "exact requested locator stays readable"
+                );
+                assert!(text.contains("codec"));
+                assert!(text.contains(&"1".repeat(object_digits)));
+                assert!(text.contains(target.identity().as_str()));
+                let recovered = CanonicalSourceClosureSubject::recover_text(&text, limits)
+                    .expect("source text supports every admitted Git lineage and target");
+                assert_eq!(recovered, original);
+                assert_eq!(recovered.canonical_bytes(), original.canonical_bytes());
+                assert_eq!(recovered.canonical_text(limits).unwrap(), text);
+            }
+        }
+    }
+}
+
+#[test]
+fn readable_source_subject_preserves_named_git_member_requests_and_aliases() {
+    let limits = CanonicalSourceClosureSubjectLimits::default();
+    let root = git_source("root", "workspace", 1);
+    let child = git_source("child", "workspace", 1);
+    let root_request = CanonicalRootSourceSelection {
+        request: CanonicalRootSourceRequest::Git {
+            requested_locator: "https://github.com/CathedralOS/workspace.git".to_owned(),
+            requested_revision: "main".to_owned(),
+            selection: crate::declarations::PackageSelection::Named(root.key().name().clone()),
+        },
+        role: BuildDeclarationKind::Application,
+        selected: root.clone(),
+    };
+    let alias = AliasName::parse("codec_alias").unwrap();
+    let selected_dependency = CanonicalDependencySourceSelection {
+        requester: root.key().clone(),
+        dependency_index: 0,
+        request: CanonicalDependencySourceRequest::Git {
+            explicit_alias: Some(alias.clone()),
+            repository: "https://github.com/CathedralOS/workspace.git".to_owned(),
+            revision: "main".to_owned(),
+            selection: crate::declarations::PackageSelection::Named(child.key().name().clone()),
+        },
+        alias,
+        selected: child.clone(),
+    };
+    let original = CanonicalSourceClosureSubject::finish(
+        root_request,
+        vec![child, root],
+        vec![
+            PackageSourceNavigation::Member(SourceRelativePath::parse("libs/codec").unwrap()),
+            PackageSourceNavigation::Member(SourceRelativePath::parse("apps/main").unwrap()),
+        ],
+        vec![selected_dependency],
+        limits,
+    )
+    .unwrap();
+    let text = original.canonical_text(limits).unwrap();
+    for spelling in ["codec_alias", "libs/codec", "apps/main"] {
+        assert!(text.contains(spelling));
+    }
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover_text(&text, limits).unwrap(),
+        original
+    );
+}
+
+#[test]
+fn readable_source_subject_preserves_platform_request_bytes_without_loss() {
+    let limits = CanonicalSourceClosureSubjectLimits::default();
+    let workspace_root_source =
+        SourceLineage::git("https://github.com/CathedralOS/byte-paths.git").unwrap();
+    let member_path = SourceRelativePath::parse("member").unwrap();
+    let identity =
+        omega_package_source::WorkspaceLineageIdentity::from_root_source(&workspace_root_source)
+            .unwrap();
+    let source = ResolvedSourceIdentity::new(
+        PackageKey::new(
+            PackageName::parse("byte-paths").unwrap(),
+            SourceLineage::Workspace(omega_package_source::WorkspaceMemberLineage::new(
+                identity,
+                member_path.clone(),
+            )),
+        ),
+        ImmutableSourceResolution::workspace(
+            omega_package_source::SourceContentDigest::parse_hex(&"1".repeat(64)).unwrap(),
+        ),
+    )
+    .unwrap();
+    // The subject retains platform-encoded request custody as bytes. Exercise
+    // the whole byte alphabet without asking a host filesystem to interpret it.
+    let original = finish(
+        CanonicalRootSourceSelection {
+            request: CanonicalRootSourceRequest::WorkspaceMember {
+                workspace_root_source,
+                member_path,
+                requested_workspace_root: (0..=u8::MAX).collect(),
+            },
+            role: BuildDeclarationKind::Package,
+            selected: source.clone(),
+        },
+        vec![source],
+        Vec::new(),
+        limits,
+    )
+    .unwrap();
+    let text = original.canonical_text(limits).unwrap();
+    assert!(text.is_ascii());
+    assert!(text.contains("\\x00"));
+    assert!(text.contains("\\xff"));
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover_text(&text, limits).unwrap(),
+        original
+    );
+    for malformed in [
+        text.replacen("\\xff", "\\xFF", 1),
+        text.replacen("\\xff", "\\xfg", 1),
+        text.replacen("\\xff", "\\qff", 1),
+    ] {
+        assert_ne!(malformed, text);
+        assert!(CanonicalSourceClosureSubject::recover_text(&malformed, limits).is_err());
+    }
+}
+
+#[test]
 fn exact_git_request_spelling_changes_subject_without_changing_selection() {
     let selected = git_source("codec", "codec", 1);
     let https = finish(
