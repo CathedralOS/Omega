@@ -4,6 +4,7 @@ mod local_origins;
 mod receiver;
 mod summary;
 
+pub(super) use local_origins::close_storage_places_over_aliases;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
 };
@@ -256,6 +257,34 @@ pub(crate) fn statement_mutated_place(
     }?;
     normalize_write_only_range_place(program, state_symbol, &mut place);
     Some(place)
+}
+
+/// Storage writes for fact invalidation. Non-assignment statements have no
+/// direct store; an unresolved assignment origin requires full invalidation.
+pub(crate) fn statement_storage_writes(
+    program: &psi_typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+) -> Option<Vec<CanonicalPlace>> {
+    if !matches!(statement, StatementNode::Assignment(_)) {
+        return Some(Vec::new());
+    }
+    let place = local_origins::assignment_storage_place(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        statement,
+    )?;
+    local_origins::close_storage_places_over_aliases(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        vec![place],
+    )
 }
 
 fn normalize_write_only_range_place(

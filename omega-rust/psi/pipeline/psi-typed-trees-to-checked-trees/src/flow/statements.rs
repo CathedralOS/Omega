@@ -157,15 +157,23 @@ pub(super) fn append_state_statement_flow_facts(
             );
         }
 
-        let mut mutated_places = statement_mutated_place(
+        let storage_writes = statement_storage_writes(
             program,
             machine.symbol,
             state.symbol,
             statement_index,
             statement,
-        )
-        .into_iter()
-        .collect::<Vec<_>>();
+        );
+        if storage_writes.is_none() {
+            *active_contexts = HandleSpan::empty();
+            *active_constraints = project_constraint_refs_to_active_contexts(
+                &mut ctx.contexts.constraint_refs,
+                *active_constraints,
+                *active_contexts,
+                &ctx.contexts.semantic_context_refs,
+            );
+        }
+        let mut mutated_places = storage_writes.unwrap_or_default();
         if let StatementNode::Call(call) = statement {
             mutated_places.extend(operator_statement_call_mutated_places(
                 program,

@@ -309,9 +309,7 @@ Owners include
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   for unresolved receivers, boundary result and reference-argument origins,
-  structured direct alias-store projection, and other unsupported expression
-  shapes. Direct stores must distinguish reference-binding replacement from
-  referent writes using shared alias transfer. Prefer shared fixpoint and alias
+  and other unsupported expression shapes. Prefer shared fixpoint and alias
   reasoning over syntax-shape exceptions. Acceptance: all supported finite
   source shapes converge without widening permissions, and unsupported
   recursion fails explicitly.

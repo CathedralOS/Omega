@@ -1,6 +1,193 @@
 use super::super::*;
 
 #[test]
+fn direct_local_alias_store_reaches_the_outer_caller_field() {
+    assert_direct_alias_store_frame(
+        "let alias: &mut u64 = &mut pair.left; alias = 7;",
+        Some(&["pair.left"]),
+    );
+}
+
+#[test]
+fn direct_alias_stores_keep_prior_origins_after_binding_replacement() {
+    assert_direct_alias_store_frame(
+        "let mut selected: &mut u64 = &mut pair.left;
+         let prior: &mut u64 = selected;
+         selected = &mut other.right;
+         prior = 1;
+         selected = 2;",
+        Some(&["pair.left", "other.right"]),
+    );
+}
+
+#[test]
+fn pure_reference_binding_replacement_has_no_referent_write() {
+    assert_direct_alias_store_frame(
+        "let mut selected: &mut u64 = &mut pair.left;
+         selected = &mut other.right;",
+        Some(&[]),
+    );
+}
+
+#[test]
+fn direct_indexed_alias_store_retains_the_coarse_collection() {
+    assert_direct_alias_store_frame(
+        "let alias: &mut u64 = &mut cells[0].left; alias = 7;",
+        Some(&["cells"]),
+    );
+}
+
+#[test]
+fn direct_private_scratch_alias_store_has_no_caller_write() {
+    assert_direct_alias_store_frame(
+        "let scratch: Pair = Pair { left: 0, right: 0 };
+         let alias: &mut u64 = &mut scratch.left;
+         alias = 7;",
+        Some(&[]),
+    );
+}
+
+#[test]
+fn direct_unknown_alias_store_does_not_become_an_empty_caller_frame() {
+    assert_direct_alias_store_frame(
+        "let alias: &mut u64 = opaque(&mut pair.left); alias = 7;",
+        None,
+    );
+}
+
+fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) {
+    let source = format!(
+        "data Pair {{ left: u64; right: u64; }}
+         data Main {{ pair: Pair; other: Pair; cells: [Pair; 2]; }}
+         machine opaque(value: &mut u64) -> &mut u64 {{ opaque(value) }}
+         machine update(pair: &mut Pair, other: &mut Pair, cells: &mut [Pair; 2]) {{ {body} }}
+         machine Main::run(&mut self) {{ update(&mut self.pair, &mut self.other, &mut self.cells); }}"
+    );
+    let tokens = psi_source_files_to_tokens::Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let program = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
+    let helper = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "update")
+        .expect("helper");
+    let resolver = psi_validation::CallFrameResolver::new(&program).expect("resolver");
+    let helper_frame =
+        resolver.inferred_state_write_frame(helper, &program.machine_states(helper)[0]);
+    assert_eq!(
+        helper_frame.is_complete(),
+        expected_paths.is_some(),
+        "shared admission for {body}"
+    );
+    if let Some(expected_paths) = expected_paths {
+        let mut expected_relative: Vec<_> = expected_paths
+            .iter()
+            .map(|path| {
+                let (root, suffix) = path
+                    .split_once('.')
+                    .map_or((*path, String::new()), |(root, suffix)| {
+                        (root, format!(".{suffix}"))
+                    });
+                let position = ["pair", "other", "cells"]
+                    .iter()
+                    .position(|name| *name == root)
+                    .expect("helper parameter");
+                format!("$P{position}{suffix}")
+            })
+            .collect();
+        let mut actual_relative = helper_frame
+            .complete_paths()
+            .expect("complete shared frame")
+            .to_vec();
+        actual_relative.sort();
+        expected_relative.sort();
+        assert_eq!(
+            actual_relative, expected_relative,
+            "shared storage origins for {body}"
+        );
+    }
+
+    let caller = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .expect("caller");
+    let state = program.machine_states(caller).first().expect("entry");
+    let receiver = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .expect("self");
+    let facts = build_borrow_facts(&program);
+    let borrow_state = facts
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|candidate| candidate.state_symbol == state.symbol)
+        .expect("borrow state");
+    let [call] = facts.calls.span_or_empty(borrow_state.calls) else {
+        panic!("one helper call")
+    };
+    let mut cache = StateMutationSummaryCache::default();
+    let writes = call_mutated_places(
+        &program,
+        caller.symbol,
+        state.symbol,
+        &facts,
+        call,
+        &mut cache,
+    );
+    let Some(expected_paths) = expected_paths else {
+        assert!(
+            writes.as_ref().is_none_or(|paths| !paths.is_empty()),
+            "an opaque alias store must invalidate conservatively, not publish no writes"
+        );
+        return;
+    };
+    let writes = writes.expect("complete structured caller frame");
+    let expected: Vec<_> = expected_paths
+        .iter()
+        .map(|path| {
+            let segments = path
+                .split('.')
+                .map(|name| {
+                    let symbol = program
+                        .data_definitions()
+                        .iter()
+                        .flat_map(|definition| program.data_members(definition))
+                        .find_map(|member| match member {
+                            psi_typed_trees::data::DataMember::Field(field)
+                                if field.name.as_str() == name =>
+                            {
+                                Some(field.symbol)
+                            }
+                            _ => None,
+                        })
+                        .expect("unique fixture field");
+                    psi_facts::PlaceSegment::Field { symbol }
+                })
+                .collect();
+            crate::flow::CanonicalPlace {
+                root: psi_facts::PlaceRoot::Symbol(receiver.symbol),
+                segments,
+            }
+        })
+        .collect();
+    assert_eq!(writes.len(), expected.len(), "{body}: {writes:?}");
+    for expected in expected {
+        assert!(
+            writes.contains(&expected),
+            "{body}: expected {expected:?}, actual {writes:?}"
+        );
+    }
+}
+
+#[test]
 fn boundary_storage_fallback_keeps_receiver_and_exclusive_argument_reach() {
     let source = r#"
         data Carrier { value: &mut u64; }

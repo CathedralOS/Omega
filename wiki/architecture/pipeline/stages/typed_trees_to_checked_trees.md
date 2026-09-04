@@ -706,6 +706,21 @@ Current ownership is:
   storage footprint: a write through an authorized local reference is not a new
   direct access to its borrowed owner. Fact invalidation consumes storage
   origins; loan compatibility checks consume the route used by the call.
+  Direct assignment demand stops the same state transfer at the store and
+  reports either local-binding replacement or a storage write. Structured
+  summaries and statement invalidation use that verdict before projecting local
+  reference roots; replacing a binding never writes its former referent.
+  Exact origins retain existing field/index/range selectors, collection-coarse
+  origins stay coarse, and unresolved storage cannot become a complete empty
+  summary. Private scratch writes are filtered only after origin projection.
+  Statement and call invalidation also project each storage write through the
+  shared live origins to invalidate copied facts on overlapping aliases. This
+  closure retains structured selectors and does not alter borrow access routes
+  or publish private alias spellings in caller-visible state summaries.
+  Arithmetic validation checks the right-hand side against pre-store facts,
+  invalidates all overlapping owner/alias spellings, then records the new
+  target value. Scalar reference reads retain their pointee's numeric type even
+  after a flow fact is invalidated; losing a fact cannot disable overflow checks.
   Structured storage queries distinguish a complete empty frame from an opaque
   result. Empty frames preserve facts; an unknown storage origin clears facts
   rather than publishing a disjoint local-rooted fallback.

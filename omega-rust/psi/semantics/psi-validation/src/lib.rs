@@ -53,7 +53,9 @@ pub use crate::call_cycles::{
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, machine_call_dependency_symbols,
 };
-pub use crate::calls::{CallFrameResolver, LocalWriteOrigin, frame_paths_overlap};
+pub use crate::calls::{
+    AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,
+};
 use crate::calls::{
     validate_call_node, validate_proof_machine_recursion, validate_self_recursive_call_positions,
     validate_value_position_calls,
@@ -662,10 +664,15 @@ fn validate_program_internal(
                         &mut diagnostics,
                     );
                 }
-                let call_written = match statement {
+                let direct_written = match statement {
                     StatementNode::Call(call) => call_frames
                         .as_ref()
                         .and_then(|frames| frames.may_write_paths(machine, call)),
+                    StatementNode::Assignment(_) => call_frames.as_ref().and_then(|frames| {
+                        frames
+                            .assignment_write_frame(machine, statement)
+                            .into_complete_paths()
+                    }),
                     _ => None,
                 };
                 validate_state_statement_node(
@@ -678,7 +685,7 @@ fn validate_program_internal(
                     statement_handle,
                     statement,
                     &mut value_env,
-                    call_written,
+                    direct_written,
                     &mut exact_integer_casts,
                     &mut boundary_operator_applications,
                     &mut diagnostics,
@@ -825,7 +832,7 @@ fn validate_state_statement_node(
     statement_handle: psi_typed_trees::statement::StatementHandle,
     statement: &StatementNode,
     value_env: &mut arithmetic_domains::ValueEnv,
-    call_written: Option<Vec<String>>,
+    direct_written: Option<Vec<String>>,
     exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1036,6 +1043,13 @@ fn validate_state_statement_node(
                     );
                 }
             }
+            // Analyze the RHS against pre-store facts, then invalidate every
+            // spelling of the storage before recording the new target value.
+            if let Some(written) = direct_written {
+                value_env.invalidate_written_paths(&written);
+            } else {
+                value_env.clear();
+            }
             arithmetic_domains::record_assignment(
                 value_env,
                 arithmetic_domains::place_path(program, assignment.target),
@@ -1078,7 +1092,7 @@ fn validate_state_statement_node(
             // unsummarized, and overlapping implementations remain
             // conservative. Authored `stores` clauses are retired; exactness
             // grows through inferred implementation summaries.
-            if let Some(written) = call_written {
+            if let Some(written) = direct_written {
                 value_env.invalidate_written_paths(&written);
             } else {
                 value_env.clear();

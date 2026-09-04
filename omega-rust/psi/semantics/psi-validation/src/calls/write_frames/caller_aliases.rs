@@ -5,10 +5,10 @@
 //! used by fact consumers. It never publishes prefix writes as call writes.
 
 use super::{
-    ExpressionHandle, ExpressionNode, FramePathPrecision, FramePlaceOrigin, Machine, StatementNode,
-    SymbolHandle, TableCall, TopLevelSymbols, TypedTrees, append_place_suffix,
-    rebase_local_alias_path, statement_value_expression_roots, type_is_caller_isolated_local,
-    type_may_carry_write, walk_state_write_prefix,
+    ExpressionHandle, ExpressionNode, FramePathPrecision, FramePlaceOrigin, Machine,
+    StateWriteQuery, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
+    append_place_suffix, rebase_local_alias_path, statement_value_expression_roots,
+    type_is_caller_isolated_local, type_may_carry_write, walk_state_write_prefix,
 };
 
 pub(super) enum CallerWriteSite<'query> {
@@ -24,6 +24,52 @@ pub struct LocalWriteOrigin {
     pub local_symbol: SymbolHandle,
     pub source_path: String,
     pub collection_coarse: bool,
+}
+
+/// The direct assignment effect, excluding calls evaluated in its operands.
+/// A binding replacement changes the local slot, not its previous referent.
+pub enum AssignmentWriteTarget {
+    LocalBindingReplacement { path: String },
+    Storage { path: String },
+}
+
+pub(super) fn assignment_write_target(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    statement: &StatementNode,
+) -> Option<AssignmentWriteTarget> {
+    let StatementNode::Assignment(assignment) = statement else {
+        return None;
+    };
+    let aliases = caller_aliases_at_site(
+        program,
+        machine,
+        symbols,
+        CallerWriteSite::Statement(statement),
+    )?;
+    if aliases.is_empty()
+        && let Some(path) = super::coarse_place_path(program, assignment.target)
+    {
+        return Some(AssignmentWriteTarget::Storage { path });
+    }
+    let state = program.machine_states(machine).iter().find(|state| {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|candidate| std::ptr::eq(statement, candidate))
+    })?;
+    walk_state_write_prefix(
+        program,
+        machine,
+        state,
+        symbols,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        Some(StateWriteQuery::Assignment(statement)),
+    )?
+    .assignment
 }
 
 pub(super) fn local_write_origins_before_statement(
@@ -176,7 +222,7 @@ fn caller_aliases_at_site(
         symbols,
         &mut Vec::new(),
         &mut Vec::new(),
-        Some(statement),
+        Some(StateWriteQuery::Before(statement)),
     )?;
     Some(prefix.aliases)
 }

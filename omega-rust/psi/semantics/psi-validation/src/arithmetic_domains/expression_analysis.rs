@@ -772,7 +772,12 @@ pub(super) fn analyze(
                 .filter(|handle| range_constraint_interval(program, *handle).is_some())
         }) {
             Some(handle) => {
-                let primitive = program.primitive_type_reference(handle);
+                // A scalar-reference place reads its referent's value. Losing
+                // a tracked interval must fall back to that primitive's range,
+                // not make the arithmetic untyped and therefore unchecked.
+                // Keep the raw handle below for its domain and range contracts.
+                let primitive = crate::places::unwrapped_type_reference(program, handle)
+                    .and_then(|referent| program.primitive_type_reference(referent));
                 let type_range = primitive
                     .and_then(primitive_range)
                     .unwrap_or(Interval::UNBOUNDED);
