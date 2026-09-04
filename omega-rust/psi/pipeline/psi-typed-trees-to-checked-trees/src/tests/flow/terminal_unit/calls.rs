@@ -1314,7 +1314,7 @@ fn retains_finite_literal_index_suffix_after_write_only_field_prefix() {
 }
 
 #[test]
-fn retains_scalar_literal_beside_projected_write_only_argument() {
+fn retains_scalar_parameter_beside_projected_write_only_argument() {
     let checked = checked(
         r#"
         data Outer [copy] { values: [[[[[[u16; 7]; 6]; 5]; 4]; 3]; 2]; sibling: u16; }
@@ -1324,8 +1324,8 @@ fn retains_scalar_literal_beside_projected_write_only_argument() {
         }
 
         data Root {}
-        machine Root::forward(outer: &write Outer) {
-            Sink::fill(&write outer.values[1][2][3][4][5][6], 17);
+        machine Root::forward(outer: &write Outer, replacement: u16) {
+            Sink::fill(&write outer.values[1][2][3][4][5][6], replacement);
         }
         "#,
     );
@@ -1334,18 +1334,18 @@ fn retains_scalar_literal_beside_projected_write_only_argument() {
         .flow
         .terminal_unit_effects
         .for_machine(machine_named(&checked, "Root::forward"))
-        .expect("scalar-bearing projected write-only caller plan");
+        .expect("parameter-bearing projected write-only caller plan");
     let CheckedUnitEffectOperationPlan::CallUnit {
         scalar_arguments,
         structural_arguments,
         ..
     } = &forward.operations[0]
     else {
-        panic!("projected write-only call with scalar literal is retained")
+        panic!("projected write-only call with scalar parameter is retained")
     };
     assert!(matches!(
         scalar_arguments.as_slice(),
-        [psi_checked_trees::CheckedScalarExpression::IntegerLiteral { .. }]
+        [psi_checked_trees::CheckedScalarExpression::Parameter { .. }]
     ));
     assert!(matches!(
         structural_arguments.as_slice(),

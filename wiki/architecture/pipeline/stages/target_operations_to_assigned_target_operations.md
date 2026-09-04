@@ -39,7 +39,7 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   The direct unrestricted write-only subloan sibling reconstructs every
   retained field and literal fixed-index segment before assigning a borrowed
   pointer adjustment; target-supplied offsets and affine cleanup metadata
-  cannot authorize it. Scalar literals may occupy the call plan's scalar
+  cannot authorize it. Scalar values may occupy the call plan's scalar
   prefix alongside the subloan, with each carrier validated independently.
 - `assignment/function/unit/structural_scalar.rs` independently reconstructs
   the bounded projected integer-field store and structural scalar call,

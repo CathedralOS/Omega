@@ -215,8 +215,8 @@ fn finite_literal_write_only_subloan_reaches_both_linux_artifacts() {
             }
 
             data Root {}
-            machine Root::forward(outer: &write Outer) {
-                Sink::fill(&write outer.values[1][2][3][4][5][6], 17);
+            machine Root::forward(outer: &write Outer, replacement: u16) {
+                Sink::fill(&write outer.values[1][2][3][4][5][6], replacement);
             }
         "#,
     );
@@ -344,14 +344,14 @@ fn finite_literal_write_only_subloan_reaches_both_linux_artifacts() {
             .internal_unit_calls[0]
             .scalar_arguments[0]
             .source;
-        let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-            value,
+        let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+            source_value,
             ..
         } = scalar_source
         else {
-            panic!("projected write-only call retains its scalar literal")
+            panic!("projected write-only call retains its scalar parameter")
         };
-        *value = psi_core::IntegerValue::Unsigned(18);
+        *source_value = psi_core::ValueId::new(9_999_999).unwrap();
         rejects(&changed_scalar);
 
         let object = omega_image_emission::build_object_artifact(&emitted)
