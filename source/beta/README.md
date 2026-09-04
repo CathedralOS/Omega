@@ -10,6 +10,9 @@ platform-independent [`compiler/beta_compiler_bytecode.tape`](compiler/beta_comp
 an admitted Alpha program in the trusted bootstrap chain. Its readable
 [`compiler/beta_compiler.beta`](compiler/beta_compiler.beta) source must
 reconstruct that tape byte-for-byte.
+The finite [compiler root audit](compiler/AUDIT.md) binds its identities,
+decoded Alpha inventory, control flow, memory profile, and independent
+source-to-tape correspondence.
 
 ```text
 audited native Alpha VM

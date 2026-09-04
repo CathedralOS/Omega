@@ -7,7 +7,7 @@ This ledger names only the selected chain. Missing artifacts remain explicit.
 | Subject | Implementation | Canonical output | Current state |
 | --- | --- | --- | --- |
 | Alpha VM | audited native source/listing per host | Alpha execution | macOS arm64 and Windows x86-64 seeds retained; conformance passes |
-| Beta compiler | admitted Alpha tape with addressed Beta self-reconstruction source | `beta_compiler_bytecode.tape` | 1,792-byte tape retained; reconstruction and differential gates pass |
+| Beta compiler | admitted Alpha tape with addressed Beta self-reconstruction source | `beta_compiler_bytecode.tape` | 1,792-byte tape retained; finite root audit, reconstruction, and differential gates pass |
 | Gamma evaluator | Beta source | `gamma_evaluator_bytecode.tape` | selected 1,325-line typed scalar/effect evaluator; 6,934-byte tape; static validation, 100,000-step proper tails, exact bounded outcomes, provenance-tagged immutable pairs, profile-owned arithmetic traps, readable character literals, and self-augmentation pass |
 | Delta compiler | Gamma source transformer to canonical Gamma | exact `GammaComposedV1` identity and staged receipts | 852-line stage lowers arbitrary-field recursive ADTs through immutable pairs; List, Bytes-rope, and 3,001-function witnesses pass; normative Bytes and complete checking remain open |
 | Epsilon compiler | Delta source to canonical Delta, then selected lower compilers | `epsilon_compiler_bytecode.tape` | incomplete `source/epsilon/compiler/epsilon_compiler.delta`; tape absent |
@@ -26,7 +26,7 @@ relation, and disclosed admissions.
 | Darwin arm64 | `source/alpha/alpha_arm64_macos` | `5844f295e3ab843e1819aae0ca47d41ad99cef5e2193a5abee64e630b41c304c` |
 | Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | `ccce78bbef7cb5a538d4fb0e350a1c646233d179074e65b4ac7cca98c4a4a6f7` |
 
-The trusted Beta compiler is a manifest row. Its 12,639-byte addressed Beta
+The trusted Beta compiler is a manifest row. Its 12,640-byte addressed Beta
 source reconstructs its admitted 1,792-byte Alpha tape exactly. The Alpha VM and that
 compiler tape form the current executable bootstrap floor.
 

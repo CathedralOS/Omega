@@ -2,6 +2,7 @@
 
 | Retained child/files | Role | Deletion condition |
 | --- | --- | --- |
+| `root-audit.py` | Independently binds, partitions, decodes, and checks reachability of the admitted compiler source/tape pair. | Delete only with a stronger checked correspondence over the same finite subject. |
 | `reconstruction.sh` | Reconstructs the canonical Beta compiler tape from `beta_compiler.beta`. | Delete only when stronger exact reconstruction replaces it. |
 | `beta_ref.py`, `compiler-diamond.sh` | Independent assembly relation and differential gate. | Delete together when checked assembly correspondence subsumes them. |
 | `register-address-regression.sh` | Pins register/address syntax, numeric control flow, bounds, and status-gated publication. | Delete when generated checked vectors cover every case. |

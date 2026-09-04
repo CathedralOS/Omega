@@ -4183,3 +4183,45 @@ tape. Canonical Beta reconstruction, unreachable-body validation, the
 and the complete staged Delta workload remain green. Beta-root audit and the
 Gamma derivation checker remain open independent tasks; they do not reopen the
 evaluator's language or resource behavior.
+
+## D98 — The admitted Beta root is a finite decoded subject
+
+D98 closes `BETA-ROOT-AUDIT` over the exact cold-start compiler rather than
+treating self-reconstruction as semantic proof. The bound subject is the
+12,640-byte, 388-line `beta_compiler.beta` source with SHA-256
+`3ea0b6d4d8651bddf2aaeb2176009706a0119942c8c2a072e03f6f8876eef53a`
+and its 1,792-byte Alpha tape with SHA-256
+`b5c3b23c945a250d03e16e66126b4b783573bb8d15139de94a2c8f69fc6ac24f`.
+
+The tape contains 1,632 instruction bytes followed by a 160-byte immutable
+mnemonic table. Independent decoding finds 257 Alpha instructions; every
+instruction is reachable from address zero, and all 90 branch/call targets land
+on instruction boundaries below the table. The readable source partitions the
+tape through 53 exact address assertions, 257 instruction items, and 20 `dw`
+items. The published audit groups the control flow into entry/read, program
+scan, tokenizer, hexadecimal word/digit/nibble, mnemonic lookup, operand
+emission, and `dw` emission regions and maps each to the corresponding Beta
+rule.
+
+The memory map is closed: tape `0x000000..0x000700`, one scratch word at
+`0x080060..0x080068`, and a checked 64-MiB source buffer at
+`0x100000..0x4100000`. Output is streamed and successful artifacts are bounded
+to `0xfffffc` = 16,777,212 bytes. The call graph is acyclic and needs at most
+six Alpha return addresses. Source pointers, table reads, and scratch access
+therefore remain disjoint and in range; the compiler contains no `div`, `mod`,
+computed control, heap, or other route to an Alpha trap or undefined memory.
+
+This audit corrects two stale written numbers: the source is 12,640 rather than
+12,639 bytes, and the current Beta compiler publishes `0xfffffc`, not the old
+`0xffffc`, output maximum. The current Alpha seeds and Alpha semantics likewise
+own a 16-MiB stamped hole and 16,777,212-byte raw-tape maximum. D98 supersedes
+only the obsolete one-MiB capacity clauses in D23 and D84; their topology and
+transport findings remain historical. No opcode or Beta language form changes.
+
+The retained gate independently binds and partitions the source, reconstructs
+the Beta relation, decodes the raw tape from Alpha's opcode table, checks the
+closed mnemonic table and full control-flow reachability, then runs exact
+self-reconstruction. The independent Python relation remains diagnostic, not a
+bootstrap stage or authority. The finite source/tape pair, written Alpha/Beta
+semantics, published operation audit, and audited native Alpha realizations are
+the trust boundary.

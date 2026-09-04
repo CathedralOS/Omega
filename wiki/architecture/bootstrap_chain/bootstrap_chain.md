@@ -57,7 +57,8 @@ their tapes through the immediately preceding trusted language.
 
 ## Current state
 
-Alpha conformance and trusted Beta compiler reconstruction are executable. The
+Alpha conformance, the finite Beta root audit, and trusted Beta compiler
+reconstruction are executable. The
 selected 1,325-line Beta-written Gamma evaluator and its 6,934-byte tape run
 the typed scalar/effect and self-augmentation gates. Proper tail execution,
 static validation, provenance-tagged immutable pairs, and bounded output are

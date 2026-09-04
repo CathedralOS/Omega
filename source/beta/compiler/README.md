@@ -10,6 +10,9 @@ platform-independent Alpha program at the first compiler edge. The readable
 [`beta_compiler.beta`](beta_compiler.beta) source is the same assembler expressed in
 Beta; `tests/beta/compiler/reconstruction.sh`
 requires it to reproduce the direct tape byte-for-byte.
+[`AUDIT.md`](AUDIT.md) binds the exact identities and publishes the decoded
+instruction inventory, control flow, memory containment, ceilings, and
+source-to-tape correspondence.
 
 The compiler accepts mnemonic opcodes, complete-token lowercase hexadecimal
 registers `rH`/`rHH`, `0x`-prefixed lowercase hexadecimal 64-bit words,
@@ -44,6 +47,7 @@ Reconstruction, the independent compiler, regressions, and examples live under
 | --- | --- | --- |
 | `beta_compiler_bytecode.tape` | Admitted Alpha program implementing the trusted Beta compiler. | Replace atomically with its exact checked relation and reconstruction. |
 | `beta_compiler.beta` | Authoritative readable self-reconstruction source. | Delete only if another equally direct reconstruction replaces it. |
+| `AUDIT.md` | Finite decoded audit and source-to-tape correspondence for the admitted pair. | Replace only with a stronger audit of the exact admitted subject. |
 
 Beta and this compiler are a trusted rung. The retained Alpha tape is the
 cold-start implementation, while the Beta source fixes its readable recursive

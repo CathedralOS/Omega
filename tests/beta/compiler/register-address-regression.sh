@@ -96,6 +96,7 @@ expect_reject late-address 9 "$T/late-address.beta"
 PUBLICATION_NAME="beta-late-publication-$(basename "$T")"
 PUBLICATION_TAPE="$OMEGA_REPO_ROOT/build/tools/beta/$PUBLICATION_NAME.tape"
 PUBLICATION_EXE="$OMEGA_REPO_ROOT/build/tools/beta/$PUBLICATION_NAME.exe"
+mkdir -p "$OMEGA_REPO_ROOT/build/tools/beta"
 [ ! -e "$PUBLICATION_TAPE" ]
 [ ! -e "$PUBLICATION_EXE" ]
 cp "$T/late-address.beta" "$T/$PUBLICATION_NAME.beta"

@@ -3,9 +3,9 @@
 [Chain overview](../bootstrap_chain.md) | Prev: [Alpha](alpha.md) | Next: [Gamma](gamma.md)
 
 Beta is the trusted imperative tape-assembly language above Alpha. It gives
-Alpha's 21 instructions mnemonic spelling, labels, hexadecimal words, comments,
-and one fixed-word data directive. Its semantics is the deterministic partial
-relation from Beta source to raw Alpha tape.
+Alpha's 21 instructions mnemonic spelling, numeric address assertions,
+hexadecimal words, comments, and one fixed-word data directive. Its semantics
+is the deterministic partial relation from Beta source to raw Alpha tape.
 
 The normative contract is
 [`source/beta/LANGUAGE.md`](../../../../source/beta/LANGUAGE.md). The admitted
@@ -13,6 +13,8 @@ The normative contract is
 `source/beta/compiler/beta_compiler.beta` reconstructs that tape
 byte-identically. The compiler differential and strict grammar gates live under
 `tests/beta/compiler/`.
+The finite root audit is published at
+[`source/beta/compiler/AUDIT.md`](../../../../source/beta/compiler/AUDIT.md).
 
 Beta's language-chain customer is the Gamma evaluator at
 `source/gamma/evaluator/gamma_evaluator.beta`. Beta self-reconstruction binds
