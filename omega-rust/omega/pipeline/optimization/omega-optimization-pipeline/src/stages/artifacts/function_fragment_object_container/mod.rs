@@ -23,30 +23,27 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::{
-    RelocationFreeTextSectionPlacementError, StagedOptimizedRelocationFreeTextSection,
-    validate_optimized_relocation_free_text_section,
-};
-
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTOM\0\0";
 const MANIFEST_VERSION: u32 = 1;
 
 mod codec;
 mod model;
 mod reconstruction;
+mod source;
 
 #[cfg(test)]
 mod tests;
 
 pub use model::*;
+pub use source::*;
 
 use reconstruction::*;
 
 pub fn stage_optimized_relocation_free_object_container(
-    source: StagedOptimizedRelocationFreeTextSection,
+    source: impl Into<StagedOptimizedObjectTextSectionSource>,
 ) -> Result<StagedOptimizedRelocationFreeObjectContainer, RelocationFreeObjectContainerError> {
-    validate_optimized_relocation_free_text_section(&source)
-        .map_err(RelocationFreeObjectContainerError::Source)?;
+    let source = source.into();
+    source.validate()?;
     let object = construct_object(&source)?;
     let container = encode_relocation_free_object(&object)
         .map_err(RelocationFreeObjectContainerError::InvalidObject)?;
@@ -66,8 +63,7 @@ pub fn stage_optimized_relocation_free_object_container(
 pub fn validate_optimized_relocation_free_object_container(
     staged: &StagedOptimizedRelocationFreeObjectContainer,
 ) -> Result<StagedRelocationFreeObjectContainerCustodyReceipt, RelocationFreeObjectContainerError> {
-    validate_optimized_relocation_free_text_section(&staged.source)
-        .map_err(RelocationFreeObjectContainerError::Source)?;
+    staged.source.validate()?;
     let expected_object = replay_object(&staged.source)?;
     validate_relocation_free_object(&staged.object)
         .map_err(RelocationFreeObjectContainerError::InvalidObject)?;

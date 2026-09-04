@@ -2,6 +2,7 @@
 
 use super::codec::*;
 use super::*;
+use crate::RelocationFreeTextSectionPlacementError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentObjectContainerStage {
@@ -186,7 +187,7 @@ impl ValidatedFunctionFragmentObjectContainerManifest {
 #[derive(Debug)]
 #[must_use = "a staged object container owns its complete text-section custody"]
 pub struct StagedOptimizedRelocationFreeObjectContainer {
-    pub(super) source: StagedOptimizedRelocationFreeTextSection,
+    pub(super) source: StagedOptimizedObjectTextSectionSource,
     pub(super) object: RelocationFreeObjectPlan,
     pub(super) container: RelocationFreeObjectContainer,
     pub(super) manifest: ValidatedFunctionFragmentObjectContainerManifest,
@@ -194,7 +195,7 @@ pub struct StagedOptimizedRelocationFreeObjectContainer {
 }
 
 impl StagedOptimizedRelocationFreeObjectContainer {
-    pub const fn source(&self) -> &StagedOptimizedRelocationFreeTextSection {
+    pub const fn source(&self) -> &StagedOptimizedObjectTextSectionSource {
         &self.source
     }
 

@@ -118,7 +118,10 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         let artifact = staged_active_resident_callable_object_artifact(target);
         let object_stage = artifact.source();
         let text_stage = object_stage.source();
-        let fragment_stage = text_stage.source();
+        let StagedOptimizedObjectTextSectionSource::Direct(direct_text_stage) = text_stage else {
+            panic!("active-resident publication must retain direct text custody")
+        };
+        let fragment_stage = direct_text_stage.source();
         let StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) =
             fragment_stage.source()
         else {
@@ -147,8 +150,8 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
             fragment_stage.custody()
         );
         assert_eq!(
-            validate_optimized_relocation_free_text_section(text_stage).unwrap(),
-            text_stage.custody()
+            validate_optimized_relocation_free_text_section(direct_text_stage).unwrap(),
+            direct_text_stage.custody()
         );
         assert_eq!(
             validate_optimized_relocation_free_object_container(object_stage).unwrap(),
