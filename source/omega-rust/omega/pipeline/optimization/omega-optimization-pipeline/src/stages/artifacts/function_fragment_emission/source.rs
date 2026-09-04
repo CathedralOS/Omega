@@ -2,6 +2,7 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 
 use crate::{
     StagedAllocationRecoveryFunctionRelativeRealization,
+    StagedFixedFrameFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization,
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     StagedOptimizedUnitFunctionRelativeRealization,
@@ -18,6 +19,7 @@ pub enum StagedOptimizedFunctionFragmentEmissionSource {
     AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>),
     UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
     StructuralUnit(Box<StagedOptimizedStructuralUnitFunctionRelativeRealization>),
+    FixedFrame(Box<StagedFixedFrameFunctionRelativeRealization>),
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
@@ -64,6 +66,14 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .selected_stage()
                 .selected()
                 .selected_plan(),
+            Self::FixedFrame(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
         }
     }
 
@@ -83,6 +93,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::AllocationRecovery(realization) => realization.source().homes(),
             Self::UnitBaseline(realization) => realization.homes().homes(),
             Self::StructuralUnit(realization) => realization.homes().homes(),
+            Self::FixedFrame(realization) => realization.homes().homes(),
         }
     }
 
@@ -138,6 +149,13 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .liveness_stage()
                 .selected_stage()
                 .register_environment(),
+            Self::FixedFrame(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
         }
     }
 
@@ -149,6 +167,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::AllocationRecovery(realization) => realization.exit_contract(),
             Self::UnitBaseline(realization) => realization.exit_contract(),
             Self::StructuralUnit(realization) => realization.exit_contract(),
+            Self::FixedFrame(realization) => realization.exit_contract(),
         }
     }
     pub fn pre_physical_manifest(
@@ -224,6 +243,15 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
+            Self::FixedFrame(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
         }
     }
 
@@ -237,6 +265,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::AllocationRecovery(realization) => realization.manifest(),
             Self::UnitBaseline(realization) => realization.manifest(),
             Self::StructuralUnit(realization) => realization.manifest(),
+            Self::FixedFrame(realization) => realization.manifest(),
         }
     }
 
@@ -262,6 +291,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             }
             Self::UnitBaseline(realization) => realization.homes().post_allocation_manifest(),
             Self::StructuralUnit(realization) => realization.homes().post_allocation_manifest(),
+            Self::FixedFrame(realization) => realization.homes().post_allocation_manifest(),
         }
     }
 
@@ -313,6 +343,13 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .selected_stage()
                 .optimized_target(),
             Self::StructuralUnit(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target(),
+            Self::FixedFrame(realization) => realization
                 .homes()
                 .legality_stage()
                 .live_range_stage()

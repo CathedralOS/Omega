@@ -1,4 +1,4 @@
-//! Function-relative V9 envelope and closed wire-axis mutations.
+//! Function-relative V11 envelope and closed wire-axis mutations.
 
 use crate::tests::*;
 
@@ -19,7 +19,7 @@ fn assert_decode_error(
 }
 
 #[test]
-fn function_relative_v10_wire_rejects_every_closed_axis_and_envelope_mutation() {
+fn function_relative_v11_wire_rejects_every_closed_axis_and_envelope_mutation() {
     let staged = direct_rel8_realization();
     let encoded = staged.manifest().record().encode();
     let offsets = wire_offsets(&encoded);
@@ -87,6 +87,11 @@ fn function_relative_v10_wire_rejects_every_closed_axis_and_envelope_mutation() 
         &encoded,
         |bytes| bytes[offsets.scope] = 99,
         FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownScope(99),
+    );
+    assert_decode_error(
+        &encoded,
+        |bytes| bytes[offsets.frame_disposition] = 99,
+        FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownFrameDisposition(99),
     );
     for offset in offsets.unavailable {
         assert_decode_error(

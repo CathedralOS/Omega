@@ -15,6 +15,7 @@ pub enum FunctionRelativeOptimizationRealizationManifestDecodeError {
     TargetLayoutOverflow,
     UnknownLayoutPolicy(u8),
     UnknownScope(u8),
+    UnknownFrameDisposition(u8),
     UnknownUnavailableStatus(u8),
     IdentityMismatch,
     TrailingBytes,

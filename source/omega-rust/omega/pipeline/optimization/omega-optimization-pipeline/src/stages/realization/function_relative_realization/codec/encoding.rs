@@ -1,4 +1,6 @@
-use super::super::model::FunctionRelativeOptimizationRealizationManifest;
+use super::super::model::{
+    FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
+};
 use super::super::prelude::*;
 use super::super::{
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
@@ -76,8 +78,15 @@ pub(super) fn encode_manifest_content(
     ] {
         canonical.extend_from_slice(&value.to_le_bytes());
     }
+    match manifest.frame {
+        FunctionRelativeFrameDisposition::Unavailable => canonical.push(1),
+        FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 { layout, protocol } => {
+            canonical.push(2);
+            canonical.extend_from_slice(&layout.bytes());
+            canonical.extend_from_slice(&protocol.bytes());
+        }
+    }
     for unavailable in [
-        manifest.frame,
         manifest.machine_emission,
         manifest.section_placement,
         manifest.symbols,

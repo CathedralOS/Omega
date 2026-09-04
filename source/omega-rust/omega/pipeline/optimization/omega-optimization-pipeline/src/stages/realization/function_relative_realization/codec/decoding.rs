@@ -1,5 +1,5 @@
 use super::super::model::{
-    FunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationStatistics,
 };
 use super::super::prelude::*;
@@ -80,8 +80,15 @@ pub(super) fn decode_manifest_content(
         structural_unit_bytes: u64::from_le_bytes(cursor.array()?),
         unresolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
     };
+    let frame = match cursor.byte()? {
+        1 => FunctionRelativeFrameDisposition::Unavailable,
+        2 => FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 {
+            layout: crate::TargetFrameLayoutIdentity::from_bytes(cursor.array()?),
+            protocol: crate::TargetFrameProtocolEncodingIdentity::from_bytes(cursor.array()?),
+        },
+        tag => return Err(Error::UnknownFrameDisposition(tag)),
+    };
     let unavailable = [
-        decode_unavailable(cursor)?,
         decode_unavailable(cursor)?,
         decode_unavailable(cursor)?,
         decode_unavailable(cursor)?,
@@ -115,14 +122,14 @@ pub(super) fn decode_manifest_content(
         layout_policy,
         scope,
         statistics,
-        frame: unavailable[0],
-        machine_emission: unavailable[1],
-        section_placement: unavailable[2],
-        symbols: unavailable[3],
-        object_relocations: unavailable[4],
-        executable_image: unavailable[5],
-        installation: unavailable[6],
-        publication: unavailable[7],
+        frame,
+        machine_emission: unavailable[0],
+        section_placement: unavailable[1],
+        symbols: unavailable[2],
+        object_relocations: unavailable[3],
+        executable_image: unavailable[4],
+        installation: unavailable[5],
+        publication: unavailable[6],
     };
     Ok(manifest)
 }

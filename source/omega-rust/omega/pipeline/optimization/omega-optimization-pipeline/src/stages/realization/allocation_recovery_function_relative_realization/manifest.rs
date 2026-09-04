@@ -5,11 +5,12 @@ use crate::stages::realization::function_relative_realization::{
     function_relative_statistics, seal_function_relative_manifest,
 };
 use crate::{
-    FunctionRelativeOptimizationRealizationManifest, FunctionRelativeOptimizationRealizationScope,
-    FunctionRelativeOptimizationRealizationStage, FunctionRelativeOptimizationUnavailableData,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding, ValidatedFunctionRelativeOptimizationRealizationManifest,
-    ValidatedWholeFunctionExitContract, WholeFunctionExitLayoutCustody,
+    FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
+    FunctionRelativeOptimizationUnavailableData, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
+    ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
+    WholeFunctionExitLayoutCustody,
 };
 
 use super::model::AllocationRecoveryFunctionRelativeRealizationError;
@@ -104,7 +105,7 @@ pub(super) fn expected_manifest(
         layout_policy: layout.policy(),
         scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
         statistics: function_relative_statistics(layout).map_err(AllocationRecoveryFunctionRelativeRealizationError::Manifest)?,
-        frame: unavailable,
+        frame: FunctionRelativeFrameDisposition::Unavailable,
         machine_emission: unavailable,
         section_placement: unavailable,
         symbols: unavailable,

@@ -85,8 +85,9 @@ needed for independent replay through publication.
   preserving exact register-unit aliases, liveness, and target custody.
 
 - **FRAME-LAYOUT.** Carry the landed replayed System V AMD64/AAPCS64 frame
-  geometry, packed save/restore encodings, frame-aware exit admission, and
-  fail-closed single-block fragment application through ordinary internal-call
+  geometry, packed save/restore encodings, frame-aware exit admission, exact
+  frame-bearing function-relative realization, body-fragment emission, and
+  fail-closed single-block frame application through ordinary internal-call
   fixup resolution and text placement. Then add general CFG return placement,
   Microsoft shadow space,
   red-zone policy, probing, unwind information, stable-address loans, and
