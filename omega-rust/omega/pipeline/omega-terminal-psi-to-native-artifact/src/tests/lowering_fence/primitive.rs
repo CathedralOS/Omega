@@ -199,3 +199,152 @@ fn verified_write_only_primitive_store_reaches_exact_machine_emission() {
         ));
     }
 }
+
+#[test]
+fn finite_literal_write_only_subloan_reaches_both_linux_artifacts() {
+    let checked = checked(
+        r#"
+            data Outer [copy] {
+                prefix: u8;
+                values: [[[[[[u16; 7]; 6]; 5]; 4]; 3]; 2];
+            }
+
+            data Sink {}
+            machine Sink::fill(destination: &write u16) {
+                destination = 17;
+            }
+
+            data Root {}
+            machine Root::forward(outer: &write Outer) {
+                Sink::fill(&write outer.values[1][2][3][4][5][6]);
+            }
+        "#,
+    );
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::forward")
+        .expect("finite literal write-only subloan reaches verified Terminal");
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode projected write-only semantics");
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("encode projected write-only proof bundle");
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
+        &semantic,
+        &proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("verified projected write-only call reaches target-neutral Omega");
+
+    for target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstract_plan,
+            target,
+        )
+        .expect("finite literal write-only subloan reaches target custody");
+        let mut corrupted_target = target.clone();
+        let target_argument = corrupted_target
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == corrupted_target.entry)
+            .and_then(|function| match &mut function.operation {
+                omega_target_operations::TargetOperation::UnitBody(body) => body
+                    .operations
+                    .iter_mut()
+                    .find_map(|operation| match operation {
+                        omega_target_operations::TargetUnitOperation::Call {
+                            arguments, ..
+                        } => arguments.first_mut(),
+                        _ => None,
+                    }),
+                _ => None,
+            })
+            .expect("target call retains its projected argument");
+        target_argument.source_byte_offset += 2;
+        assert!(matches!(
+            omega_target_operations_to_assigned_target_operations::assign_registers(
+                &corrupted_target
+            ),
+            Err(
+                omega_target_operations_to_assigned_target_operations::AssignmentError::UnitCallCustodyMismatch { .. }
+            )
+        ));
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target)
+                .expect("projected write-only pointer adjustment assigns");
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("projected write-only pointer adjustment emits");
+        let caller = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("entry caller");
+        let [call] = caller.internal_unit_calls.as_slice() else {
+            panic!("one projected write-only call must survive machine emission")
+        };
+        let [argument] = call.arguments.as_slice() else {
+            panic!("projected call must retain one write-only argument")
+        };
+        assert_eq!(
+            argument.access,
+            psi_terminal::StructuralAccess::WriteOnlyBorrow
+        );
+        assert_eq!(argument.path.len(), 7);
+        assert_eq!(argument.source_byte_offset, 10_080);
+        assert_eq!(argument.fixed_array_length, None);
+        assert_eq!(argument.element_stride, None);
+        assert_eq!(
+            argument.shape.class,
+            omega_calling_conventions::ValueClass::BorrowedReference
+        );
+        assert!(!argument.bytes.is_empty());
+        let callee = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == call.target)
+            .expect("write-only callee");
+        assert_eq!(callee.unit_write_only_primitive_stores.len(), 1);
+
+        let rejects = |candidate: &omega_machine_code::MachineCodePlan| {
+            assert!(matches!(
+                omega_image_emission::build_object_artifact(candidate),
+                Err(omega_image_emission::ObjectError::InvalidInternalUnitCallEvidence(
+                    machine
+                )) if machine == caller.machine
+            ));
+        };
+        let mut changed_offset = emitted.clone();
+        changed_offset
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller.machine)
+            .unwrap()
+            .internal_unit_calls[0]
+            .arguments[0]
+            .source_byte_offset += 2;
+        rejects(&changed_offset);
+        let mut changed_path = emitted.clone();
+        let path = &mut changed_path
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller.machine)
+            .unwrap()
+            .internal_unit_calls[0]
+            .arguments[0]
+            .path;
+        *path.last_mut().unwrap() = psi_terminal::StructuralPathSegment::FixedIndex(0);
+        rejects(&changed_path);
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object replay accepts the projected write-only call");
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("projected write-only call reaches an executable image");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).unwrap(),
+        )
+        .expect("installation retains the projected write-only call");
+        omega_image_emission::validate_installation_record(&installation, &image)
+            .expect("installation independently replays the projected write-only call");
+    }
+}

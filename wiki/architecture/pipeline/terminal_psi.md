@@ -707,6 +707,13 @@ bound, element type, multiplicity, and write-only access. Dynamic, range, whole
 nested-array, and aggregate-element paths remain absent. The verifier also
 rejects widening, target disagreement, overlapping exclusive arguments, and
 Boolean structural observation through write-only access.
+For direct Unit calls, target lowering walks the same finite field/index path
+and derives one borrowed-reference pointer adjustment. Both Linux targets emit
+that adjustment, including split AArch64 immediates beyond 4 KiB; assignment,
+object, and installed replay independently reconstruct the exact offset from
+the retained structural declarations. The legacy fixed-array length/stride
+rows remain reserved for affine element-transfer cleanup and are not attached
+to this unrestricted write-only subloan.
 Terminal format 42/vocabulary 45 retains one executable direct whole-root
 primitive replacement from a landed integer literal, landed IEEE float
 literal, or Boolean literal. `PrimitiveScalar` is an honest structural

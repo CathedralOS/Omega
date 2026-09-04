@@ -36,6 +36,10 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   complete call custody. Object construction and installation independently
   replay the caller source, Unit callee ABI, scalar transfer, structural copy,
   stack evidence, and target call bytes.
+  The direct unrestricted write-only subloan sibling reconstructs every
+  retained field and literal fixed-index segment before assigning a borrowed
+  pointer adjustment; target-supplied offsets and affine cleanup metadata
+  cannot authorize it.
 - `assignment/function/unit/structural_scalar.rs` independently reconstructs
   the bounded projected integer-field store and structural scalar call,
   including carrier layout, source definition, field offset, projected copy,

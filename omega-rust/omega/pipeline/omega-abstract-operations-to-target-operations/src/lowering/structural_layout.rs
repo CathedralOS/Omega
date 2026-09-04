@@ -385,6 +385,58 @@ pub(super) fn resolve_structural_field_path(
         .ok_or(LoweringError::UnknownStructuralType(root_type))
 }
 
+pub(super) fn resolve_structural_projection_path(
+    mut structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
+    let root_type = structural_type;
+    let mut total_offset = 0_u32;
+    let mut selected_shape = None;
+    for segment in path {
+        let (selected_type, shape, local_offset) = match segment {
+            StructuralPathSegment::Field(_) => resolve_structural_field_path(
+                structural_type,
+                std::slice::from_ref(segment),
+                declarations,
+                cache,
+                active,
+            )?,
+            StructuralPathSegment::FixedIndex(index) => {
+                let declaration = declarations
+                    .get(&structural_type)
+                    .copied()
+                    .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                    return Err(LoweringError::UnknownStructuralType(structural_type));
+                };
+                if *index >= length {
+                    return Err(LoweringError::UnknownStructuralType(structural_type));
+                }
+                let shape = structural_shape(element, declarations, cache, active)?;
+                let stride =
+                    checked_align_up_u32(u32::from(shape.byte_size), u32::from(shape.alignment))
+                        .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+                let offset = u64::from(stride)
+                    .checked_mul(*index)
+                    .and_then(|offset| u32::try_from(offset).ok())
+                    .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+                (element, shape, offset)
+            }
+        };
+        total_offset = total_offset
+            .checked_add(local_offset)
+            .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+        structural_type = selected_type;
+        selected_shape = Some(shape);
+    }
+    selected_shape
+        .map(|shape| (structural_type, shape, total_offset))
+        .ok_or(LoweringError::UnknownStructuralType(root_type))
+}
+
 pub(super) fn byte_sequence_shape(
     carrier: psi_terminal::ByteSequenceCarrier,
     structural_type: StructuralTypeId,

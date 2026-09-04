@@ -3958,6 +3958,40 @@ fn emit_x86_64_aggregate_copy_from_home(
 ) -> Result<(), EmissionError> {
     if home.indirect {
         if !copy.path.is_empty() {
+            if copy.source.shape.class == ValueClass::BorrowedReference
+                && copy.shape.class == ValueClass::BorrowedReference
+            {
+                let [
+                    ValueLocation::Indirect {
+                        pointer,
+                        copy_stack_byte_offset: None,
+                        byte_size,
+                        alignment,
+                    },
+                ] = copy.destination.locations.as_slice()
+                else {
+                    return Err(EmissionError::UnsupportedAggregatePlacement);
+                };
+                if *byte_size != copy.shape.byte_size || *alignment != copy.shape.alignment {
+                    return Err(EmissionError::UnsupportedAggregatePlacement);
+                }
+                let pointer_home = call_stack_bytes
+                    .checked_add(home.byte_offset)
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                let destination = match *pointer {
+                    IndirectPointerLocation::Register(register) => x86_unit_register(register)?,
+                    IndirectPointerLocation::Stack { .. } => 11,
+                };
+                emit_x86_64_stack_load_width(bytes, destination, pointer_home, 8)?;
+                emit_x86_64_pointer_offset(bytes, destination, copy.source_byte_offset);
+                if let IndirectPointerLocation::Stack {
+                    stack_byte_offset, ..
+                } = *pointer
+                {
+                    emit_x86_64_stack_store_width(bytes, destination, stack_byte_offset, 8)?;
+                }
+                return Ok(());
+            }
             if copy
                 .destination
                 .locations
@@ -4064,6 +4098,50 @@ fn emit_aarch64_aggregate_copy_from_home(
 ) -> Result<(), EmissionError> {
     if home.indirect {
         if !copy.path.is_empty() {
+            if copy.source.shape.class == ValueClass::BorrowedReference
+                && copy.shape.class == ValueClass::BorrowedReference
+            {
+                let [
+                    ValueLocation::Indirect {
+                        pointer,
+                        copy_stack_byte_offset: None,
+                        byte_size,
+                        alignment,
+                    },
+                ] = copy.destination.locations.as_slice()
+                else {
+                    return Err(EmissionError::UnsupportedAggregatePlacement);
+                };
+                if *byte_size != copy.shape.byte_size || *alignment != copy.shape.alignment {
+                    return Err(EmissionError::UnsupportedAggregatePlacement);
+                }
+                let pointer_home = call_stack_bytes
+                    .checked_add(home.byte_offset)
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                let destination = match *pointer {
+                    IndirectPointerLocation::Register(register) => aarch64_unit_register(register)?,
+                    IndirectPointerLocation::Stack { .. } => 9,
+                };
+                instructions.push(aarch64_unit_stack_access(
+                    aarch64_load_base(8)?,
+                    destination,
+                    pointer_home,
+                    8,
+                )?);
+                emit_aarch64_pointer_offset(instructions, destination, copy.source_byte_offset);
+                if let IndirectPointerLocation::Stack {
+                    stack_byte_offset, ..
+                } = *pointer
+                {
+                    instructions.push(aarch64_unit_stack_access(
+                        aarch64_store_base(8)?,
+                        destination,
+                        stack_byte_offset,
+                        8,
+                    )?);
+                }
+                return Ok(());
+            }
             if copy
                 .destination
                 .locations
@@ -4268,6 +4346,27 @@ fn emit_aarch64_aggregate_copy_from_home(
         }
     }
     Ok(())
+}
+
+fn emit_x86_64_pointer_offset(bytes: &mut Vec<u8>, register: u8, offset: u32) {
+    if offset == 0 {
+        return;
+    }
+    bytes.extend_from_slice(&[0x48 | ((register >> 3) & 1), 0x81, 0xc0 | (register & 7)]);
+    bytes.extend_from_slice(&offset.to_le_bytes());
+}
+
+fn emit_aarch64_pointer_offset(instructions: &mut Vec<u32>, register: u8, offset: u32) {
+    let upper = offset >> 12;
+    let lower = offset & 0xfff;
+    if upper != 0 {
+        instructions
+            .push(0x9140_0000 | (upper << 10) | (u32::from(register) << 5) | u32::from(register));
+    }
+    if lower != 0 {
+        instructions
+            .push(0x9100_0000 | (lower << 10) | (u32::from(register) << 5) | u32::from(register));
+    }
 }
 
 #[cfg(test)]

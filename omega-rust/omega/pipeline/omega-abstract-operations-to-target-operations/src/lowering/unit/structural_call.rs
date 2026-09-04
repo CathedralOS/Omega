@@ -3,8 +3,8 @@
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_layout::{
-    checked_align_up_u32, resolve_structural_field_path, structural_parameter_shape,
-    structural_shape,
+    checked_align_up_u32, resolve_structural_field_path, resolve_structural_projection_path,
+    structural_parameter_shape, structural_shape,
 };
 
 #[derive(Debug, Clone)]
@@ -187,6 +187,24 @@ pub(super) fn lower_structural_unit_call(
                         place: argument.place,
                     });
                 };
+            let exact_write_only_projection = argument.access == StructuralAccess::WriteOnlyBorrow
+                && callee_parameter.access == StructuralAccess::WriteOnlyBorrow
+                && callee_parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && parameters_by_place
+                    .get(&argument.place)
+                    .is_some_and(|source| {
+                        source.access == StructuralAccess::WriteOnlyBorrow
+                            && source.multiplicity == StructuralMultiplicity::Unrestricted
+                    })
+                && argument
+                    .path
+                    .iter()
+                    .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
+                && argument
+                    .path
+                    .iter()
+                    .skip_while(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+                    .all(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)));
             let (
                 projected_type,
                 projected_shape,
@@ -196,6 +214,34 @@ pub(super) fn lower_structural_unit_call(
             ) =
                 match argument.path.as_slice() {
                     [] => (source_structural_type, source_shape, 0, None, None),
+                    path if exact_write_only_projection => {
+                        let (projected_type, projected_shape, offset) =
+                            resolve_structural_projection_path(
+                                source_structural_type,
+                                path,
+                                structural_types,
+                                shape_cache,
+                                active,
+                            )
+                            .map_err(|_| {
+                                LoweringError::StructuralCallArgumentTypeMismatch {
+                                    callee: *callee,
+                                    place: argument.place,
+                                }
+                            })?;
+                        if !matches!(
+                            structural_types
+                                .get(&projected_type)
+                                .map(|declaration| &declaration.shape),
+                            Some(StructuralTypeShape::PrimitiveScalar(_))
+                        ) {
+                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                                callee: *callee,
+                                place: argument.place,
+                            });
+                        }
+                        (projected_type, projected_shape, offset, None, None)
+                    }
                     [StructuralPathSegment::FixedIndex(index)] => {
                         let declaration = structural_types
                             .get(&source_structural_type)
