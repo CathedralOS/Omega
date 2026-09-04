@@ -1224,15 +1224,15 @@ fn retains_exact_direct_root_literal_indexed_write_only_subloan() {
 }
 
 #[test]
-fn retains_exact_two_index_direct_root_write_only_subloan() {
+fn retains_finite_literal_index_suffix_for_direct_root_write_only_subloan() {
     let checked = checked(
         r#"
         data Sink {}
         machine Sink::fill(destination: &write u16) {}
 
         data Root {}
-        machine Root::forward(values: &write [[u16; 3]; 2]) {
-            Sink::fill(&write values[1][2]);
+        machine Root::forward(values: &write [[[[[[u16; 7]; 6]; 5]; 4]; 3]; 2]) {
+            Sink::fill(&write values[1][2][3][4][5][6]);
         }
         "#,
     );
@@ -1241,182 +1241,16 @@ fn retains_exact_two_index_direct_root_write_only_subloan() {
         .flow
         .terminal_unit_effects
         .for_machine(machine_named(&checked, "Root::forward"))
-        .expect("two-index write-only caller plan");
+        .expect("finite literal-index write-only caller plan");
     let CheckedUnitEffectOperationPlan::CallUnit {
         structural_arguments,
         ..
     } = &forward.operations[0]
     else {
-        panic!("two-index attenuation should retain its checked call")
+        panic!("finite literal-index attenuation should retain its checked call")
     };
     let [argument] = structural_arguments.as_slice() else {
-        panic!("one two-index write-only argument")
-    };
-    assert_eq!(
-        argument.access,
-        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-    );
-    assert_eq!(
-        argument.path,
-        [
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
-        ]
-    );
-}
-
-#[test]
-fn retains_exact_field_prefixed_two_index_write_only_subloan() {
-    let checked = checked(
-        r#"
-        data Outer [copy] { values: [[u16; 3]; 2]; sibling: u16; }
-        data Sink {}
-        machine Sink::fill(destination: &write u16) {}
-
-        data Root {}
-        machine Root::forward(outer: &write Outer) {
-            Sink::fill(&write outer.values[1][2]);
-        }
-        "#,
-    );
-    let forward = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .for_machine(machine_named(&checked, "Root::forward"))
-        .expect("field-prefixed two-index write-only caller plan");
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &forward.operations[0]
-    else {
-        panic!("field-prefixed two-index attenuation should retain its checked call")
-    };
-    let [argument] = structural_arguments.as_slice() else {
-        panic!("one field-prefixed two-index write-only argument")
-    };
-    assert!(matches!(
-        argument.path.as_slice(),
-        [
-            psi_checked_trees::CheckedUnitStructuralPathSegment::Field(_),
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
-        ]
-    ));
-}
-
-#[test]
-fn retains_exact_three_index_direct_root_write_only_subloan() {
-    let checked = checked(
-        r#"
-        data Sink {}
-        machine Sink::fill(destination: &write u16) {}
-
-        data Root {}
-        machine Root::forward(values: &write [[[u16; 4]; 3]; 2]) {
-            Sink::fill(&write values[1][2][3]);
-        }
-        "#,
-    );
-    let forward = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .for_machine(machine_named(&checked, "Root::forward"))
-        .expect("three-index write-only caller plan");
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &forward.operations[0]
-    else {
-        panic!("three-index attenuation should retain its checked call")
-    };
-    let [argument] = structural_arguments.as_slice() else {
-        panic!("one three-index write-only argument")
-    };
-    assert_eq!(
-        argument.access,
-        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-    );
-    assert_eq!(
-        argument.path,
-        [
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
-        ]
-    );
-}
-
-#[test]
-fn retains_exact_field_prefixed_three_index_write_only_subloan() {
-    let checked = checked(
-        r#"
-        data Outer [copy] { values: [[[u16; 4]; 3]; 2]; sibling: u16; }
-        data Sink {}
-        machine Sink::fill(destination: &write u16) {}
-
-        data Root {}
-        machine Root::forward(outer: &write Outer) {
-            Sink::fill(&write outer.values[1][2][3]);
-        }
-        "#,
-    );
-    let forward = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .for_machine(machine_named(&checked, "Root::forward"))
-        .expect("field-prefixed three-index write-only caller plan");
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &forward.operations[0]
-    else {
-        panic!("field-prefixed three-index attenuation should retain its checked call")
-    };
-    let [argument] = structural_arguments.as_slice() else {
-        panic!("one field-prefixed three-index write-only argument")
-    };
-    assert!(matches!(
-        argument.path.as_slice(),
-        [
-            psi_checked_trees::CheckedUnitStructuralPathSegment::Field(_),
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
-            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
-        ]
-    ));
-}
-
-#[test]
-fn retains_exact_four_index_direct_root_write_only_subloan() {
-    let checked = checked(
-        r#"
-        data Sink {}
-        machine Sink::fill(destination: &write u16) {}
-
-        data Root {}
-        machine Root::forward(values: &write [[[[u16; 5]; 4]; 3]; 2]) {
-            Sink::fill(&write values[1][2][3][4]);
-        }
-        "#,
-    );
-    let forward = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .for_machine(machine_named(&checked, "Root::forward"))
-        .expect("four-index write-only caller plan");
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &forward.operations[0]
-    else {
-        panic!("four-index attenuation should retain its checked call")
-    };
-    let [argument] = structural_arguments.as_slice() else {
-        panic!("one four-index write-only argument")
+        panic!("one finite literal-index write-only argument")
     };
     assert_eq!(
         argument.access,
@@ -1429,21 +1263,23 @@ fn retains_exact_four_index_direct_root_write_only_subloan() {
             psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
             psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
             psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(4),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(5),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(6),
         ]
     );
 }
 
 #[test]
-fn retains_exact_field_prefixed_four_index_write_only_subloan() {
+fn retains_finite_literal_index_suffix_after_write_only_field_prefix() {
     let checked = checked(
         r#"
-        data Outer [copy] { values: [[[[u16; 5]; 4]; 3]; 2]; sibling: u16; }
+        data Outer [copy] { values: [[[[[[u16; 7]; 6]; 5]; 4]; 3]; 2]; sibling: u16; }
         data Sink {}
         machine Sink::fill(destination: &write u16) {}
 
         data Root {}
         machine Root::forward(outer: &write Outer) {
-            Sink::fill(&write outer.values[1][2][3][4]);
+            Sink::fill(&write outer.values[1][2][3][4][5][6]);
         }
         "#,
     );
@@ -1452,16 +1288,16 @@ fn retains_exact_field_prefixed_four_index_write_only_subloan() {
         .flow
         .terminal_unit_effects
         .for_machine(machine_named(&checked, "Root::forward"))
-        .expect("field-prefixed four-index write-only caller plan");
+        .expect("field-prefixed finite literal-index write-only caller plan");
     let CheckedUnitEffectOperationPlan::CallUnit {
         structural_arguments,
         ..
     } = &forward.operations[0]
     else {
-        panic!("field-prefixed four-index attenuation should retain its checked call")
+        panic!("field-prefixed finite literal-index attenuation should retain its checked call")
     };
     let [argument] = structural_arguments.as_slice() else {
-        panic!("one field-prefixed four-index write-only argument")
+        panic!("one field-prefixed finite literal-index write-only argument")
     };
     assert!(matches!(
         argument.path.as_slice(),
@@ -1471,6 +1307,8 @@ fn retains_exact_field_prefixed_four_index_write_only_subloan() {
             psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
             psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(3),
             psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(4),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(5),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(6),
         ]
     ));
 }

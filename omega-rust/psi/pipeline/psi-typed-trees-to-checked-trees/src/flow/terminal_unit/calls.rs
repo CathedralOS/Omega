@@ -1190,9 +1190,7 @@ fn checked_nonempty_field_path(path: &[CheckedUnitStructuralPathSegment]) -> boo
             .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
 }
 
-const MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH: usize = 4;
-
-fn checked_bounded_literal_index_path(
+fn checked_literal_index_path(
     path: &[CheckedUnitStructuralPathSegment],
 ) -> Option<&[CheckedUnitStructuralPathSegment]> {
     let field_count = path
@@ -1200,7 +1198,6 @@ fn checked_bounded_literal_index_path(
         .position(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_)))?;
     let (fields, indexes) = path.split_at(field_count);
     (!indexes.is_empty()
-        && indexes.len() <= MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
         && fields
             .iter()
             .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
@@ -1210,7 +1207,7 @@ fn checked_bounded_literal_index_path(
     .then_some(fields)
 }
 
-fn place_bounded_literal_index_path(
+fn place_literal_index_path(
     path: &[psi_facts::PlaceSegment],
 ) -> Option<&[psi_facts::PlaceSegment]> {
     let field_count = path
@@ -1218,7 +1215,6 @@ fn place_bounded_literal_index_path(
         .position(|segment| matches!(segment, psi_facts::PlaceSegment::FixedIndex { .. }))?;
     let (fields, indexes) = path.split_at(field_count);
     (!indexes.is_empty()
-        && indexes.len() <= MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
         && fields
             .iter()
             .all(|segment| matches!(segment, psi_facts::PlaceSegment::Field { .. }))
@@ -1261,7 +1257,7 @@ pub(super) fn ordinary_projected_call_is_supported(
     }
 
     let field_path = checked_nonempty_field_path(&arguments[0].path);
-    let literal_index_fields = checked_bounded_literal_index_path(&arguments[0].path);
+    let literal_index_fields = checked_literal_index_path(&arguments[0].path);
     let literal_index_path = literal_index_fields.is_some();
     let literal_indexed_field_path = literal_index_fields.is_some_and(|fields| !fields.is_empty());
     let write_only_subloan_path = (field_path || literal_index_path)
@@ -1271,12 +1267,6 @@ pub(super) fn ordinary_projected_call_is_supported(
         return false;
     }
     if literal_indexed_field_path && !write_only_subloan_path {
-        return false;
-    }
-    if literal_index_fields.is_some_and(|fields| fields.is_empty())
-        && arguments[0].path.len() == MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
-        && !write_only_subloan_path
-    {
         return false;
     }
     if !field_path && !literal_index_path {
@@ -1842,8 +1832,7 @@ pub(super) fn structural_call_arguments(
             }
             segments @ [psi_facts::PlaceSegment::FixedIndex { .. }, ..]
                 if (matches!(segments.len(), 2 | 3)
-                    || (segments.len() == MAX_WRITE_ONLY_LITERAL_SUBLOAN_INDEX_DEPTH
-                        && target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
                         && caller_parameters.get(source_index)?.access
                             == CheckedStructuralAccess::WriteOnlyBorrow
                         && structural_access_for_type_reference(
@@ -1891,7 +1880,7 @@ pub(super) fn structural_call_arguments(
                         )? == CheckedStructuralAccess::WriteOnlyBorrow
                         && (segments.iter().all(|segment| {
                             matches!(segment, psi_facts::PlaceSegment::Field { .. })
-                        }) || place_bounded_literal_index_path(segments)
+                        }) || place_literal_index_path(segments)
                             .is_some_and(|fields| !fields.is_empty()))))
                     && caller_parameters
                         .get(source_index)?
@@ -1915,7 +1904,7 @@ pub(super) fn structural_call_arguments(
                             ))
                         }
                         psi_facts::PlaceSegment::FixedIndex { index }
-                            if place_bounded_literal_index_path(segments)
+                            if place_literal_index_path(segments)
                                 .is_some_and(|fields| !fields.is_empty()) =>
                         {
                             u64::try_from(*index)

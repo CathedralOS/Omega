@@ -106,10 +106,10 @@ proof facts, but may derive nothing by loading the referent. Each write must
 also satisfy ordinary displaced-custody and invariant-window rules. An opaque
 provider's compliance is admitted unless target isolation enforces it; that
 does not widen the authority recorded in the source or artifact contract.
-The bounded direct-call subloan may select one literal fixed-array index, or
-two, three, or four through a recursively literal fixed array, only when every bound is
-static and the ultimate leaf is an unrestricted non-Atomic primitive. Dynamic,
-range, fifth-index, and aggregate-leaf projections remain outside that rung.
+The direct-call subloan may select a finite nonempty suffix of literal indexes
+through recursively literal fixed arrays only when every bound is static and
+the ultimate leaf is an unrestricted non-Atomic primitive. Dynamic, range, and
+aggregate-leaf projections remain outside that rung.
 
 Post-restoration call evidence now admits one direct exclusive child, one
 shared child, or one exact two- or three-member concurrent shared-freeze

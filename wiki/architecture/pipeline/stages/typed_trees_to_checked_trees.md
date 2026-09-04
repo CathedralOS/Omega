@@ -131,12 +131,10 @@ Must own:
   single-state checked Unit call shape both hold. This does not admit general
   projected expression formation or reusable local-reference aliases. The same
   call shape accepts one direct write-only literal fixed-array parameter root
-  projected by exactly one in-bounds literal `FixedIndex` to an unrestricted
-  non-Atomic primitive element. Its bounded nested successor accepts exactly
-  two, three, or four ordered literal indexes through a recursively literal
-  fixed array, either directly or after the eligible field prefix, to the same
-  primitive leaf. Checked and Terminal replay retain the complete one-, two-,
-  three-, or four-segment suffix.
+  projected by a finite nonempty suffix of ordered in-bounds literal
+  `FixedIndex` segments through recursively literal fixed arrays, either
+  directly or after the eligible field prefix, to an unrestricted non-Atomic
+  primitive leaf. Checked and Terminal replay retain the complete suffix.
   Recursively literal fixed arrays whose ultimate elements are unrestricted
   primitive scalars or eligible material nongeneric, invariant-free `[copy]`
   records or sums admit whole replacement, static length metadata, and literal

@@ -949,29 +949,27 @@ impl<'program> ShapeCollector<'program> {
         )
     }
 
-    fn is_bounded_literal_array_of_unrestricted_primitive(
+    fn is_literal_array_of_unrestricted_primitive(
         &self,
-        type_reference: TypeReferenceHandle,
-        remaining_array_depth: usize,
+        mut type_reference: TypeReferenceHandle,
     ) -> bool {
-        if remaining_array_depth == 0 {
-            return false;
+        for _ in 0..self.program.type_reference_table.type_reference_count() {
+            let TypeReferenceNode::FixedArray {
+                element_type,
+                length: psi_typed_trees::types::FixedArrayLength::Literal(1..),
+            } = self
+                .program
+                .type_reference_table
+                .type_reference(type_reference)
+            else {
+                return false;
+            };
+            if self.is_unrestricted_nonatomic_primitive(*element_type) {
+                return true;
+            }
+            type_reference = *element_type;
         }
-        let TypeReferenceNode::FixedArray {
-            element_type,
-            length: psi_typed_trees::types::FixedArrayLength::Literal(1..),
-        } = self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        else {
-            return false;
-        };
-        self.is_unrestricted_nonatomic_primitive(*element_type)
-            || self.is_bounded_literal_array_of_unrestricted_primitive(
-                *element_type,
-                remaining_array_depth - 1,
-            )
+        false
     }
 
     pub(super) fn add_type(
@@ -1050,7 +1048,7 @@ impl<'program> ShapeCollector<'program> {
             let unrestricted_primitive_element =
                 self.is_unrestricted_nonatomic_primitive(*element_type);
             let unrestricted_nested_primitive_array_element =
-                self.is_bounded_literal_array_of_unrestricted_primitive(*element_type, 3);
+                self.is_literal_array_of_unrestricted_primitive(*element_type);
             if *length == 0
                 || !substitutions.is_empty()
                 || (!matches!(
