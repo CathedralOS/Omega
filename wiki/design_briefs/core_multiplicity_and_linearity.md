@@ -141,10 +141,13 @@ Boolean parameter selected from an ordered scalar roster. Its ordinary Unit
 caller may forward that roster across register and stack argument locations or
 materialize one exact preceding Boolean literal into the store. Stack-carried
 sources retain their ABI-relative slot while emission and independent replay
-rebase it across the durable Unit frame and transient call area. Both Linux
-ABIs, machine bytes, object replay, and installed custody rejoin the source
-ordinal, type, and either its location or definition independently. Computed
-nonliteral runtime sources and IEEE runtime sources remain fenced.
+rebase it across the durable Unit frame and transient call area. Reordered
+rosters snapshot incoming register sources into deterministic compiler-private
+call-frame slots before any destructive transfer, so cycles, duplicates, and
+register/stack crossings do not alter source identity. Both Linux ABIs, machine
+bytes, object replay, and installed custody rejoin the source ordinal, type,
+and either its location or definition independently. Computed nonliteral
+runtime sources and IEEE runtime sources remain fenced.
 Provider non-observation authority remains absent.
 
 ## Consumers and cleanup

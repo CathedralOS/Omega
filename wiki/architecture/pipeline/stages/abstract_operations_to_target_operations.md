@@ -101,11 +101,14 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   slot, destination home, native store bytes, and source record on both Linux
   targets. An ordinary call forwards the same ordered roster across register
   and stack locations, rebasing incoming stack slots across the durable Unit
-  frame and transient outgoing area, or may materialize one exact preceding
-  Boolean literal directly into that scalar prefix. Literal definition custody
-  remains distinct from caller-parameter custody. Computed nonliteral sources,
-  IEEE runtime sources, non-native integer carriers, and general register
-  shuffles remain fail closed. Terminal and Abstract IR
+  frame and transient outgoing area. Reordered arguments use deterministic
+  compiler-private snapshots only when an authored transfer would clobber an
+  incoming register source; this closes register cycles, duplicate sources,
+  and register/stack crossings while keeping semantic argument order. A call
+  may instead materialize one exact preceding Boolean literal directly into
+  that scalar prefix. Literal definition custody remains distinct from
+  caller-parameter custody. Computed nonliteral sources, IEEE runtime sources,
+  and non-native integer carriers remain fail closed. Terminal and Abstract IR
   verify, canonically bind, and retain scalar arguments on ordinary `CallUnit`,
   including optimizer identity and dataflow. This stage now derives the exact
   target call plan, retaining scalar arguments as its prefix and structural

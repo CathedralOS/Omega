@@ -18,10 +18,9 @@ use omega_target_operations::CallSiteOwner;
 use psi_core::{IntegerType, IntegerValue, OperationId, ValueId};
 
 use super::{
-    Aarch64UnitParameterHome, X86UnitParameterHome, aarch64_outgoing_placement_extent, align_u32,
-    emit_aarch64_adjust_sp, emit_aarch64_aggregate_copy_from_home, emit_x86_64_adjust_sp,
-    emit_x86_64_aggregate_copy_from_home, outgoing_placement_extent, stack_adjustment_pair,
-    unit_scalar_shape,
+    Aarch64UnitParameterHome, X86UnitParameterHome, emit_aarch64_adjust_sp,
+    emit_aarch64_aggregate_copy_from_home, emit_x86_64_adjust_sp,
+    emit_x86_64_aggregate_copy_from_home, stack_adjustment_pair, unit_scalar_shape,
 };
 use crate::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
@@ -30,8 +29,10 @@ use crate::{
 };
 
 use super::scalar_call::{
-    emit_aarch64_unit_scalar_argument, emit_x86_64_unit_scalar_argument,
-    unit_scalar_argument_source_record, validate_unit_scalar_argument,
+    aarch64_unit_scalar_transport_plan, emit_aarch64_scalar_snapshots,
+    emit_aarch64_unit_scalar_argument, emit_x86_64_scalar_snapshots,
+    emit_x86_64_unit_scalar_argument, unit_scalar_argument_source_record,
+    validate_unit_scalar_argument, x86_unit_scalar_transport_plan,
 };
 
 pub(super) fn emit_structural_scalar_field_store(
@@ -797,17 +798,8 @@ fn emit_x86_64_mixed_call(
         )
         .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;
     }
-    let outgoing_bytes = call_plan
-        .parameters
-        .iter()
-        .map(outgoing_placement_extent)
-        .try_fold(u32::from(call_plan.shadow_bytes), |extent, candidate| {
-            candidate.map(|value| extent.max(value))
-        })?;
-    let padding = (8 + 16 - (outgoing_bytes % 16)) % 16;
-    let call_stack_bytes = outgoing_bytes
-        .checked_add(padding)
-        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    let transport = x86_unit_scalar_transport_plan(call_plan, scalar_arguments, 0)?;
+    let call_stack_bytes = transport.call_stack_bytes;
     let mut allocation = None;
     if call_stack_bytes != 0 {
         let offset = bytes.len();
@@ -818,7 +810,16 @@ fn emit_x86_64_mixed_call(
     let mut scalar_records = Vec::with_capacity(scalar_arguments.len());
     for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
         let code_offset = bytes.len();
-        emit_x86_64_unit_scalar_argument(bytes, argument, frame_bytes, call_stack_bytes)?;
+        if parameter_index == 0 {
+            emit_x86_64_scalar_snapshots(bytes, &transport)?;
+        }
+        emit_x86_64_unit_scalar_argument(
+            bytes,
+            argument,
+            frame_bytes,
+            call_stack_bytes,
+            &transport,
+        )?;
         scalar_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
             source: unit_scalar_argument_source_record(
@@ -908,14 +909,8 @@ fn emit_aarch64_mixed_call(
         )
         .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;
     }
-    let outgoing_bytes = call_plan
-        .parameters
-        .iter()
-        .map(aarch64_outgoing_placement_extent)
-        .try_fold(u32::from(call_plan.shadow_bytes), |extent, candidate| {
-            candidate.map(|value| extent.max(value))
-        })?;
-    let call_stack_bytes = align_u32(outgoing_bytes, 16)?;
+    let transport = aarch64_unit_scalar_transport_plan(call_plan, scalar_arguments)?;
+    let call_stack_bytes = transport.call_stack_bytes;
     let mut allocation = None;
     if call_stack_bytes != 0 {
         let mut instructions = Vec::new();
@@ -928,7 +923,16 @@ fn emit_aarch64_mixed_call(
     let mut scalar_records = Vec::with_capacity(scalar_arguments.len());
     for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
         let code_offset = bytes.len();
-        emit_aarch64_unit_scalar_argument(bytes, argument, frame_bytes, call_stack_bytes)?;
+        if parameter_index == 0 {
+            emit_aarch64_scalar_snapshots(bytes, &transport)?;
+        }
+        emit_aarch64_unit_scalar_argument(
+            bytes,
+            argument,
+            frame_bytes,
+            call_stack_bytes,
+            &transport,
+        )?;
         scalar_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
             source: unit_scalar_argument_source_record(

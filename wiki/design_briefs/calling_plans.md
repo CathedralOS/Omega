@@ -1760,6 +1760,15 @@ parameter; neither it nor cleanup adds a physical ABI word or cleanup
 instruction. Wider structural returns remain rejected until their complete
 vertical slice exists.
 
+Internal Unit scalar calls may author a parameter order different from the
+caller's inbound order. If a destination would overwrite a register that is
+still an argument source, the backend derives deterministic compiler-private
+snapshot slots beyond the plan-selected outgoing area, accounts them in the
+transient call frame, and materializes every argument from the preserved
+source. Independent object and installation replay derive the same snapshots
+from the authoritative caller sources and callee plan; the snapshots do not
+become public ABI positions or semantic parameters.
+
 Registered nominal callback admission likewise joins its checked call-site and
 selected-machine identity to the one validated target `BoundaryEntryPlan`.
 That target-owned row survives both checked-only compilation and the native

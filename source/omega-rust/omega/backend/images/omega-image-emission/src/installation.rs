@@ -2998,7 +2998,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             custody.arguments.first().and_then(|structural| {
                                 crate::unit_scalar_call_custody::expected_argument_bytes(
                                     record.target,
-                                    argument,
+                                    &plan,
+                                    &custody.scalar_arguments,
+                                    index,
                                     function.unit_stack.as_ref()?.frame_bytes,
                                     structural.call_stack_bytes,
                                 )
@@ -3074,7 +3076,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     custody.arguments.first().and_then(|structural| {
                                         crate::unit_scalar_call_custody::expected_argument_bytes(
                                             record.target,
-                                            argument,
+                                            &plan,
+                                            &custody.scalar_arguments,
+                                            index,
                                             function.unit_stack.as_ref()?.frame_bytes,
                                             structural.call_stack_bytes,
                                         )
@@ -3160,7 +3164,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     custody.arguments.first().and_then(|structural| {
                                         crate::unit_scalar_call_custody::expected_argument_bytes(
                                             record.target,
-                                            argument,
+                                            &plan,
+                                            &custody.scalar_arguments,
+                                            index,
                                             function.unit_stack.as_ref()?.frame_bytes,
                                             structural.call_stack_bytes,
                                         )
