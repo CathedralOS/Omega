@@ -847,16 +847,19 @@ whole-root operation.
 
 The same `StructuralScalarFieldStore` vocabulary now carries an ordinary
 attached-Unit replacement with no dynamic dispatch. Its checked source is one
-fixed-integer literal assignment through the sole unrestricted-or-affine
-mutable/write-only record parameter, with an exact complete write frame and no
-claims or qualifications. An empty carrier path denotes a primitive field
+fixed-integer or Boolean literal, one exact same-typed scalar parameter, or the
+fixed-integer result of one immediately preceding ordinary scalar call or
+selected boundary-operator realization through the sole
+unrestricted-or-affine mutable/write-only record parameter, with an exact
+complete write frame and no claims or qualifications. An empty carrier path denotes a primitive field
 directly on the root record; a nonempty path names each enclosing plain record
 field before the final scalar field. Checked-to-Terminal lowering shares the
 dynamic realization path/type replay rather than maintaining a second field
 walker. Abstract and target lowering independently reconstruct direct and
 nested byte offsets, and assignment, machine emission, object construction,
-and installation replay preserve the exact non-self parameter home and store
-bytes on x86-64 and AArch64. Multiple writes, observations, nonliteral sources,
+and installation replay preserve the exact non-self parameter home, scalar
+parameter location or durable result home, and store bytes on x86-64 and
+AArch64. Multiple writes, observations, delayed results, arithmetic locals,
 arrays, cases, erased fields, constrained data, and opaque shapes remain
 fail-closed.
 

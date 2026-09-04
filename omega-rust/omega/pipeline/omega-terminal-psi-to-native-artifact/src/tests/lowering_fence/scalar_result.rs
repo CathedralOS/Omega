@@ -3,6 +3,8 @@
 use super::*;
 use std::sync::Arc;
 
+use crate::tests::fixtures::checked_source::checked_with_sole_selected_provider;
+
 fn checked_with_selected_integer_operator_store() -> Arc<psi_checked_trees::CheckedTrees> {
     let source = r#"
         data CheckedMath {}
@@ -25,61 +27,7 @@ fn checked_with_selected_integer_operator_store() -> Arc<psi_checked_trees::Chec
             destination = replacement;
         }
     "#;
-    let tokens = psi_source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize selected-result store");
-    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-        .expect("parse selected-result store");
-    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-        .expect("resolve selected-result store");
-    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type selected-result store");
-    let plan = omega_provider_planning::plans::derive_satisfies_plans(&typed, None)
-        .into_iter()
-        .find(|plan| {
-            plan.schema.trait_name.contains("CheckedMath::offset_zero")
-                && plan.provider_type == "CheckedMathProvider"
-        })
-        .expect("selected checked-operator ProviderPlan");
-    let mut checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check selected-result store");
-    let (use_handle, mut operator_use) = checked
-        .facts
-        .operators
-        .named_uses
-        .iter()
-        .map(|(handle, operator_use)| (handle, *operator_use))
-        .find(|(_, operator_use)| {
-            checked
-                .typed
-                .operators()
-                .iter()
-                .find(|operator| operator.symbol == operator_use.selected_operator_symbol)
-                .is_some_and(|operator| {
-                    checked
-                        .typed
-                        .operator_path_members(operator.name)
-                        .iter()
-                        .map(|member| member.as_str())
-                        .eq(["CheckedMath", "offset_zero"])
-                })
-        })
-        .expect("selected checked-operator use");
-    operator_use.provider_plan_report_fingerprint = plan.report_fingerprint();
-    operator_use.provider_plan_commitment =
-        psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
-            *plan.identity_digest().as_bytes(),
-        );
-    *checked.facts.operators.named_uses.get_mut(use_handle) = operator_use;
-    let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
-        std::slice::from_ref(&plan),
-        std::slice::from_ref(&plan.name),
-    )
-    .expect("select exact checked-operator plan");
-    let mut checked = Arc::new(checked);
-    omega_selected_dispatch::settle_selected_operator_adapter_dispatch(&mut checked, &selected)
-        .expect("settle selected-result store");
-    checked
+    checked_with_sole_selected_provider(source)
 }
 
 #[test]

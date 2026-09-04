@@ -1,6 +1,6 @@
 //! Source-to-machine custody for the bounded projected store/call lane.
 
-use crate::tests::fixtures::checked_source::checked;
+use crate::tests::fixtures::checked_source::{checked, checked_with_sole_selected_provider};
 
 const SOURCE: &str = r#"
     trait Measure {
@@ -88,6 +88,29 @@ const RESULT_SOURCED_STORE: &str = r#"
     }
 "#;
 
+const SELECTED_RESULT_SOURCED_STORE: &str = r#"
+    data CheckedMath {}
+    boundary operator CheckedMath::offset_zero(value: i32) -> i32
+    requires value == value
+    ensures result == value + 0 && value == value;
+
+    data CheckedMathProvider {}
+    machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+    satisfies CheckedMath::offset_zero
+    requires input == input
+    ensures result == input + 0 && input == input
+    {
+        transition { _ -> (input + 0) }
+    }
+
+    data Pair { prefix: u8; target: i32; }
+    data Root {}
+    machine Root::enter(destination: &write Pair) {
+        let replacement: i32 = CheckedMath::offset_zero(23);
+        destination.target = replacement;
+    }
+"#;
+
 #[test]
 fn direct_dynamic_projected_store_and_call_reach_machine_custody() {
     let checked = checked(SOURCE);
@@ -162,9 +185,20 @@ fn parameter_sourced_write_only_field_store_reaches_canonical_installation() {
 #[test]
 fn scalar_result_home_reaches_a_projected_store_and_canonical_installation() {
     let checked = checked(RESULT_SOURCED_STORE);
-    let terminal =
-        psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, "Root::enter")
-            .expect("projected scalar-result store reaches canonical Terminal");
+    assert_scalar_result_home_reaches_a_projected_store_and_canonical_installation(&checked);
+}
+
+#[test]
+fn selected_result_home_reaches_a_projected_store_on_both_linux_targets() {
+    let checked = checked_with_sole_selected_provider(SELECTED_RESULT_SOURCED_STORE);
+    assert_scalar_result_home_reaches_a_projected_store_and_canonical_installation(&checked);
+}
+
+fn assert_scalar_result_home_reaches_a_projected_store_and_canonical_installation(
+    checked: &psi_checked_trees::CheckedTrees,
+) {
+    let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(checked, "Root::enter")
+        .expect("projected scalar-result store reaches canonical Terminal");
     let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
         terminal.semantic_bytes(),
         terminal.proof_bytes(),
