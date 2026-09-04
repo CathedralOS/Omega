@@ -1,0 +1,292 @@
+; Experimental derived-list elaborator. It copies ordinary top-level Delta forms
+; and expands `(list Type Empty More Element reverse count)`. `_` omits a helper.
+
+(def fail () Int
+  (read (input)))
+
+(def is_space ((byte Int)) Int
+  (lt byte 33))
+
+(def skip_comment ((index Int)) Int
+  (if (eq index (input)) index
+    (let byte Int (read index)
+      (if (eq byte 10) (+ index 1)
+        (if (eq byte 13) (+ index 1)
+          (skip_comment (+ index 1)))))))
+
+(def skip ((index Int)) Int
+  (if (eq index (input)) index
+    (let byte Int (read index)
+      (if (is_space byte) (skip (+ index 1))
+        (if (eq byte 59) (skip (skip_comment (+ index 1))) index)))))
+
+(def token_end ((index Int)) Int
+  (if (eq index (input)) index
+    (let byte Int (read index)
+      (if (eq byte 40) (+ index 1)
+        (if (eq byte 41) (+ index 1) (token_word_end index))))))
+
+(def token_word_end ((index Int)) Int
+  (if (eq index (input)) index
+    (let byte Int (read index)
+      (if (is_space byte) index
+        (if (eq byte 40) index
+          (if (eq byte 41) index
+            (if (eq byte 59) index (token_word_end (+ index 1)))))))))
+
+(def skip_expression ((index Int)) Int
+  (let start Int (skip index)
+    (if (eq (read start) 40)
+      (skip_list (token_end start))
+      (token_end start))))
+
+(def skip_list ((index Int)) Int
+  (let start Int (skip index)
+    (if (eq (read start) 41)
+      (token_end start)
+      (skip_list (skip_expression start)))))
+
+(def emit_span ((index Int) (end Int)) Int
+  (if (eq index end) 0
+    (let ignored Int (write (read index))
+      (emit_span (+ index 1) end))))
+
+(def emit2 ((a Int) (b Int)) Int
+  (let ignored Int (write a) (write b)))
+
+(def emit4 ((a Int) (b Int) (c Int) (d Int)) Int
+  (let ignored Int (emit2 a b) (emit2 c d)))
+
+(def emit3 ((a Int) (b Int) (c Int)) Int
+  (let ignored Int (emit2 a b) (write c)))
+
+(def emit5 ((a Int) (b Int) (c Int) (d Int) (e Int)) Int
+  (let ignored Int (emit4 a b c d) (write e)))
+
+(def emit6 ((a Int) (b Int) (c Int) (d Int) (e Int) (f Int)) Int
+  (let ignored Int (emit4 a b c d) (emit2 e f)))
+
+(def emit7 ((a Int) (b Int) (c Int) (d Int) (e Int) (f Int) (g Int)) Int
+  (let ignored Int (emit4 a b c d) (emit3 e f g)))
+
+(def emit8 ((a Int) (b Int) (c Int) (d Int)
+  (e Int) (f Int) (g Int) (h Int)) Int
+  (let ignored Int (emit4 a b c d) (emit4 e f g h)))
+
+(def emit_space () Int (write '\s'))
+(def emit_open () Int (write '('))
+(def emit_close () Int (write ')'))
+(def emit_newline () Int (write '\n'))
+(def emit_def () Int (emit4 '(' 'd' 'e' 'f'))
+(def emit_data () Int (emit6 '(' 'd' 'a' 't' 'a' '\s'))
+(def emit_input () Int (emit5 'i' 'n' 'p' 'u' 't'))
+(def emit_output () Int (emit6 'o' 'u' 't' 'p' 'u' 't'))
+(def emit_match () Int (emit7 '(' 'm' 'a' 't' 'c' 'h' '\s'))
+(def emit_item () Int (emit4 'i' 't' 'e' 'm'))
+(def emit_rest () Int (emit4 'r' 'e' 's' 't'))
+(def emit_int () Int (emit3 'I' 'n' 't'))
+
+(def is_list ((start Int) (end Int)) Int
+  (if (eq (- end start) 4)
+    (if (eq (read start) 108)
+      (if (eq (read (+ start 1)) 105)
+        (if (eq (read (+ start 2)) 115)
+          (eq (read (+ start 3)) 116) 0) 0) 0) 0))
+
+(def is_data ((start Int) (end Int)) Int
+  (if (eq (- end start) 4)
+    (if (eq (read start) 100)
+      (if (eq (read (+ start 1)) 97)
+        (if (eq (read (+ start 2)) 116)
+          (eq (read (+ start 3)) 97) 0) 0) 0) 0))
+
+(def is_underscore ((start Int) (end Int)) Int
+  (if (eq (- end start) 1) (eq (read start) 95) 0))
+
+(def emit_data_declaration ((type_start Int) (type_end Int)
+  (empty_start Int) (empty_end Int) (more_start Int) (more_end Int)
+  (element_start Int) (element_end Int)) Int
+  (let ignored0 Int (emit_data)
+    (let ignored1 Int (emit_span type_start type_end)
+      (let ignored2 Int (emit_space)
+        (let ignored3 Int (emit_open)
+          (let ignored4 Int (emit_span empty_start empty_end)
+            (let ignored5 Int (emit_close)
+              (let ignored6 Int (emit_space)
+                (let ignored7 Int (emit_open)
+                  (let ignored8 Int (emit_span more_start more_end)
+                    (let ignored9 Int (emit_space)
+                      (let ignored10 Int (emit_span element_start element_end)
+                        (let ignored11 Int (emit_space)
+                          (let ignored12 Int (emit_span type_start type_end)
+                            (let ignored13 Int (emit3 ')' ')' '\n') 0)))))))))))))))
+
+(def emit_reverse_header ((type_start Int) (type_end Int)
+  (reverse_start Int) (reverse_end Int)) Int
+  (let ignored0 Int (emit_def)
+    (let ignored1 Int (emit_space)
+      (let ignored2 Int (emit_span reverse_start reverse_end)
+        (let ignored3 Int (emit_space)
+          (let ignored4 Int (emit2 '(' '(')
+            (let ignored5 Int (emit_input)
+              (let ignored6 Int (emit_space)
+                (let ignored7 Int (emit_span type_start type_end)
+                  (let ignored8 Int (emit3 ')' '\s' '(')
+                    (let ignored9 Int (emit_output)
+                      (let ignored10 Int (emit_space)
+                        (let ignored11 Int (emit_span type_start type_end)
+                          (let ignored12 Int (emit2 ')' ')')
+                            (let ignored13 Int (emit_space)
+                              (let ignored14 Int (emit_span type_start type_end)
+                                (let ignored15 Int (emit_space)
+                                  (let ignored16 Int (emit_match)
+                                    (emit_input)))))))))))))))))))
+
+(def emit_reverse_arm ((empty_start Int) (empty_end Int)
+  (more_start Int) (more_end Int) (reverse_start Int) (reverse_end Int)) Int
+  (let ignored0 Int (emit_space)
+    (let ignored1 Int (emit_open)
+      (let ignored2 Int (emit_span empty_start empty_end)
+        (let ignored3 Int (emit_space)
+          (let ignored4 Int (emit_output)
+            (let ignored5 Int (emit_close)
+              (let ignored6 Int (emit_space)
+                (let ignored7 Int (emit2 '(' '(')
+                  (let ignored8 Int (emit_span more_start more_end)
+                    (let ignored9 Int (emit_space)
+                      (let ignored10 Int (emit_item)
+                        (let ignored11 Int (emit_space)
+                          (let ignored12 Int (emit_rest)
+                            (let ignored13 Int (emit3 ')' '\s' '(')
+                              (let ignored14 Int (emit_span reverse_start reverse_end)
+                                (let ignored15 Int (emit_space)
+                                  (let ignored16 Int (emit_rest)
+                                    (let ignored17 Int (emit_space)
+                                      (let ignored18 Int (emit_open)
+                                        (let ignored19 Int (emit_span more_start more_end)
+                                          (let ignored20 Int (emit_space)
+                                            (let ignored21 Int (emit_item)
+                                              (let ignored22 Int (emit_space)
+                                                (let ignored23 Int (emit_output)
+                                                  (emit6 ')' ')' ')' ')' ')' '\n'))))))))))))))))))))))))))
+
+(def emit_reverse_definition ((type_start Int) (type_end Int)
+  (empty_start Int) (empty_end Int) (more_start Int) (more_end Int)
+  (reverse_start Int) (reverse_end Int)) Int
+  (let ignored0 Int
+    (emit_reverse_header type_start type_end reverse_start reverse_end)
+    (emit_reverse_arm empty_start empty_end more_start more_end
+      reverse_start reverse_end)))
+
+(def emit_count_header ((type_start Int) (type_end Int)
+  (count_start Int) (count_end Int)) Int
+  (let ignored0 Int (emit_def)
+    (let ignored1 Int (emit_space)
+      (let ignored2 Int (emit_span count_start count_end)
+        (let ignored3 Int (emit_space)
+          (let ignored4 Int (emit2 '(' '(')
+            (let ignored5 Int (emit_input)
+              (let ignored6 Int (emit_space)
+                (let ignored7 Int (emit_span type_start type_end)
+                  (let ignored8 Int (emit3 ')' ')' '\s')
+                    (let ignored9 Int (emit_int)
+                      (let ignored10 Int (emit_space)
+                        (let ignored11 Int (emit_match)
+                          (emit_input))))))))))))))
+
+(def emit_count_arm ((empty_start Int) (empty_end Int)
+  (more_start Int) (more_end Int) (count_start Int) (count_end Int)) Int
+  (let ignored0 Int (emit_space)
+    (let ignored1 Int (emit_open)
+      (let ignored2 Int (emit_span empty_start empty_end)
+        (let ignored3 Int (emit3 '\s' '0' ')')
+          (let ignored4 Int (emit_space)
+            (let ignored5 Int (emit2 '(' '(')
+              (let ignored6 Int (emit_span more_start more_end)
+                (let ignored7 Int (emit_space)
+                  (let ignored8 Int (emit_item)
+                    (let ignored9 Int (emit_space)
+                      (let ignored10 Int (emit_rest)
+                        (let ignored11 Int (emit4 ')' '\s' '(' '+')
+                          (let ignored12 Int (emit3 '\s' '1' '\s')
+                            (let ignored13 Int (emit_open)
+                              (let ignored14 Int (emit_span count_start count_end)
+                                (let ignored15 Int (emit_space)
+                                  (let ignored16 Int (emit_rest)
+                                    (emit6 ')' ')' ')' ')' ')' '\n')))))))))))))))))))
+
+(def emit_count_definition ((type_start Int) (type_end Int)
+  (empty_start Int) (empty_end Int) (more_start Int) (more_end Int)
+  (count_start Int) (count_end Int)) Int
+  (let ignored0 Int (emit_count_header type_start type_end count_start count_end)
+    (emit_count_arm empty_start empty_end more_start more_end
+      count_start count_end)))
+
+(def emit_list_form ((form Int) (head_end Int) (emit_data_phase Int)) Int
+  (let type_start Int (skip head_end)
+    (let type_end Int (token_end type_start)
+      (let empty_start Int (skip type_end)
+        (let empty_end Int (token_end empty_start)
+          (let more_start Int (skip empty_end)
+            (let more_end Int (token_end more_start)
+              (let element_start Int (skip more_end)
+                (let element_end Int (token_end element_start)
+                  (let reverse_start Int (skip element_end)
+                    (let reverse_end Int (token_end reverse_start)
+                      (let count_start Int (skip reverse_end)
+                        (let count_end Int (token_end count_start)
+                          (let close Int (skip count_end)
+                            (if (eq (read close) 41)
+                              (if emit_data_phase
+                                (let ignored Int
+                                  (emit_data_declaration type_start type_end
+                                    empty_start empty_end more_start more_end
+                                    element_start element_end)
+                                  (token_end close))
+                                (let ignored1 Int
+                                  (if (is_underscore reverse_start reverse_end) 0
+                                    (emit_reverse_definition type_start type_end
+                                      empty_start empty_end more_start more_end
+                                      reverse_start reverse_end))
+                                  (let ignored2 Int
+                                    (if (is_underscore count_start count_end) 0
+                                      (emit_count_definition type_start type_end
+                                        empty_start empty_end more_start more_end
+                                        count_start count_end))
+                                    (token_end close))))
+                              (fail))))))))))))))))
+
+(def elaborate_data ((index Int)) Int
+  (let form Int (skip index)
+    (if (eq form (input)) 0
+      (if (eq (read form) 40)
+        (let head Int (skip (token_end form))
+          (let head_end Int (token_end head)
+            (if (is_list head head_end)
+              (elaborate_data (emit_list_form form head_end 1))
+              (if (is_data head head_end)
+                (let end Int (skip_expression form)
+                  (let ignored0 Int (emit_span form end)
+                    (let ignored1 Int (emit_newline) (elaborate_data end))))
+                (elaborate_data (skip_expression form))))))
+              (fail)))))
+
+(def elaborate_definitions ((index Int)) Int
+  (let form Int (skip index)
+    (if (eq form (input)) 10
+      (if (eq (read form) 40)
+        (let head Int (skip (token_end form))
+          (let head_end Int (token_end head)
+            (if (is_list head head_end)
+              (elaborate_definitions (emit_list_form form head_end 0))
+              (if (is_data head head_end)
+                (elaborate_definitions (skip_expression form))
+              (let end Int (skip_expression form)
+                (let ignored0 Int (emit_span form end)
+                  (let ignored1 Int (emit_newline)
+                    (elaborate_definitions end))))))))
+        (fail)))))
+
+(def main () Int
+  (let ignored Int (elaborate_data 0)
+    (elaborate_definitions 0)))

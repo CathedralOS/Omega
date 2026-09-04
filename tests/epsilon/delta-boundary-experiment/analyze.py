@@ -171,6 +171,7 @@ def main() -> None:
     optionals = [form for form in data if optional(form)]
     outcomes = [form for form in data if parse_outcome(form)]
     lists = [form for form in data if recursive_list(form)]
+    ordinary_lists = [form for form in lists if constructor_shape(form) == "0/2"]
     lookups = [form for form in data if lookup(form)]
     catalog_lookups = [
         form for form in lookups
@@ -181,6 +182,10 @@ def main() -> None:
 
     reverse_functions = [
         form for form in definitions if function_name(form).startswith("epsilon_reverse_")
+    ]
+    template_reverse_functions = [
+        form for form in reverse_functions
+        if function_name(form) != "epsilon_reverse_control_references"
     ]
     count_functions = [
         form for form in definitions if function_name(form).endswith("_count")
@@ -224,11 +229,13 @@ def main() -> None:
     report_shapes("parse_outcome", outcomes)
     report_group("recursive_list", lists)
     report_shapes("recursive_list", lists)
+    report_group("ordinary_list", ordinary_lists)
     report_group("lookup", lookups)
     report_group("catalog_lookup", catalog_lookups)
     report_shapes("catalog_lookup", catalog_lookups)
     report_group("candidate", candidates)
     report_group("reverse_function", reverse_functions)
+    report_group("template_reverse_function", template_reverse_functions)
     report_group("count_function", count_functions)
     report_group("list_count_function", list_count_functions)
     report_group("catalog_function", catalog_functions)
@@ -239,6 +246,10 @@ def main() -> None:
         "generic_list_gross_ceiling_lines="
         + str(sum(form.lines for form in lists + reverse_functions + list_count_functions))
     )
+    exact_list_family = ordinary_lists + template_reverse_functions + list_count_functions
+    print(f"exact_list_family_forms={len(exact_list_family)}")
+    print(f"exact_list_family_lines={sum(form.lines for form in exact_list_family)}")
+    print(f"exact_list_family_bytes={sum(len(form.text.encode()) for form in exact_list_family)}")
     print(
         "catalog_gross_ceiling_lines="
         + str(sum(form.lines for form in catalog_lookups + catalog_functions))
