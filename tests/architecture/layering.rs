@@ -1908,9 +1908,36 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let producer = std::fs::read_to_string(&producer_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", producer_path.display()));
     assert!(
-        producer.contains("pub fn produce_terminal_artifact(")
+        producer.contains("pub fn produce_terminal_artifact_with_optimizations(")
+            && producer.contains("run_psi_optimization(")
             && producer.contains("CanonicalTerminalArtifact::from_parts("),
-        "Psi must own the exact checked-to-canonical-Terminal-artifact handoff"
+        "Psi must own the selected optimization stage and exact checked-to-canonical-Terminal-artifact handoff"
+    );
+
+    let compiler_terminal_path =
+        root.join("omega-rust/omega/compiler/omega-compiler/src/compiler/terminal_product.rs");
+    let compiler_terminal =
+        std::fs::read_to_string(&compiler_terminal_path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                compiler_terminal_path.display()
+            )
+        });
+    let compiler_native_path = root.join(
+        "omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/native_report/mod.rs",
+    );
+    let compiler_native = std::fs::read_to_string(&compiler_native_path).unwrap_or_else(|error| {
+        panic!("failed to read {}: {error}", compiler_native_path.display())
+    });
+    assert!(
+        compiler_terminal.contains(".project_psi()")
+            && compiler_terminal.contains("with_callback_custody_and_optimizations("),
+        "the retained Terminal-product route must project build-owned Psi selections before publication"
+    );
+    assert!(
+        compiler_native.contains(".project_post_terminal()")
+            && compiler_native.contains("post_terminal.selections()"),
+        "native realization must receive only phases owned after sealed Terminal publication"
     );
 
     let realization_root = root
@@ -1943,10 +1970,12 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "Omega native realization must receive the complete Psi-owned artifact by value"
     );
     assert!(
-        machine_code.contains("optimize_verified_psi_input(")
+        input.contains("reject_pre_terminal_selections(")
+            && input.contains("sealed Terminal optimization custody")
+            && machine_code.contains("optimize_verified_psi_input(")
             && machine_code
                 .contains("stage_optimized_native_continuation_with_provider_executions"),
-        "Omega native realization must traverse the canonical optimizer, route selected work through its verified physical continuation, and retain the transitional identity-assignment continuation only for the publishable baseline"
+        "a resumed lowerer must reject pre-Terminal selections and route only later selected work through its verified physical continuation"
     );
     let (_, native_conveyor) = machine_code
         .split_once("match input {")
@@ -1954,21 +1983,19 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let (baseline_conveyor, optimized_conveyor) = native_conveyor
         .split_once("NativeRealizationInput::ExplicitOptimization")
         .expect("native realization retains an explicit optimized conveyor arm");
-    let (psi_only_conveyor, selected_physical_conveyor) = optimized_conveyor
+    let (_, selected_physical_conveyor) = optimized_conveyor
         .split_once("let continuation = match provider_installation")
-        .expect("optimized realization visibly separates Psi-only publication from selected physical continuation");
+        .expect("optimized realization visibly enters the selected physical continuation");
     let transitional_assignment =
         "omega_target_operations_to_assigned_target_operations::assign_registers";
     assert!(
         baseline_conveyor.contains(transitional_assignment)
-            && psi_only_conveyor.contains("if psi_only {")
-            && psi_only_conveyor.contains(transitional_assignment)
+            && !optimized_conveyor.contains("if psi_only {")
             && !selected_physical_conveyor.contains(transitional_assignment),
-        "only the publishable baseline and explicit Psi-only survivor route may retain transitional assignment"
+        "only the publishable baseline may retain transitional assignment; sealed Terminal Psi has no post-publication Psi-only route"
     );
     for forbidden in [
         "CheckedCompilation",
-        "CheckedTrees",
         "lower_machine(",
         "encode_module(",
         "encode_proof_bundle(",
@@ -2298,7 +2325,7 @@ fn retained_native_product_enters_only_terminal_realization() {
         "the StateGraph compatibility compiler must stay deleted"
     );
     for required in [
-        "produce_terminal_artifact_with_checked_boundary_operator_scope(",
+        "produce_terminal_artifact_with_checked_boundary_operator_scope_and_optimizations(",
         "realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(",
         "from_retained_native_artifact(",
     ] {

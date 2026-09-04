@@ -1345,7 +1345,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
 }
 
 #[test]
-fn optimized_source_evaluated_import_retains_exact_d32_d41_custody() {
+fn retained_terminal_import_rejects_preterminal_optimization_reselection() {
     for (label, fixture, receipt_identity) in [
         (
             "unit",
@@ -1375,81 +1375,28 @@ fn optimized_source_evaluated_import_retains_exact_d32_d41_custody() {
             omega_optimization_core::Optimization::ControlFlowCleanup,
         ])
         .expect("one verified Psi optimization selection");
-        let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
-            retained,
-            &psi_proof_admission::AdmissionProfile::default(),
-            &optimizations,
-            policy,
-            omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
-            permission_policy,
-            &[SourceEvaluatedImportSettlement::new(
-                &admission.execution,
-                &admission.same_stack,
-            )],
-        )
-        .unwrap_or_else(|diagnostics| {
-            panic!(
-                "optimized {label} import should retain physical custody:\n{}",
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
+        let diagnostics =
+            realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+                retained,
+                &psi_proof_admission::AdmissionProfile::default(),
+                &optimizations,
+                policy,
+                omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(
+                ),
+                permission_policy,
+                &[SourceEvaluatedImportSettlement::new(
+                    &admission.execution,
+                    &admission.same_stack,
+                )],
             )
-        });
-
-        artifact
-            .validate()
-            .unwrap_or_else(|error| panic!("optimized {label} artifact must replay: {error}"));
-        assert!(matches!(
-            artifact.physical_evidence_scope(),
-            native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_),
-        ));
-        let physical = artifact
-            .physical_evidence()
-            .unwrap_or_else(|| panic!("optimized {label} import must retain D32 evidence"));
-        let [occurrence] = physical.projection().boundary_occurrences() else {
-            panic!("optimized {label} projection must retain one foreign-call survivor")
-        };
-        let [child] = physical.children() else {
-            panic!("optimized {label} survivor must produce one D41 child")
-        };
-        assert_eq!(
-            child.occurrence(),
-            native::NativePhysicalOccurrence::Boundary(occurrence.identity()),
-        );
-        assert_eq!(child.projection(), physical.projection().identity());
-        let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent() else {
-            panic!("optimized {label} import must retain an admitted-provider D41 parent")
-        };
-        assert!(matches!(
-            parent.role(),
-            native::BoundaryTraitSettlementRole::AdmittedProvider { .. },
-        ));
-        assert_eq!(parent.occurrence().identity(), occurrence.identity());
-        assert_eq!(
-            parent.requirement_identity(),
-            admission.execution.requirement,
-        );
-
-        let mut missing_child = artifact.into_parts();
-        let evidence = missing_child
-            .physical_evidence
-            .take()
-            .expect("optimized normalized import has physical evidence")
-            .into_parts();
-        missing_child.physical_evidence =
-            Some(native::NativePhysicalEvidence::from_replayed_parts(
-                native::NativePhysicalEvidenceParts {
-                    projection: evidence.projection,
-                    children: Vec::new(),
-                    identity: evidence.identity,
-                },
-            ));
+            .expect_err("a retained Terminal artifact must not rerun a Psi optimization");
+        assert_eq!(diagnostics.len(), 1, "unexpected diagnostics for {label}");
         assert!(
-            native::NativeArtifact::from_replayed_parts(missing_child).is_err(),
-            "optimized {label} replay must reject removal of its exact D41 child",
+            diagnostics[0].message.contains("pre-Terminal optimization"),
+            "unexpected diagnostic for {label}: {}",
+            diagnostics[0].message
         );
+        assert!(diagnostics[0].message.contains("ControlFlowCleanup"));
     }
 }
 

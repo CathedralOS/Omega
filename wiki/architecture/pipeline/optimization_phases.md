@@ -85,10 +85,10 @@ explicitly. `lower_machine` constructs an unsealed `LoweredTerminalPsi`;
 `PsiOptimizationStageResult`; `finalize_terminal_artifact` accepts only that
 stage result. The identity execution is live and validates both sides. Named
 passes fail closed there until their rewrites and independent validators are
-ported. The existing post-Terminal optimizer unit is reconstructed from a
-verified Terminal module and an Omega abstract operation plan, so it cannot be
-inserted at this seam unchanged: its target-neutral state must move to Psi or
-its target/lowering-shaped fields must be replaced.
+ported. The remaining post-Terminal optimizer unit is reconstructed from a
+verified Terminal module and an Omega abstract-operation plan and is now
+reachable only for phases owned after Terminal publication. Its target-neutral
+passes must move to Psi rather than being reselected by a receiving lowerer.
 
 The canonical Terminal artifact retains the complete Psi optimization
 execution record: the exact selected pass set plus the semantic and proof
@@ -160,22 +160,26 @@ input or output validation.
 
 ## Migration from the current implementation
 
-The current implementation constructs Terminal Psi first, lowers it into an
-Omega-owned optimization unit, and dispatches empty and nonempty selections
-through `Unoptimized` and `ExplicitOptimization` native branches. That is the
-known transitional shape, not the target contract.
+The current implementation projects the complete effective build selection in
+two directions. The Psi projection runs at the checked-to-Terminal entrance and
+is retained in the sealed artifact. The post-Terminal projection excludes
+checked-tree and Psi phases before native realization. A standalone receiving
+lowerer rejects either earlier-phase selection instead of rerunning it. The
+remaining `Unoptimized | ExplicitOptimization` native entrance is transitional:
+it still groups several later Omega-owned phases into one optimizer unit.
 
 Migration proceeds in dependency order:
 
-1. Make the phase model and phase-specific selections canonical. Empty
-   selection becomes identity execution at every phase.
+1. **Complete.** Make the phase model and phase-specific selections canonical.
+   Empty selection becomes identity execution at every phase.
 2. Retarget existing target-neutral passes and their validators to the live
    pre-Terminal entrance. Reuse existing optimization-unit vocabulary where
    sound; move ownership to Psi or replace target/lowering-shaped fields instead
    of preserving an Omega dependency for convenience.
-3. Make build-selected Psi passes use that entrance. Canonical Terminal encoding
-   then necessarily contains the selected Psi result; no selected pass may
-   continue only in the post-Terminal compatibility route.
+3. **Complete as a routing boundary.** Build-selected Psi passes use that
+   entrance and canonical Terminal encoding contains the selected Psi result.
+   The currently unported named rewrites fail closed at that entrance. No
+   selected Psi pass continues in the post-Terminal compatibility route.
 4. Make Terminal-to-abstract lowering unconditional and move any genuinely
    abstract-operation rewrites to their own later phase.
 5. Replace the native `Unoptimized | ExplicitOptimization` entrance with one

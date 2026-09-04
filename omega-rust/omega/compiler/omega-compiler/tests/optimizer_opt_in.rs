@@ -294,7 +294,7 @@ fn return_only_selected_lowering_build_rejoins_native_artifact_production() {
 }
 
 #[test]
-fn partial_rollback_retains_the_verified_psi_only_native_artifact() {
+fn partial_rollback_routes_the_remaining_psi_selection_to_preterminal() {
     let root = project(
         "partial-rollback-fail-closed",
         Some(
@@ -308,7 +308,7 @@ fn partial_rollback_retains_the_verified_psi_only_native_artifact() {
         ),
     );
     let build_dir = root.join("build");
-    let report = omega_compiler::compile(
+    let diagnostics = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -320,24 +320,16 @@ fn partial_rollback_retains_the_verified_psi_only_native_artifact() {
                 .expect("the partial rollback request must be unique"),
         ),
     )
-    .expect("the remaining Psi-only selection should enter verified native realization");
-    assert_eq!(
-        report
-            .optimization_rollback_receipt()
-            .expect("partial rollback receipt")
-            .effective()
-            .as_slice(),
-        &[Optimization::ControlFlowCleanup]
+    .expect_err("an unported Psi pass must fail at its pre-Terminal owner");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("Optimization(UnsupportedSelection(ControlFlowCleanup))"),
+        "unexpected diagnostic: {}",
+        diagnostics[0].message
     );
-    let artifact = report
-        .retained_native_artifact()
-        .expect("retain the verified optimized native artifact");
-    assert!(matches!(
-        artifact.physical_evidence_scope(),
-        omega_terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
-    ));
-    assert_eq!(artifact.image().output().file_name, "omega-program.exe");
-    assert!(!artifact.image().output().bytes.is_empty());
+    assert!(!build_dir.join("omega-program.exe").exists());
 }
 
 #[test]
@@ -745,6 +737,38 @@ fn selected_check_only_validates_without_entering_an_optimizer_backend() {
         target_name: None,
     })
     .expect("check-only compilation validates selection without running optimization");
+}
+
+#[test]
+fn terminal_product_routes_selected_psi_pass_to_preterminal_stage() {
+    let root = project(
+        "selected-terminal-product",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-selected-terminal-product");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::ControlFlowCleanup);
+}
+"#,
+        ),
+    );
+    let diagnostics = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: None,
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
+    )
+    .expect_err("an unported Psi pass must fail before Terminal publication");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("Optimization(UnsupportedSelection(ControlFlowCleanup))"),
+        "unexpected diagnostic: {}",
+        diagnostics[0].message
+    );
 }
 
 #[test]

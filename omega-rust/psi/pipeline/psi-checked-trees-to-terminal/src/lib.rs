@@ -1699,13 +1699,24 @@ pub fn produce_terminal_artifact(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<psi_terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
-    let lowered =
-        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    let optimized = run_psi_optimization(
-        lowered,
+    produce_terminal_artifact_with_optimizations(
+        checked,
+        machine_name,
         psi_optimization::PsiOptimizationSelections::default(),
     )
-    .map_err(TerminalArtifactProductionError::Optimization)?;
+}
+
+/// Lower one checked source product through an exact selected Psi phase and
+/// cross the explicit Terminal publication boundary.
+pub fn produce_terminal_artifact_with_optimizations(
+    checked: &CheckedTrees,
+    machine_name: &str,
+    selections: psi_optimization::PsiOptimizationSelections,
+) -> Result<psi_terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
+    let lowered =
+        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
+    let optimized = run_psi_optimization(lowered, selections)
+        .map_err(TerminalArtifactProductionError::Optimization)?;
     finalize_terminal_artifact(&optimized).map_err(TerminalArtifactProductionError::Artifact)
 }
 
@@ -1715,13 +1726,24 @@ pub fn produce_terminal_artifact_with_checked_boundary_operator_scope(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
-    let lowered =
-        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    let optimized = run_psi_optimization(
-        lowered,
+    produce_terminal_artifact_with_checked_boundary_operator_scope_and_optimizations(
+        checked,
+        machine_name,
         psi_optimization::PsiOptimizationSelections::default(),
     )
-    .map_err(TerminalArtifactProductionError::Optimization)?;
+}
+
+/// Produce canonical Terminal semantics from an exact selected Psi phase while
+/// preserving the checked D29 demand scope.
+pub fn produce_terminal_artifact_with_checked_boundary_operator_scope_and_optimizations(
+    checked: &CheckedTrees,
+    machine_name: &str,
+    selections: psi_optimization::PsiOptimizationSelections,
+) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
+    let lowered =
+        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
+    let optimized = run_psi_optimization(lowered, selections)
+        .map_err(TerminalArtifactProductionError::Optimization)?;
     let artifact = finalize_terminal_artifact(&optimized)
         .map_err(TerminalArtifactProductionError::Artifact)?;
     let lowered = optimized.into_lowered();
@@ -1760,6 +1782,25 @@ pub fn produce_terminal_artifact_with_callback_custody<C>(
     ProducedTerminalArtifactWithCallbackCustody<C>,
     CallbackCustodyTerminalArtifactProductionError<C>,
 > {
+    produce_terminal_artifact_with_callback_custody_and_optimizations(
+        checked,
+        machine_name,
+        callback_custody,
+        psi_optimization::PsiOptimizationSelections::default(),
+    )
+}
+
+/// Produce a selected canonical Terminal artifact without losing the caller's
+/// exact callback-use sidecar.
+pub fn produce_terminal_artifact_with_callback_custody_and_optimizations<C>(
+    checked: &CheckedTrees,
+    machine_name: &str,
+    callback_custody: C,
+    selections: psi_optimization::PsiOptimizationSelections,
+) -> Result<
+    ProducedTerminalArtifactWithCallbackCustody<C>,
+    CallbackCustodyTerminalArtifactProductionError<C>,
+> {
     let lowered = match lower_machine(checked, machine_name) {
         Ok(lowered) => lowered,
         Err(error) => {
@@ -1769,10 +1810,7 @@ pub fn produce_terminal_artifact_with_callback_custody<C>(
             });
         }
     };
-    let optimized = match run_psi_optimization(
-        lowered,
-        psi_optimization::PsiOptimizationSelections::default(),
-    ) {
+    let optimized = match run_psi_optimization(lowered, selections) {
         Ok(optimized) => optimized,
         Err(error) => {
             return Err(CallbackCustodyTerminalArtifactProductionError {

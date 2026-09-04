@@ -372,7 +372,8 @@ impl CheckedCompilation {
     }
 
     /// Exact named optimizations selected by the authoritative root build.
-    /// Empty retains the ordinary, optimizer-free compilation path.
+    /// Empty executes each applicable optimization phase as a validated
+    /// identity transformation; it does not select an optimizer-free path.
     pub const fn optimization_selections(
         &self,
     ) -> &omega_optimization_core::OptimizationSelections {

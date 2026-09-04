@@ -307,12 +307,30 @@ pub struct PsiOptimizationSelectionProjection {
     selected: psi_optimization::PsiOptimizationSelections,
 }
 
+/// Omega-owned projection containing only phases that execute after Terminal
+/// Psi has been published.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostTerminalOptimizationSelectionProjection {
+    complete_selection: OptimizationSelectionIdentity,
+    selected: OptimizationSelections,
+}
+
 impl PsiOptimizationSelectionProjection {
     pub const fn complete_selection(&self) -> OptimizationSelectionIdentity {
         self.complete_selection
     }
 
     pub const fn selections(&self) -> &psi_optimization::PsiOptimizationSelections {
+        &self.selected
+    }
+}
+
+impl PostTerminalOptimizationSelectionProjection {
+    pub const fn complete_selection(&self) -> OptimizationSelectionIdentity {
+        self.complete_selection
+    }
+
+    pub const fn selections(&self) -> &OptimizationSelections {
         &self.selected
     }
 }
@@ -397,6 +415,33 @@ impl OptimizationSelections {
         PsiOptimizationSelectionProjection {
             complete_selection: self.identity(),
             selected,
+        }
+    }
+
+    /// Project the exact selected suite onto phases owned by the consumer of a
+    /// sealed Terminal artifact. Psi selections are execution history in that
+    /// artifact and may not be selected again by its lowerer.
+    pub fn project_post_terminal(&self) -> PostTerminalOptimizationSelectionProjection {
+        PostTerminalOptimizationSelectionProjection {
+            complete_selection: self.identity(),
+            selected: Self {
+                selected: self
+                    .selected
+                    .iter()
+                    .copied()
+                    .filter(|optimization| match optimization.execution_phase() {
+                        OptimizationExecutionPhase::CheckedTrees
+                        | OptimizationExecutionPhase::Psi => false,
+                        OptimizationExecutionPhase::AbstractOperations
+                        | OptimizationExecutionPhase::TargetOperations
+                        | OptimizationExecutionPhase::SelectedLowering
+                        | OptimizationExecutionPhase::PreAllocation
+                        | OptimizationExecutionPhase::AllocationRecovery
+                        | OptimizationExecutionPhase::PostAllocationMachine
+                        | OptimizationExecutionPhase::FunctionRelativeLayout => true,
+                    })
+                    .collect(),
+            },
         }
     }
 

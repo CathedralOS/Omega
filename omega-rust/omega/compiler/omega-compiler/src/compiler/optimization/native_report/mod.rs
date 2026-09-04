@@ -15,10 +15,11 @@ impl PreparedNativeReport {
         omega_terminal_psi_to_native_artifact::PreparedNativeRealizationInput,
         Vec<Diagnostic>,
     > {
+        let post_terminal = self.rollback.effective().project_post_terminal();
         omega_terminal_psi_to_native_artifact::prepare_native_realization_input(
             self.terminal.artifact(),
             &self.request.terminal_admission_profile,
-            self.rollback.effective(),
+            post_terminal.selections(),
         )
     }
 
@@ -41,12 +42,13 @@ impl PreparedNativeReport {
             terminal_authority_permission_policy,
             ..
         } = request;
+        let post_terminal = rollback.effective().project_post_terminal();
         let artifact = native_realization::realize(
             &checked,
             &admission,
             &terminal_admission_profile,
             terminal_authority_permission_policy,
-            rollback.effective(),
+            post_terminal.selections(),
             terminal,
             prepared_input,
         )?;

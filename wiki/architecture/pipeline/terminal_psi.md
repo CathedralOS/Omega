@@ -87,8 +87,10 @@ optimize their own representations without mutating Terminal. The bounded
 checked-to-Terminal producer enforces that order in its API: lowering produces
 an unsealed carrier, the Psi optimization entrance consumes it, and canonical
 publication accepts only the validated stage result. The identity route is
-implemented; named transformations reject at that entrance until ported from
-the post-Terminal compatibility optimizer. The bounded
+implemented; named transformations reject at that entrance until ported. The
+compiler projects later physical selections away from the sealed artifact, and
+a separately invoked Terminal-to-native lowerer rejects any attempt to reselect
+a checked-tree or Psi pass. The bounded
 assignment stage after target operations is
 the one acknowledged transitional defect in this chain. It cycles scratch homes
 for the small supported roster. The durable replacement is one in-line

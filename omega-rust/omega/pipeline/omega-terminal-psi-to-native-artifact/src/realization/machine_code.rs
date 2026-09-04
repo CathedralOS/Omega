@@ -127,58 +127,6 @@ pub(crate) fn emit_realization_machine_code(
                 optimization_request,
             )
             .map_err(|error| realization_error("canonical optimization", error))?;
-            let psi_only = request
-                .optimization_selections
-                .as_slice()
-                .iter()
-                .all(|selection| {
-                    selection.execution_phase()
-                        == omega_optimization_core::OptimizationExecutionPhase::Psi
-                });
-            if psi_only {
-                let installation = provider_installation.as_ref().map(|installation| {
-                    installation as &dyn omega_installation_evidence::ProviderInstallationEvidence
-                });
-                let optimized_target =
-                    omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
-                        optimized.plan(),
-                        request.target,
-                        settlements,
-                        installation,
-                        &[],
-                        &[],
-                    )
-                    .map_err(|error| realization_error("optimized target lowering", error))?;
-                let physical_evidence_scope = match boundary_application_coverage {
-                    Some(coverage) => {
-                        let validation = optimized.validation();
-
-                        omega_native_artifact::NativePhysicalEvidenceScope::from_validated_optimization(
-                            optimized.plan(),
-                            validation.psi(),
-                            validation.identity(),
-                            validation.final_unit(),
-                            coverage,
-                        )
-                        .map_err(|error| {
-                            realization_error("optimized physical-evidence projection", error)
-                        })?
-                    }
-                    None => NativePhysicalEvidenceScope::Unavailable,
-                };
-                let assigned = omega_target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(&optimized_target)
-                    .map_err(|error| realization_error("optimized physical assignment", error))?;
-                let plan =
-                    omega_machine_emission::emit_machine_code_with_native_callbacks(&assigned)
-                        .map_err(|error| realization_error("machine-code emission", error))?;
-                return Ok(EmittedRealizationMachineCode {
-                    machine_code: MachineCodePlanWithPrivateFunctions {
-                        plan,
-                        private_functions: Vec::new(),
-                    },
-                    physical_evidence_scope,
-                });
-            }
             let optimized_plan = optimized.plan().clone();
             let optimized_validation = optimized.validation();
             let has_provider_installation = provider_installation.is_some();

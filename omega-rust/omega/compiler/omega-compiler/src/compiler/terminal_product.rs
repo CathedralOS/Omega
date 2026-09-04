@@ -30,10 +30,12 @@ pub(super) fn produce_retained_terminal_artifact(
         checked,
         checked.selected_provider_provenance(),
     )?;
-    let produced = psi_checked_trees_to_terminal::produce_terminal_artifact_with_callback_custody(
+    let psi_optimizations = checked.optimization_selections().project_psi();
+    let produced = psi_checked_trees_to_terminal::produce_terminal_artifact_with_callback_custody_and_optimizations(
         checked,
         &entry_machine,
         callback_placements,
+        psi_optimizations.selections().clone(),
     )
     .map_err(|error| {
         vec![Diagnostic::error(format!(
@@ -404,8 +406,11 @@ fn produce_callback_thunk_artifact(
             "callback thunk Terminal lowering failed: {error}",
         ))]
     })?;
-    let optimized =
-        psi_checked_trees_to_terminal::run_psi_optimization(lowered.terminal, Default::default());
+    let psi_optimizations = checked.optimization_selections().project_psi();
+    let optimized = psi_checked_trees_to_terminal::run_psi_optimization(
+        lowered.terminal,
+        psi_optimizations.selections().clone(),
+    );
     let optimized = optimized.map_err(|error| {
         vec![Diagnostic::error(format!(
             "callback thunk Psi optimization failed: {error}",

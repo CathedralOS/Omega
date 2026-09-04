@@ -265,3 +265,24 @@ fn psi_projection_is_exhaustive_target_neutral_and_bound_to_complete_policy() {
         );
     }
 }
+
+#[test]
+fn post_terminal_projection_excludes_earlier_phases_and_retains_complete_identity() {
+    let selections = OptimizationSelections::new([
+        Optimization::ControlFlowCleanup,
+        Optimization::SelectedIncomingU12ExactAddImmediate,
+    ])
+    .unwrap();
+    let projection = selections.project_post_terminal();
+
+    assert_eq!(projection.complete_selection(), selections.identity());
+    assert_eq!(
+        projection.selections().as_slice(),
+        &[Optimization::SelectedIncomingU12ExactAddImmediate]
+    );
+
+    let psi_only = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+    let projection = psi_only.project_post_terminal();
+    assert_eq!(projection.complete_selection(), psi_only.identity());
+    assert!(projection.selections().is_empty());
+}

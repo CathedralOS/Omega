@@ -33,7 +33,8 @@ pub(super) fn prepare_native_report(
         &checked,
         &request.terminal_authority_permission_policy,
     )?;
-    let terminal = native_realization::prepare_terminal_artifact(&checked, &admission)?;
+    let terminal =
+        native_realization::prepare_terminal_artifact(&checked, &admission, rollback.effective())?;
     Ok(PreparedNativeReport::new(
         request,
         checked,
