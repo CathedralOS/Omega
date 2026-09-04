@@ -219,7 +219,7 @@ _regate() {
              "mbx clippy --workspace --all-targets -- -D warnings" \
              "mbx test -p omega-architecture-test --all-targets" \
              "mbx check --workspace --all-targets" \
-             "mbx test --workspace --lib"; do
+             "mbx test --workspace --lib --no-fail-fast"; do
       echo "--- GATE: $g"
       o=$(eval "$g" 2>&1); echo "EXIT=$?"; echo "$o" | tail -15
     done
