@@ -1993,6 +1993,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let input_path = realization_root.join("input.rs");
     let input = std::fs::read_to_string(&input_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", input_path.display()));
+    let model_path = realization_root.join("model.rs");
+    let model = std::fs::read_to_string(&model_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_path.display()));
     let production_realization =
         format!("{realization}\n{api}\n{input}\n{machine_code}\n{callback_machine_code}");
     assert!(
@@ -2008,12 +2011,25 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 .contains("stage_optimized_native_continuation_with_provider_executions"),
         "a resumed lowerer must reject pre-Terminal selections and route only later selected work through its verified physical continuation"
     );
+    let native_stage = input
+        .find("let native = omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization")
+        .expect("native realization constructs one unconditional Terminal-to-abstract stage");
+    let optional_physical_context = input
+        .find("let optimization = if optimization_selections.is_empty()")
+        .expect("later selected physical work retains its transitional optimizer context");
+    assert!(
+        native_stage < optional_physical_context
+            && model.contains("pub(crate) struct NativeRealizationInput")
+            && !model.contains("NativeRealizationInput::Unoptimized")
+            && !model.contains("NativeRealizationInput::ExplicitOptimization"),
+        "optimization presence must not select the Terminal-to-abstract native authority entrance"
+    );
     let (_, native_conveyor) = machine_code
-        .split_once("match input {")
-        .expect("native realization has one explicit baseline/optimized conveyor split");
+        .split_once("match input.into_parts() {")
+        .expect("native realization consumes the one abstract-stage result");
     let (baseline_conveyor, optimized_conveyor) = native_conveyor
-        .split_once("NativeRealizationInput::ExplicitOptimization")
-        .expect("native realization retains an explicit optimized conveyor arm");
+        .split_once("(_, Some(input))")
+        .expect("native realization retains a transitional later physical-selection arm");
     let (_, selected_physical_conveyor) = optimized_conveyor
         .split_once("let continuation = match provider_installation")
         .expect("optimized realization visibly enters the selected physical continuation");

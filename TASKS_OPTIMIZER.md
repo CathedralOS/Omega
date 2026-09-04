@@ -17,14 +17,15 @@ needed for independent replay through publication.
   [`optimization_phases.md`](wiki/architecture/pipeline/optimization_phases.md):
   establish phase-specific selections and identity execution; introduce the
   target-neutral pre-Terminal Psi optimization entrance; make terminalization
-  consume its validated result; retarget current Psi passes; make
-  Terminal-to-abstract lowering unconditional; then remove the native
-  `Unoptimized | ExplicitOptimization` fork. Keep the same representation on
-  both sides of a phase unless vocabulary, interpretation, invariants, or
-  published-product identity change. Acceptance: empty and nonempty selections,
-  standalone Terminal production, resumed lowering under a separate authority,
-  and every native continuation traverse one stage graph with no optimization
-  bypass or fallback.
+  consume its validated result; retarget current Psi passes; then replace the
+  remaining optional physical-optimizer context and empty-path physical
+  continuation with explicit later phase results. Terminal-to-abstract native
+  admission is now unconditional. Keep the same representation on both sides
+  of a phase unless vocabulary, interpretation, invariants, or published-product
+  identity change. Acceptance: empty and nonempty selections, standalone
+  Terminal production, resumed lowering under a separate authority, and every
+  native continuation traverse one stage graph with no optimization bypass or
+  fallback.
 
 - **CHECKED-TREE-PRODUCT-PRUNING.** After all authored code has been checked,
   add an exact opt-in checked-tree phase for whole-product/root selection and

@@ -174,9 +174,12 @@ the post-Terminal projection is retained in the native proposal and excludes
 checked-tree and Psi phases before native realization. The proposal preserves
 the complete build-selection identity so its two phase projections cannot be
 silently recombined from different builds. A standalone receiving lowerer
-rejects either earlier-phase selection instead of rerunning it. The remaining
-`Unoptimized | ExplicitOptimization` native entrance is transitional: it still
-groups several later Omega-owned phases into one optimizer unit.
+rejects either earlier-phase selection instead of rerunning it. Terminal-to-
+abstract native admission and lowering now run unconditionally before
+selection presence is inspected. The remaining optional physical-optimizer
+context is transitional: it still groups several later Omega-owned phases into
+one optimizer unit and the empty path still uses the ordinary physical
+continuation.
 
 Migration proceeds in dependency order:
 
@@ -190,11 +193,14 @@ Migration proceeds in dependency order:
    entrance and canonical Terminal encoding contains the selected Psi result.
    The currently unported named rewrites fail closed at that entrance. No
    selected Psi pass continues in the post-Terminal compatibility route.
-4. Make Terminal-to-abstract lowering unconditional and move any genuinely
-   abstract-operation rewrites to their own later phase.
-5. Replace the native `Unoptimized | ExplicitOptimization` entrance with one
-   phase result. Preserve role-specific authority carriers such as ranked
-   execution without using them as optimization bypasses.
+4. **Complete as a routing boundary.** Terminal-to-abstract native admission
+   and lowering produce one stage result regardless of selection presence.
+   Ranked execution remains role-specific authority inside that result. There
+   are currently no cataloged abstract-operation rewrites to move.
+5. Replace the remaining optional physical-optimizer context and empty-path
+   physical continuation with one sequence of explicit phase results. Preserve
+   role-specific authority carriers such as ranked execution without using
+   them as optimization bypasses.
 6. Add checked-tree pruning only after its product-root identity, ownership,
    proof, effect, and boundary-retention rules are independently reconstructible.
 7. Remove transitional names, branches, and documentation only after ordinary,
