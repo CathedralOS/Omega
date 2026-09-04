@@ -739,6 +739,9 @@ pub enum TargetUnitWriteOnlyPrimitiveStoreSource {
         source_value: ValueId,
         value: IeeeFloatValue,
     },
+    /// One exact preceding scalar call result, read from the durable home
+    /// assigned for that producer in this Unit body.
+    Home(TargetUnitScalarHomeRequirement),
 }
 
 impl TargetUnitWriteOnlyPrimitiveStoreSource {
@@ -748,6 +751,7 @@ impl TargetUnitWriteOnlyPrimitiveStoreSource {
             | Self::IntegerImmediate { source_value, .. }
             | Self::BooleanImmediate { source_value, .. }
             | Self::IeeeFloatImmediate { source_value, .. } => source_value,
+            Self::Home(home) => home.source_value,
         }
     }
 
@@ -757,6 +761,7 @@ impl TargetUnitWriteOnlyPrimitiveStoreSource {
             Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::BooleanImmediate { .. } => ScalarType::Boolean,
             Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
+            Self::Home(home) => home.scalar_type,
         }
     }
 }

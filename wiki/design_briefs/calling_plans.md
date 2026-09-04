@@ -1775,6 +1775,11 @@ coordinate, target state, strong contract commitment, reach, arguments, and
 dense result local, while assignment owns the physical home. Emission and
 independent object/installation replay rejoin the exact home and
 materialization before using it as an argument source.
+Within the producing Unit body, that same durable home may also feed the exact
+immediately following whole-root fixed-integer primitive store. This is not a
+second call plan: assignment rejoins the store source to the earlier scalar
+call's result home, and later replay validates the home load and width-specific
+store directly.
 
 Registered nominal callback admission likewise joins its checked call-site and
 selected-machine identity to the one validated target `BoundaryEntryPlan`.

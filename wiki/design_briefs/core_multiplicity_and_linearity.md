@@ -133,7 +133,7 @@ the record retains the definition ordinal needed for independent replay.
 Fixed-integer physical assignment and machine emission independently replay
 their joins before producing the non-observing store bytes. Dedicated custody
 rows bind every fact to exact code intervals and bytes, which object
-construction replays independently and installation format 78 transports
+construction replays independently and installation format 79 transports
 canonically for integer, Boolean, and raw-bit IEEE float literals. The runtime
 source sibling admits one exact non-address native fixed-integer parameter,
 including every signed and unsigned 8-, 16-, 32-, and 64-bit carrier, or one
@@ -144,8 +144,12 @@ integer source may also be the durable result home of one exact preceding
 ordinary scalar call. Its checked producer row binds the original call
 coordinate, target state, full contract commitment, service reach, scalar
 arguments, and dense result local before Terminal closure admits the callee.
-Stack-carried
-sources retain their ABI-relative slot while emission and independent replay
+That same result home may instead source the immediately following whole-root
+store in the producer's own Unit body, removing any semantic or physical helper
+call. The direct lane remains restricted to one matching unrestricted mutable
+or write-only primitive destination and a native fixed-integer result; object
+and installed replay require the unique earlier call and unique retained home.
+Stack-carried sources retain their ABI-relative slot while emission and independent replay
 rebase it across the durable Unit frame and transient call area. Reordered
 rosters snapshot incoming register sources into deterministic compiler-private
 call-frame slots before any destructive transfer, so cycles, duplicates, and

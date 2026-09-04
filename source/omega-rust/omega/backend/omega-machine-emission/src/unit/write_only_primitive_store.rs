@@ -22,7 +22,8 @@ use super::structural_scalar::{
 };
 use super::{
     Aarch64UnitParameterHome, X86UnitParameterHome, aarch64_load_base, aarch64_unit_stack_access,
-    append_aarch64_instructions, emit_x86_64_stack_load_width, unit_scalar_shape,
+    append_aarch64_instructions, emit_x86_64_stack_load_width, unit_scalar_home_record,
+    unit_scalar_shape,
 };
 use crate::{EmissionError, integer_bits, require_native_integer_width};
 
@@ -236,6 +237,33 @@ pub(super) fn emit_write_only_primitive_store(
                 Some(bits),
             )
         }
+        AssignedUnitWriteOnlyPrimitiveStoreSource::Home(home) => {
+            let exact_source_count = body.operations[..operation_ordinal]
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        AssignedUnitOperation::ScalarCall { result_home, .. }
+                            if *result_home == home
+                    )
+                })
+                .count();
+            let ScalarType::Integer(integer) = home.scalar_type else {
+                return Err(invalid());
+            };
+            if exact_source_count != 1
+                || home.shape != unit_scalar_shape(home.source_value, home.scalar_type)?
+            {
+                return Err(invalid());
+            }
+            let byte_size = require_native_integer_width(home.source_value, integer)? / 8;
+            (
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Home(unit_scalar_home_record(home)),
+                home.scalar_type,
+                byte_size,
+                None,
+            )
+        }
     };
     let parameter_index = usize::try_from(destination.position).map_err(|_| invalid())?;
     let parameter = body.parameters.get(parameter_index).ok_or_else(invalid)?;
@@ -299,6 +327,16 @@ pub(super) fn emit_write_only_primitive_store(
                         omega_target_operations::MachineRegister::X86R11,
                     )?;
                 }
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Home(source_home) => {
+                    emit_x86_64_stack_load_width(bytes, 11, source_home.byte_offset, 8)?;
+                    emit_x86_64_unit_store_register(
+                        bytes,
+                        home,
+                        0,
+                        byte_size,
+                        omega_target_operations::MachineRegister::X86R11,
+                    )?;
+                }
                 _ => emit_x86_64_unit_store_immediate(
                     bytes,
                     home,
@@ -338,6 +376,22 @@ pub(super) fn emit_write_only_primitive_store(
                         16,
                         source_offset,
                         byte_size,
+                    )?;
+                    append_aarch64_instructions(bytes, vec![instruction]);
+                    emit_aarch64_unit_store_register(
+                        bytes,
+                        home,
+                        0,
+                        byte_size,
+                        omega_target_operations::MachineRegister::Aarch64X(16),
+                    )?;
+                }
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Home(source_home) => {
+                    let instruction = aarch64_unit_stack_access(
+                        aarch64_load_base(8)?,
+                        16,
+                        source_home.byte_offset,
+                        8,
                     )?;
                     append_aarch64_instructions(bytes, vec![instruction]);
                     emit_aarch64_unit_store_register(

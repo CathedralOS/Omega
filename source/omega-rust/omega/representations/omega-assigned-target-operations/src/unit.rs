@@ -251,6 +251,7 @@ pub enum AssignedUnitWriteOnlyPrimitiveStoreSource {
         source_value: ValueId,
         value: IeeeFloatValue,
     },
+    Home(AssignedUnitScalarHome),
 }
 
 impl AssignedUnitWriteOnlyPrimitiveStoreSource {
@@ -260,6 +261,7 @@ impl AssignedUnitWriteOnlyPrimitiveStoreSource {
             | Self::IntegerImmediate { source_value, .. }
             | Self::BooleanImmediate { source_value, .. }
             | Self::IeeeFloatImmediate { source_value, .. } => source_value,
+            Self::Home(home) => home.source_value,
         }
     }
 
@@ -269,6 +271,7 @@ impl AssignedUnitWriteOnlyPrimitiveStoreSource {
             Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::BooleanImmediate { .. } => ScalarType::Boolean,
             Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
+            Self::Home(home) => home.scalar_type,
         }
     }
 }

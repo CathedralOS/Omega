@@ -2080,9 +2080,11 @@ impl TerminalExecution {
                             .iter()
                             .find(|parameter| parameter.place == destination)
                             .filter(|parameter| {
-                                parameter.access == StructuralAccess::WriteOnlyBorrow
-                                    && parameter.multiplicity
-                                        == StructuralMultiplicity::Unrestricted
+                                matches!(
+                                    parameter.access,
+                                    StructuralAccess::MutableBorrow
+                                        | StructuralAccess::WriteOnlyBorrow
+                                ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                                     && parameter.qualifications.is_empty()
                             })
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;

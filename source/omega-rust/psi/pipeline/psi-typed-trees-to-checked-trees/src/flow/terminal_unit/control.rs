@@ -1032,16 +1032,6 @@ pub(super) fn build_checked_machine(
     )?;
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
-    let write_only_store = build_write_only_primitive_store(
-        program,
-        facts,
-        shapes,
-        machine,
-        state,
-        &structural_parameters,
-        &scalar_parameters,
-        statements,
-    );
     let construction = build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,
     );
@@ -1073,6 +1063,17 @@ pub(super) fn build_checked_machine(
         && selected_ieee_float_fma_result_locals.is_none())
     .then(|| checked_unit_scalar_result_local(program, statements))
     .flatten();
+    let write_only_store = build_write_only_primitive_store(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        &structural_parameters,
+        &scalar_parameters,
+        statements,
+        scalar_result_local.as_ref(),
+    );
     let scalar_expression_locals =
         if selected_scalar_result_local.is_some() || scalar_result_local.is_some() {
             scalar_expression_local_suffix(program, facts, state, statements)?
@@ -1091,10 +1092,12 @@ pub(super) fn build_checked_machine(
         Vec::len,
     );
     let has_scalar_result_local = scalar_result_local_count != 0;
-    if has_scalar_result_local
-        && (write_only_store.is_some()
-            || construction.is_some()
-            || affine_scalar_record_local.is_some())
+    if has_scalar_result_local && (construction.is_some() || affine_scalar_record_local.is_some()) {
+        return None;
+    }
+    if write_only_store.is_some()
+        && has_scalar_result_local
+        && (scalar_result_local.is_none() || !scalar_expression_locals.is_empty())
     {
         return None;
     }
@@ -1125,8 +1128,11 @@ pub(super) fn build_checked_machine(
     if write_only_store.is_some() {
         if construction.is_some()
             || affine_scalar_record_local.is_some()
-            || local_count != 0
-            || !calls.is_empty()
+            || if scalar_result_local.is_some() {
+                local_count != 1 || calls.len() != 1 || statements.len() != 2
+            } else {
+                local_count != 0 || !calls.is_empty()
+            }
         {
             return None;
         }
@@ -1258,6 +1264,33 @@ pub(super) fn build_checked_machine(
     }
     operations.reserve(calls.len() + 1);
     if let Some(store) = write_only_store {
+        if let Some(result) = scalar_result_local {
+            let call = calls.first()?;
+            if call.statement_index != usize::try_from(result.statement_index).ok()?
+                || call.call_ordinal != 0
+            {
+                return None;
+            }
+            let call_operation = build_call_operation(
+                program,
+                facts,
+                machine,
+                state,
+                &structural_parameters,
+                &local_rows,
+                affine_scalar_record_local.as_slice(),
+                &entry_claims,
+                call,
+                false,
+                Some(ExpectedCallValueResult::Scalar(result.primitive_type)),
+            )?;
+            operations.push(bind_scalar_call_result(
+                facts,
+                call_operation,
+                result,
+                false,
+            )?);
+        }
         operations.push(store);
     } else {
         let call_offset =
@@ -1377,55 +1410,12 @@ pub(super) fn build_checked_machine(
                     false,
                     Some(ExpectedCallValueResult::Scalar(result.primitive_type)),
                 )?;
-                operations.push(match call_operation {
-                    CheckedUnitEffectOperationPlan::BoundaryCall {
-                        coordinate,
-                        source_site,
-                        target_machine,
-                        target_state,
-                        target_contract_report_fingerprint,
-                        service_reach,
-                        scalar_arguments,
-                        structural_arguments,
-                        completion_receipts,
-                    } => CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                        coordinate,
-                        source_site,
-                        result,
-                        target_machine,
-                        target_state,
-                        target_contract_report_fingerprint,
-                        service_reach,
-                        scalar_arguments,
-                        structural_arguments,
-                        completion_receipts,
-                    },
-                    CheckedUnitEffectOperationPlan::CallUnit {
-                        coordinate,
-                        target_machine,
-                        target_state,
-                        target_contract_report_fingerprint,
-                        service_reach,
-                        scalar_arguments,
-                        structural_arguments,
-                        claim_transfers,
-                    } if structural_arguments.is_empty() && claim_transfers.is_empty() => {
-                        CheckedUnitEffectOperationPlan::ScalarCall {
-                            coordinate,
-                            result,
-                            target_machine,
-                            target_state,
-                            target_contract_report_fingerprint,
-                            target_contract_commitment: facts
-                                .contract_plans
-                                .for_machine(target_machine)?
-                                .commitment,
-                            service_reach,
-                            scalar_arguments,
-                        }
-                    }
-                    _ => return None,
-                });
+                operations.push(bind_scalar_call_result(
+                    facts,
+                    call_operation,
+                    result,
+                    true,
+                )?);
                 operations.extend(scalar_expression_locals.iter().cloned().map(
                     |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                         result,
@@ -1749,6 +1739,63 @@ fn checked_unit_scalar_result_local(
     })
 }
 
+fn bind_scalar_call_result(
+    facts: &CheckFacts,
+    operation: CheckedUnitEffectOperationPlan,
+    result: CheckedUnitScalarResultBindingPlan,
+    allow_boundary: bool,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    match operation {
+        CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate,
+            source_site,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            service_reach,
+            scalar_arguments,
+            structural_arguments,
+            completion_receipts,
+        } if allow_boundary => Some(CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            coordinate,
+            source_site,
+            result,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            service_reach,
+            scalar_arguments,
+            structural_arguments,
+            completion_receipts,
+        }),
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            service_reach,
+            scalar_arguments,
+            structural_arguments,
+            claim_transfers,
+        } if structural_arguments.is_empty() && claim_transfers.is_empty() => {
+            Some(CheckedUnitEffectOperationPlan::ScalarCall {
+                coordinate,
+                result,
+                target_machine,
+                target_state,
+                target_contract_report_fingerprint,
+                target_contract_commitment: facts
+                    .contract_plans
+                    .for_machine(target_machine)?
+                    .commitment,
+                service_reach,
+                scalar_arguments,
+            })
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn checked_unit_boundary_structural_result_local(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
@@ -1794,9 +1841,18 @@ fn build_write_only_primitive_store(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statements: &[StatementNode],
+    scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let [StatementNode::Assignment(assignment)] = statements else {
-        return None;
+    let (statement_index, assignment) = match (scalar_result_local, statements) {
+        (None, [StatementNode::Assignment(assignment)]) => (0, assignment),
+        (
+            Some(result),
+            [
+                StatementNode::LocalData(_),
+                StatementNode::Assignment(assignment),
+            ],
+        ) if result.statement_index == 0 && result.binding_ordinal == 0 => (1, assignment),
+        _ => return None,
     };
     let [destination] = structural_parameters else {
         return None;
@@ -1853,7 +1909,7 @@ fn build_write_only_primitive_store(
     let target = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
-        0,
+        usize::try_from(statement_index).ok()?,
         assignment.target,
     )?;
     if target.root != psi_facts::PlaceRoot::Symbol(parameter.symbol) || !target.segments.is_empty()
@@ -1874,7 +1930,7 @@ fn build_write_only_primitive_store(
     }
     let value = facts.values.scalar_expressions.expression_at(
         state.symbol,
-        0,
+        statement_index,
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
     let direct_literal = matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
@@ -1906,13 +1962,38 @@ fn build_write_only_primitive_store(
             .is_some_and(|parameter| parameter.primitive_type == primitive_type)
             && *destination_type == primitive_type
     });
-    if !(direct_literal && scalar_parameters.is_empty() || direct_parameter_is_exact)
+    let direct_result_is_exact = matches!(
+        (scalar_result_local, value),
+        (
+            Some(result),
+            CheckedScalarExpression::Local {
+                position: 0,
+                primitive_type,
+            },
+        ) if *primitive_type == result.primitive_type
+            && *destination_type == result.primitive_type
+            && matches!(
+                result.primitive_type,
+                PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+            )
+            && scalar_parameters.is_empty()
+    );
+    if !(direct_literal && scalar_parameters.is_empty()
+        || direct_parameter_is_exact
+        || direct_result_is_exact)
         || crate::values::scalar_expression_type(value) != Some(*destination_type)
     {
         return None;
     }
     Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-        statement_index: 0,
+        statement_index,
         destination_parameter_index: 0,
         value: value.clone(),
     })

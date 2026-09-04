@@ -17,8 +17,8 @@ use super::{
     push_u32, push_u64,
     structural_scalar_codec::{decode_identity, encode_identity},
     unit_scalar_codec::{
-        decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
-        encode_integer_value, encode_scalar_type,
+        decode_integer_type, decode_integer_value, decode_scalar_type, decode_unit_scalar_home,
+        encode_integer_type, encode_integer_value, encode_scalar_type, encode_unit_scalar_home,
     },
     unit_structural_scalar_field_store_codec::{decode_destination, encode_destination},
     value_placement_codec::{
@@ -190,6 +190,10 @@ fn encode_source(
             bytes.extend_from_slice(&[0; 7]);
             push_u64(bytes, bits);
         }
+        UnitWriteOnlyPrimitiveStoreSourceRecord::Home(home) => {
+            bytes.extend_from_slice(&[5, 0, 0, 0]);
+            encode_unit_scalar_home(bytes, home)?;
+        }
     }
     Ok(())
 }
@@ -285,6 +289,9 @@ fn decode_source(
                 location,
             })
         }
+        5 => Ok(UnitWriteOnlyPrimitiveStoreSourceRecord::Home(
+            decode_unit_scalar_home(reader)?,
+        )),
         tag => Err(InstallationError::InvalidInstalledScalarSourceTag(tag)),
     }
 }

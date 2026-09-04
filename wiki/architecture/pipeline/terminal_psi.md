@@ -710,7 +710,7 @@ the target store; the Boolean source additionally retains its definition
 ordinal. Dedicated whole-root records bind these facts to exact code intervals
 and bytes. Object construction independently replays the declaration joins,
 borrowed-reference placement and home, literal source, architecture encoding,
-attribution, interval, and bytes. Installation format 78 transports and
+attribution, interval, and bytes. Installation format 79 transports and
 revalidates the integer, Boolean, and IEEE float store families without
 treating physical pointer-layout equivalence as permission equivalence. IEEE
 float stores retain their exact preceding definition, raw bits, referent shape,
@@ -751,7 +751,7 @@ the selected stack-carried scalar and store it through the staged write-only
 destination. Records retain every scalar source, destination, interval, and
 relocation coordinate. Object construction
 independently rejoins the Unit callee ABI, caller parameter source, frame and
-call-stack evidence, structural copy, and exact bytes. Installation format 78
+call-stack evidence, structural copy, and exact bytes. Installation format 79
 transports and replays the same custody on both Linux targets. The ordinary
 call source may be either the caller's exact native-fixed-integer-or-Boolean
 parameter, an exact preceding Boolean literal definition, or the durable home
@@ -765,6 +765,17 @@ boundaries, and machine/object/installation replay independently rejoin the
 home and materialization bytes before the callee stores it. Arithmetic locals,
 Boolean and IEEE call results, IEEE runtime sources, and non-native integer
 carriers remain fail closed.
+The same checked scalar-result binding may instead feed the immediately
+following whole-root primitive store directly, without introducing a helper
+Unit machine or call. This exact sibling requires one ordinary service-free
+fixed-integer producer, one immutable dense local, one matching unrestricted
+mutable or write-only primitive destination, and no other parameters or body
+work. Terminal retains the call result as the store's SSA value. Target and
+assigned custody preserve the exact durable home, machine emission loads that
+home and stores only the referent width, and object/installation replay rejoin
+the unique earlier call, unique home, exact bytes, and attribution on both
+Linux targets. The reference interpreter executes mutable and write-only
+destinations with the same non-observing store semantics.
 
 Terminal format 61/vocabulary 64 adds the first source-produced projected
 scalar replacement needed by a closed named-dynamic call. The checked plan

@@ -2515,9 +2515,29 @@ pub(super) fn lower_attached_unit_closure_including(
                         },
                         _ => false,
                     };
-                    if !direct_literal && !direct_parameter {
+                    let direct_result_home = matches!(
+                        value,
+                        CheckedScalarExpression::Local {
+                            position,
+                            primitive_type,
+                        } if *position >= scalar_parameters.len()
+                            && position.checked_add(1) == Some(scalar_result_values.len())
+                            && terminal_scalar_type(*primitive_type).ok() == Some(*destination_type)
+                            && matches!(
+                                primitive_type,
+                                PrimitiveType::I8
+                                    | PrimitiveType::I16
+                                    | PrimitiveType::I32
+                                    | PrimitiveType::I64
+                                    | PrimitiveType::U8
+                                    | PrimitiveType::U16
+                                    | PrimitiveType::U32
+                                    | PrimitiveType::U64
+                            )
+                    );
+                    if !direct_literal && !direct_parameter && !direct_result_home {
                         return unsupported(
-                            "write-only store value is outside the direct primitive-literal rung",
+                            "write-only store value is outside the admitted direct scalar rung",
                         );
                     }
                     let value = lower_checked_scalar_expression(value)?;
@@ -2526,10 +2546,14 @@ pub(super) fn lower_attached_unit_closure_including(
                             "write-only store value type disagrees with its destination",
                         );
                     }
-                    validate_direct_parameter_types(&value, scalar_parameter_types)?;
+                    let source_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
+                    validate_direct_parameter_types(&value, &source_types)?;
                     let value = emit_direct_expression(
                         &value,
-                        &scalar_parameters,
+                        &scalar_result_values,
                         &mut next_value_identity,
                         &mut operations,
                     );
