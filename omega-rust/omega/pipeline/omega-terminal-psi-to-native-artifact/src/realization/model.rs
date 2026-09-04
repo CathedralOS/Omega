@@ -48,6 +48,14 @@ pub(crate) enum PostTerminalOptimizationContinuation {
 }
 
 impl PostTerminalOptimizationContinuation {
+    pub(crate) const fn input(
+        &self,
+    ) -> &omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput {
+        match self {
+            Self::Identity(input) | Self::Selected(input) => input,
+        }
+    }
+
     pub(crate) const fn selected(
         &self,
     ) -> Option<&omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput> {
@@ -75,15 +83,12 @@ impl NativeRealizationInput {
         native: omega_psi_to_abstract_operations::NativeArtifactOperationPlan,
         optimization_continuation: PostTerminalOptimizationContinuation,
     ) -> Result<Self, &'static str> {
-        if optimization_continuation
-            .selected()
-            .is_some_and(|selected| {
-                selected.plan().psi != native.plan().psi
-                    || selected.plan().entry != native.plan().entry
-            })
+        let optimization_plan = optimization_continuation.input().plan();
+        if optimization_plan.psi != native.plan().psi
+            || optimization_plan.entry != native.plan().entry
         {
             return Err(
-                "native authority and selected physical-optimization context disagree on the Terminal program root",
+                "native authority and abstract-optimization context disagree on the Terminal program root",
             );
         }
         Ok(Self {

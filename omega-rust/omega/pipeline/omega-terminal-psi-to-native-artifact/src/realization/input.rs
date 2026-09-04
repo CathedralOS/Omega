@@ -192,6 +192,37 @@ mod tests {
     }
 
     #[test]
+    fn identity_continuation_rejects_a_substituted_terminal_root() {
+        let profile = AdmissionProfile::default();
+        let selections = omega_optimization_core::PostTerminalOptimizationSelections::default();
+        let artifact = artifact_fixture();
+        let first = lower_realization_input(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &profile,
+            &selections,
+        )
+        .expect("first native input");
+        let alternate_artifact = alternate_artifact_fixture();
+        let alternate = lower_realization_input(
+            alternate_artifact.semantic_bytes(),
+            alternate_artifact.proof_bytes(),
+            &profile,
+            &selections,
+        )
+        .expect("alternate native input");
+        let (native, _) = first.into_parts();
+        let (_, substituted_continuation) = alternate.into_parts();
+
+        assert!(matches!(
+            NativeRealizationInput::new(native, substituted_continuation),
+            Err(
+                "native authority and abstract-optimization context disagree on the Terminal program root"
+            )
+        ));
+    }
+
+    #[test]
     fn post_terminal_selection_type_rejects_preterminal_reselection() {
         let selections = omega_optimization_core::OptimizationSelections::new([
             omega_optimization_core::Optimization::ControlFlowCleanup,
