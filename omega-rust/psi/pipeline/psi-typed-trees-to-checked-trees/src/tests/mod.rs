@@ -45,6 +45,8 @@ mod generics;
 mod multiplicity;
 mod opaque_properties;
 mod operators;
+mod proof_embedding_totality;
+mod proof_embeddings;
 mod relevance;
 mod semantic_dependencies;
 mod termination;

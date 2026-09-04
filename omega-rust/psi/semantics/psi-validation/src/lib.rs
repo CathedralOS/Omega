@@ -29,6 +29,7 @@ mod operators;
 mod placed_views;
 mod places;
 mod plan_laid;
+mod proof_embeddings;
 mod proof_facts;
 mod proof_only_faces;
 mod properties;
@@ -153,12 +154,14 @@ pub struct ExactIntegerCastFact {
     pub maximum: psi_numerics::bignum::BigInt,
 }
 
+pub use contract_entailment::integer_embedding_sources_equal;
 pub use float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };
 pub use immutable_integer_bounds::{
     normalize_immutable_integer_bound_expression, normalize_immutable_integer_bound_to_usize,
 };
+pub use proof_embeddings::{ValidatedIntegerEmbeddingCall, integer_embedding_argument};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
@@ -167,6 +170,7 @@ pub struct ProgramValidationFacts {
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
     pub fact_call_projections: Vec<fact_call_projections::ValidatedFactCallProjection>,
+    pub integer_embedding_calls: Vec<ValidatedIntegerEmbeddingCall>,
     /// Canonical proof-only call SCCs accepted by the structural-subterm
     /// validator. Every exact internal call site retains its own witness.
     pub proof_recursive_components: Vec<ValidatedProofRecursiveComponent>,
@@ -378,6 +382,9 @@ fn validate_program_internal(
     // spelled); every runtime consumption face refuses with the
     // classification named.
     let proof_only = psi_typed_trees::proof_only::classify(program);
+    proof_embeddings::validate_proof_embeddings(program, &proof_only, &mut diagnostics);
+    let integer_embedding_calls =
+        proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics);
     quotients::validate_quotients(program, &proof_only, &mut diagnostics);
     let fact_call_projections =
         fact_call_projections::validate_fact_call_projections(program, &mut diagnostics);
@@ -692,6 +699,7 @@ fn validate_program_internal(
         float_meaning_projection_invocations,
         float_meaning_equality_propositions,
         fact_call_projections,
+        integer_embedding_calls,
         proof_recursive_components,
     })
 }

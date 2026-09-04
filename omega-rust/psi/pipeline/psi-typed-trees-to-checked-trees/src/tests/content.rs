@@ -124,7 +124,6 @@ fn checked_facts_lift_a_singleton_into_the_interval_set_algebra() {
         trait Content<A> {
             machine project(subject: &Self) -> A;
         }
-        boundary machine embed<T>(value: T) -> Int;
         data Region [linear] { base: u64; length: u64; }
         domain Region::Owned;
 
@@ -182,7 +181,6 @@ fn checked_facts_retain_runtime_scalar_embedding() {
         trait Content<A> {
             machine project(subject: &Self) -> A;
         }
-        boundary machine embed<T>(value: T) -> Int;
         data Region [linear] { length: u64; }
         domain Region::Owned;
 
@@ -218,7 +216,6 @@ fn signed_runtime_embedding_cannot_enter_a_nat_content_algebra() {
         data ByteUnit {}
         data CountedQuantity<Unit> { magnitude: Nat; }
         trait Content<A> { machine project(subject: &Self) -> A; }
-        boundary machine embed<T>(value: T) -> Int;
         data Region [linear] { delta: i64; }
         domain Region::Owned;
 

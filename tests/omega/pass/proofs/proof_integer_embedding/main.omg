@@ -1,0 +1,12 @@
+// Embedding observes integer payloads in mathematical Int without overflowing
+// or changing the arithmetic policy of their source bindings.
+machine unsigned_successor(value: u64)
+ensures embed(value) + 1 > embed(value)
+{}
+
+machine signed_identity(value: i32 in Trapping)
+ensures embed(value) == embed(value)
+{}
+
+data Main {}
+machine Main::main(&mut self) {}

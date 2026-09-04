@@ -55,7 +55,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self.target_trees.expression_table
     }
 
-    fn retain_landed_integer_type_reference(
+    fn retain_builtin_type_reference(
         &mut self,
         atom: psi_symbols::BuiltinTypeAtom,
     ) -> Result<(), Diagnostic> {
@@ -69,7 +69,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 symbols.find(|symbol| program.symbols.builtin_type_atom(*symbol) == Some(atom))
             })
             .ok_or_else(|| {
-                Diagnostic::error("landed literal lost its compiler-installed builtin type")
+                Diagnostic::error("typed expression lost its compiler-installed builtin type")
             })?;
         if self
             .target_trees
@@ -250,6 +250,21 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::Call(call) => {
+                if !call.receiver.is_valid()
+                    && call.target.as_str() == psi_symbols::BuiltinFunction::IntegerEmbed.name()
+                    && self.program.is_some_and(|program| {
+                        program
+                            .symbols
+                            .builtin_function_for_symbol(call.target_symbol)
+                            == Some(psi_symbols::BuiltinFunction::IntegerEmbed)
+                    })
+                {
+                    // `embed` has a compiler-owned Int result even when no
+                    // authored signature happens to mention Int. Retain that
+                    // exact builtin type at typing, not through a diagnostic
+                    // name fallback in later validation.
+                    self.retain_builtin_type_reference(psi_symbols::BuiltinTypeAtom::Int)?;
+                }
                 if let Some(program) = self.program
                     && call.target_symbol.is_valid()
                     && matches!(
@@ -325,7 +340,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             }
             resolved::expression::ExpressionNode::Integer(value) => {
                 if let Some(landing) = value.landing() {
-                    self.retain_landed_integer_type_reference(match landing.landed_type {
+                    self.retain_builtin_type_reference(match landing.landed_type {
                         psi_numerics::literals::LandedIntegerType::I8 => {
                             psi_symbols::BuiltinTypeAtom::I8
                         }

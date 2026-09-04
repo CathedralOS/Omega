@@ -12,7 +12,7 @@ use super::*;
 /// value, but an arithmetic operation selected by that qualification cannot
 /// become a proposition term. Explicit Exact casts remove the qualification
 /// before this check; Wrapping and Saturating retain their total denotations.
-fn validate_total_specification_arithmetic(
+pub(crate) fn validate_total_specification_arithmetic(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
@@ -321,6 +321,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
 
     let entry_state = program.machine_states(machine).first();
     let mut machine_env = ValueEnv::new();
+    let mut machine_prior_facts = Vec::new();
     for contract in program.machine_contracts(machine) {
         let owner = format!(
             "machine `{}` {} contract",
@@ -328,8 +329,14 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
             kind_label(&contract.kind),
         );
         for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let diagnostics_before = diagnostics.len();
+            crate::contract_entailment::validate_proof_fact_integer_casts(
+                program,
+                fact,
+                &machine_prior_facts,
+                diagnostics,
+            );
             if let ProofFact::Expression(expression) = fact {
-                let diagnostics_before = diagnostics.len();
                 validate_total_specification_arithmetic(
                     program,
                     machine,
@@ -341,22 +348,25 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 );
                 if contract.kind == SignatureContractKind::Requires
                     && diagnostics.len() == diagnostics_before
-                    && let Some(entry_state) = entry_state
                 {
-                    narrow_env_by_condition(
-                        program,
-                        machine,
-                        Some(entry_state),
-                        &mut machine_env,
-                        *expression,
-                        true,
-                    );
+                    machine_prior_facts.push(*expression);
+                    if let Some(entry_state) = entry_state {
+                        narrow_env_by_condition(
+                            program,
+                            machine,
+                            Some(entry_state),
+                            &mut machine_env,
+                            *expression,
+                            true,
+                        );
+                    }
                 }
             }
         }
     }
     for state in program.machine_states(machine) {
         let mut state_env = machine_env.clone();
+        let mut state_prior_facts = machine_prior_facts.clone();
         for contract in program.state_contracts(state) {
             let owner = format!(
                 "machine `{}` state `{}` {} contract",
@@ -365,8 +375,14 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 kind_label(&contract.kind),
             );
             for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let diagnostics_before = diagnostics.len();
+                crate::contract_entailment::validate_proof_fact_integer_casts(
+                    program,
+                    fact,
+                    &state_prior_facts,
+                    diagnostics,
+                );
                 if let ProofFact::Expression(expression) = fact {
-                    let diagnostics_before = diagnostics.len();
                     validate_total_specification_arithmetic(
                         program,
                         machine,
@@ -379,6 +395,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                     if contract.kind == SignatureContractKind::Requires
                         && diagnostics.len() == diagnostics_before
                     {
+                        state_prior_facts.push(*expression);
                         narrow_env_by_condition(
                             program,
                             machine,
@@ -775,10 +792,18 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         bindings: AbstractSpecificationBindings<'_>,
         admit_to_env: bool,
         env: &mut ValueEnv,
+        prior_facts: &mut Vec<ExpressionHandle>,
         seen: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for fact in facts {
+            let diagnostics_before = diagnostics.len();
+            crate::contract_entailment::validate_proof_fact_integer_casts(
+                program,
+                fact,
+                prior_facts,
+                diagnostics,
+            );
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
@@ -786,7 +811,6 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 continue;
             }
             seen.push(*expression);
-            let diagnostics_before = diagnostics.len();
             abstract_shift_count::validate(program, *expression, owner, bindings, env, diagnostics);
             exact_division_definedness::validate_abstract(
                 program,
@@ -821,6 +845,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 diagnostics,
             );
             if admit_to_env && diagnostics.len() == diagnostics_before {
+                prior_facts.push(*expression);
                 narrow_abstract_specification_env(program, bindings, env, *expression);
             }
         }
@@ -835,6 +860,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let mut env = ValueEnv::new();
+        let mut prior_facts = Vec::new();
         for contract in contracts {
             let contract_owner = format!("{owner} {} contract", kind_label(&contract.kind));
             validate_facts(
@@ -844,6 +870,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 bindings,
                 contract.kind == SignatureContractKind::Requires,
                 &mut env,
+                &mut prior_facts,
                 seen,
                 diagnostics,
             );
@@ -852,8 +879,38 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
 
     let mut seen = Vec::new();
 
+    for proposition in program.propositions() {
+        use psi_typed_trees::proposition::{PropositionBody, PropositionFormula};
+        if let PropositionBody::Transparent { proposition } = &proposition.body {
+            match proposition {
+                PropositionFormula::BooleanExpression(expression) => {
+                    crate::contract_entailment::validate_proof_integer_casts(
+                        program,
+                        *expression,
+                        &[],
+                        diagnostics,
+                    );
+                }
+                PropositionFormula::Application(application) => {
+                    for argument in program
+                        .expression_table
+                        .expression_handles(application.arguments)
+                    {
+                        crate::contract_entailment::validate_proof_integer_casts(
+                            program,
+                            *argument,
+                            &[],
+                            diagnostics,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     for domain in program.domain_definitions() {
         let mut env = ValueEnv::new();
+        let mut prior_facts = Vec::new();
         validate_facts(
             program,
             program.proof_facts(domain),
@@ -864,6 +921,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             },
             true,
             &mut env,
+            &mut prior_facts,
             &mut seen,
             diagnostics,
         );
@@ -871,6 +929,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
 
     for data in program.data_definitions() {
         let mut env = ValueEnv::new();
+        let mut prior_facts = Vec::new();
         validate_facts(
             program,
             program.proof_facts.span_or_empty(data.where_facts),
@@ -881,6 +940,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             },
             true,
             &mut env,
+            &mut prior_facts,
             &mut seen,
             diagnostics,
         );

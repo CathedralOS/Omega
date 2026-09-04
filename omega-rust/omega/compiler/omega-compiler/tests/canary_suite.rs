@@ -634,6 +634,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "proofs/proof_nonlinear_square_range",
     "proofs/proof_order_antisymmetry",
     "proofs/proof_multiplication_distributivity",
+    "proofs/proof_integer_embedding",
     "proofs/proof_remainder_range",
     "proofs/proof_bag_view_reflexivity",
     "traits/default_machine_in_trait",
@@ -750,6 +751,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/content_projection_legacy_interval",
     "core/content_projection_arbitrary_call",
     "core/content_projection_signed_embedding",
+    "proofs/proof_integer_embedding_boolean",
+    "proofs/proof_integer_embedding_runtime",
     "core/content_conservation_unqualified_place",
     "core/content_conservation_entry_former_retired",
     "calls/library_block_retired",
@@ -1616,6 +1619,9 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "core/content_projection_owner",
+    "core/content_conservation_contract",
+    "core/content_retained_custody_round_trip",
     "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
     "control_flow/runtime_tuple_transition_exit",
     "errors/runtime_result_match_exit",

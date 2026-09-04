@@ -58,6 +58,31 @@ address payload into proof `Int`. It performs no runtime conversion, allocates
 no bytes, does not mutate or requalify the source binding, and cannot influence
 runtime data or control.
 
+The Rust source checker recognizes the exact compiler-installed `embed` symbol,
+not a library machine declaration or a same-spelled package call. It admits
+the term in proof facts, transparent propositions, computed proof machines,
+and checked content projections; executable uses reject. Boolean comparison
+results and noninteger carriers do not acquire integer meaning from their
+operands. Content algebras require the explicit Exact `as Nat` boundary.
+An ordinary call beneath an embedding must select an observation-free checked
+body with no service reach or crash route and an unconditional checked
+termination guarantee. Such calls remain denotational; they do not create
+runtime call-result storage.
+The current call adapter requires the exact root entry and argument telescope,
+with matching declared types or representable integer and Boolean literals. Calls with
+preconditions, unresolved specialization, or computed arguments needing a
+caller-context type/range derivation remain outside this producer's frontier.
+
+The current arithmetic producer retains computed fixed-carrier embeddings as
+opaque source-and-carrier terms with range bounds. In particular, it does not
+rewrite an embedded Wrapping or Saturating operation as mathematical addition.
+Synthesizing the complete denotation bridges for those computed terms and
+general target-relative address observations remains implementation work;
+source admission alone does not establish an independent Terminal certificate.
+This policy-preserving normalization applies to integer-embedding judgments
+and Exact proof coercion. The pre-existing raw machine-arithmetic induction
+producer still needs its separate policy-aware denotation migration.
+
 Embedding retains the source carrier identity and contributes its exact range:
 
 - an embedded unsigned integer or address is nonnegative and no greater than

@@ -152,6 +152,34 @@ pub(crate) fn build_check_facts(
     let carry = carry::build_carry_facts(program);
     let mut fact_call_projections = Vec::new();
     let mut fact_call_projection_diagnostics = Vec::new();
+    for call in &validation_facts.integer_embedding_calls {
+        let exact_source = matches!(program.expression_table.expression(call.call_expression),
+            psi_typed_trees::expression::ExpressionNode::Call(source) if source.target_symbol == call.target_state)
+            && program
+                .machines()
+                .iter()
+                .filter(|machine| machine.symbol == call.target_machine)
+                .filter(|machine| {
+                    program
+                        .machine_states(machine)
+                        .iter()
+                        .filter(|state| state.symbol == call.target_state)
+                        .count()
+                        == 1
+                })
+                .count()
+                == 1;
+        let total = termination.for_machine(call.target_machine).is_some_and(|plan| {
+            matches!(&plan.checked_summary,
+                psi_language_semantics::TerminationGuarantee::Terminates { premises } if premises.is_empty())
+        });
+        if !exact_source || !total {
+            let target = program.symbols.name(call.target_state);
+            fact_call_projection_diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "`embed` source call `{target}` is not denotational: the exact selected machine is not unconditionally terminating"
+            )));
+        }
+    }
     for projection in &validation_facts.fact_call_projections {
         let total = termination
             .for_machine(projection.target_machine)

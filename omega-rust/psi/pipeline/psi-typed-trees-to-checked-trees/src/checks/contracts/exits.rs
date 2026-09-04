@@ -93,6 +93,9 @@ pub(super) fn check_exit_ensures(
                 fact,
             );
             let satisfied = proved
+                || super::integer_embeddings::proves_exit_equality(
+                    program, state_flow, exit_flow, fact,
+                )
                 || evidence_assignment
                 || float_meaning_reflexivity
                 || (authorized_route && route_predicates_satisfied);
