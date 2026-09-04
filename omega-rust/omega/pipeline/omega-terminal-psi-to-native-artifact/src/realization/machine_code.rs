@@ -121,8 +121,7 @@ pub(crate) fn emit_realization_machine_code(
             }
             let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
                 request.optimization_selections,
-            )
-            .map_err(|error| realization_error("canonical optimization request", error))?;
+            );
             let optimized = omega_optimization_pipeline::optimize_verified_psi_input(
                 input,
                 optimization_request,

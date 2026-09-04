@@ -34,7 +34,7 @@ fn canonical_empty_selection_executes_the_identity_phase() {
 #[test]
 fn compiler_baseline_request_retains_the_selection_and_canonical_budget() {
     let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
-    let request = compiler_baseline_request_v1(&selections).unwrap();
+    let request = compiler_baseline_request_v1(&selections);
     assert_eq!(request.selections(), &selections);
     assert_eq!(
         request.budget_per_pass(),
