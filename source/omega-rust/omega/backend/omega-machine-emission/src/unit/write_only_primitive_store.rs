@@ -20,7 +20,10 @@ use super::structural_scalar::{
     emit_aarch64_unit_store_immediate, emit_aarch64_unit_store_register,
     emit_x86_64_unit_store_immediate, emit_x86_64_unit_store_register,
 };
-use super::{Aarch64UnitParameterHome, X86UnitParameterHome, unit_scalar_shape};
+use super::{
+    Aarch64UnitParameterHome, X86UnitParameterHome, aarch64_load_base, aarch64_unit_stack_access,
+    append_aarch64_instructions, emit_x86_64_stack_load_width, unit_scalar_shape,
+};
 use crate::{EmissionError, integer_bits, require_native_integer_width};
 
 #[allow(clippy::too_many_arguments)]
@@ -30,6 +33,8 @@ pub(super) fn emit_write_only_primitive_store(
     target: NativeTarget,
     x86_homes: &[X86UnitParameterHome],
     aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_frame_bytes: u32,
+    aarch64_frame_bytes: u32,
     established_integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
     established_boolean_constants: &BTreeMap<ValueId, (OperationId, bool, usize)>,
     established_ieee_float_constants: &BTreeMap<
@@ -91,22 +96,36 @@ pub(super) fn emit_write_only_primitive_store(
                 },
             )
             .map_err(|_| invalid())?;
-            let [
-                ValueLocation::Register {
-                    register: expected_register,
-                    value_byte_offset: 0,
-                    byte_size: placed_byte_size,
-                },
-            ] = scalar_parameter.placement.locations.as_slice()
-            else {
-                return Err(invalid());
-            };
+            let (expected_location, placed_byte_size) =
+                match scalar_parameter.placement.locations.as_slice() {
+                    [
+                        ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size,
+                        },
+                    ] => (AssignedScalarLocation::Register(*register), *byte_size),
+                    [
+                        ValueLocation::Stack {
+                            stack_byte_offset,
+                            value_byte_offset: 0,
+                            byte_size,
+                            ..
+                        },
+                    ] => (
+                        AssignedScalarLocation::IncomingStack {
+                            byte_offset: *stack_byte_offset,
+                        },
+                        *byte_size,
+                    ),
+                    _ => return Err(invalid()),
+                };
             if body.parameters.len() != 1
                 || scalar_parameter.value != source_value
                 || scalar_parameter.scalar_type != scalar_type
                 || scalar_parameter.placement.shape != scalar_shape
-                || *placed_byte_size != byte_size
-                || location != AssignedScalarLocation::Register(*expected_register)
+                || placed_byte_size != byte_size
+                || location != expected_location
                 || body.call_plan != expected_plan
                 || body.call_plan.parameters.get(scalar_parameter_index)
                     != Some(&scalar_parameter.placement)
@@ -120,9 +139,19 @@ pub(super) fn emit_write_only_primitive_store(
                     parameter_index,
                     source_value,
                     scalar_type,
-                    location: omega_machine_code::UnitScalarParameterLocationRecord::Register(
-                        *expected_register,
-                    ),
+                    location: match expected_location {
+                        AssignedScalarLocation::Register(register) => {
+                            omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                                register,
+                            )
+                        }
+                        AssignedScalarLocation::IncomingStack { byte_offset } => {
+                            omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                                byte_offset,
+                            }
+                        }
+                        AssignedScalarLocation::FrameSpill { .. } => unreachable!(),
+                    },
                 },
                 scalar_type,
                 byte_size,
@@ -250,7 +279,26 @@ pub(super) fn emit_write_only_primitive_store(
                         omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
                     ..
                 } => emit_x86_64_unit_store_register(bytes, home, 0, byte_size, register)?,
-                UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter { .. } => return Err(invalid()),
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset,
+                        },
+                    ..
+                } => {
+                    let source_offset = x86_frame_bytes
+                        .checked_add(8)
+                        .and_then(|offset| offset.checked_add(byte_offset))
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    emit_x86_64_stack_load_width(bytes, 11, source_offset, byte_size)?;
+                    emit_x86_64_unit_store_register(
+                        bytes,
+                        home,
+                        0,
+                        byte_size,
+                        omega_target_operations::MachineRegister::X86R11,
+                    )?;
+                }
                 _ => emit_x86_64_unit_store_immediate(
                     bytes,
                     home,
@@ -275,7 +323,31 @@ pub(super) fn emit_write_only_primitive_store(
                         omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
                     ..
                 } => emit_aarch64_unit_store_register(bytes, home, 0, byte_size, register)?,
-                UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter { .. } => return Err(invalid()),
+                UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset,
+                        },
+                    ..
+                } => {
+                    let source_offset = aarch64_frame_bytes
+                        .checked_add(byte_offset)
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    let instruction = aarch64_unit_stack_access(
+                        aarch64_load_base(byte_size)?,
+                        16,
+                        source_offset,
+                        byte_size,
+                    )?;
+                    append_aarch64_instructions(bytes, vec![instruction]);
+                    emit_aarch64_unit_store_register(
+                        bytes,
+                        home,
+                        0,
+                        byte_size,
+                        omega_target_operations::MachineRegister::Aarch64X(16),
+                    )?;
+                }
                 _ => emit_aarch64_unit_store_immediate(
                     bytes,
                     home,

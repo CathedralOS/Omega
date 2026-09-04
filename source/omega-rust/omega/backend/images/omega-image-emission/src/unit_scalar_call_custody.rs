@@ -73,7 +73,7 @@ pub(super) fn validate_internal_unit_scalar_calls(
             .iter()
             .find(|stack| stack.owner == call.owner && stack.target == call.target)
             .ok_or_else(invalid)?;
-        validate_call(target, function, abi, call_stack, call)?;
+        validate_call(target, function, abi, stack, call_stack, call)?;
     }
     Ok(())
 }
@@ -335,6 +335,7 @@ fn validate_call(
     target: NativeTarget,
     function: &MachineCodeFunction,
     abi: &FixedIntegerScalarFunctionAbi,
+    function_stack: &ObjectUnitStack,
     call_stack: &ObjectUnitCallStack,
     call: &InternalUnitScalarCallRecord,
 ) -> Result<(), ObjectError> {
@@ -397,7 +398,8 @@ fn validate_call(
             argument.source,
         )?;
         let expected =
-            expected_argument_bytes(target, argument, outbound_bytes).ok_or_else(invalid)?;
+            expected_argument_bytes(target, argument, function_stack.frame_bytes, outbound_bytes)
+                .ok_or_else(invalid)?;
         if argument.byte_count != expected.len()
             || function
                 .bytes
@@ -678,6 +680,7 @@ pub(super) fn exact_preceding_internal_unit_scalar_home_producer_count(
 pub(super) fn expected_argument_bytes(
     target: NativeTarget,
     argument: &omega_machine_code::InternalUnitScalarCallArgumentRecord,
+    frame_bytes: u32,
     outbound_bytes: u32,
 ) -> Option<Vec<u8>> {
     match target.architecture {
@@ -694,6 +697,21 @@ pub(super) fn expected_argument_bytes(
                             destination,
                             None,
                         ) if x86_terminal_register(source)? == destination => {}
+                        (
+                            omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                                byte_offset,
+                            },
+                            destination,
+                            _,
+                        ) => expected_x86_stack_load(
+                            &mut bytes,
+                            destination,
+                            outbound_bytes
+                                .checked_add(frame_bytes)?
+                                .checked_add(8)?
+                                .checked_add(byte_offset)?,
+                            scalar_home_shape(argument.source.scalar_type())?.byte_size,
+                        )?,
                         _ => return None,
                     }
                 }
@@ -734,6 +752,19 @@ pub(super) fn expected_argument_bytes(
                             destination,
                             None,
                         ) if aarch64_terminal_register(source)? == destination => {}
+                        (
+                            omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                                byte_offset,
+                            },
+                            destination,
+                            _,
+                        ) => words.push(expected_aarch64_stack_load(
+                            destination,
+                            outbound_bytes
+                                .checked_add(frame_bytes)?
+                                .checked_add(byte_offset)?,
+                            scalar_home_shape(argument.source.scalar_type())?.byte_size,
+                        )?),
                         _ => return None,
                     }
                 }

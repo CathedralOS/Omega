@@ -10,7 +10,10 @@ use psi_core::{IntegerSign, IntegerType, IntegerValue};
 use psi_terminal::StructuralAccess;
 
 use super::ObjectError;
-use super::instruction_loads::{aarch64_terminal_register, x86_terminal_register};
+use super::instruction_loads::{
+    aarch64_terminal_register, expected_aarch64_stack_load, expected_x86_stack_load,
+    x86_terminal_register,
+};
 
 pub(super) fn validate_unit_structural_scalar_field_stores(
     target: NativeTarget,
@@ -218,6 +221,47 @@ pub(crate) fn expected_parameter_store_bytes(
                     .flat_map(u32::to_le_bytes)
                     .collect(),
             )
+        }
+    }
+}
+
+pub(crate) fn expected_incoming_parameter_store_bytes(
+    target: NativeTarget,
+    home: &omega_machine_code::UnitParameterHomeRecord,
+    field_byte_offset: u32,
+    byte_size: u16,
+    source_stack_byte_offset: u32,
+    frame_bytes: u32,
+) -> Option<Vec<u8>> {
+    match target.architecture {
+        Architecture::X86_64 => {
+            let incoming = frame_bytes
+                .checked_add(8)?
+                .checked_add(source_stack_byte_offset)?;
+            let mut bytes = Vec::new();
+            expected_x86_stack_load(&mut bytes, 11, incoming, byte_size)?;
+            bytes.extend(expected_parameter_store_bytes(
+                target,
+                home,
+                field_byte_offset,
+                byte_size,
+                omega_target_operations::MachineRegister::X86R11,
+            )?);
+            Some(bytes)
+        }
+        Architecture::Aarch64 => {
+            let incoming = frame_bytes.checked_add(source_stack_byte_offset)?;
+            let mut bytes = expected_aarch64_stack_load(16, incoming, byte_size)?
+                .to_le_bytes()
+                .to_vec();
+            bytes.extend(expected_parameter_store_bytes(
+                target,
+                home,
+                field_byte_offset,
+                byte_size,
+                omega_target_operations::MachineRegister::Aarch64X(16),
+            )?);
+            Some(bytes)
         }
     }
 }
