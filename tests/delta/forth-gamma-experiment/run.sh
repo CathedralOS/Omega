@@ -36,7 +36,7 @@ stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
 
 METRICS=$(python3 "$GATE_DIR/measure.py" \
     "$SYMBOLIC" "$COMPILER" \
-    "$OMEGA_REPO_ROOT/tests/gamma/evaluator-development/gamma_evaluator.sbeta" \
+    "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" \
     "$OMEGA_REPO_ROOT/source/delta/compiler/delta_compiler.gamma")
 EXPECTED_METRICS='forth_beta=890,723,122,312,203,87
 forth_compiler_lines=1451
@@ -47,7 +47,7 @@ forth_compiler_branches=204
 forth_compiler_jumps=171
 forth_compiler_stack_ops=77
 forth_compiler_cell_ops=20
-functional_beta=1314,1058,164,474,207,201
+functional_beta=1325,1065,165,479,208,203
 functional_compiler_lines=852
 functional_compiler_definitions=80
 functional_compiler_lets=314'

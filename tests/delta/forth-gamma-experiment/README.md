@@ -20,13 +20,13 @@ retained Delta compiler.
 
 ```text
                               Lines  Instructions  Labels  Control  Tape bytes
-functional Gamma evaluator    1,314         1,058     164      474       6,880
+functional Gamma evaluator    1,325         1,065     165      479       6,934
 Forth-Gamma interpreter          890           723     122      312       5,145
 
 functional Delta compiler        852 source lines, 80 definitions
 Forth-Gamma Delta compiler      1,451 source lines, 555 definitions
 
-total functional route         2,166 authored lines
+total functional route         2,177 authored lines
 total Forth route              2,341 authored lines
 ```
 
@@ -62,15 +62,15 @@ compiler's repeated linear row scans.
 ## Finding
 
 Interpretation fixes the old Forth route's catastrophic generated-Beta problem.
-The trusted interpreter is 424 lines, 335 instructions, 42 labels, 162 control
-transfers, and 1,735 tape bytes smaller than functional Gamma. Named values and
+The trusted interpreter is 435 lines, 342 instructions, 43 labels, 167 control
+transfers, and 1,789 tape bytes smaller than functional Gamma. Named values and
 literal text also remove the most offensive numeric-cell and byte-emission
 boilerplate.
 
 It does not yet beat the selected architecture overall. The compiler is split
 across 555 tiny words, explicit stack effects remain difficult to reconstruct,
 and unreachable names or stack underflow are not statically rejected. Total
-source is 175 lines larger even before adding a stack-effect checker, and large
+source is 164 lines larger even before adding a stack-effect checker, and large
 program compilation is impractically slow.
 
 The experiment is promising enough to retain, but not to select. A next attempt

@@ -14,21 +14,17 @@ command -v python3 >/dev/null 2>&1 || {
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
-SYMBOLIC="$GATE_DIR/gamma_evaluator.sbeta"
-RESOLVER="$GATE_DIR/resolve.py"
+BETA="$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE"
+TAPE="$OMEGA_PATH_GAMMA_EVALUATOR_TAPE"
 AUGMENTER="$OMEGA_REPO_ROOT/tests/gamma/self-augmentation-experiment/constant_augmenter.gamma"
 AUGMENTED="$OMEGA_REPO_ROOT/tests/gamma/self-augmentation-experiment/program.gamma1"
 EXPANDED="$OMEGA_REPO_ROOT/tests/gamma/self-augmentation-experiment/program.gamma"
 RECURSIVE="$OMEGA_REPO_ROOT/tests/delta/functional-compiler-experiment/scalar_recursive.delta"
 
-python3 "$RESOLVER" "$SYMBOLIC" "$TMP/evaluator.beta"
-materialize_beta_compiler "$TMP/beta" >/dev/null
-"$TMP/beta" < "$TMP/evaluator.beta" > "$TMP/evaluator.tape"
-stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
+stamp_seed "$TAPE" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/evaluator" >/dev/null
 
-SYMBOLIC="$SYMBOLIC" RESOLVER="$RESOLVER" BETA="$TMP/evaluator.beta" \
-    TAPE="$TMP/evaluator.tape" EVALUATOR="$TMP/evaluator" \
+BETA="$BETA" TAPE="$TAPE" EVALUATOR="$TMP/evaluator" \
     AUGMENTER="$AUGMENTER" AUGMENTED="$AUGMENTED" EXPANDED="$EXPANDED" \
     RECURSIVE="$RECURSIVE" python3 - <<'PY'
 import hashlib
@@ -40,10 +36,8 @@ import subprocess
 from pathlib import Path
 
 artifacts = (
-    ("SYMBOLIC", 30532, "c99d21c940d4d275cddc561761a03f2effd2c293632ca4d5ffc116da003769f3"),
-    ("RESOLVER", 2302, "71bca1be08a58ae8596b0f829d48ee43f48d963829ea8a21208197be0598d3c8"),
-    ("BETA", 36674, "1b943437dece551712ae3a1406dff27804b4004f090613d8343c39fa833b14b2"),
-    ("TAPE", 6880, "69c2247323d226799ba9c5ee5697240d1b67a6fcc35173b545b04a2802429a83"),
+    ("BETA", 37095, "02618b10cf275e82b11821d7dfb0bb3bd2120410677bf4bcd2b6b555aa0d5e54"),
+    ("TAPE", 6934, "a72bc962c99eb5cec80ffd9246d19c8e7bee3c23229c47e25d846f1080d0cac2"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -166,6 +160,18 @@ negative = {
     "pair main result": (
         b"(def main () Int (pair 1 2))\n", 2,
     ),
+    "division by zero": (
+        b"(def main () Int (/ 1 0))\n", 2,
+    ),
+    "remainder by zero": (
+        b"(def main () Int (% 1 0))\n", 2,
+    ),
+    "division overflow": (
+        b"(def main () Int (/ -9223372036854775808 -1))\n", 2,
+    ),
+    "remainder overflow": (
+        b"(def main () Int (% -9223372036854775808 -1))\n", 2,
+    ),
 }
 for name, (source, status) in negative.items():
     if run(source) != (status, b""):
@@ -181,6 +187,42 @@ def countdown(depth):
 if run(countdown(100000), timeout=30) != (0, b"\x00"):
     raise SystemExit("deep proper-tail recursion was not constant-space")
 
+def function_census(count):
+    return (
+        b"".join(
+            f"(def f{index} () Int 0)\n".encode("ascii")
+            for index in range(count - 1)
+        )
+        + b"(def main () Int 0)\n"
+    )
+
+if run(function_census(4096)) != (0, b"\x00"):
+    raise SystemExit("exact function-census capacity did not complete")
+if run(function_census(4097)) != (3, b""):
+    raise SystemExit("adjacent function-census capacity was not incomplete")
+
+def nested_add(depth):
+    return b"(def main () Int " + b"(+ 0 " * depth + b"0" + b")" * depth + b")\n"
+
+if run(nested_add(255)) != (0, b"\x00"):
+    raise SystemExit("exact expression-nesting capacity did not complete")
+if run(nested_add(256)) != (3, b""):
+    raise SystemExit("adjacent expression-nesting capacity was not incomplete")
+
+def ordinary_call_chain(depth):
+    definitions = [
+        f"(def f{index} () Int (+ 0 (f{index + 1})))\n".encode("ascii")
+        for index in range(depth)
+    ]
+    definitions.append(f"(def f{depth} () Int 0)\n".encode("ascii"))
+    definitions.append(b"(def main () Int (f0))\n")
+    return b"".join(definitions)
+
+if run(ordinary_call_chain(256)) != (0, b"\x00"):
+    raise SystemExit("exact ordinary-call-context capacity did not complete")
+if run(ordinary_call_chain(257)) != (3, b""):
+    raise SystemExit("adjacent ordinary-call-context capacity was not incomplete")
+
 augmenter = Path(os.environ["AUGMENTER"]).read_bytes()
 augmented = Path(os.environ["AUGMENTED"]).read_bytes()
 expanded = Path(os.environ["EXPANDED"]).read_bytes()
@@ -190,4 +232,4 @@ if run(expanded) != (0, b"*"):
     raise SystemExit("expanded Delta program did not produce 42")
 PY
 
-echo "Direct Beta Gamma evaluator: scalar/effect profile and augmentation loop passed"
+echo "Direct Beta Gamma evaluator: semantics, exact bounded-depth capacities, and augmentation passed"
