@@ -25,6 +25,9 @@ LIST_SOURCE="$GATE_DIR/list_match.delta"
 LIST_EXPECTED="$GATE_DIR/list_match.gamma"
 BYTES_SOURCE="$GATE_DIR/bytes_rope.delta"
 BYTES_EXPECTED="$GATE_DIR/bytes_rope.gamma"
+FORWARD_SOURCE="$GATE_DIR/forward_mutual_nominals.delta"
+FORWARD_EXPECTED="$GATE_DIR/forward_mutual_nominals.gamma"
+EPSILON_SOURCE="$OMEGA_REPO_ROOT/source/epsilon/compiler/epsilon_compiler.delta"
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 
@@ -33,6 +36,8 @@ COMPILER="$COMPILER" SOURCE="$SOURCE" EXPECTED="$EXPECTED" \
     RECURSIVE_SOURCE="$RECURSIVE_SOURCE" RECURSIVE_EXPECTED="$RECURSIVE_EXPECTED" \
     LIST_SOURCE="$LIST_SOURCE" LIST_EXPECTED="$LIST_EXPECTED" \
     BYTES_SOURCE="$BYTES_SOURCE" BYTES_EXPECTED="$BYTES_EXPECTED" \
+    FORWARD_SOURCE="$FORWARD_SOURCE" FORWARD_EXPECTED="$FORWARD_EXPECTED" \
+    EPSILON_SOURCE="$EPSILON_SOURCE" \
     EVALUATOR="$TMP/evaluator" python3 - <<'PY'
 import hashlib
 import os
@@ -52,9 +57,12 @@ list_source = Path(os.environ["LIST_SOURCE"]).read_bytes()
 list_expected = Path(os.environ["LIST_EXPECTED"]).read_bytes()
 bytes_source = Path(os.environ["BYTES_SOURCE"]).read_bytes()
 bytes_expected = Path(os.environ["BYTES_EXPECTED"]).read_bytes()
+forward_source = Path(os.environ["FORWARD_SOURCE"]).read_bytes()
+forward_expected = Path(os.environ["FORWARD_EXPECTED"]).read_bytes()
+epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("compiler", compiler, 2026, 80586, "4ae34e505e686345210608dc5f140b44483937bb9e0564a33040c2574268fa07"),
+    ("compiler", compiler, 2029, 81156, "48eb812044156846377aa8245d2187907752c878def69f461ebb6cb70abf5d4c"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),
     ("payload source", payload_source, 7, 186, "31affd043cd04144a6a6adf5353ef4080eaf34524cfc64d0d08f0c60d12c7802"),
@@ -65,11 +73,21 @@ for name, data, lines, size, digest in (
     ("list receipt", list_expected, 3, 502, "3f86a1436fa1c8f512476f27886a88d5e443f76974343532cf3a3d082b4509a0"),
     ("bytes source", bytes_source, 24, 767, "a4366165ddac1f1ffea603463ec9c3e04e91331b857d0b978b06863e62438b94"),
     ("bytes receipt", bytes_expected, 7, 1404, "bd0675bcca501256724fb91ab366672db066ac449e94fb917c9fcfd0ea505bb1"),
+    ("forward nominal source", forward_source, 11, 397, "02dd0884c3ede6111468d6b6acb88f0c2e208fd2c9151dc75bf0f695091c3915"),
+    ("forward nominal receipt", forward_expected, 3, 956, "68f42cfe7a81d65e8c5680715ddb5f5b2fda4fae3b2aaf677516bd9646f068bd"),
 ):
     if len(data.splitlines()) != lines or len(data) != size:
         raise SystemExit(f"{name} size changed")
     if hashlib.sha256(data).hexdigest() != digest:
         raise SystemExit(f"{name} identity changed")
+
+for retired_scanner in (
+    b"find_type_owner_forms",
+    b"find_constructor_owner_forms",
+    b"find_constructor_tag_forms",
+):
+    if retired_scanner in compiler:
+        raise SystemExit("whole-source nominal lookup scanner returned")
 
 def evaluate(program, sealed_input=b""):
     request = struct.pack("<I", len(program)) + program + sealed_input
@@ -105,6 +123,10 @@ if evaluate(compiler, bytes_source) != (0, bytes_expected):
     raise SystemExit("recursive rope lowering disagrees with exact Gamma receipt")
 if evaluate(bytes_expected) != (0, b"B"):
     raise SystemExit("recursive rope indexing did not produce 0x42")
+if evaluate(compiler, forward_source) != (0, forward_expected):
+    raise SystemExit("forward/mutual nominal lowering disagrees with receipt")
+if evaluate(forward_expected) != (0, b"\x07"):
+    raise SystemExit("forward/mutual nominal receipt did not produce 7")
 empty_bytes = bytes_expected.replace(
     b"(__d_rope_get (__d_rope_concat (__d_rope_single 65) (__d_rope_single 66)) 1)",
     b"(__d_rope_get (__d_rope_empty) 0)",
@@ -119,6 +141,16 @@ if none_status != 0 or evaluate(none_receipt) != (0, b"\x07"):
 identity = b"(def main () Int 7)\n"
 if evaluate(compiler, identity) != (0, identity + b"\n"):
     raise SystemExit("ordinary scalar Gamma was not preserved")
+
+epsilon_data_prefix = epsilon_source.split(b"\n(def ", 1)[0] + b"\n"
+if epsilon_data_prefix.count(b"(data ") < 100:
+    raise SystemExit("Epsilon nominal customer prefix became trivial")
+epsilon_census = epsilon_data_prefix + identity
+epsilon_status, epsilon_receipt = evaluate(compiler, epsilon_census)
+if (epsilon_status, epsilon_receipt) != (0, identity + b"\n"):
+    raise SystemExit("Epsilon nominal customer census did not compile")
+if evaluate(epsilon_receipt) != (0, b"\x07"):
+    raise SystemExit("Epsilon nominal customer census receipt did not run")
 
 textual_ascii_whitespace = b"\t(def main () Int 7)\r\n"
 if evaluate(compiler, textual_ascii_whitespace) != (0, identity + b"\n"):
@@ -433,4 +465,4 @@ if evaluate(stress_receipt) != (0, b"\xc7"):
     raise SystemExit("3,001-function staged receipt did not produce 199")
 PY
 
-echo "Staged Delta compiler: typed Bytes, unordered exhaustive matches, checked arithmetic, and proper tails pass"
+echo "Staged Delta compiler: indexed nominals, typed Bytes, exhaustive matches, checked arithmetic, and proper tails pass"
