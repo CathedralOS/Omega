@@ -282,7 +282,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_non_authoritative_callee_save_storage",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/frame_requirements/mod.rs",
+        path: "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/src/frame_requirements/mod.rs",
         coordination_marker: "pub fn stage_non_authoritative_spill_frame_requirements",
     },
     RequiredCoordinationEntrance {

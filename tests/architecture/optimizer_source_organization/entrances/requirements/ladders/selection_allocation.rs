@@ -313,13 +313,13 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "non-authoritative spill-frame requirements",
         paths: &[
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/frame_requirements/mod.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/frame_requirements/model.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/frame_requirements/identity.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/frame_requirements/compute.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/frame_requirements/replay.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/frame_requirements/validation.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/frame_requirements/custody.rs",
+            "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/src/frame_requirements/mod.rs",
+            "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/src/frame_requirements/model.rs",
+            "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/src/frame_requirements/identity.rs",
+            "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/src/frame_requirements/compute.rs",
+            "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/src/frame_requirements/replay.rs",
+            "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/src/frame_requirements/validation.rs",
+            "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/src/frame_requirements/custody.rs",
         ],
     },
     SemanticLadder {

@@ -1150,6 +1150,7 @@ dependencies = [
  "omega-register-model",
  "omega-selected-instructions",
  "omega-selected-instructions-to-liveness",
+ "omega-spill-access-constraints-to-frame-requirements",
  "omega-target",
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
@@ -1574,6 +1575,19 @@ dependencies = [
  "omega-target-operations-to-selected-instructions",
  "psi-core",
  "psi-terminal",
+]
+
+[[package]]
+name = "omega-spill-access-constraints-to-frame-requirements"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+ "omega-regalloc",
+ "omega-register-model",
+ "omega-target",
+ "omega-target-to-register-environment",
+ "psi-core",
+ "sha2",
 ]
 
 [[package]]
