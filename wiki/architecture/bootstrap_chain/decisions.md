@@ -4492,3 +4492,22 @@ The exact selected subject is now 1,653 Gamma lines and 64,682 bytes, with 143
 definitions and 480 lexical `let` binders. The additional signature checking
 keeps the 3,001-function transformation below 15 seconds on the development
 host and preserves its exact 78,271-byte output.
+
+## D107 — Delta tail position survives the selected lowering
+
+The selected transformer does not need a separate tail-call encoding. An
+authored tail call emits as a Gamma tail call, and the surrounding forms retain
+that position: the selected Gamma evaluator already treats a selected `if`
+branch, a `let` body, and a match arm nested under the generated tag/payload
+lets and conditionals as tail contexts.
+
+An exact 277-byte Delta witness constructs 100,000 `List` nodes with a tail call
+under both `if` and `let`, then traverses them with a tail call in a lowered
+`match` arm. The compiler produces the exact 394-byte Gamma receipt, and the
+selected evaluator completes with byte zero inside its fixed call-context
+profile. This closes proper-tail lowering for the current scalar/nominal slice;
+it adds no runtime primitive, compiler helper, or alternate path.
+
+Later Bytes and application-profile adapters must retain the same property for
+their own generated contexts. That remaining work does not reopen the ordinary
+function, `if`, `let`, constructor, or match lowering established here.
