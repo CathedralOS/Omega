@@ -1,4 +1,6 @@
-//! Optimizer module role: stage group. Catalog-driven post-allocation optimization components.
+#![forbid(unsafe_code)]
+
+//! Optimizer module role: crate map. Catalog-driven post-allocation optimization components.
 //!
 //! `omega_machine_optimizer::rules` owns the single enable/order catalog.
 //! [`execution`] is the executable catalog consumer, while target leaves retain
@@ -22,9 +24,19 @@ pub use x86_mov_r32_imm32::*;
 pub use x86_mov_r64_imm32_sign_extended::*;
 pub use x86_xor_zero::*;
 
+use omega_allocation_legality_to_active_resident_rematerialization::StagedOptimizedActiveResidentRematerialization;
+use omega_allocation_legality_to_register_homes::StagedOptimizedRegisterHomes;
+use omega_literal_folds_to_register_homes::StagedOptimizedRegisterHomesAfterSelectedLowering;
+use omega_register_homes_to_post_allocation_machine::{
+    OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
+    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
+    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostAllocationMachineOptimizationError {
-    Source(crate::OptimizedPostAllocationMachinePipelineError),
+    Source(OptimizedPostAllocationMachinePipelineError),
     MissingPostAllocationMachineOptimization,
     UnsupportedPostAllocationMachineOptimization(omega_optimization_core::Optimization),
     UnsupportedPostAllocationMachineOptimizationTarget {

@@ -218,7 +218,7 @@ pub(crate) fn check(audit: &mut Audit) {
         ));
     }
 
-    let post_allocation_dispatch = "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/execution/dispatch.rs";
+    let post_allocation_dispatch = "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/execution/dispatch.rs";
     match fs::read_to_string(repository.join(post_allocation_dispatch)) {
         Ok(contents)
             if [

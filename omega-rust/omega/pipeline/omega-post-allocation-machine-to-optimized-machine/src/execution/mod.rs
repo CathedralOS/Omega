@@ -18,7 +18,7 @@ use crate::{
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
-pub(crate) use dispatch::{
+pub use dispatch::{
     stage_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_for_catalog_entry,
     stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_catalog_entry,
     stage_optimized_post_allocation_machine_optimization_for_catalog_entry,

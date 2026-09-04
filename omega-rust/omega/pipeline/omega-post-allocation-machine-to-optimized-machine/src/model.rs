@@ -25,7 +25,8 @@ pub struct PostAllocationMachineOptimizationCustody {
 }
 
 impl PostAllocationMachineOptimizationCustody {
-    pub(crate) const fn from_parts(
+    /// Reconstruct the canonical custody fields decoded from a physical artifact.
+    pub const fn from_parts(
         optimization: Optimization,
         artifact_identity: [u8; 32],
         selections: OptimizationSelectionIdentity,

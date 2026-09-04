@@ -38,6 +38,7 @@ omega-fixed-view-copies-to-reanalyzed-legality = { path = "../omega-fixed-view-c
 omega-allocation-legality-to-register-homes = { path = "../omega-allocation-legality-to-register-homes" }
 omega-register-homes-to-callee-saved-requirements = { path = "../omega-register-homes-to-callee-saved-requirements" }
 omega-register-homes-to-post-allocation-machine = { path = "../omega-register-homes-to-post-allocation-machine" }
+omega-post-allocation-machine-to-optimized-machine = { path = "../omega-post-allocation-machine-to-optimized-machine" }
 omega-callee-saved-requirements-to-save-storage = { path = "../omega-callee-saved-requirements-to-save-storage" }
 omega-spill-access-constraints-to-frame-requirements = { path = "../omega-spill-access-constraints-to-frame-requirements" }
 omega-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-isa-aarch64" }

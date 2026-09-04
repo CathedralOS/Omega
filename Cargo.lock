@@ -1176,6 +1176,7 @@ dependencies = [
  "omega-optimization-run-to-abstract-operations",
  "omega-optimization-unit",
  "omega-optimization-validation",
+ "omega-post-allocation-machine-to-optimized-machine",
  "omega-psi-to-abstract-operations",
  "omega-regalloc",
  "omega-register-homes-to-callee-saved-requirements",
@@ -1386,6 +1387,21 @@ version = "0.1.0"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
+]
+
+[[package]]
+name = "omega-post-allocation-machine-to-optimized-machine"
+version = "0.1.0"
+dependencies = [
+ "omega-allocation-legality-to-active-resident-rematerialization",
+ "omega-allocation-legality-to-register-homes",
+ "omega-literal-folds-to-register-homes",
+ "omega-machine-optimizer",
+ "omega-optimization-core",
+ "omega-regalloc",
+ "omega-register-homes-to-post-allocation-machine",
+ "omega-register-model",
+ "omega-target",
 ]
 
 [[package]]

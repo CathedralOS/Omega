@@ -167,11 +167,11 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "AArch64 same-view copy pipeline custody",
         paths: &[
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/aarch64_same_view_copy/mod.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/aarch64_same_view_copy/model.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/aarch64_same_view_copy/baseline_source.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/aarch64_same_view_copy/selected_lowering_source.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/aarch64_same_view_copy/execution.rs",
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/mod.rs",
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/model.rs",
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/baseline_source.rs",
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/selected_lowering_source.rs",
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/aarch64_same_view_copy/execution.rs",
         ],
     },
     SemanticLadder {

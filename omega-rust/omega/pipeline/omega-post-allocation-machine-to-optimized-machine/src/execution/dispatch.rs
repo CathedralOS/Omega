@@ -32,7 +32,7 @@ use crate::{
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
-pub(crate) fn stage_optimized_post_allocation_machine_optimization_for_catalog_entry(
+pub fn stage_optimized_post_allocation_machine_optimization_for_catalog_entry(
     source: &StagedOptimizedRegisterHomes,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     entry: PostAllocationMachineRuleCatalogEntry,
@@ -84,7 +84,7 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_for_catalog_e
     }
 }
 
-pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_catalog_entry(
+pub fn stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_catalog_entry(
     source: &StagedOptimizedRegisterHomesAfterSelectedLowering,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     entry: PostAllocationMachineRuleCatalogEntry,
@@ -140,7 +140,7 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_selecte
     }
 }
 
-pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_for_catalog_entry(
+pub fn stage_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_for_catalog_entry(
     source: &StagedOptimizedActiveResidentRematerialization,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     entry: PostAllocationMachineRuleCatalogEntry,
