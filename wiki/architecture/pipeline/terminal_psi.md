@@ -777,22 +777,26 @@ call-stack evidence, structural copy, and exact bytes. Installation format 79
 transports and replays the same custody on both Linux targets. The ordinary
 call source may be either the caller's exact native-fixed-integer-or-Boolean
 parameter, an exact preceding Boolean literal definition, or the durable home
-of one exact preceding ordinary fixed-integer scalar call. The last form is
-rooted in an explicit checked `ScalarCall`: checked-to-Terminal lowering
-rejoins its original call coordinate, target state, full contract commitment,
-service reach, and every scalar argument fact before adding its scalar graph to
-the attached closure. Target assignment gives the result an ordinary durable
-home; later `CallUnit` assignment may source that home across register or stack
-boundaries, and machine/object/installation replay independently rejoin the
-home and materialization bytes before the callee stores it. Arithmetic locals,
-Boolean and IEEE call results, IEEE runtime sources, and non-native integer
-carriers remain fail closed.
+of one exact preceding ordinary fixed-integer scalar call. The direct-store
+sibling also accepts one exact selected boundary-operator realization. These
+forms are rooted in an explicit checked `ScalarCall` or
+`SelectedOperatorScalarCall`: checked-to-Terminal lowering rejoins the original
+application coordinate, target state, full contract commitment, service reach,
+and every scalar argument fact before adding its scalar graph to the attached
+closure; the selected form additionally rejoins its requirement and exact
+ProviderPlan. Target assignment gives the result an ordinary durable home;
+later `CallUnit` assignment may source an ordinary-call home across register or
+stack boundaries, and machine/object/installation replay independently rejoin
+the home and materialization bytes before the callee stores it. Further
+arithmetic locals, Boolean and IEEE call results, IEEE runtime sources, and
+non-native integer carriers remain fail closed.
 The same checked scalar-result binding may instead feed the immediately
 following whole-root primitive store directly, without introducing a helper
 Unit machine or call. This exact sibling requires one ordinary service-free
-fixed-integer producer, one immutable dense local, one matching unrestricted
-mutable or write-only primitive destination, and no other parameters or body
-work. Terminal retains the call result as the store's SSA value. Target and
+fixed-integer producer or one selected scalar-only checked-body realization,
+one immutable dense local, one matching unrestricted mutable or write-only
+primitive destination, and no other parameters or body work. Terminal retains
+the call result as the store's SSA value. Target and
 assigned custody preserve the exact durable home, machine emission loads that
 home and stores only the referent width, and object/installation replay rejoin
 the unique earlier call, unique home, exact bytes, and attribution on both

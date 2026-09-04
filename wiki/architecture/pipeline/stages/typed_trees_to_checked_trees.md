@@ -167,13 +167,16 @@ Must own:
   destination and scalar source are the machine's complete parameter partition
   and have the same primitive type. One immutable local may instead bind the
   primitive result of an immediately preceding, scalar-only ordinary checked
-  call. The Unit plan retains that producer as an explicit `ScalarCall`, with
-  its dense result binding, exact target state, complete contract commitment,
-  service reach, and scalar arguments. A later Unit call may consume the local
-  without reconstructing its expression. The exact two-statement sibling may
-  instead assign that local directly into the machine's sole whole-root
-  unrestricted mutable or write-only primitive parameter when both sides are
-  the same native fixed-integer type. Arithmetic locals, structural or
+  call or exact selected boundary-operator realization. The Unit plan retains
+  that producer as an explicit `ScalarCall` or `SelectedOperatorScalarCall`,
+  with its dense result binding, exact target state, complete contract
+  commitment, service reach, and scalar arguments; the selected form also
+  retains its exact requirement and ProviderPlan join. A later Unit call may
+  consume an ordinary result local without reconstructing its expression. The
+  exact two-statement sibling may instead assign either result local directly
+  into the machine's sole whole-root unrestricted mutable or write-only
+  primitive parameter when both sides are the same native fixed-integer type.
+  Further arithmetic locals, structural or
   service-bearing scalar producers, Boolean and IEEE call results, IEEE runtime
   parameters, and additional parameters remain fenced.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.

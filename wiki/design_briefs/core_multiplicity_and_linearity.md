@@ -141,9 +141,11 @@ Boolean parameter selected from an ordered scalar roster. Its ordinary Unit
 caller may forward that roster across register and stack argument locations or
 materialize one exact preceding Boolean literal into the store. The fixed-
 integer source may also be the durable result home of one exact preceding
-ordinary scalar call. Its checked producer row binds the original call
-coordinate, target state, full contract commitment, service reach, scalar
-arguments, and dense result local before Terminal closure admits the callee.
+ordinary scalar call or one exact selected boundary-operator realization. Its
+checked producer row binds the original application coordinate, target state,
+full contract commitment, service reach, scalar arguments, and dense result
+local before Terminal closure admits the callee; the selected form additionally
+rejoins its requirement and exact ProviderPlan.
 That same result home may instead source the immediately following whole-root
 store in the producer's own Unit body, removing any semantic or physical helper
 call. The direct lane remains restricted to one matching unrestricted mutable
@@ -156,8 +158,8 @@ call-frame slots before any destructive transfer, so cycles, duplicates, and
 register/stack crossings do not alter source identity. Both Linux ABIs, machine
 bytes, object replay, and installed custody rejoin the source ordinal, type,
 and either its parameter location, literal definition, or preceding result home
-independently. Arithmetic locals, Boolean and IEEE call results, and IEEE
-runtime sources remain fenced.
+independently. Further arithmetic locals, Boolean and IEEE call results, and
+IEEE runtime sources remain fenced.
 Provider non-observation authority remains absent.
 
 ## Consumers and cleanup
