@@ -14,7 +14,7 @@ pub use validation::validate_optimized_fixed_precolored_segment_home_custody;
 
 use omega_optimization_core::OptimizationWorkBudget;
 
-use crate::StagedOptimizedAllocationLegality;
+use omega_live_ranges_to_allocation_legality::StagedOptimizedAllocationLegality;
 
 pub fn stage_optimized_fixed_precolored_segment_homes(
     source: StagedOptimizedAllocationLegality,

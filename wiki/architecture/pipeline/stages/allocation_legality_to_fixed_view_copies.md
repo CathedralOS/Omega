@@ -59,9 +59,10 @@ rematerialization, coalescing, spills, and frames remain unsupported.
 
 ## Implementation Map
 
-- `pipeline/optimization/omega-regalloc/src/fixed_view_copy_*` owns the artifact,
+- `pipeline/omega-regalloc` owns the artifact,
   producer, independent replay, work-budget gate, and identity.
-- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/fixed_view_copies.rs` owns
-  nested source-to-transformation custody.
+- `pipeline/omega-allocation-legality-to-fixed-view-copies` owns the fixed
+  interval/segment-home prerequisite and nested source-to-transformation
+  custody.
 - ISA catalogs own the exact `CopyI64` rows; the target register environment
   binds the selected row key.
