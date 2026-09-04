@@ -68,7 +68,7 @@ The build/compiler hooks and two top-level optimizer-pipeline routes are:
 | Injected exact-name vocabulary | `omega-compiler/src/pipeline/optimization/build_vocabulary/mod.rs` | sole `fragments.rs` mapping used by both prelude variants |
 | Checked selection custody | `omega-compiler/src/pipeline/optimization/checked_handoff/mod.rs` | retained selection, identity, and report request |
 | Native compiler realization | `omega-compiler/src/compiler/optimization/mod.rs` | `admission.rs`, `rollback/`, `native_realization.rs` |
-| Verified Psi optimization | `omega-optimization-pipeline/src/coordination/psi_optimization/mod.rs` | `request.rs`, exact Psi catalog, independent abstract projection |
+| Verified abstract-operation optimization | `omega-optimization-pipeline/src/coordination/abstract_operation_optimization/mod.rs` | `request.rs`, selected compatibility catalog, independent abstract projection |
 | Native physical continuation | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
 | Attached Unit abstract-to-target lowering | `omega-abstract-operations-to-target-operations/src/lowering/unit.rs` | `unit/setup.rs`, `unit/body.rs`, then named call, return, scalar, and structural leaves |
 

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Pipeline stage for register-home assignment.
+//! Optimizer module role: executable entrance. Replayed register-home assignment.
 //!
 //! Baseline legality and post-copy reanalysis are distinct source families.
 //! This entrance grants custody only after each constructed home/manifest pair

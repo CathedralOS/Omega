@@ -94,6 +94,6 @@ fn run_abstract_optimization_stage(
     let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
         request.optimization_selections.selections(),
     );
-    omega_optimization_pipeline::optimize_verified_psi_input(input, optimization_request)
+    omega_optimization_pipeline::optimize_verified_abstract_input(input, optimization_request)
         .map_err(|error| realization_error("canonical abstract optimization", error))
 }

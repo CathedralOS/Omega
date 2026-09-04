@@ -431,11 +431,11 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "fixed/precolored segment-home pipeline custody",
         paths: &[
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/fixed_precolored_segment_homes/mod.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/fixed_precolored_segment_homes/model.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/fixed_precolored_segment_homes/compute.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/fixed_precolored_segment_homes/validation.rs",
-            "omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/allocation/fixed_precolored_segment_homes/custody.rs",
+            "omega-rust/omega/pipeline/omega-allocation-legality-to-fixed-view-copies/src/fixed_precolored_segment_homes/mod.rs",
+            "omega-rust/omega/pipeline/omega-allocation-legality-to-fixed-view-copies/src/fixed_precolored_segment_homes/model.rs",
+            "omega-rust/omega/pipeline/omega-allocation-legality-to-fixed-view-copies/src/fixed_precolored_segment_homes/compute.rs",
+            "omega-rust/omega/pipeline/omega-allocation-legality-to-fixed-view-copies/src/fixed_precolored_segment_homes/validation.rs",
+            "omega-rust/omega/pipeline/omega-allocation-legality-to-fixed-view-copies/src/fixed_precolored_segment_homes/custody.rs",
         ],
     },
     SemanticLadder {

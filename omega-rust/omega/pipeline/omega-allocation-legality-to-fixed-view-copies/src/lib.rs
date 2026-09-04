@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Pipeline stage from allocation legality to exact fixed-view copies.
+//! Optimizer module role: crate map. Allocation legality to exact fixed-view copies.
 //!
 //! Fixed-interval and segment-home analysis are internal prerequisites of the
 //! selected-CFG transformation. Their facts never bypass the mandatory
