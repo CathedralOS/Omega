@@ -5,22 +5,20 @@ use super::local_aliases::expression_reborrows_stable_alias_binding;
 use super::value_expressions::{ValuePosition, push_value_children, value_call_result_is_admitted};
 use super::{
     ExpressionHandle, ExpressionNode, FramePlaceOrigin, Machine, MachineSymbols,
-    ParameterRelativeFrameOrigin, StateParameter, SymbolHandle, TopLevelSymbols,
-    TypeReferenceHandle, TypedTrees, expression_is_effectful_for_transparent_result,
-    expression_is_effectful_indexed_place, expression_reborrows_transparent_alias_binding,
-    known_boundary_call_written_paths_for_parts, known_call_written_paths_for_parts,
-    parameter_relative_place_origin, receiver_member_chain,
+    ParameterRelativeFrameOrigin, StateParameter, SymbolHandle, TopLevelSymbols, TypedTrees,
+    expression_is_effectful_for_transparent_result, expression_is_effectful_indexed_place,
+    expression_reborrows_transparent_alias_binding, known_boundary_call_written_paths_for_parts,
+    known_call_written_paths_for_parts, parameter_relative_place_origin, receiver_member_chain,
 };
 
 enum ExpressionAdmission {
     Reject,
     Leaf,
-    Call,
-    Value(ValuePosition),
+    Traverse,
 }
 
 enum PendingNode {
-    Expression(ExpressionHandle, Option<ValuePosition>),
+    Expression(ExpressionHandle, ValuePosition),
     CallFrame(ExpressionHandle),
 }
 
@@ -39,7 +37,7 @@ pub(super) fn stable_alias_index_expression_preserves_origin(
         program,
         current_machine,
         expression,
-        None,
+        ValuePosition::IndexOperand,
         machine_symbols,
         symbols,
         active_states,
@@ -49,18 +47,18 @@ pub(super) fn stable_alias_index_expression_preserves_origin(
             } else if !expression_is_effectful_for_transparent_result(program, expression) {
                 ExpressionAdmission::Leaf
             } else {
-                ExpressionAdmission::Call
+                ExpressionAdmission::Traverse
             }
         },
     )
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn statement_call_argument_preserves_transparent_result(
+pub(super) fn parameter_relative_expression_preserves_transparent_result(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
-    expected_type: TypeReferenceHandle,
+    position: ValuePosition,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
@@ -71,7 +69,7 @@ pub(super) fn statement_call_argument_preserves_transparent_result(
         program,
         current_machine,
         expression,
-        Some(ValuePosition::CallArgument(expected_type)),
+        position,
         machine_symbols,
         symbols,
         active_states,
@@ -82,7 +80,7 @@ pub(super) fn statement_call_argument_preserves_transparent_result(
                 ExpressionAdmission::Reject
             } else if !expression_is_effectful_for_transparent_result(program, expression) {
                 ExpressionAdmission::Leaf
-            } else if matches!(position, Some(ValuePosition::CallArgument(_)))
+            } else if matches!(position, ValuePosition::CallArgument(_))
                 && expression_is_effectful_indexed_place(program, expression)
             {
                 // Indexing needs its own origin proof at any call-tree position.
@@ -109,12 +107,10 @@ pub(super) fn statement_call_argument_preserves_transparent_result(
                     // A scalar projection of a computed literal need not have
                     // a place origin. Its typed value path checks every child;
                     // borrowed places cannot use that fallback.
-                    ExpressionAdmission::Value(position.expect("argument position"))
+                    ExpressionAdmission::Traverse
                 }
-            } else if let Some(position) = position {
-                ExpressionAdmission::Value(position)
             } else {
-                ExpressionAdmission::Call
+                ExpressionAdmission::Traverse
             }
         },
     )
@@ -122,65 +118,64 @@ pub(super) fn statement_call_argument_preserves_transparent_result(
 
 /// Walk the finite typed expression tree without a call-depth allowance. Each
 /// context proves its leaves and rejects binding reborrows before the pure
-/// shortcut. Parameter-relative arguments additionally expand typed value
-/// structure using the assignment/initializer rules. Stable indexes keep the
-/// direct-call policy. Call-body recursion remains guarded by the frame
-/// resolver's active-state checks.
+/// shortcut. Arguments and scalar indexes expand typed value structure using
+/// the assignment/initializer rules. Call-body recursion remains guarded by
+/// the frame resolver's active-state checks.
 #[allow(clippy::too_many_arguments)]
 fn complete_expression_tree(
     program: &TypedTrees,
     current_machine: &Machine,
     expression: ExpressionHandle,
-    position: Option<ValuePosition>,
+    position: ValuePosition,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
     admit_expression: impl Fn(
         ExpressionHandle,
-        Option<ValuePosition>,
+        ValuePosition,
         &mut Vec<SymbolHandle>,
     ) -> ExpressionAdmission,
 ) -> bool {
     let mut pending = vec![PendingNode::Expression(expression, position)];
     let mut value_children = Vec::new();
     while let Some(node) = pending.pop() {
-        let expression = match node {
-            PendingNode::Expression(expression, position) => {
-                match admit_expression(expression, position, active_states) {
-                    ExpressionAdmission::Reject => return false,
-                    ExpressionAdmission::Leaf => continue,
-                    ExpressionAdmission::Call => expression,
-                    ExpressionAdmission::Value(position) => {
-                        if matches!(
-                            program.expression_table.expression(expression),
-                            ExpressionNode::Call(_)
-                        ) {
-                            if !value_call_result_is_admitted(
-                                program, expression, position, symbols,
+        let expression =
+            match node {
+                PendingNode::Expression(expression, position) => {
+                    match admit_expression(expression, position, active_states) {
+                        ExpressionAdmission::Reject => return false,
+                        ExpressionAdmission::Leaf => continue,
+                        ExpressionAdmission::Traverse => {
+                            if matches!(
+                                program.expression_table.expression(expression),
+                                ExpressionNode::Call(_)
                             ) {
-                                return false;
+                                if !value_call_result_is_admitted(
+                                    program, expression, position, symbols,
+                                ) {
+                                    return false;
+                                }
+                                expression
+                            } else {
+                                value_children.clear();
+                                if !push_value_children(
+                                    program,
+                                    expression,
+                                    position,
+                                    &mut value_children,
+                                ) {
+                                    return false;
+                                }
+                                pending.extend(value_children.drain(..).map(
+                                    |(child, position)| PendingNode::Expression(child, position),
+                                ));
+                                continue;
                             }
-                            expression
-                        } else {
-                            value_children.clear();
-                            if !push_value_children(
-                                program,
-                                expression,
-                                position,
-                                &mut value_children,
-                            ) {
-                                return false;
-                            }
-                            pending.extend(value_children.drain(..).map(|(child, position)| {
-                                PendingNode::Expression(child, Some(position))
-                            }));
-                            continue;
                         }
                     }
                 }
-            }
-            PendingNode::CallFrame(expression) => expression,
-        };
+                PendingNode::CallFrame(expression) => expression,
+            };
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
             return false;
         };
@@ -193,23 +188,16 @@ fn complete_expression_tree(
             }
             // Check child expressions before the parent frame, in source order.
             pending.push(PendingNode::CallFrame(expression));
-            let argument_types = if position.is_some() {
-                call_argument_types(
-                    program,
-                    call.target_symbol,
-                    call.target.as_str(),
-                    !call.receiver.is_valid(),
-                    symbols,
-                )
-            } else {
-                Vec::new()
-            };
+            let argument_types = call_argument_types(
+                program,
+                call.target_symbol,
+                call.target.as_str(),
+                !call.receiver.is_valid(),
+                symbols,
+            );
             pending.extend(arguments.iter().enumerate().rev().map(|(index, argument)| {
                 let expected_type = argument_types.get(index).copied().unwrap_or_default();
-                PendingNode::Expression(
-                    *argument,
-                    position.map(|_| ValuePosition::CallArgument(expected_type)),
-                )
+                PendingNode::Expression(*argument, ValuePosition::CallArgument(expected_type))
             }));
             continue;
         }

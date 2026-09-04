@@ -48,8 +48,8 @@ use call_targets::discarded_primitive_internal_call_is_relationally_neutral;
 pub(crate) use call_targets::free_machine_entry_state;
 pub(super) use call_targets::machine_state_by_symbol;
 use call_trees::{
+    parameter_relative_expression_preserves_transparent_result,
     stable_alias_index_expression_preserves_origin,
-    statement_call_argument_preserves_transparent_result,
 };
 pub use demand::{CallFrameResolver, frame_paths_overlap};
 use demand::{collect_expression_call_written_paths, syntactic_call_written_paths};
@@ -87,7 +87,7 @@ use transparent_effects::{
 use type_capabilities::{
     parameter_may_carry_write, type_may_carry_write, type_reference_is_reference,
 };
-use value_expressions::value_expression_preserves_transparent_result;
+use value_expressions::{ValuePosition, value_expression_preserves_transparent_result};
 
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
@@ -1362,11 +1362,11 @@ fn statement_call_preserves_transparent_result(
     );
     // Every sibling must independently preserve the returned-place origin.
     if arguments.iter().enumerate().any(|(index, argument)| {
-        !statement_call_argument_preserves_transparent_result(
+        !parameter_relative_expression_preserves_transparent_result(
             program,
             current_machine,
             *argument,
-            argument_types.get(index).copied().unwrap_or_default(),
+            ValuePosition::CallArgument(argument_types.get(index).copied().unwrap_or_default()),
             &machine_symbols,
             symbols,
             active_states,
@@ -1455,11 +1455,11 @@ fn parameter_relative_place_origin(
                 let machine_symbols =
                     MachineSymbols::build(program, current_machine, &mut diagnostics);
                 if !diagnostics.is_empty()
-                    || !statement_call_argument_preserves_transparent_result(
+                    || !parameter_relative_expression_preserves_transparent_result(
                         program,
                         current_machine,
                         indexed.index,
-                        TypeReferenceHandle::invalid(),
+                        ValuePosition::IndexOperand,
                         &machine_symbols,
                         symbols,
                         active_states,

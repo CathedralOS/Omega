@@ -12,7 +12,7 @@ use super::{
     ExpressionHandle, ExpressionNode, Machine, MachineSymbols, ParameterRelativeFrameOrigin,
     StateParameter, SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode,
     TypedTrees, expression_is_effectful_for_transparent_result, free_machine_entry_state,
-    machine_state_by_symbol, statement_call_argument_preserves_transparent_result,
+    machine_state_by_symbol, parameter_relative_expression_preserves_transparent_result,
 };
 
 #[derive(Clone, Copy)]
@@ -23,6 +23,9 @@ pub(super) enum CallResultRequirement {
 
 #[derive(Clone, Copy)]
 pub(super) enum ValuePosition {
+    /// Scalar indexing supplies its own operand context, independent of the
+    /// eligible integer carrier. Index typing and bounds remain separate.
+    IndexOperand,
     CallArgument(TypeReferenceHandle),
     TypedRoot(TypeReferenceHandle),
     AggregateElement(TypeReferenceHandle),
@@ -38,7 +41,8 @@ impl ValuePosition {
             Self::ComputedOperand(requirement)
             | Self::MemberReceiver(requirement)
             | Self::IndexCollection(requirement) => requirement,
-            Self::CallArgument(_)
+            Self::IndexOperand
+            | Self::CallArgument(_)
             | Self::TypedRoot(_)
             | Self::AggregateElement(_)
             | Self::ProjectedArrayElement => CallResultRequirement::NonReference,
@@ -47,6 +51,7 @@ impl ValuePosition {
 
     fn computed_operand_requirement(self, program: &TypedTrees) -> Option<CallResultRequirement> {
         match self {
+            Self::IndexOperand => Some(CallResultRequirement::CallerIsolated),
             Self::CallArgument(expected_type) | Self::TypedRoot(expected_type) => program
                 .primitive_type_reference(expected_type)
                 .map(|_| CallResultRequirement::CallerIsolated),
@@ -97,11 +102,11 @@ pub(super) fn value_expression_preserves_transparent_result(
                 let machine_symbols =
                     MachineSymbols::build(program, current_machine, &mut diagnostics);
                 if !diagnostics.is_empty()
-                    || !statement_call_argument_preserves_transparent_result(
+                    || !parameter_relative_expression_preserves_transparent_result(
                         program,
                         current_machine,
                         expression,
-                        TypeReferenceHandle::invalid(),
+                        ValuePosition::CallArgument(TypeReferenceHandle::invalid()),
                         &machine_symbols,
                         symbols,
                         active_states,
@@ -214,9 +219,13 @@ pub(super) fn value_call_result_is_admitted(
     position: ValuePosition,
     symbols: &TopLevelSymbols<'_>,
 ) -> bool {
-    // Direct arguments retain their reference-origin handling. Calls below a
-    // computed or aggregate value must satisfy that position's value rule.
-    if matches!(position, ValuePosition::CallArgument(_)) {
+    // Direct arguments retain their reference-origin handling, and direct
+    // index calls retain their existing complete-frame admission. Calls below
+    // a computation or aggregate must satisfy that position's value rule.
+    if matches!(
+        position,
+        ValuePosition::CallArgument(_) | ValuePosition::IndexOperand
+    ) {
         return true;
     }
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
