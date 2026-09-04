@@ -1,6 +1,7 @@
 use crate::realization::callback_machine_code::emit_callback_thunks;
 use crate::realization::diagnostics::realization_error;
 use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
+use crate::realization::optimization_stage::lower_realization_optimization_stage;
 use crate::realization::optimized_fragment_projection::{
     OptimizedFragmentPublicationRequest, emit_return_only_optimized_fragments,
 };
@@ -28,8 +29,13 @@ pub(crate) fn emit_realization_machine_code(
     initial_physical_evidence_scope: NativePhysicalEvidenceScope,
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<EmittedRealizationMachineCode, Vec<Diagnostic>> {
-    let target_stage =
-        lower_realization_target_stage(input, provider_installation, settlements, request)?;
+    let optimization_stage = lower_realization_optimization_stage(input, request)?;
+    let target_stage = lower_realization_target_stage(
+        optimization_stage,
+        provider_installation,
+        settlements,
+        request,
+    )?;
     let physical_stage = lower_realization_physical_stage(target_stage, request)?;
     match physical_stage {
         NativePhysicalStageResult::IdentityOrdinary(assigned) => {

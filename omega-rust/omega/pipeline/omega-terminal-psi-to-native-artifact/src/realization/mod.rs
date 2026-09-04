@@ -9,6 +9,7 @@ mod input;
 mod machine_code;
 mod model;
 mod native_artifact;
+mod optimization_stage;
 mod optimized_fragment_projection;
 mod output;
 mod physical_stage;
