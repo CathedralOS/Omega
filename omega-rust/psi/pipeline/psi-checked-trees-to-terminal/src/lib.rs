@@ -1673,18 +1673,30 @@ fn lower_placed_view_input(
 ///
 /// Unsupported checked constructs fail at lowering; there is no alternate
 /// checked-tree backend to select as a fallback.
+pub fn finalize_terminal_artifact(
+    lowered: &LoweredTerminalPsi,
+) -> Result<
+    psi_terminal_codec::CanonicalTerminalArtifact,
+    psi_terminal_codec::CanonicalTerminalArtifactError,
+> {
+    psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        lowered.debug_map.as_ref(),
+    )
+}
+
+/// Lower one checked source product and then cross the explicit Terminal
+/// publication boundary. Pre-Terminal optimization belongs between these two
+/// operations; it must produce a complete [`LoweredTerminalPsi`] accepted by
+/// [`finalize_terminal_artifact`].
 pub fn produce_terminal_artifact(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<psi_terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
     let lowered =
         lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        lowered.debug_map.as_ref(),
-    )
-    .map_err(TerminalArtifactProductionError::Artifact)
+    finalize_terminal_artifact(&lowered).map_err(TerminalArtifactProductionError::Artifact)
 }
 
 /// Produce canonical Terminal semantics while preserving the exact checked
@@ -1695,12 +1707,8 @@ pub fn produce_terminal_artifact_with_checked_boundary_operator_scope(
 ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
     let lowered =
         lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
-    let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        lowered.debug_map.as_ref(),
-    )
-    .map_err(TerminalArtifactProductionError::Artifact)?;
+    let artifact =
+        finalize_terminal_artifact(&lowered).map_err(TerminalArtifactProductionError::Artifact)?;
     let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
         .map_err(TerminalArtifactProductionError::Lowering)?;
     Ok(ProducedTerminalArtifact {
@@ -1745,11 +1753,7 @@ pub fn produce_terminal_artifact_with_callback_custody<C>(
             });
         }
     };
-    let artifact = match psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        lowered.debug_map.as_ref(),
-    ) {
+    let artifact = match finalize_terminal_artifact(&lowered) {
         Ok(artifact) => artifact,
         Err(error) => {
             return Err(CallbackCustodyTerminalArtifactProductionError {
@@ -1815,12 +1819,8 @@ pub fn produce_program_entry_terminal_artifact(
         .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)
         .map_err(TerminalArtifactProductionError::EntryReceipt)?;
     let terminal_entry = lowered.semantic_module.entry;
-    let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        lowered.debug_map.as_ref(),
-    )
-    .map_err(TerminalArtifactProductionError::Artifact)?;
+    let artifact =
+        finalize_terminal_artifact(&lowered).map_err(TerminalArtifactProductionError::Artifact)?;
     if artifact.manifest().semantic() != terminal_psi_identity {
         return Err(TerminalArtifactProductionError::EntryReceipt(
             ProgramEntryTerminalReceiptError::ArtifactSemanticIdentityMismatch,

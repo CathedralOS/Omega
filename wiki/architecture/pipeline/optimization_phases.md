@@ -79,6 +79,15 @@ passes. Target- or deployment-specific selections that have not run travel as
 strongly bound companion policy and remain subject to the receiving authority's
 accept/reject decision.
 
+The producer exposes the current construction/publication seam explicitly:
+`lower_machine` constructs an unsealed `LoweredTerminalPsi`, while
+`finalize_terminal_artifact` performs canonical Terminal publication. Merely
+delaying the codec call is not an optimizer integration. The existing optimizer
+unit is reconstructed from a verified Terminal module and an Omega abstract
+operation plan; it cannot be inserted at this seam until its target-neutral
+state is Psi-owned and its validated output can reconstruct the complete
+semantic module and proof bundle consumed by terminalization.
+
 ## Checked-tree pruning
 
 Whole-program selection and unreachable-declaration pruning may earn a
@@ -152,7 +161,9 @@ Migration proceeds in dependency order:
 2. Introduce the target-neutral pre-Terminal Psi optimization entrance. Reuse
    the existing optimization-unit vocabulary where sound; move ownership to Psi
    or replace target/lowering-shaped fields instead of preserving an Omega
-   dependency for convenience.
+   dependency for convenience. The entrance consumes `LoweredTerminalPsi`
+   before `finalize_terminal_artifact`; it does not decode a Terminal artifact
+   that was already published.
 3. Make Terminal production consume the validated final Psi optimization unit.
    Canonical Terminal encoding then necessarily contains the selected Psi result.
 4. Retarget existing target-neutral passes and their validators to that entrance.
