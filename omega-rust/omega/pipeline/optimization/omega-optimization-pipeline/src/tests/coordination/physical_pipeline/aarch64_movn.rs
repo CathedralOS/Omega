@@ -263,7 +263,13 @@ fn compiler_facing_physical_pipeline_routes_aarch64_movn_through_the_generic_pos
 
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(staged.selected_lowering_completion(), None);
-    assert!(staged.function_relative_manifest().is_some());
+    assert_eq!(
+        staged.function_relative_manifest().record().identity,
+        optimization_pipeline_report(&staged)
+            .function_relative()
+            .expect("every completed physical route has function-relative custody")
+            .identity,
+    );
     assert!(
         optimization_pipeline_report(&staged)
             .function_relative()
@@ -450,10 +456,7 @@ fn aarch64_movn_function_relative_realization_composes_after_exact_selected_lowe
         staged.selected_lowering_completion(),
         Some(homes.selected_lowering_run().custody().identity())
     );
-    assert_eq!(
-        staged.function_relative_manifest(),
-        Some(realization.manifest())
-    );
+    assert_eq!(staged.function_relative_manifest(), realization.manifest());
     assert_eq!(
         validate_post_allocation_machine_function_relative_realization_custody(realization)
             .unwrap(),

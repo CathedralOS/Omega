@@ -31,9 +31,14 @@ needed for independent replay through publication.
   rescan the global set, and a post-Terminal phase with no implemented stage
   rejects instead of disappearing. Each executable physical catalog accepts
   only an `OptimizationPhaseSelections` input and rejects a projection owned by
-  another phase; catalogs cannot recover policy by rescanning a global set.
-  Those physical variants still represent
-  different phase depths and must converge into explicit later-stage results.
+  another phase; catalogs cannot recover policy by rescanning a global set. The
+  optimizer-owned physical routes now converge at one validated
+  function-relative postcondition, including explicit unit, structural-unit,
+  and fixed-frame identity executions. The remaining mixed-depth fork is the
+  outer Terminal-to-native carrier: its ordinary/ranked identity arms still
+  hold assigned operations while its selected arm holds the completed optimizer
+  result. Converge those arms before widening native publication beyond the
+  currently admitted selected-lowering route.
   Keep the same representation on both sides of a phase unless vocabulary,
   interpretation, invariants, or published-product identity change.
   Acceptance: empty and nonempty selections, standalone Terminal production,

@@ -48,10 +48,7 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_shared_entry_copy() {
         let plan = copies.copies().plan();
         assert_eq!(staged.selections(), selections.identity());
         assert_eq!(staged.selected_lowering_completion(), None);
-        assert_eq!(
-            staged.function_relative_manifest(),
-            Some(realization.manifest())
-        );
+        assert_eq!(staged.function_relative_manifest(), realization.manifest());
         assert!(staged.post_allocation_machine_optimization().is_none());
         assert_eq!(
             copies.custody().policy(),
@@ -112,7 +109,11 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_active_resident_remater
         let empty = OptimizationSelections::default().identity();
         assert_eq!(staged.selections(), selections.identity());
         assert_eq!(staged.selected_lowering_completion(), None);
-        assert!(staged.function_relative_realization().is_none());
+        assert!(
+            staged
+                .selected_lowering_function_relative_realization()
+                .is_none()
+        );
         assert_eq!(
             staged
                 .allocation_recovery_function_relative_realization()
@@ -120,10 +121,7 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_active_resident_remater
                 .custody(),
             realization.custody()
         );
-        assert_eq!(
-            staged.function_relative_manifest(),
-            Some(realization.manifest())
-        );
+        assert_eq!(staged.function_relative_manifest(), realization.manifest());
         assert!(staged.post_allocation_machine_optimization().is_none());
         assert_eq!(
             manifest.allocation_recovery_selections,

@@ -124,9 +124,7 @@ pub fn optimization_pipeline_report(
 ) -> OptimizationPipelineReport {
     let pre_physical = staged.pre_physical_manifest().record().clone();
     let post_allocation = staged.post_allocation_manifest().record().clone();
-    let function_relative = staged
-        .function_relative_manifest()
-        .map(|manifest| manifest.record().clone());
+    let function_relative = Some(staged.function_relative_manifest().record().clone());
     OptimizationPipelineReport {
         pre_physical,
         post_allocation,

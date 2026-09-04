@@ -18,7 +18,11 @@ fn function_relative_only_rel8_suite_shrinks_and_replays_without_selected_loweri
             .unwrap();
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(staged.selected_lowering_completion(), None);
-    assert!(staged.function_relative_realization().is_none());
+    assert!(
+        staged
+            .selected_lowering_function_relative_realization()
+            .is_none()
+    );
     assert!(
         optimization_pipeline_report(&staged)
             .function_relative()
@@ -60,7 +64,6 @@ fn function_relative_only_rel8_suite_shrinks_and_replays_without_selected_loweri
         .find(|instruction| instruction.branch.is_some())
         .unwrap();
     assert_eq!(&relaxed_branch.bytes[..1], [0x75]);
-
     let manifest = realization.manifest().record();
     assert_eq!(
         manifest.selected_lowering_selections,
@@ -238,7 +241,6 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
         FunctionFragmentEmissionManifest::decode(&record.encode()[..20]),
         Err(FunctionFragmentEmissionManifestDecodeError::Truncated)
     );
-
     let original_control = emitted.fragments().functions[0]
         .blocks
         .iter()
@@ -280,7 +282,6 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
         validate_optimized_function_fragment_emission(&emitted).unwrap(),
         emitted.custody()
     );
-
     let row = emitted.fragments_mut().functions[0].blocks[0]
         .instructions
         .iter_mut()

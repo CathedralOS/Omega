@@ -27,8 +27,11 @@ fn active_resident_rule_is_disabled_without_its_exact_selection() {
             &semantic,
             &proof,
             &AdmissionProfile::default(),
-            ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
-                .unwrap(),
+            ExplicitOptimizationRequest::new(
+                selections.clone(),
+                OptimizationWorkBudget::new(10_000, 10_000, 100_000, 10_000, 128).unwrap(),
+            )
+            .unwrap(),
         )
         .unwrap();
         let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
@@ -40,7 +43,7 @@ fn active_resident_rule_is_disabled_without_its_exact_selection() {
 
         assert!(matches!(
             staged,
-            StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { .. }
+            StagedOptimizedVerifiedPhysicalPipeline::FixedFrame { .. }
         ));
         assert_eq!(staged.selections(), selections.identity());
         assert!(

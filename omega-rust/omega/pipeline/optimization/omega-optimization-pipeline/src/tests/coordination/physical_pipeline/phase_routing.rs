@@ -38,11 +38,15 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
         .unwrap();
         assert!(matches!(
             staged,
-            StagedOptimizedVerifiedPhysicalPipeline::PhysicalIdentity { .. }
+            StagedOptimizedVerifiedPhysicalPipeline::FixedFrame { .. }
         ));
         assert_eq!(staged.selections(), psi_only_selections.identity());
         assert_eq!(staged.selected_lowering_completion(), None);
-        assert!(staged.function_relative_realization().is_none());
+        assert!(
+            staged
+                .selected_lowering_function_relative_realization()
+                .is_none()
+        );
         let report = optimization_pipeline_report(&staged);
         assert_eq!(
             report.pre_physical().identity,
@@ -52,7 +56,7 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
             report.post_allocation().identity,
             staged.post_allocation_manifest().record().identity
         );
-        assert!(report.function_relative().is_none());
+        assert!(report.function_relative().is_some());
         assert_eq!(
             report.render_human_text(OptimizationReportRequest::Suppressed),
             None
@@ -62,7 +66,7 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
             .expect("explicit human report projection");
         assert!(text.contains("[pre-physical]"));
         assert!(text.contains("[post-allocation]"));
-        assert!(!text.contains("[function-relative realization]"));
+        assert!(text.contains("[function-relative realization]"));
 
         for selections in [
             OptimizationSelections::new([
@@ -99,7 +103,10 @@ fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suite
                 Some(homes.selected_lowering_run().custody().identity())
             );
             assert_eq!(
-                staged.function_relative_realization().unwrap().custody(),
+                staged
+                    .selected_lowering_function_relative_realization()
+                    .unwrap()
+                    .custody(),
                 realization.custody()
             );
             assert!(homes.selected_lowering_run().steps().is_empty());

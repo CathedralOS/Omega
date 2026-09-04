@@ -12,6 +12,7 @@ mod source;
 mod validation;
 
 pub use model::*;
+pub(crate) use source::validate_unit_shape;
 pub use validation::validate_optimized_unit_function_relative_realization;
 
 use crate::StagedOptimizedRegisterHomes;
