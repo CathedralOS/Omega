@@ -8,6 +8,7 @@ mod operational_contracts;
 mod ranking;
 mod write_frame_array_literal_projection;
 mod write_frame_assignment_values;
+mod write_frame_call_arguments;
 mod write_frame_cycles;
 mod write_frame_indexed_calls;
 mod write_frame_returned_places;

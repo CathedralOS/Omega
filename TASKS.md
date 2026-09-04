@@ -308,9 +308,9 @@ Owners include
   transitional broad `Filesystem` review summary.
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
-  for computation-bearing call arguments and other unsupported expression
-  shapes. Prefer shared fixpoint and alias reasoning
-  over syntax-shape exceptions. Acceptance: all supported finite source shapes
+  for unresolved receivers, boundary-call arguments, computed index origins,
+  and other unsupported expression shapes. Prefer shared fixpoint and alias
+  reasoning over syntax-shape exceptions. Acceptance: all supported finite source shapes
   converge without widening permissions, and unsupported recursion fails
   explicitly.
 

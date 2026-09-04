@@ -12,6 +12,37 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::TableCall;
+use psi_typed_trees::types::TypeReferenceHandle;
+
+/// Formal types supply context only for newly admitted computed values. An
+/// unresolved target leaves that context absent, without inventing a type or
+/// changing admission of existing pure places and direct-call trees.
+pub(super) fn call_argument_types(
+    program: &TypedTrees,
+    target_symbol: SymbolHandle,
+    target_name: &str,
+    free_call: bool,
+    symbols: &TopLevelSymbols<'_>,
+) -> Vec<TypeReferenceHandle> {
+    let Some((machine, state)) = machine_state_by_symbol(program, target_symbol).or_else(|| {
+        free_call
+            .then(|| free_machine_entry_state(program, symbols, target_name))
+            .flatten()
+    }) else {
+        return Vec::new();
+    };
+    if free_call == machine.attached_data.is_some()
+        || !program.machine_type_parameters(machine).is_empty()
+    {
+        return Vec::new();
+    }
+    program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| parameter.type_reference)
+        .collect()
+}
 
 /// The FREE top-level machine named `target` and its entry state (`machine
 /// compute(item: &Item) -> i32 { ... }`), or None. The parser names a free
