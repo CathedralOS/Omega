@@ -15,6 +15,8 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
         reference_second: [u64; 2];
     }
 
+    data Cell { value: u64; }
+
     machine compute(value: &mut u64) -> u64 {
         value = 1;
         0
@@ -117,6 +119,13 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
         cells
     }
 
+    machine return_after_nominal_array_literal_index<'cells, 'target, 'first>(
+        cells: &'cells mut [u64; 2], target: &'target mut u64, first: &'first mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [Cell { value: compute(first) }][0].value;
+        cells
+    }
+
     machine Main::direct(&mut self) {
         let alias: &mut [u64; 2] = return_after_array_literal_index(
             &mut self.cells,
@@ -186,6 +195,13 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
         );
         alias[0] = 3;
     }
+
+    machine Main::nominal_element(&mut self) {
+        let alias: &mut [u64; 2] = return_after_nominal_array_literal_index(
+            &mut self.cells, &mut self.target, &mut self.first
+        );
+        alias[0] = 3;
+    }
     "#;
 
     let tokens = Lexer::new(source)
@@ -245,7 +261,7 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
             .map(str::to_owned)
             .as_slice()
         ),
-        "a depth-two nested array literal must retain the returned place and publish every eagerly evaluated element and index write"
+        "nested array literals must retain the returned place and publish every eagerly evaluated element and index write"
     );
 
     let over_budget = typed
@@ -257,18 +273,40 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
         .machine_states(over_budget)
         .first()
         .expect("over-budget entry state");
-    assert!(
-        !resolver
+    assert_eq!(
+        resolver
             .inferred_state_write_frame(over_budget, entry)
-            .is_complete(),
-        "an outer unary shell plus index projection plus computed element must remain beyond the shared depth-two budget"
+            .complete_paths(),
+        Some(
+            ["self.cells", "self.first", "self.target"]
+                .map(str::to_owned)
+                .as_slice()
+        ),
+        "outer computations and literal projections retain each evaluated element write"
+    );
+
+    let three_level = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::three_level")
+        .expect("three-level array machine");
+    let entry = typed
+        .machine_states(three_level)
+        .first()
+        .expect("entry state");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(three_level, entry)
+            .complete_paths(),
+        Some(
+            ["self.cells", "self.first", "self.target"]
+                .map(str::to_owned)
+                .as_slice()
+        ),
+        "finite nested array projections preserve their complete frame"
     );
 
     for (name, reason) in [
-        (
-            "Main::three_level",
-            "a third nested array/index level must remain outside the aggregate/computation budgets",
-        ),
         (
             "Main::opaque_nested",
             "an opaque recursive element call must fence the nested array literal",
@@ -276,6 +314,10 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
         (
             "Main::reference_element",
             "a reference-valued array element call must remain a returned-place fence",
+        ),
+        (
+            "Main::nominal_element",
+            "a projected array cannot invent contextual nominal element type evidence",
         ),
     ] {
         let machine = typed
