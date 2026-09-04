@@ -9,8 +9,8 @@ use crate::{
     stage_allocation_recovery_function_relative_realization,
     stage_optimized_active_resident_rematerialization,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_for_catalog_entry,
-    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
+    stage_optimized_post_allocation_machine_optimization_for_catalog_entry,
+    stage_optimized_post_allocation_machine_plan,
     stage_post_allocation_machine_function_relative_realization_after_allocation_recovery,
 };
 
@@ -37,13 +37,10 @@ pub(super) fn stage_active_resident(
         budget,
     )
     .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerialization)?;
-    let machine =
-        stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
-            &rematerialization,
-        )
+    let machine = stage_optimized_post_allocation_machine_plan(&rematerialization)
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
     if let Some(entry) = post_allocation {
-        let optimization = stage_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_for_catalog_entry(
+        let optimization = stage_optimized_post_allocation_machine_optimization_for_catalog_entry(
             &rematerialization,
             &machine,
             entry,

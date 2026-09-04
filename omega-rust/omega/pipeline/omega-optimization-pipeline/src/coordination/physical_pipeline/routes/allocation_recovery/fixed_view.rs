@@ -5,7 +5,7 @@ use crate::{
     StagedOptimizedVerifiedPhysicalPipeline,
     stage_allocation_recovery_function_relative_realization, stage_optimized_allocation_legality,
     stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
-    stage_optimized_post_allocation_machine_plan_after_fixed_view_copies,
+    stage_optimized_post_allocation_machine_plan,
     stage_optimized_register_homes_after_fixed_view_copies, stage_optimized_selected_reanalysis,
 };
 
@@ -35,7 +35,7 @@ pub(super) fn stage_fixed_view(
         .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedReanalysis)?;
     let homes = stage_optimized_register_homes_after_fixed_view_copies(reanalysis)
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostCopyRegisterHomes)?;
-    let machine = stage_optimized_post_allocation_machine_plan_after_fixed_view_copies(&homes)
+    let machine = stage_optimized_post_allocation_machine_plan(&homes)
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
     let realization = stage_allocation_recovery_function_relative_realization(
         StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(Box::new(homes)),

@@ -123,9 +123,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
         );
         assert_eq!(
             post.custody().source(),
-            &StagedOptimizedPostAllocationMachineSourceCustodyReceipt::RegisterHomes(
-                homes.custody()
-            )
+            &AllocationEvidence::RegisterHomes(homes.custody())
         );
         assert_eq!(
             &validate_optimized_post_allocation_machine_plan_custody(&homes, &post).unwrap(),

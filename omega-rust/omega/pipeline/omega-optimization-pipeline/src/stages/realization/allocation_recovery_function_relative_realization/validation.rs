@@ -1,7 +1,6 @@
 use crate::{
     validate_optimized_layout_independent_selected_form_encoding,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
-    validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
     validate_optimized_resolved_selected_form_layout, validate_whole_function_exit_contract,
 };
 
@@ -27,11 +26,8 @@ pub fn validate_allocation_recovery_function_relative_realization(
     let source_custody = match &staged.source {
         StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) => {
             let custody = validate_fixed_view_source(homes)?;
-            validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody(
-                homes,
-                &staged.machine,
-            )
-            .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
+            validate_optimized_post_allocation_machine_plan_custody(homes, &staged.machine)
+                .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
             validate_selected(
                 homes.reanalysis_stage().transformation_stage().copies(),
                 staged,
@@ -42,8 +38,11 @@ pub fn validate_allocation_recovery_function_relative_realization(
             rematerialization,
         ) => {
             let custody = validate_active_resident_source(rematerialization)?;
-            validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(rematerialization, &staged.machine)
-                .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
+            validate_optimized_post_allocation_machine_plan_custody(
+                rematerialization,
+                &staged.machine,
+            )
+            .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
             validate_selected(rematerialization.rematerialization(), staged)?;
             custody
         }

@@ -4,7 +4,7 @@ use crate::{
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedSelectedFormEncoding, stage_optimized_layout_independent_selected_form_encoding,
     validate_optimized_active_resident_rematerialization,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
 };
 
 use super::OptimizedActiveResidentRematerializationSelectedFormEncodingError;
@@ -23,10 +23,7 @@ pub(super) fn construct_active_resident_selected_form_encoding(
     let rematerialization = validate_optimized_active_resident_rematerialization(source).map_err(
         OptimizedActiveResidentRematerializationSelectedFormEncodingError::Rematerialization,
     )?;
-    let machine_custody =
-        validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
-            source, machine,
-        )
+    let machine_custody = validate_optimized_post_allocation_machine_plan_custody(source, machine)
         .map_err(OptimizedActiveResidentRematerializationSelectedFormEncodingError::Machine)?;
     let environment = source
         .source()

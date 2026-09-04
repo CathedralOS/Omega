@@ -1,7 +1,7 @@
 use crate::{
     validate_optimized_active_resident_rematerialization,
     validate_optimized_layout_independent_selected_form_encoding,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
 };
 
 use super::{
@@ -22,11 +22,8 @@ pub fn validate_optimized_active_resident_rematerialization_selected_form_encodi
             OptimizedActiveResidentRematerializationSelectedFormEncodingError::Rematerialization,
         )?;
     let machine =
-        validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
-            &staged.source,
-            &staged.machine,
-        )
-        .map_err(OptimizedActiveResidentRematerializationSelectedFormEncodingError::Machine)?;
+        validate_optimized_post_allocation_machine_plan_custody(&staged.source, &staged.machine)
+            .map_err(OptimizedActiveResidentRematerializationSelectedFormEncodingError::Machine)?;
     let environment = staged
         .source
         .source()

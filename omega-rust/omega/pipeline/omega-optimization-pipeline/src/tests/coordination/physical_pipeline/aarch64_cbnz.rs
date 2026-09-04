@@ -14,7 +14,6 @@ use crate::tests::{
     stage_optimized_resolved_selected_form_layout,
     stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     stage_optimized_verified_physical_pipeline_with_provider_executions,
-    validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody,
     validate_optimized_aarch64_cbnz_fusion_custody,
     validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
     validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
@@ -426,12 +425,7 @@ fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
         realization.optimization().custody()
     );
     assert_eq!(
-        validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody(
-            homes,
-            machine,
-            optimization,
-        )
-        .unwrap(),
+        validate_optimized_aarch64_cbnz_fusion_custody(homes, machine, optimization,).unwrap(),
         optimization.custody()
     );
 }

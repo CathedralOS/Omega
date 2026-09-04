@@ -18,6 +18,39 @@ pub trait ValidatedSelectedAnalysis: sealed::Sealed {
     fn fuel_schedule_identity(&self) -> FuelScheduleIdentity;
 }
 
+/// Borrow the current validated program without exposing which producer or
+/// rewrite established it. This does not admit an unchecked selected plan.
+#[derive(Clone, Copy)]
+pub struct SelectedProgramRef<'program> {
+    program: &'program dyn ValidatedSelectedAnalysis,
+}
+
+impl<'program> SelectedProgramRef<'program> {
+    pub fn new(program: &'program impl ValidatedSelectedAnalysis) -> Self {
+        Self { program }
+    }
+}
+
+impl sealed::Sealed for SelectedProgramRef<'_> {}
+
+impl ValidatedSelectedAnalysis for SelectedProgramRef<'_> {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.program.selected_plan()
+    }
+
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.program.selected_identity()
+    }
+
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.program.optimization_unit_identity()
+    }
+
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.program.fuel_schedule_identity()
+    }
+}
+
 impl sealed::Sealed for ValidatedSelectedInstructions {}
 
 impl ValidatedSelectedAnalysis for ValidatedSelectedInstructions {

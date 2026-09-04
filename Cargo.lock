@@ -316,59 +316,10 @@ dependencies = [
 name = "omega-active-resident-rematerialization-to-selected-form-encoding"
 version = "0.1.0"
 dependencies = [
- "omega-allocation-legality-to-active-resident-rematerialization",
  "omega-post-allocation-machine-to-selected-form-encoding",
  "omega-register-homes-to-post-allocation-machine",
  "omega-selected-instructions",
-]
-
-[[package]]
-name = "omega-allocation-legality-to-active-resident-rematerialization"
-version = "0.1.0"
-dependencies = [
- "omega-live-ranges-to-allocation-legality",
- "omega-optimization-core",
- "omega-regalloc",
- "omega-selected-instructions",
-]
-
-[[package]]
-name = "omega-allocation-legality-to-fixed-view-copies"
-version = "0.1.0"
-dependencies = [
- "omega-live-ranges-to-allocation-legality",
- "omega-optimization-core",
- "omega-regalloc",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "psi-core",
- "psi-terminal",
-]
-
-[[package]]
-name = "omega-allocation-legality-to-literal-folds"
-version = "0.1.0"
-dependencies = [
- "omega-live-ranges-to-allocation-legality",
- "omega-optimization-core",
- "omega-regalloc",
- "omega-selected-instructions",
-]
-
-[[package]]
-name = "omega-allocation-legality-to-register-homes"
-version = "0.1.0"
-dependencies = [
- "omega-fixed-view-copies-to-reanalyzed-legality",
- "omega-live-ranges-to-allocation-legality",
- "omega-optimization-core",
- "omega-regalloc",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "psi-core",
- "psi-terminal",
+ "omega-selected-instructions-to-register-homes",
 ]
 
 [[package]]
@@ -744,14 +695,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-fixed-view-copies-to-reanalyzed-legality"
-version = "0.1.0"
-dependencies = [
- "omega-allocation-legality-to-fixed-view-copies",
- "omega-regalloc",
-]
-
-[[package]]
 name = "omega-frame-layout-to-frame-protocol"
 version = "0.1.0"
 dependencies = [
@@ -944,45 +887,6 @@ dependencies = [
  "psi-terminal",
  "psi-terminal-codec",
  "sha2",
-]
-
-[[package]]
-name = "omega-literal-folds-to-register-homes"
-version = "0.1.0"
-dependencies = [
- "omega-allocation-legality-to-literal-folds",
- "omega-optimization-core",
- "omega-regalloc",
-]
-
-[[package]]
-name = "omega-live-ranges-to-allocation-legality"
-version = "0.1.0"
-dependencies = [
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-liveness-to-live-ranges",
- "omega-optimization-core",
- "omega-regalloc",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "psi-core",
- "psi-terminal",
-]
-
-[[package]]
-name = "omega-liveness-to-live-ranges"
-version = "0.1.0"
-dependencies = [
- "omega-optimization-core",
- "omega-regalloc",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-liveness",
- "omega-target",
- "psi-core",
- "psi-terminal",
 ]
 
 [[package]]
@@ -1180,21 +1084,13 @@ dependencies = [
  "omega-abstract-operations-optimizer",
  "omega-abstract-operations-to-target-operations",
  "omega-active-resident-rematerialization-to-selected-form-encoding",
- "omega-allocation-legality-to-active-resident-rematerialization",
- "omega-allocation-legality-to-fixed-view-copies",
- "omega-allocation-legality-to-literal-folds",
- "omega-allocation-legality-to-register-homes",
  "omega-callee-saved-requirements-to-save-storage",
  "omega-calling-conventions",
  "omega-effects",
- "omega-fixed-view-copies-to-reanalyzed-legality",
  "omega-frame-layout-to-frame-protocol",
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-legalized-operations",
- "omega-literal-folds-to-register-homes",
- "omega-live-ranges-to-allocation-legality",
- "omega-liveness-to-live-ranges",
  "omega-machine-code",
  "omega-machine-optimizer",
  "omega-object-file",
@@ -1211,8 +1107,8 @@ dependencies = [
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
  "omega-selected-instructions",
- "omega-selected-instructions-to-liveness",
  "omega-selected-instructions-to-machine-effects",
+ "omega-selected-instructions-to-register-homes",
  "omega-spill-access-constraints-to-frame-requirements",
  "omega-target",
  "omega-target-operations",
@@ -1439,14 +1335,12 @@ dependencies = [
 name = "omega-post-allocation-machine-to-optimized-machine"
 version = "0.1.0"
 dependencies = [
- "omega-allocation-legality-to-active-resident-rematerialization",
- "omega-allocation-legality-to-register-homes",
- "omega-literal-folds-to-register-homes",
  "omega-machine-optimizer",
  "omega-optimization-core",
  "omega-regalloc",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
 ]
 
@@ -1578,11 +1472,11 @@ dependencies = [
 name = "omega-register-homes-to-callee-saved-requirements"
 version = "0.1.0"
 dependencies = [
- "omega-allocation-legality-to-register-homes",
  "omega-optimization-core",
  "omega-regalloc",
  "omega-register-model",
  "omega-selected-instructions",
+ "omega-selected-instructions-to-register-homes",
  "omega-target",
  "omega-target-to-register-environment",
  "psi-core",
@@ -1593,12 +1487,10 @@ dependencies = [
 name = "omega-register-homes-to-post-allocation-machine"
 version = "0.1.0"
 dependencies = [
- "omega-allocation-legality-to-active-resident-rematerialization",
- "omega-allocation-legality-to-register-homes",
- "omega-literal-folds-to-register-homes",
  "omega-machine-optimizer",
  "omega-regalloc",
  "omega-selected-instructions-to-machine-effects",
+ "omega-selected-instructions-to-register-homes",
  "omega-target-to-register-environment",
 ]
 
@@ -1691,20 +1583,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-selected-instructions-to-liveness"
-version = "0.1.0"
-dependencies = [
- "omega-optimization-core",
- "omega-regalloc",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-target",
- "omega-target-operations-to-selected-instructions",
- "psi-core",
- "psi-terminal",
-]
-
-[[package]]
 name = "omega-selected-instructions-to-machine-effects"
 version = "0.1.0"
 dependencies = [
@@ -1716,6 +1594,23 @@ dependencies = [
  "omega-selected-instructions",
  "omega-target",
  "omega-target-to-register-environment",
+]
+
+[[package]]
+name = "omega-selected-instructions-to-register-homes"
+version = "0.1.0"
+dependencies = [
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
+ "omega-optimization-core",
+ "omega-regalloc",
+ "omega-register-model",
+ "omega-selected-instructions",
+ "omega-target",
+ "omega-target-operations-to-selected-instructions",
+ "omega-target-to-register-environment",
+ "psi-core",
+ "psi-terminal",
 ]
 
 [[package]]

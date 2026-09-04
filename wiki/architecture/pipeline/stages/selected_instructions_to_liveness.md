@@ -1,5 +1,7 @@
 # Selected Instructions To Liveness
 
+This is an internal contract of [Selected Instructions To Register Homes](selected_instructions_to_register_homes.md), not a standalone pipeline crate.
+
 [Pipeline](../pipeline.md) | Optimizer design: [Optimizer Architecture](../../../design_briefs/optimizer_architecture.md)
 
 This opt-in stage computes exact liveness facts over an independently validated
@@ -75,7 +77,7 @@ homes.
 
 - `pipeline/omega-regalloc` owns computation, the data-only liveness
   shapes, content identity, and independent validation.
-- `pipeline/omega-selected-instructions-to-liveness` owns the executable stage
+- `pipeline/omega-selected-instructions-to-register-homes` owns the executable stage
   and nested cross-stage custody.
 - `omega-selected-instructions` remains the selected-CFG
   representation owner.

@@ -1,4 +1,5 @@
 use crate::tests::*;
+use omega_regalloc::ValidatedSelectedAnalysis;
 
 #[test]
 fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architectures() {
@@ -84,6 +85,13 @@ fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architec
             .map(|iteration| PostAllocationSelectedTransformation::LiteralFold(iteration.fold()))
             .collect::<Vec<_>>();
         let homes = stage_optimized_register_homes_after_selected_lowering(run).unwrap();
+        let allocation = homes.replay_allocation().unwrap();
+        assert_eq!(allocation.selected().selected_identity(), final_selected);
+        assert_eq!(allocation.selections(), &selections);
+        assert_eq!(
+            stage_optimized_post_allocation_machine_plan(&allocation).unwrap(),
+            stage_optimized_post_allocation_machine_plan(&homes).unwrap(),
+        );
         assert_eq!(
             homes
                 .post_allocation_manifest()
@@ -106,11 +114,8 @@ fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architec
         let post = realization.machine();
         assert_eq!(post.machine().receipt().selected(), final_selected);
         assert_eq!(
-            validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
-                realization.homes(),
-                post,
-            )
-            .unwrap(),
+            validate_optimized_post_allocation_machine_plan_custody(realization.homes(), post,)
+                .unwrap(),
             *post.custody()
         );
         assert_eq!(
@@ -228,11 +233,8 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
         let post = realization.machine();
         assert_eq!(post.machine().receipt().selected(), source_selected);
         assert_eq!(
-            validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
-                realization.homes(),
-                post,
-            )
-            .unwrap(),
+            validate_optimized_post_allocation_machine_plan_custody(realization.homes(), post,)
+                .unwrap(),
             *post.custody()
         );
         assert_eq!(

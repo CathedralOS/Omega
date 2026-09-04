@@ -1,14 +1,12 @@
 //! Active-resident rematerialization retained through machine-plan custody.
 
 use crate::tests::{
-    NativeTarget, OptimizedActiveResidentRematerializationError,
+    AllocationEvidence, NativeTarget, OptimizedActiveResidentRematerializationError,
     OptimizedPostAllocationMachinePipelineError, PressureRematerializationPolicy,
-    RecoveryClassificationPolicy, SpillChoicePolicy,
-    StagedOptimizedPostAllocationMachineSourceCustodyReceipt, analyze_machine_effects,
+    RecoveryClassificationPolicy, SpillChoicePolicy, analyze_machine_effects,
     selected_lowering_budget, stage_optimized_active_resident_rematerialization,
-    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
-    staged_active_resident_two_view_legality, validate_machine_effects,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
+    stage_optimized_post_allocation_machine_plan, staged_active_resident_two_view_legality,
+    validate_machine_effects, validate_optimized_post_allocation_machine_plan_custody,
 };
 
 #[test]
@@ -56,11 +54,7 @@ fn active_resident_rematerialization_reaches_machine_custody_on_both_architectur
         )
         .unwrap();
 
-        let post =
-            stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
-                &source,
-            )
-            .unwrap();
+        let post = stage_optimized_post_allocation_machine_plan(&source).unwrap();
         assert_eq!(post.machine().receipt().selected(), transformed_selected);
         assert_eq!(
             post.machine().receipt().effects(),
@@ -80,16 +74,10 @@ fn active_resident_rematerialization_reaches_machine_custody_on_both_architectur
         );
         assert_eq!(
             post.custody().source(),
-            &StagedOptimizedPostAllocationMachineSourceCustodyReceipt::ActiveResidentRematerialization(
-                source.custody()
-            )
+            &AllocationEvidence::ActiveResidentRematerialization(source.custody())
         );
         assert_eq!(
-            &validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
-                &source,
-                &post,
-            )
-            .unwrap(),
+            &validate_optimized_post_allocation_machine_plan_custody(&source, &post,).unwrap(),
             post.custody()
         );
 
@@ -124,14 +112,12 @@ fn active_resident_rematerialization_reaches_machine_custody_on_both_architectur
         Err(OptimizedActiveResidentRematerializationError::ReceiptMismatch)
     ));
     assert!(matches!(
-        stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
-            &corrupted,
-        ),
-        Err(
-            OptimizedPostAllocationMachinePipelineError::ActiveResidentRematerialization(
+        stage_optimized_post_allocation_machine_plan(&corrupted,),
+        Err(OptimizedPostAllocationMachinePipelineError::Allocation(
+            crate::AllocationReplayError::ActiveResidentRematerialization(
                 OptimizedActiveResidentRematerializationError::ReceiptMismatch
             )
-        )
+        ))
     ));
 
     let x86 = stage_optimized_active_resident_rematerialization(
@@ -150,14 +136,6 @@ fn active_resident_rematerialization_reaches_machine_custody_on_both_architectur
         selected_lowering_budget(),
     )
     .unwrap();
-    let x86_post =
-        stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(&x86)
-            .unwrap();
-    assert!(
-        validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
-            &arm,
-            &x86_post,
-        )
-        .is_err()
-    );
+    let x86_post = stage_optimized_post_allocation_machine_plan(&x86).unwrap();
+    assert!(validate_optimized_post_allocation_machine_plan_custody(&arm, &x86_post,).is_err());
 }

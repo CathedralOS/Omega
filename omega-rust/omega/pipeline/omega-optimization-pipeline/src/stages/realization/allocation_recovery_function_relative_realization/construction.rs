@@ -3,8 +3,7 @@ use crate::{
     StagedOptimizedSelectedFormEncoding, ValidatedWholeFunctionExitContract,
     stage_optimized_layout_independent_selected_form_encoding,
     stage_optimized_resolved_selected_form_layout, stage_whole_function_exit_contract,
-    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
-    validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
 };
 
 use super::custody::receipt;
@@ -29,17 +28,15 @@ pub(super) fn construct(
     let source_custody = match &source {
         StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) => {
             let custody = validate_fixed_view_source(homes)?;
-            validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody(
-                homes, &machine,
-            )
-            .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
+            validate_optimized_post_allocation_machine_plan_custody(homes, &machine)
+                .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
             custody
         }
         StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
             rematerialization,
         ) => {
             let custody = validate_active_resident_source(rematerialization)?;
-            validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(rematerialization, &machine)
+            validate_optimized_post_allocation_machine_plan_custody(rematerialization, &machine)
                 .map_err(AllocationRecoveryFunctionRelativeRealizationError::Machine)?;
             custody
         }

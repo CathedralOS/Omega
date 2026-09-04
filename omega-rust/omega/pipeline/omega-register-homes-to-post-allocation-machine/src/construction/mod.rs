@@ -1,59 +1,41 @@
-//! Optimizer module role: executable entrance. Post-allocation machine-plan custody construction.
+//! Optimizer module role: executable entrance. Current register homes to machine facts.
 //!
-//! Lineage leaves admit and project their exact source. Every route then
-//! rejoins here for symbolic-machine analysis and custody sealing.
-
-mod active_resident;
-mod baseline;
-mod fixed_view;
-mod literal_fold;
-mod selected_lowering;
-
-pub use active_resident::stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization;
-pub use baseline::stage_optimized_post_allocation_machine_plan;
-pub use fixed_view::stage_optimized_post_allocation_machine_plan_after_fixed_view_copies;
-pub use literal_fold::stage_optimized_post_allocation_machine_plan_after_literal_folds;
-pub use selected_lowering::stage_optimized_post_allocation_machine_plan_after_selected_lowering;
-
-use omega_machine_optimizer::analyze_post_allocation_machine_plan;
-use omega_regalloc::{
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedPostAllocationOptimizationManifest,
-    ValidatedRegisterHomes, ValidatedSelectedAnalysis,
-};
-
-use omega_selected_instructions_to_machine_effects::analyze_machine_effects;
-use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
+//! Allocation replay supplies the same postcondition after every rewrite.
+//! Machine analysis consumes only current facts and retains allocation evidence separately.
 
 use super::{
     OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedPostAllocationMachineSourceCustodyReceipt, seal_staged_post_allocation_machine,
+    seal_staged_post_allocation_machine,
 };
+use omega_machine_optimizer::analyze_post_allocation_machine_plan;
+use omega_selected_instructions_to_machine_effects::analyze_machine_effects;
+use omega_selected_instructions_to_register_homes::AllocationSource;
 
-#[allow(clippy::too_many_arguments)]
-fn analyze_and_seal<S: ValidatedSelectedAnalysis>(
-    source: StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
-    selected: &S,
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-    manifest: &ValidatedPostAllocationOptimizationManifest,
-    environment: &ValidatedTargetRegisterEnvironment,
+pub fn stage_optimized_post_allocation_machine_plan(
+    source: &impl AllocationSource,
 ) -> Result<StagedOptimizedPostAllocationMachinePlan, OptimizedPostAllocationMachinePipelineError> {
+    let allocation = source
+        .replay_allocation()
+        .map_err(OptimizedPostAllocationMachinePipelineError::Allocation)?;
+    let selected = allocation.selected();
+    let environment = allocation.register_environment();
     let effects = analyze_machine_effects(selected, environment)
         .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
     let machine = analyze_post_allocation_machine_plan(
         selected,
         &effects,
-        ranges,
-        legality,
-        homes,
-        manifest,
+        allocation.ranges(),
+        allocation.legality(),
+        allocation.homes(),
+        allocation.post_allocation_manifest(),
         environment.identity(),
         environment.physical(),
         environment.constraints(),
     )
     .map_err(OptimizedPostAllocationMachinePipelineError::PostAllocation)?;
     Ok(seal_staged_post_allocation_machine(
-        source, effects, machine,
+        allocation.evidence().clone(),
+        effects,
+        machine,
     ))
 }

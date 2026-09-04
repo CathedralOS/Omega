@@ -1,5 +1,7 @@
 # Liveness To Live Ranges
 
+This is an internal contract of [Selected Instructions To Register Homes](selected_instructions_to_register_homes.md), not a standalone pipeline crate.
+
 [Pipeline](../pipeline.md) | Optimizer design: [Optimizer Architecture](../../../design_briefs/optimizer_architecture.md)
 
 This opt-in stage converts validated selected-CFG liveness into canonical
@@ -79,7 +81,7 @@ candidate facts rather than asking an allocator to rederive them.
 
 - `pipeline/omega-regalloc` owns the range model, computation, identity,
   independent replay, and opaque validated result.
-- `pipeline/omega-liveness-to-live-ranges` owns the executable stage and nested
+- `pipeline/omega-selected-instructions-to-register-homes` owns the executable stage and nested
   cross-stage custody.
 - `omega-selected-instructions` and the liveness artifact remain the
   authoritative inputs; transitional assigned scratch homes are not consulted.

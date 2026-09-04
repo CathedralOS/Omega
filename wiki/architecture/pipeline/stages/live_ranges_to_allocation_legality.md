@@ -1,5 +1,7 @@
 # Live Ranges To Allocation Legality
 
+This is an internal contract of [Selected Instructions To Register Homes](selected_instructions_to_register_homes.md), not a standalone pipeline crate.
+
 [Pipeline](../pipeline.md) | Optimizer design: [Optimizer Architecture](../../../design_briefs/optimizer_architecture.md)
 
 This opt-in analysis joins exact CFG-aware live ranges with one identity-bound
@@ -77,7 +79,7 @@ unsupported. No result from this stage can enter machine emission.
 
 - `pipeline/omega-regalloc` owns the data,
   production, independent replay, and identity.
-- `pipeline/omega-live-ranges-to-allocation-legality` owns policy selection and
+- `pipeline/omega-selected-instructions-to-register-homes` owns policy selection and
   nested cross-stage custody.
 - `omega-register-model` owns physical aliases, write footprints, and the
   validated active reservation profile.

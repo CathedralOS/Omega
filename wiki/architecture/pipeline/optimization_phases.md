@@ -183,8 +183,17 @@ returns effects bound to that current program, without a five-way optimizer
 lineage sum. Post-allocation construction replays the upstream transformation
 before entering the common analysis. Persisted effect rows, identities, and
 encoding are selected-representation-owned; analysis and admission remain
-pipeline-owned. This closes that boundary only, not the remaining allocation,
-machine-optimization, realization, or outer identity/selected routing splits.
+pipeline-owned.
+
+Allocation analyses, rewrites, reanalysis, and assignment now share the
+`omega-selected-instructions-to-register-homes` phase owner. Its sealed
+allocation boundary independently reconstructs retained evidence and exposes
+one immutable current-program view, with policy and evidence separate from the
+program's identity. Both machine-plan construction and post-allocation machine
+optimization consume that boundary without inspecting stage ancestry or
+selecting an `after_*` route. Allocation's retained internal histories, later
+layout/realization adapters, and outer identity/selected routing remain to be
+consolidated; they are not additional canonical stages.
 
 The current implementation projects the complete effective build selection in
 two directions. The Psi projection runs at the checked-to-Terminal entrance and

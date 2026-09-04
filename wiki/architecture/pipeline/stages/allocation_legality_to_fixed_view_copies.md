@@ -1,5 +1,7 @@
 # Allocation Legality To Fixed-View Copies
 
+This is an internal contract of [Selected Instructions To Register Homes](selected_instructions_to_register_homes.md), not a standalone pipeline crate.
+
 [Pipeline](../pipeline.md) | Optimizer design: [Optimizer Architecture](../../../design_briefs/optimizer_architecture.md)
 
 This opt-in stage implements one exact named selected-CFG transformation:
@@ -61,7 +63,7 @@ rematerialization, coalescing, spills, and frames remain unsupported.
 
 - `pipeline/omega-regalloc` owns the artifact,
   producer, independent replay, work-budget gate, and identity.
-- `pipeline/omega-allocation-legality-to-fixed-view-copies` owns the fixed
+- `pipeline/omega-selected-instructions-to-register-homes` owns the fixed
   interval/segment-home prerequisite and nested source-to-transformation
   custody.
 - ISA catalogs own the exact `CopyI64` rows; the target register environment
