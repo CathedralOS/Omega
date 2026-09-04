@@ -39,8 +39,12 @@ expect_metric 'parse_outcome_shapes=1/2:18,2/2:7'
 expect_metric 'recursive_list_forms=26'
 expect_metric 'recursive_list_lines=84'
 expect_metric 'recursive_list_shapes=0/2:25,0/3:1'
+expect_metric 'ordinary_list_forms=25'
+expect_metric 'ordinary_list_lines=81'
 expect_metric 'reverse_function_forms=23'
 expect_metric 'reverse_function_lines=167'
+expect_metric 'template_reverse_function_forms=22'
+expect_metric 'template_reverse_function_lines=153'
 expect_metric 'list_count_function_forms=3'
 expect_metric 'list_count_function_lines=14'
 expect_metric 'catalog_lookup_forms=7'
@@ -56,6 +60,9 @@ expect_metric 'minimum_function_forms=6'
 expect_metric 'minimum_function_lines=67'
 expect_metric 'generic_sum_gross_ceiling_lines=96'
 expect_metric 'generic_list_gross_ceiling_lines=265'
+expect_metric 'exact_list_family_forms=50'
+expect_metric 'exact_list_family_lines=248'
+expect_metric 'exact_list_family_bytes=11525'
 expect_metric 'catalog_gross_ceiling_lines=206'
 expect_metric 'span_gross_ceiling_lines=164'
 expect_metric 'candidate_gross_ceiling_lines=77'
@@ -63,9 +70,11 @@ expect_metric 'combined_gross_ceiling_lines=808'
 expect_metric 'combined_gross_ceiling_per_mille=92'
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
-EVALUATOR="$TMP/evaluator" DELTA="$DELTA" GATE_DIR="$GATE_DIR" python3 - <<'PY'
+EVALUATOR="$TMP/evaluator" DELTA="$DELTA" EPSILON="$EPSILON" \
+    GATE_DIR="$GATE_DIR" python3 - <<'PY'
 import hashlib
 import os
+import runpy
 import struct
 import subprocess
 from pathlib import Path
@@ -116,6 +125,76 @@ for name, digest in proposals.items():
         raise SystemExit(f"{name} proposal identity changed")
     if evaluate(compiler, source) != (2, b""):
         raise SystemExit(f"{name} unexpectedly entered current Delta")
+
+list_artifacts = {
+    "list_elaborator.gamma": (292, 13200, "bda48281d6a61cb4e6fd76f40e7cecc0f9d65c72660114dcfc0363009b884f78"),
+    "list_family.delta-plus": (25, 3565, "afcdc4295370b02cd740a460b75cef0ce1690e10986938a83389ff14f0dd0aae"),
+    "list_smoke.delta-plus": (3, 194, "26ead8ae1fb420f914910065c0e51b4e505a0864bd8f11b2e02d323ee4d2b685"),
+    "list_smoke.delta": (6, 464, "4e3a8ba3f4bc04a3a3a11d63efb5ba0f848519c0ec6e5c3b37ec2634b0edcd6b"),
+}
+for name, (lines, size, digest) in list_artifacts.items():
+    source = root.joinpath(name).read_bytes()
+    if len(source.splitlines()) != lines or len(source) != size:
+        raise SystemExit(f"{name} size changed")
+    if hashlib.sha256(source).hexdigest() != digest:
+        raise SystemExit(f"{name} identity changed")
+
+elaborator = root.joinpath("list_elaborator.gamma").read_bytes()
+smoke = root.joinpath("list_smoke.delta-plus").read_bytes()
+expected_smoke = root.joinpath("list_smoke.delta").read_bytes()
+if evaluate(elaborator, smoke) != (0, expected_smoke):
+    raise SystemExit("derived-list smoke expansion changed")
+status, smoke_receipt = evaluate(compiler, expected_smoke)
+if status != 0 or evaluate(smoke_receipt) != (0, b"\x02"):
+    raise SystemExit("derived-list smoke did not compose through selected Delta")
+
+family_spec = root.joinpath("list_family.delta-plus").read_bytes()
+status, family_expansion = evaluate(elaborator, family_spec)
+if status != 0 or len(family_expansion) != 10826:
+    raise SystemExit("derived Epsilon list family did not expand")
+if hashlib.sha256(family_expansion).hexdigest() != "ae116459dbc218a8605add1b2c2589f3002bd9d08df33dec7488316ec1df5628":
+    raise SystemExit("derived Epsilon list family identity changed")
+
+analyzer = runpy.run_path(str(root / "analyze.py"), run_name="boundary_analyzer")
+parse_forms = analyzer["parse_forms"]
+is_def = analyzer["is_def"]
+recursive_list = analyzer["recursive_list"]
+constructor_shape = analyzer["constructor_shape"]
+function_name = analyzer["function_name"]
+original = parse_forms(Path(os.environ["EPSILON"]).read_text())
+expanded = parse_forms(family_expansion.decode("ascii"))
+count_names = {
+    "epsilon_expression_list_count",
+    "epsilon_parameter_list_count",
+    "epsilon_name_list_count",
+}
+
+def selected(form):
+    name = function_name(form)
+    return (
+        recursive_list(form) and constructor_shape(form) == "0/2"
+    ) or (
+        is_def(form) and (
+            name.startswith("epsilon_reverse_")
+            and name != "epsilon_reverse_control_references"
+            or name in count_names
+        )
+    )
+
+def rename(tree, old, new):
+    if isinstance(tree, list):
+        return [rename(item, old, new) for item in tree]
+    return new if tree == old else tree
+
+wanted = {str(form.tree[1]): form.tree for form in original if selected(form)}
+actual = {str(form.tree[1]): form.tree for form in expanded}
+for name in count_names:
+    actual[name] = rename(actual[name], "input", wanted[name][2][0][0])
+if wanted != actual or len(actual) != 50:
+    raise SystemExit("derived Epsilon list family is not alpha-equivalent")
+
+if 292 + 25 - 248 != 69:
+    raise SystemExit("derived-list break-even arithmetic changed")
 PY
 
-echo "Delta boundary experiment: generic list remains plausible; sums, map, span wrapper, and candidate fold do not earn Delta expansion"
+echo "Delta boundary experiment: all five proposed mechanisms fail current earned-feature tests"

@@ -12,7 +12,7 @@ lines for the corresponding Delta language/compiler implementation.
 | Candidate | Exact current family | Free-feature ceiling | Result |
 | --- | --- | ---: | --- |
 | Generic option/result | 7 optional declarations plus 25 parse outcomes | 96 lines | Reject for now |
-| Generic immutable list | 26 recursive lists, 23 reverse functions, 3 list counts | 265 lines | Reopen after complete Delta |
+| Generic immutable list | 25 ordinary lists, 22 template reverses, 3 template counts | 248 exact lines | Reject standalone elaboration |
 | Generic catalog/map | 7 catalog result types plus 9 lookup traversals | 206 lines | Reject generic map |
 | Source span wrapper | 29 start/end helpers | 164 lines | Reject wrapper alone |
 | Candidate minimum fold | 3 candidate types plus 6 merge helpers | 77 lines | Reject generic fold |
@@ -36,17 +36,49 @@ under current monomorphic Delta. This does not earn that language expansion.
 
 ## Generic lists
 
-This is the strongest candidate. Twenty-five declarations have the ordinary
-`Empty | More(item, tail)` shape; one is a three-field trie node. The compiler
-also contains 23 specialized reverse functions and three specialized counts.
-The free-feature ceiling is 265 lines.
+This was the strongest candidate. Twenty-five declarations have the ordinary
+`Empty | More(item, tail)` shape; the excluded trie has a three-field node. Of
+the 23 reverse functions, 22 are the exact list template and one reverses a
+four-list control ledger. Three count functions are exact templates. The real
+replaceable family is therefore 50 forms, 248 lines, and 11,525 bytes.
 
-Real reuse requires parametric ADTs and parametric recursive functions, not only
-a builtin list representation. Type erasure would sacrifice the static
-separation Delta currently provides. This candidate should be reopened once the
-selected Delta compiler has complete type checking: implement one generic list
-and rewrite one real family such as `EpsilonNameList`. It wins only if the Delta
-implementation and proof cost remains below the measured Epsilon reduction.
+`list_elaborator.gamma` implements a complete two-pass source transformation
+for this derived form:
+
+```text
+(list Type Empty More Element reverse_name count_name)
+```
+
+`_` omits either helper. One pass emits every data declaration; the second emits
+helpers and ordinary definitions, preserving Delta's required top-level order.
+The 25-line Epsilon family specification expands to 50 forms that are
+alpha-equivalent to the existing declarations and helpers. A
+smoke program then passes through the ordinary selected Delta compiler and
+executes generated reverse/count functions with result 2.
+
+The measured authored cost loses:
+
+```text
+explicit Epsilon family          248 lines / 11,525 bytes
+Gamma list elaborator            292 lines / 13,200 bytes
+derived Epsilon specifications    25 lines /  3,565 bytes
+derived route total              317 lines / 16,765 bytes
+net                               +69 lines / +5,240 bytes
+```
+
+The standalone pass also introduces another transformation relation. Full
+25-list elaboration takes 0.55 seconds, while lowering one synthetic program
+containing all 25 instantiated types takes 188.10 seconds on the development
+host. The trie-backed global census is fast; remaining whole-source rescans own
+the continued cost. These timings are diagnostic, not semantics.
+
+A fused implementation could reuse Delta's scanner, but it must cost fewer than
+223 Gamma lines merely to tie raw line count, before charging proof complexity
+or the greater audit weight of lower-rung code. Direct virtual-list support must
+also modify type, constructor, arity, match, and helper-function resolution. The
+standalone implementation is therefore a favorable lower bound, not an unfairly
+expensive generic system. Reopen only if another independently justified Delta
+feature supplies most of that machinery for free.
 
 ## Catalog/map
 
@@ -92,10 +124,10 @@ explicit.
 
 ## Verdict
 
-The Epsilon compiler is certainly verbose, but these five abstractions do not
-show that Delta is broadly underpowered. Generic lists remain one credible
-compression opportunity. The others either save too little, require much larger
-Delta semantics, or erase Epsilon-specific policy that should remain visible.
+The Epsilon compiler is certainly verbose, but all five tested abstractions fail
+their current earned-feature test. They either save too little, require larger
+Delta semantics, move representation complexity, or erase Epsilon-specific
+policy that should remain visible.
 
 The language explosion appears to be mostly real Epsilon work: parsing its full
 surface, exact diagnostic ordering, identity custody, type formation, resolution,

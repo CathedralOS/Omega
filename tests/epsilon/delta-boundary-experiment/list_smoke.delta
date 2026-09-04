@@ -1,0 +1,6 @@
+(data Item (Item Int))
+(data ItemList (NoItems) (MoreItems Item ItemList))
+(def reverse_items ((input ItemList) (output ItemList)) ItemList (match input (NoItems output) ((MoreItems item rest) (reverse_items rest (MoreItems item output)))))
+(def count_items ((input ItemList)) Int (match input (NoItems 0) ((MoreItems item rest) (+ 1 (count_items rest)))))
+(def main () Int (count_items (reverse_items (MoreItems (Item 1) (MoreItems (Item 2) NoItems)) NoItems)))
+

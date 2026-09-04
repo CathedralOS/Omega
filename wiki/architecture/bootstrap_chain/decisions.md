@@ -4356,3 +4356,54 @@ arithmetic, normative Bytes lowering, application profiles, failure ordering,
 and proper-tail closure remain open. The retained Forth and direct-Beta
 experiments have neither this symbol table nor matched lexical coverage and do
 not reopen selection.
+
+## D103 — Derived generic lists fail authored-source break-even
+
+D103 implements D95's remaining candidate rather than assigning generics a free
+cost. A 292-line Gamma-authored two-pass elaborator accepts:
+
+```text
+(list Type Empty More Element reverse_name count_name)
+```
+
+and emits ordinary monomorphic Delta data, reverse, and count declarations. `_`
+omits either helper. The first pass emits all data declarations and the second
+emits helpers and ordinary definitions, preserving D99's required top-level
+order. The exact 25-line Epsilon specification expands to 25 list types, 22
+reverse functions, and three count functions. All 50 generated forms are
+alpha-equivalent to the current Epsilon source; the only normalization is the
+irrelevant count-parameter spelling. A smoke program composes through the
+selected Delta compiler and executes generated reverse/count helpers to result
+2.
+
+The real replaceable family excludes the three-field Alpha trie and the
+policy-bearing control-ledger reversal:
+
+```text
+explicit Epsilon family          248 lines / 11,525 bytes
+Gamma list elaborator            292 lines / 13,200 bytes
+derived Epsilon specifications    25 lines /  3,565 bytes
+derived route total              317 lines / 16,765 bytes
+net                               +69 lines / +5,240 bytes
+```
+
+The implementation is favorable to the feature: it avoids generic type
+parameters, generic checking, generic representation, and instantiation
+semantics. Despite that, it loses raw authored size, moves implementation into
+the lower rung, and adds a source-transformation relation. A fused Delta
+implementation would need to cost fewer than 223 Gamma lines merely to tie line
+count, while also extending type, constructor, arity, match, and generated
+helper resolution.
+
+At the D101 checkpoint, expansion of all 25 specifications took 0.55 seconds;
+the selected compiler took 188.10 seconds to lower one synthetic source with
+all 25 instantiated types. D99's trie-backed global census removed the earlier
+global-name cliff, but other whole-source rescans remained. This timing is
+diagnostic and does not affect Delta meaning; D102's later call-resolution
+change is not included in that measurement.
+
+Generic lists therefore fail the current earned-feature test. All five D95
+candidates are rejected, and Delta remains unchanged. Reopen derived or
+parametric lists only if another independently justified feature supplies most
+of the required compiler machinery and a fused implementation demonstrably
+falls below the 223-line break-even including its proof obligations.
