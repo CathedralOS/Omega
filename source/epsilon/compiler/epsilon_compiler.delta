@@ -8707,6 +8707,51 @@
       (EpsilonEvaluatorScalarTrapped 1)
       (EpsilonEvaluatorScalarValue value))))
 
+(def epsilon_evaluator_unsigned_i32 ((value Int)) Int
+  (if (lt value 0) (+ value 4294967296) value))
+
+(def epsilon_evaluator_signed_i32 ((value Int)) Int
+  (if (lt 2147483647 value) (- value 4294967296) value))
+
+(def epsilon_evaluator_bit_digit ((left Int) (right Int) (kind Int)) Int
+  (if (eq kind 1)
+    (if (eq left 1) right 0)
+    (if (eq kind 2)
+      (if (eq left 1) 1 right)
+      (if (eq left right) 0 1))))
+
+(def epsilon_evaluator_bitwise_unsigned ((left Int) (right Int) (kind Int)
+  (remaining Int) (place Int) (result Int)) Int
+  (if (eq remaining 0)
+    result
+    (epsilon_evaluator_bitwise_unsigned (/ left 2) (/ right 2) kind
+      (- remaining 1) (* place 2)
+      (+ result
+        (* place (epsilon_evaluator_bit_digit (% left 2) (% right 2) kind))))))
+
+(def epsilon_evaluator_bitwise ((left Int) (right Int) (kind Int)) Int
+  (epsilon_evaluator_signed_i32
+    (epsilon_evaluator_bitwise_unsigned
+      (epsilon_evaluator_unsigned_i32 left)
+      (epsilon_evaluator_unsigned_i32 right) kind 32 1 0)))
+
+(def epsilon_evaluator_shift_power ((count Int) (value Int)) Int
+  (if (eq count 0)
+    value
+    (epsilon_evaluator_shift_power (- count 1) (* value 2))))
+
+(def epsilon_evaluator_shift_right_one ((value Int)) Int
+  (if (lt value 0)
+    (let quotient Int (/ value 2)
+      (if (eq (% value 2) 0) quotient (- quotient 1)))
+    (/ value 2)))
+
+(def epsilon_evaluator_shift_right ((value Int) (count Int)) Int
+  (if (eq count 0)
+    value
+    (epsilon_evaluator_shift_right
+      (epsilon_evaluator_shift_right_one value) (- count 1))))
+
 (def epsilon_evaluate_core_binary_values ((operator EpsilonBinaryOperator)
   (left Int) (right Int)) EpsilonEvaluatorScalarOutcome
   (match operator
@@ -8723,13 +8768,37 @@
     (EpsilonMultiply (epsilon_evaluator_i32_outcome (* left right)))
     (EpsilonLogicalOr EpsilonEvaluatorScalarUnsupported)
     (EpsilonLogicalAnd EpsilonEvaluatorScalarUnsupported)
-    (EpsilonBitOr EpsilonEvaluatorScalarUnsupported)
-    (EpsilonBitXor EpsilonEvaluatorScalarUnsupported)
-    (EpsilonBitAnd EpsilonEvaluatorScalarUnsupported)
-    (EpsilonShiftLeft EpsilonEvaluatorScalarUnsupported)
-    (EpsilonShiftRight EpsilonEvaluatorScalarUnsupported)
-    (EpsilonDivide EpsilonEvaluatorScalarUnsupported)
-    (EpsilonRemainder EpsilonEvaluatorScalarUnsupported)))
+    (EpsilonBitOr
+      (EpsilonEvaluatorScalarValue (epsilon_evaluator_bitwise left right 2)))
+    (EpsilonBitXor
+      (EpsilonEvaluatorScalarValue (epsilon_evaluator_bitwise left right 3)))
+    (EpsilonBitAnd
+      (EpsilonEvaluatorScalarValue (epsilon_evaluator_bitwise left right 1)))
+    (EpsilonShiftLeft
+      (if (if (lt right 0) 1 (lt 31 right))
+        (EpsilonEvaluatorScalarTrapped 4)
+        (EpsilonEvaluatorScalarValue
+          (epsilon_evaluator_signed_i32
+            (% (* (epsilon_evaluator_unsigned_i32 left)
+                 (epsilon_evaluator_shift_power right 1))
+              4294967296)))))
+    (EpsilonShiftRight
+      (if (if (lt right 0) 1 (lt 31 right))
+        (EpsilonEvaluatorScalarTrapped 4)
+        (EpsilonEvaluatorScalarValue
+          (epsilon_evaluator_shift_right left right))))
+    (EpsilonDivide
+      (if (eq right 0)
+        (EpsilonEvaluatorScalarTrapped 2)
+        (if (if (eq left -2147483648) (eq right -1) 0)
+          (EpsilonEvaluatorScalarTrapped 3)
+          (EpsilonEvaluatorScalarValue (/ left right)))))
+    (EpsilonRemainder
+      (if (eq right 0)
+        (EpsilonEvaluatorScalarTrapped 2)
+        (if (if (eq left -2147483648) (eq right -1) 0)
+          (EpsilonEvaluatorScalarTrapped 3)
+          (EpsilonEvaluatorScalarValue (% left right)))))))
 
 (def epsilon_evaluate_core_binary_right ((operator EpsilonBinaryOperator)
   (leftValue Int) (right EpsilonExpression)
@@ -8741,6 +8810,69 @@
     ((EpsilonEvaluatorScalarValue rightValue)
       (epsilon_evaluate_core_binary_values operator leftValue rightValue))))
 
+(def epsilon_evaluate_logical_right ((right EpsilonExpression)
+  (references EpsilonResolvedLocalReferenceList)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalarOutcome
+  (match (epsilon_evaluate_scalar_expression right references locals)
+    (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorScalarUnsupported)
+    ((EpsilonEvaluatorScalarTrapped kind) (EpsilonEvaluatorScalarTrapped kind))
+    ((EpsilonEvaluatorScalarValue value)
+      (if (eq value 0)
+        (EpsilonEvaluatorScalarValue 0)
+        (if (eq value 1)
+          (EpsilonEvaluatorScalarValue 1)
+          (EpsilonEvaluatorScalarTrapped 7))))))
+
+(def epsilon_evaluate_core_binary_left ((operator EpsilonBinaryOperator)
+  (leftValue Int) (right EpsilonExpression)
+  (references EpsilonResolvedLocalReferenceList)
+  (locals EpsilonEvaluatorLocalValueList)) EpsilonEvaluatorScalarOutcome
+  (match operator
+    (EpsilonLogicalOr
+      (if (eq leftValue 1)
+        (EpsilonEvaluatorScalarValue 1)
+        (if (eq leftValue 0)
+          (epsilon_evaluate_logical_right right references locals)
+          (EpsilonEvaluatorScalarTrapped 7))))
+    (EpsilonLogicalAnd
+      (if (eq leftValue 0)
+        (EpsilonEvaluatorScalarValue 0)
+        (if (eq leftValue 1)
+          (epsilon_evaluate_logical_right right references locals)
+          (EpsilonEvaluatorScalarTrapped 7))))
+    (EpsilonBitOr
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonBitXor
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonBitAnd
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonEqual
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonNotEqual
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonLess
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonLessEqual
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonGreater
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonGreaterEqual
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonShiftLeft
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonShiftRight
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonAdd
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonSubtract
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonMultiply
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonDivide
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))
+    (EpsilonRemainder
+      (epsilon_evaluate_core_binary_right operator leftValue right references locals))))
+
 (def epsilon_evaluate_core_binary ((operator EpsilonBinaryOperator)
   (left EpsilonExpression) (right EpsilonExpression)
   (references EpsilonResolvedLocalReferenceList)
@@ -8749,7 +8881,7 @@
     (EpsilonEvaluatorScalarUnsupported EpsilonEvaluatorScalarUnsupported)
     ((EpsilonEvaluatorScalarTrapped kind) (EpsilonEvaluatorScalarTrapped kind))
     ((EpsilonEvaluatorScalarValue leftValue)
-      (epsilon_evaluate_core_binary_right operator leftValue right references
+      (epsilon_evaluate_core_binary_left operator leftValue right references
         locals))))
 
 (def epsilon_evaluate_scalar_expression ((expressionValue EpsilonExpression)

@@ -32,9 +32,10 @@ The first staging execution slice accepts only a completely checked empty
 `Main::main` entry or direct literal `Console.write_byte` and
 `Console.exit_process` statements. It now retains scalar let values by exact
 checked binding identity and executes grouped/local reads plus `assert`. Output
-prefixes survive exact exit, checked `+`/`-`/`*` and negation overflow,
-`ByteRange`, and `Assertion` trap outcomes. Equality and ordered comparisons
-also execute; every
+prefixes survive exact exit, arithmetic, shift-count, `ByteRange`, and
+`Assertion` trap outcomes. Every scalar operator, including short-circuit
+Boolean logic, bitwise operations, shifts, division, and remainder, executes;
+every
 other entry statement is explicitly
 unsupported rather than assigned guessed semantics. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
