@@ -1110,7 +1110,7 @@ fn plan_reborrow_restored_call_uses(
             continue;
         }
 
-        let mutated_places = crate::flow::call_mutated_places(
+        let mutated_places = crate::flow::call_write_accesses(
             program,
             child.machine_symbol,
             child.state_symbol,

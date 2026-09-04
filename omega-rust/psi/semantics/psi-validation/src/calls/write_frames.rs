@@ -21,6 +21,7 @@ mod assignment_targets;
 mod boundary_calls;
 mod call_targets;
 mod call_trees;
+mod caller_aliases;
 mod demand;
 mod isolated_initializers;
 mod isolation;
@@ -51,9 +52,10 @@ use call_trees::{
     parameter_relative_expression_preserves_transparent_result,
     stable_alias_index_expression_preserves_origin,
 };
+pub use caller_aliases::LocalWriteOrigin;
+pub(crate) use demand::statement_value_expression_roots;
 pub use demand::{CallFrameResolver, frame_paths_overlap};
 use demand::{collect_expression_call_written_paths, syntactic_call_written_paths};
-pub(crate) use demand::{conservative_call_written_paths, statement_value_expression_roots};
 use isolated_initializers::isolated_local_initializer_preserves_transparent_result;
 use isolation::type_is_caller_isolated_local;
 use local_aliases::{
@@ -96,23 +98,6 @@ use value_expressions::{ValuePosition, value_expression_preserves_transparent_re
 /// implementation shapes this inference cannot summarize remain deliberately
 /// opaque. Authored `stores` clauses are retired; precision grows through the
 /// shared inferred complete-or-opaque frame instead.
-pub(crate) fn known_call_written_paths(
-    program: &TypedTrees,
-    call: &TableCall,
-    current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-) -> Option<Vec<String>> {
-    known_call_written_paths_with_summaries(
-        program,
-        call,
-        current_machine,
-        machine_symbols,
-        symbols,
-        &mut Vec::new(),
-    )
-}
-
 fn known_call_written_paths_with_summaries(
     program: &TypedTrees,
     call: &TableCall,
@@ -356,6 +341,36 @@ fn summarize_state_written_paths(
     {
         return Some(paths.clone());
     }
+    let prefix = walk_state_write_prefix(
+        program,
+        machine,
+        state,
+        symbols,
+        active_states,
+        complete_state_summaries,
+        None,
+    )?;
+    complete_state_summaries.push((state.symbol, prefix.written.clone()));
+    Some(prefix.written)
+}
+
+struct StateWritePrefix {
+    written: Vec<String>,
+    aliases: Vec<(String, FramePlaceOrigin)>,
+}
+
+/// The same state transfer computes whole-body summaries and the alias context
+/// immediately before a demand query. Prefix results never enter the complete
+/// state-summary cache.
+fn walk_state_write_prefix(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    before: Option<&StatementNode>,
+) -> Option<StateWritePrefix> {
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
@@ -369,6 +384,12 @@ fn summarize_state_written_paths(
     }
 
     for statement in program.statement_table.statements(state.statement_nodes) {
+        if before.is_some_and(|before| std::ptr::eq(before, statement)) {
+            return Some(StateWritePrefix {
+                written,
+                aliases: local_alias_origins,
+            });
+        }
         let declared_local_alias_origin = match statement {
             StatementNode::LocalData(local)
                 if type_may_carry_write(program, local.type_reference)
@@ -613,8 +634,10 @@ fn summarize_state_written_paths(
         }
     }
 
-    complete_state_summaries.push((state.symbol, written.clone()));
-    Some(written)
+    before.is_none().then_some(StateWritePrefix {
+        written,
+        aliases: local_alias_origins,
+    })
 }
 
 /// Recover the caller-visible origin of the deliberately narrow stable local-

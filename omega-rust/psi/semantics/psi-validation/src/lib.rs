@@ -53,7 +53,7 @@ pub use crate::call_cycles::{
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, machine_call_dependency_symbols,
 };
-pub use crate::calls::{CallFrameResolver, frame_paths_overlap};
+pub use crate::calls::{CallFrameResolver, LocalWriteOrigin, frame_paths_overlap};
 use crate::calls::{
     validate_call_node, validate_proof_machine_recursion, validate_self_recursive_call_positions,
     validate_value_position_calls,
@@ -662,6 +662,12 @@ fn validate_program_internal(
                         &mut diagnostics,
                     );
                 }
+                let call_written = match statement {
+                    StatementNode::Call(call) => call_frames
+                        .as_ref()
+                        .and_then(|frames| frames.may_write_paths(machine, call)),
+                    _ => None,
+                };
                 validate_state_statement_node(
                     program,
                     machine,
@@ -672,6 +678,7 @@ fn validate_program_internal(
                     statement_handle,
                     statement,
                     &mut value_env,
+                    call_written,
                     &mut exact_integer_casts,
                     &mut boundary_operator_applications,
                     &mut diagnostics,
@@ -818,6 +825,7 @@ fn validate_state_statement_node(
     statement_handle: psi_typed_trees::statement::StatementHandle,
     statement: &StatementNode,
     value_env: &mut arithmetic_domains::ValueEnv,
+    call_written: Option<Vec<String>>,
     exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1070,30 +1078,7 @@ fn validate_state_statement_node(
             // unsummarized, and overlapping implementations remain
             // conservative. Authored `stores` clauses are retired; exactness
             // grows through inferred implementation summaries.
-            let written = crate::calls::known_call_written_paths(
-                program,
-                call,
-                machine,
-                machine_symbols,
-                symbols,
-            )
-            .or_else(|| {
-                crate::calls::known_boundary_call_written_paths(
-                    program,
-                    machine_symbols,
-                    symbols,
-                    call,
-                )
-            })
-            .or_else(|| {
-                crate::calls::conservative_call_written_paths(
-                    program,
-                    call,
-                    machine_symbols,
-                    symbols,
-                )
-            });
-            if let Some(written) = written {
+            if let Some(written) = call_written {
                 value_env.invalidate_written_paths(&written);
             } else {
                 value_env.clear();

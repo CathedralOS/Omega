@@ -1,6 +1,164 @@
 use super::*;
 
 #[test]
+fn direct_frames_close_over_current_aliases_without_redirecting_prior_aliases() {
+    use psi_typed_trees::statement::StatementNode;
+    let source = r#"
+    data Cell { value: u64; }
+    data Main { first: Cell; second: Cell; }
+    machine Cell::write(&mut self) { self.value = 9; }
+    machine Cell::read_after_write(&mut self) -> u64 { self.value = 9; 0 }
+    machine Main::run(&mut self) {
+        let mut receiver: &mut Cell = &mut self.first;
+        let prior: &mut Cell = receiver;
+        receiver = &mut self.second;
+        prior.write();
+        receiver.write();
+        self.first.write();
+        let result: u64 = prior.read_after_write();
+    }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let resolver = psi_validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .expect("caller");
+    let state = typed.machine_states(machine).first().expect("entry");
+    let statements = typed.statement_table.statements(state.statement_nodes);
+    let calls: Vec<_> = statements
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(calls.len(), 3);
+    for (call, expected) in calls.into_iter().zip([
+        ["prior.value", "self.first.value"],
+        ["receiver.value", "self.second.value"],
+        ["prior.value", "self.first.value"],
+    ]) {
+        let mut actual = resolver
+            .may_write_paths(machine, call)
+            .expect("complete direct frame");
+        actual.sort();
+        assert_eq!(actual, expected);
+    }
+    let statement = statements.last().expect("value initializer");
+    let StatementNode::LocalData(local) = statement else {
+        panic!("local initializer")
+    };
+    for mut paths in [
+        resolver
+            .statement_value_may_write_paths(machine, statement)
+            .expect("statement value frame"),
+        resolver
+            .expression_may_write_paths(machine, local.initial_value)
+            .expect("expression frame"),
+    ] {
+        paths.sort();
+        assert_eq!(paths, ["prior.value", "self.first.value"]);
+    }
+}
+
+#[test]
+fn local_receiver_calls_invalidate_arithmetic_facts_on_caller_storage() {
+    for call in [
+        "receiver.write();",
+        "let result: u64 = receiver.write_value();",
+    ] {
+        let source = format!(
+            "data Main {{ value: u8; }}
+            machine Main::write(&mut self) {{ self.value = 255; }}
+            machine Main::write_value(&mut self) -> u64 {{ self.value = 255; 0 }}
+            machine Main::run(&mut self) {{
+                self.value = 0;
+                let receiver: &mut Main = &mut self;
+                {call}
+                self.value = self.value + 1;
+            }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+        let diagnostics = psi_validation::validate_program(&typed)
+            .expect_err("stale zero cannot prove overflow safety");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                let message = diagnostic.to_string();
+                message.contains("Main::run") && message.contains("may overflow")
+            }),
+            "{call}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn local_receiver_references_retain_caller_writes_and_returned_places() {
+    let cases = [
+        (
+            "statement",
+            "let receiver: &mut Cell = &mut self.first; receiver.write(compute(&mut self.audit));",
+            vec!["self.audit", "self.first.value"],
+        ),
+        (
+            "returned_place",
+            "let receiver: &mut Cell = &mut self.first; let result: &mut u64 = receiver.select(compute(&mut self.audit)); result = 2;",
+            vec!["self.audit", "self.first.value"],
+        ),
+        (
+            "replaced_receiver",
+            "let mut receiver: &mut Cell = &mut self.first; let prior: &mut Cell = receiver; receiver = &mut self.second; prior.write(compute(&mut self.audit)); receiver.write(0);",
+            vec!["self.audit", "self.first.value", "self.second.value"],
+        ),
+        (
+            "indexed_receiver",
+            "let receiver: &mut Cell = &mut self.cells[0]; receiver.write(compute(&mut self.audit));",
+            vec!["self.audit", "self.cells"],
+        ),
+        (
+            "indexed_returned_place",
+            "let receiver: &mut Cell = &mut self.cells[0]; let result: &mut u64 = receiver.select(compute(&mut self.audit)); result = 2;",
+            vec!["self.audit", "self.cells"],
+        ),
+    ];
+    for (name, body, expected) in cases {
+        let source = format!(
+            "data Cell {{ value: u64; }}
+            data Main {{ first: Cell; second: Cell; cells: [Cell; 2]; audit: u64; }}
+            machine compute(value: &mut u64) -> u64 {{ value = 1; 1 }}
+            machine Cell::write(&mut self, value: u64) {{ self.value = value; }}
+            machine Cell::select(&mut self, value: u64) -> &mut u64 {{ self.value = value; &mut self.value }}
+            machine Main::run(&mut self) {{ {body} }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+        let resolver = psi_validation::CallFrameResolver::new(&typed).expect("symbol cache");
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::run")
+            .expect("caller");
+        let state = typed.machine_states(machine).first().expect("entry");
+        let frame = resolver.inferred_state_write_frame(machine, state);
+        let mut actual = frame
+            .complete_paths()
+            .unwrap_or_else(|| panic!("{name} must be complete"))
+            .to_vec();
+        actual.sort();
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+#[test]
 fn computed_attached_arguments_exclude_the_receiver_parameter() {
     let source = r#"
     data Main { value: u64; audit: u64; }

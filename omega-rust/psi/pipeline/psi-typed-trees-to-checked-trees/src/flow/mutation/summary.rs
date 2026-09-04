@@ -5,6 +5,7 @@
 //! field/range places for flow invalidation and propagates those places across
 //! the calls which the shared resolver admitted as complete.
 
+use super::local_origins::rebase_local_write_place;
 use super::*;
 use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
 
@@ -21,13 +22,14 @@ struct StateMutationSummary {
     writes: Vec<CanonicalPlace>,
 }
 
-pub(crate) fn instantiate_known_call_mutation_summary_places(
+pub(super) fn instantiate_known_call_mutation_summary_places(
     program: &psi_typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     cache: &mut StateMutationSummaryCache,
+    namespace: WritePlaceNamespace,
 ) -> Option<Vec<CanonicalPlace>> {
     let target_state = find_state(program, borrow_call.target_symbol)?;
     let summary_places = state_mutation_summary_places(program, borrow, cache, target_state)?;
@@ -40,6 +42,7 @@ pub(crate) fn instantiate_known_call_mutation_summary_places(
             caller_state_symbol,
             borrow_call,
             summary_place,
+            namespace,
         )?;
         if !instantiated.contains(&place) {
             instantiated.push(place);
@@ -180,6 +183,7 @@ fn ensure_state_mutation_summaries(
                         caller_symbol,
                         call,
                         write,
+                        WritePlaceNamespace::Storage,
                     ) else {
                         complete = false;
                         break;
@@ -355,6 +359,7 @@ fn instantiate_call_relative_place(
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
     relative_place: &CanonicalPlace,
+    namespace: WritePlaceNamespace,
 ) -> Option<CanonicalPlace> {
     let psi_facts::PlaceRoot::Symbol(parameter_symbol) = relative_place.root else {
         return None;
@@ -414,7 +419,15 @@ fn instantiate_call_relative_place(
         instantiated
             .segments
             .extend(relative_place.segments.iter().copied());
-        return Some(instantiated);
+        return match namespace {
+            WritePlaceNamespace::AccessRoute => Some(instantiated),
+            WritePlaceNamespace::Storage => rebase_local_write_place(
+                program,
+                caller_state_symbol,
+                borrow_call.statement_index,
+                instantiated,
+            ),
+        };
     }
 
     None

@@ -570,7 +570,8 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
         &borrow,
         touch_unrelated_borrow_call,
         &mut cache,
-    );
+    )
+    .expect("complete storage frame");
     assert_eq!(
         mutated_places.len(),
         1,

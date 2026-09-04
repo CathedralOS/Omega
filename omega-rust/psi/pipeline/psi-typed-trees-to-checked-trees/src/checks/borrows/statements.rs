@@ -4,7 +4,7 @@ use psi_checked_trees::{
 };
 use psi_diagnostics::Diagnostic;
 
-use crate::flow::{StateMutationSummaryCache, call_mutated_places, statement_mutated_place};
+use crate::flow::{StateMutationSummaryCache, call_write_accesses, statement_mutated_place};
 use crate::labels::symbol_name;
 use crate::semantic_calls::find_state_in_machine;
 
@@ -217,7 +217,7 @@ pub(super) fn check_statement_borrows(
 /// invalidate a borrowed slice/string view (`&[T]`/`&mut [T]`/`&string`) taken
 /// from that owner. The owner-write rule already rejects this for *assignment*
 /// statements; this extends the same conflict to *call* statements, whose
-/// mutated places are computed by [`call_mutated_places`] (the receiver place
+/// write accesses are computed by [`crate::flow::call_write_accesses`] (the receiver place
 /// plus any mutable-argument places). A mutated place overlapping a loan that is
 /// still live at the call point is rejected.
 ///
@@ -232,7 +232,7 @@ fn check_call_mutation_borrows(
     summary_cache: &mut StateMutationSummaryCache,
 ) {
     for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
-        let mutated_places = call_mutated_places(
+        let mutated_places = call_write_accesses(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,
