@@ -11,10 +11,12 @@ The normative contract is
 [`source/delta/LANGUAGE.md`](../../../../source/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 2,026-line
+execute the resulting canonical Gamma receipt. The selected 2,029-line
 in-progress source enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
-signatures. Its immutable exact-name environments reject unknown locals and
+signatures. A two-pass immutable metadata catalog preserves forward and mutual
+nominal declarations without repeated whole-source lookup. Its immutable
+exact-name environments reject unknown locals and
 duplicate active parameter, `let`, or pattern binders while preserving reuse
 across disjoint scopes. The same pass checks the scalar/nominal expression,
 constructor, pattern, call, arm, and result type relation. Generated Gamma

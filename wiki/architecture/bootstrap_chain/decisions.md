@@ -4604,3 +4604,38 @@ The exact selected subject is now 2,026 Gamma lines and 80,586 bytes, with 165
 definitions and 683 lexical `let` binders. This closes match-set conformance;
 Q5's application-outcome boundary remains separate and does not weaken the
 pure source judgment.
+
+## D111 — Delta nominal lookup uses a two-pass metadata catalog
+
+The selected compiler previously recovered every nominal type owner,
+constructor owner, constructor tag, constructor arity, and declaration position
+by scanning the complete source again. A 30,608-byte prefix containing the 158
+real Epsilon data declarations therefore exceeded 60 seconds despite requiring
+only a scalar `main`. The behavior also contradicted the compiler documentation,
+which already required exact indexed lookup.
+
+The first global pass now catalogs each exact type name with its source owner,
+constructor count, and payload-representation fact. It checks field-type token
+shape but deliberately defers nominal resolution. The second pass resolves
+every field against the complete type catalog and records each exact constructor
+name with its type metadata, declaration-order tag, arity, and field-list
+coordinate. Forward and mutual nominal declarations therefore retain their
+language meaning without whole-source lookup.
+
+Trie terminals now use an explicit `(present, payload)` option. This is required
+because metadata is pair-valued and Gamma forbids testing a pair reference as an
+`if` condition; zero remains a valid scalar payload in the local and function
+tries. No host table, mutable catalog, hash, packed metadata word, or new Gamma
+operation participates.
+
+The Epsilon declaration census now produces the exact 21-byte scalar receipt
+within the selected evaluator watchdog. An exact forward/mutual fixture covers
+zero-, one-, and three-field constructors, every tag, reordered exhaustive arms,
+and nested matches; its 956-byte receipt is byte-identical to the pre-index
+compiler. All earlier pinned receipts and the 3,001-function witness are also
+unchanged. The complete current 437,283-byte Epsilon source plus a diagnostic
+entry still exceeds 120 seconds, so broader transformation performance remains
+open rather than being hidden behind this nominal-index milestone.
+
+The exact selected subject is now 2,029 Gamma lines and 81,156 bytes, with 169
+definitions and 665 lexical `let` binders.

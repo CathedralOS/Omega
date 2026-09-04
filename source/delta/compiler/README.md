@@ -28,7 +28,11 @@ by an authored Delta name.
 
 Before tokenization or emission, the stage rejects every source byte except HT,
 LF, CR, and printable ASCII, exactly matching Delta's textual envelope. It then
-scans the complete declaration sequence.
+scans the complete declaration sequence. A first pass collects exact type
+owners, constructor counts, and representation shape without resolving forward
+field types. A second pass resolves those fields against the complete type
+catalog and records each constructor's owner, tag, arity, and declaration
+coordinates.
 It requires all nonempty `data` declarations before one or more functions,
 exactly one `main`, and unique type, constructor, and function declarations in
 their separate namespaces. Exact source-byte names are retained in persistent
@@ -65,13 +69,15 @@ exhaustive arm as the fallback, preserving the existing ordered receipts.
 The global function trie carries each exact declaration owner as its terminal
 payload. Application heads resolve through that checked table, including
 forward and mutual calls; arity, parameter types, and result type are recovered
-from the retained declaration. Every user call, operator, and `if` has an exact
-argument count. Undeclared Gamma effects such as `input`, `read`, and `pair`
-therefore cannot leak through as Delta calls; an ordinary Delta function may
-still deliberately use one of those spellings after declaring it. Every
-non-`main` function definition and call receives the injective `__d_` Gamma
-prefix, preventing such a declaration from being captured by Gamma's builtin
-dispatch. `main` alone retains the name required by the evaluator.
+from the retained declaration. Type and constructor references resolve through
+the metadata catalogs rather than rescanning the whole source. Every user call,
+operator, and `if` has an exact argument count. Undeclared Gamma effects such as
+`input`, `read`, and `pair` therefore cannot leak through as Delta calls; an
+ordinary Delta function may still deliberately use one of those spellings after
+declaring it. Every non-`main` function definition and call receives the
+injective `__d_` Gamma prefix, preventing such a declaration from being
+captured by Gamma's builtin dispatch. `main` alone retains the name required by
+the evaluator.
 
 Authored addition, subtraction, and multiplication lower to hygienic nested
 Gamma lets that evaluate operands once, left-to-right, compute the wrapping
@@ -103,7 +109,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,026-line / 80,586-byte Gamma source
+2,029-line / 81,156-byte Gamma source
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9
@@ -128,6 +134,11 @@ The downgraded full compiler remains separate under
 5-line / 209-byte skewed Bytes fixture
   -> 9-line / 1,000-byte Gamma receipt
   -> 100,000-node lookup produces byte 0x5a in bounded call context
+11-line / 397-byte forward/mutual nominal fixture
+  -> 3-line / 956-byte byte-identical Gamma receipt
+  -> all nullary, unary, and three-field constructor shapes produce byte 7
+828-line / 30,608-byte Epsilon declaration census
+  -> exact 21-byte scalar Gamma receipt within the evaluator watchdog
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199; staged transformation is

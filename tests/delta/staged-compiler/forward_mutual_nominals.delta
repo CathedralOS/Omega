@@ -1,0 +1,11 @@
+(data Node (Node Branch))
+(data Branch (Leaf Int) (Empty) (Fork Node Node Int))
+(def score ((value Node)) Int
+  (match value
+    ((Node branch)
+      (match branch
+        ((Fork left right bonus) (+ (score left) (+ (score right) bonus)))
+        (Empty 0)
+        ((Leaf amount) amount)))))
+(def main () Int
+  (score (Node (Fork (Node (Leaf 2)) (Node (Fork (Node Empty) (Node (Leaf 3)) 1)) 1))))
