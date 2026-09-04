@@ -256,3 +256,46 @@ fn source_audit_requires_an_explicit_supported_adapter() {
     assert_eq!(unsupported.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&unsupported.stderr).contains("UnsupportedSourceAdapter"));
 }
+
+/// The primary documented route (`omega [--target <t>] <root.omg>`) reaches native
+/// realization on the caller's thread, so it ran the deepest walks on whatever stack
+/// the host gave `main` -- one mebibyte on Windows, where this aborted at exit 127
+/// with zero artifacts written.
+///
+/// This drives a real sample on purpose. The synthetic project in
+/// `native_production_requires_an_explicit_package_root_policy` exercises the same
+/// route and passes either way, because its machine is shallow enough to fit in a
+/// mebibyte. Deeply nested source does not discriminate either: the parser's own
+/// 1024-level guard is reached identically on both stack sizes. Only a real sample
+/// goes deep enough, and this test takes about four minutes as a result.
+#[test]
+fn the_primary_native_route_survives_a_real_sample() {
+    let source = repository_root().join("samples/cli/basics/cli_mvp/main.omg");
+    let build_dir = temp_path("primary-native-route");
+    let source = source.to_string_lossy().into_owned();
+    let build_dir_argument = build_dir.to_string_lossy().into_owned();
+
+    let output = omega(&["--build-dir", &build_dir_argument, &source]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(
+        !stderr.contains("overflowed its stack"),
+        "the primary route overflowed the host stack:{}{stderr}",
+        "
+"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected the package-root-policy diagnostic, stderr was:{}{stderr}",
+        "
+"
+    );
+    assert!(
+        stderr.contains("blocking rows but no explicit --package-root-policy"),
+        "stderr was:{}{stderr}",
+        "
+"
+    );
+    let _ = std::fs::remove_dir_all(build_dir);
+}

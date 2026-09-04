@@ -15,7 +15,26 @@ use omega_core::allocations::CountingAllocator;
 #[global_allocator]
 static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();
 
+/// Recursive parsing and representation walks must reach their explicit depth
+/// guards on hosts whose default thread stacks are small, and Windows gives the
+/// main thread one mebibyte. Compiler entry points already run their work on a
+/// large stack, but native realization is reached on the caller's thread, so the
+/// primary `omega <root.omg>` route ran the deepest walks on the smallest stack
+/// and aborted before writing an artifact. Every subcommand crosses here, so one
+/// thread at this boundary covers all of them.
+const COMMAND_STACK_SIZE: usize = 256 * 1024 * 1024;
+
 pub(crate) fn run() {
+    std::thread::Builder::new()
+        .name("omega-command".to_owned())
+        .stack_size(COMMAND_STACK_SIZE)
+        .spawn(dispatch)
+        .expect("failed to spawn command thread")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+}
+
+fn dispatch() {
     // `omega refresh-samples [samples-dir]`: compile every sample main.omg
     // under samples/, in place, in parallel, so each sample folder holds a
     // current, runnable build/omega-program.exe. Cross-platform (no shell
