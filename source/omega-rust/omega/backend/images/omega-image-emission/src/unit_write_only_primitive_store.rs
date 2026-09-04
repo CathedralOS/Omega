@@ -11,21 +11,23 @@ use omega_target::NativeTarget;
 use psi_core::ScalarType;
 use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
-use super::ObjectError;
 use super::unit_structural_scalar_field_store::{
-    expected_parameter_store_bytes, expected_store_bytes, integer_bits,
+    expected_incoming_parameter_store_bytes, expected_parameter_store_bytes, expected_store_bytes,
+    integer_bits,
 };
+use super::{ObjectError, ObjectUnitStack};
 
 pub(super) fn validate_unit_write_only_primitive_stores(
     target: NativeTarget,
     function: &MachineCodeFunction,
+    validated_function_stack: Option<&ObjectUnitStack>,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidUnitWriteOnlyPrimitiveStoreEvidence(function.machine);
     let mut previous = None;
     for store in &function.unit_write_only_primitive_stores {
         let key = (store.operation_ordinal, store.code_offset);
         if previous.is_some_and(|previous| previous >= key)
-            || validate_store(target, function, store).is_none()
+            || validate_store(target, function, validated_function_stack, store).is_none()
         {
             return Err(invalid());
         }
@@ -37,6 +39,7 @@ pub(super) fn validate_unit_write_only_primitive_stores(
 fn validate_store(
     target: NativeTarget,
     function: &MachineCodeFunction,
+    validated_function_stack: Option<&ObjectUnitStack>,
     store: &UnitWriteOnlyPrimitiveStoreRecord,
 ) -> Option<()> {
     let parameter_index = usize::try_from(store.destination.position).ok()?;
@@ -53,16 +56,33 @@ fn validate_store(
             let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
             let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
             let (scalar_shape, byte_size) = native_scalar_shape(scalar_type)?;
-            let [
-                ValueLocation::Register {
-                    register: expected_register,
-                    value_byte_offset: 0,
-                    byte_size: placed_byte_size,
-                },
-            ] = scalar_parameter.placement.locations.as_slice()
-            else {
-                return None;
-            };
+            let (expected_location, placed_byte_size) =
+                match scalar_parameter.placement.locations.as_slice() {
+                    [
+                        ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size,
+                        },
+                    ] => (
+                        omega_machine_code::UnitScalarParameterLocationRecord::Register(*register),
+                        *byte_size,
+                    ),
+                    [
+                        ValueLocation::Stack {
+                            stack_byte_offset,
+                            value_byte_offset: 0,
+                            byte_size,
+                            ..
+                        },
+                    ] => (
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset: *stack_byte_offset,
+                        },
+                        *byte_size,
+                    ),
+                    _ => return None,
+                };
             let mut parameter_shapes = abi
                 .parameters
                 .iter()
@@ -85,11 +105,8 @@ fn validate_store(
                     && scalar_parameter.value == source_value
                     && scalar_parameter.scalar_type == scalar_type
                     && scalar_parameter.placement.shape == scalar_shape
-                    && *placed_byte_size == byte_size
-                    && location
-                        == omega_machine_code::UnitScalarParameterLocationRecord::Register(
-                            *expected_register,
-                        )
+                    && placed_byte_size == byte_size
+                    && location == expected_location
                     && abi.call_plan == expected_plan
                     && abi.call_plan.parameters.get(scalar_parameter_index)
                         == Some(&scalar_parameter.placement)
@@ -267,7 +284,18 @@ fn validate_store(
             location: omega_machine_code::UnitScalarParameterLocationRecord::Register(register),
             ..
         } => expected_parameter_store_bytes(target, home, 0, byte_size, register)?,
-        UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter { .. } => return None,
+        UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+            location:
+                omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack { byte_offset },
+            ..
+        } => expected_incoming_parameter_store_bytes(
+            target,
+            home,
+            0,
+            byte_size,
+            byte_offset,
+            validated_function_stack?.frame_bytes,
+        )?,
         _ => expected_store_bytes(target, home, 0, byte_size, bits?)?,
     };
     let end = store.code_offset.checked_add(store.byte_count)?;

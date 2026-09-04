@@ -160,6 +160,8 @@ pub(super) fn emit_unit_result_call(
     preceding_operations: &[AssignedUnitOperation],
     x86_homes: &[X86UnitParameterHome],
     aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_frame_bytes: u32,
+    aarch64_frame_bytes: u32,
     bytes: &mut Vec<u8>,
     internal_calls: &mut Vec<InternalCallRelocation>,
     operation_ordinal: usize,
@@ -250,6 +252,7 @@ pub(super) fn emit_unit_result_call(
             copies,
             preceding_operations,
             x86_homes,
+            x86_frame_bytes,
             internal_calls,
         )?,
         Architecture::Aarch64 => emit_aarch64_mixed_call(
@@ -262,6 +265,7 @@ pub(super) fn emit_unit_result_call(
             copies,
             preceding_operations,
             aarch64_homes,
+            aarch64_frame_bytes,
             internal_calls,
         )?,
     };
@@ -307,11 +311,14 @@ pub(super) fn emit_unit_result_call(
 
 pub(super) fn emit_structural_scalar_call(
     operation: &AssignedUnitOperation,
+    caller_scalar_parameters: &[omega_target_operations::UnitScalarAbiValue],
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
     x86_homes: &[X86UnitParameterHome],
     aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_frame_bytes: u32,
+    aarch64_frame_bytes: u32,
     bytes: &mut Vec<u8>,
     internal_calls: &mut Vec<InternalCallRelocation>,
     operation_ordinal: usize,
@@ -413,10 +420,11 @@ pub(super) fn emit_structural_scalar_call(
             *callee,
             call_plan,
             scalar_arguments,
-            &[],
+            caller_scalar_parameters,
             copies,
             preceding_operations,
             x86_homes,
+            x86_frame_bytes,
             internal_calls,
         )?,
         Architecture::Aarch64 => emit_aarch64_mixed_call(
@@ -425,10 +433,11 @@ pub(super) fn emit_structural_scalar_call(
             *callee,
             call_plan,
             scalar_arguments,
-            &[],
+            caller_scalar_parameters,
             copies,
             preceding_operations,
             aarch64_homes,
+            aarch64_frame_bytes,
             internal_calls,
         )?,
     };
@@ -475,11 +484,14 @@ pub(super) fn emit_structural_scalar_call(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_structural_result_call(
     operation: &AssignedUnitOperation,
+    caller_scalar_parameters: &[omega_target_operations::UnitScalarAbiValue],
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
     x86_homes: &[X86UnitParameterHome],
     aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_frame_bytes: u32,
+    aarch64_frame_bytes: u32,
     bytes: &mut Vec<u8>,
     internal_calls: &mut Vec<InternalCallRelocation>,
     operation_ordinal: usize,
@@ -591,10 +603,11 @@ pub(super) fn emit_structural_result_call(
             *callee,
             call_plan,
             scalar_arguments,
-            &[],
+            caller_scalar_parameters,
             copies,
             preceding_operations,
             x86_homes,
+            x86_frame_bytes,
             internal_calls,
         )?,
         Architecture::Aarch64 => emit_aarch64_mixed_call(
@@ -603,10 +616,11 @@ pub(super) fn emit_structural_result_call(
             *callee,
             call_plan,
             scalar_arguments,
-            &[],
+            caller_scalar_parameters,
             copies,
             preceding_operations,
             aarch64_homes,
+            aarch64_frame_bytes,
             internal_calls,
         )?,
     };
@@ -763,6 +777,7 @@ fn emit_x86_64_mixed_call(
     copies: &[omega_assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
     homes: &[X86UnitParameterHome],
+    frame_bytes: u32,
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<
     (
@@ -803,7 +818,7 @@ fn emit_x86_64_mixed_call(
     let mut scalar_records = Vec::with_capacity(scalar_arguments.len());
     for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
         let code_offset = bytes.len();
-        emit_x86_64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
+        emit_x86_64_unit_scalar_argument(bytes, argument, frame_bytes, call_stack_bytes)?;
         scalar_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
             source: unit_scalar_argument_source_record(
@@ -873,6 +888,7 @@ fn emit_aarch64_mixed_call(
     copies: &[omega_assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
     homes: &[Aarch64UnitParameterHome],
+    frame_bytes: u32,
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<
     (
@@ -912,7 +928,7 @@ fn emit_aarch64_mixed_call(
     let mut scalar_records = Vec::with_capacity(scalar_arguments.len());
     for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
         let code_offset = bytes.len();
-        emit_aarch64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
+        emit_aarch64_unit_scalar_argument(bytes, argument, frame_bytes, call_stack_bytes)?;
         scalar_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
             source: unit_scalar_argument_source_record(

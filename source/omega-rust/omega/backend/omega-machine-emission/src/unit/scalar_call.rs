@@ -31,6 +31,8 @@ pub(super) fn emit_unit_scalar_call(
     call_plan: &omega_calling_conventions::CallPlan,
     result_home: AssignedUnitScalarHome,
     arguments: &[AssignedUnitScalarCallArgument],
+    caller_parameters: &[omega_target_operations::UnitScalarAbiValue],
+    frame_bytes: u32,
     preceding_operations: &[AssignedUnitOperation],
     operation_ordinal: usize,
     internal_calls: &mut Vec<InternalCallRelocation>,
@@ -69,6 +71,8 @@ pub(super) fn emit_unit_scalar_call(
             call_plan,
             result_home,
             arguments,
+            caller_parameters,
+            frame_bytes,
             preceding_operations,
             internal_calls,
         )?,
@@ -79,6 +83,8 @@ pub(super) fn emit_unit_scalar_call(
             call_plan,
             result_home,
             arguments,
+            caller_parameters,
+            frame_bytes,
             preceding_operations,
             internal_calls,
         )?,
@@ -104,6 +110,8 @@ fn emit_x86_64_unit_scalar_call(
     call_plan: &omega_calling_conventions::CallPlan,
     result_home: AssignedUnitScalarHome,
     arguments: &[AssignedUnitScalarCallArgument],
+    caller_parameters: &[omega_target_operations::UnitScalarAbiValue],
+    frame_bytes: u32,
     preceding_operations: &[AssignedUnitOperation],
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<
@@ -142,11 +150,11 @@ fn emit_x86_64_unit_scalar_call(
             parameter_index,
             argument,
             call_plan,
-            &[],
+            caller_parameters,
             preceding_operations,
         )?;
         let code_offset = bytes.len();
-        emit_x86_64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
+        emit_x86_64_unit_scalar_argument(bytes, argument, frame_bytes, call_stack_bytes)?;
         argument_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
             source: unit_scalar_argument_source_record(
@@ -195,6 +203,8 @@ fn emit_aarch64_unit_scalar_call(
     call_plan: &omega_calling_conventions::CallPlan,
     result_home: AssignedUnitScalarHome,
     arguments: &[AssignedUnitScalarCallArgument],
+    caller_parameters: &[omega_target_operations::UnitScalarAbiValue],
+    frame_bytes: u32,
     preceding_operations: &[AssignedUnitOperation],
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<
@@ -226,11 +236,11 @@ fn emit_aarch64_unit_scalar_call(
             parameter_index,
             argument,
             call_plan,
-            &[],
+            caller_parameters,
             preceding_operations,
         )?;
         let code_offset = bytes.len();
-        emit_aarch64_unit_scalar_argument(bytes, argument, call_stack_bytes)?;
+        emit_aarch64_unit_scalar_argument(bytes, argument, frame_bytes, call_stack_bytes)?;
         argument_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
             source: unit_scalar_argument_source_record(
@@ -580,6 +590,7 @@ pub(super) fn emit_unit_scalar_result(
 pub(super) fn emit_x86_64_unit_scalar_argument(
     bytes: &mut Vec<u8>,
     argument: &AssignedUnitScalarCallArgument,
+    frame_bytes: u32,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     let (destination_register, destination_stack) = match argument.destination {
@@ -600,6 +611,26 @@ pub(super) fn emit_x86_64_unit_scalar_argument(
                 omega_assigned_target_operations::AssignedScalarLocation::Register(source),
                 omega_assigned_target_operations::AssignedCallDestination::Register(destination),
             ) if source == destination => {}
+            (
+                omega_assigned_target_operations::AssignedScalarLocation::IncomingStack {
+                    byte_offset,
+                },
+                _,
+            ) => {
+                let source_offset = call_stack_bytes
+                    .checked_add(frame_bytes)
+                    .and_then(|offset| offset.checked_add(8))
+                    .and_then(|offset| offset.checked_add(byte_offset))
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                let byte_size =
+                    unit_scalar_shape(source_value, argument.source.scalar_type())?.byte_size;
+                emit_x86_64_stack_load_width(
+                    bytes,
+                    destination_register,
+                    source_offset,
+                    byte_size,
+                )?;
+            }
             _ => return Err(EmissionError::UnsupportedUnitScalarType(source_value)),
         },
         AssignedUnitScalarArgumentSource::IntegerImmediate {
@@ -631,6 +662,7 @@ pub(super) fn emit_x86_64_unit_scalar_argument(
 pub(super) fn emit_aarch64_unit_scalar_argument(
     bytes: &mut Vec<u8>,
     argument: &AssignedUnitScalarCallArgument,
+    frame_bytes: u32,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     let (destination_register, destination_stack) = match argument.destination {
@@ -652,6 +684,25 @@ pub(super) fn emit_aarch64_unit_scalar_argument(
                 omega_assigned_target_operations::AssignedScalarLocation::Register(source),
                 omega_assigned_target_operations::AssignedCallDestination::Register(destination),
             ) if source == destination => {}
+            (
+                omega_assigned_target_operations::AssignedScalarLocation::IncomingStack {
+                    byte_offset,
+                },
+                _,
+            ) => {
+                let source_offset = call_stack_bytes
+                    .checked_add(frame_bytes)
+                    .and_then(|offset| offset.checked_add(byte_offset))
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                let byte_size =
+                    unit_scalar_shape(source_value, argument.source.scalar_type())?.byte_size;
+                instructions.push(aarch64_unit_stack_access(
+                    aarch64_load_base(byte_size)?,
+                    destination_register,
+                    source_offset,
+                    byte_size,
+                )?);
+            }
             _ => return Err(EmissionError::UnsupportedUnitScalarType(source_value)),
         },
         AssignedUnitScalarArgumentSource::IntegerImmediate {

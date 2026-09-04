@@ -479,7 +479,13 @@ pub(super) fn validate_internal_unit_call_custody(
         {
             return Err(invalid());
         }
-        validate_mixed_argument_bytes_and_order(target, function, relocation, custody)?;
+        validate_mixed_argument_bytes_and_order(
+            target,
+            function,
+            validated_function_stack,
+            relocation,
+            custody,
+        )?;
     } else if let Some(abi) = callee_mixed_abi {
         if expected_plan != abi.call_plan
             || custody.result != Some(abi.result.scalar_type)
@@ -511,7 +517,13 @@ pub(super) fn validate_internal_unit_call_custody(
         {
             return Err(invalid());
         }
-        validate_mixed_argument_bytes_and_order(target, function, relocation, custody)?;
+        validate_mixed_argument_bytes_and_order(
+            target,
+            function,
+            validated_function_stack,
+            relocation,
+            custody,
+        )?;
     } else if let Some(returned) = callee_mixed_structural_return {
         if custody.result.is_some()
             || custody.structural_result.is_none()
@@ -555,7 +567,13 @@ pub(super) fn validate_internal_unit_call_custody(
         {
             return Err(invalid());
         }
-        validate_mixed_argument_bytes_and_order(target, function, relocation, custody)?;
+        validate_mixed_argument_bytes_and_order(
+            target,
+            function,
+            validated_function_stack,
+            relocation,
+            custody,
+        )?;
     }
     let projected_argument_indexes = custody
         .arguments
@@ -893,6 +911,7 @@ pub(super) fn validate_internal_unit_call_custody(
 fn validate_mixed_argument_bytes_and_order(
     target: NativeTarget,
     function: &MachineCodeFunction,
+    function_stack: &ObjectUnitStack,
     relocation: &omega_machine_code::InternalCallRelocation,
     custody: &omega_machine_code::InternalUnitCallRecord,
 ) -> Result<(), ObjectError> {
@@ -922,7 +941,8 @@ fn validate_mixed_argument_bytes_and_order(
         )
         .map_err(|_| invalid())?;
         let expected =
-            expected_argument_bytes(target, argument, outbound_bytes).ok_or_else(invalid)?;
+            expected_argument_bytes(target, argument, function_stack.frame_bytes, outbound_bytes)
+                .ok_or_else(invalid)?;
         let argument_end = cursor.checked_add(expected.len()).ok_or_else(invalid)?;
         if argument.byte_count != expected.len()
             || function.bytes.get(cursor..argument_end) != Some(expected.as_slice())

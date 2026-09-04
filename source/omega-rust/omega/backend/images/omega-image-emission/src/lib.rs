@@ -1387,7 +1387,11 @@ fn build_object_artifact_with_x86_feature_profile(
                 .max(dynamic_peak)
                 .max(stored_dynamic_peak);
         }
-        validate_unit_write_only_primitive_stores(plan.target, function)?;
+        validate_unit_write_only_primitive_stores(
+            plan.target,
+            function,
+            validated_function_stack.as_ref(),
+        )?;
         validate_unit_structural_scalar_field_stores(plan.target, function)?;
         validate_scalar_structural_scalar_field_stores(plan.target, function)?;
         match (&function.unit_stack, &function.unit_affine_cleanup) {

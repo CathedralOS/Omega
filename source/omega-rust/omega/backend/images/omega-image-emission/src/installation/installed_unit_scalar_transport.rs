@@ -507,13 +507,30 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                         .ok_or_else(invalid)?;
                     let (scalar_shape, width) = installed_native_scalar_shape(scalar_type)
                         .ok_or_else(invalid)?;
-                    let [ValueLocation::Register {
-                        register: expected_register,
-                        value_byte_offset: 0,
-                        byte_size: placed_byte_size,
-                    }] = scalar_parameter.placement.locations.as_slice()
-                    else {
-                        return Err(invalid());
+                    let (expected_location, placed_byte_size) =
+                        match scalar_parameter.placement.locations.as_slice() {
+                            [ValueLocation::Register {
+                                register,
+                                value_byte_offset: 0,
+                                byte_size,
+                            }] => (
+                                omega_machine_code::UnitScalarParameterLocationRecord::Register(
+                                    *register,
+                                ),
+                                *byte_size,
+                            ),
+                            [ValueLocation::Stack {
+                                stack_byte_offset,
+                                value_byte_offset: 0,
+                                byte_size,
+                                ..
+                            }] => (
+                                omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                                    byte_offset: *stack_byte_offset,
+                                },
+                                *byte_size,
+                            ),
+                            _ => return Err(invalid()),
                     };
                     let mut parameter_shapes = abi
                         .parameters
@@ -539,11 +556,8 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                             && scalar_parameter.value == source_value
                             && scalar_parameter.scalar_type == scalar_type
                             && scalar_parameter.placement.shape == scalar_shape
-                            && *placed_byte_size == width
-                            && location
-                                == omega_machine_code::UnitScalarParameterLocationRecord::Register(
-                                    *expected_register,
-                                )
+                            && placed_byte_size == width
+                            && location == expected_location
                             && abi.call_plan == expected_plan
                             && abi.call_plan.parameters.get(scalar_parameter_index)
                                 == Some(&scalar_parameter.placement)
@@ -708,10 +722,20 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 )
                 .ok_or_else(invalid)?,
                 omega_machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                    location:
+                        omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                            byte_offset,
+                        },
                     ..
-                } => {
-                    return Err(invalid());
-                }
+                } => crate::unit_structural_scalar_field_store::expected_incoming_parameter_store_bytes(
+                    record.target,
+                    home,
+                    0,
+                    width,
+                    byte_offset,
+                    function.unit_stack.as_ref().ok_or_else(invalid)?.frame_bytes,
+                )
+                .ok_or_else(invalid)?,
                 _ => crate::unit_structural_scalar_field_store::expected_store_bytes(
                     record.target,
                     home,

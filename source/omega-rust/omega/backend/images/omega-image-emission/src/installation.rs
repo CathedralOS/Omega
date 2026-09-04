@@ -2999,6 +2999,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 crate::unit_scalar_call_custody::expected_argument_bytes(
                                     record.target,
                                     argument,
+                                    function.unit_stack.as_ref()?.frame_bytes,
                                     structural.call_stack_bytes,
                                 )
                             });
@@ -3074,6 +3075,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                         crate::unit_scalar_call_custody::expected_argument_bytes(
                                             record.target,
                                             argument,
+                                            function.unit_stack.as_ref()?.frame_bytes,
                                             structural.call_stack_bytes,
                                         )
                                     });
@@ -3159,6 +3161,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                         crate::unit_scalar_call_custody::expected_argument_bytes(
                                             record.target,
                                             argument,
+                                            function.unit_stack.as_ref()?.frame_bytes,
                                             structural.call_stack_bytes,
                                         )
                                     });
