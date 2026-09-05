@@ -11,6 +11,9 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
+mod arrival_stability;
+mod return_arrival;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct FloatRange {
     minimum: f64,
@@ -19,6 +22,7 @@ struct FloatRange {
 
 pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let range_context = AssignmentRangeContext::new(proof_plan);
 
     for (_, obligation) in proof_plan.obligations.iter() {
         match obligation {
@@ -32,7 +36,12 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
                 check_bounded_initializer(proof_plan, obligation, &mut diagnostics);
             }
             ProofObligation::BoundedStateReturn(obligation) => {
-                check_bounded_state_return(proof_plan, obligation, &mut diagnostics);
+                check_bounded_state_return(
+                    proof_plan,
+                    obligation,
+                    &range_context,
+                    &mut diagnostics,
+                );
             }
             ProofObligation::BoundedTransitionArgument(obligation) => {
                 check_bounded_transition_argument(proof_plan, obligation, &mut diagnostics);
@@ -270,6 +279,7 @@ fn check_bounded_initializer(
 fn check_bounded_state_return(
     proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
+    context: &AssignmentRangeContext<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     check_return_named_constraints(proof_plan, obligation, diagnostics);
@@ -277,7 +287,8 @@ fn check_bounded_state_return(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(value_range) = integer_range_for_return_value(proof_plan, obligation) else {
+        let Some(value_range) = return_arrival::integer_range(proof_plan, obligation, context)
+        else {
             diagnostics.push(cannot_prove_bounded_return_integer(
                 proof_plan,
                 obligation,
@@ -1199,61 +1210,22 @@ fn assignment_guard_is_stable(
         return false;
     };
 
-    for statement in program.statement_table.statements(state.statement_nodes) {
-        let Some(value_written) = call_frames.statement_value_may_write_paths(machine, statement)
-        else {
-            return false;
-        };
-        if resolved_writes_overlap_reads(&value_written, &read_paths) {
-            return false;
-        }
-        if let StatementNode::Call(call) = statement {
-            let Some(statement_written) = call_frames.may_write_paths(machine, call) else {
-                return false;
-            };
-            if resolved_writes_overlap_reads(&statement_written, &read_paths) {
-                return false;
-            }
-        }
-
-        match statement {
-            StatementNode::Assignment(assignment) => {
-                if assignment.target == obligation.target && assignment.value == obligation.value {
-                    // Reached the obligation's own assignment: everything
-                    // before it was transparent and disjoint.
-                    return true;
-                }
-                let Some(written) = written_place_path(proof_plan, assignment.target) else {
-                    return false;
-                };
-                if read_paths
-                    .iter()
-                    .any(|read| member_paths_may_alias(read, &written))
-                {
-                    return false;
-                }
-            }
-            StatementNode::LocalData(local) => {
-                // A `let` binds a fresh local name; it cannot alias a field
-                // path. Only a name the GUARD read kills the fact (a body
-                // local shadowing a source-scope name -- by-name matching
-                // would conflate two bindings). A name only the VALUE reads is
-                // the let's own definition (the hoist shape), not an
-                // invalidation; a later reassignment is an Assignment and is
-                // caught above.
-                let written = vec![local.name.as_str().to_owned()];
-                if guard_read_paths
-                    .iter()
-                    .any(|read| member_paths_may_alias(read, &written))
-                {
-                    return false;
-                }
-            }
-            StatementNode::Call(_) | StatementNode::Expression(_) => {}
-            _ => return false,
-        }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if !matches!(statements.get(obligation.statement_index),
+        Some(StatementNode::Assignment(assignment))
+            if assignment.target == obligation.target && assignment.value == obligation.value)
+    {
+        return false;
     }
-    false
+    arrival_stability::prefix_preserves_reads(
+        proof_plan,
+        machine,
+        state,
+        obligation.statement_index,
+        &guard_read_paths,
+        &read_paths,
+        call_frames,
+    )
 }
 
 fn resolved_writes_overlap_reads(written: &[String], reads: &[Vec<String>]) -> bool {

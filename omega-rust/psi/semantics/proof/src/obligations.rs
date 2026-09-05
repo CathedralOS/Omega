@@ -427,10 +427,12 @@ pub struct BoundedStateReturnObligation {
     pub machine: Identifier,
     pub state_symbol: SymbolHandle,
     pub state: Identifier,
+    pub statement_index: usize,
     pub value: ExpressionHandle,
     pub value_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
+    pub binary_operands: Option<BinaryValueOperands>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -835,25 +837,7 @@ fn collect_bounded_assignment_obligation(
     // aliasing write drops the fact), and a REASSIGNED user local keeps its
     // own name in the read paths via the obligation value, so the rebind
     // kills the fact conservatively.
-    let binary_operands = match program.expression_table.expression(value) {
-        ExpressionNode::Binary(binary) => {
-            let operand_range = |operand: ExpressionHandle| {
-                integer_range_from_constraints(&expression_constraints(
-                    program, machine, state, operand,
-                ))
-            };
-            let left = dehoisted_operand(program, state, binary.left);
-            let right = dehoisted_operand(program, state, binary.right);
-            Some(BinaryValueOperands {
-                operator: binary.operator,
-                left,
-                left_range: operand_range(left),
-                right,
-                right_range: operand_range(right),
-            })
-        }
-        _ => None,
-    };
+    let binary_operands = binary_value_operands(program, machine, state, value);
 
     let obligation = BoundedAssignmentObligation {
         machine_symbol: machine.symbol,
@@ -876,6 +860,33 @@ fn collect_bounded_assignment_obligation(
         .append(obligation.clone());
     if bounded_target.is_some() {
         proof_plan.push_obligation(ProofObligation::BoundedAssignment(obligation));
+    }
+}
+
+fn binary_value_operands(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    value: ExpressionHandle,
+) -> Option<BinaryValueOperands> {
+    match program.expression_table.expression(value) {
+        ExpressionNode::Binary(binary) => {
+            let operand_range = |operand: ExpressionHandle| {
+                integer_range_from_constraints(&expression_constraints(
+                    program, machine, state, operand,
+                ))
+            };
+            let left = dehoisted_operand(program, state, binary.left);
+            let right = dehoisted_operand(program, state, binary.right);
+            Some(BinaryValueOperands {
+                operator: binary.operator,
+                left,
+                left_range: operand_range(left),
+                right,
+                right_range: operand_range(right),
+            })
+        }
+        _ => None,
     }
 }
 
@@ -1370,6 +1381,11 @@ fn collect_bounded_state_return_obligation(
         return;
     };
     let value = *value;
+    let statement_index = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .len()
+        - 1;
     let value_constraints =
         proof_plan.store_constraints(expression_constraints(program, machine, state, value));
     let constraints = proof_plan.store_constraint_nodes(program, constraints);
@@ -1380,10 +1396,12 @@ fn collect_bounded_state_return_obligation(
             machine: machine.name.clone(),
             state_symbol: state.symbol,
             state: state.name.clone(),
+            statement_index,
             value,
             value_constraints,
             base_type,
             constraints,
+            binary_operands: binary_value_operands(program, machine, state, value),
         },
     ));
 }
