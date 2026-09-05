@@ -109,6 +109,7 @@ fn scoped_build_generated_sources_reach_the_proposed_policy() {
         &tree,
         PURE,
         r#"
+    builder.log.write_line("generated package data");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(descriptor, "pub data Generated { value: u64; }\n");
@@ -134,13 +135,18 @@ fn scoped_build_generated_sources_reach_the_proposed_policy() {
                 .canonical_text()
                 .contains("Generated")
     }));
+    let root_review = checked.reviews().review(root).unwrap();
+    let observation = root_review.build_observation_summary().unwrap();
+    let expected_log = b"generated package data\n";
+    assert_eq!(observation.build_log(), expected_log);
+    // Generated-output replay charges the log again. Successful review has
+    // reconciled both executions with its sponsor while retaining one log.
+    let usage = root_review.build_evaluation_usage().unwrap();
+    assert_eq!(usage.build_log_bytes, expected_log.len() as u64);
+    assert_eq!(usage.replay_build_log_bytes, expected_log.len() as u64);
     assert!(
-        checked
-            .reviews()
-            .review(root)
-            .unwrap()
-            .build_observation_summary()
-            .is_some()
+        root_review.policy().dangerous_capabilities().is_empty(),
+        "compiler-owned logging must not introduce runtime Console authority"
     );
     assert!(
         !checked

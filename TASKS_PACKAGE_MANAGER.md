@@ -22,15 +22,6 @@ host credentials, and organizational review policy have separate owners.
   an empty capability set. Use the earliest checked compiler representation
   that establishes each fact; generic effects remain conservative.
 
-- [ ] **BUILD-REVIEW-INTEGRATION.** In candidate checking, verify the existing
-  scoped build evaluator and generated-source handoff end to end. Dependency
-  discovery precedes build execution; generated code receives final checking.
-  Acceptance: builds cannot obtain resolver credentials, change dependency
-  discovery through I/O, write outside supplied output roots, or hide generated
-  authority. Package-source reads, staged-output writes, and build logging use
-  the existing compiler facets; do not invent broader build services to finish
-  this task. Detect relevant source/build drift before publication.
-
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Extend real-command/network coverage to
   same-name/different-source replacement,
   transitive helper authority, and dangerous generated authority.

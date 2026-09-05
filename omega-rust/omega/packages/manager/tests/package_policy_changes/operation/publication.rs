@@ -504,6 +504,84 @@ fn changed_path_dependency_rejects_without_publishing_stale_local_pins() {
 }
 
 #[test]
+fn changed_build_input_rejects_publication_with_identical_generated_source_and_policy() {
+    let tree = Tree::new();
+    source(&tree, PURE, "");
+    let accepted = propose(&review(&tree, "accepted", None));
+    let (_, accepted_text) = write_lock(&tree, vec![accepted.clone()]);
+    let dependency = tree.path("sources/dependency");
+    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../tests/fixtures/packages/generated-table");
+    fs::create_dir_all(dependency.join("inputs")).unwrap();
+    for relative in ["build.omg", "main.omg", "inputs/table.txt"] {
+        fs::copy(fixture_root.join(relative), dependency.join(relative)).unwrap();
+    }
+    let replacement = addition(&tree.path("sources/root"), "../dependency");
+    let staged = stage(&tree, &replacement);
+    let checked = review_stage(&tree, &staged, TARGET, Some(&accepted));
+    let choices = decisions(&checked, "accept");
+    let producer = checked
+        .reviews()
+        .reviews()
+        .iter()
+        .find(|review| review.key().name().as_str() == "generated-table")
+        .unwrap();
+    let [generated] = producer.generated_source_bundle().sources() else {
+        panic!("producer must retain exactly one generated source");
+    };
+    assert_eq!(generated.relative_path(), b"table.generated.omg");
+    assert_eq!(
+        generated.bytes(),
+        b"pub machine table_size() -> u64 {\n    3\n}\n"
+    );
+    assert_eq!(
+        producer
+            .build_observation_summary()
+            .unwrap()
+            .filesystem_operation_attempts()
+            .len(),
+        6,
+        "the candidate executes the fixture's source read and staged write"
+    );
+
+    // The fixture reads this input but emits constant source. Publication must
+    // detect changed build input even when regenerated code and policy agree.
+    let input = dependency.join("inputs/table.txt");
+    let mut changed_input = fs::read(&input).unwrap();
+    changed_input.extend_from_slice(b"changed build input\n");
+    fs::write(&input, &changed_input).unwrap();
+    let dependency_before = files(&dependency);
+    let error = rejected_without_writes(
+        &tree.path("sources/root"),
+        &replacement,
+        &staged,
+        &[(&checked, &choices)],
+        Some(&accepted_text),
+    );
+    assert!(
+        matches!(
+            &error,
+            PublishReviewedPackageChangeError::Source(
+                package_source::SourceResolveError::LocalSourceChanged { path }
+            ) if path == &dependency.canonicalize().unwrap()
+        ),
+        "expected live build-input drift rejection: {error}"
+    );
+    assert_eq!(files(&dependency), dependency_before);
+
+    let fresh = review_stage(&tree, &staged, TARGET, Some(&accepted));
+    let fresh_producer = fresh.reviews().review(producer.key()).unwrap();
+    let [fresh_generated] = fresh_producer.generated_source_bundle().sources() else {
+        panic!("fresh producer must retain exactly one generated source");
+    };
+    assert_eq!(fresh_generated.relative_path(), generated.relative_path());
+    assert_eq!(fresh_generated.bytes(), generated.bytes());
+    assert_eq!(fresh_producer.policy(), producer.policy());
+    assert_ne!(fresh_producer.resolution(), producer.resolution());
+    assert_eq!(fs::read(input).unwrap(), changed_input);
+}
+
+#[test]
 fn empty_and_duplicate_target_reviews_reject_without_writes() {
     let (tree, replacement, staged, checked) = fixture(PURE);
     let root = tree.path("sources/root");

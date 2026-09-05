@@ -99,9 +99,15 @@ review or decision recovery.
 It does not roll back accepted files or discard publication recovery. Every
 operation recovers pending commit intent before using the accepted pair.
 
-Candidate builds use the existing scoped evaluator: source reads, disposable
-output writes, and compiler logging are possible before a later rejection.
+Dependency discovery and complete graph resolution precede build execution.
+An I/O-derived source locator or missing transitive package rejects before any
+build logging or input reads. Candidate builds use the existing scoped evaluator:
+source reads, disposable output writes, and compiler logging are possible before
+a later rejection.
 Runtime boundary services and resolver credentials are not supplied to builds.
+Source and output paths stay relative to their compiler-supplied roots; absolute
+paths and parent traversal reject. Publication checks build-input content even
+when changing an input would leave the generated source and policy unchanged.
 Generated machines may combine retained service identities into new normalized
 reach rows while preserving every existing row ID and meaning. They receive
 ordinary final effect checking and capability review. Broader generated
