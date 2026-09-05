@@ -480,6 +480,48 @@ fn fragment_projection_is_backend_owned_and_replay_does_not_emit() {
 }
 
 #[test]
+fn applied_frame_data_and_target_mechanics_have_separate_owners() {
+    let root = repository();
+    let data = rust_source(&root.join("omega-rust/omega/representations/omega-machine-code/src"));
+    let pipeline =
+        rust_source(&root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src"));
+    for name in [
+        "FunctionFragmentFrameApplicationIdentity",
+        "FunctionAppliedFrameEpilogue",
+        "FunctionAppliedFrameProtocol",
+        "FunctionFragmentFrameApplication",
+    ] {
+        let declaration = if name.ends_with("Identity") {
+            format!("pub struct {name}(")
+        } else {
+            format!("pub struct {name} {{")
+        };
+        assert!(data.contains(&declaration), "missing representation {name}");
+        assert!(!pipeline.contains(&declaration), "pipeline owns {name}");
+    }
+    assert!(data.contains("omega.function-fragment-frame-application.v2"));
+    assert!(!pipeline.contains("omega.function-fragment-frame-application.v2"));
+    let coordinator = root.join("omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/artifacts/function_fragment_frame_application");
+    for retired in [
+        "compute.rs",
+        "reflow.rs",
+        "validation_branch.rs",
+        "identity.rs",
+    ] {
+        assert!(
+            !coordinator.join(retired).exists(),
+            "coordinator owns {retired}"
+        );
+    }
+    let backend = rust_source(
+        &root.join("omega-rust/omega/backend/omega-machine-emission/src/frame_application"),
+    );
+    assert!(!backend.contains("omega_optimization_pipeline::"));
+    assert!(!backend.contains("StagedFunctionFragmentFrameApplication"));
+    assert!(!data.contains("pub struct StagedFunctionFragmentFrameApplication"));
+}
+
+#[test]
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();
     let owner =

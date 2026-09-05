@@ -5,17 +5,13 @@
 //! site. Conditional-branch coordinates and bytes are replayed after insertion
 //! with the target-owned encoders.
 
-mod compute;
 mod error;
-mod identity;
 mod model;
-mod reflow;
 mod validation;
-mod validation_branch;
 
 pub use error::FunctionFragmentFrameApplicationError;
-pub use identity::function_fragment_frame_application_identity;
 pub use model::*;
+pub use omega_machine_code::function_fragment_frame_application_identity;
 
 use crate::{
     StagedOptimizedFunctionFragmentEmission, validate_optimized_function_fragment_emission,
@@ -31,17 +27,18 @@ pub fn stage_function_fragment_frame_application(
             .source()
             .frame_protocol()
             .ok_or(FunctionFragmentFrameApplicationError::SourceKindMismatch)?;
-        compute::apply(
+        omega_machine_emission::apply_frame_protocol_to_fragments(
             source.fragments(),
             source.manifest().record().identity,
             protocol.plan(),
             source.source().register_environment().physical(),
-        )?
+        )
+        .map_err(FunctionFragmentFrameApplicationError::from)?
     };
     let receipt = model::seal(&application);
     let staged = StagedFunctionFragmentFrameApplication {
         source,
-        application,
+        application: std::sync::Arc::new(application),
         receipt,
     };
     validate_function_fragment_frame_application(&staged)?;

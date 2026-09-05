@@ -12,6 +12,23 @@ before implementation; these changes do not establish completion of sections A-D
 
 ## Reading and execution index
 
+The short version for a future work session:
+
+1. Make each stage hand over the current program, with history kept separately
+   for checking. A consumer should not need to know which optimizer produced it.
+2. Make empty and selected optimization feed the same downstream stages. Keep
+   legitimate target and authority differences, not separate compiler routes.
+3. Finish removing algorithms and durable data from orchestration. Move them
+   to their actual owners; do not replace `optimization/` with scattered helper
+   packages under `pipeline/`.
+4. Give every Psi representation one obvious starting file and meaningful
+   subfolders. Separately, implement real selected optimization before Terminal
+   publication; organizing folders does not implement those passes.
+
+For each proposed extraction, identify the actual repeated operation and its
+consumers before choosing a shared home. The **Sharing rules** below are the
+placement decision, not a request for a universal framework.
+
 For the short architectural answer, read **Discussion summary** and **Objective
 and boundary rules**. For implementation, use the four independently checkable
 work areas below:
@@ -230,9 +247,9 @@ Replay first validates its historical inputs, then compares complete current
 artifacts and admission facts, not only rehashable IDs. Raw artifacts remain
 usable as data after the producer is dropped, without granting publication
 authority. Layout construction and explicit relaxation now have a transform
-owner outside the coordinator; exit admission and resolved-fragment projection
-live in the machine-emission backend. Fragment publication metadata, placement,
-and artifact emission still need their proper owners.
+owner outside the coordinator; exit admission, resolved-fragment projection,
+and frame application live in the machine-emission backend. Fragment publication
+metadata, placement, and artifact emission still need their proper owners.
 Separating data from replay does not complete C.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
@@ -335,6 +352,17 @@ the backend, checks manifest fields directly, and binds publication custody.
 It no longer owns instruction-byte assembly or regenerates fragments during
 replay. Manifest data/codec ownership, placement, and final artifact emission
 remain to be separated; the narrow backend projection is not all of C.
+
+Applied-frame records and their unchanged version-2 identity belong to
+`omega-machine-code` under `storage/frame_application`. The publication wrapper
+shares the original immutable application rather than requiring consumers to
+retain its producer. `omega-machine-emission` owns prologue/epilogue insertion,
+branch re-encoding, and the separate checker that decodes both target branch
+forms. The coordinator admits source fragments and the exact protocol, delegates
+the transformation and its replay, and binds its receipt. Raw frame application
+is a byte transformation, not authority to publish. This removes target-byte
+mechanics from the coordinator without completing text placement or object
+publication ownership.
 
 The machine-code representation supplies `machine_code.rs` as its
 program root, with functions, calls, storage, control flow, ownership, boundary,

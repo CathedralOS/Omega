@@ -18,13 +18,13 @@ use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::SelectedBlockId;
 use omega_target::Architecture;
 
-use super::FunctionFragmentFrameApplicationError;
+use super::FrameApplicationError;
 
 pub(super) fn reencode_branches(
     function: &mut FunctionFragment,
     architecture: Architecture,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<(), FunctionFragmentFrameApplicationError> {
+) -> Result<(), FrameApplicationError> {
     let block_offsets = function
         .blocks
         .iter()
@@ -56,14 +56,14 @@ pub(super) fn reencode_branches(
                 architecture,
                 physical,
             )?;
-            let start = usize::try_from(row_offset)
-                .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+            let start =
+                usize::try_from(row_offset).map_err(|_| FrameApplicationError::OffsetOverflow)?;
             let end = start
                 .checked_add(encoded.len())
-                .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-            let destination = function_bytes.get_mut(start..end).ok_or(
-                FunctionFragmentFrameApplicationError::SourceShapeMismatch(function.machine),
-            )?;
+                .ok_or(FrameApplicationError::OffsetOverflow)?;
+            let destination = function_bytes
+                .get_mut(start..end)
+                .ok_or(FrameApplicationError::SourceShapeMismatch(function.machine))?;
             destination.copy_from_slice(&encoded);
             row.bytes = encoded;
         }
@@ -78,23 +78,25 @@ fn rewrite_branch_coordinates(
     branch: &mut FunctionFragmentConditionalBranchEvidence,
     architecture: Architecture,
     block_offsets: &BTreeMap<SelectedBlockId, u64>,
-) -> Result<(), FunctionFragmentFrameApplicationError> {
+) -> Result<(), FrameApplicationError> {
     let taken = block_offsets.get(&branch.when_taken_block).copied().ok_or(
-        FunctionFragmentFrameApplicationError::MissingTargetBlock(branch.when_taken_block),
+        FrameApplicationError::MissingTargetBlock(branch.when_taken_block),
     )?;
     let fallthrough = block_offsets
         .get(&branch.when_fallthrough_block)
         .copied()
-        .ok_or(FunctionFragmentFrameApplicationError::MissingTargetBlock(
+        .ok_or(FrameApplicationError::MissingTargetBlock(
             branch.when_fallthrough_block,
         ))?;
-    let row_len = u64::try_from(row_byte_count)
-        .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+    let row_len =
+        u64::try_from(row_byte_count).map_err(|_| FrameApplicationError::OffsetOverflow)?;
     let end = row_offset
         .checked_add(row_len)
-        .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
     if fallthrough != end {
-        return Err(FunctionFragmentFrameApplicationError::BranchFallthroughMismatch(instruction));
+        return Err(FrameApplicationError::BranchFallthroughMismatch(
+            instruction,
+        ));
     }
     branch.when_taken_offset = taken;
     branch.when_fallthrough_offset = fallthrough;
@@ -115,7 +117,7 @@ fn encode_branch(
     branch: &FunctionFragmentConditionalBranchEvidence,
     architecture: Architecture,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<Vec<u8>, FunctionFragmentFrameApplicationError> {
+) -> Result<Vec<u8>, FrameApplicationError> {
     let (bytes, register_reads, effects) = match (architecture, branch.predicate) {
         (Architecture::X86_64, FunctionFragmentConditionalBranchPredicate::NonZeroV1) => {
             let encoded = match row_byte_count {
@@ -130,9 +132,7 @@ fn encode_branch(
                     branch.byte_displacement,
                 ),
             }
-            .map_err(|error| {
-                FunctionFragmentFrameApplicationError::X86_64Branch(instruction, error)
-            })?;
+            .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
             (
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
@@ -145,9 +145,7 @@ fn encode_branch(
                 alternative,
                 branch.byte_displacement,
             )
-            .map_err(|error| {
-                FunctionFragmentFrameApplicationError::X86_64Branch(instruction, error)
-            })?;
+            .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
             (
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
@@ -160,9 +158,7 @@ fn encode_branch(
                 alternative,
                 branch.byte_displacement,
             )
-            .map_err(|error| {
-                FunctionFragmentFrameApplicationError::X86_64Branch(instruction, error)
-            })?;
+            .map_err(|error| FrameApplicationError::X86_64Branch(instruction, error))?;
             (
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
@@ -177,9 +173,7 @@ fn encode_branch(
                 branch.decoded_register_reads[0],
                 branch.byte_displacement,
             )
-            .map_err(|error| {
-                FunctionFragmentFrameApplicationError::Aarch64Branch(instruction, error)
-            })?;
+            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
             (
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
@@ -192,9 +186,7 @@ fn encode_branch(
                 alternative,
                 branch.byte_displacement,
             )
-            .map_err(|error| {
-                FunctionFragmentFrameApplicationError::Aarch64Branch(instruction, error)
-            })?;
+            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
             (
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
@@ -207,9 +199,7 @@ fn encode_branch(
                 alternative,
                 branch.byte_displacement,
             )
-            .map_err(|error| {
-                FunctionFragmentFrameApplicationError::Aarch64Branch(instruction, error)
-            })?;
+            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
             (
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
@@ -222,9 +212,7 @@ fn encode_branch(
                 alternative,
                 branch.byte_displacement,
             )
-            .map_err(|error| {
-                FunctionFragmentFrameApplicationError::Aarch64Branch(instruction, error)
-            })?;
+            .map_err(|error| FrameApplicationError::Aarch64Branch(instruction, error))?;
             (
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
@@ -236,17 +224,13 @@ fn encode_branch(
         || register_reads != branch.decoded_register_reads
         || effects != branch.decoded_effects
     {
-        return Err(FunctionFragmentFrameApplicationError::BranchEffectsMismatch(instruction));
+        return Err(FrameApplicationError::BranchEffectsMismatch(instruction));
     }
     Ok(bytes)
 }
 
-fn checked_delta(
-    target: u64,
-    reference: u64,
-) -> Result<i64, FunctionFragmentFrameApplicationError> {
+fn checked_delta(target: u64, reference: u64) -> Result<i64, FrameApplicationError> {
     let target = i128::from(target);
     let reference = i128::from(reference);
-    i64::try_from(target - reference)
-        .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)
+    i64::try_from(target - reference).map_err(|_| FrameApplicationError::OffsetOverflow)
 }

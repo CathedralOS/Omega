@@ -6,11 +6,11 @@ use omega_optimization_core::FunctionFragmentEmissionManifestIdentity;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_target::Architecture;
 
-use crate::TargetFrameProtocolEncodingPlan;
+use omega_frame_layout_to_frame_protocol::TargetFrameProtocolEncodingPlan;
 
 use super::{
-    FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
-    FunctionFragmentFrameApplicationError, FunctionFragmentFrameApplicationIdentity,
+    FrameApplicationError, FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol,
+    FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -26,15 +26,15 @@ pub(super) fn apply(
     source_manifest: FunctionFragmentEmissionManifestIdentity,
     protocol: &TargetFrameProtocolEncodingPlan,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError> {
+) -> Result<FunctionFragmentFrameApplication, FrameApplicationError> {
     if source.target != protocol.target {
-        return Err(FunctionFragmentFrameApplicationError::RootMismatch);
+        return Err(FrameApplicationError::RootMismatch);
     }
     if source.functions.len() != protocol.functions.len() {
-        return Err(FunctionFragmentFrameApplicationError::FunctionRosterMismatch);
+        return Err(FrameApplicationError::FunctionRosterMismatch);
     }
     if !source.structural_unit_functions.is_empty() {
-        return Err(FunctionFragmentFrameApplicationError::RootMismatch);
+        return Err(FrameApplicationError::RootMismatch);
     }
 
     let mut fragments = source.clone();
@@ -45,19 +45,19 @@ pub(super) fn apply(
             .iter()
             .filter(|row| row.machine == function.machine);
         let Some(row) = rows.next() else {
-            return Err(FunctionFragmentFrameApplicationError::MissingFunction(
-                function.machine,
-            ));
+            return Err(FrameApplicationError::MissingFunction(function.machine));
         };
         if rows.next().is_some() {
-            return Err(FunctionFragmentFrameApplicationError::FunctionRosterMismatch);
+            return Err(FrameApplicationError::FunctionRosterMismatch);
         }
-        let prologue = row.prologue.bytes(&protocol.bytes).ok_or(
-            FunctionFragmentFrameApplicationError::InvalidProtocolSpan(function.machine),
-        )?;
-        let epilogue = row.epilogue.bytes(&protocol.bytes).ok_or(
-            FunctionFragmentFrameApplicationError::InvalidProtocolSpan(function.machine),
-        )?;
+        let prologue = row
+            .prologue
+            .bytes(&protocol.bytes)
+            .ok_or(FrameApplicationError::InvalidProtocolSpan(function.machine))?;
+        let epilogue = row
+            .epilogue
+            .bytes(&protocol.bytes)
+            .ok_or(FrameApplicationError::InvalidProtocolSpan(function.machine))?;
         applications.push(apply_function(
             function,
             prologue,
@@ -73,7 +73,7 @@ pub(super) fn apply(
             .iter()
             .any(|function| function.machine == row.machine)
     }) {
-        return Err(FunctionFragmentFrameApplicationError::FunctionRosterMismatch);
+        return Err(FrameApplicationError::FunctionRosterMismatch);
     }
 
     fragments.identity = fragments.recomputed_identity();
@@ -81,7 +81,8 @@ pub(super) fn apply(
         identity: FunctionFragmentFrameApplicationIdentity::from_bytes([0; 32]),
         source_fragment_manifest: source_manifest,
         source_fragments: source.identity,
-        frame_protocol: crate::target_frame_protocol_encoding_identity(protocol),
+        frame_protocol:
+            omega_frame_layout_to_frame_protocol::target_frame_protocol_encoding_identity(protocol),
         functions: applications,
         fragments,
     };
@@ -95,29 +96,25 @@ fn apply_function(
     epilogue: &[u8],
     architecture: Architecture,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<FunctionAppliedFrameProtocol, FunctionFragmentFrameApplicationError> {
+) -> Result<FunctionAppliedFrameProtocol, FrameApplicationError> {
     if prologue.is_empty() != epilogue.is_empty() {
-        return Err(
-            FunctionFragmentFrameApplicationError::UnsupportedFramedControl(function.machine),
-        );
+        return Err(FrameApplicationError::UnsupportedFramedControl(
+            function.machine,
+        ));
     }
 
-    let source_len = u64::try_from(function.bytes.len())
-        .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+    let source_len =
+        u64::try_from(function.bytes.len()).map_err(|_| FrameApplicationError::OffsetOverflow)?;
     if function.byte_count != source_len {
-        return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-            function.machine,
-        ));
+        return Err(FrameApplicationError::SourceShapeMismatch(function.machine));
     }
-    let prologue_len = u64::try_from(prologue.len())
-        .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-    let epilogue_len = u64::try_from(epilogue.len())
-        .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+    let prologue_len =
+        u64::try_from(prologue.len()).map_err(|_| FrameApplicationError::OffsetOverflow)?;
+    let epilogue_len =
+        u64::try_from(epilogue.len()).map_err(|_| FrameApplicationError::OffsetOverflow)?;
     let return_sites = validate_and_collect_returns(function)?;
     if return_sites.is_empty() {
-        return Err(FunctionFragmentFrameApplicationError::MissingFinalReturn(
-            function.machine,
-        ));
+        return Err(FrameApplicationError::MissingFinalReturn(function.machine));
     }
 
     let mut bytes = Vec::with_capacity(
@@ -130,23 +127,23 @@ fn apply_function(
                     .checked_mul(return_sites.len())
                     .and_then(|epilogues| length.checked_add(epilogues))
             })
-            .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?,
+            .ok_or(FrameApplicationError::OffsetOverflow)?,
     );
     bytes.extend_from_slice(prologue);
     let mut source_cursor = 0_usize;
     let mut applications = Vec::with_capacity(return_sites.len());
     for (ordinal, site) in return_sites.iter().copied().enumerate() {
-        let return_start = usize::try_from(site.offset)
-            .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+        let return_start =
+            usize::try_from(site.offset).map_err(|_| FrameApplicationError::OffsetOverflow)?;
         bytes.extend_from_slice(&function.bytes[source_cursor..return_start]);
         let prior_epilogues = u64::try_from(ordinal)
-            .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?
+            .map_err(|_| FrameApplicationError::OffsetOverflow)?
             .checked_mul(epilogue_len)
-            .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+            .ok_or(FrameApplicationError::OffsetOverflow)?;
         let function_offset = prologue_len
             .checked_add(site.offset)
             .and_then(|offset| offset.checked_add(prior_epilogues))
-            .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+            .ok_or(FrameApplicationError::OffsetOverflow)?;
         bytes.extend_from_slice(epilogue);
         applications.push(FunctionAppliedFrameEpilogue {
             block: site.block,
@@ -179,11 +176,11 @@ fn apply_function(
             if is_return {
                 block_epilogue_count = block_epilogue_count
                     .checked_add(1)
-                    .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+                    .ok_or(FrameApplicationError::OffsetOverflow)?;
             }
             let applied_before_row = prior_row_epilogues
                 .checked_add(u64::from(is_return))
-                .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+                .ok_or(FrameApplicationError::OffsetOverflow)?;
             row.offset = shifted_offset(
                 source_row_offset,
                 prologue_len,
@@ -199,9 +196,9 @@ fn apply_function(
             .checked_add(
                 block_epilogue_count
                     .checked_mul(epilogue_len)
-                    .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?,
+                    .ok_or(FrameApplicationError::OffsetOverflow)?,
             )
-            .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+            .ok_or(FrameApplicationError::OffsetOverflow)?;
     }
     function.byte_count = function
         .byte_count
@@ -211,7 +208,7 @@ fn apply_function(
                 .checked_mul(u64::try_from(return_sites.len()).ok()?)
                 .and_then(|epilogues| count.checked_add(epilogues))
         })
-        .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
     function.bytes = bytes;
     super::reflow::reencode_branches(function, architecture, physical)?;
 
@@ -225,32 +222,26 @@ fn apply_function(
 
 fn validate_and_collect_returns(
     function: &FunctionFragment,
-) -> Result<Vec<ReturnSite>, FunctionFragmentFrameApplicationError> {
+) -> Result<Vec<ReturnSite>, FrameApplicationError> {
     let mut expected_block_offset = 0_u64;
     let mut returns = Vec::new();
     for block in &function.blocks {
         if block.offset != expected_block_offset {
-            return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-                function.machine,
-            ));
+            return Err(FrameApplicationError::SourceShapeMismatch(function.machine));
         }
         let mut expected_row_offset = block.offset;
         for (index, row) in block.instructions.iter().enumerate() {
             if row.offset != expected_row_offset {
-                return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-                    function.machine,
-                ));
+                return Err(FrameApplicationError::SourceShapeMismatch(function.machine));
             }
             let row_len = u64::try_from(row.bytes.len())
-                .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+                .map_err(|_| FrameApplicationError::OffsetOverflow)?;
             expected_row_offset = expected_row_offset
                 .checked_add(row_len)
-                .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+                .ok_or(FrameApplicationError::OffsetOverflow)?;
             if let FunctionFragmentControlProvenance::Return { psi_return_edge } = row.control {
                 if index + 1 != block.instructions.len() {
-                    return Err(FunctionFragmentFrameApplicationError::MissingFinalReturn(
-                        function.machine,
-                    ));
+                    return Err(FrameApplicationError::MissingFinalReturn(function.machine));
                 }
                 returns.push(ReturnSite {
                     block: block.block,
@@ -264,18 +255,14 @@ fn validate_and_collect_returns(
             != block
                 .offset
                 .checked_add(block.byte_count)
-                .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?
+                .ok_or(FrameApplicationError::OffsetOverflow)?
         {
-            return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-                function.machine,
-            ));
+            return Err(FrameApplicationError::SourceShapeMismatch(function.machine));
         }
         expected_block_offset = expected_row_offset;
     }
     if expected_block_offset != function.byte_count {
-        return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-            function.machine,
-        ));
+        return Err(FrameApplicationError::SourceShapeMismatch(function.machine));
     }
     Ok(returns)
 }
@@ -283,14 +270,14 @@ fn validate_and_collect_returns(
 fn insertion_count_before(
     return_sites: &[ReturnSite],
     source_offset: u64,
-) -> Result<u64, FunctionFragmentFrameApplicationError> {
+) -> Result<u64, FrameApplicationError> {
     u64::try_from(
         return_sites
             .iter()
             .take_while(|site| site.offset < source_offset)
             .count(),
     )
-    .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)
+    .map_err(|_| FrameApplicationError::OffsetOverflow)
 }
 
 fn shifted_offset(
@@ -298,7 +285,7 @@ fn shifted_offset(
     prologue_len: u64,
     prior_epilogues: u64,
     epilogue_len: u64,
-) -> Result<u64, FunctionFragmentFrameApplicationError> {
+) -> Result<u64, FrameApplicationError> {
     source_offset
         .checked_add(prologue_len)
         .and_then(|offset| {
@@ -306,25 +293,25 @@ fn shifted_offset(
                 .checked_mul(epilogue_len)
                 .and_then(|shift| offset.checked_add(shift))
         })
-        .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)
+        .ok_or(FrameApplicationError::OffsetOverflow)
 }
 
 fn shift_fixup(
     fixup: &mut FunctionFragmentInternalMachineFixup,
     shift: u64,
-) -> Result<(), FunctionFragmentFrameApplicationError> {
+) -> Result<(), FrameApplicationError> {
     fixup.opcode_function_offset = fixup
         .opcode_function_offset
         .checked_add(shift)
-        .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
     fixup.patch_function_offset = fixup
         .patch_function_offset
         .checked_add(shift)
-        .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
     fixup.reference_function_offset = fixup
         .reference_function_offset
         .checked_add(shift)
-        .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+        .ok_or(FrameApplicationError::OffsetOverflow)?;
     Ok(())
 }
 
@@ -350,10 +337,11 @@ mod tests {
     use psi_core::{EdgeId, FuelScheduleIdentity, MachineId};
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-    use crate::{
-        FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding, TargetFrameLayoutIdentity,
+    use omega_frame_layout_to_frame_protocol::{
+        FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
         TargetFrameProtocolEncodingPolicy,
     };
+    use omega_machine_code::TargetFrameLayoutIdentity;
 
     use super::*;
 
@@ -501,9 +489,7 @@ mod tests {
                 &protocol(machine),
                 &physical(),
             ),
-            Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-                machine
-            ))
+            Err(FrameApplicationError::SourceShapeMismatch(machine))
         );
 
         let mut source = source_plan();
@@ -521,9 +507,7 @@ mod tests {
                 &protocol(machine),
                 &physical(),
             ),
-            Err(FunctionFragmentFrameApplicationError::MissingFinalReturn(
-                machine
-            ))
+            Err(FrameApplicationError::MissingFinalReturn(machine))
         );
     }
 }
