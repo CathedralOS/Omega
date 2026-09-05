@@ -105,6 +105,50 @@ fn baseline(target: NativeTarget) -> StagedOptimizedRegisterHomes {
 }
 
 #[test]
+fn baseline_realizations_reject_selected_lowering_evidence_roles() {
+    fn selected_allocation(
+        target: NativeTarget,
+    ) -> omega_selected_instructions_to_register_homes::RetainedAllocation {
+        let selected = staged_exact_add_conditional_with_selections(
+            target,
+            OptimizationSelections::new([
+                Optimization::CopyPropagation,
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .unwrap(),
+            budget(),
+        );
+        let ranges =
+            stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
+        let allocation = stage_register_allocation(ranges).unwrap();
+        assert!(matches!(
+            allocation.current().evidence(),
+            AllocationEvidence::SelectedLowering(_)
+        ));
+        allocation
+    }
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        assert!(matches!(
+            stage_optimized_unit_function_relative_realization(selected_allocation(target)),
+            Err(OptimizedUnitFunctionRelativeRealizationError::RootMismatch)
+        ));
+        assert!(matches!(
+            stage_optimized_structural_unit_function_relative_realization(selected_allocation(
+                target
+            )),
+            Err(OptimizedStructuralUnitFunctionRelativeRealizationError::RootMismatch)
+        ));
+        assert!(matches!(
+            stage_fixed_frame_function_relative_realization(
+                selected_allocation(target),
+                selected_lowering_budget()
+            ),
+            Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
+        ));
+    }
+}
+
+#[test]
 fn allocation_view_preserves_exact_machine_output_and_rejects_substitution() {
     let x86 = baseline(NativeTarget::linux_x64());
     let arm = baseline(NativeTarget::linux_arm64());

@@ -421,8 +421,11 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
         let frame_budget =
             OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000)
                 .unwrap();
-        let realization =
-            stage_fixed_frame_function_relative_realization(homes, frame_budget).unwrap();
+        let realization = stage_fixed_frame_function_relative_realization(
+            homes.try_into().unwrap(),
+            frame_budget,
+        )
+        .unwrap();
         validate_fixed_frame_function_relative_realization(&realization).unwrap();
         assert_eq!(
             realization.manifest().record().frame,

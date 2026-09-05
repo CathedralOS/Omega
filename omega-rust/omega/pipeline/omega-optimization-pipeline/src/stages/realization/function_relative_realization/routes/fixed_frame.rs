@@ -4,13 +4,13 @@ use super::super::{assembly::*, carriers::*, error::*, prelude::*};
 use omega_selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
 
 pub fn stage_fixed_frame_function_relative_realization(
-    homes: StagedOptimizedRegisterHomes,
+    allocation: RetainedAllocation,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedFixedFrameFunctionRelativeRealization, FunctionRelativeOptimizationRealizationError>
 {
-    let allocation = RetainedAllocation::try_from(homes)
+    let current = allocation
+        .replay_allocation()
         .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
-    let current = allocation.current();
     let source = fixed_frame_source(&current)?;
     let machine = stage_optimized_post_allocation_machine_plan(&current)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;

@@ -1,3 +1,5 @@
+use omega_selected_instructions_to_register_homes::AllocationSource;
+
 use crate::{
     validate_optimized_layout_independent_selected_form_encoding,
     validate_optimized_post_allocation_machine_plan_custody,
@@ -11,7 +13,7 @@ use super::model::{
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     StagedOptimizedStructuralUnitFunctionRelativeRealizationCustodyReceipt,
 };
-use super::source::{selected_stage, validate_source};
+use super::source::validate_source;
 
 pub fn validate_optimized_structural_unit_function_relative_realization(
     staged: &StagedOptimizedStructuralUnitFunctionRelativeRealization,
@@ -19,16 +21,19 @@ pub fn validate_optimized_structural_unit_function_relative_realization(
     StagedOptimizedStructuralUnitFunctionRelativeRealizationCustodyReceipt,
     OptimizedStructuralUnitFunctionRelativeRealizationError,
 > {
-    let source = validate_source(&staged.homes)?;
+    let current = staged
+        .allocation
+        .replay_allocation()
+        .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Allocation)?;
+    let source = validate_source(&current)?;
     let machine =
-        validate_optimized_post_allocation_machine_plan_custody(&staged.homes, &staged.machine)
+        validate_optimized_post_allocation_machine_plan_custody(&current, &staged.machine)
             .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Machine)?;
     if &machine != staged.machine.custody() {
         return Err(OptimizedStructuralUnitFunctionRelativeRealizationError::ReceiptMismatch);
     }
-    let selected_stage = selected_stage(&staged.homes);
-    let selected = selected_stage.selected();
-    let physical = selected_stage.register_environment().physical();
+    let selected = current.selected();
+    let physical = current.register_environment().physical();
     validate_optimized_layout_independent_selected_form_encoding(
         selected,
         &staged.machine,
@@ -54,7 +59,7 @@ pub fn validate_optimized_structural_unit_function_relative_realization(
     )
     .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Exit)?;
     let manifest = expected_manifest(
-        &staged.homes,
+        &current,
         &staged.machine,
         &staged.encoding,
         &staged.layout,

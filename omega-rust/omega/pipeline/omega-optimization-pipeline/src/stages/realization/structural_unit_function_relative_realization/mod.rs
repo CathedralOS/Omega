@@ -14,15 +14,15 @@ mod validation;
 pub use model::*;
 pub use validation::validate_optimized_structural_unit_function_relative_realization;
 
-use crate::StagedOptimizedRegisterHomes;
+use omega_selected_instructions_to_register_homes::RetainedAllocation;
 
 pub fn stage_optimized_structural_unit_function_relative_realization(
-    homes: StagedOptimizedRegisterHomes,
+    allocation: RetainedAllocation,
 ) -> Result<
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     OptimizedStructuralUnitFunctionRelativeRealizationError,
 > {
-    let staged = construction::construct_structural_unit_function_relative_realization(homes)?;
+    let staged = construction::construct_structural_unit_function_relative_realization(allocation)?;
     validate_optimized_structural_unit_function_relative_realization(&staged)?;
     Ok(staged)
 }

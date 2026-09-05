@@ -2146,12 +2146,12 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && optimizer_selected_phases
                 .contains("stage_identity_function_relative_pipeline(homes)")
             && optimizer_identity_route
-                .contains("stage_optimized_unit_function_relative_realization(homes)")
+                .contains("stage_optimized_unit_function_relative_realization(allocation)")
             && optimizer_identity_route.contains(
-                "stage_optimized_structural_unit_function_relative_realization(homes)"
+                "stage_optimized_structural_unit_function_relative_realization(allocation)"
             )
             && optimizer_identity_route
-                .contains("stage_fixed_frame_function_relative_realization(homes, budget)")
+                .contains("stage_fixed_frame_function_relative_realization(allocation, budget)")
             && !optimizer_identity_route.contains(".or_else(")
             && optimizer_physical_pipeline.contains(
                 "post_terminal: &PostTerminalOptimizationSelections"

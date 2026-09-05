@@ -91,8 +91,8 @@ impl FunctionFragmentReplayInputs {
             Self::SelectedLowering(realization) => realization.homes().homes(),
             Self::PostAllocationMachine(realization) => realization.allocation().current().homes(),
             Self::AllocationRecovery(realization) => realization.allocation().current().homes(),
-            Self::UnitBaseline(realization) => realization.homes().homes(),
-            Self::StructuralUnit(realization) => realization.homes().homes(),
+            Self::UnitBaseline(realization) => realization.allocation().current().homes(),
+            Self::StructuralUnit(realization) => realization.allocation().current().homes(),
             Self::FixedFrame(realization) => realization.allocation().current().homes(),
         }
     }
@@ -120,20 +120,12 @@ impl FunctionFragmentReplayInputs {
             Self::AllocationRecovery(realization) => {
                 realization.allocation().current().register_environment()
             }
-            Self::UnitBaseline(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-            Self::StructuralUnit(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
+            Self::UnitBaseline(realization) => {
+                realization.allocation().current().register_environment()
+            }
+            Self::StructuralUnit(realization) => {
+                realization.allocation().current().register_environment()
+            }
             Self::FixedFrame(realization) => {
                 realization.allocation().current().register_environment()
             }
@@ -180,8 +172,14 @@ impl FunctionFragmentReplayInputs {
                 .allocation()
                 .current()
                 .post_allocation_manifest(),
-            Self::UnitBaseline(realization) => realization.homes().post_allocation_manifest(),
-            Self::StructuralUnit(realization) => realization.homes().post_allocation_manifest(),
+            Self::UnitBaseline(realization) => realization
+                .allocation()
+                .current()
+                .post_allocation_manifest(),
+            Self::StructuralUnit(realization) => realization
+                .allocation()
+                .current()
+                .post_allocation_manifest(),
             Self::FixedFrame(realization) => realization
                 .allocation()
                 .current()
@@ -217,19 +215,13 @@ impl FunctionFragmentReplayInputs {
                 .selected()
                 .shared_selected_plan(),
             Self::UnitBaseline(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
+                .allocation()
+                .current()
                 .selected()
                 .shared_selected_plan(),
             Self::StructuralUnit(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
+                .allocation()
+                .current()
                 .selected()
                 .shared_selected_plan(),
             Self::FixedFrame(realization) => realization
@@ -263,20 +255,12 @@ impl FunctionFragmentReplayInputs {
             Self::AllocationRecovery(realization) => {
                 realization.allocation().current().target_input_owner()
             }
-            Self::UnitBaseline(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target_owner(),
-            Self::StructuralUnit(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target_owner(),
+            Self::UnitBaseline(realization) => {
+                realization.allocation().current().target_input_owner()
+            }
+            Self::StructuralUnit(realization) => {
+                realization.allocation().current().target_input_owner()
+            }
             Self::FixedFrame(realization) => {
                 realization.allocation().current().target_input_owner()
             }

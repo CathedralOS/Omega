@@ -16,9 +16,11 @@ fn fixed_frame_retains_original_allocation_and_rejects_current_program_substitut
             let current = homes.replay_allocation().unwrap();
             let selected_owner = current.selected().shared_selected_plan();
             let home_owner = current.homes().shared_plan();
-            let mut realization =
-                stage_fixed_frame_function_relative_realization(homes, selected_lowering_budget())
-                    .unwrap();
+            let mut realization = stage_fixed_frame_function_relative_realization(
+                homes.try_into().unwrap(),
+                selected_lowering_budget(),
+            )
+            .unwrap();
             assert!(std::sync::Arc::ptr_eq(
                 &selected_owner,
                 &realization.allocation().program().selected
@@ -80,7 +82,8 @@ fn staged_fixed_frame_callable(
     let homes = stage_optimized_register_homes(legality).unwrap();
     let budget =
         OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000).unwrap();
-    let realization = stage_fixed_frame_function_relative_realization(homes, budget).unwrap();
+    let realization =
+        stage_fixed_frame_function_relative_realization(homes.try_into().unwrap(), budget).unwrap();
     let fragments = stage_optimized_function_fragment_emission(
         FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )

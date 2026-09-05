@@ -147,11 +147,14 @@ In `omega-rust/omega/pipeline/`:
   `current()` reads the current admitted facts directly; only replay traverses
   earlier allocation stages. Producers share immutable selected/home artifacts
   with that output rather than copying the selected program into a snapshot.
-- Fixed-frame realization retains that allocation output and reads selected
+- Unit, structural-Unit, and fixed-frame realization retain that allocation
+  output and read selected
   instructions, homes, register environment, selections, and manifests from its
-  current facts. Its validator replays the retained allocation first. The
-  fixed-frame receipt remains baseline-specific; current-data ownership does
-  not silently widen the receipt's admitted source roles.
+  current facts. Their construction and validation entrances replay the retained
+  allocation first. Their receipts remain baseline-specific; current-data
+  ownership does not silently widen their admitted source roles. The identity
+  route converts its allocation once and classifies the current selected
+  program, without walking earlier stage objects for its input or budget.
 
 Fragment emission and structural placement select algorithms by program shape,
 not optimization history. Frame application reads the retained current protocol,
@@ -352,9 +355,8 @@ keep rule-specific proof obligations and domain-separated identities explicit.
 5. Complete applicable nonempty pre-Terminal optimization execution (D), with
    the remaining work kept visible until its behavioral controls pass.
 
-The next A boundaries are the Unit and structural-Unit realization producers,
-the selected-lowering and layout-optimization producers, and the identity-route
-coordinator's history reads. Keep B convergence separate: sharing current target
+The next A boundaries are the selected-lowering and layout-optimization
+realization producers. Keep B convergence separate: sharing current target
 data has not yet unified the assigned and optimized physical implementations.
 Likewise, extracting an algorithm from the umbrella coordinator must give it a
 real transform owner, not merely another package beside the coordinator.

@@ -1,9 +1,50 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
+use omega_regalloc::ValidatedSelectedAnalysis;
 
 pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegisterHomes) {
-    let mut realization = stage_optimized_structural_unit_function_relative_realization(homes)
-        .expect("structural Unit calls must reach owning function-relative custody");
+    let current = homes.replay_allocation().unwrap();
+    let selected_owner = current.selected().shared_selected_plan();
+    let home_owner = current.homes().shared_plan();
+    let mut realization =
+        stage_optimized_structural_unit_function_relative_realization(homes.try_into().unwrap())
+            .expect("structural Unit calls must reach owning function-relative custody");
+    assert!(std::sync::Arc::ptr_eq(
+        &selected_owner,
+        &realization.allocation().program().selected
+    ));
+    assert!(std::sync::Arc::ptr_eq(
+        &home_owner,
+        &realization.allocation().program().homes
+    ));
+    let original = realization.allocation().program().clone();
+    for replace_selected in [false, true] {
+        let mut changed = original.clone();
+        if replace_selected {
+            std::sync::Arc::make_mut(&mut changed.selected)
+                .structural_unit_functions
+                .clear();
+        } else {
+            std::sync::Arc::make_mut(&mut changed.homes)
+                .structural_unit_functions
+                .clear();
+        }
+        realization
+            .allocation_mut()
+            .substitute_current_program_for_test(changed);
+        assert!(matches!(
+            validate_optimized_structural_unit_function_relative_realization(&realization),
+            Err(
+                OptimizedStructuralUnitFunctionRelativeRealizationError::Allocation(
+                    AllocationReplayError::CurrentProgramMismatch
+                )
+            )
+        ));
+        realization
+            .allocation_mut()
+            .substitute_current_program_for_test(original.clone());
+        validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
+    }
     let exit = realization.exit_contract().contract();
     assert_eq!(
         exit.policy,

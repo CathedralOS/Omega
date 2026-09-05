@@ -548,7 +548,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
 fn fixed_frame_consumes_current_allocation_and_retains_baseline_receipt_role() {
     let root = repository().join("omega-rust/omega/pipeline/omega-optimization-pipeline/src/stages/realization/function_relative_realization");
     let route = std::fs::read_to_string(root.join("routes/fixed_frame.rs")).unwrap();
-    assert!(route.contains("RetainedAllocation::try_from(homes)"));
+    assert!(route.contains("allocation: RetainedAllocation"));
     let compact_route = route.split_whitespace().collect::<String>();
     assert!(compact_route.contains("staged.allocation.replay_allocation()"));
     let assembly = std::fs::read_to_string(root.join("assembly/fixed_frame.rs")).unwrap();
@@ -566,6 +566,43 @@ fn fixed_frame_consumes_current_allocation_and_retains_baseline_receipt_role() {
                 "fixed-frame current input walks history: {forbidden}"
             );
         }
+    }
+}
+
+#[test]
+fn unit_realization_and_identity_routing_consume_current_allocation() {
+    let root = repository().join("omega-rust/omega/pipeline/omega-optimization-pipeline/src");
+    for family in [
+        "unit_function_relative_realization",
+        "structural_unit_function_relative_realization",
+    ] {
+        let source = rust_source(&root.join("stages/realization").join(family));
+        assert!(source.contains("allocation: RetainedAllocation"));
+        assert!(source.contains("replay_allocation()"));
+        assert!(source.contains("AllocationEvidence::RegisterHomes(source)"));
+        for forbidden in [
+            "StagedOptimizedRegisterHomes",
+            "legality_stage()",
+            "selected_stage(",
+            "optimized_target()",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "{family} recovers current data from history: {forbidden}"
+            );
+        }
+    }
+    let route =
+        std::fs::read_to_string(root.join("coordination/physical_pipeline/routes/identity.rs"))
+            .unwrap();
+    assert!(route.contains("RetainedAllocation::try_from(homes)"));
+    assert!(route.contains("current.selected_plan()"));
+    assert!(route.contains("current.budget_per_pass()"));
+    for forbidden in ["legality_stage()", "selected_stage()", "optimized_target()"] {
+        assert!(
+            !route.contains(forbidden),
+            "identity route walks history: {forbidden}"
+        );
     }
 }
 
