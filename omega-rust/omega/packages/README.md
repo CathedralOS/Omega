@@ -36,7 +36,8 @@ Follow the supported source-change flow through:
 per-target review files, `--resume`, and recoverable publication. Start at the
 [command operation](manager/src/operations/package_commands/README.md) for usage
 and its source map. The [task board](../../../TASKS_PACKAGE_MANAGER.md) contains
-only remaining work, including source audit integration. Install can select a
+only remaining work, with offline and model wiring separate from required
+integration. Install can select a
 Git workspace member with `--package <declared-name>`; its declared name still
 supplies the default import alias.
 
@@ -60,5 +61,5 @@ rejects during candidate checking.
 Design and acquisition references:
 
 - [Build And Package Model](../../../wiki/design_briefs/build_and_package_model.md)
-- [Package Manager First Draft](../../../wiki/design_briefs/package_manager_first_draft.md)
+- [Package Manager: Scope and Workflow](../../../wiki/design_briefs/package_manager_first_draft.md)
 - [Source Resolver Security](sources/acquisition/SOURCE_RESOLVER_SECURITY.md)

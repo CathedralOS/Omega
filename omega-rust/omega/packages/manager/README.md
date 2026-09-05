@@ -19,7 +19,7 @@ manager/
 ├── src/
 │   ├── lib.rs             Rust entrance
 │   ├── operations/        complete package-aware operations
-│   ├── admission/         current evidence promotion and native handoff gates
+│   ├── admission/         separate compiler/native handoff checks
 │   ├── declarations/      checked package declarations from build.omg
 │   ├── resolution/        exact source selection and dependency closure
 │   ├── lock/              persistent source-scoped project policy
@@ -237,9 +237,10 @@ bindings in canonical order. Full old/new keys and the complete comparison
 context identify each finding. A revision change preserving the key is not a
 replacement. Reordering declarations or renaming an alias while keeping its
 package does not manufacture a replacement either. Different aliases remain
-separate graph additions/removals: a command changing both alias and source
-must retain that explicit intent, rather than pair unrelated packages by name
-or authored row position. Replacement findings share the changed-row count
+separate graph additions/removals. Changing both alias and source can use those
+ordinary findings, with full review of the new package; no special paired-edit
+command is required. Never pair unrelated packages by name or authored row
+position. Replacement findings share the changed-row count
 ceiling; their retained keys and binding scratch use the context-byte ceiling.
 
 The report retains added, removed, and changed rows with full old/new readable
@@ -277,11 +278,10 @@ certificate, reviewer receipt, or authentication of the project author.
 
 `all_required_changes_accepted` describes only the represented choices, not
 permission to publish. Reviewed publication joins these choices to candidate
-and project-file checks. Review-file loading/resume is command-owned. Explicit
-replacement intent when both alias and source change remains integration work.
+and project-file checks. Review-file loading/resume is command-owned.
 
 Return to the [package subsystem map](../README.md), or consult:
 
-- [`package_manager_first_draft.md`](../../../../wiki/design_briefs/package_manager_first_draft.md)
+- [Scope and workflow](../../../../wiki/design_briefs/package_manager_first_draft.md)
 - [`build_and_package_model.md`](../../../../wiki/design_briefs/build_and_package_model.md)
 - [`TASKS_PACKAGE_MANAGER.md`](../../../../TASKS_PACKAGE_MANAGER.md)
