@@ -250,8 +250,9 @@ authority. Layout construction and explicit relaxation now have a transform
 owner outside the coordinator; exit admission, resolved-fragment projection,
 and frame application live in the machine-emission backend. Fragment publication
 records and their codec also have a representation owner. Raw text-section data
-and placement now have separate representation and backend owners; text
-publication records and subsequent artifact emission still need migration.
+and placement now have separate representation and backend owners, as do text
+publication records and counters. Subsequent artifact emission still needs
+migration.
 Separating data from replay does not complete C.
 
 Acceptance: downstream allocation, layout, and emission APIs consume current
@@ -399,10 +400,17 @@ are checked directly against admitted inputs and the checked section.
 `omega-machine-code` owns the placed text-section records and unchanged version-3
 identity under `layout/text_section`; object-file consumers retain re-exports.
 Publication wrappers share the current immutable section, which can outlive the
-producer without granting admission. The text publication manifest, codec, and
-statistics still live in the coordinator, as do later artifact calculations.
-Those are the next C boundaries; this extraction does not complete C or converge
-the separate outer physical implementations in B.
+producer without granting admission. Its publication claims, stage/source-custody
+vocabulary, counters, and unchanged version-11 codec live under
+`layout/text_section/publication`. The admitted wrapper shares the exact raw
+manifest; decoding canonical claims does not establish their truth. The backend
+counts section and source records; the coordinator binds and independently
+checks the claims and publication receipt. Rehashed field mutations can remain
+decodable while failing that admission.
+
+Later object, callable-entry, and artifact calculations are the next C boundaries.
+This extraction does not complete C or converge the separate outer physical
+implementations in B.
 
 The callee-saved requirement entrance and validator now consume the sealed
 current-allocation boundary. Direct derivation and independent keyed replay

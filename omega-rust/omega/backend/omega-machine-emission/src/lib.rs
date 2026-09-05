@@ -6,7 +6,7 @@
 mod text_placement;
 pub use text_placement::{
     StructuralFragmentPlacementInputs, TextPlacementError, TextPlacementInput,
-    place_fragment_text_section, validate_fragment_text_section,
+    place_fragment_text_section, text_section_statistics, validate_fragment_text_section,
 };
 
 mod exit_contract;

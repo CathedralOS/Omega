@@ -26,6 +26,8 @@ pub(super) fn direct(staged: &crate::StagedOptimizedRelocationFreeTextSection) {
     assert!(std::ptr::eq(retained.as_ref(), staged.text_section()));
 }
 pub(super) fn fixed(staged: &crate::StagedOptimizedFixedFrameTextSection) {
+    let manifest = staged.manifest().shared_record();
+    assert!(std::ptr::eq(manifest.as_ref(), staged.manifest().record()));
     check(
         TextPlacementInput::InternalCalls(staged.source().fragments()),
         staged.text_section(),

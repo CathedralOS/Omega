@@ -85,12 +85,6 @@ pub(crate) fn place_structural_unit_fragments_for_test(
     place_fragments(source)
 }
 
-pub(super) fn usize_to_u64(value: usize) -> Result<u64, RelocationFreeTextSectionPlacementError> {
-    value
-        .try_into()
-        .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)
-}
-
 pub(super) fn place_fixed_frame_fragments(
     source: &crate::StagedFunctionFragmentFrameApplication,
 ) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {

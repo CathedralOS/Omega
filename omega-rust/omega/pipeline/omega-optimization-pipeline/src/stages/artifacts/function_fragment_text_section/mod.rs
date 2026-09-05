@@ -1,21 +1,23 @@
 //! Optimizer module role: executable entrance. Relocation-free text placement from validated function fragments.
 //!
-//! This entrance owns the stage/validation join. Data and custody live in
-//! `model` and `carriers`; canonical serialization lives in
-//! `manifest_codec`; `placement` admits inputs for the machine-emission backend;
-//! and `assembly` seals the resulting manifest and statistics.
+//! This entrance owns source admission and the publication join. Machine-code
+//! owns raw records and codecs; machine-emission owns placement and counters.
+//! `placement` supplies admitted inputs, `assembly` binds publication claims,
+//! and `validation` independently checks them. `carriers` retains admission.
 
 mod assembly;
 mod carriers;
 mod error;
-mod manifest_codec;
-mod model;
 mod placement;
 mod validation;
 
 pub use carriers::*;
 pub use error::*;
-pub use model::*;
+pub use omega_machine_code::{
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionSourceCustody,
+    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
+    FunctionFragmentTextSectionUnavailableData,
+};
 pub use validation::*;
 
 #[cfg(test)]

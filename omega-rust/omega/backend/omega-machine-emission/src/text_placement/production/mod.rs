@@ -1,5 +1,4 @@
 //! Optimizer module role: executable entrance. Section placement from current fragment data.
-mod conversion;
 mod fixed_frame;
 mod relocation_free;
 mod structural_unit;

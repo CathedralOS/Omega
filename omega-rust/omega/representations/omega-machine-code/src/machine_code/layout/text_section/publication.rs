@@ -1,4 +1,13 @@
-use omega_object_file::{TextSectionPlacementPolicy, TextSectionRelocationRequirements};
+//! Text-section publication claims and their canonical representation.
+//!
+//! Decoding establishes canonical data, not source, placement, or publication admission.
+mod codec;
+mod error;
+#[cfg(test)]
+mod tests;
+pub use error::FunctionFragmentTextSectionManifestDecodeError;
+
+use super::{TextSectionPlacementPolicy, TextSectionRelocationRequirements};
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
@@ -70,7 +79,7 @@ pub struct FunctionFragmentTextSectionManifest {
     pub fuel_schedule: FuelScheduleIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    pub post_allocation_machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub post_allocation_machine: omega_physical_instructions::PostAllocationMachineIdentity,
     pub final_pre_layout: SelectedFormEncodingIdentity,
     pub final_resolved_layout: ResolvedSelectedFormLayoutIdentity,
     pub whole_function_exit_contract: WholeFunctionExitContractIdentity,

@@ -3,7 +3,7 @@ use omega_machine_code::{PlacedBlockSpan, PlacedInstructionSpan};
 use omega_target::Architecture;
 
 use super::super::super::TextPlacementError;
-use super::super::conversion::usize_to_u64;
+use super::super::super::conversion::usize_to_u64;
 use super::alignment;
 
 pub(crate) fn place(

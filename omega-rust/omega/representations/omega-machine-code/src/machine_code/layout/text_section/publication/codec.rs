@@ -1,4 +1,4 @@
-use omega_object_file::{TextSectionPlacementPolicy, TextSectionRelocationRequirements};
+use super::super::{TextSectionPlacementPolicy, TextSectionRelocationRequirements};
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
@@ -127,7 +127,7 @@ impl FunctionFragmentTextSectionManifest {
         let post_allocation_manifest =
             PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let post_allocation_machine =
-            omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
+            omega_physical_instructions::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
         let final_pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
         let final_resolved_layout = ResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);
         let whole_function_exit_contract =
