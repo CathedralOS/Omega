@@ -1,8 +1,8 @@
 // AAPCS64 indirect-result entry pin: the caller-owned destination arrives in
 // x8. The terminal record is copied through the preserved pointer; unlike
 // SysV, AAPCS64 does not also return that pointer in x0.
-data Triple { first: u64; second: u64; third: u64; }
-data Main { output: Triple; }
+pub data Triple { first: u64; second: u64; third: u64; }
+pub data Main { output: Triple; }
 boundary machine Main::main(&self) -> Triple {
     transition { _ -> (self.output) }
 }

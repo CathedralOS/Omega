@@ -2,9 +2,9 @@ use omega::language::core::float_operations;
 
 // A nested record whose complete SysV shape is one SSE eightbyte arrives in
 // xmm0 and returns in xmm0 even though it is not a flat HFA.
-data FloatLeaf { value: f64; }
-data WrappedFloat { leaf: FloatLeaf; }
-data Main { output: WrappedFloat; }
+pub data FloatLeaf { value: f64; }
+pub data WrappedFloat { leaf: FloatLeaf; }
+pub data Main { output: WrappedFloat; }
 boundary machine Main::main(&mut self, input: WrappedFloat) -> WrappedFloat {
     self.output = input;
     transition { _ -> (self.output) }

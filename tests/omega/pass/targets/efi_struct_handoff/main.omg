@@ -7,11 +7,11 @@
 // QEMU/OVMF this program returned 5 ("Warning Stale Data"): firmware's
 // nonzero ImageHandle arrived through the struct field. The suite test pins
 // the spread prologue's bytes; the image facts come from build.omg.
-data EfiHandoff {
+pub data EfiHandoff {
     handle: addr;
     table: addr;
 }
-data Main { h: addr; }
+pub data Main { h: addr; }
 boundary machine Main::main(&self, handoff: EfiHandoff) -> i32 {
     self.h = handoff.handle;
     transition self.h == 0 {

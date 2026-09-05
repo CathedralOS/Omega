@@ -1,7 +1,7 @@
 // This 40-byte record is deliberately wider than the boundary handoff's
 // special 32-byte shape ceiling. AAPCS64 must classify it through the general
 // fixed-aggregate path and copy the x0 pointee into runtime-frame storage.
-data FiveWords {
+pub data FiveWords {
     first: u64;
     second: u64;
     third: u64;
@@ -9,7 +9,7 @@ data FiveWords {
     fifth: u64;
 }
 
-data Main { observed: u64; }
+pub data Main { observed: u64; }
 
 boundary machine Main::main(&mut self, value: FiveWords) -> i32 {
     self.observed = value.first + value.second + value.third

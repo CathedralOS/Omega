@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 // A scalar f64 entry value arrives in XMM0 and nested runtime arithmetic returns
 // through XMM0. This pins the recursive result-operand path and the primitive
 // result's float class through normalized entry selection.
-data Main { observed: f64; }
+pub data Main { observed: f64; }
 
 boundary machine Main::main(&mut self, value: f64) -> f64 {
     self.observed = value;

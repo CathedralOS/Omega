@@ -1,8 +1,8 @@
 use omega::language::core::float_operations;
 
 // A small INTEGER/SSE entry result returns from runtime storage in rax/xmm0.
-data MixedPair { integer: u64; floating: f64; }
-data Main { output: MixedPair; }
+pub data MixedPair { integer: u64; floating: f64; }
+pub data Main { output: MixedPair; }
 boundary machine Main::main(&self) -> MixedPair {
     transition { _ -> (self.output) }
 }

@@ -1,17 +1,17 @@
 // `[erased]` evidence remains part of Pair's semantic identity but contributes
 // no SysV field, eightbyte, register, or runtime-frame storage. The leading
 // scalar consumes rdi and the stripped Pair still arrives whole in rsi/rdx.
-data Evidence {
+pub data Evidence {
     case Only;
 }
 
-data Pair {
+pub data Pair {
     first: u64;
     proof [erased]: Evidence;
     second: u64;
 }
 
-data Main {
+pub data Main {
     observed: u64;
 }
 

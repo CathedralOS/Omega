@@ -5,7 +5,7 @@ use omega::language::core::relation;
 // arguments rather than forcing one runtime specialization of `equivalent`.
 // The constant relation isolates that compiler mechanism; core Real still
 // needs the honest Cauchy/convergence definitions and proofs tracked by N8.
-data Index {
+pub data Index {
     case Zero;
     case Next(previous: Index);
 }

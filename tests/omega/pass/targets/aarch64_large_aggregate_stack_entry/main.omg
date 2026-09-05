@@ -1,13 +1,13 @@
 // Eight scalars consume x0..x7. The following large aggregate is still passed
 // indirectly, but its pointer arrives at the incoming stack base. The entry
 // prologue must load that pointer before materializing the runtime-frame base.
-data Triple {
+pub data Triple {
     first: u64;
     second: u64;
     third: u64;
 }
 
-data Main { observed: u64; }
+pub data Main { observed: u64; }
 
 boundary machine Main::main(
     &mut self,

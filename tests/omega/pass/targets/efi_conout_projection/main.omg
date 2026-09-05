@@ -8,7 +8,7 @@
 // pointee arm is a clean blocker, never a silent frame-garbage read).
 // EfiSystemTable is field-explicit so con_out lands at +64 under
 // sequential-with-alignment placement (the EFI spec's C layout).
-data EfiSystemTable {
+pub data EfiSystemTable {
     hdr_signature: u64;
     hdr_revision: u32;
     hdr_header_size: u32;
@@ -22,7 +22,7 @@ data EfiSystemTable {
     console_out_handle: addr;
     con_out: addr;
 }
-data Main { }
+pub data Main { }
 boundary machine Main::main(&self, handle: addr, table: &EfiSystemTable) -> i32 {
     let seen: addr = table.con_out;
     transition seen == 0 {

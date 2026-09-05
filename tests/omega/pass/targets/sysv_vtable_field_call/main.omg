@@ -4,17 +4,17 @@ use omega::language::core::float_operations;
 // ordinary receiver is the first wire argument (rdi), while a MEMORY-class
 // result takes hidden rdi and shifts the receiver to rsi. Layout resolves the
 // nine functions from +8 through +72 behind the leading field.
-data Triple { first: u64; second: u64; third: u64; }
-data FloatPair { first: f64; second: f64; }
-data FloatTriple { first: f32; second: f32; third: f32; }
-data MixedPair { integer: u64; floating: f64; }
-data SplitFloatPair { wide: f64; narrow: f32; }
-data NestedFloat { value: f64; }
-data NestedMixedPair { integer: u64; floating: NestedFloat; }
-data ArrayMixedPair { integers: [u32; 2]; floats: [f32; 2]; }
-data FloatLeaf { value: f64; }
-data WrappedFloat { leaf: FloatLeaf; }
-boundary trait FieldDispatch {
+pub data Triple { first: u64; second: u64; third: u64; }
+pub data FloatPair { first: f64; second: f64; }
+pub data FloatTriple { first: f32; second: f32; third: f32; }
+pub data MixedPair { integer: u64; floating: f64; }
+pub data SplitFloatPair { wide: f64; narrow: f32; }
+pub data NestedFloat { value: f64; }
+pub data NestedMixedPair { integer: u64; floating: NestedFloat; }
+pub data ArrayMixedPair { integers: [u32; 2]; floats: [f32; 2]; }
+pub data FloatLeaf { value: f64; }
+pub data WrappedFloat { leaf: FloatLeaf; }
+pub boundary trait FieldDispatch {
     machine invoke(this: addr, value: u64);
     machine transform(this: addr, value: Triple) -> Triple;
     machine blend(this: addr, value: FloatPair) -> FloatPair;
@@ -46,7 +46,7 @@ linux_x86_64 machine NativeVtable::split_leaf(this: addr, value: SplitFloatPair)
 linux_x86_64 machine NativeVtable::nest_leaf(this: addr, value: NestedMixedPair) -> NestedMixedPair satisfies FieldDispatch::nest via Binding::VtableField(nest);
 linux_x86_64 machine NativeVtable::array_mix_leaf(this: addr, value: ArrayMixedPair) -> ArrayMixedPair satisfies FieldDispatch::array_mix via Binding::VtableField(array_mix);
 linux_x86_64 machine NativeVtable::wrap_leaf(this: addr, value: WrappedFloat) -> WrappedFloat satisfies FieldDispatch::wrap via Binding::VtableField(wrap);
-data Main {
+pub data Main {
     dispatch: FieldDispatch; receiver: addr;
     input: Triple; output: Triple;
     float_input: FloatPair; float_output: FloatPair;

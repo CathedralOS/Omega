@@ -1,12 +1,12 @@
 // A pure-integer record above two eightbytes is SysV MEMORY class and arrives
 // by value in the incoming stack-argument area.
-data Triple {
+pub data Triple {
     first: u64;
     second: u64;
     third: u64;
 }
 
-data Main { observed: u64; }
+pub data Main { observed: u64; }
 
 boundary machine Main::main(&mut self, triple: Triple) -> i32 {
     self.observed = triple.first + triple.second + triple.third;

@@ -2,8 +2,8 @@ use omega::language::core::float_operations;
 
 // Three f64 members exceed the SysV two-eightbyte ceiling. Despite being
 // homogeneous, this result is MEMORY-class and returns through hidden rdi.
-data FloatTriple { first: f64; second: f64; third: f64; }
-data Main { output: FloatTriple; }
+pub data FloatTriple { first: f64; second: f64; third: f64; }
+pub data Main { output: FloatTriple; }
 boundary machine Main::main(&self) -> FloatTriple {
     transition { _ -> (self.output) }
 }

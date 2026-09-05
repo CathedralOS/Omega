@@ -1,12 +1,12 @@
 // Seven scalars consume x0..x6. A following two-register aggregate cannot be
 // split between x7 and the stack, so AAPCS64 C.13-C.15 place the whole Pair at
 // the incoming stack base. The source-to-object test pins both stack fragments.
-data Pair {
+pub data Pair {
     first: u64;
     second: u64;
 }
 
-data Main { observed: u64; }
+pub data Main { observed: u64; }
 
 boundary machine Main::main(
     &mut self,

@@ -1,7 +1,7 @@
 // MS x64's fifth parameter is resident after the return address and 32-byte
 // shadow space. This compile-only canary pins normalized stack-argument
 // lowering; firmware itself invokes EFI main with only its standard pair.
-data Main { observed: addr; }
+pub data Main { observed: addr; }
 
 boundary machine Main::main(
     &mut self,

@@ -2,7 +2,7 @@
 // The nested binder is alpha-renamed by the concrete implementation, while
 // the distinct Selected parameter is forwarded through both Stream and the
 // direct Schema<Selected> invocation.
-data Index {
+pub data Index {
     case Zero;
     case Next(previous: Index);
 }

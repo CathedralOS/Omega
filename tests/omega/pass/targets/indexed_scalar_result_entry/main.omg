@@ -1,6 +1,6 @@
 // A runtime-indexed local array element stages through entry-result scratch
 // before loading the normalized scalar result register.
-data Main { }
+pub data Main { }
 
 boundary machine Main::main(
     &mut self,

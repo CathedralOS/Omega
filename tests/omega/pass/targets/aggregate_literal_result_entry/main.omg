@@ -1,7 +1,7 @@
 // A record literal terminal materializes into entry-result scratch before its
 // two native result fragments load into rax/rdx or x0/x1.
-data Pair { first: u64; second: u64; }
-data Main { }
+pub data Pair { first: u64; second: u64; }
+pub data Main { }
 
 boundary machine Main::main(&self) -> Pair {
     transition { _ -> (Pair { first: 7, second: 9 }) }

@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 
 // A literal float terminal still returns through the native vector result
 // register; its raw bits stage through exact-width entry-result scratch.
-data Main { }
+pub data Main { }
 
 boundary machine Main::main(&mut self) -> f64 {
     transition { _ -> (1.5) }

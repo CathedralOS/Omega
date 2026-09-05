@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // On MS x64 the value arrives in XMM0, not RCX; the source-to-object canary
 // pins the emitted movsd store so later lowering cannot regress to GPR-only
 // entry unmarshalling.
-data Main { observed: f64; }
+pub data Main { observed: f64; }
 
 boundary machine Main::main(&mut self, value: f64) -> i32 {
     self.observed = value;

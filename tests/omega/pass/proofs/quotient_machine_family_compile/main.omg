@@ -3,7 +3,7 @@ use omega::language::core::relation;
 // N6/N7 bridge: one quotient spans every concrete instance of a proof-only
 // machine-indexed carrier family. The static generator remains part of the
 // representative type, but not the quotient bucket identity.
-data Index {
+pub data Index {
     case Zero;
     case Next(previous: Index);
 }

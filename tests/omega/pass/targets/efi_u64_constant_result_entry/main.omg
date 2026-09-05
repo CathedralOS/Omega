@@ -1,6 +1,6 @@
 // Constant entry terminals use the declared result width. A u64 result must
 // write the full native x0/rax register rather than the legacy i32 fallback.
-data Main { }
+pub data Main { }
 
 boundary machine Main::main(&mut self) -> u64 {
     transition { _ -> (7) }
