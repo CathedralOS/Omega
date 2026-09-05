@@ -3,12 +3,12 @@
 mod tests;
 
 use abstract_operations_to_target_operations::*;
+use machine_emission::frame_layout::*;
 use machine_emission::*;
 use native_artifact::*;
 use native_realization::*;
 use object_file::*;
 use optimization_core::OptimizationReportRequest;
-use post_allocation_machine_to_frame_layout::*;
 use post_allocation_machine_to_post_allocation_machine::*;
 use post_allocation_machine_to_selected_form_encoding::*;
 use register_environment::*;

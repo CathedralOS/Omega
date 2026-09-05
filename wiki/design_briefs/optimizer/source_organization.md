@@ -519,12 +519,13 @@ five budget axes; architecture guards register the complete ladder and prohibit
 executable memory, frame, fault, alias, encoding, or publication claims.
 
 Non-authoritative spill-frame requirements are an internal calculation of
-`post-allocation-machine-to-frame-layout`. Its
+`machine-emission/src/frame_layout`. Its
 `spill_requirements/mod.rs` entrance visibly
 joins authenticated abstract access constraints to the validated register
 environment, delegates direct derivation and independent replay to distinct
 `compute.rs` and `replay.rs` leaves, and seals only after `validation.rs` agrees;
-`model.rs`, `identity.rs`, and `custody.rs` own the closed carrier and receipt.
+Raw plans live in `machine-code/storage/frame_layout`; `model.rs`, `identity.rs`,
+and `custody.rs` retain the backend's sealed validation results.
 The registered semantic ladder therefore exposes the whole descent from one
 small meaningful entrance without granting frame layout, executable memory,
 fault, unwind, probing, encoding, emission, or publication authority.
@@ -534,8 +535,9 @@ Allocation-visible callee-save discovery belongs to
 `preservation/mod.rs` entrance visibly
 joins `compute::derive` to `validate_allocated_callee_saved_requirements` and
 does no hidden traversal. Shared immutable target convention selection lives in
-`register-environment`; the requirement carrier, identity, custody,
-errors, and validator remain named top-level leaves. Positional production
+`register-environment`; raw requirements live in `register-homes/preservation`
+and the ABI vocabulary in `register-model`. Identity, custody, errors, and
+validation remain with allocation. Positional production
 descends through `compute/{ordinary,structural,state,work}`, while independent
 keyed reconstruction descends through
 `replay/{ordinary,structural,writes,state,work}` without importing producer
@@ -545,13 +547,14 @@ require exact `write_units` use on both paths, and forbid frame, save/restore,
 unwind, machine, encoding, and publication authority.
 
 Non-authoritative callee-save storage planning belongs to
-`post-allocation-machine-to-frame-layout`. Its
+`machine-emission/src/frame_layout`. Its
 `save_storage/mod.rs` entrance visibly joins
 `compute::derive` to `validate_non_authoritative_callee_save_storage` and
 descends through `compute/{groups,work}`. Independent reconstruction descends
 through `replay/{groups,work}`, builds its own keyed unit-to-group index, and
 cannot import producer mechanics. Named top-level `model`, `error`, `identity`,
-`validation`, and `custody` leaves own the carrier boundary. The generic
+`validation`, and `custody` leaves own validation custody; raw plans live in
+`machine-code/storage/frame_layout`. The generic
 preservation-storage catalog is separately organized under
 `register-model/src/preservation_storage/{model,identity,validation}`;
 the x86-64 and AArch64 ISA crates each expose one exact target catalog leaf.

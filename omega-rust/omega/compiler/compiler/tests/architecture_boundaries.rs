@@ -52,16 +52,6 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         ),
         (
             "machine-emission/Cargo.toml",
-            "register-environment",
-            "../../backend/register-environment",
-        ),
-        (
-            "machine-emission/Cargo.toml",
-            "post-allocation-machine-to-frame-layout",
-            "../../pipeline/post-allocation-machine-to-frame-layout",
-        ),
-        (
-            "machine-emission/Cargo.toml",
             "post-allocation-machine-to-post-allocation-machine",
             "../../pipeline/post-allocation-machine-to-post-allocation-machine",
         ),
@@ -180,35 +170,13 @@ fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
         "backend/object/",
         "backend/images/",
     ];
-    let mut expected = BTreeSet::from([
-        (
-            "native-realization",
-            "image-emission",
-            "backend/images/image-emission",
-        ),
-        (
-            "native-realization",
-            "isa-x86_64",
-            "backend/instruction_set_architectures/isa-x86_64",
-        ),
-        (
-            "native-realization",
-            "machine-emission",
-            "backend/machine-emission",
-        ),
-        (
-            "native-realization",
-            "object-file",
-            "backend/object/object-file",
-        ),
-    ]);
+    let mut expected = BTreeSet::new();
     // Extracted physical stages consume the same two ISA owners as their
     // former coordinator. Keep this closed roster, not a layer-wide escape.
     for owner in [
         "post-allocation-machine-to-selected-form-encoding",
         "selected-form-encoding-to-resolved-layout",
         "selected-instructions-to-register-homes",
-        "register-environment",
     ] {
         expected.insert((
             owner,
@@ -778,8 +746,7 @@ fn maintained_omega_sources_do_not_declare_target_support() {
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", source_path.display()));
         for (line_index, line) in source.lines().enumerate() {
             let code = line.split_once("//").map_or(line, |(code, _)| code);
-            let mut words = code.split_whitespace();
-            if words.next() == Some("target") && words.next().is_some() {
+            if starts_target_declaration(code) {
                 target_declarations.push(format!("{}:{}", source_path.display(), line_index + 1));
             }
         }
@@ -790,6 +757,26 @@ fn maintained_omega_sources_do_not_declare_target_support() {
         "exact target identity and policy are immutable invocation/package inputs; remove authored target declarations:\n{}",
         target_declarations.join("\n"),
     );
+}
+
+fn starts_target_declaration(code: &str) -> bool {
+    let mut words = code.split_whitespace();
+    words.next() == Some("target")
+        && words.next().is_some_and(|name| {
+            name.chars()
+                .next()
+                .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
+        })
+}
+
+#[test]
+fn target_declaration_guard_does_not_mistake_assignments_for_policy() {
+    assert!(starts_target_declaration("target linux_x86_64 { }"));
+    assert!(starts_target_declaration("target linux_x86_64"));
+    assert!(starts_target_declaration("target linux_x86_64{}"));
+    assert!(!starts_target_declaration("target = 9;"));
+    assert!(!starts_target_declaration("target += 1;"));
+    assert!(!starts_target_declaration("target: u8;"));
 }
 
 fn repo_root() -> PathBuf {

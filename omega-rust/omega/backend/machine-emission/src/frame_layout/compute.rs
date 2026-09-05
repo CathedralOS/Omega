@@ -1,7 +1,7 @@
 use selected_instructions::MachineAlternativeFamily;
 use target::Architecture;
 
-use crate::{
+use crate::frame_layout::{
     AllocatedCalleeSavedFunctionKind, FrameAbiPreservationConvention,
     StagedOptimizedPostAllocationMachinePlan, ValidatedAllocatedCalleeSavedRequirements,
     ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetRegisterEnvironment,

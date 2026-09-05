@@ -9,10 +9,8 @@ use selected_instructions::{
 };
 use target::{Architecture, NativeTarget};
 
+use crate::frame_layout::{FunctionTargetFrameLayout, ReturnAddressFrameCustody};
 use machine_code::ResolvedSelectedFormRow;
-use post_allocation_machine_to_frame_layout::{
-    FunctionTargetFrameLayout, ReturnAddressFrameCustody,
-};
 use post_allocation_machine_to_selected_form_encoding::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };

@@ -13,10 +13,8 @@ pub enum FunctionRelativeOptimizationRealizationError {
     CalleeSavedRequirements(
         selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementError,
     ),
-    CalleeSaveStorage(
-        post_allocation_machine_to_frame_layout::NonAuthoritativeCalleeSaveStorageError,
-    ),
-    FrameLayout(post_allocation_machine_to_frame_layout::TargetFrameLayoutError),
+    CalleeSaveStorage(crate::frame_layout::NonAuthoritativeCalleeSaveStorageError),
+    FrameLayout(crate::frame_layout::TargetFrameLayoutError),
     FrameProtocol(crate::TargetFrameProtocolEncodingError),
     MissingFunctionRelativeLayoutOptimization,
     OptimizationCustodyUnavailable,

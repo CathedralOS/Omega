@@ -2,6 +2,10 @@ use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
 use selected_instructions_to_register_homes::{AllocationReplayError, RetainedAllocation};
 
 use crate::ValidatedTargetFrameProtocolEncoding;
+use crate::frame_layout::ValidatedTargetFrameLayout;
+use crate::frame_layout::{
+    NonAuthoritativeCalleeSaveStorageIdentity, ValidatedNonAuthoritativeCalleeSaveStorage,
+};
 use crate::{
     FunctionRelativeOptimizationRealizationError,
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
@@ -9,10 +13,6 @@ use crate::{
 use machine_code::{
     TargetFrameLayoutIdentity, TargetFrameProtocolEncodingIdentity,
     WholeFunctionExitContractIdentity,
-};
-use post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout;
-use post_allocation_machine_to_frame_layout::{
-    NonAuthoritativeCalleeSaveStorageIdentity, ValidatedNonAuthoritativeCalleeSaveStorage,
 };
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::{
@@ -187,10 +187,8 @@ pub enum OptimizedUnitFunctionRelativeRealizationError {
     CalleeSavedRequirements(
         selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementError,
     ),
-    CalleeSaveStorage(
-        post_allocation_machine_to_frame_layout::NonAuthoritativeCalleeSaveStorageError,
-    ),
-    FrameLayout(post_allocation_machine_to_frame_layout::TargetFrameLayoutError),
+    CalleeSaveStorage(crate::frame_layout::NonAuthoritativeCalleeSaveStorageError),
+    FrameLayout(crate::frame_layout::TargetFrameLayoutError),
     FrameProtocol(crate::TargetFrameProtocolEncodingError),
     Exit(crate::WholeFunctionExitContractError),
     UnsupportedSelectionPhase,

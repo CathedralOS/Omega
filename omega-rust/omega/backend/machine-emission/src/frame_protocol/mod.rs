@@ -18,7 +18,7 @@ pub use identity::target_frame_protocol_encoding_identity;
 pub use model::*;
 pub use validation::validate_target_frame_protocol_encoding;
 
-use post_allocation_machine_to_frame_layout::{
+use crate::frame_layout::{
     ReturnAddressFrameCustody, TargetFrameLayoutIdentity, ValidatedTargetFrameLayout,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;

@@ -1,4 +1,4 @@
-use crate::{
+use crate::frame_layout::{
     StagedOptimizedPostAllocationMachinePlan, ValidatedAllocatedCalleeSavedRequirements,
     ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetRegisterEnvironment,
 };

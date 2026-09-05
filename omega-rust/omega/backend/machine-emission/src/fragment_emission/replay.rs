@@ -105,9 +105,7 @@ impl FunctionFragmentReplayInputs {
 
     /// The target-owned geometry the frame protocol encodes. Present exactly
     /// where [`Self::frame_protocol`] is.
-    pub fn frame_layout(
-        &self,
-    ) -> Option<&post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout> {
+    pub fn frame_layout(&self) -> Option<&crate::frame_layout::ValidatedTargetFrameLayout> {
         match self {
             Self::FixedFrame(realization) => Some(realization.frame()),
             Self::UnitBaseline(realization) => realization.frame().map(|frame| frame.layout()),

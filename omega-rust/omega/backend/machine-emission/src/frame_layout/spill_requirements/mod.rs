@@ -16,14 +16,14 @@ pub use model::*;
 pub use validation::validate_non_authoritative_spill_frame_requirements;
 
 #[cfg(test)]
-pub(in crate::spill_requirements) use compute::derive_zero_access_requirement_for_test;
+pub(in crate::frame_layout::spill_requirements) use compute::derive_zero_access_requirement_for_test;
 #[cfg(test)]
-pub(in crate::spill_requirements) use replay::replay_zero_access_requirement_for_test;
+pub(in crate::frame_layout::spill_requirements) use replay::replay_zero_access_requirement_for_test;
 
 use optimization_core::OptimizationWorkBudget;
 use selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
 
-use crate::ValidatedTargetRegisterEnvironment;
+use crate::frame_layout::ValidatedTargetRegisterEnvironment;
 
 pub fn stage_non_authoritative_spill_frame_requirements(
     source: &ValidatedAbstractSpillAccessConstraints,

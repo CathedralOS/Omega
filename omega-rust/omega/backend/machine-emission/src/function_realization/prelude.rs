@@ -10,6 +10,15 @@ pub(super) use selected_instructions::SelectedInstructionPlanIdentity;
 pub(super) use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 pub(super) use target::{Architecture, NativeTarget, ObjectFormat};
 
+pub(super) use crate::frame_layout::{
+    NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePolicy,
+    ValidatedNonAuthoritativeCalleeSaveStorage, stage_non_authoritative_callee_save_storage,
+    validate_non_authoritative_callee_save_storage,
+};
+pub(super) use crate::frame_layout::{
+    TargetFrameLayoutPolicy, ValidatedTargetFrameLayout, stage_target_frame_layout,
+    validate_target_frame_layout,
+};
 pub(super) use crate::{
     TargetFrameProtocolEncodingPolicy, ValidatedTargetFrameProtocolEncoding,
     stage_target_frame_protocol_encoding, validate_target_frame_protocol_encoding,
@@ -28,15 +37,6 @@ pub(super) use machine_code::{
     WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
 };
 pub(super) use physical_instructions::PostAllocationMachineOptimizationCustody;
-pub(super) use post_allocation_machine_to_frame_layout::{
-    NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePolicy,
-    ValidatedNonAuthoritativeCalleeSaveStorage, stage_non_authoritative_callee_save_storage,
-    validate_non_authoritative_callee_save_storage,
-};
-pub(super) use post_allocation_machine_to_frame_layout::{
-    TargetFrameLayoutPolicy, ValidatedTargetFrameLayout, stage_target_frame_layout,
-    validate_target_frame_layout,
-};
 pub(super) use post_allocation_machine_to_post_allocation_machine::{
     OptimizedPostAllocationMachineOptimizationError,
     StagedOptimizedPostAllocationMachineOptimization,

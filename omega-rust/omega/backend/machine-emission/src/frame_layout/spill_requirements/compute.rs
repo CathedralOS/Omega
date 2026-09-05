@@ -1,6 +1,6 @@
 //! Direct traversal over authenticated abstract access rows.
 
-use crate::ValidatedTargetRegisterEnvironment;
+use crate::frame_layout::ValidatedTargetRegisterEnvironment;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_environment::selected_abi_preservation;
 use selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
@@ -110,7 +110,7 @@ fn derive_function(
 }
 
 #[cfg(test)]
-pub(in crate::spill_requirements) fn derive_zero_access_requirement_for_test(
+pub(in crate::frame_layout::spill_requirements) fn derive_zero_access_requirement_for_test(
     machine: semantic_vocabulary::MachineId,
 ) -> FunctionSpillFrameRequirements {
     derive_function(

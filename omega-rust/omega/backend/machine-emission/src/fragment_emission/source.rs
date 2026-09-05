@@ -57,9 +57,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
         self.current.frame_protocol.as_ref()
     }
-    pub fn frame_layout(
-        &self,
-    ) -> Option<&post_allocation_machine_to_frame_layout::ValidatedTargetFrameLayout> {
+    pub fn frame_layout(&self) -> Option<&crate::frame_layout::ValidatedTargetFrameLayout> {
         self.current.frame_layout.as_ref()
     }
     pub const fn exit_contract(&self) -> &crate::ValidatedWholeFunctionExitContract {

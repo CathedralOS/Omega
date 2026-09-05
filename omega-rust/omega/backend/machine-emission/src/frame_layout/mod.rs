@@ -2,10 +2,12 @@
 
 //! Optimizer module role: executable entrance. Target-owned ordinary frame geometry.
 //!
-//! This stage joins the selected post-allocation machine plan to validated
+//! This backend calculation joins the post-allocation machine plan to validated
 //! preservation storage and chooses exact stack-frame coordinates. The result
 //! is independently replayed. It does not claim that prologue, epilogue,
 //! unwind, probing, or memory-access instructions have been emitted.
+//! Durable plans live in `machine_code::storage::frame_layout`; only the
+//! independently validated wrappers and implementation state live here.
 
 mod compute;
 mod error;

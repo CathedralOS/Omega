@@ -1,11 +1,11 @@
 use selected_instructions_to_register_homes::AllocationSource;
 
+use crate::frame_layout::validate_non_authoritative_callee_save_storage;
+use crate::frame_layout::validate_target_frame_layout;
 use crate::validate_target_frame_protocol_encoding;
 use crate::{
     validate_whole_function_exit_contract, validate_whole_function_exit_contract_with_frame,
 };
-use post_allocation_machine_to_frame_layout::validate_non_authoritative_callee_save_storage;
-use post_allocation_machine_to_frame_layout::validate_target_frame_layout;
 use post_allocation_machine_to_selected_form_encoding::validate_optimized_layout_independent_selected_form_encoding;
 use register_homes_to_post_allocation_machine::validate_optimized_post_allocation_machine_plan_custody;
 use selected_form_encoding_to_resolved_layout::validate_optimized_resolved_selected_form_layout;
