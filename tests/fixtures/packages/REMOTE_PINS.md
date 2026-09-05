@@ -126,3 +126,19 @@ mbx test -p omega --test package_commands generated::pinned_ssh -- --ignored --t
 ```
 
 Each also has an independent `pinned_https` variant requiring HTTPS credentials.
+
+## Same-name source replacement
+
+`library-workbench` retains a separate `same-name-replacement` variant at
+`3b597ba19431e504e9fcd3eb9cb74f7566ed865f`. Its `libraries/exact-math`
+member declares `arithmetic-kernels` and matches the standalone arithmetic
+package's public source with no dependencies. The main workspace is unchanged.
+
+```text
+mbx test -p omega --test package_commands source_replacement:: -- --ignored --test-threads=1
+```
+
+The SSH canary edits the authored dependency source, then updates. Matching
+declared names, aliases, signatures, and empty authority do not bypass the
+separate source-replacement decision. Acceptance selects the new repository's
+exact named-member pin and checks an import through the unchanged default alias.

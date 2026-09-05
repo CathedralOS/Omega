@@ -13,7 +13,7 @@ host credentials, and organizational review policy have separate owners.
 ## Required integration
 
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Extend real-command/network coverage to
-  same-name/different-source replacement and transitive helper authority.
+  transitive helper authority.
   Test HTTPS and SSH independently where credentials permit.
   Cover missing baselines/old source, invalid proofs, spoofed boundaries,
   concurrent edits, and interruption recovery. Run relevant package, resolver,
