@@ -158,6 +158,33 @@ permission to publish. This coarse change report is not the detailed row-level
 conflict/decision transaction, and missing old source never triggers selector
 refresh or an implicitly chosen candidate.
 
+`review::compare_package_policy_changes` compares an optional accepted target
+with a freshly checked candidate and its exact current source closure. An absent
+baseline is explicit initial review. Comparison joins the union of exact package
+keys and complete evidence-owned policy rows, including removed packages whose
+old source no longer exists. Old and new resolutions and dependency paths remain
+separate; a removed package has no invented candidate source or path. Same-named
+packages from different source lineages do not merge.
+
+Root role changes retain their directional compatibility finding: package to
+application breaks dependency compatibility, while application to package
+breaks application activation. Both require a decision for the same exact root.
+Changing root identity remains explicit source context rather than inventing a
+new kind of trust claim; the actual added and removed policy rows still apply.
+
+The report retains added, removed, and changed rows with full old/new readable
+meaning, decision requirements, and audit recommendations. Unchanged candidate
+packages remain visible for retained dangerous authority, external supplies,
+and slack. Source changes also remain reviewable. Complete source subjects,
+normalized policies, and fresh candidate compiler/source/build commitments bind
+the versioned comparison fingerprints; historical policy is never adapted into
+a fabricated compiler review or execution receipt. Both graphs share resource
+ceilings rather than receiving a fresh budget per package.
+
+This report does not resolve decisions, extend historical decision storage to
+removed packages, or publish project files. Fresh compiler obligations and
+transactional candidate/project-file rechecks remain independently required.
+
 Return to the [package subsystem map](../README.md), or consult:
 
 - [`package_manager_first_draft.md`](../../../../wiki/design_briefs/package_manager_first_draft.md)

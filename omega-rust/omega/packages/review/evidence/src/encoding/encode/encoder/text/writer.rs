@@ -18,11 +18,18 @@ pub(in crate::encoding) struct Writer<'text> {
     scopes: [Scope; MAXIMUM_MARKUP_DEPTH],
     depth: usize,
     error: Option<&'static str>,
+    measure_only: bool,
 }
 
 impl<'text> Writer<'text> {
     pub(in crate::encoding) fn new(maximum: usize, expected: Option<&'text str>) -> Self {
-        let mut writer = Self {
+        let mut writer = Self::empty(maximum, expected);
+        writer.append(HEADER);
+        writer
+    }
+
+    fn empty(maximum: usize, expected: Option<&'text str>) -> Self {
+        Self {
             output: String::new(),
             expected: expected.map(str::as_bytes),
             position: 0,
@@ -30,9 +37,29 @@ impl<'text> Writer<'text> {
             scopes: [Scope::default(); MAXIMUM_MARKUP_DEPTH],
             depth: 0,
             error: None,
-        };
-        writer.append(HEADER);
+            measure_only: false,
+        }
+    }
+
+    pub(in crate::encoding) fn measured(maximum: usize) -> Self {
+        let mut writer = Self::empty(maximum, None);
+        writer.measure_only = true;
+        writer.append("omega_package_policy_row_text 1\n");
         writer
+    }
+
+    pub(in crate::encoding) fn preallocated(length: usize) -> Result<Self, Error> {
+        let mut writer = Self::empty(length, None);
+        writer
+            .output
+            .try_reserve_exact(length)
+            .map_err(|_| Error::new("package policy row text allocation failed"))?;
+        writer.append("omega_package_policy_row_text 1\n");
+        Ok(writer)
+    }
+
+    pub(in crate::encoding) fn length(&self) -> usize {
+        self.position
     }
 
     pub(in crate::encoding) fn fail(&mut self, message: &'static str) {
@@ -75,7 +102,7 @@ impl<'text> Writer<'text> {
                 self.fail("package policy text is not canonical");
                 return;
             }
-        } else {
+        } else if !self.measure_only {
             if self.output.try_reserve(value.len()).is_err() {
                 self.fail("package policy text allocation failed");
                 return;
