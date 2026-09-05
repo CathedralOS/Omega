@@ -181,9 +181,22 @@ the versioned comparison fingerprints; historical policy is never adapted into
 a fabricated compiler review or execution receipt. Both graphs share resource
 ceilings rather than receiving a fresh budget per package.
 
-This report does not resolve decisions, extend historical decision storage to
-removed packages, or publish project files. Fresh compiler obligations and
-transactional candidate/project-file rechecks remain independently required.
+`review::resolve_package_policy_decisions` consumes that report and the digest
+retained with the project's choices. Each required row and root-role change
+needs exactly one accept/reject choice. Choices for removed-package rows do not
+need the old checkout or a candidate-graph package index. Missing, duplicate,
+unknown, advisory-only, and wrong-comparison choices reject. The result stores
+choices in canonical subject order and preserves rejection; a comparison with
+no required choices accepts an empty set without manufacturing approval work.
+This uses the checked report directly, with no compiler reconstruction or
+evidence-promotion step. It records decisions, not whether an audit happened.
+
+`all_required_changes_accepted` describes only the represented choices, not
+permission to publish. Source-lineage replacement still needs its own explicit
+comparison finding: source/path drift currently recommends audit and must not
+be mistaken for a blocking replacement decision. Decision text/file handling,
+removed-package history in the lock, fresh compiler obligations, and
+transactional candidate/project-file rechecks remain integration work.
 
 Return to the [package subsystem map](../README.md), or consult:
 
