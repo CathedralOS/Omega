@@ -4,6 +4,9 @@
 //! carry its own end-to-end oracle without making that shared file responsible
 //! for another subsystem.
 
+#[path = "fixture_rosters/recast_views.rs"]
+mod fixture_roster;
+
 use omega_compiler::{CheckedCompilation, CompileOptions, compile_to_checked};
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::path::{Path, PathBuf};
@@ -128,15 +131,15 @@ fn fail_diagnostics(canary_rel: &str) -> String {
 fn scalar_and_interior_recast_execution_canaries_run() {
     for (canary, tag) in [
         (
-            "recast/runtime_scalar_pun_shared_let_exit",
+            fixture_roster::RUNTIME_SCALAR_PUN_SHARED_LET_EXIT,
             "scalar-pun-shared",
         ),
         (
-            "recast/runtime_interior_byte_recast_exit",
+            fixture_roster::RUNTIME_INTERIOR_BYTE_RECAST_EXIT,
             "interior-byte-recast",
         ),
         (
-            "recast/runtime_offset_byte_recast_exit",
+            fixture_roster::RUNTIME_OFFSET_BYTE_RECAST_EXIT,
             "offset-byte-recast",
         ),
     ] {
@@ -148,11 +151,11 @@ fn scalar_and_interior_recast_execution_canaries_run() {
 fn mutable_recast_execution_canaries_run() {
     for (canary, tag) in [
         (
-            "recast/runtime_scalar_pun_mutable_write_exit",
+            fixture_roster::RUNTIME_SCALAR_PUN_MUTABLE_WRITE_EXIT,
             "mutable-scalar-pun",
         ),
         (
-            "recast/runtime_offset_byte_recast_mutable_write_exit",
+            fixture_roster::RUNTIME_OFFSET_BYTE_RECAST_MUTABLE_WRITE_EXIT,
             "mutable-byte-region",
         ),
     ] {
@@ -163,11 +166,11 @@ fn mutable_recast_execution_canaries_run() {
 #[test]
 fn mutable_recasts_cross_compile() {
     compile_for_cross_targets(
-        "recast/runtime_scalar_pun_mutable_write_exit",
+        fixture_roster::RUNTIME_SCALAR_PUN_MUTABLE_WRITE_EXIT,
         "mutable-scalar-pun",
     );
     compile_for_cross_targets(
-        "recast/runtime_offset_byte_recast_mutable_write_exit",
+        fixture_roster::RUNTIME_OFFSET_BYTE_RECAST_MUTABLE_WRITE_EXIT,
         "mutable-byte-region",
     );
 }
@@ -176,15 +179,15 @@ fn mutable_recasts_cross_compile() {
 fn flow_proven_recast_execution_canaries_run() {
     for (canary, tag) in [
         (
-            "recast/runtime_multi_edge_offset_meet_exit",
+            fixture_roster::RUNTIME_MULTI_EDGE_OFFSET_MEET_EXIT,
             "multi-edge-offset-meet",
         ),
         (
-            "recast/runtime_guarded_offset_recast_exit",
+            fixture_roster::RUNTIME_GUARDED_OFFSET_RECAST_EXIT,
             "guarded-offset-recast",
         ),
         (
-            "recast/runtime_symbolic_stride_footprint_exit",
+            fixture_roster::RUNTIME_SYMBOLIC_STRIDE_FOOTPRINT_EXIT,
             "symbolic-stride-footprint",
         ),
     ] {
@@ -195,21 +198,22 @@ fn flow_proven_recast_execution_canaries_run() {
 #[test]
 fn record_recast_execution_canaries_run() {
     for (canary, tag) in [
-        ("recast/runtime_record_view_exit", "record-view"),
+        (fixture_roster::RUNTIME_RECORD_VIEW_EXIT, "record-view"),
         (
-            "recast/runtime_record_array_view_mutable_write_exit",
+            fixture_roster::RUNTIME_RECORD_ARRAY_VIEW_MUTABLE_WRITE_EXIT,
             "record-array-mutable-view",
         ),
         (
-            "recast/constant_offset_record_view_after_write_exit",
+            fixture_roster::CONSTANT_OFFSET_RECORD_VIEW_AFTER_WRITE_EXIT,
             "constant-offset-record-view",
         ),
     ] {
         assert_exit_70(canary, tag);
     }
 
-    let array_canary =
-        repo_root().join("tests/omega/pass/recast/runtime_record_array_view_mutable_write_exit");
+    let array_canary = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_RECORD_ARRAY_VIEW_MUTABLE_WRITE_EXIT);
     let checked = compile_pass_to_checked(&array_canary.join("main.omg"));
     assert_eq!(
         interpret(&checked, &[]).exit_code,
@@ -217,14 +221,14 @@ fn record_recast_execution_canaries_run() {
         "the interpreter must preserve nested array/record offsets"
     );
     compile_for_cross_targets(
-        "recast/runtime_record_array_view_mutable_write_exit",
+        fixture_roster::RUNTIME_RECORD_ARRAY_VIEW_MUTABLE_WRITE_EXIT,
         "record-array-mutable-view",
     );
 }
 
 #[test]
 fn fixed_array_recast_execution_and_fact_fence() {
-    let canary = "recast/runtime_fixed_array_view_mutable_write_exit";
+    let canary = fixture_roster::RUNTIME_FIXED_ARRAY_VIEW_MUTABLE_WRITE_EXIT;
     assert_exit_70(canary, "fixed-array-mutable-view");
 
     let main = repo_root()
@@ -240,7 +244,7 @@ fn fixed_array_recast_execution_and_fact_fence() {
 
     compile_for_cross_targets(canary, "fixed-array-mutable-view");
 
-    let diagnostics = fail_diagnostics("recast/fixed_array_view_fact_fenced");
+    let diagnostics = fail_diagnostics(fixture_roster::FIXED_ARRAY_VIEW_FACT_FENCED);
     assert!(
         diagnostics.contains("must be recursively fact-free"),
         "raw bytes must not establish fixed-array element facts:\n{diagnostics}"
@@ -249,7 +253,7 @@ fn fixed_array_recast_execution_and_fact_fence() {
 
 #[test]
 fn slice_recast_execution_tiling_and_fact_fences() {
-    let canary = "recast/runtime_slice_view_mutable_write_exit";
+    let canary = fixture_roster::RUNTIME_SLICE_VIEW_MUTABLE_WRITE_EXIT;
     assert_exit_70(canary, "slice-mutable-view");
 
     let main = repo_root()
@@ -265,12 +269,12 @@ fn slice_recast_execution_tiling_and_fact_fences() {
 
     compile_for_cross_targets(canary, "slice-mutable-view");
 
-    let non_tiling = fail_diagnostics("recast/slice_view_non_tiling_rejected");
+    let non_tiling = fail_diagnostics(fixture_roster::SLICE_VIEW_NON_TILING_REJECTED);
     assert!(
         non_tiling.contains("does not exactly tile"),
         "non-divisible slice recast produced the wrong diagnostic:\n{non_tiling}"
     );
-    let facted = fail_diagnostics("recast/slice_view_fact_fenced");
+    let facted = fail_diagnostics(fixture_roster::SLICE_VIEW_FACT_FENCED);
     assert!(
         facted.contains("raw storage cannot establish element facts"),
         "raw bytes must not establish slice element facts:\n{facted}"
@@ -279,7 +283,7 @@ fn slice_recast_execution_tiling_and_fact_fences() {
 
 #[test]
 fn interior_slice_recasts_preserve_dynamic_tail_geometry() {
-    let canary = "recast/runtime_interior_slice_view_mutable_write_exit";
+    let canary = fixture_roster::RUNTIME_INTERIOR_SLICE_VIEW_MUTABLE_WRITE_EXIT;
     assert_exit_70(canary, "interior-slice-mutable-view");
 
     let main = repo_root()
@@ -295,12 +299,12 @@ fn interior_slice_recasts_preserve_dynamic_tail_geometry() {
 
     compile_for_cross_targets(canary, "interior-slice-mutable-view");
 
-    let non_tiling = fail_diagnostics("recast/interior_slice_runtime_offset_non_tiling");
+    let non_tiling = fail_diagnostics(fixture_roster::INTERIOR_SLICE_RUNTIME_OFFSET_NON_TILING);
     assert!(
         non_tiling.contains("cannot prove exact tiling for interior slice"),
         "runtime-offset tiling produced the wrong diagnostic:\n{non_tiling}"
     );
-    let facted = fail_diagnostics("recast/interior_slice_fact_fenced");
+    let facted = fail_diagnostics(fixture_roster::INTERIOR_SLICE_FACT_FENCED);
     assert!(
         facted.contains("raw storage cannot establish element facts"),
         "interior raw bytes must not establish slice element facts:\n{facted}"
@@ -309,7 +313,7 @@ fn interior_slice_recasts_preserve_dynamic_tail_geometry() {
 
 #[test]
 fn aggregate_slice_recasts_compose_leaf_representation_sets() {
-    let canary = "recast/runtime_aggregate_slice_representation_recast_exit";
+    let canary = fixture_roster::RUNTIME_AGGREGATE_SLICE_REPRESENTATION_RECAST_EXIT;
     assert_exit_70(canary, "aggregate-slice-representation-recast");
 
     let main = repo_root()
@@ -325,7 +329,7 @@ fn aggregate_slice_recasts_compose_leaf_representation_sets() {
 
     compile_for_cross_targets(canary, "aggregate-slice-representation-recast");
 
-    let diagnostics = fail_diagnostics("recast/aggregate_slice_mut_leaf_sets_differ");
+    let diagnostics = fail_diagnostics(fixture_roster::AGGREGATE_SLICE_MUT_LEAF_SETS_DIFFER);
     assert!(
         diagnostics.contains("fact implication in BOTH directions"),
         "aggregate slice leaf-set mismatch produced the wrong diagnostic:\n{diagnostics}"
@@ -335,10 +339,10 @@ fn aggregate_slice_recasts_compose_leaf_representation_sets() {
 #[test]
 fn mutable_recast_fact_fences_reject() {
     for canary in [
-        "recast/recast_mut_fact_fenced",
-        "recast/recast_mut_interior_fact_fenced",
-        "recast/recast_mut_record_fact_fenced",
-        "recast/recast_mut_record_array_fact_fenced",
+        fixture_roster::RECAST_MUT_FACT_FENCED,
+        fixture_roster::RECAST_MUT_INTERIOR_FACT_FENCED,
+        fixture_roster::RECAST_MUT_RECORD_FACT_FENCED,
+        fixture_roster::RECAST_MUT_RECORD_ARRAY_FACT_FENCED,
     ] {
         let diagnostics = fail_diagnostics(canary);
         assert!(
@@ -350,26 +354,26 @@ fn mutable_recast_fact_fences_reject() {
 
 #[test]
 fn mutable_recast_accepts_bidirectionally_equivalent_domain_facts() {
-    let canary = "recast/runtime_mutable_equivalent_domain_recast_exit";
+    let canary = fixture_roster::RUNTIME_MUTABLE_EQUIVALENT_DOMAIN_RECAST_EXIT;
     assert_exit_70(canary, "mutable-equivalent-domain-recast");
 }
 
 #[test]
 fn mutable_recast_accepts_equal_integer_representation_sets() {
-    let canary = "recast/runtime_mutable_equivalent_range_recast_exit";
+    let canary = fixture_roster::RUNTIME_MUTABLE_EQUIVALENT_RANGE_RECAST_EXIT;
     assert_exit_70(canary, "mutable-equivalent-range-recast");
     compile_for_cross_targets(canary, "mutable-equivalent-range-recast");
 }
 
 #[test]
 fn scalar_bool_recasts_follow_representation_set_implication() {
-    let canary = "recast/runtime_bool_representation_recast_exit";
+    let canary = fixture_roster::RUNTIME_BOOL_REPRESENTATION_RECAST_EXIT;
     assert_exit_70(canary, "bool-representation-recast");
     compile_for_cross_targets(canary, "bool-representation-recast");
 
     for fail in [
-        "recast/recast_shared_bool_fact_fenced",
-        "recast/recast_shared_interior_fact_fenced",
+        fixture_roster::RECAST_SHARED_BOOL_FACT_FENCED,
+        fixture_roster::RECAST_SHARED_INTERIOR_FACT_FENCED,
     ] {
         let diagnostics = fail_diagnostics(fail);
         assert!(
@@ -377,7 +381,7 @@ fn scalar_bool_recasts_follow_representation_set_implication() {
             "{fail} produced the wrong shared representation-set diagnostic:\n{diagnostics}"
         );
     }
-    let diagnostics = fail_diagnostics("recast/recast_mut_bool_bit_sets_differ");
+    let diagnostics = fail_diagnostics(fixture_roster::RECAST_MUT_BOOL_BIT_SETS_DIFFER);
     assert!(
         diagnostics.contains("fact implication in BOTH directions"),
         "mutable bool/full-byte alias produced the wrong diagnostic:\n{diagnostics}"
@@ -386,11 +390,11 @@ fn scalar_bool_recasts_follow_representation_set_implication() {
 
 #[test]
 fn shared_domain_recasts_require_one_way_implication() {
-    let canary = "recast/runtime_shared_domain_weakening_recast_exit";
+    let canary = fixture_roster::RUNTIME_SHARED_DOMAIN_WEAKENING_RECAST_EXIT;
     assert_exit_70(canary, "shared-domain-weakening-recast");
     compile_for_cross_targets(canary, "shared-domain-weakening-recast");
 
-    let diagnostics = fail_diagnostics("recast/recast_shared_domain_strengthening_rejected");
+    let diagnostics = fail_diagnostics(fixture_roster::RECAST_SHARED_DOMAIN_STRENGTHENING_REJECTED);
     assert!(
         diagnostics.contains("may weaken established facts but cannot strengthen them"),
         "shared domain strengthening produced the wrong diagnostic:\n{diagnostics}"
@@ -399,17 +403,18 @@ fn shared_domain_recasts_require_one_way_implication() {
 
 #[test]
 fn float_range_recasts_require_same_carrier_interval_implication() {
-    let canary = "recast/runtime_float_range_representation_recast_exit";
+    let canary = fixture_roster::RUNTIME_FLOAT_RANGE_REPRESENTATION_RECAST_EXIT;
     assert_exit_70(canary, "float-range-representation-recast");
     compile_for_cross_targets(canary, "float-range-representation-recast");
 
-    let diagnostics = fail_diagnostics("recast/recast_shared_float_range_strengthening_rejected");
+    let diagnostics =
+        fail_diagnostics(fixture_roster::RECAST_SHARED_FLOAT_RANGE_STRENGTHENING_REJECTED);
     assert!(
         diagnostics.contains("may weaken established facts but cannot strengthen them"),
         "shared float-range strengthening produced the wrong diagnostic:\n{diagnostics}"
     );
 
-    let diagnostics = fail_diagnostics("recast/recast_mut_float_range_fenced");
+    let diagnostics = fail_diagnostics(fixture_roster::RECAST_MUT_FLOAT_RANGE_FENCED);
     assert!(
         diagnostics
             .contains("source and target constraints are not proven representation-equivalent"),
@@ -419,13 +424,13 @@ fn float_range_recasts_require_same_carrier_interval_implication() {
 
 #[test]
 fn record_recasts_compose_same_carrier_float_leaf_intervals() {
-    let canary = "recast/runtime_shared_record_float_range_weakening_exit";
+    let canary = fixture_roster::RUNTIME_SHARED_RECORD_FLOAT_RANGE_WEAKENING_EXIT;
     assert_exit_70(canary, "shared-record-float-range-weakening");
     compile_for_cross_targets(canary, "shared-record-float-range-weakening");
 
     for fail in [
-        "recast/recast_shared_record_float_leaf_strengthening_rejected",
-        "recast/recast_mut_record_float_leaf_sets_differ",
+        fixture_roster::RECAST_SHARED_RECORD_FLOAT_LEAF_STRENGTHENING_REJECTED,
+        fixture_roster::RECAST_MUT_RECORD_FLOAT_LEAF_SETS_DIFFER,
     ] {
         let diagnostics = fail_diagnostics(fail);
         assert!(
@@ -441,14 +446,15 @@ fn record_recasts_compose_same_carrier_float_leaf_intervals() {
 
 #[test]
 fn mutable_recast_accepts_equivalent_typed_record_representations() {
-    let canary = "recast/runtime_mutable_equivalent_record_recast_exit";
+    let canary = fixture_roster::RUNTIME_MUTABLE_EQUIVALENT_RECORD_RECAST_EXIT;
     assert_exit_70(canary, "mutable-equivalent-record-recast");
     compile_for_cross_targets(canary, "mutable-equivalent-record-recast");
 }
 
 #[test]
 fn mutable_recast_rejects_equal_looking_cross_carrier_domains() {
-    let diagnostics = fail_diagnostics("recast/recast_mut_cross_carrier_domain_not_equivalent");
+    let diagnostics =
+        fail_diagnostics(fixture_roster::RECAST_MUT_CROSS_CARRIER_DOMAIN_NOT_EQUIVALENT);
     assert!(
         diagnostics
             .contains("source and target constraints are not proven representation-equivalent"),
@@ -458,7 +464,7 @@ fn mutable_recast_rejects_equal_looking_cross_carrier_domains() {
 
 #[test]
 fn mutable_recast_rejects_different_range_bit_sets() {
-    let diagnostics = fail_diagnostics("recast/recast_mut_range_bit_sets_differ");
+    let diagnostics = fail_diagnostics(fixture_roster::RECAST_MUT_RANGE_BIT_SETS_DIFFER);
     assert!(
         diagnostics
             .contains("source and target constraints are not proven representation-equivalent"),
@@ -468,7 +474,7 @@ fn mutable_recast_rejects_different_range_bit_sets() {
 
 #[test]
 fn mutable_recast_does_not_treat_float_ranges_as_bit_pattern_sets() {
-    let diagnostics = fail_diagnostics("recast/recast_mut_float_range_fenced");
+    let diagnostics = fail_diagnostics(fixture_roster::RECAST_MUT_FLOAT_RANGE_FENCED);
     assert!(
         diagnostics
             .contains("source and target constraints are not proven representation-equivalent"),
@@ -478,7 +484,7 @@ fn mutable_recast_does_not_treat_float_ranges_as_bit_pattern_sets() {
 
 #[test]
 fn mutable_recast_rejects_different_record_leaf_sets() {
-    let diagnostics = fail_diagnostics("recast/recast_mut_record_leaf_sets_differ");
+    let diagnostics = fail_diagnostics(fixture_roster::RECAST_MUT_RECORD_LEAF_SETS_DIFFER);
     assert!(
         diagnostics.contains("identical layout geometry")
             && diagnostics.contains("fact implication in BOTH directions"),
