@@ -39,9 +39,19 @@ scalar `i32` and `u8` receiver fields and fixed arrays default to zero and retai
 exact assignment updates by owner/member/index custody. Byte reads zero-extend
 to `i32`; byte stores trap as `ByteRange` outside `0..255` without committing an
 update. Indexed stores check bounds before evaluating their right side, then
-check its byte range before updating storage; every
-other entry statement is explicitly
-unsupported rather than assigned guessed semantics. Every
+check its byte range before updating storage.
+One checked invocation context drives the same statement/block evaluator for
+entry and states. Block falloff retains locals, storage, and output before
+terminal execution. Scalar transitions consume the checked subject and pattern
+ledgers; only the selected continuation executes, with unmatched scalar subjects
+trapping as `NonExhaustiveTransition`. State arguments evaluate left-to-right
+against the old bindings and install their scalar parameter homes together.
+Transfers discard old block locals, retain receiver storage, and resume the
+target state through a tail call. Explicit resultless return, state falloff,
+and the supported Console write/exit continuations complete the Main invocation
+without executing unused states. General machine calls, sum transitions,
+aggregate parameters, nested storage, views, and remaining Console operations
+are still unsupported. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D51's receiver-only qualified-machine syntax, ordinary named
