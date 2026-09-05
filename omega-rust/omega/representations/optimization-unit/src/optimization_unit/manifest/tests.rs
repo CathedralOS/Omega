@@ -1,4 +1,4 @@
-use optimization_unit::{FuelSettlement, NodeLocation};
+use crate::{FuelSettlement, NodeLocation};
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
 use super::*;

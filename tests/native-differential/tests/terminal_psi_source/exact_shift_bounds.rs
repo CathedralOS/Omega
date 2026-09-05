@@ -9,7 +9,7 @@ use optimization_core::{
 use optimization_unit::{
     ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
-use optimization_validation::{
+use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_current_value_range_fact,
     validate_current_value_range_fact_at,
 };

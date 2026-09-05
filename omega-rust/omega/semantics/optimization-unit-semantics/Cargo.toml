@@ -1,28 +1,27 @@
 [package]
-name = "optimization-validation"
+name = "optimization-unit-semantics"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "optimization_validation"
+name = "optimization_unit_semantics"
 path = "src/lib.rs"
 
 [dependencies]
 optimization-core = { path = "../../representations/optimization-core" }
 optimization-unit = { path = "../../representations/optimization-unit" }
-terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-operations" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
-proof-admission = { path = "../../../psi/semantics/proof-admission" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
-terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
 
 [dev-dependencies]
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
+terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
 checked-trees-to-terminal-psi = { path = "../../../psi/pipeline/checked-trees-to-terminal-psi" }
 source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }

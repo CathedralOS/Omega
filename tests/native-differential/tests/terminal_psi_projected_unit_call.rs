@@ -8,7 +8,7 @@ use image_emission::{
 };
 use machine_emission::emit_machine_code;
 use optimization_unit::reconstruct_psi_optimization_unit_seed;
-use optimization_validation::validate_psi_optimization_unit;
+use optimization_unit_semantics::validate_psi_optimization_unit;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{ClaimId, OperationId, PlaceId, ProfileDecisionId, StructuralPlaceKind};
 use source_files_to_tokens::Lexer;

@@ -90,7 +90,7 @@ fn validate_joins(
     {
         return Err(PrePhysicalOptimizationManifestError::LedgerMismatch);
     }
-    crate::projection::validate_manifests(pass_manifests, bundle.rule_set(), ledger)
+    crate::validation::projection::validate_manifests(pass_manifests, bundle.rule_set(), ledger)
         .map_err(|_| PrePhysicalOptimizationManifestError::PassRevisionMismatch)?;
     let mut revision = ledger.input();
     let mut aggregate = OptimizationWorkUsage::default();

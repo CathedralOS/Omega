@@ -5,9 +5,10 @@ use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{
     PsiOptimizationFunction, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
 };
-use optimization_validation::{
+
+use crate::validation::ValidatedOptimizerCycleComponents;
+use optimization_unit::{
     CycleComponentEdge, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
-    ValidatedOptimizerCycleComponents,
 };
 use semantic_vocabulary::{BlockId, IntegerType, MachineId, ScalarType, ValueId};
 

@@ -9,9 +9,9 @@ use optimization_unit::{
     EffectLink, FuelSettlement, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use optimization_validation::{
-    OptimizerUnsignedCountdownRankingCertificate, validate_transformed_psi_cycle_components,
-};
+
+use abstract_operations_to_abstract_operations::validation::validate_transformed_psi_cycle_components;
+use optimization_unit::OptimizerUnsignedCountdownRankingCertificate;
 
 #[derive(Clone, Copy)]
 pub(super) enum Relocation {

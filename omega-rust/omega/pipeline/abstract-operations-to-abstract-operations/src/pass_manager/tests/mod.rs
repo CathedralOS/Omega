@@ -19,7 +19,9 @@ use optimization_core::{
     external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewritePatch, PsiTransformationLedger};
-use optimization_validation::{OptimizationUnitValidationError, validate_psi_rewrite_candidate};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_psi_rewrite_candidate,
+};
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 use super::*;

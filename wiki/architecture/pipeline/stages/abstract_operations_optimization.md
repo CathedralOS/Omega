@@ -42,8 +42,12 @@ inseparable from its validation receipt.
   failures. Publication consumes the completed run and discards its executing
   session and analysis cache. Immutable records live in
   `optimization-unit/src/evidence.rs`.
-- `optimization-validation` owns independent candidate and projection
-  validation.
+- `optimization-unit-semantics` owns independent unit and candidate validation
+  without depending on a production pipeline crate. `src/validation/` owns
+  this stage's sealed-input, transformed-context, and publication checks.
+  Cycle/ranking snapshots and the pre-physical manifest's record and codec live
+  beneath `optimization-unit/src/optimization_unit.rs`; decoding those records
+  never grants the validation authority retained by the stage.
 - `tests/native-differential/tests/abstract_publication/manifests/mod.rs` is
   the pre-physical V6 custody-test entrance.
   Its named leaves separate the reusable optimized/donor fixture, positive and

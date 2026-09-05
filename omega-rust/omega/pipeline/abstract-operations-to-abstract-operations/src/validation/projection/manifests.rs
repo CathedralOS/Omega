@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(crate) fn validate_manifests(
+pub(in crate::validation) fn validate_manifests(
     manifests: &[OptimizationPassManifestRecord],
     expected_rule_set: OptimizationRuleSetIdentity,
     ledger: &PsiTransformationLedger,

@@ -55,7 +55,7 @@ pub fn validate_transformed_psi_cycle_components(
 pub fn validate_psi_cycle_component_snapshot(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
-    candidate: &ranked_cycles::OptimizerCycleComponentSnapshot,
+    candidate: &optimization_unit::OptimizerCycleComponentSnapshot,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
     let validated = validate_psi_optimization_unit_with_context(input, unit, false)?;
     if candidate != validated.snapshot() {
@@ -64,13 +64,13 @@ pub fn validate_psi_cycle_component_snapshot(
     Ok(validated)
 }
 
-pub(crate) fn validate_psi_optimization_unit_with_context(
+fn validate_psi_optimization_unit_with_context(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
     require_initial_revision: bool,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
     let cycle_admission = ranked_cycles::validate_exact_ranked_cycles(input, unit)?;
-    super::core::validate_psi_optimization_unit_with_control_cycles(unit, &cycle_admission.policy)?;
+    validate_psi_optimization_unit_with_admitted_cycle_machines(unit, &cycle_admission.machines)?;
     let projected_context = context_projection::validate_context_projection(input, unit)?;
     seed_projection::validate_seed_projection(
         input,
@@ -85,10 +85,10 @@ pub(crate) fn validate_psi_optimization_unit_with_context(
     ))
 }
 
+#[cfg(test)]
+mod tests;
+
 pub use ranked_cycles::{
-    CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
-    OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
-    OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
     ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
     validate_psi_ranking_certificate_snapshot,
 };

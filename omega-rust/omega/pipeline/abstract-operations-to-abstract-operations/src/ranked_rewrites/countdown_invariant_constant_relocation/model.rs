@@ -115,7 +115,7 @@ pub enum CountdownInvariantConstantRelocationError {
         candidate: OptimizationUnitIdentity,
         reconstructed: OptimizationUnitIdentity,
     },
-    TransformedValidation(optimization_validation::OptimizationUnitValidationError),
+    TransformedValidation(optimization_unit_semantics::OptimizationUnitValidationError),
     CountedLoop(CountedLoopAnalysisError),
     InvariantConstant(CountdownInvariantConstantAnalysisError),
     ReconstructedPlacement(CountdownInvariantConstantPlacementAnalysisError),

@@ -15,7 +15,8 @@ mod source;
 
 use crate::{OptimizationRun, baseline_psi_cost_model_identity};
 use optimization_core::OptimizationExecutionPhase;
-use optimization_validation::{
+
+use crate::validation::{
     project_pre_physical_optimization_manifest, validate_optimized_abstract_plan_projection,
 };
 

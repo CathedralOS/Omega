@@ -1,3 +1,7 @@
+use crate::validation::{
+    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
+    validate_transformed_psi_cycle_components, validate_verified_psi_cycle_components,
+};
 use optimization_core::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionRecordError,
     ExternalDecisionLog, ExternalDecisionSchemaError,
@@ -10,11 +14,7 @@ use optimization_core::{
 use optimization_unit::{
     InvalidPsiTransformationLedger, PsiOptimizationUnit, PsiTransformationLedger,
 };
-use optimization_validation::{
-    OptimizationUnitValidationError, ValidatedOptimizerCycleComponents,
-    ValidatedOptimizerRankingCertificates, validate_transformed_psi_cycle_components,
-    validate_verified_psi_cycle_components,
-};
+use optimization_unit_semantics::OptimizationUnitValidationError;
 use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
 };

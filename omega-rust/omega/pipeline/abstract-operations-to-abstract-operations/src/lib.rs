@@ -11,6 +11,7 @@ mod publication;
 mod ranked_rewrites;
 mod registry;
 mod rules;
+pub mod validation;
 
 pub use phase::{AbstractOptimizationError, optimize_abstract_operations};
 pub use publication::{

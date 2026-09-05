@@ -8,6 +8,7 @@ use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
+use optimization_unit::OwnershipFrontierFact;
 use optimization_unit::{
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite,
     PsiRewriteCandidate, ValueUse, reconstruct_psi_optimization_unit_seed,
@@ -24,7 +25,6 @@ pub(crate) use fixtures::*;
 pub(crate) use support::*;
 
 mod candidates;
-mod context;
 mod operation_contracts;
 mod services;
 mod sparse_conditional_constant_propagation;

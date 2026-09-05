@@ -299,7 +299,7 @@ fn effects_are_conservative_and_liveness_reaches_fixed_point() {
     assert_eq!(liveness.blocks[0].nodes[0].exit, vec![condition]);
     assert_eq!(liveness.blocks[0].nodes[1].entry, vec![condition]);
     assert!(liveness.blocks[0].nodes[1].exit.is_empty());
-    let independent = optimization_validation::reconstruct_closed_scalar_node_boundary(
+    let independent = optimization_unit_semantics::reconstruct_closed_scalar_node_boundary(
         &unit,
         optimization_unit::NodeLocation {
             machine: id(100, MachineId::new),

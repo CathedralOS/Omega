@@ -23,6 +23,20 @@ pub fn validate_psi_optimization_unit(
     )
 }
 
+/// Check unit structure after a caller has independently admitted the named
+/// machines' control cycles. This checks no ranking evidence and grants no
+/// cycle-admission authority; the stage must retain and replay that evidence.
+pub fn validate_psi_optimization_unit_with_admitted_cycle_machines(
+    unit: &PsiOptimizationUnit,
+    admitted_machines: &[MachineId],
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut policy = function_structure::ControlCyclePolicy::default();
+    for &machine in admitted_machines {
+        policy.admit(machine);
+    }
+    validate_psi_optimization_unit_with_control_cycles(unit, &policy)
+}
+
 pub(crate) fn validate_psi_optimization_unit_with_control_cycles(
     unit: &PsiOptimizationUnit,
     cycle_policy: &function_structure::ControlCyclePolicy,

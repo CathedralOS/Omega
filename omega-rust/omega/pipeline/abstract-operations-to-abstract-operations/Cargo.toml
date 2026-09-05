@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 optimization-core = { path = "../../representations/optimization-core" }
 optimization-unit = { path = "../../representations/optimization-unit" }
-optimization-validation = { path = "../optimization-validation" }
+optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
@@ -20,7 +20,5 @@ terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
-
-[dev-dependencies]
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }

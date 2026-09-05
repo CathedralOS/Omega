@@ -163,8 +163,10 @@ Omega/
 |       |   |-- [CRATE] post-allocation-machine-to-post-allocation-machine/
 |       |   |-- [CRATE] post-allocation-machine-to-selected-form-encoding/
 |       |   |-- [CRATE] selected-form-encoding-to-resolved-layout/
-|       |   |-- [CRATE] target-operations-to-assigned-target-operations/ # Alternate route still to delete.
-|       |   `-- [CRATE] optimization-validation/          # Catch-all still to dissolve.
+|       |   `-- [CRATE] target-operations-to-assigned-target-operations/ # Alternate route still to delete.
+|       |
+|       |-- semantics/
+|       |   `-- [CRATE] optimization-unit-semantics/       # Independent unit and rewrite checks.
 |       |
 |       |-- backend/                                     # Target/runtime primitives and backend-owned artifacts.
 |       |   |-- [CRATE] register-environment/              # Shared target/ABI setup and validation.

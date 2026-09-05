@@ -4,6 +4,7 @@
 mod fixture_roster;
 
 use abstract_operations::{AbstractFunctionResult, AbstractOperation};
+use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
 use abstract_operations_to_target_operations::lower_to_target_operations;
 use assigned_target_operations::AssignedOperation;
 use calling_conventions::{
@@ -17,7 +18,6 @@ use image_emission::{
 };
 use machine_code::{ScalarControlFlowEvidence, SemanticCodeSite};
 use machine_emission::emit_machine_code;
-use optimization_validation::validate_verified_psi_optimization_unit;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, PlaceId, ProfileDecisionId, ScalarType,

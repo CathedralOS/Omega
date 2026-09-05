@@ -47,7 +47,7 @@ pub(super) fn validate(
                 custody_error(Some(candidate), AppliedDecisionCustodyAxis::InputRevision)
             })?;
         let accepted =
-            optimization_validation::validate_psi_rewrite_candidate(revision, declaration)
+            optimization_unit_semantics::validate_psi_rewrite_candidate(revision, declaration)
                 .map_err(OptimizedAbstractProjectionError::CandidateReplay)?;
         if accepted.candidate() != candidate || accepted.validator() != retained.validator() {
             return Err(custody_error(

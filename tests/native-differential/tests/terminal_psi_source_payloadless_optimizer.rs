@@ -1,14 +1,14 @@
 //! Real-source canaries for exact payloadless structural-call optimizer custody.
 
 use abstract_operations::AbstractOperation;
+use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
 use abstract_operations_to_target_operations::{
     LoweringError as TargetLoweringError, lower_to_target_operations,
 };
 use checked_trees_to_terminal_psi::lower_machine;
 use optimization_unit::recompute_psi_optimization_unit_identity;
-use optimization_validation::{
+use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_psi_optimization_unit,
-    validate_verified_psi_optimization_unit,
 };
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{

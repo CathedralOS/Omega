@@ -22,7 +22,7 @@ use optimization_unit::{
     attach_accepted_obligation_facts, attach_proof_questions,
     recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
 };
-use optimization_validation::{
+use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_adjacent_block_merge_candidate,
     validate_boolean_evaluation_candidate, validate_constant_conditional_candidate,
     validate_dead_scalar_node_candidate, validate_dominating_scalar_common_subexpression_candidate,

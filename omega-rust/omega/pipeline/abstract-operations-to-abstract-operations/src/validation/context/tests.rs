@@ -1,20 +1,9 @@
 //! Verified context, identity, frontier, and proof-catalog tests.
 
 use super::*;
-
-#[test]
-fn stale_stored_content_identity_is_rejected_before_structural_validation() {
-    let mut stale = unit();
-    stale.functions[0].blocks[0].nodes[0].effect.output += 1;
-    let recomputed = recompute_psi_optimization_unit_identity(&stale);
-    assert!(matches!(
-        validate_psi_optimization_unit(&stale),
-        Err(OptimizationUnitValidationError::ContentIdentityMismatch {
-            stored,
-            recomputed: actual,
-        }) if stored == stale.identity && actual == recomputed
-    ));
-}
+use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractResult};
+use terminal_fuel::TerminalFuelSchedule;
+use terminal_psi::VocabularyMarker;
 
 #[test]
 fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {
@@ -302,4 +291,127 @@ fn bare_unit_result_signature_must_match_normal_exits() {
 #[test]
 fn independently_accepts_verified_context_and_frontier_coverage() {
     validate_verified_psi_optimization_unit(&verified_unit()).unwrap();
+}
+
+fn refresh_identity(unit: &mut PsiOptimizationUnit) {
+    unit.identity = recompute_psi_optimization_unit_identity(unit);
+}
+
+fn refresh_proof_question_identity(question: &mut ProofQuestion) {
+    question.identity = optimization_unit::proof_question_identity(
+        question.terminal_psi,
+        question.proof_bundle_fingerprint,
+        question.owner,
+        question.obligation,
+        question.class,
+        &question.proposition,
+        &question.requirements,
+        &question.semantic_axioms,
+        question.canonical_certificate,
+    );
+}
+
+fn verified_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
+    use terminal_psi::{
+        Block, ContractClause, MachineContract, TerminalMachine, TerminalMachineResult,
+        TerminalModule, Terminator,
+    };
+
+    let module = TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: id(101, MachineId::new),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: id(101, MachineId::new),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: id(102, BlockId::new),
+            blocks: vec![Block {
+                id: id(102, BlockId::new),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit {
+                    edge: id(103, EdgeId::new),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                id: id(104, semantic_vocabulary::ContractId::new),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: vec![
+                    ContractClause {
+                        obligation: id(105, semantic_vocabulary::ObligationId::new),
+                        proposition: Proposition::Truth,
+                    },
+                    ContractClause {
+                        obligation: id(106, semantic_vocabulary::ObligationId::new),
+                        proposition: Proposition::Truth,
+                    },
+                ],
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    };
+    let proof = terminal_verifier::ProofBundle {
+        recursive_components: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: [105, 106]
+            .into_iter()
+            .map(|obligation| terminal_verifier::ObligationEvidence {
+                obligation: id(obligation, semantic_vocabulary::ObligationId::new),
+                route: proof_admission::EvidenceRoute::KernelDerived(
+                    proof_admission::PrimitiveJudgment::Truth,
+                ),
+            })
+            .collect(),
+    };
+    let semantic = terminal_codec::encode_module(&module).expect("encode unit module");
+    let proof = terminal_codec::encode_proof_bundle(&proof).expect("encode empty proof");
+    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+        &semantic,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("verified optimizer input");
+    terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("verified optimizer unit")
+}
+
+fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
+    constructor(raw).expect("nonzero test identity")
 }

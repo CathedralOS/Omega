@@ -21,7 +21,7 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use terminal_psi::TerminalPsiIdentity;
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
 
-use crate::{
+use crate::validation::{
     OptimizationUnitValidationError, validate_transformed_psi_optimization_unit,
     validate_verified_psi_optimization_unit,
 };

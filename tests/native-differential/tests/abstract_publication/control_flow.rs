@@ -33,7 +33,7 @@ fn private_machine_pruning_projects_exact_roster_and_ledger_custody() {
     wrong_ordinal.identity =
         optimization_unit::recompute_psi_optimization_unit_identity(&wrong_ordinal);
     assert_eq!(
-        optimization_validation::validate_transformed_psi_optimization_unit(
+        abstract_operations_to_abstract_operations::validation::validate_transformed_psi_optimization_unit(
             optimized.verified_input(),
             &wrong_ordinal,
         ),

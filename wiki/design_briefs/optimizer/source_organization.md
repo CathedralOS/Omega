@@ -132,14 +132,15 @@ Balanced, right-deep, convergent, and call-prefixed shapes do not receive
 sibling routes.
 
 Optimizer-only ranked-cycle admission follows the same visible descent.
-`optimization-validation/src/unit_validation/context/mod.rs` remains the
+`abstract-operations-to-abstract-operations/src/validation/context/mod.rs` is the
 small executable context-validation entrance. Its `ranked_cycles` stage group
 descends through `graph.rs`, `topology.rs`, and `components.rs` for independent
-Terminal/current reconstruction; `model.rs` owns the structural component ID
-and opaque validated carrier, `freeze.rs` coordinates component preservation,
+Terminal/current reconstruction; `model.rs` owns only opaque validation authority.
+Structural component IDs and replayable snapshots live in
+`optimization-unit/src/optimization_unit/cycles.rs`. `freeze.rs` coordinates component preservation,
 and `freeze/normalized_component.rs` independently owns the sole authenticated
 zero/one relocation normalization. `replay.rs` owns post-run rederivation. The
-33-line stage-group entrance is not a second public validation entrance.
+stage-group entrance is not a second public validation entrance.
 The mirrored `tests/native-differential/tests/pipeline_ownership/cyclic_psi.rs` leaf builds a
 real source countdown and pins CFG, dominator, SCC, loop, and liveness analysis
 plus topology/frozen-body corruption. General cyclic authority and cyclic

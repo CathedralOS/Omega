@@ -109,7 +109,7 @@ fn cases() -> Vec<Case> {
 fn validate(
     case: &Case,
     candidate: &PsiRewriteCandidate,
-) -> Result<optimization_validation::ValidatedPsiRewrite, OptimizationUnitValidationError> {
+) -> Result<optimization_unit_semantics::ValidatedPsiRewrite, OptimizationUnitValidationError> {
     match case.route {
         ValidationRoute::SameBlock => {
             validate_local_scalar_common_subexpression_candidate(&case.unit, candidate)

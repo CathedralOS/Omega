@@ -4,7 +4,7 @@
 //! entrance filters exact selections through it and returns one ordered
 //! registry per selected pass. Descend through `passes/<exact-pass>/mod.rs`
 //! for that pass's visible local rule order, then into named rule mechanics.
-//! Independent acceptance remains in `optimization-validation`.
+//! Independent acceptance remains in `optimization-unit-semantics`.
 
 mod catalog;
 mod passes;

@@ -1,11 +1,11 @@
 //! Typed rejection vocabulary for the projection boundary.
 
 use crate::RuleRegistryError;
-use optimization_core::OptimizationCandidateIdentity;
-use optimization_validation::{
-    OptimizationUnitValidationError, OptimizedAbstractPlanProjectionError,
-    PrePhysicalOptimizationManifestError,
+use crate::validation::{
+    OptimizedAbstractPlanProjectionError, PrePhysicalOptimizationManifestError,
 };
+use optimization_core::OptimizationCandidateIdentity;
+use optimization_unit_semantics::OptimizationUnitValidationError;
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -24,6 +24,7 @@ fn native_coordination_and_target_setup_are_not_program_stages() {
         "target-to-register-environment",
         "register-environment",
         "post-allocation-machine-to-frame-layout",
+        "optimization-validation",
     ] {
         assert!(!pipeline.join(retired).join("Cargo.toml").exists());
     }
@@ -46,6 +47,49 @@ fn native_coordination_and_target_setup_are_not_program_stages() {
     assert!(setup.contains("isa-aarch64"));
     assert!(setup.contains("isa-x86_64"));
     assert!(!setup.contains("/pipeline/"));
+}
+
+#[test]
+fn optimization_records_and_independent_checks_have_distinct_owners() {
+    let root = repository();
+    let representation = root.join("omega-rust/omega/representations/optimization-unit/src");
+    let program = std::fs::read_to_string(representation.join("optimization_unit.rs")).unwrap();
+    assert!(program.contains("pub struct PsiOptimizationUnit"));
+    assert!(!representation.join("model.rs").exists());
+    let records = rust_source(&representation);
+    for record in [
+        "PrePhysicalOptimizationManifest",
+        "OptimizerCycleComponentSnapshot",
+        "OptimizerRankingCertificateSnapshot",
+    ] {
+        assert_eq!(
+            records.matches(&format!("pub struct {record} {{")).count(),
+            1
+        );
+    }
+    assert!(!records.contains("pub struct ValidatedPrePhysicalOptimizationManifest"));
+    assert!(!records.contains("pub struct ValidatedOptimizerCycleComponents"));
+    let semantics = root.join("omega-rust/omega/semantics/optimization-unit-semantics");
+    let manifest = std::fs::read_to_string(semantics.join("Cargo.toml")).unwrap();
+    let production = manifest.split("[dev-dependencies]").next().unwrap();
+    assert!(!production.contains("/pipeline/"));
+    let validators = rust_source(&semantics.join("src"));
+    assert!(!validators.contains("VerifiedPsiOptimizationInput"));
+    assert!(!validators.contains("pub fn project_pre_physical_optimization_manifest"));
+    let stage = root.join(
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation",
+    );
+    let custody = std::fs::read_to_string(stage.join("context/ranked_cycles/model.rs")).unwrap();
+    assert!(custody.contains("pub(in crate::validation::context) const fn new"));
+    assert!(!custody.contains("pub(crate) const fn new"));
+    let context = std::fs::read_to_string(stage.join("context/mod.rs")).unwrap();
+    let admission = context
+        .find("let cycle_admission = ranked_cycles::validate_exact_ranked_cycles")
+        .unwrap();
+    let structure = context
+        .find("validate_psi_optimization_unit_with_admitted_cycle_machines(unit")
+        .unwrap();
+    assert!(admission < structure);
 }
 
 #[test]
