@@ -1,0 +1,65 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+  envelope: OmegaRequestEnvelope;
+  validation: OmegaUtf8Validation;
+  request: [u8; 18];
+}
+
+machine Main::main(&mut self) {
+  self.envelope.frame_ocreq("OCREQ\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
+  assert self.envelope.complete == 1;
+  assert self.envelope.subject_start == 16;
+  assert self.envelope.subject_end == 16;
+  assert self.envelope.invocation_start == 16;
+  assert self.envelope.invocation_end == 16;
+  self.request[0] = 79;
+  self.request[1] = 67;
+  self.request[2] = 82;
+  self.request[3] = 69;
+  self.request[4] = 81;
+  self.request[5] = 1;
+  self.request[8] = 1;
+  self.request[12] = 1;
+  self.request[16] = 65;
+  self.request[17] = 66;
+  self.envelope.frame_ocreq(self.request.as_slice);
+  assert self.envelope.complete == 1;
+  assert self.envelope.subject_start == 16;
+  assert self.envelope.subject_end == 17;
+  assert self.envelope.invocation_start == 17;
+  assert self.envelope.invocation_end == 18;
+  self.request[11] = 128;
+  self.envelope.frame_ocreq(self.request.as_slice);
+  assert self.envelope.complete == 0;
+  assert self.envelope.subject_start == 0;
+  assert self.envelope.invocation_end == 0;
+  self.request[11] = 0;
+  self.envelope.frame_ocreq("OCREQ\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00X");
+  assert self.envelope.complete == 0;
+  self.validation.validate("");
+  assert self.validation.valid == 1;
+  self.validation.validate("\x00A\xC2\x80\xE0\xA0\x80\xF0\x90\x80\x80");
+  assert self.validation.valid == 1;
+  self.validation.validate("A\x80");
+  assert self.validation.valid == 0;
+  assert self.validation.error_offset == 1;
+  self.validation.validate("\xED\xA0\x80");
+  assert self.validation.valid == 0;
+  assert self.validation.error_offset == 0;
+  self.validation.validate("\xF4\x90\x80\x80");
+  assert self.validation.valid == 0;
+  self.validation.validate("\xE2\x82");
+  assert self.validation.valid == 0;
+  self.request[16] = 194;
+  self.request[17] = 128;
+  self.validation.validate(self.request.as_slice[16..]);
+  assert self.validation.valid == 1;
+  self.console.write_line("A");
+}

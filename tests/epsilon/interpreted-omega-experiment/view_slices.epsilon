@@ -1,0 +1,32 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; bytes: [u8; 4]; }
+
+machine Main::main(&mut self) {
+  self.bytes[0] = 65;
+  self.bytes[1] = 66;
+  self.bytes[2] = 67;
+  self.bytes[3] = 68;
+  let whole: &[u8] = self.bytes[..];
+  let suffix: &[u8] = self.bytes[1..];
+  let prefix: &[u8] = self.bytes[..3];
+  let middle: &[u8] = self.bytes[1..3];
+  let empty: &[u8] = self.bytes[2..2];
+  let nested: &[u8] = whole[1..][1..];
+  assert whole.len == 4;
+  assert suffix.len == 3;
+  assert suffix[0] == 66;
+  assert prefix.len == 3;
+  assert prefix[2] == 67;
+  assert middle.len == 2;
+  assert empty.len == 0;
+  assert nested.len == 2;
+  assert nested[0] == 67;
+  assert nested[1] == 68;
+  self.console.write_line(middle);
+}

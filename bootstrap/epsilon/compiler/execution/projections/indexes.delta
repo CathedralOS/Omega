@@ -4,6 +4,8 @@
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match baseValue
     ((EpsilonRuntimeInteger scalar) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeViewValue view)
+      (epsilon_evaluator_view_index view index store output))
     ((EpsilonRuntimeAggregate typeValue children)
       (match typeValue
         ((EpsilonArrayType start end element lengthValue)
@@ -33,6 +35,8 @@
             (epsilon_evaluator_index_value baseValue basePlace index
               nextStore nextOutput))
           ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))
+          ((EpsilonRuntimeViewValue view)
             (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))))
       ((EpsilonEvaluatorResultless nextStore nextOutput)
         (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))

@@ -36,8 +36,9 @@ The staging execution path starts from `Main::main` accepted by the current
 checking pipeline; the remaining conformance obligations below still apply.
 Local, machine-parameter, and state-parameter bindings retain exact checked
 declaration identity while their runtime roots distinguish separate invocations.
-Values are immutable scalar, record, or fixed-array snapshots; places retain a
-root identifier, an ordered field/index path, and the leaf's storage type.
+Ordinary values are immutable scalar, record, or fixed-array snapshots; view
+values retain a descriptor for their backing and range. Places retain a root
+identifier, an ordered field/index path, and the leaf's storage type.
 Field paths use the checked owner and member identities, not copied type spans
 or source spellings. Same-type sibling fields and different array elements
 therefore remain distinct instances.
@@ -45,9 +46,12 @@ therefore remain distinct instances.
 Record and array snapshots share immutable sparse children. An unwritten child
 uses its declared zero home without allocating the full array or record tree.
 Assignment replaces the selected subtree, including all its descendants;
-binding or returning a value does not alias its source root. Root identifiers
-are monotonic. Releasing an invocation or state block removes its roots without
-rewinding the identifier counter or changing surviving caller-owned roots.
+binding or returning an aggregate value does not alias its source root. Root
+identifiers are monotonic. Invocation completion removes callee roots without rewinding the
+identifier counter or changing surviving caller-owned roots. State transfer
+removes old block bindings but retains roots referenced by captured view
+arguments, surviving machine bindings, or receiver custody. Later transfers
+reconsider retained roots, so an expired view does not keep its backing forever.
 This is a staging storage representation, not a complete application storage
 realization or a discharge of the physical resource profile.
 
@@ -64,12 +68,34 @@ then write through the selected path into the post-RHS store. Indexed reads of
 places use the post-index store; projections of ordinary values retain their
 captured snapshots.
 
+Views retain an ultimate backing and an element range, never another view
+variable's home. String literals decode the closed escape set into immutable
+byte backing. `.as_slice` retains the selected array place over its exact full
+range without copying or establishing new array storage. Ordinary slices of
+non-place array values instead share the existing immutable snapshot. Subviews
+compose offsets against the same backing. Slice evaluation runs the base, low,
+and high expressions in order before checking the complete range; omitted
+bounds use zero and the base length. Place-backed view indexes read from the
+post-index store. View indexes never expose a place, including for aggregate
+elements.
+Local view facts likewise carry no place despite their private descriptor home.
+
+All four Console operations have staging execution paths. `read_byte` uses one
+sealed input cursor shared by calls and states, returns each byte as `i32`, and
+returns stable `-1` at EOF. Root allocation and reclamation preserve that cursor.
+`write_line` evaluates its view argument before reading the exact view bytes
+and appending LF; argument traps retain the preceding output without emitting
+the line. `write_byte` and `exit_process` retain their existing effect ordering.
+The diagnostic driver accepts a private source-length/source/stdin frame and
+splits it in ordinary Delta using balanced byte trees. This test transport is
+not the final evaluator request or observation profile.
+
 One checked invocation context drives the same statement/block evaluator for
 entry and states. Block falloff retains locals, storage, and output before
 terminal execution. Scalar transitions consume the checked subject and pattern
 ledgers; only the selected continuation executes, with unmatched scalar subjects
 trapping as `NonExhaustiveTransition`. State arguments evaluate left-to-right
-against the old bindings and capture all values before releasing the old block
+against the old bindings and capture all values before reclaiming unneeded block
 roots and installing new parameter homes. Transfers preserve machine-parameter
 roots and receiver identity and resume the target state through a tail call.
 Explicit resultless return, state falloff, and supported Console write/exit
@@ -88,10 +114,9 @@ storage survive. Expression outcomes carry committed storage and
 output through arithmetic, arguments, indexes, right sides, returns, and
 transition subjects. Only the outer entry adapter turns ordinary completion
 into process exit; recursive `self.main()` retains the existing receiver.
-Sum construction and transitions, views, and remaining Console operations are
-still unsupported. Typed aggregate defaults do not supply missing sum tags or
-view backing. These generic storage and call operations do not establish that
-the complete Omega D source executes. Every
+Sum construction and transitions remain unsupported. Typed aggregate defaults
+do not supply missing sum tags. These storage, view, and call operations do not
+establish that the complete Omega D source executes. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D51's receiver-only qualified-machine syntax, ordinary named
@@ -110,8 +135,8 @@ premise-DAG composition. D53's five local block-exit effects, exact after-`never
 delimiters, falloff checks, and machine-continuation categories are implemented;
 the remaining body/control judgments stay open.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
-rejection for the resulting array view are implemented; their lowering and
-executable controls remain.
+rejection for the resulting array view are implemented. Its execution route
+retains only a place-backed full view, as described above.
 Complete execution, the final evaluator `main`, and exact composition with
 Omega D remain implementation gaps. D56's redundant type-candidate `kind` is
 removed and its entry-diagnostic subjudgment is implemented. D31's profile-
@@ -170,8 +195,8 @@ formation entry subjudgment runs before that promotion: no authored
 once one exists, every malformed or
 absent supporting component is `InvalidEntry`. Entry facts do not enter the
 later body/control candidate carrier. The retained expression facts now support
-the implemented local block-exit pass; remaining body/control judgments and
-physical lowering stay in the next semantic phase.
+the implemented local block-exit pass. Remaining body/control judgments,
+application storage realization, and complete execution remain open.
 
 The resolution catalog retains one row per formed top-level declaration and
 keeps members, cases, bodies, and states inside their original AST owner. It
@@ -187,7 +212,7 @@ declaration owner contributes `UnknownName` at that owner spelling even when
 unused. A
 neutral minimum-coordinate bucket deduplicates one reason/coordinate and
 retains distinct ties for the eventual D37 internal-contradiction promotion;
-traversal and ECOUT order never choose between them.
+traversal and rejection-reason codes never choose between them.
 
 Ordered local resolution then walks every expression-bearing entry, state, and
 transition position. Machine parameters remain active across the invocation;
@@ -201,13 +226,14 @@ expression constructor plus exact span; a postfix node therefore cannot borrow
 the fact for its same-start base. Call heads, discarded postfix statements, and
 transition continuations now carry distinct expression-use facts rather than
 one overloaded non-value bit. This is durable identity custody for typing and
-lowering, not a partial acceptance judgment.
+execution, not a partial acceptance judgment.
 
 The same expression walk now retains complete settled result facts
 without introducing a second recursive checker. Integer, character, and
 Boolean literals are `i32`; strings are immutable `&[u8]`; and resolved
-parameter/local reads retain both their value type and their assignable storage
-type. Reading `u8` storage will yield `i32` while preserving a `u8` place for
+parameter/local reads retain their value type and optional storage place.
+Assignable values retain their storage type; immutable views carry no place.
+Reading `u8` storage yields `i32` while preserving a `u8` place for
 the later store check. Groups preserve the complete value/place result;
 negation and every binary operator consume complete `i32` operands and produce
 a non-place `i32`. Their resultless/`never` branches are retained independently
@@ -254,7 +280,7 @@ arity/type checking; an admitted machine with a missing result gains no
 dependent mismatch. Value/resultless machine results may be discarded, while
 a successful `never` result remains input to the later block-flow judgment.
 The bare head and outer application intentionally retain distinct exact-AST
-callable rows; lowering must query the exact application row and must not treat
+callable rows; execution must query the exact application row and must not treat
 every ledger row as an executable call.
 Bare state spelling and the remaining transition judgments stay open as
 described below.
@@ -367,8 +393,9 @@ acceptance or runtime realization.
 This is the compact case matrix for the eventual adjacent executable gate. It
 derives from D17, D22, D24, D36, D37, D38, D50, D51, D52, D53, and
 `LANGUAGE.md`. Completed local probes are recorded explicitly below; the full
-matrix becomes a retained executable gate only through the real Delta-written
-compiler and its selected D19 adapter.
+matrix must execute through the Delta-written evaluator, compiled by the
+selected Gamma-authored Delta compiler under `ConformanceBytesV1`. The final
+Epsilon evaluator request and observation profile remains open.
 
 D51's current implementation requires a receiver on every qualified data
 machine, allows case/receiver-method spelling reuse, normalizes `self` through
@@ -381,13 +408,6 @@ matrix below describes that selected behavior.
 | Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF; one optional final transition wildcard | `UnexpectedToken` at the offending token, including `&` where an unqualified machine parameter must begin, a pattern after `_`, and negative pattern `-`; `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
 | Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; case/receiver-method spelling reuse; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate exact machine/member/payload/parameter/state/let/transition binder; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
 | Type and body checking | forward owners/machines/states; empty and nonempty records; finite sums/arrays; views only in admitted positions; unordered exact `Console` member signatures; complete scalar and sum transitions, including redundant final wildcard | D31 zero-array, mixed-data, misplaced-`never`, escaping-view, and sealed-`Console` cases; D56 absent/malformed/duplicate/competing entry shapes; D57 category/semantic-duplicate/arity/missing-coverage transitions; every reason from `UnknownType` through `NonexhaustiveSum`, at its exact structural anchor; no reason-table tie-break |
-| Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 16,777,212-byte `AlphaBootstrapV2` cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
-
-The payload row describes the current `AlphaBootstrapV2` profile selected by
-D23. Its exact cap, depth-20 target trie, replay bounds, oversize candidate, and
-adjacent rejection move with the seeds, compilers, generated-memory maps,
-checker, outcome tables, and gates. The symbolic encoding and replay rules do
-not otherwise change.
 
 D22 rows already settled by the third line include these discriminator pairs:
 
@@ -422,12 +442,12 @@ literal, mixed data at its declaration name, standalone parameter/local/return
 `u8`, every misplaced `never`, every forbidden outer view, and every other
 `Console` placement. Nested defects beneath a forbidden view do
 not displace its outer `EscapingView`; structurally impossible same-anchor
-reason collisions are internal contradictions. D34 storage-profile controls cover
+reason collisions are internal contradictions. Planned D34 storage-profile controls cover
 an unused oversized type, nested and disjoint individually excessive arrays,
 one reachable decisive array with its length-literal coordinate, and
 aggregate-only record/sum/root exhaustion with no coordinate. Exact demands
 remain exact; larger demands use D34's `INT64_MAX` witness. Both storage
-refusals require `requested > limit` and publish no tape. Adjacent controls
+refusals require `requested > limit` and publish no Epsilon observation. Adjacent controls
 exercise zero-sized multiplication, exact `INT64_MAX`, and the first larger
 demand without taking a Delta trap.
 

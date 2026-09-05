@@ -56,12 +56,13 @@
   (references EpsilonResolvedLocalReferenceList)
   (fieldReferences EpsilonResolvedFieldReferenceList)
   (callables EpsilonResolvedCallableReferenceList)
-  (control EpsilonControlReferenceLedger) (owner EpsilonName))
+  (control EpsilonControlReferenceLedger) (owner EpsilonName) (input Bytes))
   EpsilonEvaluatorSliceOutcome
   (let typeValue EpsilonType
     (EpsilonNamedType (epsilon_name_start owner) (epsilon_name_end owner) owner)
     (match (epsilon_runtime_allocate (epsilon_runtime_zero_value typeValue)
-      (EpsilonRuntimeStoreState 1 NoEpsilonRuntimeRoots))
+      (EpsilonRuntimeStoreState 1 NoEpsilonRuntimeRoots
+        (EpsilonRuntimeConsoleInputAt input 0)))
       ((EpsilonRuntimeAllocated identifier store)
         (epsilon_evaluator_finish_entry
           (epsilon_evaluate_invocation
@@ -77,17 +78,17 @@
   (references EpsilonResolvedLocalReferenceList)
   (fieldReferences EpsilonResolvedFieldReferenceList)
   (callables EpsilonResolvedCallableReferenceList)
-  (control EpsilonControlReferenceLedger)) EpsilonEvaluatorSliceOutcome
+  (control EpsilonControlReferenceLedger) (input Bytes)) EpsilonEvaluatorSliceOutcome
   (match declarations
     (NoEpsilonDeclarations (EpsilonEvaluatorSliceInternal 0))
     ((MoreEpsilonDeclarations item rest)
       (match item
         ((EpsilonBoundaryDeclaration start end name machines)
           (epsilon_evaluate_entry_declarations source rest references
-            fieldReferences callables control))
+            fieldReferences callables control input))
         ((EpsilonDataDeclaration start end name members)
           (epsilon_evaluate_entry_declarations source rest references
-            fieldReferences callables control))
+            fieldReferences callables control input))
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           (if (epsilon_qualified_name_is_main_entry source name)
             (match name
@@ -95,6 +96,6 @@
                 (EpsilonEvaluatorSliceInternal nameStart))
               ((EpsilonQualifiedNameSyntax nameStart nameEnd owner machineName)
                 (epsilon_evaluator_start_entry source item references
-                  fieldReferences callables control owner)))
+                  fieldReferences callables control owner input)))
             (epsilon_evaluate_entry_declarations source rest references
-              fieldReferences callables control)))))))
+              fieldReferences callables control input)))))))

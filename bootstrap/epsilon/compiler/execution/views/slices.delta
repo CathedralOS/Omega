@@ -1,0 +1,137 @@
+
+; A slice of a view keeps its ultimate backing. A slice of a non-place array
+; shares the existing immutable value; it does not establish an array place.
+(def epsilon_evaluator_slice_base ((value EpsilonRuntimeValue)
+  (place EpsilonRuntimeOptionalPlace) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (match value
+    ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeViewValue view)
+      (EpsilonEvaluatorValue value NoEpsilonRuntimePlace store output))
+    ((EpsilonRuntimeAggregate typeValue children)
+      (match typeValue
+        ((EpsilonArrayType start end element lengthValue)
+          (let backing EpsilonRuntimeViewBacking
+            (match place
+              (NoEpsilonRuntimePlace (EpsilonRuntimeSnapshotBacking value))
+              ((SomeEpsilonRuntimePlace arrayPlace)
+                (EpsilonRuntimePlaceBacking arrayPlace)))
+            (EpsilonEvaluatorValue
+              (EpsilonRuntimeViewValue
+                (EpsilonRuntimeViewAt backing element 0
+                  (epsilon_integer_literal_value lengthValue)))
+              NoEpsilonRuntimePlace store output)))
+        ((EpsilonI32Type start end) (EpsilonEvaluatorInternal start))
+        ((EpsilonU8Type start end) (EpsilonEvaluatorInternal start))
+        ((EpsilonNeverType start end) (EpsilonEvaluatorInternal start))
+        ((EpsilonNamedType start end name) (EpsilonEvaluatorInternal start))
+        ((EpsilonViewType start end element) (EpsilonEvaluatorInternal start))))))
+
+(def epsilon_evaluator_slice_bounds ((view EpsilonRuntimeView)
+  (low Int) (high Int) (store EpsilonRuntimeStore) (output Bytes))
+  EpsilonEvaluatorOutcome
+  (if (if (lt low 0) 1
+        (if (lt high low) 1
+          (lt (epsilon_runtime_view_length view) high)))
+    (EpsilonEvaluatorTrap 6 output)
+    (match view
+      ((EpsilonRuntimeViewAt backing element baseLow baseHigh)
+        (EpsilonEvaluatorValue
+          (EpsilonRuntimeViewValue
+            (EpsilonRuntimeViewAt backing element (+ baseLow low)
+              (+ baseLow high)))
+          NoEpsilonRuntimePlace store output)))))
+
+(def epsilon_evaluate_slice_high ((context EpsilonEvaluatorInvocation)
+  (view EpsilonRuntimeView) (low Int) (high EpsilonOptionalExpression)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (match high
+    (NoEpsilonExpression
+      (epsilon_evaluator_slice_bounds view low (epsilon_runtime_view_length view)
+        store output))
+    ((SomeEpsilonExpression expressionValue)
+      (let outcome EpsilonEvaluatorOutcome
+        (epsilon_evaluate_expression context expressionValue bindings store output)
+        (match outcome
+          ((EpsilonEvaluatorValue value place nextStore nextOutput)
+            (match value
+              ((EpsilonRuntimeInteger bound)
+                (epsilon_evaluator_slice_bounds view low bound nextStore nextOutput))
+              ((EpsilonRuntimeAggregate typeValue children)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+              ((EpsilonRuntimeViewValue nestedView)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
+          ((EpsilonEvaluatorResultless nextStore nextOutput)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+          ((EpsilonEvaluatorExit code nextOutput) outcome)
+          ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+          ((EpsilonEvaluatorInternal offset) outcome)
+          (EpsilonEvaluatorUnsupported outcome))))))
+
+; Complete both present bound expressions before the range judgment. Effects
+; and traps follow base, low, high order, even when the low value is negative.
+(def epsilon_evaluate_slice_low ((context EpsilonEvaluatorInvocation)
+  (view EpsilonRuntimeView) (low EpsilonOptionalExpression)
+  (high EpsilonOptionalExpression) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match low
+    (NoEpsilonExpression
+      (epsilon_evaluate_slice_high context view 0 high bindings store output))
+    ((SomeEpsilonExpression expressionValue)
+      (let outcome EpsilonEvaluatorOutcome
+        (epsilon_evaluate_expression context expressionValue bindings store output)
+        (match outcome
+          ((EpsilonEvaluatorValue value place nextStore nextOutput)
+            (match value
+              ((EpsilonRuntimeInteger bound)
+                (epsilon_evaluate_slice_high context view bound high bindings
+                  nextStore nextOutput))
+              ((EpsilonRuntimeAggregate typeValue children)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+              ((EpsilonRuntimeViewValue nestedView)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
+          ((EpsilonEvaluatorResultless nextStore nextOutput)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+          ((EpsilonEvaluatorExit code nextOutput) outcome)
+          ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+          ((EpsilonEvaluatorInternal offset) outcome)
+          (EpsilonEvaluatorUnsupported outcome))))))
+
+(def epsilon_evaluate_slice_from_value ((context EpsilonEvaluatorInvocation)
+  (value EpsilonRuntimeValue) (place EpsilonRuntimeOptionalPlace)
+  (low EpsilonOptionalExpression) (high EpsilonOptionalExpression)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluator_slice_base value place store output)
+    (match outcome
+      ((EpsilonEvaluatorValue normalized normalizedPlace nextStore nextOutput)
+        (match normalized
+          ((EpsilonRuntimeViewValue view)
+            (epsilon_evaluate_slice_low context view low high bindings
+              nextStore nextOutput))
+          ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorInternal 0))
+          ((EpsilonRuntimeAggregate typeValue children) (EpsilonEvaluatorInternal 0))))
+      ((EpsilonEvaluatorResultless nextStore nextOutput) (EpsilonEvaluatorInternal 0))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome)
+      (EpsilonEvaluatorUnsupported outcome))))
+
+(def epsilon_evaluate_slice ((context EpsilonEvaluatorInvocation)
+  (base EpsilonExpression) (low EpsilonOptionalExpression)
+  (high EpsilonOptionalExpression) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluate_expression context base bindings store output)
+    (match outcome
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (epsilon_evaluate_slice_from_value context value place low high bindings
+          nextStore nextOutput))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start base)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome)
+      (EpsilonEvaluatorUnsupported outcome))))

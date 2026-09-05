@@ -60,6 +60,8 @@
                   (EpsilonEvaluatorBlockFalloff bindings nextStore nextOutput)
                   (EpsilonEvaluatorBlockTrap 7 nextOutput))))
             ((EpsilonRuntimeAggregate typeValue children)
+              (EpsilonEvaluatorBlockInternal start))
+            ((EpsilonRuntimeViewValue view)
               (EpsilonEvaluatorBlockInternal start))))
         ((EpsilonEvaluatorResultless nextStore nextOutput)
           (EpsilonEvaluatorBlockInternal (epsilon_expression_start expressionValue)))

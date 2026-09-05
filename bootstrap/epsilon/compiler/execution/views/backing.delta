@@ -1,0 +1,87 @@
+
+(def epsilon_runtime_view_length ((view EpsilonRuntimeView)) Int
+  (match view
+    ((EpsilonRuntimeViewAt backing element low high) (- high low))))
+
+(def epsilon_runtime_view_read_snapshot ((value EpsilonRuntimeValue)
+  (index Int) (high Int)) EpsilonRuntimeValueLookup
+  (match value
+    ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeAggregate typeValue children)
+      (match typeValue
+        ((EpsilonArrayType start end element lengthValue)
+          (if (lt (epsilon_integer_literal_value lengthValue) high)
+            NoEpsilonRuntimeValue
+            (epsilon_runtime_project value (EpsilonRuntimeIndex index))))
+        ((EpsilonI32Type start end) NoEpsilonRuntimeValue)
+        ((EpsilonU8Type start end) NoEpsilonRuntimeValue)
+        ((EpsilonNeverType start end) NoEpsilonRuntimeValue)
+        ((EpsilonNamedType start end name) NoEpsilonRuntimeValue)
+        ((EpsilonViewType start end element) NoEpsilonRuntimeValue)))))
+
+; Bounds belong to expression execution. Pure reads still refuse malformed
+; extents or dead backing rather than manufacturing an element.
+(def epsilon_runtime_view_read_backing ((backing EpsilonRuntimeViewBacking)
+  (index Int) (high Int) (store EpsilonRuntimeStore)) EpsilonRuntimeValueLookup
+  (match backing
+    ((EpsilonRuntimeLiteralBacking bytes)
+      (if (lt (bytes_length bytes) high)
+        NoEpsilonRuntimeValue
+        (SomeEpsilonRuntimeValue (EpsilonRuntimeInteger (bytes_get bytes index)))))
+    ((EpsilonRuntimeSnapshotBacking value)
+      (epsilon_runtime_view_read_snapshot value index high))
+    ((EpsilonRuntimePlaceBacking place)
+      (match (epsilon_runtime_read place store)
+        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+        ((SomeEpsilonRuntimeValue value)
+          (epsilon_runtime_view_read_snapshot value index high))))))
+
+(def epsilon_runtime_view_read ((view EpsilonRuntimeView) (index Int)
+  (store EpsilonRuntimeStore)) EpsilonRuntimeValueLookup
+  (match view
+    ((EpsilonRuntimeViewAt backing element low high)
+      (if (lt low 0)
+        NoEpsilonRuntimeValue
+        (if (lt high low)
+          NoEpsilonRuntimeValue
+          (if (lt index 0)
+            NoEpsilonRuntimeValue
+            (if (lt index (- high low))
+              (epsilon_runtime_view_read_backing backing (+ low index) high store)
+              NoEpsilonRuntimeValue)))))))
+
+(def epsilon_evaluator_view_index ((view EpsilonRuntimeView) (index Int)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (if (if (lt index 0) 1
+        (if (lt index (epsilon_runtime_view_length view)) 0 1))
+    (EpsilonEvaluatorTrap 6 output)
+    (match (epsilon_runtime_view_read view index store)
+      (NoEpsilonRuntimeValue (EpsilonEvaluatorInternal 0))
+      ((SomeEpsilonRuntimeValue value)
+        (EpsilonEvaluatorValue value NoEpsilonRuntimePlace store output)))))
+
+; This contextual operation only borrows an already established array place.
+; In particular, it does not use the snapshot route of ordinary range slices.
+(def epsilon_evaluator_as_slice ((value EpsilonRuntimeValue)
+  (place EpsilonRuntimeOptionalPlace) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (match value
+    ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeViewValue view) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeAggregate typeValue children)
+      (match typeValue
+        ((EpsilonArrayType start end element lengthValue)
+          (match place
+            (NoEpsilonRuntimePlace (EpsilonEvaluatorInternal start))
+            ((SomeEpsilonRuntimePlace arrayPlace)
+              (EpsilonEvaluatorValue
+                (EpsilonRuntimeViewValue
+                  (EpsilonRuntimeViewAt (EpsilonRuntimePlaceBacking arrayPlace)
+                    element 0 (epsilon_integer_literal_value lengthValue)))
+                NoEpsilonRuntimePlace store output))))
+        ((EpsilonI32Type start end) (EpsilonEvaluatorInternal start))
+        ((EpsilonU8Type start end) (EpsilonEvaluatorInternal start))
+        ((EpsilonNeverType start end) (EpsilonEvaluatorInternal start))
+        ((EpsilonNamedType start end name) (EpsilonEvaluatorInternal start))
+        ((EpsilonViewType start end element) (EpsilonEvaluatorInternal start))))))

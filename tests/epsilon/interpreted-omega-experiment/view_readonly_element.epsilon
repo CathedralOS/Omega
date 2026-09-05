@@ -1,0 +1,13 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; bytes: [u8; 2]; }
+
+machine Main::main(&mut self) {
+  let view: &[u8] = self.bytes.as_slice;
+  view[0] = 65;
+}

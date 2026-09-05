@@ -64,5 +64,6 @@
   (match value
     ((EpsilonRuntimeInteger integer)
       (epsilon_runtime_integer_store_status typeValue integer))
+    ((EpsilonRuntimeViewValue view) (- 0 1))
     ((EpsilonRuntimeAggregate storedType children)
       (epsilon_runtime_aggregate_store_status typeValue storedType))))

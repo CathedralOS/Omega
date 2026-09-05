@@ -1,5 +1,5 @@
 
-(def epsilon_evaluate_entry_slice ((source Bytes))
+(def epsilon_evaluate_entry_slice ((source Bytes) (input Bytes))
   EpsilonEvaluatorSliceOutcome
   (match (epsilon_check_through_body source)
     ((EpsilonLocalResolutionRejected reasonValue errorOffset)
@@ -19,4 +19,4 @@
                       (match program
                         ((EpsilonSyntaxProgram start end declarations)
                           (epsilon_evaluate_entry_declarations source
-                            declarations references fields callables control))))))))))))))
+                            declarations references fields callables control input))))))))))))))

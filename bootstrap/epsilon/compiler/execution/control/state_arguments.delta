@@ -21,12 +21,14 @@
                   ((EpsilonEvaluatorArgumentsStopped outcome)
                     (epsilon_evaluator_stopped_block outcome stateStart))
                   ((EpsilonEvaluatorArgumentsEvaluated values nextStore nextOutput)
-                    (match (epsilon_evaluator_bind_arguments values
+                    (let machineBindings EpsilonEvaluatorBindings
                       (epsilon_evaluator_preserve_machine_parameters
                         (epsilon_machine_input_parameters inputs) bindings)
-                      (epsilon_runtime_release_since blockRootFloor nextStore))
-                      ((EpsilonEvaluatorParametersBound nextBindings finalStore)
-                        (EpsilonEvaluatorBlockTransfer stateValue nextBindings
-                          finalStore nextOutput)))))))))
+                      (match (epsilon_evaluator_bind_arguments values machineBindings
+                        (epsilon_runtime_retain_state_roots blockRootFloor values
+                          machineBindings receiver nextStore))
+                        ((EpsilonEvaluatorParametersBound nextBindings finalStore)
+                          (EpsilonEvaluatorBlockTransfer stateValue nextBindings
+                            finalStore nextOutput))))))))))
         (EpsilonEvaluatorBlockInternal
           (epsilon_declaration_end targetMachine))))))

@@ -3,15 +3,15 @@
 ; Roots remain newest-first; writes preserve order and release never reuses IDs.
 (def epsilon_runtime_next_identifier ((store EpsilonRuntimeStore)) Int
   (match store
-    ((EpsilonRuntimeStoreState nextIdentifier roots) nextIdentifier)))
+    ((EpsilonRuntimeStoreState nextIdentifier roots input) nextIdentifier)))
 
 (def epsilon_runtime_allocate ((value EpsilonRuntimeValue)
   (store EpsilonRuntimeStore)) EpsilonRuntimeAllocation
   (match store
-    ((EpsilonRuntimeStoreState nextIdentifier roots)
+    ((EpsilonRuntimeStoreState nextIdentifier roots input)
       (EpsilonRuntimeAllocated nextIdentifier
         (EpsilonRuntimeStoreState (+ nextIdentifier 1)
-          (MoreEpsilonRuntimeRoots nextIdentifier value roots))))))
+          (MoreEpsilonRuntimeRoots nextIdentifier value roots) input)))))
 
 (def epsilon_runtime_release_roots ((floor Int) (roots EpsilonRuntimeRoots))
   EpsilonRuntimeRoots
@@ -25,9 +25,9 @@
 (def epsilon_runtime_release_since ((floor Int) (store EpsilonRuntimeStore))
   EpsilonRuntimeStore
   (match store
-    ((EpsilonRuntimeStoreState nextIdentifier roots)
+    ((EpsilonRuntimeStoreState nextIdentifier roots input)
       (EpsilonRuntimeStoreState nextIdentifier
-        (epsilon_runtime_release_roots floor roots)))))
+        (epsilon_runtime_release_roots floor roots) input))))
 
 (def epsilon_runtime_find_root ((identifier Int) (roots EpsilonRuntimeRoots))
   EpsilonRuntimeValueLookup
@@ -64,7 +64,7 @@
   (match place
     ((EpsilonRuntimePlaceAt identifier path leafType)
       (match store
-        ((EpsilonRuntimeStoreState nextIdentifier roots)
+        ((EpsilonRuntimeStoreState nextIdentifier roots input)
           (match (epsilon_runtime_find_root identifier roots)
             (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
             ((SomeEpsilonRuntimeValue value)
@@ -74,7 +74,7 @@
   (value EpsilonRuntimeValue) (store EpsilonRuntimeStore))
   EpsilonRuntimeStoreOutcome
   (match store
-    ((EpsilonRuntimeStoreState nextIdentifier roots)
+    ((EpsilonRuntimeStoreState nextIdentifier roots input)
       (match (epsilon_runtime_find_root identifier roots)
         (NoEpsilonRuntimeValue EpsilonRuntimeStoreInternal)
         ((SomeEpsilonRuntimeValue previous)
@@ -85,7 +85,7 @@
               (EpsilonRuntimeStoreUpdated
                 (EpsilonRuntimeStoreState nextIdentifier
                   (epsilon_runtime_replace_root identifier updated roots
-                    NoEpsilonRuntimeRoots))))))))))
+                    NoEpsilonRuntimeRoots) input)))))))))
 
 (def epsilon_runtime_write ((place EpsilonRuntimePlace)
   (value EpsilonRuntimeValue) (store EpsilonRuntimeStore))

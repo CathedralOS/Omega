@@ -1,0 +1,19 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; bytes: [u8; 2]; }
+
+machine Main::main(&mut self) {
+  self.bytes[0] = 65;
+  let view: &[u8] = copied(self.bytes)[..];
+  self.bytes[0] = 66;
+  assert view.len == 2;
+  assert view[0] == 65;
+  self.console.write_byte(view[0]);
+}
+
+machine copied(value: [u8; 2]) -> [u8; 2] { return value; }

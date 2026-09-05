@@ -1,0 +1,99 @@
+
+; State transfer captures arguments before retiring block homes. Views point
+; directly to their ultimate array root; stored aggregates cannot contain views.
+(def epsilon_runtime_value_uses_root ((value EpsilonRuntimeValue)
+  (identifier Int)) Int
+  (match value
+    ((EpsilonRuntimeInteger integer) 0)
+    ((EpsilonRuntimeAggregate typeValue children) 0)
+    ((EpsilonRuntimeViewValue view)
+      (match view
+        ((EpsilonRuntimeViewAt backing element low high)
+          (match backing
+            ((EpsilonRuntimeLiteralBacking bytes) 0)
+            ((EpsilonRuntimeSnapshotBacking snapshot) 0)
+            ((EpsilonRuntimePlaceBacking place)
+              (match place
+                ((EpsilonRuntimePlaceAt root path leafType)
+                  (eq identifier root))))))))))
+
+(def epsilon_runtime_arguments_use_root
+  ((values EpsilonEvaluatorArgumentValues) (identifier Int)) Int
+  (match values
+    (NoEpsilonEvaluatorArgumentValues 0)
+    ((MoreEpsilonEvaluatorArgumentValues parameter value rest)
+      (if (epsilon_runtime_value_uses_root value identifier)
+        1
+        (epsilon_runtime_arguments_use_root rest identifier)))))
+
+(def epsilon_runtime_binding_identifier ((binding EpsilonEvaluatorBinding)) Int
+  (match binding
+    ((EpsilonEvaluatorLetBinding statementValue identifier) identifier)
+    ((EpsilonEvaluatorParameterBinding parameterValue identifier) identifier)))
+
+(def epsilon_runtime_binding_uses_root ((binding EpsilonEvaluatorBinding)
+  (identifier Int) (roots EpsilonRuntimeRoots)) Int
+  (let home Int (epsilon_runtime_binding_identifier binding)
+    (if (eq home identifier)
+      1
+      (match (epsilon_runtime_find_root home roots)
+        (NoEpsilonRuntimeValue 0)
+        ((SomeEpsilonRuntimeValue value)
+          (epsilon_runtime_value_uses_root value identifier))))))
+
+(def epsilon_runtime_bindings_use_root ((bindings EpsilonEvaluatorBindings)
+  (identifier Int) (roots EpsilonRuntimeRoots)) Int
+  (match bindings
+    (NoEpsilonEvaluatorBindings 0)
+    ((MoreEpsilonEvaluatorBindings binding rest)
+      (if (epsilon_runtime_binding_uses_root binding identifier roots)
+        1
+        (epsilon_runtime_bindings_use_root rest identifier roots)))))
+
+(def epsilon_runtime_receiver_uses_root ((receiver EpsilonRuntimeOptionalPlace)
+  (identifier Int)) Int
+  (match receiver
+    (NoEpsilonRuntimePlace 0)
+    ((SomeEpsilonRuntimePlace place)
+      (match place
+        ((EpsilonRuntimePlaceAt root path leafType) (eq identifier root))))))
+
+(def epsilon_runtime_state_uses_root ((identifier Int)
+  (values EpsilonEvaluatorArgumentValues) (bindings EpsilonEvaluatorBindings)
+  (receiver EpsilonRuntimeOptionalPlace) (roots EpsilonRuntimeRoots)) Int
+  (if (epsilon_runtime_arguments_use_root values identifier)
+    1
+    (if (epsilon_runtime_bindings_use_root bindings identifier roots)
+      1
+      (epsilon_runtime_receiver_uses_root receiver identifier))))
+
+; Filter newest-first without recursive reconstruction. Earlier retained block
+; roots keep their IDs and face this same test on the next transfer, so a view
+; does not permanently promote its backing into invocation-owned storage.
+(def epsilon_runtime_retain_state_root_rows ((floor Int)
+  (values EpsilonEvaluatorArgumentValues) (bindings EpsilonEvaluatorBindings)
+  (receiver EpsilonRuntimeOptionalPlace) (roots EpsilonRuntimeRoots)
+  (remaining EpsilonRuntimeRoots) (retained EpsilonRuntimeRoots))
+  EpsilonRuntimeRoots
+  (match remaining
+    (NoEpsilonRuntimeRoots
+      (epsilon_runtime_reverse_roots retained NoEpsilonRuntimeRoots))
+    ((MoreEpsilonRuntimeRoots identifier value rest)
+      (if (lt identifier floor)
+        (epsilon_runtime_reverse_roots retained remaining)
+        (epsilon_runtime_retain_state_root_rows floor values bindings receiver
+          roots rest
+          (if (epsilon_runtime_state_uses_root identifier values bindings
+                receiver roots)
+            (MoreEpsilonRuntimeRoots identifier value retained)
+            retained))))))
+
+(def epsilon_runtime_retain_state_roots ((floor Int)
+  (values EpsilonEvaluatorArgumentValues) (bindings EpsilonEvaluatorBindings)
+  (receiver EpsilonRuntimeOptionalPlace) (store EpsilonRuntimeStore))
+  EpsilonRuntimeStore
+  (match store
+    ((EpsilonRuntimeStoreState nextIdentifier roots input)
+      (EpsilonRuntimeStoreState nextIdentifier
+        (epsilon_runtime_retain_state_root_rows floor values bindings receiver
+          roots roots NoEpsilonRuntimeRoots) input))))

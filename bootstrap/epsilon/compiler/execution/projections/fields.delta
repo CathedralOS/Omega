@@ -24,6 +24,8 @@
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match value
     ((EpsilonRuntimeInteger scalar) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeViewValue view)
+      (epsilon_evaluator_integer (epsilon_runtime_view_length view) store output))
     ((EpsilonRuntimeAggregate typeValue children)
       (match typeValue
         ((EpsilonArrayType start end element lengthValue)
@@ -46,7 +48,9 @@
         (NoEpsilonResolvedFieldReference
           (if (epsilon_name_is_len source member)
             (epsilon_evaluator_array_length value store output)
-            EpsilonEvaluatorUnsupported))
+            (if (epsilon_name_is_as_slice source member)
+              (epsilon_evaluator_as_slice value place store output)
+              EpsilonEvaluatorUnsupported)))
         ((OneEpsilonResolvedFieldReference owner fieldValue)
           (match fieldValue
             ((EpsilonFieldMember start end name typeValue)

@@ -9,7 +9,7 @@ export OMEGA_REPO_ROOT
 SOURCE_CLOSURE_MATERIALIZER="$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py"
 OMEGA_BUILD="$OMEGA_PATH_OMEGA/build.omg"
 DELTA="$OMEGA_PATH_DELTA_COMPILER_SOURCE"
-DRIVER="$TEST_DIR/empty_entry_driver.delta"
+DRIVER="$TEST_DIR/execution_driver.delta"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Interpreted Omega experiment: skipped (python3 absent)"
@@ -39,8 +39,8 @@ grep -F 'data AlphaTapeBuffer {' "$TMP/omega_compiler.epsilon" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 10321 ]
-[ "$EPSILON_BYTES" -eq 517029 ]
+[ "$EPSILON_LINES" -eq 10783 ]
+[ "$EPSILON_BYTES" -eq 540455 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
@@ -55,13 +55,13 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        517029,
-        "56e954e09326f53c9ee22fabd2f79823cbd01db0072c6d39a12bf4f51a49e07e",
+        540455,
+        "1b8f8b12fde77e636360ba45b64b8572595469df6613072d67af20a37f73491c",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
-        485,
-        "2842b404a9a4f6d98ebf1e37377af18ef1e9dd5244d860a225b631adb19dabfd",
+        1758,
+        "ea3d6772f7fefeee211685acc7e18546057113ef37435076f4d978ebbfb6533f",
     ),
 }
 for name, (data, size, digest) in artifacts.items():
@@ -72,7 +72,7 @@ test_directory = Path(os.environ["TEST_DIR"])
 controls = {}
 with (test_directory / "fixtures.tsv").open(encoding="ascii", newline="") as manifest:
     rows = csv.DictReader(manifest, delimiter="\t")
-    if rows.fieldnames != ["fixture", "bytes", "sha256", "expected_hex"]:
+    if rows.fieldnames != ["fixture", "bytes", "sha256", "expected_hex", "stdin_hex"]:
         raise SystemExit("fixture manifest header changed")
     for row in rows:
         name = row["fixture"]
@@ -81,7 +81,9 @@ with (test_directory / "fixtures.tsv").open(encoding="ascii", newline="") as man
         data = (test_directory / name).read_bytes()
         if len(data) != int(row["bytes"]) or hashlib.sha256(data).hexdigest() != row["sha256"]:
             raise SystemExit(f"{name} identity changed")
-        controls[name] = (data, bytes.fromhex(row["expected_hex"]))
+        controls[name] = (
+            data, bytes.fromhex(row["stdin_hex"]), bytes.fromhex(row["expected_hex"])
+        )
 if set(controls) != {path.name for path in test_directory.glob("*.epsilon")}:
     raise SystemExit("fixture manifest does not cover the exact Epsilon fixture inventory")
 
@@ -98,7 +100,7 @@ def add_customer(name, members, expected_size, expected_digest, expected_output)
         source += data
     if len(source) != expected_size or hashlib.sha256(source).hexdigest() != expected_digest:
         raise SystemExit(f"{name} packed identity changed")
-    controls[name] = (source, expected_output)
+    controls[name] = (source, b"", expected_output)
 
 add_customer("Omega D lexical helpers", (
     (omega_compiler / "representations.epsilon", 30905,
@@ -118,6 +120,15 @@ add_customer("Omega D Alpha tape buffers", (
      "0ccf1ef98023c4e19038bb0bcde4fd27140dbed47df166874e84d2e8930c348f"),
 ), 63530, "08284b839b374d8e611bba77cd63d4093f1f72d7034dca7b8b1aeb26cec6c5b5", b"ABCDEFGH\x00")
 
+add_customer("Omega D request and UTF-8", (
+    (omega_compiler / "representations.epsilon", 30905,
+     "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
+    (omega_compiler / "request_and_utf8.epsilon", 7384,
+     "663acd44f754150f9cfea7bf3e08afda6b13aeca99b4a7fc08141ae66da89abe"),
+    (test_directory / "customers/omega_request/main.epsilon", 2253,
+     "e85bfe363cae2b313db528d9776dd4e11a185199c3d453293421da674af17121"),
+), 40542, "e47a07296fb205934fa013b4aae29d35d51d0e8f1ee08eaf5f7de9c69c2bb099", b"A\n\x00")
+
 compiler = Path(os.environ["DELTA"]).read_bytes()
 subject = artifacts["evaluator source"][0] + artifacts["slice driver"][0]
 request = (
@@ -136,21 +147,39 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 614216:
+if status != 0 or len(receipt) != 645995:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "e9cede2aa78a82814d83670491391c6e2600ebcee47ccf57cd62684b69216b8e"
+    "5169d020de9853d5e9d9c53db6537c8c777dd1685af3ae8b23726326af03426f"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "
         + hashlib.sha256(receipt).hexdigest()
     )
 print(f"Epsilon evaluator: exact {len(receipt)}-byte receipt reconstructed", flush=True)
-for name, (source, expected) in controls.items():
-    status, observation = evaluate(receipt, source, timeout=120)
+driver_controls = (
+    ("empty frame", b"", b"\xfd"),
+    ("one header byte", b"\x00", b"\xfd"),
+    ("two header bytes", b"\x00\x00", b"\xfd"),
+    ("three header bytes", b"\x00\x00\x00", b"\xfd"),
+    ("source exceeds frame", struct.pack("<I", 2) + b"A", b"\xfd"),
+    ("empty Epsilon source", struct.pack("<I", 0), b"\xfa"),
+)
+for name, application_input, expected in driver_controls:
+    status, observation = evaluate(receipt, application_input)
+    if (status, observation) != (0, expected):
+        raise SystemExit(
+            f"{name}: expected status 0 and {expected.hex()}, "
+            f"received status {status} and {observation.hex()}"
+        )
+print(f"Epsilon development framing: {len(driver_controls)} observations pass", flush=True)
+for name, (source, stdin, expected) in controls.items():
+    # Development-only separation of source and stdin, not the final Epsilon envelope.
+    application_input = struct.pack("<I", len(source)) + source + stdin
+    status, observation = evaluate(receipt, application_input)
     if (status, observation) != (0, expected):
         raise SystemExit(
             f"{name}: expected status 0 and {expected.hex()}, "

@@ -83,7 +83,7 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   fixes transition-pattern and coverage diagnostics. D50, D51, D52, D56, and
   D57 are implemented; the remaining rulings remain
   alongside final body/control checking, the remaining D37
-  control/terminal premise DAG, D38 executable controls, storage realization,
+  control/terminal premise DAG, full resource conformance, storage realization,
   execution, `main`, and composition are incomplete, so it exposes no evaluator
   artifact yet. The
   current fact pass does enforce D38's contextual receiver/result relation and
@@ -92,11 +92,15 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   independent recursive invocation homes, record/fixed-array value copies,
   value/resultless returns, and effect-threaded expressions. Runtime places
   distinguish instances by root identifier and checked field/index path;
-  scope exit releases local roots without reusing their identifiers. Sparse
+  scope exit releases local roots without reusing their identifiers, retaining
+  backing roots still referenced by views passed to the next state. Strings,
+  range slices, `.as_slice`, view indexing and lengths, and the four Console
+  operations have staging execution paths. Views preserve literal, live-place,
+  or existing immutable snapshot backing and expose no assignable place. Sparse
   zero homes avoid eager aggregate allocation but do not establish a complete
-  physical application storage profile. Sum and view execution, remaining
-  Console operations, and exact composition with the complete Omega D source
-  remain incomplete.
+  physical application storage profile. Sum execution, remaining checking and
+  conformance obligations, and exact composition with the complete Omega D
+  source remain incomplete.
 
 Superseded bridge and native-publication experiments remain only in Git
 history. No compatibility owner replaces them. A compact positive/negative
