@@ -8,7 +8,7 @@ use omega_selected_instructions_to_register_homes::{AllocationEvidence, Retained
 /// artifacts so validation can replay every join independently.
 #[derive(Debug)]
 pub struct StagedFixedFrameFunctionRelativeRealization {
-    pub(super) homes: StagedOptimizedRegisterHomes,
+    pub(super) allocation: RetainedAllocation,
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
@@ -22,8 +22,12 @@ pub struct StagedFixedFrameFunctionRelativeRealization {
 }
 
 impl StagedFixedFrameFunctionRelativeRealization {
-    pub const fn homes(&self) -> &StagedOptimizedRegisterHomes {
-        &self.homes
+    pub const fn allocation(&self) -> &RetainedAllocation {
+        &self.allocation
+    }
+    #[cfg(test)]
+    pub(crate) fn allocation_mut(&mut self) -> &mut RetainedAllocation {
+        &mut self.allocation
     }
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         &self.machine

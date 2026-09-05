@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::StagedOptimizedRegisterHomes;
+use omega_selected_instructions_to_register_homes::AllocationOutput;
 use omega_target_to_register_environment::{
     FrameAbiPreservationConvention, selected_abi_preservation,
 };
@@ -29,7 +29,7 @@ pub(super) struct ReplayResult {
 }
 
 pub(super) fn reconstruct(
-    source: &StagedOptimizedRegisterHomes,
+    source: &AllocationOutput<'_>,
     policy: AllocatedCalleeSavedRequirementPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<ReplayResult, AllocatedCalleeSavedRequirementError> {
@@ -38,13 +38,8 @@ pub(super) fn reconstruct(
     {
         return Err(AllocatedCalleeSavedRequirementError::UnsupportedPolicy);
     }
-    let selected_stage = source
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let selected = selected_stage.selected().plan();
-    let environment = selected_stage.register_environment();
+    let selected = source.selected_plan();
+    let environment = source.register_environment();
     let preservation = selected_abi_preservation(environment)
         .map_err(|_| AllocatedCalleeSavedRequirementError::UnsupportedTargetConvention)?;
     if !selected.projected_structural_call_returns.is_empty() {

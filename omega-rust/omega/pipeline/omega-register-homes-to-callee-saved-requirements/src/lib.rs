@@ -8,9 +8,4 @@
 
 mod callee_saved_requirements;
 
-use omega_selected_instructions_to_register_homes::{
-    OptimizedRegisterHomeCustodyError, StagedOptimizedRegisterHomes,
-    validate_optimized_register_home_custody,
-};
-
 pub use callee_saved_requirements::*;

@@ -33,27 +33,23 @@ fn disabled_not_equal_zero_baseline_retains_compare_and_branch_on_both_isas() {
         let realization = (staged).into_fixed_frame_for_test().unwrap_or_else(|| {
             panic!("disabled post-allocation selection must reach fixed-frame custody")
         });
-        let homes = realization.homes();
+        let allocation = realization.allocation().current();
         let machine = realization.machine();
-        let selected = homes
-            .legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage();
+        let selected = allocation.selected();
         let encoding = stage_optimized_layout_independent_selected_form_encoding(
-            selected.selected(),
+            selected,
             machine,
-            selected.register_environment().physical(),
+            allocation.register_environment().physical(),
         )
         .unwrap();
         let layout = stage_optimized_resolved_selected_form_layout(
-            selected.selected(),
+            selected,
             machine,
-            selected.register_environment().physical(),
+            allocation.register_environment().physical(),
             &encoding,
         )
         .unwrap();
-        let entry = &selected.selected().plan().functions[0].blocks[0];
+        let entry = &allocation.selected_plan().functions[0].blocks[0];
         assert_eq!(
             entry.instructions[0].kind,
             SelectedInstructionKind::CompareI64Zero

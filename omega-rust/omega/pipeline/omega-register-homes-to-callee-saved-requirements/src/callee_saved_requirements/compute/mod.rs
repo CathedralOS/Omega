@@ -9,7 +9,8 @@ use std::collections::BTreeSet;
 
 use omega_optimization_core::OptimizationWorkBudget;
 
-use crate::StagedOptimizedRegisterHomes;
+use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_selected_instructions_to_register_homes::AllocationOutput;
 use omega_target_to_register_environment::selected_abi_preservation;
 
 use super::{
@@ -19,7 +20,7 @@ use super::{
 use state::DirectTraversal;
 
 pub(super) fn derive(
-    source: &StagedOptimizedRegisterHomes,
+    source: &AllocationOutput<'_>,
     policy: AllocatedCalleeSavedRequirementPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementError> {
@@ -28,20 +29,11 @@ pub(super) fn derive(
     {
         return Err(AllocatedCalleeSavedRequirementError::UnsupportedPolicy);
     }
-    let selected_stage = source
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let selected = selected_stage.selected();
-    let environment = selected_stage.register_environment();
+    let selected = source.selected();
+    let environment = source.register_environment();
     let homes = source.homes();
     let manifest = source.post_allocation_manifest().record();
-    if source.custody().selected() != selected.receipt().identity()
-        || source.custody().homes() != homes.receipt().identity()
-        || source.custody().post_allocation_manifest() != manifest.identity
-        || source.custody().register_environment() != environment.identity()
-        || manifest.selected != selected.receipt().identity()
+    if manifest.selected != selected.selected_identity()
         || manifest.homes != homes.receipt().identity()
         || manifest.register_environment != environment.identity()
         || manifest.target != environment.target()
@@ -78,7 +70,7 @@ pub(super) fn derive(
         });
     }
     Ok(AllocatedCalleeSavedRequirementPlan {
-        selected: selected.receipt().identity(),
+        selected: selected.selected_identity(),
         homes: homes.receipt().identity(),
         post_allocation_manifest: manifest.identity,
         register_environment: environment.identity(),

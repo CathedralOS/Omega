@@ -1,6 +1,11 @@
 use crate::tests::*;
 use omega_regalloc::ValidatedSelectedAnalysis;
 
+fn callee_saved_budget() -> OptimizationWorkBudget {
+    // Requirement traversal counts every selected operand, unlike rewrite rounds.
+    OptimizationWorkBudget::new(1024, 1024, 1024, 1024, 1024).unwrap()
+}
+
 fn assert_owned_program(
     retained: &omega_selected_instructions_to_register_homes::RetainedAllocation,
 ) {
@@ -27,6 +32,68 @@ fn assert_owned_program(
         retained.program().selected.as_ref()
     );
     assert_eq!(replayed.homes().plan(), retained.program().homes.as_ref());
+    assert_current_callee_saved_requirements(retained);
+}
+
+fn assert_current_callee_saved_requirements(
+    retained: &omega_selected_instructions_to_register_homes::RetainedAllocation,
+) {
+    let policy =
+        AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1;
+    let current = retained.current();
+    let requirements =
+        stage_allocated_callee_saved_requirements(retained, policy, callee_saved_budget()).unwrap();
+    let direct =
+        stage_allocated_callee_saved_requirements(&current, policy, callee_saved_budget()).unwrap();
+    assert_eq!(requirements.plan(), direct.plan());
+    assert_eq!(requirements.receipt(), direct.receipt());
+    assert_eq!(
+        validate_allocated_callee_saved_requirements(retained, direct.plan().clone())
+            .unwrap()
+            .receipt(),
+        direct.receipt()
+    );
+}
+
+#[test]
+fn callee_saved_requirements_reject_edited_current_data_before_derivation_or_replay() {
+    use omega_selected_instructions_to_register_homes::RetainedAllocation;
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        for replace_selected in [false, true] {
+            let mut retained = RetainedAllocation::try_from(baseline(target)).unwrap();
+            let policy = AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1;
+            let requirements =
+                stage_allocated_callee_saved_requirements(&retained, policy, callee_saved_budget())
+                    .unwrap();
+            let mut substituted = retained.program().clone();
+            if replace_selected {
+                std::sync::Arc::make_mut(&mut substituted.selected)
+                    .functions
+                    .clear();
+            } else {
+                std::sync::Arc::make_mut(&mut substituted.homes)
+                    .functions
+                    .clear();
+            }
+            retained.substitute_current_program_for_test(substituted);
+            assert!(matches!(
+                stage_allocated_callee_saved_requirements(&retained, policy, callee_saved_budget()),
+                Err(AllocatedCalleeSavedRequirementError::Upstream(
+                    AllocationReplayError::CurrentProgramMismatch
+                ))
+            ));
+            assert!(matches!(
+                validate_allocated_callee_saved_requirements(
+                    &retained,
+                    requirements.plan().clone()
+                ),
+                Err(AllocatedCalleeSavedRequirementError::Upstream(
+                    AllocationReplayError::CurrentProgramMismatch
+                ))
+            ));
+        }
+    }
 }
 
 fn baseline(target: NativeTarget) -> StagedOptimizedRegisterHomes {
