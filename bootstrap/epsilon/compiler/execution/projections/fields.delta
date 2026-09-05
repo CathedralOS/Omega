@@ -38,27 +38,47 @@
         ((EpsilonNamedType start end name) (EpsilonEvaluatorInternal start))
         ((EpsilonViewType start end element) EpsilonEvaluatorUnsupported)))))
 
+; Arrays and views cannot own record fields. Their contextual length therefore
+; needs no search through unrelated checked record projections. Named records
+; still resolve authored fields named len through the exact expression ledger.
+(def epsilon_runtime_has_contextual_length ((value EpsilonRuntimeValue)) Int
+  (match value
+    ((EpsilonRuntimeInteger scalar) 0)
+    ((EpsilonRuntimeSumValue owner caseValue payloads) 0)
+    ((EpsilonRuntimeViewValue view) 1)
+    ((EpsilonRuntimeAggregate typeValue children)
+      (match typeValue
+        ((EpsilonArrayType start end element lengthValue) 1)
+        ((EpsilonI32Type start end) 0)
+        ((EpsilonU8Type start end) 0)
+        ((EpsilonNeverType start end) 0)
+        ((EpsilonNamedType start end name) 0)
+        ((EpsilonViewType start end element) 0)))))
+
 (def epsilon_evaluator_field_value ((context EpsilonEvaluatorInvocation)
   (expressionValue EpsilonExpression) (member EpsilonName)
   (value EpsilonRuntimeValue) (place EpsilonRuntimeOptionalPlace)
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control receiver blockFloor)
-      (match (epsilon_find_resolved_field_reference expressionValue fieldReferences)
-        (NoEpsilonResolvedFieldReference
-          (if (epsilon_name_is_len source member)
-            (epsilon_evaluator_array_length value store output)
-            (if (epsilon_name_is_as_slice source member)
-              (epsilon_evaluator_as_slice value place store output)
-              EpsilonEvaluatorUnsupported)))
-        ((OneEpsilonResolvedFieldReference owner fieldValue)
-          (match fieldValue
-            ((EpsilonFieldMember start end name typeValue)
-              (epsilon_evaluator_project_value value place
-                (EpsilonRuntimeField owner fieldValue) typeValue store output))
-            ((EpsilonCaseMember start end name payload)
-              (EpsilonEvaluatorInternal start))))))))
+      receiver blockFloor)
+      (if (if (epsilon_name_is_len source member)
+        (epsilon_runtime_has_contextual_length value) 0)
+        (epsilon_evaluator_array_length value store output)
+        (match (epsilon_runtime_find_field_reference expressionValue references)
+          (NoEpsilonResolvedFieldReference
+            (if (epsilon_name_is_len source member)
+              (epsilon_evaluator_array_length value store output)
+              (if (epsilon_name_is_as_slice source member)
+                (epsilon_evaluator_as_slice value place store output)
+                EpsilonEvaluatorUnsupported)))
+          ((OneEpsilonResolvedFieldReference owner fieldValue)
+            (match fieldValue
+              ((EpsilonFieldMember start end name typeValue)
+                (epsilon_evaluator_project_value value place
+                  (EpsilonRuntimeField owner fieldValue) typeValue store output))
+              ((EpsilonCaseMember start end name payload)
+                (EpsilonEvaluatorInternal start)))))))))
 
 (def epsilon_evaluate_field ((context EpsilonEvaluatorInvocation)
   (expressionValue EpsilonExpression) (base EpsilonExpression) (member EpsilonName)

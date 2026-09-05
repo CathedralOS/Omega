@@ -13,7 +13,7 @@
         ((EpsilonResolvedBoundaryMachineCallable owner memberValue)
           (match context
             ((EpsilonEvaluatorInvocationContext source machineValue references
-              fieldReferences callables control currentReceiver blockFloor)
+              currentReceiver blockFloor)
               (epsilon_evaluate_console_effect context
                 (epsilon_console_member_kind source
                   (epsilon_boundary_machine_name memberValue))

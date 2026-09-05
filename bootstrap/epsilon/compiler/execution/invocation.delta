@@ -26,7 +26,7 @@
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control receiver blockRootFloor)
+      receiver blockRootFloor)
       (match machineValue
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
           (match bodyValue
@@ -66,8 +66,9 @@
       ((EpsilonRuntimeAllocated identifier store)
         (epsilon_evaluator_finish_entry
           (epsilon_evaluate_invocation
-            (EpsilonEvaluatorInvocationContext source machineValue references
-              fieldReferences callables control
+            (EpsilonEvaluatorInvocationContext source machineValue
+              (epsilon_runtime_index_references (bytes_length source)
+                references fieldReferences callables control)
               (SomeEpsilonRuntimePlace
                 (EpsilonRuntimePlaceAt identifier NoEpsilonRuntimePath typeValue))
               (epsilon_runtime_next_identifier store))

@@ -1,0 +1,154 @@
+; Synthetic facts expose derivative lookup order, not Epsilon admissions.
+; Each query emits index tag, then linear/indexed tags for local, field, call.
+(def reference_test_call ((end Int)) EpsilonExpression
+  (EpsilonCallExpression 10 end
+    (EpsilonNameExpression 10 11 (EpsilonNameSpan 10 11)) NoEpsilonExpressions))
+
+(def reference_test_local_row ((target EpsilonExpression) (identity Int))
+  EpsilonResolvedLocalReference
+  (EpsilonResolvedLocalReferenceSyntax target
+    (EpsilonMachineParameterLocal
+      (EpsilonParameterSyntax identity (+ identity 1)
+        (EpsilonNameSpan identity (+ identity 1)) (EpsilonI32Type 0 1)))))
+
+(def reference_test_field_row ((target EpsilonExpression) (identity Int))
+  EpsilonResolvedFieldReference
+  (EpsilonResolvedFieldReferenceSyntax target (reference_test_machine)
+    (EpsilonFieldMember identity (+ identity 1)
+      (EpsilonNameSpan identity (+ identity 1)) (EpsilonI32Type 0 1))))
+
+(def reference_test_callable_row ((target EpsilonExpression) (identity Int))
+  EpsilonResolvedCallableReference
+  (EpsilonResolvedCallableReferenceSyntax target
+    (EpsilonResolvedConstructorCallable (reference_test_machine)
+      (EpsilonCaseMember identity (+ identity 1)
+        (EpsilonNameSpan identity (+ identity 1)) NoEpsilonPayload))))
+
+(def reference_test_local_tag ((result EpsilonResolvedLocalReferenceLookup)) Bytes
+  (bytes_single
+    (match result
+      (NoEpsilonResolvedLocalReference 0)
+      ((OneEpsilonResolvedLocalReference binding)
+        (match binding
+          ((EpsilonReceiverLocal name typeValue) 0)
+          ((EpsilonMachineParameterLocal parameterValue)
+            (epsilon_parameter_start parameterValue))
+          ((EpsilonStateParameterLocal parameterValue) 0)
+          ((EpsilonLetLocal name typeValue statementValue) 0)
+          ((EpsilonTransitionBinderLocal patternValue name) 0))))))
+
+(def reference_test_field_tag ((result EpsilonResolvedFieldReferenceLookup)) Bytes
+  (bytes_single
+    (match result
+      (NoEpsilonResolvedFieldReference 0)
+      ((OneEpsilonResolvedFieldReference owner member)
+        (epsilon_data_member_start member)))))
+
+(def reference_test_callable_tag ((result EpsilonResolvedCallableReferenceLookup)) Bytes
+  (bytes_single
+    (match result
+      (NoEpsilonResolvedCallableReference 0)
+      ((OneEpsilonResolvedCallableReference callable)
+        (match callable
+          ((EpsilonResolvedConstructorCallable owner member)
+            (epsilon_data_member_start member))
+          ((EpsilonResolvedDataMachineCallable owner machineValue) 0)
+          ((EpsilonResolvedUnqualifiedMachineCallable machineValue) 0)
+          ((EpsilonResolvedBoundaryMachineCallable owner member) 0))))))
+
+(def reference_test_expression_locals () EpsilonResolvedLocalReferenceList
+  (MoreEpsilonResolvedLocalReferences
+    (reference_test_local_row (EpsilonTrueExpression 10 12) 41)
+    (MoreEpsilonResolvedLocalReferences
+      (reference_test_local_row (reference_test_call 13) 42)
+      (MoreEpsilonResolvedLocalReferences
+        (reference_test_local_row (reference_test_call 12) 21)
+        (MoreEpsilonResolvedLocalReferences
+          (reference_test_local_row (reference_test_call 12) 22)
+          NoEpsilonResolvedLocalReferences)))))
+
+(def reference_test_expression_fields () EpsilonResolvedFieldReferenceList
+  (MoreEpsilonResolvedFieldReferences
+    (reference_test_field_row (EpsilonTrueExpression 10 12) 51)
+    (MoreEpsilonResolvedFieldReferences
+      (reference_test_field_row (reference_test_call 13) 52)
+      (MoreEpsilonResolvedFieldReferences
+        (reference_test_field_row (reference_test_call 12) 31)
+        (MoreEpsilonResolvedFieldReferences
+          (reference_test_field_row (reference_test_call 12) 32)
+          NoEpsilonResolvedFieldReferences)))))
+
+(def reference_test_expression_callables () EpsilonResolvedCallableReferenceList
+  (MoreEpsilonResolvedCallableReferences
+    (reference_test_callable_row (EpsilonTrueExpression 10 12) 61)
+    (MoreEpsilonResolvedCallableReferences
+      (reference_test_callable_row (reference_test_call 13) 62)
+      (MoreEpsilonResolvedCallableReferences
+        (reference_test_callable_row (reference_test_call 12) 41)
+        (MoreEpsilonResolvedCallableReferences
+          (reference_test_callable_row (reference_test_call 12) 42)
+          NoEpsilonResolvedCallableReferences)))))
+
+(def reference_test_expression_query ((target EpsilonExpression)
+  (locals EpsilonResolvedLocalReferenceList)
+  (fields EpsilonResolvedFieldReferenceList)
+  (callables EpsilonResolvedCallableReferenceList)
+  (references EpsilonRuntimeReferences)) Bytes
+  (bytes_concat (reference_test_index_tag references)
+    (bytes_concat
+      (reference_test_local_tag (epsilon_find_resolved_local_reference target locals))
+      (bytes_concat
+        (reference_test_local_tag (epsilon_runtime_find_local_reference target references))
+        (bytes_concat
+          (reference_test_field_tag (epsilon_find_resolved_field_reference target fields))
+          (bytes_concat
+            (reference_test_field_tag (epsilon_runtime_find_field_reference target references))
+            (bytes_concat
+              (reference_test_callable_tag
+                (epsilon_find_resolved_callable_reference_normalized target callables))
+              (reference_test_callable_tag
+                (epsilon_runtime_find_callable_reference_normalized target references)))))))))
+
+; An invalid control row must retain all three original expression ledgers,
+; even though expression insertion completed before control insertion failed.
+(def reference_test_expression_fallback_control () EpsilonControlReferenceLedger
+  (reference_test_control
+    (MoreEpsilonStateApplicationReferences
+      (reference_test_state_row (EpsilonTrueExpression 100 101) 21
+        EpsilonStateApplicationComplete)
+      NoEpsilonStateApplicationReferences)
+    NoEpsilonTransitionSubjectReferences NoEpsilonTransitionPatternReferences))
+
+(def reference_test_expressions () Bytes
+  (let locals EpsilonResolvedLocalReferenceList (reference_test_expression_locals)
+    (let fields EpsilonResolvedFieldReferenceList (reference_test_expression_fields)
+      (let callables EpsilonResolvedCallableReferenceList (reference_test_expression_callables)
+        (let references EpsilonRuntimeReferences
+          (epsilon_runtime_index_references 100 locals fields callables
+            (reference_test_control NoEpsilonStateApplicationReferences
+              NoEpsilonTransitionSubjectReferences NoEpsilonTransitionPatternReferences))
+          (bytes_concat
+            (reference_test_expression_query (reference_test_call 12)
+              locals fields callables references)
+            (bytes_concat
+              (reference_test_expression_query (reference_test_call 13)
+                locals fields callables references)
+              (bytes_concat
+                (reference_test_expression_query (EpsilonTrueExpression 10 12)
+                  locals fields callables references)
+                (bytes_concat
+                  (reference_test_expression_query (reference_test_call 14)
+                    locals fields callables references)
+                  (bytes_concat
+                    (reference_test_expression_query
+                      (EpsilonGroupedExpression 9 14 (reference_test_call 12))
+                      locals fields callables references)
+                    (bytes_concat
+                      (reference_test_expression_query
+                        (EpsilonGroupedExpression 8 15
+                          (EpsilonGroupedExpression 9 14 (reference_test_call 12)))
+                        locals fields callables references)
+                      (reference_test_expression_query (reference_test_call 12)
+                        locals fields callables
+                        (epsilon_runtime_index_references 100 locals fields callables
+                          (reference_test_expression_fallback_control))))))))))))))

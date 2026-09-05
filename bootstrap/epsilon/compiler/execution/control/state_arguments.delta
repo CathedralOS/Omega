@@ -5,7 +5,7 @@
   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorBlockOutcome
   (match context
     ((EpsilonEvaluatorInvocationContext source machineValue references
-      fieldReferences callables control receiver blockRootFloor)
+      receiver blockRootFloor)
       (if (eq (epsilon_declaration_end machineValue)
               (epsilon_declaration_end targetMachine))
         (match machineValue

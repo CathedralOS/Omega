@@ -48,8 +48,15 @@ constructor argument rules. The previous checker fails 13 of these 22 exact
 observations; grouping and opposite operand orders prevent an implementation
 from merely suppressing coordinate ties.
 
-`receipt.tsv` records the measured 676,611-byte checker receipt with SHA-256
-`82851cb90224e4c4722fa189023b3b40f82b753e26e825aad74716adfa2d96e3`.
-Every gate run reconstructs this exact receipt before comparing the 38 complete
+Ten pattern controls retain terminal-local identity ownership across machine
+entries and states, including wildcard-only boundaries. Nonadjacent scalar
+aliases and repeated sum cases still reject; owner compatibility, payload arity,
+earlier child errors, and after-`never` suppression keep their exact precedence.
+The checker searches only the current terminal's contiguous prepended pattern
+facts for duplicates. It retains the complete program ledger for later consumers.
+
+`receipt.tsv` records the measured 694,560-byte checker receipt with SHA-256
+`74699dae6cea1e68e482208f78d22e5576c99c0b65c8e7178494374c665d567c`.
+Every gate run reconstructs this exact receipt before comparing the 48 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.

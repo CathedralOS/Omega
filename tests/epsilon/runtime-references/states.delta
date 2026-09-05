@@ -1,0 +1,92 @@
+; These synthetic ledgers test the derivative index, not CheckEpsilon admission.
+; Distinct state coordinates make first/last-match selection observable.
+(def reference_test_machine () EpsilonDeclaration
+  (EpsilonMachineDeclaration 0 100
+    (EpsilonUnqualifiedName 0 1 (EpsilonNameSpan 0 1))
+    (NoEpsilonMachineInputs 1 2) NoEpsilonType
+    (EpsilonMachineBodySyntax 2 100 NoEpsilonStatements NoEpsilonTerminal
+      NoEpsilonStates)))
+
+(def reference_test_state ((identity Int)) EpsilonState
+  (EpsilonStateSyntax identity (+ identity 1)
+    (EpsilonNameSpan identity (+ identity 1)) NoEpsilonParameters
+    (EpsilonStateBodySyntax identity (+ identity 1)
+      NoEpsilonStatements NoEpsilonTerminal)))
+
+(def reference_test_state_row ((target EpsilonExpression) (identity Int)
+  (progress EpsilonStateApplicationProgress)) EpsilonStateApplicationReference
+  (EpsilonStateApplicationReferenceSyntax target (reference_test_machine)
+    (reference_test_state identity) progress))
+
+(def reference_test_state_tag ((result EpsilonStateApplicationReferenceLookup)) Bytes
+  (bytes_single
+    (match result
+      (NoEpsilonStateApplicationReference 0)
+      ((OneEpsilonStateApplicationReference machineValue stateValue progress)
+        (match stateValue
+          ((EpsilonStateSyntax start end name parameters body)
+            (match progress
+              (EpsilonStateApplicationResolved start)
+              (EpsilonStateApplicationComplete (+ 100 start)))))))))
+
+(def reference_test_control ((states EpsilonStateApplicationReferenceList)
+  (subjects EpsilonTransitionSubjectReferenceList)
+  (patterns EpsilonTransitionPatternReferenceList)) EpsilonControlReferenceLedger
+  (EpsilonControlReferenceLedgerSyntax states subjects patterns
+    NoEpsilonTransitionCoverageReferences))
+
+(def reference_test_index ((extent Int) (control EpsilonControlReferenceLedger))
+  EpsilonRuntimeReferences
+  (epsilon_runtime_index_references extent NoEpsilonResolvedLocalReferences
+    NoEpsilonResolvedFieldReferences NoEpsilonResolvedCallableReferences control))
+
+(def reference_test_index_tag ((references EpsilonRuntimeReferences)) Bytes
+  (bytes_single
+    (match references
+      ((IndexedEpsilonRuntimeReferences extent tree) 1)
+      ((LinearEpsilonRuntimeReferences original) 0))))
+
+(def reference_test_state_query ((target EpsilonExpression)
+  (rows EpsilonStateApplicationReferenceList) (extent Int)) Bytes
+  (let references EpsilonRuntimeReferences
+    (reference_test_index extent (reference_test_control rows
+      NoEpsilonTransitionSubjectReferences NoEpsilonTransitionPatternReferences))
+    (bytes_concat (reference_test_index_tag references)
+      (bytes_concat
+        (reference_test_state_tag (epsilon_find_state_application_reference target rows))
+        (reference_test_state_tag (epsilon_runtime_find_state_application target references))))))
+
+(def reference_test_states () Bytes
+  (let target EpsilonExpression (EpsilonTrueExpression 10 11)
+    (let resolved EpsilonStateApplicationReferenceList
+      (MoreEpsilonStateApplicationReferences
+        (reference_test_state_row target 21 EpsilonStateApplicationResolved)
+        (MoreEpsilonStateApplicationReferences
+          (reference_test_state_row target 22 EpsilonStateApplicationResolved)
+          NoEpsilonStateApplicationReferences))
+      (let mixed EpsilonStateApplicationReferenceList
+        (MoreEpsilonStateApplicationReferences
+          (reference_test_state_row target 31 EpsilonStateApplicationResolved)
+          (MoreEpsilonStateApplicationReferences
+            (reference_test_state_row target 32 EpsilonStateApplicationComplete)
+            (MoreEpsilonStateApplicationReferences
+              (reference_test_state_row target 33 EpsilonStateApplicationComplete)
+              resolved)))
+        (let collisions EpsilonStateApplicationReferenceList
+          (MoreEpsilonStateApplicationReferences
+            (reference_test_state_row (EpsilonFalseExpression 10 11) 41
+              EpsilonStateApplicationComplete)
+            (MoreEpsilonStateApplicationReferences
+              (reference_test_state_row (EpsilonTrueExpression 10 12) 42
+                EpsilonStateApplicationComplete)
+              mixed))
+          (bytes_concat (reference_test_state_query target resolved 100)
+            (bytes_concat (reference_test_state_query target mixed 100)
+              (bytes_concat (reference_test_state_query target collisions 100)
+                (bytes_concat
+                  (reference_test_state_query (EpsilonTrueExpression 10 12) collisions 100)
+                  (bytes_concat
+                    (reference_test_state_query (EpsilonTrueExpression 10 13) collisions 100)
+                    (bytes_concat
+                      (reference_test_state_query target collisions 11)
+                      (reference_test_state_query target collisions -1))))))))))))

@@ -22,10 +22,10 @@
     ((EpsilonEvaluatorParametersBound bindings nextStore)
       (match context
         ((EpsilonEvaluatorInvocationContext source machineValue references
-          fieldReferences callables control currentReceiver blockFloor)
+          currentReceiver blockFloor)
           (epsilon_evaluate_invocation
             (EpsilonEvaluatorInvocationContext source targetMachine references
-              fieldReferences callables control receiver
+              receiver
               (epsilon_runtime_next_identifier nextStore))
             bindings nextStore output))))))
 

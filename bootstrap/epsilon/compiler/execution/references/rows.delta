@@ -1,0 +1,68 @@
+; Each typed input is reversed once, then prepended at its coordinate bucket.
+; This preserves the original lookup order, not merely the set of facts.
+
+(def epsilon_runtime_index_local_rows ((extent Int)
+  (remaining EpsilonResolvedLocalReferenceList) (tree EpsilonRuntimeReferenceTree))
+  EpsilonRuntimeReferenceInsertion
+  (match remaining
+    (NoEpsilonResolvedLocalReferences (InsertedEpsilonRuntimeReference tree))
+    ((MoreEpsilonResolvedLocalReferences row rest)
+      (match row
+        ((EpsilonResolvedLocalReferenceSyntax expressionValue bindingValue)
+          (match (epsilon_runtime_insert_reference (EpsilonRuntimeLocalReference row)
+            (epsilon_expression_start expressionValue)
+            (epsilon_expression_end expressionValue) extent tree)
+            (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+            ((InsertedEpsilonRuntimeReference updated)
+              (epsilon_runtime_index_local_rows extent rest updated))))))))
+
+(def epsilon_runtime_index_field_rows ((extent Int)
+  (remaining EpsilonResolvedFieldReferenceList) (tree EpsilonRuntimeReferenceTree))
+  EpsilonRuntimeReferenceInsertion
+  (match remaining
+    (NoEpsilonResolvedFieldReferences (InsertedEpsilonRuntimeReference tree))
+    ((MoreEpsilonResolvedFieldReferences row rest)
+      (match row
+        ((EpsilonResolvedFieldReferenceSyntax expressionValue owner member)
+          (match (epsilon_runtime_insert_reference (EpsilonRuntimeFieldReference row)
+            (epsilon_expression_start expressionValue)
+            (epsilon_expression_end expressionValue) extent tree)
+            (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+            ((InsertedEpsilonRuntimeReference updated)
+              (epsilon_runtime_index_field_rows extent rest updated))))))))
+
+(def epsilon_runtime_index_callable_rows ((extent Int)
+  (remaining EpsilonResolvedCallableReferenceList) (tree EpsilonRuntimeReferenceTree))
+  EpsilonRuntimeReferenceInsertion
+  (match remaining
+    (NoEpsilonResolvedCallableReferences (InsertedEpsilonRuntimeReference tree))
+    ((MoreEpsilonResolvedCallableReferences row rest)
+      (match row
+        ((EpsilonResolvedCallableReferenceSyntax expressionValue callable)
+          (match (epsilon_runtime_insert_reference (EpsilonRuntimeCallableReference row)
+            (epsilon_expression_start expressionValue)
+            (epsilon_expression_end expressionValue) extent tree)
+            (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+            ((InsertedEpsilonRuntimeReference updated)
+              (epsilon_runtime_index_callable_rows extent rest updated))))))))
+
+(def epsilon_runtime_index_reference_rows ((extent Int)
+  (original EpsilonRuntimeReferenceBucket)) EpsilonRuntimeReferenceInsertion
+  (match original
+    ((EpsilonRuntimeReferenceBucketAt locals fields callables control)
+      (match (epsilon_runtime_index_local_rows extent
+        (epsilon_reverse_resolved_local_references locals NoEpsilonResolvedLocalReferences)
+        EmptyEpsilonRuntimeReferenceTree)
+        (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+        ((InsertedEpsilonRuntimeReference localTree)
+          (match (epsilon_runtime_index_field_rows extent
+            (epsilon_reverse_resolved_field_references fields NoEpsilonResolvedFieldReferences)
+            localTree)
+            (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+            ((InsertedEpsilonRuntimeReference fieldTree)
+              (match (epsilon_runtime_index_callable_rows extent
+                (epsilon_reverse_resolved_callable_references callables
+                  NoEpsilonResolvedCallableReferences) fieldTree)
+                (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+                ((InsertedEpsilonRuntimeReference callableTree)
+                  (epsilon_runtime_index_control_rows extent control callableTree))))))))))

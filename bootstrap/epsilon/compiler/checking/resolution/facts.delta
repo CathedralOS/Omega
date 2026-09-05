@@ -252,7 +252,7 @@
       control types candidate)
       (match control
         ((EpsilonControlReferenceLedgerSyntax states subjects patterns coverages)
-          (epsilon_transition_pattern_identity_is_owned terminalValue identity
+          (epsilon_current_transition_prefix_owns_identity terminalValue identity
             patterns))))))
 
 (def epsilon_local_scan_add_transition_coverage ((terminalValue EpsilonTerminal)

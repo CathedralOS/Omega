@@ -1,0 +1,20 @@
+; Prepare one runtime index after checking. Invalid construction preserves all
+; original query ledgers, including incomplete control facts, in a linear view.
+; Coverage remains a checking judgment and has no runtime lookup.
+(def epsilon_runtime_index_references ((extent Int)
+  (locals EpsilonResolvedLocalReferenceList)
+  (fields EpsilonResolvedFieldReferenceList)
+  (callables EpsilonResolvedCallableReferenceList)
+  (control EpsilonControlReferenceLedger)) EpsilonRuntimeReferences
+  (match control
+    ((EpsilonControlReferenceLedgerSyntax states subjects patterns coverages)
+      (let original EpsilonRuntimeReferenceBucket
+        (EpsilonRuntimeReferenceBucketAt locals fields callables
+          (EpsilonRuntimeControlBucketAt states subjects patterns))
+        (if (lt extent 0)
+          (LinearEpsilonRuntimeReferences original)
+          (match (epsilon_runtime_index_reference_rows extent original)
+            (InvalidEpsilonRuntimeReferenceInsertion
+              (LinearEpsilonRuntimeReferences original))
+            ((InsertedEpsilonRuntimeReference tree)
+              (IndexedEpsilonRuntimeReferences extent tree))))))))
