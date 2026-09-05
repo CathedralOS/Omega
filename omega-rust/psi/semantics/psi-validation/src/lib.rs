@@ -39,6 +39,7 @@ mod quotients;
 mod recasts;
 mod relevance;
 mod result_overloads;
+mod slice_ranking;
 mod state_signatures;
 mod struct_literals;
 mod symbols;
@@ -68,6 +69,7 @@ pub use crate::content_conservation::{
 pub use crate::content_projections::build_content_projection_plans;
 use crate::contract_entailment::validate_machine_contract_entailment;
 pub use crate::declaration_visibility::validate_declaration_visibility;
+pub use crate::slice_ranking::slice_tail_strictly_decreases;
 
 pub use crate::data::data_requires_establishment;
 use crate::data::validate_data_field_types;

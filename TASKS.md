@@ -76,6 +76,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `source/library/core/seq.omg` supplies recursive sequence data but no Bag
   definition or slice extraction. Preserve the multiset-equality sample and
   its false twin; do not replace extraction with spelling-based proof atoms.
+  Extraction equations additionally need structural proof terms for indexed
+  values and subslices, retaining exact source place, index/window, and live
+  revision. Equal lengths or display strings cannot establish equal contents.
 
   Source cases that write text buffers by index or transport nominal fields
   through collections also need `NOMINAL-FIELD-FLOW` below; their default-field

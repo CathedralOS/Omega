@@ -12,6 +12,8 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+mod slices;
+
 /// PROOF-MACHINE recursion legality (math roster N2d gateway). A free
 /// machine over proof-only data emits no runtime code, so the tail-only
 /// rule does not apply (no frame survives anything) -- structural recursion
@@ -22,9 +24,9 @@ use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionT
 /// case-payload SUBTERM of the measure -- a pattern binding like
 /// `transition n { Nat::Succ { prev } -> .. double(prev) .. }` lowers
 /// `prev` to the case-tagged member read `n.prev`, so the test is "a Member
-/// chain (>= 1 hop) rooted at the measure parameter". Anything else refuses
-/// with the shape named; the arithmetic bridge (n > 0 => n == Succ(n - 1))
-/// is the recorded follow-on.
+/// chain (>= 1 hop) rooted at the measure parameter". Guarded integer
+/// predecessors and nonempty slice tails also establish decrease under their
+/// corresponding ranking views. Unsupported edges remain unproved.
 /// COMPUTED-SUBJECT strict decrease by CITATION (N4 order rung, slice a2,
 /// design-ruled 2026-07-17): a recursive proof machine whose measure
 /// argument is an application (`mod(saturating_sub(a, b), b)` at measure `a`) proves
@@ -642,6 +644,14 @@ pub(crate) fn validate_proof_machine_recursion(
                     measure_symbol,
                     measure_name.as_ref(),
                 )
+                || slices::guarded_slice_tail_call(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    argument,
+                    measure_position,
+                )
         });
         if !descends {
             diagnostics.push(Diagnostic::error(format!(
@@ -649,7 +659,8 @@ pub(crate) fn validate_proof_machine_recursion(
                  decreases at this self-call: the call does not prove a strict \
                  predecessor of ranking subject `{}`. Pass a case-payload subterm \
                  (`Nat::Succ {{ prev }} -> .. {entry_name}(prev)`) or, for an integer \
-                 measure, `n - 1` in the taken value of its dominating `n > 0` arm",
+                 measure, `n - 1` in the taken value of its dominating `n > 0` arm; \
+                 a slice-length measure admits `items[1..]` under its own nonempty guard",
                 measure_name
                     .as_ref()
                     .map(|name| name.as_str())

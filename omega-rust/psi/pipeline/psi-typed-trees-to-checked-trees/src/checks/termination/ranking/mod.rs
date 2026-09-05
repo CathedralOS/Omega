@@ -513,7 +513,14 @@ fn component_has_proven_decrease(
     if single_state_self_loop {
         return edges.iter().all(|edge| {
             states.get(edge.from).is_some_and(|source| {
-                state_has_proven_supported_self_loop(program, source, measure, order, orientation)
+                state_has_proven_supported_self_loop(
+                    program,
+                    machine,
+                    source,
+                    measure,
+                    order,
+                    orientation,
+                )
             })
         });
     }
@@ -580,6 +587,7 @@ fn cycle_edge_strictly_decreases(
 
 fn state_has_proven_supported_self_loop(
     program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     measure: DecreaseMeasure,
     order: &RankingOrder,
@@ -597,7 +605,7 @@ fn state_has_proven_supported_self_loop(
             _,
         ) => nat::state_has_proven_self_loop(program, state, measure, orientation),
         (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) => {
-            slice::state_has_proven_self_loop(program, state, decreases)
+            slice::state_has_proven_self_loop(program, machine, state, decreases)
         }
         (RankingOrder::CustomStructView(field), DecreaseMeasure::Single(decreases)) => {
             struct_view::state_has_proven_self_loop(program, state, decreases, field)

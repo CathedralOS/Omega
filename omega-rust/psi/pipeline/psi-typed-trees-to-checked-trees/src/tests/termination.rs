@@ -5,6 +5,7 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 mod crash_routes;
 mod data_facts;
 mod operational_contracts;
+mod proof_slices;
 mod ranking;
 mod write_frame_aggregate_arguments;
 mod write_frame_aggregate_results;

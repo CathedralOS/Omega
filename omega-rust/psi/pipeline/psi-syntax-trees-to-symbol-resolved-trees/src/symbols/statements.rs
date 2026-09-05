@@ -4,6 +4,7 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::SymbolTable;
 
 use self::routing::assign_statement_symbols;
+use super::expressions::{assign_expression_span_symbols, assign_statement_expression_symbols};
 use super::scope::MachineScope;
 
 pub(super) fn assign_statement_reference_symbols(
@@ -42,7 +43,9 @@ pub(super) fn assign_statement_reference_symbols(
         let psi_symbol_resolved_trees::machine::MachineStorage {
             owned_data,
             satisfies: _,
-            ranking_subjects: _,
+            ranking_subjects,
+            ranking_view_arguments,
+            ranking_range,
             ranking_view: _,
             contracts: _,
             states,
@@ -59,6 +62,33 @@ pub(super) fn assign_statement_reference_symbols(
             data_definitions,
             data_members,
         };
+        // Ranking expressions belong to the entry signature, not a later
+        // statement or a same-spelled parameter in another state. Resolve
+        // their retained handles before proof/termination consumers use them.
+        if let Some(entry) = machine_state_handles.span_or_empty(*states).first() {
+            let entry = machine_states.get(*entry);
+            let parameters = state_parameters.span_or_empty(entry.parameters);
+            for expressions in [*ranking_subjects, *ranking_view_arguments] {
+                assign_expression_span_symbols(
+                    symbols,
+                    &machine_scope,
+                    parameters,
+                    entry.symbol,
+                    expression_table,
+                    child_type_references,
+                    expressions,
+                );
+            }
+            assign_statement_expression_symbols(
+                symbols,
+                &machine_scope,
+                parameters,
+                entry.symbol,
+                expression_table,
+                child_type_references,
+                *ranking_range,
+            );
+        }
         for state in machine_state_handles.span_or_empty(*states).iter().copied() {
             let state = machine_states.get_mut(state);
             let state_symbol = state.symbol;
