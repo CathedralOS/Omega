@@ -86,6 +86,13 @@ closing parentheses anchor at exact EOF; unmatched closing parentheses anchor
 at their own byte. A separate iterative worklist checks declaration, binder,
 type-name, expression, and pattern roles. Offending children anchor at their
 start, and missing children at the containing closing parenthesis.
+Grammar work entries also retain expression level. Function bodies start at 1;
+expression children, including atoms and match arm bodies, advance by one.
+Declarations, parameters, and patterns do not add levels. Before a level-1,025
+expression's own grammar judgment, D30's selected 1,024-level `parse_depth`
+profile produces an exact `Incomplete` frame: code 8, source coordinate at that
+node's start, limit 1,024, requested 1,025. Complete balanced parsing remains
+earlier, and the refusal is not a Delta syntax error.
 Only after the complete structural grammar passes does collection consume the
 retained program. Collection records every type,
 constructor, and function identity, constructor counts, representation shape,
@@ -210,10 +217,12 @@ duplicate type/constructor/function identity (6/7/8), local and pattern conflict
 duplicate and nonexhaustive match cases (17/18), missing `main` (19), and
 application schema mismatch (20).
 Missing `main` has no source coordinate; a schema mismatch
-anchors at the entry name. Compiler-owned resource accounting and internal
-failure publication remain open. Expression emission still follows checked
+anchors at the entry name. Source-byte and expression `parse_depth` refusals
+have owned resource frames; other compiler-owned resource accounting and
+internal failure publication remain open. Expression emission still follows checked
 source coordinates, and its nesting behavior is not established by the retained
-frontend. Underlying evaluator failures on those paths are not DCOUT. These
+frontend, including for inputs inside the 1,024-level profile. Underlying
+evaluator failures on those paths are not DCOUT. These
 frontend diagnostics do not establish final edge closure.
 Calls emitted in tail position remain in Gamma tail position through
 `if`, `let`, and lowered `match`; the selected evaluator executes a 100,000-node
@@ -230,7 +239,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-2,771-line / 117,889-byte canonical entry plus shared Gamma implementation
+2,785-line / 118,673-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

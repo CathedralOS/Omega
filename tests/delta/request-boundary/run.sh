@@ -33,7 +33,7 @@ identity = (
     len(compiler.splitlines()), len(compiler), hashlib.sha256(compiler).hexdigest()
 )
 if identity != (
-    2771, 117889, "747e0bb0e70eb25b0b7625f1cb55fb9b04a29cac15bca27eb11e971f6ea2bae6"
+    2785, 118673, "12fb13c46f3c39e5e3104b8c59cfeaa1ef6b552dc6ca19f5e4559cfe48404eef"
 ):
     raise SystemExit(f"Delta compiler identity changed: {identity}")
 

@@ -56,8 +56,8 @@
           (grammar_queue_node 2 (first tail)
             (grammar_queue_node 5 (grammar_child_at tail 1)
               (grammar_queue_node 4 (grammar_child_at tail 2)
-                (grammar_queue_node 1 (grammar_child_at tail 3)
-                  (pair 0 0)))))))
+                (grammar_queue_node_at_depth 1 (grammar_child_at tail 3)
+                  1 (pair 0 0)))))))
       shape)))
 
 (def grammar_parameters ((node Int) (work Int)) Int

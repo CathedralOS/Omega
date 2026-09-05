@@ -16,7 +16,7 @@ body yields source incompleteness without reading that body, and profile 2
 remains retired. A truncated fixed header reports its first missing byte even
 when an earlier available header byte is incorrect.
 
-The implemented source-owned outcomes are:
+The implemented request-admission outcomes are:
 
 | Tag | Code | Meaning | Request coordinate | Limit/requested |
 | --- | --- | --- | --- | --- |
@@ -74,6 +74,24 @@ child anchors at the encountered closing delimiter; an unfinished form anchors
 at exact source EOF. Empty and data-only programs lack the required function
 declaration and reject at source EOF. These are explicit phase and coordinate
 rules, not a claim that every frontend category chooses the smallest offset.
+
+Grammar also accounts for D30's `parse_depth` resource. A function body starts
+at expression level 1; each expression child, including an atom, is one level
+deeper. Match subjects and arm bodies are children of the match expression;
+declarations, parameter lists, patterns, and arm wrappers add no levels. Before
+judging an expression's grammar, the worklist refuses level 1,025 with halt/tag
+2 (`Incomplete`), code 8, coordinate space 1, that node's start, limit 1,024,
+and requested 1,025. The check precedes grammar judgment and expansion, not
+retained-node or queue-entry allocation. This is a compiler-profile refusal,
+not invalid Delta.
+It follows complete balanced parsing and the preceding grammar work: a later
+unmatched delimiter still precedes depth refusal, and a previously encountered
+grammar defect is not replaced by a depth failure at a later node.
+
+This expression-level accounting is distinct from parenthesis nesting in the
+generic parser and from the selected Gamma evaluator's physical heap or stack.
+It does not establish full syntax-arena accounting or successful emission for
+every input within the selected depth limit.
 
 Function/constructor applications, constructor patterns, and recognized
 arithmetic/Bytes call-like heads retain their argument lists for semantic arity
@@ -142,8 +160,9 @@ historical table is recoverable at
 detached table participates in execution. D125 removes profile 2, not the
 request-failure identities.
 
-Canonical frontend rejection is not full DCOUT or Delta-edge closure. Later
-resource/internal outcomes do not yet carry compiler-owned evidence, and
+Canonical frontend rejection and the owned source-byte/parse-depth refusals
+are not full DCOUT or Delta-edge closure. Other resource/internal outcomes do
+not yet carry compiler-owned evidence, and
 expression emission still traverses checked source coordinates with unfinished
 depth/resource guarantees. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.

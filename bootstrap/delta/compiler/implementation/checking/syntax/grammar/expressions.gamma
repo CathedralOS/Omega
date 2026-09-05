@@ -1,11 +1,11 @@
-(def grammar_expression ((node Int) (work Int)) Int
+(def grammar_expression ((node Int) (depth Int) (work Int)) Int
   (if (eq (syntax_count node) -1)
     (grammar_expression_atom node work)
     (let shape Int (grammar_minimum_count node 1)
       (if (eq (first shape) 0)
         (let head Int (first (syntax_children node))
           (if (eq (syntax_count head) -1)
-            (grammar_expression_head node head work)
+            (grammar_expression_head node head depth work)
             (grammar_reject head)))
         shape))))
 
@@ -25,20 +25,20 @@
                 (value_name_valid start after))))
           (if valid (compiler_complete work) (grammar_reject node)))))))
 
-(def grammar_expression_head ((node Int) (head Int) (work Int)) Int
+(def grammar_expression_head ((node Int) (head Int) (depth Int) (work Int)) Int
   (let start Int (syntax_start head)
     (let after Int (syntax_after head)
       (if (token_if start after)
-        (grammar_if node work)
+        (grammar_if node depth work)
         (if (token_let start after)
-          (grammar_let node work)
+          (grammar_let node depth work)
           (if (token_match start after)
-            (grammar_match node work)
-            (grammar_application node head work)))))))
+            (grammar_match node depth work)
+            (grammar_application node head depth work)))))))
 
 ; Call-like heads retain all argument nodes. Their semantic arity is not
 ; converted into syntax rejection by this structural grammar phase.
-(def grammar_application ((node Int) (head Int) (work Int)) Int
+(def grammar_application ((node Int) (head Int) (depth Int) (work Int)) Int
   (let start Int (syntax_start head)
     (let after Int (syntax_after head)
       (let valid Int
@@ -53,33 +53,35 @@
                 (if (token_eq start after) 1 (token_lt start after))))))
         (if valid
           (compiler_complete
-            (grammar_queue_nodes 1 (- (syntax_count node) 1)
-              (second (syntax_children node)) work))
+            (grammar_queue_nodes_at_depth 1 (- (syntax_count node) 1)
+              (second (syntax_children node)) (+ depth 1) work))
           (grammar_reject head))))))
 
-(def grammar_if ((node Int) (work Int)) Int
+(def grammar_if ((node Int) (depth Int) (work Int)) Int
   (let shape Int (grammar_exact_count node 4)
     (if (eq (first shape) 0)
       (compiler_complete
-        (grammar_queue_nodes 1 3 (second (syntax_children node)) work))
+        (grammar_queue_nodes_at_depth 1 3
+          (second (syntax_children node)) (+ depth 1) work))
       shape)))
 
-(def grammar_let ((node Int) (work Int)) Int
+(def grammar_let ((node Int) (depth Int) (work Int)) Int
   (let shape Int (grammar_exact_count node 5)
     (if (eq (first shape) 0)
       (let tail Int (second (syntax_children node))
         (compiler_complete
           (grammar_queue_node 2 (first tail)
             (grammar_queue_node 4 (grammar_child_at tail 1)
-              (grammar_queue_nodes 1 2 (second (second tail)) work)))))
+              (grammar_queue_nodes_at_depth 1 2
+                (second (second tail)) (+ depth 1) work)))))
       shape)))
 
-(def grammar_match ((node Int) (work Int)) Int
+(def grammar_match ((node Int) (depth Int) (work Int)) Int
   (let shape Int (grammar_minimum_count node 3)
     (if (eq (first shape) 0)
       (let tail Int (second (syntax_children node))
         (compiler_complete
-          (grammar_queue_node 1 (first tail)
-            (grammar_queue_nodes 8 (- (syntax_count node) 2)
-              (second tail) work))))
+          (grammar_queue_node_at_depth 1 (first tail) (+ depth 1)
+            (grammar_queue_nodes_at_depth 8 (- (syntax_count node) 2)
+              (second tail) depth work))))
       shape)))
