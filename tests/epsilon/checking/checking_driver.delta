@@ -1,0 +1,20 @@
+; Private checker diagnostics, not a final evaluator observation envelope.
+; Accepted: 00. Rejected: closed reason byte + u32 offset. Internal: ff + offset.
+(def epsilon_checking_diagnostic_offset ((offset Int)) Bytes
+  (bytes_concat
+    (bytes_concat
+      (bytes_single (% offset 256))
+      (bytes_single (% (/ offset 256) 256)))
+    (bytes_concat
+      (bytes_single (% (/ offset 65536) 256))
+      (bytes_single (% (/ offset 16777216) 256)))))
+
+(def main ((source Bytes)) Bytes
+  (match (epsilon_check_through_body source)
+    ((EpsilonLocalResolutionAccepted resolved) (bytes_single 0))
+    ((EpsilonLocalResolutionRejected reasonValue errorOffset)
+      (bytes_concat (bytes_single (epsilon_reject_reason_identity reasonValue))
+        (epsilon_checking_diagnostic_offset errorOffset)))
+    ((EpsilonLocalResolutionInternal errorOffset)
+      (bytes_concat (bytes_single 255)
+        (epsilon_checking_diagnostic_offset errorOffset)))))

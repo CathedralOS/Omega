@@ -42,8 +42,8 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,188 lines / 564,044 bytes, SHA-256
-`444aa8c6eb7392fa07c84fda68e9deecb875aa5356b2a6ac284f2036589a0b38`.
+The packed evaluator is 11,201 lines / 564,884 bytes, SHA-256
+`6771e44e15ccb8543f483ede4a4fe27e7c46c1948f40681ff1a25f20594161d8`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
@@ -56,6 +56,7 @@ From the repository root:
 sh tests/bootstrap/source-closure.sh
 sh tools/bootstrap/check-chain-hygiene.sh
 sh tests/epsilon/delta-boundary-experiment/run.sh
+sh tests/epsilon/checking/run.sh
 sh tests/epsilon/interpreted-omega-experiment/run.sh
 sh tests/delta/staged-compiler/run.sh
 ```

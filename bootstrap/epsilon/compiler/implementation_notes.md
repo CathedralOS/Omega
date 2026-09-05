@@ -327,6 +327,13 @@ continuation start without entering the state-application ledger. That branch
 is implemented. D53's machine-continuation exit effects are implemented as
 local block facts and require no reachability pass.
 
+An invalid noncallable application has no result fact to propagate through
+outer grouping. Transition admission therefore inspects its ungrouped call
+shape and the completed base result before deriving `InvalidControlTarget`.
+The rejection keeps the authored continuation start, including an outer `(`;
+grouping cannot turn a rejected target into an accepted continuation. An
+unresolved base still supplies no inferred target failure.
+
 Each complete transition subject is retained once as scalar `i32` or one exact
 nominal sum owner after the ordinary result category relation. Pattern
 resolution is source-shaped and independent across arms: scalar selectors have
@@ -399,7 +406,13 @@ returns. Explicit absence/value relations use D37's exact anchors and category
 premises without resolving the expression twice. A source-shaped statement
 flow fact retains a successful standalone `never` result, diagnoses its first
 following executable construct at the exact terminating delimiter, and still
-visits every later authored child. D53's five-effect carrier settles local
+visits every later authored child. A transition after `never` therefore still
+checks its subject expression, patterns, and continuation expressions, but
+derives neither transition-subject admission nor sum coverage: those parent
+judgments require an open statement sequence. A complete record-valued subject
+cannot displace the transition's `InvalidTerminal` with a parent `TypeMismatch`;
+an independent unknown child name still contributes its own `UnknownName`.
+D53's five-effect carrier settles local
 falloff, explicit returns, machine continuations, `never` calls, and state
 transfers without a reachability/fixed-point pass. Remaining transition/control
 candidates still require the rest of the D37 premise DAG. The completed body
