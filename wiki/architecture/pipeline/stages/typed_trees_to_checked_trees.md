@@ -881,9 +881,33 @@ Current ownership is:
   caller prefix. Public demand also validates a prefix with incoming carriers
   even when it has no alias-bearing local declarations, so earlier slot
   replacement cannot preserve a stale parameter-relative frame.
-  Immediate-literal payload projections that need contextual active-case
-  evidence and aggregate call results still need general origin transfer;
-  passing an aggregate by value does not erase its mutable references.
+  An aggregate-valued internal helper call derives its returned leaves from
+  the same state transfer and aggregate walker. Its exact checked-body target,
+  argument count, and normalized result type must agree. One final expression
+  or unconditional value transition supplies the result; earlier transitions
+  and alternate or named result routes still need graph-level relations.
+  The transfer validates the entire body, including terminal operand effects
+  and reference-slot replacement fences, before freezing result leaves against
+  local aliases and stored carriers. Each exclusive leaf must originate in an
+  exclusive-reference formal with owned referent storage; callee-private leaves
+  cannot disappear as an empty caller footprint. Actual arguments and attached
+  receivers instantiate those formal origins with exact field suffixes or
+  absorbing collection precision. Empty selected cases retain their evidence.
+  The body-recursion guard ends before caller-argument substitution, so finite
+  repeated calls are not confused with recursive result bodies. A consumer
+  frame likewise guards only its body, not caller actuals; a result
+  producer may invoke that consumer without forming a body-recursion cycle.
+  The helper's writes remain producer effects, separate from a later
+  consumer's footprint.
+  Lifetime-only nominal applications use the same declared field structure;
+  lifetime checking retains their region arguments, and actual type-generic
+  carriers still require substitution before this analysis can inspect them.
+  This result evidence is storage information, not loan or lifetime authority.
+  Owned-carrier formal sources still need structural reference-boundary evidence
+  and returned-leaf loan transfer: a coarse array path cannot distinguish a
+  private owned element field from a sibling reference field. Immediate-literal
+  payload projections that need contextual active-case evidence likewise remain
+  unfinished. Passing an aggregate by value does not erase its references.
   The same restriction applies to exclusive references to
   reference-bearing carriers; primitive slices retain their collection reach.
   A rejected trait-receiver call stays opaque through every fallback consumer,

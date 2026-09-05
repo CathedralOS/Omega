@@ -7,6 +7,7 @@ mod data_facts;
 mod operational_contracts;
 mod ranking;
 mod write_frame_aggregate_arguments;
+mod write_frame_aggregate_results;
 mod write_frame_array_literal_projection;
 mod write_frame_assignment_values;
 mod write_frame_boundary_arguments;

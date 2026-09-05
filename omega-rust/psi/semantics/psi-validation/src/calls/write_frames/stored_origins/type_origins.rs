@@ -1,6 +1,7 @@
 //! Type-derived symbolic origins for owned aggregate values. Cases are possible,
 //! not selected by a constructor; arrays retain one unknown-element selector.
 
+use super::super::isolation::concrete_nominal_type;
 use super::{FramePathPrecision, FramePlaceOrigin, StoredLocalOrigins, StoredWriteOrigin};
 use psi_facts::PlaceSegment;
 use psi_symbols::{SymbolHandle, SymbolKind};
@@ -80,12 +81,13 @@ pub(super) fn declared_origins(
                     pending.push((*element_type, segments, visiting));
                 }
             }
-            TypeReferenceNode::Named { symbol, .. } => {
+            node if concrete_nominal_type(node).is_some() => {
+                let (symbol, _) = concrete_nominal_type(node)?;
                 let definition = program
                     .data_definitions()
                     .iter()
-                    .find(|definition| definition.symbol == *symbol)?;
-                if program.symbols.get(*symbol).kind != SymbolKind::Data
+                    .find(|definition| definition.symbol == symbol)?;
+                if program.symbols.get(symbol).kind != SymbolKind::Data
                     || !definition.type_parameters.is_empty()
                 {
                     return None;
@@ -151,7 +153,10 @@ pub(in crate::calls::write_frames) fn demand_is_declared(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => pending.push((*base_type, suffix)),
             TypeReferenceNode::Reference { referee, .. } => pending.push((*referee, suffix)),
-            TypeReferenceNode::Named { symbol, .. } => {
+            node if concrete_nominal_type(node).is_some() => {
+                let Some((symbol, _)) = concrete_nominal_type(node) else {
+                    continue;
+                };
                 let Some(suffix) = suffix.strip_prefix('.') else {
                     continue;
                 };
@@ -159,7 +164,7 @@ pub(in crate::calls::write_frames) fn demand_is_declared(
                 let Some(definition) = program
                     .data_definitions()
                     .iter()
-                    .find(|definition| definition.symbol == *symbol)
+                    .find(|definition| definition.symbol == symbol)
                 else {
                     continue;
                 };

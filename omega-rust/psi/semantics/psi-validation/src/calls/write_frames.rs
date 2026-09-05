@@ -16,6 +16,7 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TableCall, TransitionTargetNode};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod aggregate_results;
 mod alias_bindings;
 mod assignment_targets;
 mod boundary_calls;
@@ -239,8 +240,7 @@ fn known_call_written_paths_for_parts_with_origins(
     if active_states.contains(&callee_state.symbol) {
         return None;
     }
-    active_states.push(callee_state.symbol);
-    let result = summarize_resolved_call(
+    summarize_resolved_call(
         program,
         current_machine,
         arguments,
@@ -252,9 +252,7 @@ fn known_call_written_paths_for_parts_with_origins(
         active_states,
         argument_origins,
         complete_state_summaries,
-    );
-    active_states.pop();
-    result
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -288,6 +286,7 @@ fn summarize_resolved_call(
     let parameters = program.state_parameters(callee_state);
     let mut written = Vec::new();
 
+    active_states.push(callee_state.symbol);
     let relative_paths = summarize_state_written_paths(
         program,
         callee_machine,
@@ -304,8 +303,12 @@ fn summarize_resolved_call(
             symbols,
             active_states,
         )
-    })?;
-    for relative in relative_paths {
+    });
+    active_states.pop();
+    // Actual expressions run in the caller, not recursively inside this
+    // callee body. A producer may call this same consumer in a finite tree;
+    // only enclosing body guards belong to that actual's origin proof.
+    for relative in relative_paths? {
         for instantiated in instantiate_written_path_with_origins(
             program,
             caller_machine,

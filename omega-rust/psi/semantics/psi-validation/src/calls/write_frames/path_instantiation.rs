@@ -80,7 +80,12 @@ pub(super) fn instantiate_written_path_with_origins(
         if matches!(
             program.expression_table.expression(argument),
             ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
-        ) {
+        ) || (matches!(
+            program.expression_table.expression(argument),
+            ExpressionNode::Call(_)
+        ) && !super::type_reference_is_reference(program, parameter.type_reference)
+            && !super::type_is_caller_isolated_local(program, parameter.type_reference))
+        {
             return aggregate_arguments::written_paths(
                 program,
                 caller_machine,

@@ -16,7 +16,6 @@ use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::StateParameter;
 use psi_typed_trees::state::State;
-use psi_typed_trees::types::TypeReferenceNode;
 
 pub(super) fn rebase_local_alias_path(
     relative: &str,
@@ -104,8 +103,11 @@ pub(super) fn expression_reborrows_stable_alias_binding(
             let (root, suffix) = split_place_root(&place.path);
             suffix.is_empty()
                 && (parameters.iter().any(|parameter| {
-                    matches!(program.type_reference_table.type_reference(parameter.type_reference),
-                        TypeReferenceNode::Reference { access, .. } if access.is_exclusive())
+                    super::reference_origins::exclusive_reference_referee(
+                        program,
+                        parameter.type_reference,
+                    )
+                    .is_some()
                         && (parameter.is_self && root == "self" || root == parameter.name.as_str())
                 }) || aliases.iter().any(|(name, _)| root == name))
         })
