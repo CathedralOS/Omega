@@ -353,7 +353,10 @@ pub(super) fn emit_scalar_binding(
     emit_direct_call_operation(
         call,
         &call.crash_continuations,
-        parameters,
+        match call.crash_scope {
+            ScalarCallCrashScope::CallerValues => parameters,
+            ScalarCallCrashScope::Arguments => &arguments,
+        },
         parameters,
         &arguments,
         next_value_identity,

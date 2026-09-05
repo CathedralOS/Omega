@@ -11,6 +11,13 @@ pub(super) struct ScalarBindings {
 }
 
 impl ScalarBindings {
+    pub(super) fn for_computation_operands(offset: usize, count: usize) -> Self {
+        Self {
+            immutable: (offset..offset + count).collect(),
+            storage: Vec::new(),
+        }
+    }
+
     pub(super) fn new(parameters: usize) -> Self {
         Self {
             immutable: (0..parameters).collect(),
@@ -154,7 +161,7 @@ impl ScalarBindings {
                     && expression.statement_ordinal == statement
                     && expression.role == role
             });
-        let mut expression = expressions
+        let expression = expressions
             .next()
             .ok_or(LoweringError::Unsupported(
                 "scalar computation lost its checked expression",
@@ -164,6 +171,14 @@ impl ScalarBindings {
         if expressions.next().is_some() {
             return unsupported("scalar computation has duplicate checked expressions");
         }
+        self.expression(&expression)
+    }
+
+    pub(super) fn expression(
+        &self,
+        expression: &CheckedScalarExpression,
+    ) -> Result<LoweredDirectExpression, LoweringError> {
+        let mut expression = expression.clone();
         self.scalar(&mut expression)?;
         lower_checked_scalar_expression(&expression)
     }

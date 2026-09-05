@@ -3,7 +3,15 @@
 use super::*;
 
 mod branch_destinations;
+mod computations;
 mod storage;
+
+pub(super) fn checked_scalar_computation_call_targets(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
+    computations::call_targets(checked, machine)
+}
 
 fn merge_known_parameters<T: Copy + Eq>(
     current: &mut Option<Vec<Option<T>>>,
@@ -265,10 +273,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         .then_some(states.len());
     let lowered_state_count = states.len() + usize::from(return_sink.is_some());
     let mut lowered_states = Vec::with_capacity(lowered_state_count);
-    let mut successors = vec![Vec::new(); lowered_state_count];
-    let mut indegree = vec![0usize; lowered_state_count];
+    let mut computations = computations::Expansion::new(checked, machine, lowered_state_count);
 
-    for (state_index, state) in states.iter().enumerate() {
+    for state in states {
         if terminal_scalar_type(state.result_type)? != result_type {
             return unsupported("scalar graph state result types must match exactly");
         }
@@ -444,6 +451,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         &scalar_bindings,
                         result_type,
                         return_sink,
+                        &mut computations,
                     )?;
                 let (when_false_target, when_false_arguments) =
                     branch_destinations::lower_destination(
@@ -455,14 +463,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         &scalar_bindings,
                         result_type,
                         return_sink,
+                        &mut computations,
                     )?;
-                successors[state_index] = vec![when_true_target, when_false_target];
-                indegree[when_true_target] = indegree[when_true_target]
-                    .checked_add(1)
-                    .expect("source state count fits usize");
-                indegree[when_false_target] = indegree[when_false_target]
-                    .checked_add(1)
-                    .expect("source state count fits usize");
                 LoweredScalarBranchTerminator::Conditional {
                     condition,
                     when_true_target,
@@ -484,11 +486,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     &value_types,
                     successor,
                     &scalar_bindings,
+                    &mut computations,
                 )?;
-                successors[state_index] = vec![target];
-                indegree[target] = indegree[target]
-                    .checked_add(1)
-                    .expect("source state count fits usize");
                 LoweredScalarBranchTerminator::Jump { target, arguments }
             }
         };
@@ -515,13 +514,33 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         });
     }
 
+    lowered_states.extend(computations.finish());
+    let successors = lowered_states
+        .iter()
+        .map(|state| match &state.terminator {
+            LoweredScalarBranchTerminator::Jump { target, .. } => vec![*target],
+            LoweredScalarBranchTerminator::Conditional {
+                when_true_target,
+                when_false_target,
+                ..
+            } => vec![*when_true_target, *when_false_target],
+            _ => Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let mut indegree = vec![0usize; lowered_states.len()];
+    for target in successors.iter().flatten() {
+        let Some(degree) = indegree.get_mut(*target) else {
+            return unsupported("scalar computation successor is outside its graph");
+        };
+        *degree += 1;
+    }
     if indegree[0] != 0 || indegree[1..].contains(&0) {
         return unsupported(
             "scalar graph control must be rooted at the machine entry and reach every state",
         );
     }
-    let mut visited = vec![false; lowered_state_count];
-    let mut active = vec![false; lowered_state_count];
+    let mut visited = vec![false; lowered_states.len()];
+    let mut active = vec![false; lowered_states.len()];
     validate_scalar_graph(0, &successors, &mut visited, &mut active)?;
     if visited.iter().any(|visited| !*visited) {
         return unsupported("scalar graph control contains an unreachable state");
@@ -560,7 +579,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 machine,
                 result_type,
                 expected_value,
-                has_crash,
+                // A published crash clause is a ceiling, not a requirement
+                // that the body retain a reachable crash. Checked selection
+                // can eliminate every crashing RHS while preserving that API.
+                has_crash || closed_scalar_contract_plan(checked, machine)?.has_crash_clauses(),
             )?)
         }
     } else {
@@ -599,6 +621,48 @@ fn lower_checked_direct_call_binding(
     caller_value_types: &[ScalarType],
     scalar_bindings: &storage::ScalarBindings,
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
+    let arguments = (0..argument_count)
+        .map(|argument_ordinal| {
+            scalar_bindings.expression_at(
+                checked,
+                caller_state,
+                statement_ordinal,
+                CheckedScalarExpressionRole::CallArgument {
+                    binding_ordinal,
+                    argument_ordinal,
+                },
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    lower_scalar_call(
+        checked,
+        caller_machine,
+        caller_state,
+        statement_ordinal,
+        target_machine,
+        target_state,
+        call_ordinal,
+        result_type,
+        caller_value_types,
+        arguments,
+        ScalarCallCrashScope::CallerValues,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_scalar_call(
+    checked: &CheckedTrees,
+    caller_machine: symbols::SymbolHandle,
+    caller_state: symbols::SymbolHandle,
+    statement_ordinal: u32,
+    target_machine: symbols::SymbolHandle,
+    target_state: symbols::SymbolHandle,
+    call_ordinal: u32,
+    result_type: ScalarType,
+    caller_value_types: &[ScalarType],
+    arguments: Vec<LoweredDirectExpression>,
+    crash_scope: ScalarCallCrashScope,
+) -> Result<LoweredDirectCallBinding, LoweringError> {
     let target_graph = checked
         .facts
         .flow
@@ -619,36 +683,17 @@ fn lower_checked_direct_call_binding(
     if terminal_scalar_type(target_entry.result_type)? != result_type {
         return unsupported("direct scalar call result type must match its local binding");
     }
-    if usize::try_from(argument_count).ok() != Some(target_entry.parameter_types.len()) {
+    if arguments.len() != target_entry.parameter_types.len() {
         return unsupported("direct scalar call argument count must match the callee signature");
     }
-    let arguments = target_entry
-        .parameter_types
-        .iter()
-        .enumerate()
-        .map(|(argument_index, target_type)| {
-            let argument_ordinal = u32::try_from(argument_index).map_err(|_| {
-                LoweringError::Unsupported("scalar call argument count exceeds u32")
-            })?;
-            let expression = scalar_bindings.expression_at(
-                checked,
-                caller_state,
-                statement_ordinal,
-                CheckedScalarExpressionRole::CallArgument {
-                    binding_ordinal,
-                    argument_ordinal,
-                },
-            )?;
-            let target_type = terminal_scalar_type(*target_type)?;
-            if expression.scalar_type() != target_type {
-                return unsupported(
-                    "checked scalar call argument type must match its callee parameter",
-                );
-            }
-            validate_direct_parameter_types(&expression, caller_value_types)?;
-            Ok(expression)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    for (expression, target_type) in arguments.iter().zip(&target_entry.parameter_types) {
+        if expression.scalar_type() != terminal_scalar_type(*target_type)? {
+            return unsupported(
+                "checked scalar call argument type must match its callee parameter",
+            );
+        }
+        validate_direct_parameter_types(expression, caller_value_types)?;
+    }
     let checked_call = checked
         .facts
         .contract_plans
@@ -677,7 +722,14 @@ fn lower_checked_direct_call_binding(
     {
         return unsupported("checked scalar call target contract identity disagrees");
     }
-    if checked_call.surviving_buckets().iter().any(|bucket| {
+    // Computed arguments have already become values. Bind the pinned callee
+    // routes to those values, as ordinary staged calls do, rather than trying
+    // to turn their effectful source expressions into pure caller predicates.
+    let crash_continuations = match crash_scope {
+        ScalarCallCrashScope::CallerValues => checked_call.surviving_buckets(),
+        ScalarCallCrashScope::Arguments => target_contract.crash.published(),
+    };
+    if crash_continuations.iter().any(|bucket| {
         bucket.alternative_guards().iter().any(|guard| {
             matches!(guard, checked_trees::CrashRouteGuard::Predicate(predicate)
                 if predicate.scalar_expression().is_none())
@@ -697,7 +749,8 @@ fn lower_checked_direct_call_binding(
         target_machine,
         result_type,
         arguments,
-        crash_continuations: checked_call.surviving_buckets().to_vec(),
+        crash_continuations: crash_continuations.to_vec(),
+        crash_scope,
         parameter_relative_crash_routes: target_contract.crash.published().to_vec(),
     })
 }
@@ -709,6 +762,7 @@ fn lower_scalar_graph_successor(
     source_value_types: &[ScalarType],
     successor: &CheckedScalarSuccessor,
     scalar_bindings: &storage::ScalarBindings,
+    computations: &mut computations::Expansion<'_>,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
     let target = states
         .iter()
@@ -721,6 +775,16 @@ fn lower_scalar_graph_successor(
         return unsupported(
             "scalar graph successor bindings must match the target parameter count",
         );
+    }
+    if let Some(entry) = computations.successor(
+        source_state,
+        successor,
+        scalar_bindings,
+        source_value_types,
+        target,
+        target_parameter_types,
+    )? {
+        return Ok((entry, computations::parameters(source_value_types)));
     }
     let arguments = (0..successor.argument_count)
         .zip(target_parameter_types)
