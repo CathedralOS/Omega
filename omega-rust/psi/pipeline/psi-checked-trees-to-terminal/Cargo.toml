@@ -27,6 +27,7 @@ psi-validation = { path = "../../semantics/psi-validation" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+psi-syntax-trees = { path = "../../representations/psi-syntax-trees" }
 psi-source-files-to-tokens = { path = "../psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../psi-syntax-trees-to-symbol-resolved-trees" }
