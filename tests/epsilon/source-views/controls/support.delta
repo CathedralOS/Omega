@@ -1,0 +1,30 @@
+; Test framing and observation only; source meaning belongs to the checker.
+(def source_view_test_u32 ((value Int)) Bytes
+  (bytes_concat
+    (bytes_concat (bytes_single (% value 256))
+      (bytes_single (% (/ value 256) 256)))
+    (bytes_concat (bytes_single (% (/ value 65536) 256))
+      (bytes_single (% (/ value 16777216) 256)))))
+
+(def source_view_test_read_u32 ((input Bytes) (start Int)) Int
+  (+ (+ (bytes_get input start) (* (bytes_get input (+ start 1)) 256))
+    (+ (* (bytes_get input (+ start 2)) 65536)
+      (* (bytes_get input (+ start 3)) 16777216))))
+
+; Raw-wrapper fixtures need a Bytes payload after the private mode byte. The
+; constructed-view route also uses this ordinary Delta copier to vary backing.
+(def source_view_test_copy ((input Bytes) (start Int) (end Int)) Bytes
+  (if (eq start end) (bytes_empty)
+    (if (eq (+ start 1) end) (bytes_single (bytes_get input start))
+      (let middle Int (+ start (/ (- end start) 2))
+        (bytes_concat (source_view_test_copy input start middle)
+          (source_view_test_copy input middle end))))))
+
+(def source_view_test_observe ((outcome EpsilonLocalResolutionOutcome)) Bytes
+  (match outcome
+    ((EpsilonLocalResolutionAccepted resolved) (bytes_single 0))
+    ((EpsilonLocalResolutionRejected reasonValue offset)
+      (bytes_concat (bytes_single (epsilon_reject_reason_identity reasonValue))
+        (source_view_test_u32 offset)))
+    ((EpsilonLocalResolutionInternal offset)
+      (bytes_concat (bytes_single 255) (source_view_test_u32 offset)))))

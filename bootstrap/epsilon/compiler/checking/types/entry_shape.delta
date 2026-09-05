@@ -1,45 +1,45 @@
 
 ; ---- D56 reserved entry shape -------------------------------------------
 
-(def epsilon_name_is_exit_process ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_name_is_exit_process ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (if (eq (- end start) 12)
         (if (epsilon_span_is_8 source start (+ start 8)
               101 120 105 116 95 112 114 111)
-          (if (eq (bytes_get source (+ start 8)) 99)
-            (if (eq (bytes_get source (+ start 9)) 101)
-              (if (eq (bytes_get source (+ start 10)) 115)
-                (eq (bytes_get source (+ start 11)) 115)
+          (if (eq (epsilon_source_byte source (+ start 8)) 99)
+            (if (eq (epsilon_source_byte source (+ start 9)) 101)
+              (if (eq (epsilon_source_byte source (+ start 10)) 115)
+                (eq (epsilon_source_byte source (+ start 11)) 115)
                 0)
               0)
             0)
           0)
         0))))
 
-(def epsilon_name_is_write_byte ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_name_is_write_byte ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (epsilon_span_is_10 source start end
         119 114 105 116 101 95 98 121 116 101))))
 
-(def epsilon_name_is_read_byte ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_name_is_read_byte ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (if (eq (- end start) 9)
         (if (epsilon_span_is_8 source start (+ start 8)
               114 101 97 100 95 98 121 116)
-          (eq (bytes_get source (+ start 8)) 101)
+          (eq (epsilon_source_byte source (+ start 8)) 101)
           0)
         0))))
 
-(def epsilon_name_is_write_line ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_name_is_write_line ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (epsilon_span_is_10 source start end
         119 114 105 116 101 95 108 105 110 101))))
 
-(def epsilon_console_member_kind ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_console_member_kind ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (if (epsilon_name_is_exit_process source nameValue) 1
     (if (epsilon_name_is_write_byte source nameValue) 2
       (if (epsilon_name_is_read_byte source nameValue) 3
@@ -54,7 +54,7 @@
     ((EpsilonArrayType start end element lengthValue) 0)
     ((EpsilonViewType start end element) 0)))
 
-(def epsilon_type_is_console ((source Bytes) (typeValue EpsilonType)) Int
+(def epsilon_type_is_console ((source EpsilonSourceView) (typeValue EpsilonType)) Int
   (match typeValue
     ((EpsilonI32Type start end) 0)
     ((EpsilonU8Type start end) 0)
@@ -143,7 +143,7 @@
             0)
           0)))))
 
-(def epsilon_console_members_candidate ((source Bytes)
+(def epsilon_console_members_candidate ((source EpsilonSourceView)
   (machines EpsilonBoundaryMachineList) (extent Int)
   (seenExit Int) (seenWriteByte Int) (seenReadByte Int) (seenWriteLine Int))
   EpsilonTypeFormationCandidate
@@ -176,7 +176,7 @@
                     (if (eq kind 3) 1 seenReadByte)
                     (if (eq kind 4) 1 seenWriteLine)))))))))))
 
-(def epsilon_console_declarations_candidate ((source Bytes)
+(def epsilon_console_declarations_candidate ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList) (extent Int) (seenConsole Int))
   EpsilonTypeFormationCandidate
   (match declarations
@@ -211,7 +211,7 @@
               ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
                 seenConsole))))))))
 
-(def epsilon_main_members_candidate ((source Bytes)
+(def epsilon_main_members_candidate ((source EpsilonSourceView)
   (members EpsilonDataMemberList) (extent Int) (seenConsole Int))
   EpsilonTypeFormationCandidate
   (match members
@@ -240,7 +240,7 @@
             (epsilon_main_members_candidate source rest extent
               (if isConsole 1 seenConsole))))))))
 
-(def epsilon_main_declarations_candidate ((source Bytes)
+(def epsilon_main_declarations_candidate ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList) (extent Int) (seenMain Int))
   EpsilonTypeFormationCandidate
   (match declarations
@@ -289,7 +289,7 @@
         (epsilon_return_is_none returnType)
         0))))
 
-(def epsilon_entry_declarations_candidate ((source Bytes)
+(def epsilon_entry_declarations_candidate ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList) (extent Int) (seenEntry Int))
   EpsilonTypeFormationCandidate
   (match declarations
@@ -321,9 +321,9 @@
             (epsilon_entry_declarations_candidate source rest extent
               (if isEntry 1 seenEntry))))))))
 
-(def epsilon_entry_shape_candidate ((source Bytes)
+(def epsilon_entry_shape_candidate ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList)) EpsilonTypeFormationCandidate
-  (let extent Int (bytes_length source)
+  (let extent Int (epsilon_source_length source)
     (if (epsilon_declarations_have_entry_name source declarations)
       (epsilon_type_formation_candidate_min
         (epsilon_console_declarations_candidate source declarations extent 0)

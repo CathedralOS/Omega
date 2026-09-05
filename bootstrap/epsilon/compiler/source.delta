@@ -1,0 +1,29 @@
+; Validate the window before forming it. Subtraction follows origin admission,
+; so neither an overflowing endpoint nor bytes outside the source can admit it.
+(def epsilon_source_view ((backing Bytes) (origin Int) (length Int))
+  EpsilonSourceViewOutcome
+  (if (lt origin 0) InvalidEpsilonSourceView
+    (if (lt length 0) InvalidEpsilonSourceView
+      (let available Int (bytes_length backing)
+        (if (lt available origin) InvalidEpsilonSourceView
+          (if (lt (- available origin) length) InvalidEpsilonSourceView
+            (ValidEpsilonSourceView
+              (EpsilonSourceViewAt backing origin length))))))))
+
+(def epsilon_source_whole ((backing Bytes)) EpsilonSourceView
+  (EpsilonSourceViewAt backing 0 (bytes_length backing)))
+
+(def epsilon_source_length ((source EpsilonSourceView)) Int
+  (match source
+    ((EpsilonSourceViewAt backing origin length) length)))
+
+; All consumers use factory-established views. Validate the relative index
+; before addition, retaining ordinary Delta Bytes failure on an invalid read.
+; No dummy byte, input-header byte, or sealed stdin byte substitutes for it.
+(def epsilon_source_byte ((source EpsilonSourceView) (index Int)) Int
+  (match source
+    ((EpsilonSourceViewAt backing origin length)
+      (if (lt index 0) (bytes_get (bytes_empty) 0)
+        (if (lt index length)
+          (bytes_get backing (+ origin index))
+          (bytes_get (bytes_empty) 0))))))

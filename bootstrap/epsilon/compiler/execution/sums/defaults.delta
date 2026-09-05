@@ -1,7 +1,7 @@
 
 ; A sparse named zero acquires its first case only when a checked sum owner is
 ; available. Payload arrays and nested named values keep their lazy zero homes.
-(def epsilon_runtime_normalize_sum ((source Bytes) (owner EpsilonDeclaration)
+(def epsilon_runtime_normalize_sum ((source EpsilonSourceView) (owner EpsilonDeclaration)
   (value EpsilonRuntimeValue)) EpsilonRuntimeValueLookup
   (match owner
     ((EpsilonBoundaryDeclaration start end name machines)

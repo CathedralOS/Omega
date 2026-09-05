@@ -1,0 +1,12 @@
+; Modes select test framing, not alternative language semantics.
+(def main ((input Bytes)) Bytes
+  (if (eq (bytes_length input) 0) (bytes_single 253)
+    (let mode Int (bytes_get input 0)
+      (if (eq mode 0) (source_view_test_check_raw input)
+        (if (eq mode 1) (source_view_test_check_window input 0)
+          (if (eq mode 2) (source_view_test_check_window input 1)
+            (if (eq mode 3) (source_view_test_extents input)
+              (if (eq mode 4) (source_view_test_invalid_index input 0 -1)
+                (if (eq mode 5) (source_view_test_invalid_index input 0 3)
+                  (if (eq mode 6) (source_view_test_invalid_index input 1 0)
+                    (bytes_single 253)))))))))))

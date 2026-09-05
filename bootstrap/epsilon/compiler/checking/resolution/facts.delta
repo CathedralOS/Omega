@@ -18,7 +18,7 @@
             (OneEpsilonExpressionResult resultValue)
             (epsilon_find_expression_result target rest)))))))
 
-(def epsilon_binder_parameter_type ((source Bytes) (target EpsilonName)
+(def epsilon_binder_parameter_type ((source EpsilonSourceView) (target EpsilonName)
   (names EpsilonNameList) (parameters EpsilonParameterList))
   EpsilonLocalBindingTypeLookup
   (match names
@@ -34,7 +34,7 @@
             (epsilon_binder_parameter_type source target restNames
               restParameters)))))))
 
-(def epsilon_transition_binder_type ((source Bytes) (patternValue EpsilonPattern)
+(def epsilon_transition_binder_type ((source EpsilonSourceView) (patternValue EpsilonPattern)
   (target EpsilonName) (control EpsilonControlReferenceLedger))
   EpsilonLocalBindingTypeLookup
   (match (epsilon_control_find_complete_transition_pattern patternValue control)
@@ -57,7 +57,7 @@
                   (epsilon_binder_parameter_type source target names
                     (epsilon_resolved_sum_case_parameters caseValue)))))))))))
 
-(def epsilon_local_binding_type ((source Bytes)
+(def epsilon_local_binding_type ((source EpsilonSourceView)
   (bindingValue EpsilonLocalBinding) (control EpsilonControlReferenceLedger))
   EpsilonLocalBindingTypeLookup
   (match bindingValue
@@ -76,7 +76,7 @@
     ((EpsilonTransitionBinderLocal patternValue name)
       (epsilon_transition_binder_type source patternValue name control))))
 
-(def epsilon_local_scan_binding_type ((source Bytes)
+(def epsilon_local_scan_binding_type ((source EpsilonSourceView)
   (bindingValue EpsilonLocalBinding) (scan EpsilonLocalResolutionScan))
   EpsilonLocalBindingTypeLookup
   (match scan

@@ -25,46 +25,46 @@
     ((MoreEpsilonDataMembers item rest)
       (epsilon_reverse_data_members rest (MoreEpsilonDataMembers item output)))))
 
-(def epsilon_return_type_reject_at ((source Bytes) (cursor Int)) EpsilonReturnTypeParseOutcome
+(def epsilon_return_type_reject_at ((source EpsilonSourceView) (cursor Int)) EpsilonReturnTypeParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonReturnTypeParseRejected UnexpectedEnd start)
       (EpsilonReturnTypeParseRejected UnexpectedToken start))))
 
-(def epsilon_boundary_machine_reject_at ((source Bytes)
+(def epsilon_boundary_machine_reject_at ((source EpsilonSourceView)
   (cursor Int)) EpsilonBoundaryMachineParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonBoundaryMachineParseRejected UnexpectedEnd start)
       (EpsilonBoundaryMachineParseRejected UnexpectedToken start))))
 
-(def epsilon_boundary_machine_list_reject_at ((source Bytes)
+(def epsilon_boundary_machine_list_reject_at ((source EpsilonSourceView)
   (cursor Int)) EpsilonBoundaryMachineListParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonBoundaryMachineListParseRejected UnexpectedEnd start)
       (EpsilonBoundaryMachineListParseRejected UnexpectedToken start))))
 
-(def epsilon_data_member_reject_at ((source Bytes) (cursor Int)) EpsilonDataMemberParseOutcome
+(def epsilon_data_member_reject_at ((source EpsilonSourceView) (cursor Int)) EpsilonDataMemberParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonDataMemberParseRejected UnexpectedEnd start)
       (EpsilonDataMemberParseRejected UnexpectedToken start))))
 
-(def epsilon_data_member_list_reject_at ((source Bytes)
+(def epsilon_data_member_list_reject_at ((source EpsilonSourceView)
   (cursor Int)) EpsilonDataMemberListParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonDataMemberListParseRejected UnexpectedEnd start)
       (EpsilonDataMemberListParseRejected UnexpectedToken start))))
 
-(def epsilon_declaration_reject_at ((source Bytes) (cursor Int)) EpsilonDeclarationParseOutcome
+(def epsilon_declaration_reject_at ((source EpsilonSourceView) (cursor Int)) EpsilonDeclarationParseOutcome
   (let start Int (epsilon_token_start source cursor)
-    (if (eq start (bytes_length source))
+    (if (eq start (epsilon_source_length source))
       (EpsilonDeclarationParseRejected UnexpectedEnd start)
       (EpsilonDeclarationParseRejected UnexpectedToken start))))
 
-(def epsilon_parse_optional_return_type ((source Bytes)
+(def epsilon_parse_optional_return_type ((source EpsilonSourceView)
   (cursor Int)) EpsilonReturnTypeParseOutcome
   (let arrowStart Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source arrowStart) 42)
@@ -78,7 +78,7 @@
               (epsilon_type_end typeValue)))))
       (EpsilonReturnTypeParsed NoEpsilonType arrowStart))))
 
-(def epsilon_finish_boundary_machine ((source Bytes) (machineStart Int)
+(def epsilon_finish_boundary_machine ((source EpsilonSourceView) (machineStart Int)
   (nameStart Int) (nameEnd Int) (parameters EpsilonParameterList)
   (cursor Int)) EpsilonBoundaryMachineParseOutcome
   (let returnOutcome EpsilonReturnTypeParseOutcome (epsilon_parse_optional_return_type source cursor)
@@ -94,7 +94,7 @@
                   (EpsilonNameSpan nameStart nameEnd) parameters returnType)))
             (epsilon_boundary_machine_reject_at source afterReturn)))))))
 
-(def epsilon_parse_boundary_machine ((source Bytes)
+(def epsilon_parse_boundary_machine ((source EpsilonSourceView)
   (cursor Int)) EpsilonBoundaryMachineParseOutcome
   (let machineStart Int (epsilon_token_start source cursor)
     (if (eq (epsilon_token_code source machineStart) 14)
@@ -118,7 +118,7 @@
             (epsilon_token_end source machineStart))))
       (epsilon_boundary_machine_reject_at source cursor))))
 
-(def epsilon_parse_boundary_machines ((source Bytes) (cursor Int)
+(def epsilon_parse_boundary_machines ((source EpsilonSourceView) (cursor Int)
   (accumulator EpsilonBoundaryMachineList)) EpsilonBoundaryMachineListParseOutcome
   (let start Int (epsilon_token_start source cursor)
     (let code Int (epsilon_token_code source start)
@@ -139,7 +139,7 @@
                     (MoreEpsilonBoundaryMachines machineValue accumulator)))))
             (epsilon_boundary_machine_list_reject_at source start)))))))
 
-(def epsilon_parse_boundary_declaration ((source Bytes)
+(def epsilon_parse_boundary_declaration ((source EpsilonSourceView)
   (cursor Int)) EpsilonDeclarationParseOutcome
   (let declarationStart Int (epsilon_token_start source cursor)
     (let traitStart Int (epsilon_token_start source
@@ -166,7 +166,7 @@
         (epsilon_declaration_reject_at source
           (epsilon_token_end source declarationStart))))))
 
-(def epsilon_finish_field_member ((source Bytes) (nameStart Int) (nameEnd Int)
+(def epsilon_finish_field_member ((source EpsilonSourceView) (nameStart Int) (nameEnd Int)
   (cursor Int)) EpsilonDataMemberParseOutcome
   (let typeOutcome EpsilonTypeParseOutcome (epsilon_parse_type source cursor)
     (match typeOutcome
@@ -181,7 +181,7 @@
                   (EpsilonNameSpan nameStart nameEnd) typeValue)))
             (epsilon_data_member_reject_at source (epsilon_type_end typeValue))))))))
 
-(def epsilon_parse_field_member ((source Bytes) (cursor Int)) EpsilonDataMemberParseOutcome
+(def epsilon_parse_field_member ((source EpsilonSourceView) (cursor Int)) EpsilonDataMemberParseOutcome
   (let nameStart Int (epsilon_token_start source cursor)
     (let nameEnd Int (epsilon_token_end source nameStart)
       (let colonStart Int (epsilon_token_start source nameEnd)
@@ -190,7 +190,7 @@
             (epsilon_token_end source colonStart))
           (epsilon_data_member_reject_at source nameEnd))))))
 
-(def epsilon_finish_case_member ((source Bytes) (caseStart Int)
+(def epsilon_finish_case_member ((source EpsilonSourceView) (caseStart Int)
   (nameStart Int) (nameEnd Int) (payload EpsilonOptionalPayload)
   (cursor Int)) EpsilonDataMemberParseOutcome
   (let semiStart Int (epsilon_token_start source cursor)
@@ -201,7 +201,7 @@
             (EpsilonNameSpan nameStart nameEnd) payload)))
       (epsilon_data_member_reject_at source cursor))))
 
-(def epsilon_parse_case_payload ((source Bytes) (caseStart Int)
+(def epsilon_parse_case_payload ((source EpsilonSourceView) (caseStart Int)
   (nameStart Int) (nameEnd Int) (openStart Int)) EpsilonDataMemberParseOutcome
   (let parametersOutcome EpsilonParameterListParseOutcome
     (epsilon_parse_parameters_acc source (epsilon_token_end source openStart)
@@ -214,7 +214,7 @@
           (epsilon_finish_case_member source caseStart nameStart nameEnd
             (SomeEpsilonPayload openStart closeEnd parameters) closeEnd))))))
 
-(def epsilon_parse_case_member ((source Bytes) (cursor Int)) EpsilonDataMemberParseOutcome
+(def epsilon_parse_case_member ((source EpsilonSourceView) (cursor Int)) EpsilonDataMemberParseOutcome
   (let caseStart Int (epsilon_token_start source cursor)
     (let nameStart Int (epsilon_token_start source (epsilon_token_end source caseStart))
       (if (eq (epsilon_token_code source nameStart) 1)
@@ -228,7 +228,7 @@
         (epsilon_data_member_reject_at source
           (epsilon_token_end source caseStart))))))
 
-(def epsilon_parse_data_member ((source Bytes) (cursor Int)) EpsilonDataMemberParseOutcome
+(def epsilon_parse_data_member ((source EpsilonSourceView) (cursor Int)) EpsilonDataMemberParseOutcome
   (let memberStart Int (epsilon_token_start source cursor)
     (let code Int (epsilon_token_code source memberStart)
       (if (eq code 1)
@@ -237,7 +237,7 @@
           (epsilon_parse_case_member source memberStart)
           (epsilon_data_member_reject_at source cursor))))))
 
-(def epsilon_parse_data_members ((source Bytes) (cursor Int)
+(def epsilon_parse_data_members ((source EpsilonSourceView) (cursor Int)
   (accumulator EpsilonDataMemberList)) EpsilonDataMemberListParseOutcome
   (let start Int (epsilon_token_start source cursor)
     (let code Int (epsilon_token_code source start)
@@ -264,7 +264,7 @@
                       (MoreEpsilonDataMembers memberValue accumulator)))))
               (epsilon_data_member_list_reject_at source start))))))))
 
-(def epsilon_parse_data_declaration ((source Bytes)
+(def epsilon_parse_data_declaration ((source EpsilonSourceView)
   (cursor Int)) EpsilonDeclarationParseOutcome
   (let declarationStart Int (epsilon_token_start source cursor)
     (let nameStart Int (epsilon_token_start source

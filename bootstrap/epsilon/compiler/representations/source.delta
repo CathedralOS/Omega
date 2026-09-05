@@ -1,0 +1,8 @@
+; Compiler input windows are not Epsilon runtime views or program storage.
+; Only the source factories establish the backing/origin/length invariant.
+(data EpsilonSourceView
+  (EpsilonSourceViewAt Bytes Int Int))
+
+(data EpsilonSourceViewOutcome
+  (InvalidEpsilonSourceView)
+  (ValidEpsilonSourceView EpsilonSourceView))

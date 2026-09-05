@@ -1,0 +1,47 @@
+(def source_view_test_extent_observe ((outcome EpsilonSourceViewOutcome)) Bytes
+  (match outcome
+    (InvalidEpsilonSourceView (bytes_single 0))
+    ((ValidEpsilonSourceView view)
+      (let length Int (epsilon_source_length view)
+        (bytes_concat (bytes_single 1)
+          (bytes_concat (source_view_test_u32 length)
+            (if (eq length 0) (bytes_empty)
+              (bytes_concat (bytes_single (epsilon_source_byte view 0))
+                (bytes_single (epsilon_source_byte view (- length 1)))))))))))
+
+(def source_view_test_extent ((backing Bytes) (origin Int) (length Int)) Bytes
+  (source_view_test_extent_observe (epsilon_source_view backing origin length)))
+
+(def source_view_test_invalid_extents ((input Bytes)) Bytes
+  (bytes_concat (source_view_test_extent input -1 1)
+    (bytes_concat (source_view_test_extent input 0 -1)
+      (bytes_concat (source_view_test_extent input 5 0)
+        (bytes_concat (source_view_test_extent input 3 2)
+          (bytes_concat (source_view_test_extent input 9223372036854775807 1)
+            (bytes_concat (source_view_test_extent input 1 9223372036854775807)
+              (source_view_test_extent input
+                9223372036854775807 9223372036854775807))))))))
+
+(def source_view_test_extents ((input Bytes)) Bytes
+  (let constructed Bytes
+    (bytes_concat (bytes_single 65) (bytes_concat (bytes_single 66) (bytes_single 67)))
+    (bytes_concat (source_view_test_extent input 1 3)
+      (bytes_concat (source_view_test_extent input 3 1)
+        (bytes_concat (source_view_test_extent input 4 0)
+          (bytes_concat (source_view_test_extent (bytes_empty) 0 0)
+            (bytes_concat
+              (source_view_test_extent_observe (ValidEpsilonSourceView
+                (epsilon_source_whole (bytes_empty))))
+              (bytes_concat (source_view_test_extent constructed 1 1)
+                (bytes_concat
+                  (source_view_test_extent_observe
+                    (ValidEpsilonSourceView (epsilon_source_whole constructed)))
+                  (source_view_test_invalid_extents input))))))))))
+
+; The pending A is pure Bytes, not published stdout. The invalid accessor must
+; fail in Delta before any returned Bytes can be published by ConformanceBytesV1.
+(def source_view_test_invalid_index ((input Bytes) (empty Int) (index Int)) Bytes
+  (match (if empty (epsilon_source_view input 4 0) (epsilon_source_view input 1 3))
+    (InvalidEpsilonSourceView (bytes_single 253))
+    ((ValidEpsilonSourceView view)
+      (bytes_concat (bytes_single 65) (bytes_single (epsilon_source_byte view index))))))

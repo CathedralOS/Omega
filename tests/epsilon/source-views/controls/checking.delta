@@ -1,0 +1,15 @@
+(def source_view_test_check_raw ((input Bytes)) Bytes
+  (source_view_test_observe
+    (epsilon_check_through_body (source_view_test_copy input 1 (bytes_length input)))))
+
+; Origin is absolute in this private backing, which includes its own header,
+; excluded prefix, exact source, and excluded suffix representing sealed input.
+(def source_view_test_check_window ((input Bytes) (constructed Int)) Bytes
+  (if (lt (bytes_length input) 9) (bytes_single 253)
+    (let backing Bytes
+      (if constructed (source_view_test_copy input 0 (bytes_length input)) input)
+      (match (epsilon_source_view backing
+        (source_view_test_read_u32 input 1) (source_view_test_read_u32 input 5))
+        (InvalidEpsilonSourceView (bytes_single 253))
+        ((ValidEpsilonSourceView view)
+          (source_view_test_observe (epsilon_check_through_body_view view)))))))

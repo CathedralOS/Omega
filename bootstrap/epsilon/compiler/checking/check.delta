@@ -1,5 +1,5 @@
 
-(def epsilon_parse_through_expression_facts ((source Bytes))
+(def epsilon_parse_through_expression_facts ((source EpsilonSourceView))
   EpsilonLocalResolutionOutcome
   (match (epsilon_parse_collect_form_and_catalog source)
     ((EpsilonCatalogRejected reasonValue errorOffset)
@@ -29,7 +29,7 @@
                 ((MoreEpsilonFinalReasons conflictingReason conflictingRest)
                   (EpsilonLocalResolutionInternal errorOffset))))))))))
 
-(def epsilon_check_through_body ((source Bytes)) EpsilonLocalResolutionOutcome
+(def epsilon_check_through_body_view ((source EpsilonSourceView)) EpsilonLocalResolutionOutcome
   (match (epsilon_parse_through_expression_facts source)
     ((EpsilonLocalResolutionRejected reasonValue errorOffset)
       (EpsilonLocalResolutionRejected reasonValue errorOffset))
@@ -37,3 +37,7 @@
       (EpsilonLocalResolutionInternal errorOffset))
     ((EpsilonLocalResolutionAccepted resolved)
       (epsilon_finish_body_check resolved))))
+
+; Raw-source customers and framed customers share the same checking judgment.
+(def epsilon_check_through_body ((source Bytes)) EpsilonLocalResolutionOutcome
+  (epsilon_check_through_body_view (epsilon_source_whole source)))

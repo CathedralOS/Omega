@@ -1,5 +1,5 @@
 
-(def epsilon_resolve_state_body_locals ((source Bytes)
+(def epsilon_resolve_state_body_locals ((source EpsilonSourceView)
   (bodyValue EpsilonStateBody) (active EpsilonLocalBindingList)
   (machineValue EpsilonDeclaration) (returnType EpsilonOptionalType)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
@@ -15,7 +15,7 @@
               (epsilon_local_scan_terminal_after_never
                 terminalValue flow nextScan))))))))
 
-(def epsilon_resolve_state_locals ((source Bytes) (stateValue EpsilonState)
+(def epsilon_resolve_state_locals ((source EpsilonSourceView) (stateValue EpsilonState)
   (machineValue EpsilonDeclaration) (machineBindings EpsilonLocalBindingList)
   (returnType EpsilonOptionalType) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
@@ -25,7 +25,7 @@
         (epsilon_add_state_parameter_bindings parameters machineBindings)
         machineValue returnType scan))))
 
-(def epsilon_resolve_states_locals ((source Bytes) (states EpsilonStateList)
+(def epsilon_resolve_states_locals ((source EpsilonSourceView) (states EpsilonStateList)
   (machineValue EpsilonDeclaration) (machineBindings EpsilonLocalBindingList)
   (returnType EpsilonOptionalType) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
@@ -37,7 +37,7 @@
         (epsilon_resolve_state_locals source item machineValue machineBindings
           returnType scan)))))
 
-(def epsilon_resolve_machine_body_locals ((source Bytes)
+(def epsilon_resolve_machine_body_locals ((source EpsilonSourceView)
   (bodyValue EpsilonMachineBody) (machineValue EpsilonDeclaration)
   (machineBindings EpsilonLocalBindingList) (returnType EpsilonOptionalType)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
@@ -55,7 +55,7 @@
                 (epsilon_local_scan_terminal_after_never
                   terminalValue flow nextScan)))))))))
 
-(def epsilon_resolve_catalog_declaration_locals ((source Bytes)
+(def epsilon_resolve_catalog_declaration_locals ((source EpsilonSourceView)
   (row EpsilonCatalogDeclaration) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
   (match row
@@ -73,7 +73,7 @@
                 NoEpsilonLocalBindings))
             returnType scan))))))
 
-(def epsilon_resolve_catalog_declarations_locals ((source Bytes)
+(def epsilon_resolve_catalog_declarations_locals ((source EpsilonSourceView)
   (rows EpsilonCatalogDeclarationList) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
   (match rows
@@ -82,7 +82,7 @@
       (epsilon_resolve_catalog_declarations_locals source rest
         (epsilon_resolve_catalog_declaration_locals source item scan)))))
 
-(def epsilon_resolve_cataloged_locals ((source Bytes)
+(def epsilon_resolve_cataloged_locals ((source EpsilonSourceView)
   (cataloged EpsilonCatalogedProgram)) EpsilonLocallyResolvedProgram
   (match cataloged
     ((EpsilonCatalogedProgramSyntax formed catalogState)

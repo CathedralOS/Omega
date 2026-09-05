@@ -18,7 +18,7 @@
     ((EpsilonTransitionBinderLocal patternValue name)
       name)))
 
-(def epsilon_local_find_binding ((source Bytes) (target EpsilonName)
+(def epsilon_local_find_binding ((source EpsilonSourceView) (target EpsilonName)
   (bindings EpsilonLocalBindingList)) EpsilonLocalBindingLookup
   (match bindings
     (NoEpsilonLocalBindings NoEpsilonLocalBinding)
@@ -118,7 +118,7 @@
         ((EpsilonAssertStatement start end expressionValue)
           (epsilon_collect_pending_lets rest pending))))))
 
-(def epsilon_remove_pending_binding ((source Bytes) (target EpsilonName)
+(def epsilon_remove_pending_binding ((source EpsilonSourceView) (target EpsilonName)
   (pending EpsilonLocalBindingList)) EpsilonLocalBindingList
   (match pending
     (NoEpsilonLocalBindings NoEpsilonLocalBindings)

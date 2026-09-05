@@ -7,7 +7,7 @@
   (match machineValue
     ((EpsilonBoundaryMachineSyntax start end name parameters returnType) name)))
 
-(def epsilon_census_boundary_machine_against ((source Bytes)
+(def epsilon_census_boundary_machine_against ((source EpsilonSourceView)
   (owner EpsilonName) (nameValue EpsilonName)
   (machines EpsilonBoundaryMachineList) (hasEntry Int)) EpsilonCensusCandidate
   (match machines
@@ -24,7 +24,7 @@
           (epsilon_census_boundary_machine_against source owner nameValue rest
             hasEntry))))))
 
-(def epsilon_census_boundary_machine_duplicates ((source Bytes)
+(def epsilon_census_boundary_machine_duplicates ((source EpsilonSourceView)
   (owner EpsilonName) (machines EpsilonBoundaryMachineList)
   (hasEntry Int)) EpsilonCensusCandidate
   (match machines
@@ -36,7 +36,7 @@
         (epsilon_census_boundary_machine_duplicates source owner rest
           hasEntry)))))
 
-(def epsilon_census_boundary_machine_parameters ((source Bytes)
+(def epsilon_census_boundary_machine_parameters ((source EpsilonSourceView)
   (machines EpsilonBoundaryMachineList)) EpsilonCensusCandidate
   (match machines
     (NoEpsilonBoundaryMachines NoEpsilonCensusCandidate)
@@ -57,7 +57,7 @@
     ((EpsilonFieldMember start end name typeValue) name)
     ((EpsilonCaseMember start end name payload) name)))
 
-(def epsilon_census_data_member_against ((source Bytes) (owner EpsilonName)
+(def epsilon_census_data_member_against ((source EpsilonSourceView) (owner EpsilonName)
   (nameValue EpsilonName) (members EpsilonDataMemberList)
   (hasEntry Int)) EpsilonCensusCandidate
   (epsilon_census_data_member_against_fold source owner nameValue members
@@ -65,7 +65,7 @@
 
 ; Keep the earliest traversed candidate on equal coordinates while examining
 ; every member. Width must not become a chain of pending minimum calls.
-(def epsilon_census_data_member_against_fold ((source Bytes) (owner EpsilonName)
+(def epsilon_census_data_member_against_fold ((source EpsilonSourceView) (owner EpsilonName)
   (nameValue EpsilonName) (members EpsilonDataMemberList)
   (hasEntry Int) (candidate EpsilonCensusCandidate)) EpsilonCensusCandidate
   (match members
@@ -82,13 +82,13 @@
         (epsilon_census_data_member_against_fold source owner nameValue rest
           hasEntry (epsilon_census_min candidate current))))))
 
-(def epsilon_census_data_member_duplicates ((source Bytes)
+(def epsilon_census_data_member_duplicates ((source EpsilonSourceView)
   (owner EpsilonName) (members EpsilonDataMemberList)
   (hasEntry Int)) EpsilonCensusCandidate
   (epsilon_census_data_member_duplicates_fold source owner members hasEntry
     NoEpsilonCensusCandidate))
 
-(def epsilon_census_data_member_duplicates_fold ((source Bytes)
+(def epsilon_census_data_member_duplicates_fold ((source EpsilonSourceView)
   (owner EpsilonName) (members EpsilonDataMemberList)
   (hasEntry Int) (candidate EpsilonCensusCandidate)) EpsilonCensusCandidate
   (match members
@@ -99,12 +99,12 @@
           (epsilon_census_data_member_against source
             owner (epsilon_data_member_name item) rest hasEntry))))))
 
-(def epsilon_census_data_payload_parameters ((source Bytes)
+(def epsilon_census_data_payload_parameters ((source EpsilonSourceView)
   (members EpsilonDataMemberList)) EpsilonCensusCandidate
   (epsilon_census_data_payload_parameters_fold source members
     NoEpsilonCensusCandidate))
 
-(def epsilon_census_data_payload_parameters_fold ((source Bytes)
+(def epsilon_census_data_payload_parameters_fold ((source EpsilonSourceView)
   (members EpsilonDataMemberList) (candidate EpsilonCensusCandidate))
   EpsilonCensusCandidate
   (match members
@@ -122,14 +122,14 @@
             (epsilon_census_data_payload_parameters_fold source rest
               (epsilon_census_min candidate current))))))))
 
-(def epsilon_unqualified_name_equal_right ((source Bytes) (leftName EpsilonName)
+(def epsilon_unqualified_name_equal_right ((source EpsilonSourceView) (leftName EpsilonName)
   (right EpsilonQualifiedName)) Int
   (match right
     ((EpsilonUnqualifiedName rightStart rightEnd rightName)
       (epsilon_names_equal source leftName rightName))
     ((EpsilonQualifiedNameSyntax rightStart rightEnd rightOwner rightName) 0)))
 
-(def epsilon_qualified_name_equal_right ((source Bytes) (leftOwner EpsilonName)
+(def epsilon_qualified_name_equal_right ((source EpsilonSourceView) (leftOwner EpsilonName)
   (leftName EpsilonName) (right EpsilonQualifiedName)) Int
   (match right
     ((EpsilonUnqualifiedName rightStart rightEnd rightName) 0)
@@ -138,7 +138,7 @@
         (epsilon_names_equal source leftName rightName)
         0))))
 
-(def epsilon_qualified_names_equal ((source Bytes)
+(def epsilon_qualified_names_equal ((source EpsilonSourceView)
   (left EpsilonQualifiedName) (right EpsilonQualifiedName)) Int
   (match left
     ((EpsilonUnqualifiedName leftStart leftEnd leftName)
@@ -164,7 +164,7 @@
       (epsilon_owner_identity_merge_present OneEpsilonDataOwner right))
     (AmbiguousEpsilonOwnerIdentity AmbiguousEpsilonOwnerIdentity)))
 
-(def epsilon_owner_identity_for_rows ((source Bytes) (owner EpsilonName)
+(def epsilon_owner_identity_for_rows ((source EpsilonSourceView) (owner EpsilonName)
   (rows EpsilonOwnerRowList)) EpsilonOwnerIdentity
   (match rows
     (NoEpsilonOwnerRows NoEpsilonOwnerIdentity)
@@ -230,7 +230,7 @@
             (MoreEpsilonMachineRows (EpsilonMachineRowSyntax start name)
               accumulator)))))))
 
-(def epsilon_census_owner_name_against ((source Bytes) (nameValue EpsilonName)
+(def epsilon_census_owner_name_against ((source EpsilonSourceView) (nameValue EpsilonName)
   (declarations EpsilonDeclarationList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarations
     (NoEpsilonDeclarations NoEpsilonCensusCandidate)
@@ -264,7 +264,7 @@
           (epsilon_census_owner_name_against source nameValue rest
             hasEntry))))))
 
-(def epsilon_census_owner_against ((source Bytes)
+(def epsilon_census_owner_against ((source EpsilonSourceView)
   (declarationValue EpsilonDeclaration)
   (rest EpsilonDeclarationList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarationValue
@@ -275,7 +275,7 @@
     ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
       NoEpsilonCensusCandidate)))
 
-(def epsilon_census_machine_name_against ((source Bytes)
+(def epsilon_census_machine_name_against ((source EpsilonSourceView)
   (nameValue EpsilonQualifiedName)
   (declarations EpsilonDeclarationList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarations
@@ -299,7 +299,7 @@
               (epsilon_census_machine_name_against source nameValue rest
                 hasEntry))))))))
 
-(def epsilon_census_machine_against ((source Bytes)
+(def epsilon_census_machine_against ((source EpsilonSourceView)
   (declarationValue EpsilonDeclaration)
   (rest EpsilonDeclarationList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarationValue
@@ -310,7 +310,7 @@
     ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
       (epsilon_census_machine_name_against source name rest hasEntry))))
 
-(def epsilon_census_invalid_boundary ((source Bytes)
+(def epsilon_census_invalid_boundary ((source EpsilonSourceView)
   (declarationValue EpsilonDeclaration)
   (owners EpsilonOwnerRowList) (hasEntry Int)) EpsilonCensusCandidate
   (match declarationValue
@@ -334,7 +334,7 @@
             (OneEpsilonDataOwner NoEpsilonCensusCandidate)
             (AmbiguousEpsilonOwnerIdentity NoEpsilonCensusCandidate)))))))
 
-(def epsilon_census_declaration_contents ((source Bytes)
+(def epsilon_census_declaration_contents ((source EpsilonSourceView)
   (declarationValue EpsilonDeclaration) (hasEntry Int)) EpsilonCensusCandidate
   (match declarationValue
     ((EpsilonBoundaryDeclaration start end name machines)
@@ -349,13 +349,13 @@
     ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
       (epsilon_census_machine_scope source inputs bodyValue))))
 
-(def epsilon_census_declarations ((source Bytes)
+(def epsilon_census_declarations ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList)
   (owners EpsilonOwnerRowList) (hasEntry Int)) EpsilonCensusCandidate
   (epsilon_census_declarations_fold source declarations owners hasEntry
     NoEpsilonCensusCandidate))
 
-(def epsilon_census_declarations_fold ((source Bytes)
+(def epsilon_census_declarations_fold ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList) (owners EpsilonOwnerRowList)
   (hasEntry Int) (candidate EpsilonCensusCandidate)) EpsilonCensusCandidate
   (match declarations
@@ -372,7 +372,7 @@
         (epsilon_census_declarations_fold source rest owners hasEntry
           (epsilon_census_min candidate current))))))
 
-(def epsilon_collect_program_identities ((source Bytes)
+(def epsilon_collect_program_identities ((source EpsilonSourceView)
   (program EpsilonProgram)) EpsilonCensusOutcome
   (match program
     ((EpsilonSyntaxProgram start end declarations)
@@ -393,7 +393,7 @@
               ((EpsilonCensusCandidateAt reasonValue errorOffset)
                 (EpsilonCensusRejected reasonValue errorOffset))))))))))
 
-(def epsilon_parse_and_collect_program ((source Bytes)) EpsilonCensusOutcome
+(def epsilon_parse_and_collect_program ((source EpsilonSourceView)) EpsilonCensusOutcome
   (match (epsilon_parse_program_syntax source)
     ((EpsilonProgramParseRejected reasonValue errorOffset)
       (EpsilonCensusRejected reasonValue errorOffset))

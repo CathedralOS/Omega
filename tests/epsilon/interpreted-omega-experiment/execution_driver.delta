@@ -1,6 +1,6 @@
 ; Private development frame: u32 source length, exact source, sealed stdin.
 ; Splitting is authored Delta behavior, not a host parser or final edge envelope.
-; Balanced byte trees keep random source access logarithmic after the split.
+; Source uses a bounded view; balanced byte trees still carry sealed stdin.
 (def epsilon_experiment_bytes_range ((input Bytes) (start Int) (end Int)) Bytes
   (if (eq start end)
     (bytes_empty)
@@ -22,8 +22,8 @@
       (bytes_single (% (/ value 65536) 256))
       (bytes_single (% (/ value 16777216) 256)))))
 
-(def epsilon_experiment_observation ((source Bytes) (input Bytes)) Bytes
-  (match (epsilon_evaluate_entry_slice source input)
+(def epsilon_experiment_observation ((source EpsilonSourceView) (input Bytes)) Bytes
+  (match (epsilon_evaluate_entry_view source input)
     ((EpsilonEvaluatorSliceExit code output)
       (bytes_concat (bytes_single 0)
         (bytes_concat
@@ -48,7 +48,9 @@
          (+ (* (bytes_get request 2) 65536) (* (bytes_get request 3) 16777216)))
       (if (lt (- (bytes_length request) 4) sourceLength)
         (bytes_single 5)
-        (epsilon_experiment_observation
-          (epsilon_experiment_bytes_range request 4 (+ 4 sourceLength))
-          (epsilon_experiment_bytes_range request (+ 4 sourceLength)
-            (bytes_length request)))))))
+        (match (epsilon_source_view request 4 sourceLength)
+          (InvalidEpsilonSourceView (bytes_single 5))
+          ((ValidEpsilonSourceView source)
+            (epsilon_experiment_observation source
+              (epsilon_experiment_bytes_range request (+ 4 sourceLength)
+                (bytes_length request)))))))))

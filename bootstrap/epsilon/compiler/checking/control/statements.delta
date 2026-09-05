@@ -2,7 +2,7 @@
 ; A statement value relation first consumes a complete value category, then
 ; compares its type. Category failures remain independent of the comparison;
 ; an unresolved child manufactures neither a mismatch nor an error type.
-(def epsilon_local_scan_statement_value_type_relation ((source Bytes)
+(def epsilon_local_scan_statement_value_type_relation ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (expectedType EpsilonType)
   (storedEstablishment Int) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
@@ -51,7 +51,7 @@
 ; The assignment type relation consumes both a valid left place and a complete
 ; right value. It therefore cannot derive a second failure from a missing or
 ; non-place left premise, while the right-side category branch is still kept.
-(def epsilon_local_scan_assignment_relation ((source Bytes)
+(def epsilon_local_scan_assignment_relation ((source EpsilonSourceView)
   (placeValue EpsilonExpression) (assignedValue EpsilonExpression)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (let categoryScan EpsilonLocalResolutionScan
@@ -85,7 +85,7 @@
               (EpsilonResultlessExpressionResult categoryScan)
               (EpsilonNeverExpressionResult categoryScan))))))))
 
-(def epsilon_resolve_local_statement_expressions ((source Bytes)
+(def epsilon_resolve_local_statement_expressions ((source EpsilonSourceView)
   (statementValue EpsilonStatement) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
   EpsilonLocalResolutionScan
@@ -119,7 +119,7 @@
     ((EpsilonPostfixStatement start end expressionValue) active)
     ((EpsilonAssertStatement start end expressionValue) active)))
 
-(def epsilon_local_pending_after_statement ((source Bytes)
+(def epsilon_local_pending_after_statement ((source EpsilonSourceView)
   (statementValue EpsilonStatement) (pending EpsilonLocalBindingList))
   EpsilonLocalBindingList
   (match statementValue
@@ -181,7 +181,7 @@
                     (EpsilonNeverExpressionResult
                       EpsilonStatementSequenceEndedByNever)))))))))))
 
-(def epsilon_resolve_local_statements_with_flow ((source Bytes)
+(def epsilon_resolve_local_statements_with_flow ((source EpsilonSourceView)
   (statements EpsilonStatementList) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (flow EpsilonStatementSequenceFlow)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalBlockScan
@@ -200,7 +200,7 @@
             (epsilon_statement_flow_after item flow expressionScan)
             expressionScan))))))
 
-(def epsilon_resolve_local_statements ((source Bytes)
+(def epsilon_resolve_local_statements ((source EpsilonSourceView)
   (statements EpsilonStatementList) (active EpsilonLocalBindingList)
   (pending EpsilonLocalBindingList) (scan EpsilonLocalResolutionScan))
   EpsilonLocalBlockScan

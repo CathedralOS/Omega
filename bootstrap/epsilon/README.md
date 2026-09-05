@@ -102,7 +102,7 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   defaults, checked case transitions, and independent arm-local payload homes
   have staging execution paths under `execution/sums/`. A nonfinal payload
   argument that fails its `u8` store remains private `Unsupported`, pending
-  [Epsilon constructor payload establishment order](../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order);
+  implementation of [immediate payload establishment](LANGUAGE.md#epsilon-constructor-payload-establishment-order);
   final-argument byte-range failures already trap with the completed output
   prefix. Full sum execution, remaining checking and conformance obligations,
   and exact composition with the complete Omega D source remain incomplete.

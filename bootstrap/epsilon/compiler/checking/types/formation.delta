@@ -26,7 +26,7 @@
         right))
     ((EpsilonTypeFormationConflict leftOffset) left)))
 
-(def epsilon_owner_name_exists ((source Bytes) (nameValue EpsilonName)
+(def epsilon_owner_name_exists ((source EpsilonSourceView) (nameValue EpsilonName)
   (owners EpsilonOwnerRowList)) Int
   (match owners
     (NoEpsilonOwnerRows 0)
@@ -37,17 +37,17 @@
             1
             (epsilon_owner_name_exists source nameValue rest)))))))
 
-(def epsilon_name_is_main ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_name_is_main ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (epsilon_span_is_4 source start end 77 97 105 110))))
 
-(def epsilon_name_is_entry_main ((source Bytes) (nameValue EpsilonName)) Int
+(def epsilon_name_is_entry_main ((source EpsilonSourceView) (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (epsilon_span_is_4 source start end 109 97 105 110))))
 
-(def epsilon_qualified_name_is_main_entry ((source Bytes)
+(def epsilon_qualified_name_is_main_entry ((source EpsilonSourceView)
   (nameValue EpsilonQualifiedName)) Int
   (match nameValue
     ((EpsilonUnqualifiedName start end name) 0)
@@ -56,7 +56,7 @@
         (epsilon_name_is_entry_main source name)
         0))))
 
-(def epsilon_declarations_have_entry_name ((source Bytes)
+(def epsilon_declarations_have_entry_name ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList)) Int
   (match declarations
     (NoEpsilonDeclarations 0)
@@ -71,25 +71,25 @@
             1
             (epsilon_declarations_have_entry_name source rest)))))))
 
-(def epsilon_name_is_console_field ((source Bytes)
+(def epsilon_name_is_console_field ((source EpsilonSourceView)
   (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (epsilon_span_is_7 source start end 99 111 110 115 111 108 101))))
 
-(def epsilon_name_is_console_type ((source Bytes)
+(def epsilon_name_is_console_type ((source EpsilonSourceView)
   (nameValue EpsilonName)) Int
   (match nameValue
     ((EpsilonNameSpan start end)
       (epsilon_span_is_7 source start end 67 111 110 115 111 108 101))))
 
-(def epsilon_name_is_reserved_entry_owner ((source Bytes)
+(def epsilon_name_is_reserved_entry_owner ((source EpsilonSourceView)
   (nameValue EpsilonName)) Int
   (if (epsilon_name_is_main source nameValue)
     1
     (epsilon_name_is_console_type source nameValue)))
 
-(def epsilon_is_main_console_field ((source Bytes) (owner EpsilonName)
+(def epsilon_is_main_console_field ((source EpsilonSourceView) (owner EpsilonName)
   (field EpsilonName)) Int
   (if (epsilon_name_is_main source owner)
     (epsilon_name_is_console_field source field)
@@ -124,7 +124,7 @@
       (EpsilonTypeFormationCandidateAt TypeMismatch start))
     (EpsilonNestedTypePlacement NoEpsilonTypeFormationCandidate)))
 
-(def epsilon_named_type_formation_candidate ((source Bytes) (start Int)
+(def epsilon_named_type_formation_candidate ((source EpsilonSourceView) (start Int)
   (nameValue EpsilonName) (owners EpsilonOwnerRowList)
   (placement EpsilonTypePlacement)) EpsilonTypeFormationCandidate
   (if (epsilon_name_is_console_type source nameValue)
@@ -151,7 +151,7 @@
         (EpsilonTypeFormationCandidateAt InvalidArrayLength start)
         NoEpsilonTypeFormationCandidate))))
 
-(def epsilon_validate_formed_type ((source Bytes) (typeValue EpsilonType)
+(def epsilon_validate_formed_type ((source EpsilonSourceView) (typeValue EpsilonType)
   (owners EpsilonOwnerRowList) (placement EpsilonTypePlacement))
   EpsilonTypeFormationCandidate
   (match typeValue
@@ -183,7 +183,7 @@
         (EpsilonNestedTypePlacement
           (EpsilonTypeFormationCandidateAt EscapingView start))))))
 
-(def epsilon_validate_optional_formed_type ((source Bytes)
+(def epsilon_validate_optional_formed_type ((source EpsilonSourceView)
   (typeValue EpsilonOptionalType) (owners EpsilonOwnerRowList)
   (placement EpsilonTypePlacement)) EpsilonTypeFormationCandidate
   (match typeValue
@@ -191,7 +191,7 @@
     ((SomeEpsilonType start end item)
       (epsilon_validate_formed_type source item owners placement))))
 
-(def epsilon_validate_parameter_formed_types ((source Bytes)
+(def epsilon_validate_parameter_formed_types ((source EpsilonSourceView)
   (parameters EpsilonParameterList) (owners EpsilonOwnerRowList)
   (placement EpsilonTypePlacement)) EpsilonTypeFormationCandidate
   (match parameters
@@ -204,7 +204,7 @@
             (epsilon_validate_parameter_formed_types source rest owners
               placement)))))))
 
-(def epsilon_validate_payload_formed_types ((source Bytes)
+(def epsilon_validate_payload_formed_types ((source EpsilonSourceView)
   (payload EpsilonOptionalPayload) (owners EpsilonOwnerRowList))
   EpsilonTypeFormationCandidate
   (match payload
@@ -213,7 +213,7 @@
       (epsilon_validate_parameter_formed_types source parameters owners
         EpsilonStoredTypePlacement))))
 
-(def epsilon_validate_data_member_formed_types ((source Bytes)
+(def epsilon_validate_data_member_formed_types ((source EpsilonSourceView)
   (owner EpsilonName) (members EpsilonDataMemberList)
   (owners EpsilonOwnerRowList)) EpsilonTypeFormationCandidate
   (epsilon_validate_data_member_formed_types_fold source owner
@@ -222,7 +222,7 @@
 
 ; Reversing the spine preserves the original right-associated candidate merge,
 ; including conflict precedence, without retaining one call frame per member.
-(def epsilon_validate_data_member_formed_types_fold ((source Bytes)
+(def epsilon_validate_data_member_formed_types_fold ((source EpsilonSourceView)
   (owner EpsilonName) (members EpsilonDataMemberList)
   (owners EpsilonOwnerRowList) (candidate EpsilonTypeFormationCandidate))
   EpsilonTypeFormationCandidate
@@ -241,7 +241,7 @@
         (epsilon_validate_data_member_formed_types_fold source owner rest owners
           (epsilon_type_formation_candidate_min current candidate))))))
 
-(def epsilon_validate_boundary_machine_formed_types ((source Bytes)
+(def epsilon_validate_boundary_machine_formed_types ((source EpsilonSourceView)
   (machines EpsilonBoundaryMachineList) (owners EpsilonOwnerRowList))
   EpsilonTypeFormationCandidate
   (match machines
@@ -258,7 +258,7 @@
               (epsilon_validate_boundary_machine_formed_types source rest
                 owners))))))))
 
-(def epsilon_validate_statement_formed_types ((source Bytes)
+(def epsilon_validate_statement_formed_types ((source EpsilonSourceView)
   (statements EpsilonStatementList) (owners EpsilonOwnerRowList))
   EpsilonTypeFormationCandidate
   (epsilon_validate_statement_formed_types_fold source
@@ -267,7 +267,7 @@
 
 ; Preserve the right-associated conflict merge without retaining pending calls
 ; proportional to a machine or state body's statement count.
-(def epsilon_validate_statement_formed_types_fold ((source Bytes)
+(def epsilon_validate_statement_formed_types_fold ((source EpsilonSourceView)
   (statements EpsilonStatementList) (owners EpsilonOwnerRowList)
   (candidate EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match statements
@@ -287,14 +287,14 @@
         (epsilon_validate_statement_formed_types_fold source rest owners
           (epsilon_type_formation_candidate_min current candidate))))))
 
-(def epsilon_validate_state_body_formed_types ((source Bytes)
+(def epsilon_validate_state_body_formed_types ((source EpsilonSourceView)
   (bodyValue EpsilonStateBody) (owners EpsilonOwnerRowList))
   EpsilonTypeFormationCandidate
   (match bodyValue
     ((EpsilonStateBodySyntax start end statements terminalValue)
       (epsilon_validate_statement_formed_types source statements owners))))
 
-(def epsilon_validate_state_formed_types ((source Bytes)
+(def epsilon_validate_state_formed_types ((source EpsilonSourceView)
   (states EpsilonStateList) (owners EpsilonOwnerRowList))
   EpsilonTypeFormationCandidate
   (match states
@@ -309,7 +309,7 @@
               (epsilon_validate_state_body_formed_types source bodyValue owners)
               (epsilon_validate_state_formed_types source rest owners))))))))
 
-(def epsilon_validate_machine_body_formed_types ((source Bytes)
+(def epsilon_validate_machine_body_formed_types ((source EpsilonSourceView)
   (bodyValue EpsilonMachineBody) (owners EpsilonOwnerRowList))
   EpsilonTypeFormationCandidate
   (match bodyValue
@@ -318,7 +318,7 @@
         (epsilon_validate_statement_formed_types source statements owners)
         (epsilon_validate_state_formed_types source states owners)))))
 
-(def epsilon_validate_machine_input_formed_types ((source Bytes)
+(def epsilon_validate_machine_input_formed_types ((source EpsilonSourceView)
   (inputs EpsilonMachineInputs) (owners EpsilonOwnerRowList))
   EpsilonTypeFormationCandidate
   (match inputs
@@ -330,7 +330,7 @@
       (epsilon_validate_parameter_formed_types source parameters owners
         EpsilonParameterTypePlacement))))
 
-(def epsilon_validate_declaration_formed_types ((source Bytes)
+(def epsilon_validate_declaration_formed_types ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList) (owners EpsilonOwnerRowList))
   EpsilonTypeFormationCandidate
   (epsilon_validate_declaration_formed_types_fold source
@@ -339,7 +339,7 @@
 
 ; Candidate conflict precedence is not a left fold. Visit the reversed spine
 ; and prepend each complete declaration verdict to the accumulated suffix.
-(def epsilon_validate_declaration_formed_types_fold ((source Bytes)
+(def epsilon_validate_declaration_formed_types_fold ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList) (owners EpsilonOwnerRowList)
   (candidate EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match declarations

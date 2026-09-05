@@ -66,9 +66,10 @@ Epsilon evaluator.
   `bootstrap/epsilon/LANGUAGE.md`, deleting inherited structures with no current
   customer. Finish checking, fixed-storage realization, deterministic
   diagnostics, execution, the evaluator entry, and exact composition with D.
-  Nonfinal constructor byte-range failure precedence awaits an
-  [owner ruling](OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order);
-  other execution and checking work can proceed.
+  Implement [immediate constructor payload establishment](bootstrap/epsilon/LANGUAGE.md#epsilon-constructor-payload-establishment-order)
+  for nonfinal byte-range failures: replace the private staging refusal with
+  `ByteRange` and test preserved preceding output plus suppression of later
+  argument mutation, output, traps, and exits.
   Acceptance: exact Epsilon-written Omega D executes under the selected lower
   chain and its behavior refines `RunEpsilon` without an Epsilon-owned Alpha
   backend.
