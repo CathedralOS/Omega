@@ -9,7 +9,7 @@ use crate::git::request::GitExecutionTransport;
 use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::identity::SourceLineage;
 use crate::limits::LocalSourceLimits;
-use crate::observations::resolved::{GitAcquisitionPin, PendingResolvedGitSource};
+use crate::observations::resolved::PendingResolvedGitSource;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsStr;
 use std::path::Path;
@@ -18,6 +18,8 @@ use super::materialization::GitMaterializedSource;
 #[cfg(test)]
 use super::materialization::materialize_whole_git_source;
 use super::network::bounded_git_fetch_arguments;
+use super::recorded_objects::recorded_revision_needs_fetch;
+use super::selection::GitRevisionSelection;
 
 #[cfg(test)]
 pub(crate) fn resolve_verified_git_cache_entry(
@@ -47,7 +49,7 @@ pub(crate) fn resolve_verified_git_cache_entry(
         execution_transport,
         limits,
         fetch_remote,
-        None,
+        GitRevisionSelection::Ordinary(None),
         materialize_whole_git_source,
     ) {
         Ok((pending, ())) => Ok(pending),
@@ -70,7 +72,7 @@ pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
     execution_transport: GitExecutionTransport,
     limits: LocalSourceLimits,
     fetch_remote: bool,
-    pin: Option<&GitAcquisitionPin>,
+    selection: GitRevisionSelection<'_>,
     materialize: impl FnOnce(
         &GitExecutor,
         &VerifiedGitRepository,
@@ -91,16 +93,26 @@ pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
         limits,
     )?;
 
+    let fetch_remote = match selection {
+        GitRevisionSelection::Recorded(recorded) => {
+            recorded_revision_needs_fetch(executor, &repository, recorded, limits)?
+        }
+        GitRevisionSelection::Ordinary(_) => fetch_remote,
+    };
     if fetch_remote {
         let canonical_config = repository.read_canonical_config()?;
-        let arguments = bounded_git_fetch_arguments(fetch_locator, requested_rev, limits);
+        let fetch_revision = match selection {
+            GitRevisionSelection::Recorded(recorded) => recorded.commit.as_str(),
+            GitRevisionSelection::Ordinary(_) => requested_rev,
+        };
+        let arguments = bounded_git_fetch_arguments(fetch_locator, fetch_revision, limits);
         repository.run_git(executor, arguments.iter())?;
         repository.restore_canonical_config(&canonical_config)?;
     }
     repository.verify_current(limits)?;
 
-    let selected_revision = if let Some(pin) = pin {
-        pin.commit()
+    let selected_revision = if let Some(commit) = selection.expected_commit() {
+        commit
     } else if fetch_remote {
         "FETCH_HEAD"
     } else {
@@ -116,7 +128,10 @@ pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
     )?;
     let commit = commit.trim().to_owned();
     verify_exact_git_revision(requested_rev, &commit)?;
-    if pin.is_some_and(|pin| pin.commit() != commit) {
+    if selection
+        .expected_commit()
+        .is_some_and(|expected| expected != commit)
+    {
         return Err(SourceResolveError::GitObjectInvalid {
             oid: commit,
             message: "reused Git acquisition selected a different commit".to_owned(),
@@ -132,7 +147,10 @@ pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
         ],
     )?;
     let tree = tree.trim().to_owned();
-    if pin.is_some_and(|pin| pin.tree() != tree) {
+    if selection
+        .expected_tree()
+        .is_some_and(|expected| expected != tree)
+    {
         return Err(SourceResolveError::GitObjectInvalid {
             oid: tree,
             message: "reused Git acquisition selected a different root tree".to_owned(),

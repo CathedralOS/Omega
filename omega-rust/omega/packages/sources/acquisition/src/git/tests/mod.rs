@@ -22,6 +22,7 @@ use crate::tree::filesystem::raw_os_bytes;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+mod exact_revision;
 mod request;
 mod reuse;
 mod root_pin;

@@ -84,6 +84,10 @@ pub enum SourceResolveError {
         oid: String,
         message: String,
     },
+    GitExactRevisionUnavailable {
+        commit: String,
+        tree: String,
+    },
     GitTreeInvalid {
         path: Vec<u8>,
         message: String,
@@ -227,6 +231,10 @@ impl fmt::Display for SourceResolveError {
             Self::GitObjectInvalid { oid, message } => {
                 write!(output, "Git object `{oid}` failed authentication: {message}")
             }
+            Self::GitExactRevisionUnavailable { commit, tree } => write!(
+                output,
+                "recorded Git revision (commit `{commit}`, root tree `{tree}`) is unavailable in the retained cache"
+            ),
             Self::GitTreeInvalid { path, message } => write!(
                 output,
                 "git tree path `{}` is invalid: {message}",
