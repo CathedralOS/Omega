@@ -447,6 +447,12 @@ impl StatementTable {
         self.transition_targets.get(handle)
     }
 
+    /// Whether the exact generational handle names a live transition target.
+    /// A source terminal must not be confused with the arena's dummy terminal.
+    pub fn transition_target_is_valid(&self, handle: TransitionTargetHandle) -> bool {
+        self.transition_targets.is_valid(handle)
+    }
+
     pub fn statement_count(&self) -> usize {
         self.statements.len()
     }

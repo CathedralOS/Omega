@@ -21,6 +21,8 @@ mod computed_guards;
 mod computed_initializers;
 #[path = "scalar_return_calls_source/computed_returns.rs"]
 mod computed_returns;
+#[path = "scalar_return_calls_source/crash_destinations.rs"]
+mod crash_destinations;
 #[path = "scalar_return_calls_source/integer_computations.rs"]
 mod integer_computations;
 #[path = "scalar_return_calls_source/parameter_result_contracts.rs"]

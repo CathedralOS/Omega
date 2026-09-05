@@ -140,10 +140,14 @@ pub enum CheckedScalarStateTerminator {
     },
 }
 
-/// A selected scalar arm either transfers into a state or completes the machine.
+/// A selected scalar arm transfers into a state, returns, or crashes without a successor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarBranchDestination {
     Jump(CheckedScalarSuccessor),
+    /// The exact standalone source crash retains its cause and site custody.
+    Crash {
+        statement_ordinal: u32,
+    },
     Return {
         statement_ordinal: u32,
         /// The false sibling of a combined transition has its own value role.

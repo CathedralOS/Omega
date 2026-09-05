@@ -25,6 +25,9 @@ pub(super) fn lower(
                 && root.statement_ordinal == statement
                 && root.role == CheckedScalarExpressionRole::Guard
         });
+    if computed || matches!(fallback, CheckedScalarBranchDestination::Crash { .. }) {
+        validate_fallback(checked, state, statement, fallback)?;
+    }
     let condition = if computed {
         LoweredBooleanReturnExpression::Parameter {
             position: source_types.len(),
@@ -53,7 +56,6 @@ pub(super) fn lower(
     if !computed {
         return Ok(branch);
     }
-    validate_fallback(checked, state, statement, fallback)?;
     // Branch arguments still refer to the unchanged source prefix. Only the
     // condition consumes the appended result; neither arm starts before it.
     let mut parameter_types = source_types.to_vec();
@@ -94,24 +96,35 @@ fn validate_fallback(
         .flat_map(|machine| program.machine_states(machine))
         .find(|candidate| candidate.symbol == state)
         .ok_or(LoweringError::Unsupported(
-            "computed guard has no authored state",
+            "scalar guard has no authored state",
         ))?;
     let tail = program
         .statement_table
         .statements(state.statement_nodes)
         .get(statement as usize..)
         .ok_or(LoweringError::Unsupported(
-            "computed guard has no authored dispatch",
+            "scalar guard has no authored dispatch",
         ))?;
+    if !matches!(
+        tail.first(),
+        Some(StatementNode::Transition(guard))
+            if matches!(guard.guard, TransitionGuardNode::When(_))
+    ) {
+        return unsupported("scalar conditional must retain its authored When guard");
+    }
     let continuation = match fallback {
         CheckedScalarBranchDestination::Jump(successor) => successor.is_continuation,
         CheckedScalarBranchDestination::Return {
             is_continuation, ..
         } => *is_continuation,
+        CheckedScalarBranchDestination::Crash { .. } => false,
     };
+    let crash_fallback = matches!(fallback, CheckedScalarBranchDestination::Crash { .. });
     let valid = match tail {
         [StatementNode::Transition(guard)] if continuation => {
-            guard.continuation.is_valid() && guard.exit == TransitionExit::Ordinary
+            !crash_fallback
+                && guard.continuation.is_valid()
+                && guard.exit == TransitionExit::Ordinary
         }
         [
             StatementNode::Transition(guard),
@@ -120,19 +133,25 @@ fn validate_fallback(
             !guard.continuation.is_valid()
                 && guard.exit == TransitionExit::Ordinary
                 && !fallback.continuation.is_valid()
-                && fallback.exit == TransitionExit::Ordinary
+                && (if crash_fallback {
+                    matches!(fallback.exit, TransitionExit::Crash(_))
+                } else {
+                    fallback.exit == TransitionExit::Ordinary
+                })
                 && fallback.guard == TransitionGuardNode::Always
         }
         [
             StatementNode::Transition(guard),
             StatementNode::Expression(_),
         ] if !continuation => {
-            !guard.continuation.is_valid() && guard.exit == TransitionExit::Ordinary
+            !crash_fallback
+                && !guard.continuation.is_valid()
+                && guard.exit == TransitionExit::Ordinary
         }
         _ => false,
     };
     if !valid {
-        return unsupported("computed guard fallback disagrees with its authored dispatch");
+        return unsupported("scalar guard fallback disagrees with its authored dispatch");
     }
     Ok(())
 }

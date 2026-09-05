@@ -364,6 +364,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 let (when_true_target, when_true_arguments) =
                     branch_destinations::lower_destination(
                         checked,
+                        machine,
+                        &identity_reshuffles.source_claims,
                         states,
                         state.state,
                         value_types,
@@ -376,6 +378,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 let (when_false_target, when_false_arguments) =
                     branch_destinations::lower_destination(
                         checked,
+                        machine,
+                        &identity_reshuffles.source_claims,
                         states,
                         state.state,
                         value_types,

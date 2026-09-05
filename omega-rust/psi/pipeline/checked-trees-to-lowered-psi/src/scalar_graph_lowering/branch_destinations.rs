@@ -15,6 +15,7 @@ pub(super) fn validate_coordinates(
             statement_ordinal,
             is_continuation,
         } => (*statement_ordinal, *is_continuation),
+        CheckedScalarBranchDestination::Crash { statement_ordinal } => (*statement_ordinal, false),
     };
     let (false_ordinal, is_continuation) = coordinate(when_false);
     if coordinate(when_true) != (guard, false)
@@ -32,6 +33,8 @@ pub(super) fn validate_coordinates(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_destination(
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source_claims: &[(PermissionClaimIdentity, ClaimId)],
     states: &[checked_trees::CheckedScalarStateGraph],
     source_state: symbols::SymbolHandle,
     source_value_types: &[ScalarType],
@@ -42,6 +45,21 @@ pub(super) fn lower_destination(
     computations: &mut computations::Expansion<'_>,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
     match destination {
+        CheckedScalarBranchDestination::Crash { statement_ordinal } => {
+            let crash = lower_checked_crash_exit(
+                checked,
+                machine,
+                source_state,
+                *statement_ordinal,
+                source_claims,
+            )?;
+            let target = computations.push(LoweredScalarBranchState {
+                parameter_types: source_value_types.to_vec(),
+                bindings: Vec::new(),
+                terminator: LoweredScalarBranchTerminator::Crash(crash),
+            });
+            Ok((target, computations::parameters(source_value_types)))
+        }
         CheckedScalarBranchDestination::Jump(successor) => lower_scalar_graph_successor(
             checked,
             states,

@@ -56,6 +56,50 @@ pub(super) fn lower_checked_crash_exit(
     statement_ordinal: u32,
     source_claims: &[(PermissionClaimIdentity, ClaimId)],
 ) -> Result<LoweredCrashExit, LoweringError> {
+    use checked_trees::statement::{
+        StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    };
+
+    let program = &checked.typed;
+    let source_state = program
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine && machine.is_valid())
+        .and_then(|source_machine| {
+            program
+                .machine_states(source_machine)
+                .iter()
+                .find(|candidate| candidate.symbol == state && state.is_valid())
+        })
+        .ok_or(LoweringError::Unsupported(
+            "explicit crash has no matching authored machine and state",
+        ))?;
+    let Some(StatementNode::Transition(transition)) = program
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .get(statement_ordinal as usize)
+    else {
+        return unsupported("explicit crash has no matching authored transition statement");
+    };
+    let TransitionExit::Crash(authored_cause) = transition.exit else {
+        return unsupported("checked crash site names an ordinary authored transition");
+    };
+    // A nonzero stale target resolves through ZII to the dummy Terminal node.
+    // Require arena membership before reading that node's semantic shape.
+    if !program
+        .statement_table
+        .transition_target_is_valid(transition.target)
+        || !matches!(
+            program.statement_table.transition_target(transition.target),
+            TransitionTargetNode::Terminal
+        )
+        || transition.continuation.is_valid()
+        || transition.guard != TransitionGuardNode::Always
+    {
+        return unsupported(
+            "explicit crash must retain an unconditional terminal target and no continuation",
+        );
+    }
     let Some(crash_plan) = checked
         .facts
         .contract_plans
@@ -67,6 +111,13 @@ pub(super) fn lower_checked_crash_exit(
     let Some(checked_site) = crash_plan.checked_site_at(state, statement_ordinal) else {
         return unsupported("explicit crash has no body-derived checked crash-site row");
     };
+    let authored_cause = match authored_cause {
+        checked_trees::signature::CrashCause::Trap => checked_trees::CrashCause::Trap,
+        checked_trees::signature::CrashCause::Abort => checked_trees::CrashCause::Abort,
+    };
+    if checked_site.cause() != authored_cause {
+        return unsupported("checked crash cause disagrees with its authored transition");
+    }
     let matching_contracts = crash_plan
         .covering_buckets_for_site(checked_site)
         .map(|(_, bucket)| bucket)
