@@ -8,6 +8,9 @@ use std::collections::BTreeMap;
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 /// S4: build a value environment pre-seeded with the integer bounds a machine's
 /// `requires` clause places on its parameters (`requires amount <= 100`). Used to
 /// seed the ENTRY state's env so param arithmetic with a declared bound stays
@@ -290,9 +293,34 @@ pub(super) fn narrow_env_by_condition(
     condition: ExpressionHandle,
     positive: bool,
 ) {
+    if let ExpressionNode::Unary(unary) = program.expression_table.expression(condition)
+        && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
+    {
+        narrow_env_by_condition(program, machine, state, env, unary.operand, !positive);
+        return;
+    }
     let ExpressionNode::Binary(comparison) = program.expression_table.expression(condition) else {
         return;
     };
+    if matches!(
+        comparison.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        let wrapped = match (
+            program.expression_table.expression(comparison.left),
+            program.expression_table.expression(comparison.right),
+        ) {
+            (_, ExpressionNode::Boolean(value)) => Some((comparison.left, *value)),
+            (ExpressionNode::Boolean(value), _) => Some((comparison.right, *value)),
+            _ => None,
+        };
+        if let Some((operand, value)) = wrapped {
+            let operand_positive =
+                positive == (value == (comparison.operator == BinaryOperator::Equal));
+            narrow_env_by_condition(program, machine, state, env, operand, operand_positive);
+            return;
+        }
+    }
     match comparison.operator {
         BinaryOperator::And if positive => {
             let (left, right) = (comparison.left, comparison.right);

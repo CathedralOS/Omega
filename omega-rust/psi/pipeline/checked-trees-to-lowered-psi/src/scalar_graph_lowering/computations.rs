@@ -106,7 +106,7 @@ impl<'a> Expansion<'a> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn binding_value(
+    pub(super) fn retained_value(
         &mut self,
         state: symbols::SymbolHandle,
         statement: u32,
@@ -134,7 +134,7 @@ impl<'a> Expansion<'a> {
                 root.state == state && root.statement_ordinal == statement && root.role == role
             });
         let root = roots.next().ok_or(LoweringError::Unsupported(
-            "scalar binding value has no checked computation root",
+            "scalar retained value has no checked computation root",
         ))?;
         if roots.next().is_some() || root.machine != self.machine {
             return unsupported("scalar computation root custody is duplicated or mismatched");

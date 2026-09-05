@@ -162,20 +162,16 @@ pub(crate) fn proven_nat_countdown_sccs(
         let rank_upper_bound = unsigned_maximum(rank_primitive_type)?;
 
         let mut covered_cyclic_edges = Vec::new();
-        for (statement_ordinal, statement) in program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .enumerate()
-        {
-            let Some(edge) = patterns::edge_to_any_guard(program, statement, state.symbol) else {
-                continue;
-            };
+        for edge in patterns::edges_to_state(program, state, state.symbol) {
+            // The retained countdown coordinate currently names primary targets.
+            if edge.is_continuation {
+                return None;
+            }
             let proof = nat::direct_countdown_edge(
                 program,
                 state,
                 state,
-                edge.guard,
+                &edge.guards,
                 edge.arguments,
                 *decreases,
             )?;
@@ -197,7 +193,7 @@ pub(crate) fn proven_nat_countdown_sccs(
             covered_cyclic_edges.push(ProvenNatCountdownEdge {
                 source_state: state.symbol,
                 target_state: state.symbol,
-                statement_ordinal: u32::try_from(statement_ordinal).ok()?,
+                statement_ordinal: u32::try_from(edge.statement_ordinal).ok()?,
                 source_rank_parameter_position: u32::try_from(header_rank_parameter_position)
                     .ok()?,
                 target_rank_parameter_position: u32::try_from(target_rank_parameter_position)
@@ -564,15 +560,12 @@ fn cycle_edge_strictly_decreases(
         return false;
     }
     let mut found = false;
-    for statement in program.statement_table.statements(source.statement_nodes) {
-        let Some(edge) = patterns::edge_to_any_guard(program, statement, target.symbol) else {
-            continue;
-        };
+    for edge in patterns::edges_to_state(program, source, target.symbol) {
         if nat::edge_decrease_proven(
             program,
             source,
             target,
-            edge.guard,
+            &edge.guards,
             edge.arguments,
             measure,
             orientation,

@@ -1,4 +1,4 @@
-//! Checked execution plans for call-bearing scalar writes, arguments, and returns.
+//! Checked execution plans for call-bearing scalar writes, guards, arguments, and returns.
 
 use super::*;
 use checked_trees::{
@@ -158,6 +158,17 @@ pub(crate) fn build_checked_scalar_computation_plans(
                 let StatementNode::Transition(transition) = statement else {
                     continue;
                 };
+                if let typed_trees::statement::TransitionGuardNode::When(expression) =
+                    transition.guard
+                {
+                    builder.record_root(
+                        pure,
+                        statement_ordinal,
+                        CheckedScalarExpressionRole::Guard,
+                        expression,
+                        PrimitiveType::Bool,
+                    );
+                }
                 for (target, continuation) in
                     [(transition.target, false), (transition.continuation, true)]
                 {

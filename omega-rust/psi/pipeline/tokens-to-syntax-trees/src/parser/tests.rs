@@ -9,6 +9,93 @@ mod expression_stack;
 mod type_constraints;
 
 #[test]
+fn opposite_boolean_subject_arms_test_the_subject_once() {
+    for first in [true, false] {
+        let source = format!(
+            "machine value() -> u8 {{
+                 transition probe() {{ {first} -> 1u8 {} -> 2u8 }}
+             }}",
+            !first
+        );
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let parsed = parse_syntax_trees(&tokens).unwrap();
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .unwrap();
+        let state = parsed
+            .items
+            .state(parsed.items.state_handles(machine.states)[0]);
+        let statements = parsed.items.statements(state.statements);
+        assert_eq!(statements.len(), 2);
+        let StatementNode::Transition(first_arm) = parsed.statements.statement(statements[0])
+        else {
+            panic!("first authored arm");
+        };
+        let syntax_trees::statement::TransitionGuardNode::When(expression) = first_arm.guard else {
+            panic!("first arm tests the subject");
+        };
+        let ExpressionNode::Binary(comparison) = parsed.expressions.expression(expression) else {
+            panic!("authored Boolean pattern comparison");
+        };
+        assert!(matches!(
+            parsed.expressions.expression(comparison.left),
+            ExpressionNode::Call(_)
+        ));
+        assert!(matches!(parsed.expressions.expression(comparison.right),
+            ExpressionNode::Boolean(value) if *value == first));
+        let StatementNode::Transition(last_arm) = parsed.statements.statement(statements[1]) else {
+            panic!("second authored arm");
+        };
+        assert!(matches!(
+            last_arm.guard,
+            syntax_trees::statement::TransitionGuardNode::Always
+        ));
+    }
+}
+
+#[test]
+fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
+    for body in [
+        "transition { probe() -> 1u8 !probe() -> 2u8 }",
+        "transition probe() { true -> 1u8 true -> 2u8 }",
+        "transition probe() { true -> 1u8 true -> 2u8 false -> 3u8 }",
+        "transition probe() { true -> 1u8 } transition probe() { false -> 2u8 }",
+    ] {
+        let source = format!("machine value() -> u8 {{ {body} }}");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let parsed = parse_syntax_trees(&tokens).unwrap();
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .unwrap();
+        let state = parsed
+            .items
+            .state(parsed.items.state_handles(machine.states)[0]);
+        let statements = parsed.items.statements(state.statements);
+        for statement in statements {
+            let StatementNode::Transition(transition) = parsed.statements.statement(*statement)
+            else {
+                panic!("authored transition");
+            };
+            assert!(
+                matches!(
+                    transition.guard,
+                    syntax_trees::statement::TransitionGuardNode::When(_)
+                ),
+                "{body}"
+            );
+        }
+    }
+}
+
+#[test]
 fn boolean_transition_targets_are_literals_without_parentheses() {
     for (spelling, expected) in [
         ("false", false),

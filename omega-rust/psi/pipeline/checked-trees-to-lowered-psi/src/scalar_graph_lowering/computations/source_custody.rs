@@ -93,6 +93,16 @@ pub(super) fn validate(
         {
             Some(*expression)
         }
+        Some(StatementNode::Transition(transition))
+            if role == CheckedScalarExpressionRole::Guard
+                && !expected_destination.is_valid()
+                && plans.nodes.get(root).primitive_type == PrimitiveType::Bool =>
+        {
+            match transition.guard {
+                checked_trees::statement::TransitionGuardNode::When(expression) => Some(expression),
+                checked_trees::statement::TransitionGuardNode::Always => None,
+            }
+        }
         Some(StatementNode::Transition(transition)) if !expected_destination.is_valid() => {
             let target = match role {
                 CheckedScalarExpressionRole::ContinuationReturn

@@ -217,13 +217,21 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
             .expect("transition block statement span count overflow");
     }
 
+    // A two-arm Boolean subject needs only the first test: the opposite arm
+    // is the fall-through. Retaining both tests would evaluate a computed
+    // subject twice. Anonymous guards have no shared subject and do not qualify.
+    let opposite_boolean_pair = subject.len() == 1
+        && matches!(arm_bool_tuples.as_slice(), [Some(first), Some(second)]
+            if matches!((first.as_slice(), second.as_slice()),
+                ([Some(left)], [Some(right)]) if left != right));
+
     // BOOL-TUPLE exhaustiveness (ch4): when every arm is a bool-literal /
     // wildcard tuple and the matrix covers {true,false}^N, the LAST arm's
     // guard rewrites to the fall-through -- dispatch tests arms in order, so
     // an input reaching the last arm of a covering matrix must match it.
     // Non-bool arms or an uncovered matrix change nothing (the fall-through
     // checker keeps its refusal).
-    if subject.len() >= 2
+    if (subject.len() >= 2 || opposite_boolean_pair)
         && arm_bool_tuples.iter().all(|tuple| {
             tuple
                 .as_ref()

@@ -1,5 +1,7 @@
 use super::*;
 
+mod guard_facts;
+
 #[test]
 fn rejects_terminating_recursive_machine_without_decreases() {
     let source = r#"

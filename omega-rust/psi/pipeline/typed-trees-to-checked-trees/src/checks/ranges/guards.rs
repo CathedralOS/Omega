@@ -1,6 +1,8 @@
 mod bounds;
 
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+};
 
 use super::facts::RangeFacts;
 use bounds::{
@@ -101,7 +103,16 @@ pub(super) fn seed_guard_facts(
         return;
     };
 
-    match binary.operator {
+    seed_binary_guard_facts(program, facts, binary, binary.operator);
+}
+
+fn seed_binary_guard_facts(
+    program: &typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    binary: &TableBinaryExpression,
+    operator: BinaryOperator,
+) {
+    match operator {
         BinaryOperator::Less => {
             seed_length_greater_than_fact(program, facts, binary.right, binary.left);
             seed_less_than_len_fact(program, facts, binary.left, binary.right);
@@ -143,6 +154,8 @@ pub(super) fn seed_guard_facts(
         BinaryOperator::NotEqual => {
             seed_length_not_zero_fact(program, facts, binary.left, binary.right);
             seed_length_not_zero_fact(program, facts, binary.right, binary.left);
+            seed_boolean_inequality_guard_facts(program, facts, binary.left, binary.right);
+            seed_boolean_inequality_guard_facts(program, facts, binary.right, binary.left);
         }
         BinaryOperator::Add
         | BinaryOperator::BitwiseAnd
@@ -171,6 +184,19 @@ fn seed_boolean_equality_guard_facts(
     }
 }
 
+fn seed_boolean_inequality_guard_facts(
+    program: &typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    possible_boolean: ExpressionHandle,
+    guard: ExpressionHandle,
+) {
+    match program.expression_table.expression(possible_boolean) {
+        ExpressionNode::Boolean(true) => seed_negated_guard_facts(program, facts, guard),
+        ExpressionNode::Boolean(false) => seed_guard_facts(program, facts, guard),
+        _ => {}
+    }
+}
+
 pub(super) fn seed_negated_guard_facts(
     program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
@@ -180,8 +206,21 @@ pub(super) fn seed_negated_guard_facts(
         return;
     };
 
-    if binary.operator == BinaryOperator::Equal {
-        seed_length_not_zero_fact(program, facts, binary.left, binary.right);
-        seed_length_not_zero_fact(program, facts, binary.right, binary.left);
-    }
+    let complement = match binary.operator {
+        BinaryOperator::Equal => BinaryOperator::NotEqual,
+        BinaryOperator::NotEqual => BinaryOperator::Equal,
+        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
+        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
+        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
+        // Refuting a disjunction refutes both operands. Refuting a conjunction
+        // does not identify a failed operand and cannot seed either complement.
+        BinaryOperator::Or => {
+            seed_negated_guard_facts(program, facts, binary.left);
+            seed_negated_guard_facts(program, facts, binary.right);
+            return;
+        }
+        _ => return,
+    };
+    seed_binary_guard_facts(program, facts, binary, complement);
 }
