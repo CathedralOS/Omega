@@ -96,8 +96,12 @@ fn lower_statement_node(
             // the same way as in value positions: the temp indexes as a
             // slotted plain place.
             hoist_target_computed_indices(lowerer, target, &mut hoisted);
-            let value =
-                hoist_operand_indexed_reads(lowerer, value, &mut hoisted, OperandHoisting::Value);
+            let value = hoist_operand_indexed_reads(
+                lowerer,
+                value,
+                &mut hoisted,
+                OperandHoisting::Computation,
+            );
             // A BARE ref-param member as the whole RHS (`self.c = table.con_out`)
             // is not an operand, so the rewrite above leaves it -- and the flat
             // machine-write path would read frame garbage. Hoist the root into a
@@ -492,7 +496,7 @@ fn bare_syntax_name(
 enum OperandHoisting {
     Value,
     Guard,
-    /// Checked initializers and returns retain calls at their evaluation points.
+    /// Checked computations retain calls at their evaluation points.
     Computation,
 }
 
@@ -598,7 +602,7 @@ fn rewrite_children(
                 //        (__hoist as T in Policy)
                 //
                 // The callee's declared return types the synthetic local in
-                // `infer_hoist_temp_type`. Checked initializer and return
+                // `infer_hoist_temp_type`. Checked initializer, assignment, and return
                 // computations instead retain the original call beneath the
                 // cast: moving it here could run it before an earlier sibling.
                 hoist_into_temp(lowerer, cast.value, hoisted)

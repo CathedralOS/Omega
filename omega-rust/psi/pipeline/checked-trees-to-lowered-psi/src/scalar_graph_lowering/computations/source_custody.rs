@@ -65,6 +65,29 @@ pub(super) fn validate(
                 _ => None,
             }
         }
+        Some(StatementNode::Assignment(assignment))
+            if role == CheckedScalarExpressionRole::AssignmentValue
+                && expected_destination.is_valid() =>
+        {
+            // The old value remains readable while the RHS runs. Only the
+            // authored mutable local receives the completed replacement.
+            let checked_trees::expression::ExpressionNode::Name(name) =
+                program.expression_table.expression(assignment.target)
+            else {
+                return unsupported("scalar computed assignment needs an exact local destination");
+            };
+            (name.symbol == expected_destination
+                && statements[..site.statement as usize]
+                    .iter()
+                    .any(|statement| {
+                        matches!(statement, StatementNode::LocalData(local)
+                        if local.symbol == expected_destination
+                            && local.is_mutable
+                            && program.primitive_type_reference(local.type_reference)
+                                == Some(plans.nodes.get(root).primitive_type))
+                    }))
+            .then_some(assignment.value)
+        }
         Some(StatementNode::Expression(expression))
             if role == CheckedScalarExpressionRole::Return && !expected_destination.is_valid() =>
         {

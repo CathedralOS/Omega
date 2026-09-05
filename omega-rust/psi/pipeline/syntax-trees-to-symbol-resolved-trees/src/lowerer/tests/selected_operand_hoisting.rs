@@ -247,30 +247,96 @@ fn initializer_cast_calls_stay_nested_through_outer_arithmetic() {
 }
 
 #[test]
-fn eager_assignment_call_cast_hoisting_is_unchanged() {
-    for body in [
-        "let mut answer: u16 = 0u16; answer = (read() as u16) + 1u16; answer",
-        "let mut answer: u16 = 0u16; answer = read() as u16; answer",
-    ] {
+fn assignment_call_casts_retain_authored_left_to_right_operands() {
+    let program = resolved(
+        "machine first() -> u16 { 1u16 }
+         machine second() -> u8 { 2u8 }
+         machine value() -> u16 {
+             let mut answer: u16 = 0u16;
+             answer = first() + (second() as u16);
+             answer
+         }",
+    );
+    let statements = value_statements(&program);
+    assert_eq!(statements.len(), 3);
+    let StatementNode::Assignment(assignment) = &statements[1] else {
+        panic!("authored assignment");
+    };
+    let expressions = &program.tables.bodies.expressions;
+    let ExpressionNode::Binary(binary) = expressions.expression(assignment.value) else {
+        panic!("authored addition");
+    };
+    let ExpressionNode::Call(first) = expressions.expression(binary.left) else {
+        panic!("earlier call retains its left operand position");
+    };
+    let ExpressionNode::Cast(cast) = expressions.expression(binary.right) else {
+        panic!("later call retains its surrounding cast");
+    };
+    let ExpressionNode::Call(second) = expressions.expression(cast.value) else {
+        panic!("later call must not execute through an enclosing binding");
+    };
+    assert_eq!(first.target.as_str(), "first");
+    assert_eq!(second.target.as_str(), "second");
+    assert!(first.target_symbol.is_valid());
+    assert!(second.target_symbol.is_valid());
+    assert_ne!(first.target_symbol, second.target_symbol);
+}
+
+#[test]
+fn assignment_cast_calls_remain_at_their_authored_roots() {
+    for value in ["(read() as u16) + 1u16", "read() as u16"] {
         let program = resolved(&format!(
             "machine read() -> u8 {{ 7u8 }}
-             machine value() -> u16 {{ {body} }}"
+             machine value() -> u16 {{
+                 let mut answer: u16 = 0u16;
+                 answer = {value};
+                 answer
+             }}"
         ));
         let statements = value_statements(&program);
-        assert_eq!(statements.len(), 4);
-        let StatementNode::LocalData(local) = &statements[1] else {
-            panic!("existing eager call-result binding");
+        assert_eq!(statements.len(), 3);
+        let StatementNode::Assignment(assignment) = &statements[1] else {
+            panic!("authored assignment");
         };
-        let ExpressionNode::Call(call) = program
-            .tables
-            .bodies
-            .expressions
-            .expression(local.initial_value)
-        else {
-            panic!("cast call remains bound for uncovered eager destinations");
+        let expressions = &program.tables.bodies.expressions;
+        let cast_expression = match expressions.expression(assignment.value) {
+            ExpressionNode::Binary(binary) => binary.left,
+            ExpressionNode::Cast(_) => assignment.value,
+            _ => panic!("authored assignment expression"),
+        };
+        let ExpressionNode::Cast(cast) = expressions.expression(cast_expression) else {
+            panic!("authored cast");
+        };
+        let ExpressionNode::Call(call) = expressions.expression(cast.value) else {
+            panic!("call retains its evaluation position");
         };
         assert_eq!(call.target.as_str(), "read");
     }
+}
+
+#[test]
+fn assignment_operand_indexed_read_hoisting_is_unchanged() {
+    let program = resolved(
+        "machine value(items: [u8; 4], index: u64) -> u16 {
+             let mut answer: u16 = 0u16;
+             answer = (items[index] as u16) + 1u16;
+             answer
+         }",
+    );
+    let statements = value_statements(&program);
+    assert_eq!(statements.len(), 4);
+    let StatementNode::LocalData(local) = &statements[1] else {
+        panic!("existing indexed-read binding");
+    };
+    assert!(matches!(
+        program
+            .tables
+            .bodies
+            .expressions
+            .expression(local.initial_value),
+        ExpressionNode::Indexed(_)
+    ));
+    assert!(matches!(statements[2], StatementNode::Assignment(_)));
 }
 
 #[test]

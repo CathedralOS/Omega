@@ -1,4 +1,4 @@
-//! Split scalar statements at computed initializers, retaining completed values.
+//! Prepare scalar bindings and writes, retaining completed values across computations.
 
 use super::*;
 
@@ -7,10 +7,10 @@ pub(super) struct Prepared {
     pub(super) scalar_bindings: storage::ScalarBindings,
     parameter_types: Vec<ScalarType>,
     bindings: Vec<LoweredScalarBinding>,
-    prefixes: Vec<PendingInitializer>,
+    prefixes: Vec<PendingComputation>,
 }
 
-struct PendingInitializer {
+struct PendingComputation {
     parameter_types: Vec<ScalarType>,
     bindings: Vec<LoweredScalarBinding>,
     value_types: Vec<ScalarType>,
@@ -82,7 +82,7 @@ pub(super) fn prepare(
         }
         let binding_type = terminal_scalar_type(binding.primitive_type)?;
         if matches!(binding.value, CheckedScalarBindingValue::Computation) {
-            prefixes.push(PendingInitializer {
+            prefixes.push(PendingComputation {
                 parameter_types,
                 bindings: std::mem::take(&mut bindings),
                 value_types: value_types.clone(),
@@ -90,11 +90,9 @@ pub(super) fn prepare(
                 statement_ordinal: binding.statement_ordinal,
                 role,
                 destination: match binding.destination {
-                    CheckedScalarBindingDestination::StorageInitialize { symbol } => symbol,
+                    CheckedScalarBindingDestination::StorageInitialize { symbol }
+                    | CheckedScalarBindingDestination::StorageAssign { symbol } => symbol,
                     CheckedScalarBindingDestination::Immutable => symbols::SymbolHandle::default(),
-                    CheckedScalarBindingDestination::StorageAssign { .. } => {
-                        return unsupported("computed assignments need their own destination plan");
-                    }
                 },
                 result_type: binding_type,
             });
@@ -112,7 +110,7 @@ pub(super) fn prepare(
                 )?;
                 if expression.scalar_type() != binding_type {
                     return unsupported(
-                        "checked scalar local initializer type must match its binding",
+                        "checked scalar computed value type must match its binding",
                     );
                 }
                 validate_direct_parameter_types(&expression, &value_types)?;
@@ -180,11 +178,11 @@ impl Prepared {
             bindings: self.bindings,
             terminator,
         };
-        // Construct backward so each initializer sends the completed prefix and
+        // Construct backward so each computation sends the completed prefix and
         // its result directly to the following statements, without placeholders.
         for prefix in self.prefixes.into_iter().rev() {
             let target = computations.push(continuation);
-            let target = computations.initializer(
+            let target = computations.binding_value(
                 state,
                 prefix.statement_ordinal,
                 prefix.role,

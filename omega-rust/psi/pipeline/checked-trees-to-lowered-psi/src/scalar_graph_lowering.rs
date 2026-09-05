@@ -2,9 +2,9 @@
 
 use super::*;
 
+mod bindings;
 mod branch_destinations;
 mod computations;
-mod initializers;
 mod storage;
 
 pub(super) fn checked_scalar_computation_call_targets(
@@ -302,7 +302,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .copied()
             .map(terminal_scalar_type)
             .collect::<Result<Vec<_>, _>>()?;
-        let prepared = initializers::prepare(checked, machine, state, parameter_types)?;
+        let prepared = bindings::prepare(checked, machine, state, parameter_types)?;
         let value_types = &prepared.value_types;
         let scalar_bindings = &prepared.scalar_bindings;
         let terminator = match &state.terminator {
