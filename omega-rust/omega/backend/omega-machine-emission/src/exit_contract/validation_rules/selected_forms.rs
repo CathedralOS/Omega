@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_machine_optimizer::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
+use omega_physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId, RegisterViewId};
 use omega_selected_instructions::{
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,

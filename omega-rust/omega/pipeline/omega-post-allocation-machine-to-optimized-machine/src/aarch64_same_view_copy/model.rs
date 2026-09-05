@@ -1,8 +1,6 @@
 //! Shared staged result and custody receipt for exact same-view-copy rules.
 
-use omega_machine_optimizer::{
-    Aarch64SameViewCopyElisionIdentity, ValidatedAarch64SameViewCopyElision,
-};
+use crate::{Aarch64SameViewCopyElisionIdentity, ValidatedAarch64SameViewCopyElision};
 use omega_optimization_core::{Optimization, OptimizationSelectionIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +31,7 @@ pub struct StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt {
     optimization: Optimization,
     selections: OptimizationSelectionIdentity,
     post_allocation_machine_selections: OptimizationSelectionIdentity,
-    source: omega_machine_optimizer::PostAllocationMachineIdentity,
+    source: omega_physical_instructions::PostAllocationMachineIdentity,
     elision: Aarch64SameViewCopyElisionIdentity,
     action_count: usize,
 }
@@ -44,7 +42,7 @@ impl StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt {
         optimization: Optimization,
         selections: OptimizationSelectionIdentity,
         post_allocation_machine_selections: OptimizationSelectionIdentity,
-        source: omega_machine_optimizer::PostAllocationMachineIdentity,
+        source: omega_physical_instructions::PostAllocationMachineIdentity,
         elision: Aarch64SameViewCopyElisionIdentity,
         action_count: usize,
     ) -> Self {
@@ -67,7 +65,7 @@ impl StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt {
     pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
         self.post_allocation_machine_selections
     }
-    pub const fn source(self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub const fn source(self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         self.source
     }
     pub const fn elision(self) -> Aarch64SameViewCopyElisionIdentity {

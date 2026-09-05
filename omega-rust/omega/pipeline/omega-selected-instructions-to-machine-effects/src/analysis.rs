@@ -1,4 +1,4 @@
-use omega_machine_optimizer::{
+use crate::{
     ValidatedPreAllocationMachineEffects, analyze_pre_allocation_machine_effects,
     validate_pre_allocation_machine_effects,
 };

@@ -1,4 +1,4 @@
-use omega_machine_optimizer::{
+use crate::{
     ValidatedX86MovR32Imm32Materialization, optimize_x86_materialize_i64_with_mov_r32_imm32,
     require_post_allocation_machine_rule, validate_x86_mov_r32_imm32_materialization,
 };

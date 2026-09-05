@@ -14,7 +14,7 @@ fn every_exact_machine_rule_publishes_deterministically_on_its_hosted_targets() 
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         represented,
-        omega_machine_optimizer::ORDERED_POST_ALLOCATION_MACHINE_RULES
+        omega_post_allocation_machine_to_optimized_machine::ORDERED_POST_ALLOCATION_MACHINE_RULES
             .into_iter()
             .collect()
     );

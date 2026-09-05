@@ -45,8 +45,9 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     pub selected: SelectedInstructionPlanIdentity,
-    pub pre_allocation_machine_effects: omega_machine_optimizer::PreAllocationMachineEffectIdentity,
-    pub post_allocation_machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub pre_allocation_machine_effects:
+        omega_selected_instructions::PreAllocationMachineEffectIdentity,
+    pub post_allocation_machine: omega_physical_instructions::PostAllocationMachineIdentity,
     pub baseline_pre_layout: SelectedFormEncodingIdentity,
     pub pre_layout: SelectedFormEncodingIdentity,
     pub baseline_resolved_layout: ResolvedSelectedFormLayoutIdentity,

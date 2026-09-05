@@ -1,6 +1,4 @@
-use omega_machine_optimizer::{
-    ValidatedX86MovR32Imm32Materialization, X86MovR32Imm32MaterializationIdentity,
-};
+use crate::{ValidatedX86MovR32Imm32Materialization, X86MovR32Imm32MaterializationIdentity};
 use omega_optimization_core::OptimizationSelectionIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,7 +21,7 @@ impl StagedOptimizedX86MovR32Imm32Materialization {
 pub struct StagedOptimizedX86MovR32Imm32MaterializationCustodyReceipt {
     pub(super) selections: OptimizationSelectionIdentity,
     pub(super) post_allocation_machine_selections: OptimizationSelectionIdentity,
-    pub(super) source: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub(super) source: omega_physical_instructions::PostAllocationMachineIdentity,
     pub(super) materialization: X86MovR32Imm32MaterializationIdentity,
     pub(super) action_count: usize,
     pub(super) baseline_bytes: u64,
@@ -37,7 +35,7 @@ impl StagedOptimizedX86MovR32Imm32MaterializationCustodyReceipt {
     pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
         self.post_allocation_machine_selections
     }
-    pub const fn source(self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub const fn source(self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         self.source
     }
     pub const fn materialization(self) -> X86MovR32Imm32MaterializationIdentity {

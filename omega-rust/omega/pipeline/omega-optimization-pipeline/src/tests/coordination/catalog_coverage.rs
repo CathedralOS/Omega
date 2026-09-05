@@ -1,11 +1,11 @@
 use omega_abstract_operations_optimizer::{
     PSI_PASS_CATALOG, PsiPassTargetApplicability, built_in_psi_registries,
 };
-use omega_machine_optimizer::{
+use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+use omega_post_allocation_machine_to_optimized_machine::{
     POST_ALLOCATION_MACHINE_RULE_CATALOG, PostAllocationMachineRuleCatalogError,
     selected_post_allocation_machine_rule,
 };
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 use omega_selected_instructions_to_register_homes::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogError,
     RegisterAllocationRuleTargetApplicability, SELECTED_LOWERING_RULE_CATALOG,

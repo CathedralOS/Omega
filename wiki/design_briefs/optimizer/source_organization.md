@@ -232,7 +232,7 @@ enablement and order.
 | Psi | `omega-abstract-operations-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `passes/<exact-pass>/` |
 | Selected lowering | `omega-selected-instructions-to-register-homes/src/rewrites/selected_lowering/mod.rs` | adjacent `catalog.rs` | `literal_fold/` |
 | Allocation recovery | `omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/mod.rs` | adjacent `catalog.rs` | `fixed_view_copy/`, `pressure_rematerialization/` |
-| Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |
+| Post-allocation machine | `omega-post-allocation-machine-to-optimized-machine/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |
 | Function-relative layout | `omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
 
 Runtime condition legalization follows the same mirrored taxonomy as leaf
@@ -674,7 +674,7 @@ matcher mechanics, and independent replay visible without creating a proxy
 rule schedule. Only a catalog row may grant compiler enablement.
 
 Descriptive machine costs are a sibling rung, not a rule catalog.
-`omega-machine-optimizer/src/costs/mod.rs` selects the current model and binds
+`omega-physical-instructions/src/physical_instructions/costs/mod.rs` selects the current model and binds
 it to the exact `NativeTarget`; `model.rs` exposes exact-or-bounded size and
 explicitly unavailable latency, while `identity.rs` owns the domain-separated
 target/model identity. The model neither selects nor validates rules. An
@@ -1205,7 +1205,7 @@ The live tree and architecture guard establish:
 - the governed compiler-hook, optimizer-execution, and rule-owning entrances
   above are small and meaningful;
 - post-allocation construction and replay meet only at
-  `omega-machine-optimizer/src/planning/post_allocation/mod.rs`, with separate
+  `omega-register-homes-to-post-allocation-machine/src/plan/mod.rs`, with separate
   semantic subtrees;
 - no governed production file exceeds 600 lines;
 - no governed test or fixture exceeds 800 lines;

@@ -148,7 +148,7 @@ impl StagedOptimizedPostAllocationMachineOptimization {
         }
     }
 
-    pub const fn source(&self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub const fn source(&self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         match self {
             Self::Aarch64Cbnz(staged) => staged.custody().source(),
             Self::Aarch64Movn(staged) => staged.custody().source(),

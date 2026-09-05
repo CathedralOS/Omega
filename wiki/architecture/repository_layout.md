@@ -389,8 +389,10 @@ keeps the compiler-owned build protocol independent of whether std exists.
   `backend/object/*` owns sections, symbols, and relocations.
 - `omega-selected-instructions-to-register-homes` owns selected analyses,
   allocation, recovery and their independent replay as internal transform steps.
-  `omega-machine-optimizer` still owns machine algorithms pending consolidation
-  into the named machine-optimization transform. The bounded target-to-assigned
+  `omega-selected-instructions-to-machine-effects` owns effect analysis;
+  `omega-register-homes-to-post-allocation-machine` constructs the machine plan;
+  `omega-post-allocation-machine-to-optimized-machine` owns its opt-in rewrites.
+  No construction stage depends on a later optimizer. The bounded target-to-assigned
   publication adapter is not a substitute for either owner and must disappear
   once the selected physical conveyor has complete operation coverage.
 - `backend/instruction_set_architectures/*` owns ISA definitions and encodings.

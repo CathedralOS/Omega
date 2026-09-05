@@ -122,7 +122,7 @@ fn aarch64_post_allocation_machine_composition_rejects_without_hidden_ordering_p
         ),
         Err(
             OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog(
-                omega_machine_optimizer::PostAllocationMachineRuleCatalogError::UnsupportedComposition(
+                omega_post_allocation_machine_to_optimized_machine::PostAllocationMachineRuleCatalogError::UnsupportedComposition(
                     Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
                 )
             )

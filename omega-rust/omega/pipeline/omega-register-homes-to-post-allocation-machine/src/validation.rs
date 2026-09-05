@@ -3,7 +3,7 @@ use super::{
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
     post_allocation_machine_custody,
 };
-use omega_machine_optimizer::validate_post_allocation_machine_plan;
+use crate::validate_post_allocation_machine_plan;
 use omega_selected_instructions_to_machine_effects::validate_machine_effects;
 use omega_selected_instructions_to_register_homes::AllocationSource;
 

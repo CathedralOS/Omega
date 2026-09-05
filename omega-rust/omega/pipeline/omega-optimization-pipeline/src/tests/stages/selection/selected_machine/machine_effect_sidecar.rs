@@ -87,7 +87,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
             .alternatives
             .clear();
         assert!(matches!(
-            omega_machine_optimizer::validate_pre_allocation_machine_effects(
+            omega_selected_instructions_to_machine_effects::validate_pre_allocation_machine_effects(
                 selected.selected(),
                 selected.register_environment().identity(),
                 selected.register_environment().physical(),
@@ -122,7 +122,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
                 },
                 corrupted,
             ),
-            Err(omega_machine_optimizer::MachineEffectError::InstructionMismatch { .. })
+            Err(omega_selected_instructions_to_machine_effects::MachineEffectError::InstructionMismatch { .. })
         ));
     }
 }

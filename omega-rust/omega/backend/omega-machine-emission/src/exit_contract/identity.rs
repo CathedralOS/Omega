@@ -14,8 +14,8 @@ mod tests {
         X86_64StructuralUnitInternalControlFixup, X86_64StructuralUnitInternalControlFixupKind,
         X86_64StructuralUnitInternalControlFixupState,
     };
-    use omega_machine_optimizer::Aarch64MovnMaterializationIdentity;
     use omega_optimization_core::Optimization;
+    use omega_physical_instructions::Aarch64MovnMaterializationIdentity;
     use omega_register_model::RegisterViewId;
     use omega_selected_instructions::{
         MachineEncodedTrapBehavior, SelectedBlockId, SelectedInstructionId,
@@ -49,7 +49,7 @@ mod tests {
                     [2; 32],
                 ),
             post_allocation_machine:
-                omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes([3; 32]),
+                omega_physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
             register_environment:
                 omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             physical_register_model:

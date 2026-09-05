@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use omega_machine_optimizer::PostAllocationMachineInstruction;
+use omega_physical_instructions::PostAllocationMachineInstruction;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedFunction, SelectedInstructionId};
 use omega_target::Architecture;

@@ -96,7 +96,7 @@ fn text_publication_records_and_codec_belong_to_the_representation() {
     for forbidden in [
         "omega_optimization_pipeline::",
         "omega_machine_emission::",
-        "omega_machine_optimizer::",
+        "omega_post_allocation_machine_to_optimized_machine::",
         "omega_object_file::",
     ] {
         assert!(
@@ -345,7 +345,9 @@ fn physical_instruction_data_is_independent_of_optimizer_authority() {
     let owner = repository().join("omega-rust/omega/representations/omega-physical-instructions");
     let representation = rust_source(&owner.join("src"));
     let optimizer =
-        rust_source(&repository().join("omega-rust/omega/pipeline/omega-machine-optimizer/src"));
+        rust_source(&repository().join(
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src",
+        ));
     for declaration in [
         "pub struct PostAllocationMachinePlan {",
         "pub struct PostAllocationMachineFunction {",
@@ -367,11 +369,57 @@ fn physical_instruction_data_is_independent_of_optimizer_authority() {
         );
     }
     assert!(!representation.contains("pub struct ValidatedPostAllocationMachinePlan"));
-    assert!(optimizer.contains("pub struct ValidatedPostAllocationMachinePlan {"));
+    assert!(!optimizer.contains("pub struct ValidatedPostAllocationMachinePlan {"));
+    let construction = rust_source(
+        &repository()
+            .join("omega-rust/omega/pipeline/omega-register-homes-to-post-allocation-machine/src"),
+    );
+    assert!(construction.contains("pub struct ValidatedPostAllocationMachinePlan {"));
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
-    assert!(!manifest.contains("omega-machine-optimizer"));
+    assert!(!manifest.contains("omega-post-allocation-machine-to-optimized-machine"));
     assert!(!manifest.contains("omega-selected-instructions-to-register-homes"));
     assert!(!manifest.contains("/pipeline/"));
+}
+
+#[test]
+fn machine_construction_precedes_and_does_not_depend_on_optimization() {
+    let root = repository();
+    let pipeline = root.join("omega-rust/omega/pipeline");
+    assert!(!pipeline.join("omega-machine-optimizer/Cargo.toml").exists());
+    let workspace = std::fs::read_to_string(root.join("Cargo.toml")).unwrap();
+    assert!(!workspace.contains("omega-machine-optimizer"));
+
+    for (owner, entry) in [
+        (
+            "omega-selected-instructions-to-machine-effects",
+            "pub fn analyze_pre_allocation_machine_effects",
+        ),
+        (
+            "omega-register-homes-to-post-allocation-machine",
+            "pub fn analyze_post_allocation_machine_plan",
+        ),
+    ] {
+        let source = rust_source(&pipeline.join(owner).join("src"));
+        assert_eq!(source.matches(entry).count(), 1);
+        let manifest = std::fs::read_to_string(pipeline.join(owner).join("Cargo.toml")).unwrap();
+        for forbidden in [
+            "omega-machine-optimizer",
+            "omega-post-allocation-machine-to-optimized-machine",
+        ] {
+            assert!(
+                !manifest.contains(forbidden),
+                "{owner} depends on later {forbidden}"
+            );
+        }
+    }
+    let optimizer =
+        rust_source(&pipeline.join("omega-post-allocation-machine-to-optimized-machine/src"));
+    assert!(!optimizer.contains("pub fn analyze_post_allocation_machine_plan"));
+    assert!(!optimizer.contains("pub fn analyze_pre_allocation_machine_effects"));
+    assert!(!optimizer.contains("pub struct TargetCostModel {"));
+    let physical =
+        rust_source(&root.join("omega-rust/omega/representations/omega-physical-instructions/src"));
+    assert_eq!(physical.matches("pub struct TargetCostModel {").count(), 1);
 }
 
 #[test]
@@ -451,7 +499,7 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     let record = "pub struct PostAllocationMachineOptimizationCustody {";
     assert_eq!(physical.matches(record).count(), 1);
     assert!(!pipeline.contains(record));
-    assert!(!machine.contains("omega_machine_optimizer::"));
+    assert!(!machine.contains("omega_post_allocation_machine_to_optimized_machine::"));
     assert!(!machine.contains("pub struct StagedOptimizedResolvedSelectedFormLayout"));
     assert!(machine.contains("omega.terminal.resolved-selected-form-layout.v9"));
     assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v9"));
@@ -521,7 +569,7 @@ fn exit_contract_records_and_identities_are_representation_owned() {
     assert!(!machine.contains(wrapper));
     assert!(machine.contains("omega.terminal.whole-function-exit-contract.v9"));
     assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v9"));
-    assert!(!machine.contains("omega_machine_optimizer::"));
+    assert!(!machine.contains("omega_post_allocation_machine_to_optimized_machine::"));
     assert!(!machine.contains("omega_optimization_pipeline::"));
     assert!(
         emission

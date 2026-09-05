@@ -3,195 +3,141 @@
 [Pipeline architecture](pipeline.md) | [Optimization phases](optimization_phases.md)
 | [Execution board](../../../TASKS_OPTIMIZER.md)
 
-Status: unfinished implementation plan, reorganized 2026-09-05.
-This replaces the extraction-by-extraction breakdown. Published milestones
-belong in Git; this document names the remaining architectural outcomes.
+This is the remaining work, not a history of extractions. Complete whole owners
+and routes; remove their obsolete implementations. Progress means the repository
+and executable pipeline become simpler, not that more small tasks close.
 
-## The big moves
+## The four big moves, in execution order
 
-Make the actual pipeline understandable: one public stage sequence, transforms
-with clear owners, independently usable current representations, and real
-selected Psi optimization before Terminal publication.
-
-There are four work packages. Findings become requirements inside these
-packages, not more top-level migrations. Finish whole ownership boundaries,
-including removal of their old routes and adapters.
-
-| Big move | Visible finish line |
+| Move | Visible finish line |
 | --- | --- |
-| Consolidate owners (package 2, first) | Unhomed and umbrella crates disappear; pipeline directories contain actual transforms. |
-| Unify physical execution (package 1) | One implementation replaces the ordinary/optimized route split without losing supported programs. |
-| Clean representation roots (package 3) | Each representation has an obvious starting file and owns current data, not a chain of previous stages. |
-| Implement Psi optimization (package 4) | Selected passes actually run before Terminal publication; the phase is not an identity-only placeholder. |
+| 1. Consolidate pipeline owners | Umbrella and helper crates disappear. Each remaining pipeline crate owns a real transform or explicit optimization phase. |
+| 2. Finish representation ownership | Every Omega and Psi representation has one obvious root and usable current data, independent of producer history. |
+| 3. Delete the alternate physical pipeline | Empty and nonempty optimization selections use the same physical stages through native publication. |
+| 4. Deliver optimized portable Psi | Selected target-neutral passes actually execute before Terminal publication. |
 
-Measure progress by those outcomes, not helper extractions, test counts, or new
-documents. The numbered packages below are stable references, not a requirement
-to finish every physical feature before deleting misplaced owners.
+Start with whole-owner consolidation. Move representation data with its owner
+as needed; then finish the remaining representation sweep. Do not make every
+visible organizational improvement wait for physical feature parity.
 
-## 1. Replace competing physical pipelines with one pipeline
+## 1. Consolidate pipeline owners
 
-**Outcome:** empty and nonempty optimization selections use the same physical
-stages and current program types through final native publication.
+Opening `omega/pipeline/` or `psi/pipeline/` should explain what transforms
+the compiler performs. A name containing `to` is not sufficient justification
+for a crate, and a named internal calculation need not be a public stage.
 
-Start at
-`omega-terminal-psi-to-native-artifact/src/realization/physical_stage.rs`.
-Its `NativePhysicalStageResult::Assigned | Optimized` still chooses different
-assignment/emission implementations. Another common wrapper does not fix this.
-
-- Define the common physical postcondition from both implementations' consumers.
-  Separate current program data from authority and historical replay inputs.
-- Port the ordinary route's supported behavior into the common implementation:
-  ranked countdowns, callbacks and Unit structural-scalar operations included.
-  The selected legalizer currently rejects some of these.
-- Route empty and selected execution through the same selection, allocation,
-  machine optimization, layout and emission stages.
-- Delete the alternate assignment/emission route and its obsolete adapters.
-
-**Done when:** optimization history no longer selects a downstream compiler;
-empty/nonempty, ordinary, ranked and callback controls exercise the common graph.
-Genuine target, program-shape and authority distinctions remain explicit inside
-the owning stages. Rejecting previously supported inputs is not convergence.
-
-## 2. Consolidate the crate graph around real transforms
-
-**Outcome:** opening `omega/pipeline/` shows transformations and explicit X-to-X
-optimization phases, not an umbrella implementation and unhomed helper packages.
-
-Maintain a complete **keep / merge / move / delete** disposition table for every
-Omega and Psi pipeline crate, with its destination owner. The immediate
-consolidation targets are below. These are implementation clusters within this
-package, not new top-level tasks.
-
-| Current cluster | Required destination |
+| Whole move | What must disappear or change |
 | --- | --- |
-| `omega-optimization-pipeline` | Retire the umbrella implementation. Sequencing goes to compiler/native coordination; computations go to real transforms or backend. Delete the old crate and re-export surface after consumers migrate. |
-| `omega-machine-optimizer` + `omega-post-allocation-machine-to-optimized-machine` | One explicit machine-optimization phase, with rule execution and private analyses homed there. |
-| `omega-optimization-policy` + `omega-optimization-validation` | Build policy to orchestration, durable vocabulary to representations, reusable validity to semantics, rule-local checks beside their rule. Remove the catch-all packages. |
-| Callee-saved requirements, save storage, spill/frame requirements, frame layout and protocol substeps | Consolidate phase-private calculations into allocation/frame owners. Preserve their independent checks without a public crate per calculation. |
-| `omega-optimization-run-to-abstract-operations` and adjacent abstract transforms | Home projection by its actual input/output contract; optimization history must not define a public program stage. |
-| Object, callable-entry and image work still inside the umbrella | Move whole artifact boundaries to existing backend owners, preserving source admission and custody at their proper boundary. No new helper-crate collection. |
-| `psi-generic-instances` | Separate durable instance data from instantiation work and home both; a noun-only package is not a transform merely because lowering uses it. |
-| Remaining X-to-Y / X-to-X crates | Audit all of them. Keep genuine vocabulary/invariant boundaries; names alone do not establish correct ownership. |
+| Dissolve `omega-optimization-pipeline` | Move sequencing to compiler/native coordination, transformations to their actual stages, and object/callable/image work to backend owners. Delete the umbrella crate and its re-export surface. |
+| Dissolve `omega-optimization-policy` and `omega-optimization-validation` | Put build choices in orchestration, durable vocabulary in representations, reusable validity in semantics, and rule-local checks beside the rule. Delete the catch-all crates. |
+| Consolidate allocation and frame substeps | Home callee-save requirements/storage, spill constraints, frame requirements/layout and protocol calculations in coherent allocation/frame owners. Remove crate boundaries that merely expose private calculations; retain independent checks. |
+| Remove optimization-history-shaped stages | Replace `omega-optimization-run-to-abstract-operations` with the actual current-data transform contract. Downstream compilation must not require an optimization run as its program representation. |
+| Separate generic-instance data from its producer | Rehome `psi-generic-instances` data and instantiation work according to their roles. |
+| Finish the remaining crate disposition | For every other Omega and Psi pipeline crate, decide keep, merge, move or delete and implement that decision. Preserve genuine representation/invariant boundaries, not the existing package count. |
 
-Any exception needs a concrete independent consumer and invariant, not an
-appeal to the existing layout. Extracting another manifest or counter is a
-substep, not an architectural milestone.
+Keep a compact disposition map while executing this move. It is an inventory,
+not a second backlog. An exception needs a concrete independent consumer and
+invariant. Do not replace removed crates with another unhomed helper collection.
 
-This replaces the former `REGALLOC-STAGE-CRATES` instruction to create six
-crates merely because six stage documents exist. Liveness, live ranges,
-legality and recovery may remain named module-level steps within allocation.
-Update their stage documents to the actual owner; retain independent checking
-and dependency discipline without requiring a Cargo boundary per calculation.
+**Acceptance:** the dispositions are implemented, old owners and adapters are
+deleted, and coordinators only sequence typed phases. Directory layout and
+dependency direction agree with the actual ownership.
 
-**Done when:** every disposition is implemented; umbrella/catch-all ownership
-is gone; coordinators sequence typed phases; remaining crates have clear
-contracts. No `pipeline-common` or renamed helper collection replaces the mess.
+## 2. Finish representation ownership
 
-## 3. Finish current-data ownership and representation organization
+Sweep all Omega and Psi representations, not just the last one touched.
 
-**Outcome:** every representation has one named root beside `lib.rs`, exposing
-the current program independently of its producer's history.
+- One named root file beside `lib.rs` defines the current program and provides
+  the reader's starting point.
+- Subdirectories group the representation's actual concepts: control flow,
+  values, storage, calls, ownership or evidence where those concepts exist.
+  Do not impose one universal folder template.
+- Durable program schemas live in representations, including reusable
+  pre-Terminal data such as `LoweredTerminalPsi`; transformation scratch
+  stays private to its producer.
+- Ordinary consumers read current data. Historical inputs needed for replay
+  remain explicit evidence, not the route to finding the current program.
 
-- Audit all Omega and Psi roots, not only checked trees and Terminal.
-- Move durable program schemas out of transforms. Distinguish reusable
-  pre-Terminal data, including `LoweredTerminalPsi`, from lowering scratch.
-- Make ordinary consumers use current data and explicit policy. Only replay
-  traverses retained earlier inputs. Keep necessary proof inputs separately.
-- Organize subordinate areas around each representation's actual concepts.
-  Do not force a universal places/drops/moves/edges schema, duplicate trees,
-  or invent representations just to label optimization.
+**Acceptance:** every root is obvious, public program data can outlive its
+producer, and ordinary consumers no longer walk producer ancestry. Moving
+files without fixing those dependencies does not complete the move.
 
-**Done when:** every root is obvious; production consumers do not recover their
-program through stage ancestry; data can outlive producers without gaining
-admission authority. Architecture checks enforce ownership, not cosmetic names.
+## 3. Delete the alternate physical pipeline
 
-## 4. Make pre-Terminal optimization real
+Start at `omega-terminal-psi-to-native-artifact/src/realization/physical_stage.rs`:
+`NativePhysicalStageResult::Assigned | Optimized` still selects competing
+assignment/emission implementations.
 
-**Outcome:** standalone Psi already contains the result of selected Psi passes.
+Define one physical stage sequence and current program contract, bring across
+the supported behavior of both routes, then delete the alternate route.
+Empty selection is identity execution within that sequence, not a different
+compiler. A wrapper around both implementations is not convergence.
 
-`psi-checked-trees-to-terminal/src/preterminal_optimization/mod.rs` currently
-accepts identity execution and rejects nonempty selections. That is unfinished.
+Preserve ordinary, ranked-countdown, callback and Unit structural-scalar
+behavior through selection, allocation, machine optimization, layout and
+emission. Missing selected-control or ABI support is a prerequisite inside
+this move, not an invitation to start a general backend expansion.
 
-- Port applicable target-neutral rewrites and independent checks before Terminal:
-  control-flow cleanup, SCCP, copy propagation, GVN, dead pure scalar elimination
-  and proof-check elision.
-- Preserve exact selection, semantic/proof identity, ownership, effects,
-  qualifications and execution evidence through publication.
-- Keep optimization X-to-X unless vocabulary or invariants genuinely change.
-- Keep the selected checked-tree phase visible. Product pruning remains tracked
-  by `CHECKED-TREE-PRODUCT-PRUNING`, not duplicated here; it runs after checking
-  authored code and must not hide invalid source.
+**Acceptance:** empty/nonempty selections and those existing program forms reach
+native publication through the common graph. No supported behavior is removed
+to make the routes appear unified. Target and authority distinctions remain
+explicit inside their proper stages.
 
-**Done when:** applicable nonempty selections execute and pass independent
-validation before immutable Terminal publication. A separately authorized
-receiving lowerer does not secretly rerun Psi passes.
+## 4. Deliver optimized portable Psi
 
-## Shared rules
+Replace the identity-only pre-Terminal optimization implementation in
+`psi-checked-trees-to-terminal/src/preterminal_optimization/mod.rs`.
+
+Move applicable target-neutral rewrites and independent checks before Terminal:
+control-flow cleanup, SCCP, copy propagation, GVN, dead pure scalar elimination
+and proof-check elision. Preserve proof, ownership, effects, qualifications and
+selected-execution evidence through publication.
+
+Optimization is an explicit X-to-X phase unless vocabulary or invariants
+actually change. All passes remain exact opt-ins from `build.omg`.
+Checked-tree product pruning stays under `CHECKED-TREE-PRODUCT-PRUNING`;
+it runs after checking authored code and must not hide invalid source.
+
+**Acceptance:** applicable nonempty selections execute and independently validate
+before immutable Terminal publication. Shipped Psi is usable by a separate
+interpreter/lowerer with its own authority and no original frontend state;
+that consumer does not secretly finish omitted Psi optimization.
+
+## Ownership rules
 
 | Responsibility | Owner |
 | --- | --- |
-| Current program data, typed identities and evidence records | Representations |
-| Independently reusable program validity and proof | Semantics |
-| Transform/rewrite execution and private analyses | Owning transform |
-| ISA, ABI, object-format, relocation and encoding mechanics | Backend |
-| General arena, graph and encoding primitives | Foundation, when genuinely shared |
+| Current program data, identities and evidence records | Representations |
+| Independently reusable validity and proof | Semantics |
+| Transformation, rewrite execution and private analyses | Owning transform |
+| ISA, ABI, object, relocation and encoding mechanics | Backend |
+| Genuinely shared arena, graph and encoding primitives | Foundation |
 | Sequencing, build selections and product policy | Compiler/build orchestration |
 
-Producer and checker may share catalog predicates, input-only validation and
-small arithmetic/encoding primitives, not the output-producing decision
-procedure whose result must be independently checked.
+Producer and checker may share input predicates and small primitives, not the
+output-producing decision procedure that independent replay must check.
+A serial public pipeline does not require branchless internal algorithms.
 
-All optimizations remain exact opt-ins from `build.omg`. Empty selection is
-identity in the same stage graph. Serial public stages do not mean branchless
-internals. Terminal remains portable to another interpreter/lowerer with its
-own authority; original frontend state must not become a hidden requirement.
+## How to keep this work finite
 
-## Execution order and anti-drift rule
+- Work on one whole consolidation or route convergence at a time. Before
+  starting, name the old owner/route to delete or the missing behavior to deliver,
+  its destination, and its acceptance check.
+- Helpers, guards and codec changes are bounded prerequisites, not milestones.
+  If they expand beyond the active move, reassess priority instead of recursively
+  adding tasks. A blocker in one owner does not block independent consolidation.
+- Keep discoveries under these four moves. Add a separate product task only for
+  independently required functionality, not another cleanup substep.
+- Remove completed work. Keep history and test counts in commits, not this plan.
+  The taskboard carries one integration item linking here.
 
-1. Start with package 2's owner map and implement a whole consolidation at a
-   time. Move current representation roots with their owners where needed.
-   Do not postpone all visible crate cleanup until physical feature parity.
-2. Complete package 1 against those owners. Missing selected-control, ABI or
-   encoding support is subordinate to deleting the alternate physical route,
-   not a new general compiler project.
-3. Finish package 3 across both halves, then package 4's real Psi passes.
+A milestone must demonstrate the changed ownership/route and preserved behavior,
+with focused controls plus formatting, workspace Clippy, architecture tests,
+all-target checking and `test --workspace --lib --no-fail-fast`. Run applicable
+native controls separately and name host legs not run. Preserve artifact bytes
+for internal moves; format changes require coordinated versions and replay.
 
-Before each implementation milestone, name the old route, owner or adapter that
-will disappear, or the required behavior that will become real. If neither
-changes, justify the work as a bounded prerequisite, not completion.
-
-Keep only one active consolidation or convergence slice. Its working notes
-name the destination, obsolete code to remove, required behavior and acceptance
-check. A prerequisite that expands beyond that slice requires reprioritization;
-do not recursively turn every discovery into another cleanup task. If an owner
-cannot be consolidated until a concrete missing behavior exists, name that
-dependency and continue an independent big move rather than narrowing the whole
-project to that blocker.
-
-The taskboard keeps one integration item linking here. Discoveries stay within
-these four packages unless they require an independently needed product feature.
-Delete completed tasks. Do not append checkpoint histories or test counts to
-the board. Maintain the full finish condition rather than narrowing it to the
-next helper that is easy to extract.
-
-## Completion checklist
-
-- [ ] One physical pipeline, including empty/nonempty selections and all
-  previously supported authority/program forms; obsolete routes removed.
-- [ ] Every pipeline crate disposition implemented; umbrella/catch-all owners
-  removed without replacement unhomed helper packages.
-- [ ] All representation roots clear and current-data ownership independent
-  of producer ancestry.
-- [ ] Applicable selected Psi passes execute before Terminal publication.
-- [ ] End-to-end controls cover standalone Psi, separately authorized resumed
-  lowering, native publication and stale/substituted evidence rejection.
-
-Run focused behavior/corruption controls plus repository gates: formatting,
-workspace Clippy, architecture tests, workspace all-target checking, and
-`test --workspace --lib --no-fail-fast`. Run applicable native/runtime controls
-separately and report unsupported host legs as not run. Preserve artifact bytes
-for internal moves; real format changes require coordinated versions and replay.
-
-Completion is the actual graph, ownership and behavior satisfying these checks.
-More documentation, package renames or tests covering only identity execution
-do not prove it.
+The cleanup is finished only when all four acceptance conditions hold, including
+standalone Psi, separately authorized resumed lowering, native publication and
+rejection of stale/substituted evidence. Renames, wrappers, added documentation
+and identity-only tests do not establish that result.

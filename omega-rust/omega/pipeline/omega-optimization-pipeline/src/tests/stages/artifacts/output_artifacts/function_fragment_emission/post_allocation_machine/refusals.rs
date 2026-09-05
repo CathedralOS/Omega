@@ -1,8 +1,8 @@
-use omega_machine_optimizer::{
+use omega_optimization_core::{OptimizationSelections, PostTerminalOptimizationSelections};
+use omega_post_allocation_machine_to_optimized_machine::{
     ORDERED_POST_ALLOCATION_MACHINE_RULES, POST_ALLOCATION_MACHINE_RULE_CATALOG,
     PostAllocationMachineRuleCatalogError,
 };
-use omega_optimization_core::{OptimizationSelections, PostTerminalOptimizationSelections};
 use omega_target::Architecture;
 
 use crate::coordination::physical_pipeline::{

@@ -6,9 +6,9 @@
 use std::sync::Arc;
 
 use omega_machine_code::ResolvedMachineLayout;
-use omega_machine_optimizer::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use omega_optimization_core::Optimization;
 use omega_physical_instructions::PostAllocationMachineOptimizationCustody;
+use omega_physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use omega_target::NativeTarget;
 
 pub use omega_machine_code::{
@@ -33,7 +33,7 @@ impl StagedOptimizedResolvedSelectedFormLayout {
         self.program.selected
     }
 
-    pub fn machine(&self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub fn machine(&self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         self.program.machine
     }
 

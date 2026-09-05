@@ -2,13 +2,13 @@ use omega_isa_x86_64::{
     ValidatedX86_64SelectedStructuralUnitCallTemplate,
     encode_x86_64_selected_structural_unit_call_template,
 };
-use omega_machine_optimizer::{
-    StructuralUnitCallMachineEffects, StructuralUnitFunctionMachineEffects,
-};
 use omega_physical_instructions::PostAllocationStructuralUnitFunction;
 use omega_register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
 use omega_selected_instructions::{
     SelectedStructuralUnitCallInstruction, SelectedStructuralUnitFunction,
+};
+use omega_selected_instructions::{
+    StructuralUnitCallMachineEffects, StructuralUnitFunctionMachineEffects,
 };
 use omega_target::NativeTarget;
 

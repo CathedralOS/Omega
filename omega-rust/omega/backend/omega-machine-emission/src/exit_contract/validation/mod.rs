@@ -23,7 +23,7 @@ use omega_selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSele
 
 struct Inputs<'a> {
     selected: &'a omega_selected_instructions::SelectedInstructionPlan,
-    machine: &'a omega_machine_optimizer::PostAllocationMachinePlan,
+    machine: &'a omega_physical_instructions::PostAllocationMachinePlan,
     physical: &'a ValidatedPhysicalRegisterModel,
     encoding: &'a StagedOptimizedSelectedFormEncoding,
     layout: &'a StagedOptimizedResolvedSelectedFormLayout,

@@ -1,10 +1,10 @@
-use omega_machine_optimizer::{
-    POST_ALLOCATION_MACHINE_RULE_CATALOG, PostAllocationMachineRuleCatalogEntry,
-    PostAllocationMachineRuleCatalogError,
-};
 use omega_optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelections,
     PostTerminalOptimizationSelections,
+};
+use omega_post_allocation_machine_to_optimized_machine::{
+    POST_ALLOCATION_MACHINE_RULE_CATALOG, PostAllocationMachineRuleCatalogEntry,
+    PostAllocationMachineRuleCatalogError,
 };
 use omega_selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError;
 use omega_target::Architecture;

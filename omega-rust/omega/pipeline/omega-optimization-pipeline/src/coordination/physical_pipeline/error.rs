@@ -29,7 +29,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),
     PostAllocationMachineRuleCatalog(
-        omega_machine_optimizer::PostAllocationMachineRuleCatalogError,
+        omega_post_allocation_machine_to_optimized_machine::PostAllocationMachineRuleCatalogError,
     ),
     SelectedLoweringRuleCatalog(
         omega_selected_instructions_to_register_homes::SelectedLoweringRuleCatalogError,

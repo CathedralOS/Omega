@@ -1,8 +1,8 @@
 use crate::{
-    OptimizedPostAllocationMachineOptimizationError, OptimizedPostAllocationMachinePipelineError,
-    StagedOptimizedPostAllocationMachinePlan,
+    OptimizedPostAllocationMachineOptimizationError, StagedOptimizedPostAllocationMachinePlan,
     validate_optimized_post_allocation_machine_plan_custody,
 };
+use omega_register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePipelineError;
 use omega_selected_instructions_to_register_homes::{AllocationOutput, AllocationSource};
 
 pub(super) fn replay_machine_source<'source>(

@@ -1,5 +1,5 @@
-use omega_machine_optimizer::PostAllocationMachineRuleCatalogEntry;
 use omega_optimization_core::Optimization;
+use omega_post_allocation_machine_to_optimized_machine::PostAllocationMachineRuleCatalogEntry;
 
 /// Exact physical route admitted for one canonical post-Terminal selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

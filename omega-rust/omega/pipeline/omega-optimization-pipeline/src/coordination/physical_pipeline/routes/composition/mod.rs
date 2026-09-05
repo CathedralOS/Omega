@@ -10,8 +10,8 @@ mod tests;
 use super::super::OptimizedVerifiedPhysicalPipelineError;
 use super::super::PhysicalOptimizationPhaseSelections;
 pub(crate) use model::{ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan};
-use omega_machine_optimizer::selected_post_allocation_machine_rule;
 use omega_optimization_core::Optimization;
+use omega_post_allocation_machine_to_optimized_machine::selected_post_allocation_machine_rule;
 use omega_selected_form_encoding_to_resolved_layout::x86_rel8_selected;
 use omega_selected_instructions_to_register_homes::{
     resolve_selected_lowering_rules, selected_allocation_recovery_rule,

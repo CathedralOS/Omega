@@ -53,7 +53,7 @@ pub(super) fn analyze_and_allocate_structural_call(
     )
     .unwrap();
     assert!(
-        omega_machine_optimizer::validate_pre_allocation_machine_effects(
+        omega_selected_instructions_to_machine_effects::validate_pre_allocation_machine_effects(
             selected.selected(),
             environment.identity(),
             environment.physical(),

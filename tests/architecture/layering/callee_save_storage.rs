@@ -64,7 +64,7 @@ fn is_target_owned_independent_and_non_authoritative() {
 
     let all_source = recursive_rust_source(&stage);
     for forbidden in [
-        "omega_machine_optimizer",
+        "omega_post_allocation_machine_to_optimized_machine",
         "MachineEncoded",
         "PostAllocationMachineInstruction",
         "StackPointer",

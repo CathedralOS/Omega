@@ -4,7 +4,7 @@
 //! adapter prevents that invariant from degrading into one optional tuple
 //! element per materialization family.
 
-use omega_machine_optimizer::{
+use omega_post_allocation_machine_to_optimized_machine::{
     Aarch64MovnInstructionDisposition, X86MovR32Imm32InstructionDisposition,
     X86MovR64Imm32SignExtendedInstructionDisposition, X86XorZeroInstructionDisposition,
 };
@@ -46,12 +46,12 @@ impl MaterializationDisposition<'_> {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum MaterializationPlan<'a> {
-    Aarch64Movn(&'a omega_machine_optimizer::Aarch64MovnMaterializationPlan),
-    X86MovR32Imm32(&'a omega_machine_optimizer::X86MovR32Imm32MaterializationPlan),
+    Aarch64Movn(&'a omega_post_allocation_machine_to_optimized_machine::Aarch64MovnMaterializationPlan),
+    X86MovR32Imm32(&'a omega_post_allocation_machine_to_optimized_machine::X86MovR32Imm32MaterializationPlan),
     X86MovR64Imm32SignExtended(
-        &'a omega_machine_optimizer::X86MovR64Imm32SignExtendedMaterializationPlan,
+        &'a omega_post_allocation_machine_to_optimized_machine::X86MovR64Imm32SignExtendedMaterializationPlan,
     ),
-    X86XorZero(&'a omega_machine_optimizer::X86XorZeroMaterializationPlan),
+    X86XorZero(&'a omega_post_allocation_machine_to_optimized_machine::X86XorZeroMaterializationPlan),
 }
 
 impl<'a> MaterializationPlan<'a> {
@@ -119,12 +119,12 @@ impl<'a> MaterializationPlan<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum MaterializationFunction<'a> {
-    Aarch64Movn(&'a omega_machine_optimizer::Aarch64MovnMaterializationFunction),
-    X86MovR32Imm32(&'a omega_machine_optimizer::X86MovR32Imm32MaterializationFunction),
+    Aarch64Movn(&'a omega_post_allocation_machine_to_optimized_machine::Aarch64MovnMaterializationFunction),
+    X86MovR32Imm32(&'a omega_post_allocation_machine_to_optimized_machine::X86MovR32Imm32MaterializationFunction),
     X86MovR64Imm32SignExtended(
-        &'a omega_machine_optimizer::X86MovR64Imm32SignExtendedMaterializationFunction,
+        &'a omega_post_allocation_machine_to_optimized_machine::X86MovR64Imm32SignExtendedMaterializationFunction,
     ),
-    X86XorZero(&'a omega_machine_optimizer::X86XorZeroMaterializationFunction),
+    X86XorZero(&'a omega_post_allocation_machine_to_optimized_machine::X86XorZeroMaterializationFunction),
 }
 
 impl<'a> MaterializationFunction<'a> {
@@ -173,12 +173,12 @@ impl<'a> MaterializationFunction<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum MaterializationBlock<'a> {
-    Aarch64Movn(&'a omega_machine_optimizer::Aarch64MovnMaterializationBlock),
-    X86MovR32Imm32(&'a omega_machine_optimizer::X86MovR32Imm32MaterializationBlock),
+    Aarch64Movn(&'a omega_post_allocation_machine_to_optimized_machine::Aarch64MovnMaterializationBlock),
+    X86MovR32Imm32(&'a omega_post_allocation_machine_to_optimized_machine::X86MovR32Imm32MaterializationBlock),
     X86MovR64Imm32SignExtended(
-        &'a omega_machine_optimizer::X86MovR64Imm32SignExtendedMaterializationBlock,
+        &'a omega_post_allocation_machine_to_optimized_machine::X86MovR64Imm32SignExtendedMaterializationBlock,
     ),
-    X86XorZero(&'a omega_machine_optimizer::X86XorZeroMaterializationBlock),
+    X86XorZero(&'a omega_post_allocation_machine_to_optimized_machine::X86XorZeroMaterializationBlock),
 }
 
 impl<'a> MaterializationBlock<'a> {

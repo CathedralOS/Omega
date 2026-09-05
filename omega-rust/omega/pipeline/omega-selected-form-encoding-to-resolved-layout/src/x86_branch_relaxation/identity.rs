@@ -24,7 +24,7 @@ const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v
 pub(super) struct RevisionRoots {
     pub(super) source: ResolvedSelectedFormLayoutIdentity,
     pub(super) selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
-    pub(super) machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub(super) machine: omega_physical_instructions::PostAllocationMachineIdentity,
     pub(super) pre_layout: omega_machine_code::SelectedFormEncodingIdentity,
     pub(super) target: NativeTarget,
 }

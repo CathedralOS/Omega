@@ -15,15 +15,13 @@ needed for independent replay through publication.
 
 - **PIPELINE-PHASE-INTEGRATION.** Execute the four
   [ownership cleanup packages](wiki/architecture/pipeline/ownership_cleanup.md):
-  (1) replace competing physical routes with one pipeline; (2) consolidate the
-  crate graph and remove umbrella/catch-all owners; (3) finish current-data
-  ownership and all representation roots; (4) make selected pre-Terminal Psi
-  optimization real. Prioritize whole-route and whole-owner removal over helper
-  extractions. Keep discoveries within these packages, not new top-level tasks.
-  Start with whole-owner consolidation; physical feature parity must not defer
-  every visible crate cleanup. Internal allocation steps do not each need a
-  crate simply because they have separate stage documents.
-  Acceptance: the plan's complete checklist passes, including preserved ordinary,
+  (1) delete umbrella/catch-all owners and consolidate pipeline crates;
+  (2) finish all Omega/Psi representation roots and current-data ownership;
+  (3) delete the alternate physical route; (4) execute selected Psi optimization
+  before Terminal. Work in that order, moving data with owners where needed.
+  Whole-owner removal and real behavior are milestones; helper extractions are
+  prerequisites. Keep discoveries inside these moves and delete completed work.
+  Acceptance: all four finish conditions hold, including preserved ordinary,
   ranked and callback behavior, empty/nonempty selection on one graph, standalone
   Psi and separately authorized resumed lowering, and independent replay.
   Folder renames, common wrappers and identity-only passes do not close this item.

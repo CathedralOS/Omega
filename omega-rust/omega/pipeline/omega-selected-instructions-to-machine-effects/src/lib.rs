@@ -10,10 +10,11 @@
 mod analysis;
 mod catalog;
 mod error;
+mod facts;
 
 pub use error::MachineEffectStageError;
+pub use facts::*;
 
-use omega_machine_optimizer::ValidatedPreAllocationMachineEffects;
 use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use omega_target_to_register_environment::ValidatedTargetRegisterEnvironment;
 

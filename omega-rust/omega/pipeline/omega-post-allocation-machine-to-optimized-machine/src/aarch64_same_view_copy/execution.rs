@@ -1,6 +1,6 @@
 //! Exact core-rule dispatch and independent replay authentication.
 
-use omega_machine_optimizer::{
+use crate::{
     ValidatedAarch64SameViewCopyElision,
     optimize_aarch64_same_view_copy_i64_before_compare_i64_left_operand,
     optimize_aarch64_same_view_copy_i64_before_compare_i64_right_operand,

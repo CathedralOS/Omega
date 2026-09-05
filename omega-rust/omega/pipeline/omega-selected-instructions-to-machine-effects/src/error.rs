@@ -1,7 +1,7 @@
 //! Failures owned by target-catalog admission and effect analysis.
+use crate::MachineEffectError;
 use omega_isa_aarch64::Aarch64MachineEffectCatalogValidationError;
 use omega_isa_x86_64::X86_64MachineEffectCatalogValidationError;
-use omega_machine_optimizer::MachineEffectError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineEffectStageError {

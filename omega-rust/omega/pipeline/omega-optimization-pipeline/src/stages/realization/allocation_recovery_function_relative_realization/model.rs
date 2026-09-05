@@ -55,7 +55,7 @@ impl StagedAllocationRecoveryFunctionRelativeRealization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt {
     pub(super) source: AllocationEvidence,
-    pub(super) machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub(super) machine: omega_physical_instructions::PostAllocationMachineIdentity,
     pub(super) encoding: crate::SelectedFormEncodingIdentity,
     pub(super) layout: crate::ResolvedSelectedFormLayoutIdentity,
     pub(super) exit_contract: crate::WholeFunctionExitContractIdentity,
@@ -66,7 +66,7 @@ impl StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt {
     pub const fn source(&self) -> &AllocationEvidence {
         &self.source
     }
-    pub const fn machine(&self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub const fn machine(&self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         self.machine
     }
     pub const fn encoding(&self) -> crate::SelectedFormEncodingIdentity {

@@ -6,8 +6,8 @@ use omega_machine_code::{
     InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
     PlacedInternalMachineCallResolution,
 };
-use omega_machine_optimizer::StructuralUnitCallMachineEffects;
 use omega_register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
+use omega_selected_instructions::StructuralUnitCallMachineEffects;
 use omega_selected_instructions::{SelectedBlockId, SelectedStructuralUnitCallInstruction};
 use omega_target::NativeTarget;
 use psi_core::MachineId;

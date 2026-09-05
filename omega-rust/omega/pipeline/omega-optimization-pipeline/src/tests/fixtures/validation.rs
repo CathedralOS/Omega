@@ -25,10 +25,10 @@ pub(crate) fn validate_raw_selection(
 pub(crate) fn validate_raw_post_allocation(
     source: &StagedOptimizedRegisterHomes,
     staged: &StagedOptimizedPostAllocationMachinePlan,
-    raw: omega_machine_optimizer::PostAllocationMachinePlan,
+    raw: omega_physical_instructions::PostAllocationMachinePlan,
 ) -> Result<
-    omega_machine_optimizer::ValidatedPostAllocationMachinePlan,
-    omega_machine_optimizer::PostAllocationMachineError,
+    omega_register_homes_to_post_allocation_machine::ValidatedPostAllocationMachinePlan,
+    omega_register_homes_to_post_allocation_machine::PostAllocationMachineError,
 > {
     let selected = source
         .legality_stage()
@@ -36,7 +36,7 @@ pub(crate) fn validate_raw_post_allocation(
         .liveness_stage()
         .selected_stage();
     let environment = selected.register_environment();
-    omega_machine_optimizer::validate_post_allocation_machine_plan(
+    omega_register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
         selected.selected(),
         staged.effects(),
         source.legality_stage().live_range_stage().ranges(),

@@ -7,16 +7,17 @@
 
 mod construction;
 mod model;
+mod plan;
 mod validation;
 
 pub use construction::*;
 pub use model::*;
+pub use plan::*;
 pub use validation::*;
 
-use omega_machine_optimizer::ValidatedPostAllocationMachinePlan;
 use omega_selected_instructions_to_register_homes::AllocationEvidence;
 
-use omega_machine_optimizer::ValidatedPreAllocationMachineEffects;
+use omega_selected_instructions_to_machine_effects::ValidatedPreAllocationMachineEffects;
 
 fn seal_staged_post_allocation_machine(
     source: AllocationEvidence,
@@ -33,7 +34,7 @@ fn seal_staged_post_allocation_machine(
 
 fn post_allocation_machine_custody(
     source: AllocationEvidence,
-    effects: &omega_machine_optimizer::ValidatedPreAllocationMachineEffects,
+    effects: &omega_selected_instructions_to_machine_effects::ValidatedPreAllocationMachineEffects,
     machine: &ValidatedPostAllocationMachinePlan,
 ) -> StagedOptimizedPostAllocationMachineCustodyReceipt {
     StagedOptimizedPostAllocationMachineCustodyReceipt {

@@ -321,16 +321,18 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
     let mut rehashed_corruption = optimization.fusion().plan().clone();
     rehashed_corruption.actions[0].source_read.view = physical.model().view_named("x2").unwrap().id;
     rehashed_corruption.identity =
-        omega_machine_optimizer::aarch64_cbnz_fusion_identity(&rehashed_corruption);
+        omega_post_allocation_machine_to_optimized_machine::aarch64_cbnz_fusion_identity(
+            &rehashed_corruption,
+        );
     assert_eq!(
-        omega_machine_optimizer::validate_aarch64_cbnz_fusion(
+        omega_post_allocation_machine_to_optimized_machine::validate_aarch64_cbnz_fusion(
             selected_stage.selected(),
             homes.liveness(),
             machine.machine(),
             physical,
             rehashed_corruption,
         ),
-        Err(omega_machine_optimizer::Aarch64CbnzFusionError::ArtifactMismatch)
+        Err(omega_post_allocation_machine_to_optimized_machine::Aarch64CbnzFusionError::ArtifactMismatch)
     );
 
     let realization = (staged)

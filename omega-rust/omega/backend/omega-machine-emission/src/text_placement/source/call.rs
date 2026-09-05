@@ -8,10 +8,10 @@ use omega_machine_code::{
     ResolvedStructuralUnitCallLayout, StructuralUnitCallFragmentSpan,
     WholeFunctionStructuralUnitCallEvidence,
 };
-use omega_machine_optimizer::StructuralUnitCallMachineEffects;
 use omega_post_allocation_machine_to_selected_form_encoding::SelectedStructuralUnitCallEncodingRow;
 use omega_register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
 use omega_selected_instructions::SelectedStructuralUnitCallInstruction;
+use omega_selected_instructions::StructuralUnitCallMachineEffects;
 use omega_target::NativeTarget;
 use psi_core::MachineId;
 #[allow(clippy::too_many_arguments)]

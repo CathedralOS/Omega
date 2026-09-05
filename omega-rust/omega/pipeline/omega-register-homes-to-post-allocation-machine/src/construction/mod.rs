@@ -7,7 +7,7 @@ use super::{
     OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
     seal_staged_post_allocation_machine,
 };
-use omega_machine_optimizer::analyze_post_allocation_machine_plan;
+use crate::analyze_post_allocation_machine_plan;
 use omega_selected_instructions_to_machine_effects::analyze_machine_effects;
 use omega_selected_instructions_to_register_homes::AllocationSource;
 

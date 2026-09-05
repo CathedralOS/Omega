@@ -199,7 +199,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
         let selected_stage = range_stage.liveness_stage().selected_stage();
         let environment = selected_stage.register_environment();
         assert!(
-            omega_machine_optimizer::validate_post_allocation_machine_plan(
+            omega_register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
                 selected_stage.selected(),
                 post.effects(),
                 range_stage.ranges(),

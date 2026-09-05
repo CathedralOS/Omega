@@ -383,7 +383,7 @@ fn x86_mov_r32_imm32_and_xor_zero_reject_without_hidden_rule_ordering() {
         ),
         Err(
             OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog(
-                omega_machine_optimizer::PostAllocationMachineRuleCatalogError::UnsupportedComposition(
+                omega_post_allocation_machine_to_optimized_machine::PostAllocationMachineRuleCatalogError::UnsupportedComposition(
                     _
                 )
             )

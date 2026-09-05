@@ -3,8 +3,8 @@
 use omega_isa_aarch64::{
     aarch64_shortest_movn_materialization_recipe, encode_aarch64_shortest_movn_materialization,
 };
-use omega_machine_optimizer::Aarch64MovnInstructionDisposition;
 use omega_physical_instructions::PostAllocationMachineInstruction;
+use omega_post_allocation_machine_to_optimized_machine::Aarch64MovnInstructionDisposition;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstruction, SelectedInstructionKind};
 use omega_target::Architecture;
