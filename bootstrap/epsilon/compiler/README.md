@@ -5,6 +5,10 @@ Start at [`epsilon_compiler.delta`](epsilon_compiler.delta). Its
 distinguishes rejection from internal failure, and starts the checked entry
 invocation. This is a diagnostic
 execution entrance, not yet the final evaluator `main` or a closed compiler edge.
+The [private execution driver](../../../tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
+preserves full `i32` exit codes, trap kinds and stdout prefixes, and rejection
+reasons and coordinates in distinct tagged results. Its transport is not a new
+normative Epsilon request or observation envelope.
 
 ## Follow the program
 

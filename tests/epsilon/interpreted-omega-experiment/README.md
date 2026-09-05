@@ -67,10 +67,12 @@ Views and all four Console operations execute with the controls below.
 Any retained `Unsupported` staging outcome is not an Epsilon observation and
 cannot survive in the final evaluator.
 
-The gate compiles the exact evaluator plus `execution_driver.delta` through the
-selected Delta route and pins the 680,155-byte Gamma receipt, SHA-256
-`e3a8ea1551fd1f377a486bd51ca51215231fe770aa4d2a6060727b6777f39565`.
-The original 108 ordinary controls cover
+The gate compiles the exact evaluator plus the 54-line / 2,505-byte
+`execution_driver.delta` (SHA-256
+`68c21b984122cad9d47ddde5b9681da6cadf80aa1ead2da41cf7bb8817dc372e`) through the
+selected Delta route and pins the 680,334-byte Gamma receipt, SHA-256
+`c95325ec61f294cd87360be5559898689d25527538c64994bf21b2ff7799ef23`.
+The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
 ordering, byte-storage range boundaries, and trap prefixes. State controls
@@ -107,9 +109,46 @@ per compilation or execution, not an Epsilon observation or resource verdict;
 the whole D Alpha-tape customer takes about 166 seconds on the measured host.
 Gamma's published resource profile is unchanged.
 This is private test framing, not the final evaluator request/observation
-envelope. Five malformed-frame controls expect the driver byte `fd`; a valid
-zero-length source expects Epsilon rejection byte `fa`. Those six framing
-observations are counted separately from the language/customer inventory.
+envelope. Six malformed-frame controls expect the single tag byte `05`,
+including a declared source length of `0xffffffff` without its body. A
+valid zero-length source reaches checking and produces a tagged rejection with
+its exact reason and source offset. These framing observations are counted
+separately from the language/customer inventory.
+
+## Private execution observations
+
+The diagnostic result starts with an explicit tag; subsequent bytes have the
+following layout. Integers and offsets use little-endian encoding.
+
+| Tag | Result | Remaining bytes |
+| --- | --- | --- |
+| `00` | Exit | full signed `i32` exit code in four bytes, then exact stdout |
+| `01` | Trap | one closed language trap-kind byte, then exact stdout prefix |
+| `02` | Reject | one closed language rejection-reason byte, then four-byte source offset |
+| `03` | Internal | four-byte source offset |
+| `04` | Unsupported | none |
+| `05` | MalformedRequest | none |
+
+Negative exit codes retain their full two's-complement `i32` bit pattern; they
+are not reduced modulo 256. Tags separate an exit from a trap or staging
+failure even when their final bytes would otherwise coincide. Rejections retain
+both the language reason and its exact coordinate. Stdout and trap prefixes
+follow their headers without a terminator or an implicit extra exit byte.
+
+These bytes are a private diagnostic payload returned by the driver through
+`ConformanceBytesV1`, not operating-system process statuses or a new Epsilon
+observation contract. A successful diagnostic invocation has outer status zero.
+Gamma evaluator failures remain raw failures; the runner must not synthesize a
+tagged result from them. `Unsupported`, `Internal`, and malformed private input
+remain distinct from an authored Epsilon exit or trap. The transport does not
+establish final evaluator framing or resource closure.
+
+Thirteen additional controls pin this transport: twelve exit programs retain
+stdout `A` while exercising zero, 128, 129, 133, 250 through 253, 256, minus one,
+and both signed `i32` endpoints. The thirteenth writes all six observation-tag
+bytes followed by `80 ff` as ordinary stdout. These cases distinguish exits
+from the former trap/staging sentinels, prevent modulo-256 truncation, and keep
+tag-like payload bytes distinct from the header.
 
 View controls cover closed literal escapes, NUL/high bytes, empty views,
 single-evaluation `.as_slice`, omitted and explicit slice bounds, nested views,
@@ -142,8 +181,8 @@ Every member and its 63,530-byte packed source is pinned. Its two distinct
 `write_reserved_word`, and `payload_length` machines, including their nested
 calls. It checks separate byte storage and lengths, little-endian word writes,
 the four `255` bytes written for `-1`, and reinitialization of one buffer without
-changing the other. Its expected observation is `ABCDEFGH` followed by the
-driver's zero exit byte. No D functions or types are extracted or replaced.
+changing the other. Its expected observation is tagged `Exit(0)` with stdout
+`ABCDEFGH`. No D functions or types are extracted or replaced.
 The third customer concatenates whole `representations.epsilon` and
 `request_and_utf8.epsilon` members with
 [`customers/omega_request/main.epsilon`](customers/omega_request/main.epsilon).
@@ -151,28 +190,30 @@ Its 40,542-byte packed source exercises the actual `OmegaRequestEnvelope` and
 `OmegaUtf8Validation` receiver machines using literals and a Main-owned array
 view. It checks empty/nonempty outer OCREQ frames, hostile lengths and trailing
 bytes, valid multibyte UTF-8, and malformed continuation, surrogate, out-of-range,
-and truncated encodings. Its expected observation is `A`, LF, and zero exit.
+and truncated encodings. Its expected observation is tagged `Exit(0)` with
+stdout `A` followed by LF.
 The fourth customer concatenates whole `representations.epsilon` and
 `lexical_classification.epsilon` with
 [`customers/omega_numeric_base/main.epsilon`](customers/omega_numeric_base/main.epsilon).
 Its 34,904-byte source exercises all four cases in D's actual
 `omega_digit_in_base` machine and the first-case default. Eighteen assertions
-cover admitted and rejected digits; expected output is `A` and zero exit.
+cover admitted and rejected digits; the expected result is tagged `Exit(0)`
+with stdout `A`.
 
 Sixteen sum controls cover nullary spellings, first-case defaults, nested sums
 in records/arrays, payload ByteRange and argument traps, once-only subjects,
 wildcards, snapshots before later argument effects, binder copies and receiver
 places, ordinary calls/returns, recursion, state transfers, and retained views
 of binder-owned arrays. A separate staging control,
-`sum_byte_order_unsettled.epsilon`, requires private driver byte `fc` with no
+`sum_byte_order_unsettled.epsilon`, requires private `Unsupported` tag `04` with no
 Epsilon observation when a nonfinal byte payload fails before another argument.
 The relationship between that store failure and later argument effects awaits
 the [payload-establishment ruling](../../../OWNER_QUESTIONS.md#epsilon-constructor-payload-establishment-order).
 This control does not bless `Unsupported` as language behavior.
 
-The inventory specifies 128 language/customer observations (124 ordinary
-fixtures and four whole-member D customers), one explicit staging refusal,
-and six private-framing controls. The companion
+The inventory specifies 142 diagnostic results: 141 language/customer judgments
+(137 ordinary fixtures and four whole-member D customers), plus one explicit
+staging refusal. Seven private-framing controls are counted separately. The companion
 [checking gate](../checking/README.md) pins exact checker reasons and coordinates
 without executing Epsilon programs; this gate retains execution and whole-D
 customer evidence.

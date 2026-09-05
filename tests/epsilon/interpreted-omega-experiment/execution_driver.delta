@@ -11,24 +11,43 @@
           (epsilon_experiment_bytes_range input start middle)
           (epsilon_experiment_bytes_range input middle end))))))
 
+; Private tagged diagnostics, not the final evaluator observation envelope.
+; Exit carries its full i32 bit pattern; offsets are bounded source coordinates.
+(def epsilon_experiment_u32 ((value Int)) Bytes
+  (bytes_concat
+    (bytes_concat
+      (bytes_single (% value 256))
+      (bytes_single (% (/ value 256) 256)))
+    (bytes_concat
+      (bytes_single (% (/ value 65536) 256))
+      (bytes_single (% (/ value 16777216) 256)))))
+
 (def epsilon_experiment_observation ((source Bytes) (input Bytes)) Bytes
   (match (epsilon_evaluate_entry_slice source input)
     ((EpsilonEvaluatorSliceExit code output)
-      (bytes_concat output (bytes_single (% (+ (% code 256) 256) 256))))
+      (bytes_concat (bytes_single 0)
+        (bytes_concat
+          (epsilon_experiment_u32 (if (lt code 0) (+ code 4294967296) code))
+          output)))
     ((EpsilonEvaluatorSliceTrap kind output)
-      (bytes_concat output (bytes_single (+ 128 kind))))
-    ((EpsilonEvaluatorSliceRejected reasonValue errorOffset) (bytes_single 250))
-    ((EpsilonEvaluatorSliceInternal errorOffset) (bytes_single 251))
-    (EpsilonEvaluatorSliceUnsupported (bytes_single 252))))
+      (bytes_concat (bytes_single 1)
+        (bytes_concat (bytes_single kind) output)))
+    ((EpsilonEvaluatorSliceRejected reasonValue errorOffset)
+      (bytes_concat (bytes_single 2)
+        (bytes_concat (bytes_single (epsilon_reject_reason_identity reasonValue))
+          (epsilon_experiment_u32 errorOffset))))
+    ((EpsilonEvaluatorSliceInternal errorOffset)
+      (bytes_concat (bytes_single 3) (epsilon_experiment_u32 errorOffset)))
+    (EpsilonEvaluatorSliceUnsupported (bytes_single 4))))
 
 (def main ((request Bytes)) Bytes
   (if (lt (bytes_length request) 4)
-    (bytes_single 253)
+    (bytes_single 5)
     (let sourceLength Int
       (+ (+ (bytes_get request 0) (* (bytes_get request 1) 256))
          (+ (* (bytes_get request 2) 65536) (* (bytes_get request 3) 16777216)))
       (if (lt (- (bytes_length request) 4) sourceLength)
-        (bytes_single 253)
+        (bytes_single 5)
         (epsilon_experiment_observation
           (epsilon_experiment_bytes_range request 4 (+ 4 sourceLength))
           (epsilon_experiment_bytes_range request (+ 4 sourceLength)

@@ -62,8 +62,8 @@ artifacts = {
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
-        1758,
-        "ea3d6772f7fefeee211685acc7e18546057113ef37435076f4d978ebbfb6533f",
+        2505,
+        "68c21b984122cad9d47ddde5b9681da6cadf80aa1ead2da41cf7bb8817dc372e",
     ),
 }
 for name, (data, size, digest) in artifacts.items():
@@ -111,7 +111,7 @@ add_customer("Omega D lexical helpers", (
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
     (test_directory / "customers/omega_lexical/main.epsilon", 1486,
      "6ce07453269102f7f468241d1a066a21cbe08c2a0652bb460c9c34d2f6ef11b2"),
-), 34911, "45447a0cc81353c88d341354b444537bfb113b304fcab50659d774a5fab08e1b", b"A\x00")
+), 34911, "45447a0cc81353c88d341354b444537bfb113b304fcab50659d774a5fab08e1b", b"\x00\x00\x00\x00\x00A")
 
 add_customer("Omega D Alpha tape buffers", (
     (omega_compiler / "representations.epsilon", 30905,
@@ -120,7 +120,7 @@ add_customer("Omega D Alpha tape buffers", (
      "302bddf1161fa06b07d1aba914f1e84209006a03020e50127c2db22c0daba59d"),
     (test_directory / "customers/omega_alpha_tape/main.epsilon", 1797,
      "0ccf1ef98023c4e19038bb0bcde4fd27140dbed47df166874e84d2e8930c348f"),
-), 63530, "08284b839b374d8e611bba77cd63d4093f1f72d7034dca7b8b1aeb26cec6c5b5", b"ABCDEFGH\x00")
+), 63530, "08284b839b374d8e611bba77cd63d4093f1f72d7034dca7b8b1aeb26cec6c5b5", b"\x00\x00\x00\x00\x00ABCDEFGH")
 
 add_customer("Omega D request and UTF-8", (
     (omega_compiler / "representations.epsilon", 30905,
@@ -129,7 +129,7 @@ add_customer("Omega D request and UTF-8", (
      "663acd44f754150f9cfea7bf3e08afda6b13aeca99b4a7fc08141ae66da89abe"),
     (test_directory / "customers/omega_request/main.epsilon", 2253,
      "e85bfe363cae2b313db528d9776dd4e11a185199c3d453293421da674af17121"),
-), 40542, "e47a07296fb205934fa013b4aae29d35d51d0e8f1ee08eaf5f7de9c69c2bb099", b"A\n\x00")
+), 40542, "e47a07296fb205934fa013b4aae29d35d51d0e8f1ee08eaf5f7de9c69c2bb099", b"\x00\x00\x00\x00\x00A\n")
 
 add_customer("Omega D numeric-base sums", (
     (omega_compiler / "representations.epsilon", 30905,
@@ -138,7 +138,7 @@ add_customer("Omega D numeric-base sums", (
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
     (test_directory / "customers/omega_numeric_base/main.epsilon", 1479,
      "abf50c23d589624d59b7b3603918d5ab76e6a6192594c50534fbee6cdf334386"),
-), 34904, "0f7f338afa427419fd6cea2e0f0536263d06ff8e41f1720b2e077cb702d1be0e", b"A\x00")
+), 34904, "0f7f338afa427419fd6cea2e0f0536263d06ff8e41f1720b2e077cb702d1be0e", b"\x00\x00\x00\x00\x00A")
 
 compiler = Path(os.environ["DELTA"]).read_bytes()
 subject = artifacts["evaluator source"][0] + artifacts["slice driver"][0]
@@ -158,13 +158,13 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 680155:
+if status != 0 or len(receipt) != 680334:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "e3a8ea1551fd1f377a486bd51ca51215231fe770aa4d2a6060727b6777f39565"
+    "c95325ec61f294cd87360be5559898689d25527538c64994bf21b2ff7799ef23"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "
@@ -172,12 +172,13 @@ if hashlib.sha256(receipt).hexdigest() != (
     )
 print(f"Epsilon evaluator: exact {len(receipt)}-byte receipt reconstructed", flush=True)
 driver_controls = (
-    ("empty frame", b"", b"\xfd"),
-    ("one header byte", b"\x00", b"\xfd"),
-    ("two header bytes", b"\x00\x00", b"\xfd"),
-    ("three header bytes", b"\x00\x00\x00", b"\xfd"),
-    ("source exceeds frame", struct.pack("<I", 2) + b"A", b"\xfd"),
-    ("empty Epsilon source", struct.pack("<I", 0), b"\xfa"),
+    ("empty frame", b"", b"\x05"),
+    ("one header byte", b"\x00", b"\x05"),
+    ("two header bytes", b"\x00\x00", b"\x05"),
+    ("three header bytes", b"\x00\x00\x00", b"\x05"),
+    ("source exceeds frame", struct.pack("<I", 2) + b"A", b"\x05"),
+    ("maximum source length exceeds frame", b"\xff\xff\xff\xffA", b"\x05"),
+    ("empty Epsilon source", struct.pack("<I", 0), b"\x02\x08\x00\x00\x00\x00"),
 )
 for name, application_input, expected in driver_controls:
     status, observation = evaluate(receipt, application_input)
