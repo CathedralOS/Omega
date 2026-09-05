@@ -36,7 +36,8 @@
         ((EpsilonU8Type start end) (EpsilonEvaluatorInternal start))
         ((EpsilonNeverType start end) (EpsilonEvaluatorInternal start))
         ((EpsilonNamedType start end name) (EpsilonEvaluatorInternal start))
-        ((EpsilonViewType start end element) EpsilonEvaluatorUnsupported)))))
+        ; Views have descriptor values, never aggregate storage.
+        ((EpsilonViewType start end element) (EpsilonEvaluatorInternal start))))))
 
 ; Arrays and views cannot own record fields. Their contextual length therefore
 ; needs no search through unrelated checked record projections. Named records
@@ -71,7 +72,7 @@
               (epsilon_evaluator_array_length value store output)
               (if (epsilon_name_is_as_slice source member)
                 (epsilon_evaluator_as_slice value place store output)
-                EpsilonEvaluatorUnsupported)))
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
           ((OneEpsilonResolvedFieldReference owner fieldValue)
             (match fieldValue
               ((EpsilonFieldMember start end name typeValue)

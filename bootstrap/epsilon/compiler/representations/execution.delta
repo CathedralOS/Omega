@@ -9,7 +9,7 @@
 
 ; Pure arithmetic results are separate from effect-threaded expression results.
 (data EpsilonEvaluatorScalarOutcome
-  (EpsilonEvaluatorScalarUnsupported)
+  (EpsilonEvaluatorScalarInternal)
   (EpsilonEvaluatorScalarValue Int)
   (EpsilonEvaluatorScalarTrapped Int))
 

@@ -19,7 +19,8 @@
         ((EpsilonU8Type start end) (EpsilonEvaluatorInternal start))
         ((EpsilonNeverType start end) (EpsilonEvaluatorInternal start))
         ((EpsilonNamedType start end name) (EpsilonEvaluatorInternal start))
-        ((EpsilonViewType start end element) EpsilonEvaluatorUnsupported)))))
+        ; A view descriptor is handled above; an aggregate view is malformed.
+        ((EpsilonViewType start end element) (EpsilonEvaluatorInternal start))))))
 
 ; Index effects may change the selected array. Its identity and length were
 ; established by the base; the element is read from the post-index store.

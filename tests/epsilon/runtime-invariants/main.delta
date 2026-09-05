@@ -1,0 +1,5 @@
+; Coordinate-tagged helper outcomes remain separate from source admission.
+(def main ((input Bytes)) Bytes
+  (bytes_concat (invariant_projections)
+    (bytes_concat (invariant_control)
+      (bytes_concat (invariant_scalars) (invariant_constructors)))))

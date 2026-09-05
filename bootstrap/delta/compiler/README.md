@@ -311,10 +311,10 @@ The downgraded full compiler remains separate under
 11-line / 397-byte forward/mutual nominal fixture
   -> 3-line / 956-byte byte-identical Gamma receipt
   -> all nullary, unary, and three-field constructor shapes produce byte 7
-914-line / 34,475-byte Epsilon declaration prefix plus scalar entry
+914-line / 34,472-byte current Epsilon declaration prefix plus scalar entry
   -> exact 21-byte scalar Gamma receipt within the evaluator watchdog
-11,713-line / 592,324-byte current Epsilon source plus checking entry
-  -> byte-identical 694,605-byte Gamma receipt
+11,718-line / 592,801-byte current Epsilon source plus checking entry
+  -> byte-identical 694,710-byte Gamma receipt
   -> 48 exact checking judgments
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
