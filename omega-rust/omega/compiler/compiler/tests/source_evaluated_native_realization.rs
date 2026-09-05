@@ -15,7 +15,7 @@ use task_plans::{
     admit_same_stack_contribution,
 };
 
-use terminal_psi_to_native_artifact as native;
+use native_realization as native;
 
 const INSTALL_NAME: &[u8] = b"/usr/lib/libSystem.B.dylib";
 const SYMBOL: &[u8] = b"_getpid";
@@ -425,7 +425,7 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
         &proof_admission::AdmissionProfile::default(),
         &optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,
@@ -483,7 +483,7 @@ fn windows_evaluated_u32_result_reaches_a_later_pe_import_through_exact_home_cus
         &proof_admission::AdmissionProfile::default(),
         &optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         permission_policy,
         &settlements,
     )
@@ -540,7 +540,7 @@ fn windows_evaluated_result_rejects_cross_wired_same_stack_custody() {
         &proof_admission::AdmissionProfile::default(),
         &optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         permission_policy,
         &cross_wired,
     )
@@ -618,7 +618,7 @@ fn import_coordinates(
 
 fn terminal_authority_policy(
     retained: &compilation_report::RetainedTerminalArtifact,
-) -> terminal_psi_to_native_artifact::TerminalAuthorityPolicy {
+) -> native_realization::TerminalAuthorityPolicy {
     let proposal = retained
         .native_realization_proposal()
         .expect("retained Terminal product has a native proposal");
@@ -636,12 +636,12 @@ fn terminal_authority_policy(
         !matches.is_empty(),
         "at least one normalized import policy row expected"
     );
-    terminal_psi_to_native_artifact::terminal_authority_policy_with_rows(
+    native_realization::terminal_authority_policy_with_rows(
         matches
             .into_iter()
             .map(|(locator, boundary_entry_plan)| {
-                terminal_psi_to_native_artifact::TerminalAuthorityPolicyRow::new(
-                    terminal_psi_to_native_artifact::normalized_foreign_terminal_mechanism(
+                native_realization::TerminalAuthorityPolicyRow::new(
+                    native_realization::normalized_foreign_terminal_mechanism(
                         locator,
                         boundary_entry_plan,
                     )
@@ -656,7 +656,7 @@ fn terminal_authority_policy(
 
 fn terminal_authority_permission_policy(
     retained: &compilation_report::RetainedTerminalArtifact,
-) -> terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy {
+) -> native_realization::TerminalAuthorityPermissionPolicy {
     let proposal = retained
         .native_realization_proposal()
         .expect("retained Terminal product has a native proposal");
@@ -669,7 +669,7 @@ fn terminal_authority_permission_policy(
                 .iter()
                 .filter(|&row| matches!(row.binding, ProviderBinding::Import { .. }))
                 .map(|row| {
-                    terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                    native_realization::TerminalAuthorityPermissionPolicyRow::new(
                         plan.schema.identity_digest(),
                         row.requirement_identity.clone(),
                         effects::TerminalAuthorityDisposition::from_classes([]),
@@ -677,7 +677,7 @@ fn terminal_authority_permission_policy(
                 })
         })
         .collect();
-    terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(rows)
+    native_realization::terminal_authority_permission_policy_with_rows(rows)
         .expect("exact source-evaluated import permissions")
 }
 
@@ -792,7 +792,7 @@ fn realize_linux_dynamic(
         &proof_admission::AdmissionProfile::default(),
         &optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         permission_policy,
         native::ExecutableImageEmissionRequest::dynamic_elf(interpreter),
         &[SourceEvaluatedImportSettlement::new(
@@ -868,7 +868,7 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
             &proof_admission::AdmissionProfile::default(),
             &optimization_core::PostTerminalOptimizationSelections::default(),
             policy,
-            terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+            native_realization::current_terminal_authority_permission_policy(),
             permission_policy,
             native::ExecutableImageEmissionRequest::direct(91),
             &[SourceEvaluatedImportSettlement::new(
@@ -899,7 +899,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         &proof_admission::AdmissionProfile::default(),
         &optimization_core::PostTerminalOptimizationSelections::default(),
         missing_policy,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         missing_permission_policy,
         &[],
     )
@@ -924,7 +924,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         &proof_admission::AdmissionProfile::default(),
         &optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,
@@ -1384,7 +1384,7 @@ fn retained_terminal_import_rejects_optimization_selection_substitution() {
                 &proof_admission::AdmissionProfile::default(),
                 &optimizations,
                 policy,
-                terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+                native_realization::current_terminal_authority_permission_policy(),
                 permission_policy,
                 &[SourceEvaluatedImportSettlement::new(
                     &admission.execution,
@@ -1419,7 +1419,7 @@ fn retained_source_evaluated_fixed_u32_import_requires_complete_d32_custody() {
         &proof_admission::AdmissionProfile::default(),
         &optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,
@@ -1616,7 +1616,7 @@ fn retained_source_evaluated_fixed_i32_result_requires_complete_d32_custody() {
         &proof_admission::AdmissionProfile::default(),
         &optimization_core::PostTerminalOptimizationSelections::default(),
         policy,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
         permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,

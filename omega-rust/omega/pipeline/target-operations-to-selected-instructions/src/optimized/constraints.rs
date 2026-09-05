@@ -4,7 +4,7 @@ use selected_instructions::{SelectedFixedInputConstraint, SelectedSelectionConst
 use semantic_vocabulary::MachineId;
 use target_operations::MachineRegister;
 
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn selection_constraints(
     legalized: &ValidatedLegalizedOperations,

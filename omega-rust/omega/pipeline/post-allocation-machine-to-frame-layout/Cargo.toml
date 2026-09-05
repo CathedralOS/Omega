@@ -16,7 +16,7 @@ register-homes-to-post-allocation-machine = { path = "../register-homes-to-post-
 register-model = { path = "../../representations/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../representations/target" }
-target-to-register-environment = { path = "../target-to-register-environment" }
+register-environment = { path = "../../backend/register-environment" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 sha2 = "0.10.9"
 physical-instructions = { path = "../../representations/physical-instructions" }

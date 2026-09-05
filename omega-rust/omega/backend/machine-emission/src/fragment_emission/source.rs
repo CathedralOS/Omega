@@ -45,7 +45,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
     pub fn register_environment(
         &self,
-    ) -> &target_to_register_environment::ValidatedTargetRegisterEnvironment {
+    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
         &self.current.environment
     }
     pub fn encoding(

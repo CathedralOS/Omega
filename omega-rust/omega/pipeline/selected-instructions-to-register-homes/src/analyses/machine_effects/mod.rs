@@ -16,7 +16,7 @@ pub use error::MachineEffectStageError;
 pub use facts::*;
 
 use crate::ValidatedSelectedAnalysis;
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Construct and independently replay effects for the current selected program.
 pub fn analyze_machine_effects<S: ValidatedSelectedAnalysis>(

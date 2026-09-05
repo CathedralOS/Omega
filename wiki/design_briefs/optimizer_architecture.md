@@ -620,8 +620,8 @@ route:
 | How does `build.omg` become one exact selection? | `build-evaluation/src/optimization/mod.rs` -> `vocabulary.rs`, `selection.rs` |
 | Where is the sole injected exact-name mapping used by both build preludes? | `compiler/src/pipeline/optimization/build_vocabulary/mod.rs` -> `fragments.rs` |
 | What checked selection reaches native compilation after release rollback? | `compiler/src/compiler/optimization/mod.rs` -> `rollback/`, `native_realization.rs` |
-| Which post-Terminal abstract-operation optimizations were explicitly requested, and what verified plan leaves? | `pipeline/terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs` |
-| Which physical phase composition runs next? | `pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs` |
+| Which post-Terminal abstract-operation optimizations were explicitly requested, and what verified plan leaves? | `compiler/native-realization/src/native_pipeline/abstract_operation_optimization/mod.rs` |
+| Which physical phase composition runs next? | `compiler/native-realization/src/native_pipeline/physical_pipeline/mod.rs` |
 | Which exact post-Terminal abstract-operation passes and local rules are enabled? | `abstract-operations-to-abstract-operations/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
 | Which selected-lowering or allocation-recovery rule is enabled? | `selected-instructions-to-register-homes/src/rewrites/<phase>/mod.rs` -> adjacent `catalog.rs` |
 | Which post-allocation machine rule is enabled for the ISA? | `post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
@@ -658,7 +658,7 @@ omega-rust/omega/
                                       # temporary compatibility assignment families
     target-operations-to-selected-instructions/
                                       # legalization and selection stage entrances
-    terminal-psi-to-native-artifact/
+    native-realization/
                                       # settlement, realization, providers, wrapper encoding/object
   tooling/
     optimization-policy-offline/ # corpus admission, source splits, reference training/evaluation

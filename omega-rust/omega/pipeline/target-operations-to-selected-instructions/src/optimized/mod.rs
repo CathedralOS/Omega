@@ -14,7 +14,7 @@ pub use model::*;
 pub use validation::validate_optimized_selection_custody;
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn stage_optimized_instruction_selection(
     optimized_target: ValidatedOptimizedTargetOperations,

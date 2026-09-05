@@ -52,14 +52,13 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
     imports: &[SourceEvaluatedImportSettlement<'_>],
 ) -> Result<compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
     let accepted_package_permissions =
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy();
-    let receiving_permissions =
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy();
+        native_realization::current_terminal_authority_permission_policy();
+    let receiving_permissions = native_realization::current_terminal_authority_permission_policy();
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         profile,
         optimization_selections,
-        terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        native_realization::current_terminal_authority_policy(),
         accepted_package_permissions,
         receiving_permissions,
         imports,
@@ -86,11 +85,10 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
     retained: compilation_report::RetainedTerminalArtifact,
     profile: &proof_admission::AdmissionProfile,
     optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
-    terminal_authority_policy: terminal_psi_to_native_artifact::TerminalAuthorityPolicy,
+    terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
     accepted_package_terminal_authority_permission_policy:
-        terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
-    terminal_authority_permission_policy:
-        terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+        native_realization::TerminalAuthorityPermissionPolicy,
+    terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
     imports: &[SourceEvaluatedImportSettlement<'_>],
 ) -> Result<compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
     let subsystem = retained
@@ -110,13 +108,13 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
             terminal_authority_policy,
             accepted_package_terminal_authority_permission_policy,
             terminal_authority_permission_policy,
-            terminal_psi_to_native_artifact::ExecutableImageEmissionRequest::direct(subsystem),
+            native_realization::ExecutableImageEmissionRequest::direct(subsystem),
             imports,
         )
         .map_err(|(_, diagnostics)| diagnostics)?;
     match result {
-        terminal_psi_to_native_artifact::RequestedNativeArtifact::Direct(artifact) => Ok(artifact),
-        terminal_psi_to_native_artifact::RequestedNativeArtifact::DynamicElf(_) => {
+        native_realization::RequestedNativeArtifact::Direct(artifact) => Ok(artifact),
+        native_realization::RequestedNativeArtifact::DynamicElf(_) => {
             unreachable!("a direct image request cannot produce dynamic ELF custody")
         }
     }
@@ -130,17 +128,16 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
     retained: compilation_report::RetainedTerminalArtifact,
     profile: &proof_admission::AdmissionProfile,
     optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
-    terminal_authority_policy: terminal_psi_to_native_artifact::TerminalAuthorityPolicy,
+    terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
     accepted_package_terminal_authority_permission_policy:
-        terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
-    terminal_authority_permission_policy:
-        terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
-    image_request: terminal_psi_to_native_artifact::ExecutableImageEmissionRequest,
+        native_realization::TerminalAuthorityPermissionPolicy,
+    terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
+    image_request: native_realization::ExecutableImageEmissionRequest,
     imports: &[SourceEvaluatedImportSettlement<'_>],
 ) -> Result<
-    terminal_psi_to_native_artifact::RequestedNativeArtifact,
+    native_realization::RequestedNativeArtifact,
     (
-        terminal_psi_to_native_artifact::ExecutableImageEmissionRequest,
+        native_realization::ExecutableImageEmissionRequest,
         Vec<Diagnostic>,
     ),
 > {
@@ -208,13 +205,11 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
                             ),
                         )
                     })?;
-                Ok(
-                    terminal_psi_to_native_artifact::NativeCompilerBuiltinSettlement {
-                        requirement_identity: builtin.requirement_identity(),
-                        provider_plan,
-                        execution: builtin.execution(),
-                    },
-                )
+                Ok(native_realization::NativeCompilerBuiltinSettlement {
+                    requirement_identity: builtin.requirement_identity(),
+                    provider_plan,
+                    execution: builtin.execution(),
+                })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let ieee_float_fma = proposal
@@ -237,48 +232,46 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
                         "ordinary native lowering currently requires admitted x86 FMA custody",
                     )
                 })?;
-                Ok(
-                    terminal_psi_to_native_artifact::AdmittedIeeeFloatFmaSettlement {
-                        terminal_operation: occurrence.terminal_operation(),
-                        provider_plan,
-                        format: occurrence.format(),
-                        slot: admission.slot(),
-                        provider: admission.provider(),
-                    },
-                )
+                Ok(native_realization::AdmittedIeeeFloatFmaSettlement {
+                    terminal_operation: occurrence.terminal_operation(),
+                    provider_plan,
+                    format: occurrence.format(),
+                    slot: admission.slot(),
+                    provider: admission.provider(),
+                })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let calling_plans = proposal
             .program_entry()
             .calling_plans()
             .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
-        let program_entry = terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
+        let program_entry = native_realization::NativeProgramEntrySettlement::new(
             proposal.program_entry().source_signature(),
             calling_plans,
             proposal.program_entry().fused_service_establishments(),
         );
-        terminal_psi_to_native_artifact::realize_requested_native_artifact_with_checked_boundary_operator_scope(
-        artifact,
-        proposal.checked_boundary_operator_scope(),
-        terminal_psi_to_native_artifact::RequestedNativeRealizationRequest {
-            target: proposal.native_target(),
-            image_request,
-            profile,
-            terminal_authority_policy,
-            terminal_authority_permission_policy,
-            program_entry,
-            optimization_selections,
-            selected_provider_plans: proposal.selected_provider_plans(),
-            external_binding_rows: proposal.external_binding_rows(),
-            settlements: &native_settlements,
-            compiler_builtins: &compiler_builtins,
-            boundary_application_coverage: Some(proposal.boundary_application_coverage()),
-            ieee_float_fma: &ieee_float_fma,
-            native_callbacks: &native_callbacks,
-            callback_thunks: &callback_thunks,
-        },
-    )
-    .map_err(|error| error.into_parts().1)
+        native_realization::realize_requested_native_artifact_with_checked_boundary_operator_scope(
+            artifact,
+            proposal.checked_boundary_operator_scope(),
+            native_realization::RequestedNativeRealizationRequest {
+                target: proposal.native_target(),
+                image_request,
+                profile,
+                terminal_authority_policy,
+                terminal_authority_permission_policy,
+                program_entry,
+                optimization_selections,
+                selected_provider_plans: proposal.selected_provider_plans(),
+                external_binding_rows: proposal.external_binding_rows(),
+                settlements: &native_settlements,
+                compiler_builtins: &compiler_builtins,
+                boundary_application_coverage: Some(proposal.boundary_application_coverage()),
+                ieee_float_fma: &ieee_float_fma,
+                native_callbacks: &native_callbacks,
+                callback_thunks: &callback_thunks,
+            },
+        )
+        .map_err(|error| error.into_parts().1)
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
 }
@@ -286,10 +279,7 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
 fn admitted_native_callback_thunks<'artifact>(
     placements: &'artifact [backend_plan::BoundNominalCallbackPlacement],
     occurrences: &'artifact [compilation_report::TerminalCallbackOccurrenceProposal],
-) -> Result<
-    Vec<terminal_psi_to_native_artifact::NativeCallbackThunkSettlement<'artifact>>,
-    Vec<Diagnostic>,
-> {
+) -> Result<Vec<native_realization::NativeCallbackThunkSettlement<'artifact>>, Vec<Diagnostic>> {
     let mut admitted = Vec::with_capacity(occurrences.len());
     for occurrence in occurrences {
         let placement = placements
@@ -317,17 +307,15 @@ fn admitted_native_callback_thunks<'artifact>(
                 "callback thunk body, symbol, or function identity drifted from its retained placement",
             ));
         }
-        admitted.push(
-            terminal_psi_to_native_artifact::NativeCallbackThunkSettlement {
-                terminal_operation: occurrence.terminal_operation(),
-                placement_index: occurrence.placement_index(),
-                callback_function: occurrence.callback_thunk_identity(),
-                private_symbol: thunk.private_symbol(),
-                artifact: thunk.artifact(),
-                lowering_receipt: receipt,
-                boundary_entry_plan: &placement.boundary_entry_plan,
-            },
-        );
+        admitted.push(native_realization::NativeCallbackThunkSettlement {
+            terminal_operation: occurrence.terminal_operation(),
+            placement_index: occurrence.placement_index(),
+            callback_function: occurrence.callback_thunk_identity(),
+            private_symbol: thunk.private_symbol(),
+            artifact: thunk.artifact(),
+            lowering_receipt: receipt,
+            boundary_entry_plan: &placement.boundary_entry_plan,
+        });
     }
     Ok(admitted)
 }
@@ -441,10 +429,7 @@ fn exact_demanded_import_plans<'proposal>(
 fn rejoin_external_import_settlements<'proposal, 'evidence>(
     exact_plans: &BTreeMap<String, &'proposal effects::provider_plan::ProviderPlan>,
     imports: &[SourceEvaluatedImportSettlement<'evidence>],
-) -> Result<
-    Vec<terminal_psi_to_native_artifact::NativeProviderSettlement<'proposal>>,
-    Vec<Diagnostic>,
->
+) -> Result<Vec<native_realization::NativeProviderSettlement<'proposal>>, Vec<Diagnostic>>
 where
     'evidence: 'proposal,
 {
@@ -474,13 +459,12 @@ where
                 ),
             ));
         }
-        settlements.push(terminal_psi_to_native_artifact::NativeProviderSettlement {
+        settlements.push(native_realization::NativeProviderSettlement {
             provider_execution: import.provider_execution,
             provider_plan,
-            realization:
-                terminal_psi_to_native_artifact::NativeBoundaryRealization::NormalizedForeignCall(
-                    import.same_stack,
-                ),
+            realization: native_realization::NativeBoundaryRealization::NormalizedForeignCall(
+                import.same_stack,
+            ),
         });
     }
     if let Some(missing) = exact_plans

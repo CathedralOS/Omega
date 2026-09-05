@@ -47,7 +47,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation.rs",
         "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering.rs",
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/scalar/conditional_control.rs",
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/realization/providers/settlements.rs",
+        "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/analyses/machine_effects/facts/codec.rs",
         "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/aarch64/materialize_i64_movn/compute.rs",
         "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
@@ -215,7 +215,8 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let obsolete_selected_lowering_schedule = "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/stages/machine/literal_folds/schedule.rs";
+    let obsolete_selected_lowering_schedule =
+        "omega-rust/omega/compiler/native-realization/src/stages/machine/literal_folds/schedule.rs";
     if repository
         .join(obsolete_selected_lowering_schedule)
         .exists()
@@ -337,7 +338,7 @@ pub(crate) fn check(audit: &mut Audit) {
             && (path.starts_with(
                 "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/",
             ) || path.starts_with(
-                "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/stages/machine/literal_folds/",
+                "omega-rust/omega/compiler/native-realization/src/stages/machine/literal_folds/",
             ))
     }) {
         match fs::read_to_string(repository.join(path)) {

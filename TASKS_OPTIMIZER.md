@@ -142,7 +142,7 @@ needed for independent replay through publication.
   changing either; broadening the fixed-frame policy would also reframe
   AArch64 scalar leaves, which the boundary admits frameless today.
   Acceptance: `optimized_empty_machine_reaches_object_custody` in
-  `terminal-psi-to-native-artifact` covers `linux_arm64` as well.
+  `native-realization` covers `linux_arm64` as well.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general

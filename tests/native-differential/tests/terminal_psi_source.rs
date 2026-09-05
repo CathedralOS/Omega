@@ -85,6 +85,9 @@ use layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
 use machine_emission::emit_machine_code;
+use native_realization::{
+    NativeProviderSettlement as ComponentProviderSettlement, realize_native_artifact,
+};
 use omega_native_differential_test::{
     admit_native_provider, admit_native_provider_for_selected_plan,
 };
@@ -120,9 +123,6 @@ use terminal_psi::{
     CrashCause, CrashRouteGuard, OperationKind, TerminalModule, Terminator, VocabularyMarker,
 };
 use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
-use terminal_psi_to_native_artifact::{
-    NativeProviderSettlement as ComponentProviderSettlement, realize_native_artifact,
-};
 use terminal_verifier::{VerifiedTerminalModule, verify_module};
 
 #[cfg(unix)]
@@ -201,15 +201,15 @@ fn stage_terminal_component(
     let post_terminal_optimizations = checked.optimization_selections().project_post_terminal();
     let native_artifact = realize_native_artifact(
         artifact,
-        terminal_psi_to_native_artifact::NativeRealizationRequest {
+        native_realization::NativeRealizationRequest {
             target,
             subsystem,
             profile,
             terminal_authority_policy:
-                terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
+                native_realization::current_compiler_intrinsic_terminal_authority_policy(),
             terminal_authority_permission_policy:
-                terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
-            program_entry: terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
+                native_realization::current_terminal_authority_permission_policy(),
+            program_entry: native_realization::NativeProgramEntrySettlement::new(
                 selected_program_entry.source_signature(),
                 selected_program_entry
                     .calling_plans()

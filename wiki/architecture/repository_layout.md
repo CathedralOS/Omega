@@ -164,12 +164,11 @@ Omega/
 |       |   |-- [CRATE] post-allocation-machine-to-frame-layout/
 |       |   |-- [CRATE] post-allocation-machine-to-selected-form-encoding/
 |       |   |-- [CRATE] selected-form-encoding-to-resolved-layout/
-|       |   |-- [CRATE] target-to-register-environment/   # Target setup, not a program successor.
-|       |   |-- [CRATE] terminal-psi-to-native-artifact/  # Coordinator; still to leave pipeline/.
 |       |   |-- [CRATE] target-operations-to-assigned-target-operations/ # Alternate route still to delete.
 |       |   `-- [CRATE] optimization-validation/          # Catch-all still to dissolve.
 |       |
 |       |-- backend/                                     # Target/runtime primitives and backend-owned artifacts.
+|       |   |-- [CRATE] register-environment/              # Shared target/ABI setup and validation.
 |       |   |-- [CRATE] {layout,machine-emission}/
 |       |   |-- instruction_set_architectures/
 |       |   |   |-- [CRATE] isa-{aarch64,x86_64}/
@@ -192,6 +191,9 @@ Omega/
 |       |   |-- [CRATE] component-deployment/
 |       |   `-- [CRATE] trust-ledger/
 |       |-- compiler/                                    # Thin product coordinator and result surface.
+|       |   |-- [CRATE] compiler/                         # Source product and multi-target orchestration.
+|       |   |-- [CRATE] native-realization/               # Terminal product realization with separately supplied authority.
+|       |   `-- [CRATE] compilation-report/               # Completed product reports.
 |       |-- packages/                                    # Registry-free package service and trust boundaries.
 |       |   |-- README.md                                # Human entrance and dependency-direction map.
 |       |   |-- manager/                                 # Command workflows, graph, and local admission policy.

@@ -11,10 +11,9 @@ use diagnostics::Diagnostic;
 impl PreparedNativeReport {
     pub(in crate::compiler) fn prepare_reusable_input(
         &self,
-    ) -> Result<terminal_psi_to_native_artifact::PreparedNativeRealizationInput, Vec<Diagnostic>>
-    {
+    ) -> Result<::native_realization::PreparedNativeRealizationInput, Vec<Diagnostic>> {
         let post_terminal = self.rollback.effective().project_post_terminal();
-        terminal_psi_to_native_artifact::prepare_native_realization_input(
+        ::native_realization::prepare_native_realization_input(
             self.terminal.artifact(),
             &self.request.terminal_admission_profile,
             post_terminal.selections(),
@@ -23,7 +22,7 @@ impl PreparedNativeReport {
 
     pub(in crate::compiler) fn finish(
         self,
-        prepared_input: &terminal_psi_to_native_artifact::PreparedNativeRealizationInput,
+        prepared_input: &::native_realization::PreparedNativeRealizationInput,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         let Self {
             request,

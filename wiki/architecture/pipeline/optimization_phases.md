@@ -149,7 +149,7 @@ branched.
 ## Selection ownership
 
 Native phase sequencing and report assembly live in
-`terminal-psi-to-native-artifact/src/native_pipeline`. Function realization,
+`native-realization/src/native_pipeline`. Function realization,
 fragment emission and placement admission live in `machine-emission`;
 object publication lives in `object-file`, and callable-entry admission
 in `native-artifact`. These owners retain replay inputs explicitly without
@@ -343,7 +343,7 @@ remaining realization replay carriers are transitional, not new canonical IRs.
    now ordinary pipeline stage crates rather than children of the transitional
    `pipeline/optimization` island. That directory is now removed rather than
    preserved as an architectural layer. The remaining
-   `terminal-psi-to-native-artifact` crate is a transitional cross-stage
+   `native-realization` crate is a transitional cross-stage
    coordinator to split and delete, not the replacement layer. Deterministic
    optimization policy likewise lives at pipeline rank beside its consumers,
    as does the independent optimization-unit validator. The former

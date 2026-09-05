@@ -16,12 +16,12 @@ use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileReport, OptimizationRollback, TrustAdmission,
 };
 use diagnostics::Diagnostic;
-use std::fmt;
-use std::path::PathBuf;
-use terminal_psi_to_native_artifact::{
+use native_realization::{
     TerminalAuthorityPermissionPolicy, current_terminal_authority_permission_policy,
     current_terminal_authority_policy,
 };
+use std::fmt;
+use std::path::PathBuf;
 
 /// One explicit root-owned policy record selected by command orchestration.
 ///

@@ -467,7 +467,7 @@ machine build(builder: &mut Build) {
     assert!(empty_permission_policy.rows().is_empty());
     assert_eq!(
         empty_permission_policy.identity(),
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy().identity(),
+        native_realization::current_terminal_authority_permission_policy().identity(),
     );
 
     remove_temporary_tree(&temporary);

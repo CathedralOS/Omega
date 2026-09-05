@@ -53,19 +53,18 @@ fn production_compile(
     )?;
     let mut request = CompileRequest::new(options).with_requested_product(requested_product);
     if let Some(package_inputs) = package_inputs {
-        let permission_policy =
-            terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
-                package_inputs
-                    .accepted_semantic_bindings()
-                    .flat_map(|binding| binding.terminal_authority_permissions())
-                    .cloned()
-                    .collect(),
-            )
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "cannot construct repository fixture terminal-authority policy: {error:?}"
-                ))]
-            })?;
+        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+            package_inputs
+                .accepted_semantic_bindings()
+                .flat_map(|binding| binding.terminal_authority_permissions())
+                .cloned()
+                .collect(),
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "cannot construct repository fixture terminal-authority policy: {error:?}"
+            ))]
+        })?;
         request = request.with_terminal_authority_permission_policy(permission_policy);
         request = request.with_package_inputs(package_inputs);
     }
@@ -96,19 +95,18 @@ fn compile_with_artifact_policy(
         .with_requested_product(requested_product)
         .with_artifact_policy(artifact_policy);
     if let Some(package_inputs) = package_inputs {
-        let permission_policy =
-            terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
-                package_inputs
-                    .accepted_semantic_bindings()
-                    .flat_map(|binding| binding.terminal_authority_permissions())
-                    .cloned()
-                    .collect(),
-            )
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "cannot construct repository fixture terminal-authority policy: {error:?}"
-                ))]
-            })?;
+        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+            package_inputs
+                .accepted_semantic_bindings()
+                .flat_map(|binding| binding.terminal_authority_permissions())
+                .cloned()
+                .collect(),
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "cannot construct repository fixture terminal-authority policy: {error:?}"
+            ))]
+        })?;
         request = request.with_terminal_authority_permission_policy(permission_policy);
         request = request.with_package_inputs(package_inputs);
     }
@@ -1548,7 +1546,7 @@ fn compile_rooted_backend_canary_without_output_for_target(
     compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
         canary_dir,
         target,
-        terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        native_realization::current_terminal_authority_permission_policy(),
     )
 }
 
@@ -1564,19 +1562,18 @@ fn compile_rooted_backend_canary_without_output_for_target_with_fixture_permissi
                 "fixture has no repository package inputs",
             )]
         })?;
-    let permission_policy =
-        terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
-            package_inputs
-                .accepted_semantic_bindings()
-                .flat_map(|binding| binding.terminal_authority_permissions())
-                .cloned()
-                .collect(),
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "cannot construct repository fixture terminal-authority policy: {error:?}"
-            ))]
-        })?;
+    let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+        package_inputs
+            .accepted_semantic_bindings()
+            .flat_map(|binding| binding.terminal_authority_permissions())
+            .cloned()
+            .collect(),
+    )
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "cannot construct repository fixture terminal-authority policy: {error:?}"
+        ))]
+    })?;
     let result = compiler::compile(
         CompileRequest::new(CompilerOptions {
             root_path,
@@ -1595,7 +1592,7 @@ fn compile_rooted_backend_canary_without_output_for_target_with_fixture_permissi
 fn compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
     canary_dir: &Path,
     target: &str,
-    permission_policy: terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+    permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
     let root_path = canary_dir.join("main.omg");

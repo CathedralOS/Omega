@@ -20,7 +20,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     PostTerminalSelectionMismatch,
     UnconsumedPostTerminalPhase(optimization_core::OptimizationExecutionPhase),
     TargetLowering(LoweringError),
-    RegisterEnvironment(target_to_register_environment::TargetRegisterEnvironmentValidationError),
+    RegisterEnvironment(register_environment::TargetRegisterEnvironmentValidationError),
     Selection(OptimizedSelectionPipelineError),
     Liveness(OptimizedLivenessCustodyError),
     LiveRanges(OptimizedLiveRangeCustodyError),

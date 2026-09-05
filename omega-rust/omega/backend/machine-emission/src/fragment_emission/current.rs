@@ -11,7 +11,7 @@ pub(super) struct CurrentFunctionFragmentInput {
     pub(super) layout:
         selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout,
     pub(super) homes: selected_instructions_to_register_homes::ValidatedRegisterHomes,
-    pub(super) environment: target_to_register_environment::ValidatedTargetRegisterEnvironment,
+    pub(super) environment: register_environment::ValidatedTargetRegisterEnvironment,
     pub(super) encoding:
         post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding,
     pub(super) frame_protocol: Option<crate::ValidatedTargetFrameProtocolEncoding>,

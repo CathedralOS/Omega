@@ -148,6 +148,8 @@ fn crate_ownership_survives_namespace_free_package_names() {
     assert!(graph["semantic-vocabulary"].is_psi);
     assert!(graph["terminal-psi"].is_psi);
     assert!(!graph["compiler"].is_psi);
+    assert_eq!(graph["native-realization"].layer, "compiler");
+    assert_eq!(graph["register-environment"].layer, "backend");
     assert!(!graph["terminal-psi-to-abstract-operations"].is_psi);
     assert!(
         graph["terminal-psi-to-abstract-operations"]
@@ -484,7 +486,7 @@ fn ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners() {
 #[test]
 fn terminal_native_realization_excludes_speculative_runtime_owners() {
     assert_normal_closure_excludes(
-        "terminal-psi-to-native-artifact",
+        "native-realization",
         &["executable-installation", "external-roots"],
     );
 }
@@ -497,7 +499,7 @@ fn offline_policy_corpus_excludes_compiler_activation_and_process_owners() {
             "bounded-process",
             "build-evaluation",
             "compiler",
-            "terminal-psi-to-native-artifact",
+            "native-realization",
             "abstract-operations-to-abstract-operations",
         ],
     );
@@ -1963,7 +1965,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     );
 
     let realization_root =
-        root.join("omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/realization");
+        root.join("omega-rust/omega/compiler/native-realization/src/realization");
     let realization_path = realization_root.join("mod.rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
@@ -2031,7 +2033,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_physical_model_path = root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/model.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/model.rs",
     );
     let optimizer_physical_model = std::fs::read_to_string(&optimizer_physical_model_path)
         .unwrap_or_else(|error| {
@@ -2041,7 +2043,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_physical_pipeline_path = root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/mod.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/mod.rs",
     );
     let optimizer_physical_pipeline = std::fs::read_to_string(&optimizer_physical_pipeline_path)
         .unwrap_or_else(|error| {
@@ -2051,7 +2053,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_physical_phase_selections_path = root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/phase_selections.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/phase_selections.rs",
     );
     let optimizer_physical_phase_selections = std::fs::read_to_string(
         &optimizer_physical_phase_selections_path,
@@ -2063,7 +2065,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         )
     });
     let optimizer_physical_composition_path = root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",
     );
     let optimizer_physical_composition =
         std::fs::read_to_string(&optimizer_physical_composition_path).unwrap_or_else(|error| {
@@ -2073,7 +2075,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_identity_route_path = root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/routes/identity.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/identity.rs",
     );
     let optimizer_identity_route = std::fs::read_to_string(&optimizer_identity_route_path)
         .unwrap_or_else(|error| {
@@ -2083,7 +2085,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_selected_phases_path = root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/physical_pipeline/routes/selected_phases.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/selected_phases.rs",
     );
     let optimizer_selected_phases = std::fs::read_to_string(&optimizer_selected_phases_path)
         .unwrap_or_else(|error| {
@@ -2313,9 +2315,8 @@ fn component_candidate_replay_keeps_compact_identity_report_only() {
         root.join("omega-rust/omega/representations/effects/src/selected_provider_plans.rs");
     let effects = std::fs::read_to_string(&effects_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", effects_path.display()));
-    let producer_path = root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/realization/output.rs",
-    );
+    let producer_path =
+        root.join("omega-rust/omega/compiler/native-realization/src/realization/output.rs");
     let producer = std::fs::read_to_string(&producer_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", producer_path.display()));
 
@@ -2556,7 +2557,7 @@ fn optimization_projection_stops_before_target_realization() {
         "published current data must not retain the executing optimizer"
     );
     let coordinator = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src/native_pipeline/abstract_operation_optimization/mod.rs"
+        "omega-rust/omega/compiler/native-realization/src/native_pipeline/abstract_operation_optimization/mod.rs"
     )).unwrap();
     assert!(coordinator.contains("optimize_abstract_operations("));
     for private_step in [
@@ -2783,7 +2784,7 @@ fn psi_reference_execution_ownership_and_production_realization_are_enforced() {
     );
     let roots = [
         "optimization-core",
-        "terminal-psi-to-native-artifact",
+        "native-realization",
         "abstract-operations",
         "terminal-psi-to-abstract-operations",
         "abstract-operations-to-target-operations",
@@ -2792,7 +2793,7 @@ fn psi_reference_execution_ownership_and_production_realization_are_enforced() {
         "machine-code",
         "image-emission",
         "native-artifact",
-        "terminal-psi-to-native-artifact",
+        "native-realization",
         "terminal-interpreter",
     ];
     let forbidden = BTreeSet::from([
@@ -2890,10 +2891,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/Cargo.toml");
     let regalloc_manifest_source = std::fs::read_to_string(&regalloc_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", regalloc_manifest.display()));
-    for forbidden in [
-        "assigned-target-operations",
-        "terminal-psi-to-native-artifact",
-    ] {
+    for forbidden in ["assigned-target-operations", "native-realization"] {
         assert!(
             !regalloc_manifest_source
                 .lines()
@@ -2922,8 +2920,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         );
     }
 
-    let pipeline_manifest =
-        root.join("omega-rust/omega/pipeline/terminal-psi-to-native-artifact/Cargo.toml");
+    let pipeline_manifest = root.join("omega-rust/omega/compiler/native-realization/Cargo.toml");
     let manifest_source = std::fs::read_to_string(&pipeline_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", pipeline_manifest.display()));
     for dependency in ["isa-x86_64", "isa-aarch64"] {
@@ -3139,7 +3136,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         "bounded liveness must consume the opaque validated selected-instruction carrier"
     );
     assert!(
-        graph["terminal-psi-to-native-artifact"]
+        graph["native-realization"]
             .deps
             .contains(&"selected-instructions-to-register-homes".to_string()),
         "optimized-native realization must retain liveness custody above selected-instructions-to-register-homes"
@@ -5553,7 +5550,7 @@ fn build_evaluation_physical_package_source_uses_strong_commitment() {
 #[test]
 fn allocation_recovery_has_one_route_and_one_realization_carrier() {
     let root = workspace_root();
-    let pipeline = root.join("omega-rust/omega/pipeline/terminal-psi-to-native-artifact/src");
+    let pipeline = root.join("omega-rust/omega/compiler/native-realization/src");
     let route = std::fs::read_to_string(
         pipeline.join("native_pipeline/physical_pipeline/routes/allocation_recovery/mod.rs"),
     )

@@ -1,11 +1,12 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: crate map. Shared composition from canonical Terminal Psi to a replayed native artifact.
+//! Optimizer module role: crate map. Native product coordination over the program stages.
 //!
-//! This crate is named for its exact input and output. Its entrances settle
-//! source-entry custody, coordinate ordinary or explicitly selected native
-//! realization, and own the ProgramStorage semantic-wrapper join. It does not
-//! own source compilation, component policy, installation, or publication.
+//! This compiler owner accepts Terminal Psi and a separate realization request,
+//! settles entry/provider custody, and sequences transforms through native
+//! publication. It is not another program stage: the Omega program route
+//! begins at `terminal-psi-to-abstract-operations`. Target setup is supplied by
+//! backend owners. Component policy and installation remain outside this owner.
 
 mod entry_settlement;
 mod native_pipeline;

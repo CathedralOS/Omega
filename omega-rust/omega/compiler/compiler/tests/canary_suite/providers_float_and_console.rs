@@ -221,7 +221,7 @@ fn assert_selected_operator_native_physical_call(
             .filter(|child| {
                 matches!(
                     child.parent(),
-                    terminal_psi_to_native_artifact::PhysicalChildParent::OperatorApplicationCoverage(_)
+                    native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
                 )
             })
             .collect::<Vec<_>>();
@@ -230,11 +230,11 @@ fn assert_selected_operator_native_physical_call(
         };
         assert!(matches!(
             operator_child.occurrence(),
-            terminal_psi_to_native_artifact::NativePhysicalOccurrence::Operator(_)
+            native_realization::NativePhysicalOccurrence::Operator(_)
         ));
         assert_eq!(
             operator_child.relocation(),
-            terminal_psi_to_native_artifact::PhysicalRelocationDisposition::ResolvedInternalCall
+            native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
         );
         assert!(operator_child.machine_span().byte_count() > 0);
         assert_eq!(
@@ -1829,7 +1829,7 @@ fn linux_console_compiler_intrinsic_review_identities_are_exact() {
 
 #[test]
 fn linux_console_exit_catalog_settlement_emits_elf() {
-    use terminal_psi_to_native_artifact as native;
+    use native_realization as native;
 
     fn replay_parts(parts: &native::NativeArtifactParts) -> native::NativeArtifactParts {
         let module = terminal_codec::decode_module(parts.psi_artifact.semantic_bytes())
@@ -1870,29 +1870,33 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
     for target in ["linux_x86_64", "linux_arm64"] {
         let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
             .expect("Console permission preflight should reach checked custody");
-        let permission_policy =
-            terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
-                checked
-                    .selected_provider_plans()
-                    .plans()
-                    .iter()
-                    .flat_map(|plan| {
-                        plan.rows.iter().filter(|&row| matches!(
+        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+            checked
+                .selected_provider_plans()
+                .plans()
+                .iter()
+                .flat_map(|plan| {
+                    plan.rows
+                        .iter()
+                        .filter(|&row| {
+                            matches!(
                                 row.binding,
-                                effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                                    ..
-                                }
-                            )).map(|row| terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
-                                        plan.schema.identity_digest(),
-                                        row.requirement_identity.clone(),
-                                        effects::TerminalAuthorityDisposition::from_classes([
-                                            effects::TerminalAuthorityClass::ProcessTermination,
-                                        ]),
-                                    ))
-                    })
-                    .collect(),
-            )
-            .expect("exact Console exit permission policy");
+                                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                            )
+                        })
+                        .map(|row| {
+                            native_realization::TerminalAuthorityPermissionPolicyRow::new(
+                                plan.schema.identity_digest(),
+                                row.requirement_identity.clone(),
+                                effects::TerminalAuthorityDisposition::from_classes([
+                                    effects::TerminalAuthorityClass::ProcessTermination,
+                                ]),
+                            )
+                        })
+                })
+                .collect(),
+        )
+        .expect("exact Console exit permission policy");
         let accepted_permission = permission_policy.identity();
         let compilation = compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
             &canary,
@@ -1918,7 +1922,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         ));
         assert_eq!(
             settlement.settlement.execution,
-            terminal_psi_to_native_artifact::BoundaryExecutionRecord::CompilerBuiltin(
+            native_realization::BoundaryExecutionRecord::CompilerBuiltin(
                 target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
             ),
             "the consuming lowerer must retain structural builtin custody for {target}",
@@ -1929,7 +1933,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             "compiler builtins must not mint provider execution evidence for {target}",
         );
         let accepted_policy =
-            terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy();
+            native_realization::current_compiler_intrinsic_terminal_authority_policy();
         assert_eq!(
             artifact.terminal_authority_policy_identity(),
             accepted_policy.identity(),
@@ -2178,7 +2182,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         .program_entry()
         .calling_plans()
         .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
-    let program_entry = terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
+    let program_entry = native_realization::NativeProgramEntrySettlement::new(
         proposal.program_entry().source_signature(),
         calling_plans,
         proposal.program_entry().fused_service_establishments(),
@@ -2187,7 +2191,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         .compiler_builtins()
         .iter()
         .map(
-            |builtin| terminal_psi_to_native_artifact::NativeCompilerBuiltinSettlement {
+            |builtin| native_realization::NativeCompilerBuiltinSettlement {
                 requirement_identity: builtin.requirement_identity(),
                 provider_plan: &proposal.selected_provider_plans().plans()
                     [builtin.provider_plan_index()],
@@ -2197,34 +2201,33 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         .collect::<Vec<_>>();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
-    let permission_policy =
-        terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
-            proposal
-                .compiler_builtins()
-                .iter()
-                .map(|builtin| {
-                    let plan =
-                        &proposal.selected_provider_plans().plans()[builtin.provider_plan_index()];
-                    terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
-                        plan.schema.identity_digest(),
-                        builtin.requirement_identity(),
-                        effects::TerminalAuthorityDisposition::from_classes([
-                            effects::TerminalAuthorityClass::ProcessTermination,
-                        ]),
-                    )
-                })
-                .collect(),
-        )
-        .expect("exact Console exit permission policy");
-    let native = terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope(
+    let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+        proposal
+            .compiler_builtins()
+            .iter()
+            .map(|builtin| {
+                let plan =
+                    &proposal.selected_provider_plans().plans()[builtin.provider_plan_index()];
+                native_realization::TerminalAuthorityPermissionPolicyRow::new(
+                    plan.schema.identity_digest(),
+                    builtin.requirement_identity(),
+                    effects::TerminalAuthorityDisposition::from_classes([
+                        effects::TerminalAuthorityClass::ProcessTermination,
+                    ]),
+                )
+            })
+            .collect(),
+    )
+    .expect("exact Console exit permission policy");
+    let native = native_realization::realize_native_artifact_with_checked_boundary_operator_scope(
         artifact,
         proposal.checked_boundary_operator_scope(),
-        terminal_psi_to_native_artifact::NativeRealizationRequest {
+        native_realization::NativeRealizationRequest {
             target: proposal.native_target(),
             subsystem: proposal.subsystem(),
             profile: &profile,
             terminal_authority_policy:
-                terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
+                native_realization::current_compiler_intrinsic_terminal_authority_policy(),
             terminal_authority_permission_policy: permission_policy,
             program_entry,
             optimization_selections: &optimizations,
@@ -2254,22 +2257,20 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
     };
     assert_eq!(
         settlement.settlement.execution,
-        terminal_psi_to_native_artifact::BoundaryExecutionRecord::CompilerBuiltin(
+        native_realization::BoundaryExecutionRecord::CompilerBuiltin(
             target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
         ),
     );
     assert!(matches!(
         native.physical_evidence_scope(),
-        terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
+        native_realization::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
     ));
-    let replayed =
-        terminal_psi_to_native_artifact::NativeArtifact::from_replayed_parts(native.into_parts())
-            .expect("reloaded D32 artifact should replay from retained custody");
+    let replayed = native_realization::NativeArtifact::from_replayed_parts(native.into_parts())
+        .expect("reloaded D32 artifact should replay from retained custody");
     let mut missing_child = replayed.into_parts();
     missing_child.physical_evidence = None;
     assert!(
-        terminal_psi_to_native_artifact::NativeArtifact::from_replayed_parts(missing_child)
-            .is_err(),
+        native_realization::NativeArtifact::from_replayed_parts(missing_child).is_err(),
         "reloaded D32 replay must reject removal of its surviving physical child",
     );
 }
@@ -2371,7 +2372,7 @@ fn runtime_console_byte_read_return_catalog_replays_both_linux_targets() {
             .expect("read-byte compilation retains native artifact");
         assert!(artifact.image().boundary_settlements().iter().any(|row| {
             row.settlement.execution
-                == terminal_psi_to_native_artifact::BoundaryExecutionRecord::CompilerBuiltin(
+                == native_realization::BoundaryExecutionRecord::CompilerBuiltin(
                     target_operations::CompilerBuiltinExecution::LinuxReadByte,
                 )
                 && row.settlement.native_result.structural().is_some()

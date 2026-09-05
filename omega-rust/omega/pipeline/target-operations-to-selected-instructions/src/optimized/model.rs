@@ -11,7 +11,7 @@ use crate::{
     LegalizationError, SelectedInstructionError, ValidatedLegalizedOperations,
     ValidatedSelectedInstructions,
 };
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Opt-in selected-instruction staging with complete optimized lowering and
 /// target-register custody. This grants no liveness, allocation, emission, or

@@ -48,7 +48,7 @@ machine-code = { path = "../../omega-rust/omega/representations/machine-code" }
 image-emission = { path = "../../omega-rust/omega/backend/images/image-emission" }
 installation-evidence = { path = "../../omega-rust/omega/representations/installation-evidence" }
 terminal-psi-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations" }
-terminal-psi-to-native-artifact = { path = "../../omega-rust/omega/pipeline/terminal-psi-to-native-artifact", features = ["test-support"] }
+native-realization = { path = "../../omega-rust/omega/compiler/native-realization", features = ["test-support"] }
 native-artifact = { path = "../../omega-rust/omega/backend/artifacts/native-artifact", features = ["test-support"] }
 component-candidate = { path = "../../omega-rust/omega/backend/artifacts/component-candidate" }
 program-entry-plan = { path = "../../omega-rust/omega/backend/plans/program-entry-plan" }
@@ -58,7 +58,7 @@ effects = { path = "../../omega-rust/omega/representations/effects" }
 object-file = { path = "../../omega-rust/omega/backend/object/object-file", features = ["test-support"] }
 legalized-operations = { path = "../../omega-rust/omega/representations/legalized-operations" }
 physical-instructions = { path = "../../omega-rust/omega/representations/physical-instructions" }
-target-to-register-environment = { path = "../../omega-rust/omega/pipeline/target-to-register-environment" }
+register-environment = { path = "../../omega-rust/omega/backend/register-environment" }
 selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout" }
 register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/register-homes-to-post-allocation-machine" }
 post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding" }

@@ -8,9 +8,7 @@ use optimization_core::OptimizationWorkBudget;
 use crate::save_storage::{
     ValidatedAllocatedCalleeSavedRequirements, ValidatedTargetRegisterEnvironment,
 };
-use target_to_register_environment::{
-    selected_abi_preservation, selected_preservation_storage_catalog,
-};
+use register_environment::{selected_abi_preservation, selected_preservation_storage_catalog};
 
 use super::{
     NonAuthoritativeCalleeSaveStorageError, NonAuthoritativeCalleeSaveStoragePlan,

@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use crate::AllocationOutput;
-use target_to_register_environment::{FrameAbiPreservationConvention, selected_abi_preservation};
+use register_environment::{FrameAbiPreservationConvention, selected_abi_preservation};
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPolicy,

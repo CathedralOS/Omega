@@ -9,8 +9,8 @@ use crate::{
 };
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
+use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::AllocatedProgram;
-use target_to_register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::{AllocationEvidence, AllocationOutput, AllocationReplayError};
 

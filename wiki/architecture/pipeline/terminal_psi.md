@@ -108,7 +108,7 @@ falls back or runs an alternate route.
 
 The ordinary realization graph uses the data-only `program-entry-plan`
 for source/target ProgramEntry declarations and
-`terminal-psi-to-native-artifact` for the shared composition edge. No
+`native-realization` for the shared composition edge. No
 historical storage-wrapper or backend-coordinator route remains.
 
 The Psi reference-interpreter entry and Omega abstract-operation entry accept
@@ -427,7 +427,7 @@ ordinary scalar/Unit lowering, and the bounded structural-result family.
 Build orchestration may separately retain source-declaration receipts needed to
 prove author intent, ProgramEntry identity, provider selection, and target
 closure. Those receipts rejoin the canonical artifact in
-`terminal-psi-to-native-artifact`; they are not an alternate executable
+`native-realization`; they are not an alternate executable
 representation and cannot supply operation semantics missing from Terminal Psi.
 ## Terminal requirements
 

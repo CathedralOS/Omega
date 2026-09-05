@@ -12,7 +12,7 @@ use selected_instructions::{
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
-use target_to_register_environment::FrameAbiPreservationConvention;
+use register_environment::FrameAbiPreservationConvention;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AllocatedCalleeSavedRequirementIdentity([u8; 32]);

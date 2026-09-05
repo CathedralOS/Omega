@@ -66,7 +66,7 @@ use terminal_psi::{
 use terminal_verifier::{ObligationEvidence, ProofBundle, reconstruct_operation_obligations};
 
 use super::*;
-use terminal_psi_to_native_artifact::stage_optimized_verified_physical_pipeline_with_provider_executions;
+use native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions;
 
 /// Test shorthand for the production target-setup then instruction-selection sequence.
 fn stage_optimized_instruction_selection(

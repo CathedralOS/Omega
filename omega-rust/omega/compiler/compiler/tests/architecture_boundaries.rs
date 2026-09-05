@@ -52,8 +52,8 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         ),
         (
             "machine-emission/Cargo.toml",
-            "target-to-register-environment",
-            "../../pipeline/target-to-register-environment",
+            "register-environment",
+            "../../backend/register-environment",
         ),
         (
             "machine-emission/Cargo.toml",
@@ -160,7 +160,7 @@ fn representation_crates_do_not_depend_on_native_bridge() {
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
 
         assert!(
-            !contents.contains("terminal-psi-to-native-artifact"),
+            !contents.contains("native-realization"),
             "{} must not depend on native-artifact orchestration",
             cargo_toml.display()
         );
@@ -182,22 +182,22 @@ fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
     ];
     let mut expected = BTreeSet::from([
         (
-            "terminal-psi-to-native-artifact",
+            "native-realization",
             "image-emission",
             "backend/images/image-emission",
         ),
         (
-            "terminal-psi-to-native-artifact",
+            "native-realization",
             "isa-x86_64",
             "backend/instruction_set_architectures/isa-x86_64",
         ),
         (
-            "terminal-psi-to-native-artifact",
+            "native-realization",
             "machine-emission",
             "backend/machine-emission",
         ),
         (
-            "terminal-psi-to-native-artifact",
+            "native-realization",
             "object-file",
             "backend/object/object-file",
         ),
@@ -208,7 +208,7 @@ fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
         "post-allocation-machine-to-selected-form-encoding",
         "selected-form-encoding-to-resolved-layout",
         "selected-instructions-to-register-homes",
-        "target-to-register-environment",
+        "register-environment",
     ] {
         expected.insert((
             owner,
@@ -291,7 +291,7 @@ fn artifact_crates_do_not_depend_on_native_bridge() {
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
 
         assert!(
-            !contents.contains("terminal-psi-to-native-artifact"),
+            !contents.contains("native-realization"),
             "{} must not depend on native-artifact orchestration",
             cargo_toml.display()
         );
@@ -304,7 +304,7 @@ fn canonical_terminal_native_route_uses_one_composition_edge() {
     let route = [
         "omega-rust/omega/build/build-evaluation/Cargo.toml",
         "omega-rust/omega/build/provider-planning/Cargo.toml",
-        "omega-rust/omega/pipeline/terminal-psi-to-native-artifact/Cargo.toml",
+        "omega-rust/omega/compiler/native-realization/Cargo.toml",
         "omega-rust/omega/backend/plans/program-entry-plan/Cargo.toml",
     ];
     let forbidden = ["omega-checked-trees-to-state-graph", "omega-state-graph"];

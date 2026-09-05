@@ -123,7 +123,7 @@ impl FunctionFragmentReplayInputs {
 
     pub fn register_environment(
         &self,
-    ) -> &target_to_register_environment::ValidatedTargetRegisterEnvironment {
+    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
         self.allocation().current().register_environment()
     }
 

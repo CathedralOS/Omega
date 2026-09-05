@@ -1,13 +1,13 @@
-# Target To Register Environment
+# Register Environment Setup
 
-[Pipeline](../pipeline.md) | Next: [Target Operations To Selected Instructions](target_operations_to_selected_instructions.md)
+[Pipeline](../pipeline.md) | Consumer: [Target Operations To Selected Instructions](target_operations_to_selected_instructions.md)
 
-This stage turns one exact native target into the validated register model,
+This backend service turns one exact native target into the validated register model,
 constraint catalog, and active reservation profile consumed by instruction
 selection and allocation. It is target-owned preparation, not instruction
 selection and not an optimization pass.
 
-## Stage Contract
+## Setup Contract
 
 Input: one exact `NativeTarget` and, for decoded or custom inputs, the raw
 physical-register model, constraint catalog, and reservation profile.
@@ -23,7 +23,7 @@ silently reconstruct the environment.
 
 ## Implementation Map
 
-- `pipeline/target-to-register-environment/src/lib.rs` owns construction
+- `backend/register-environment/src/lib.rs` owns construction
   and the public validation entrances.
 - `src/catalog.rs` selects target-owned physical models, constraints, and the
   conservative baseline reservation profile.
@@ -31,6 +31,6 @@ silently reconstruct the environment.
   invokes the selected ISA's semantic validator.
 - `src/model.rs` owns the inseparable validated carrier and typed failures.
 
-Production coordination constructs the register environment as its own stage,
+Production coordination constructs the register environment as target setup,
 then passes the validated carrier to instruction selection. Selection never
 reconstructs the environment implicitly.

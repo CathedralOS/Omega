@@ -6,18 +6,18 @@ use isa_x86_64::{
     decode_x86_64_mov_r32_imm32_i64_materialization,
     decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
 };
+use native_realization::*;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::PsiRewritePatch;
 use post_allocation_machine_to_post_allocation_machine::*;
 use post_allocation_machine_to_selected_form_encoding::*;
 use proof_admission::AdmissionProfile;
+use register_environment::*;
 use register_homes_to_post_allocation_machine::*;
 use selected_form_encoding_to_resolved_layout::*;
 use selected_instructions_to_register_homes::*;
 use semantic_vocabulary::IntegerValue;
 use target::NativeTarget;
-use target_to_register_environment::*;
-use terminal_psi_to_native_artifact::*;
 
 use super::generator::CorpusCase;
 use super::psi::CorpusArtifact;
