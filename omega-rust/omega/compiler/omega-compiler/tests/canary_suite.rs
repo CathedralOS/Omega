@@ -342,6 +342,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "constraints/anonymous_integer_return_landing",
     "constraints/selected_arithmetic_return_ensures",
     "control_flow/explicit_state_value_frontier",
+    "control_flow/transition_operand_schedule",
     "control_flow/nested_parameter_receiver_call",
     "arithmetic/bounded_max_call",
     "arithmetic/float_unit_ratio_compile",
@@ -672,6 +673,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "constraints/anonymous_integer_return_wrong_ensures",
+    "constraints/transition_mutated_argument",
     "control_flow/implicit_entry_parameter_capture",
     "control_flow/implicit_entry_local_capture",
     "control_flow/implicit_entry_write_capture",

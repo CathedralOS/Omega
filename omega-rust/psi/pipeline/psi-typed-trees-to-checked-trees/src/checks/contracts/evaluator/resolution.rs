@@ -134,7 +134,40 @@ impl ContractExpressionEvaluator<'_, '_> {
                 } else {
                     local.name == *name
                 };
-                local_matches.then_some(local.initial_value)
+                // This evaluator has no flow contexts or storage revisions.
+                // Only immutable closed values can be reconstructed here;
+                // mutable values and captured reads require live evidence.
+                (local_matches && !local.is_mutable && self.closed_value(local.initial_value))
+                    .then_some(local.initial_value)
             })
+    }
+
+    fn closed_value(&self, expression: ExpressionHandle) -> bool {
+        if !self
+            .program
+            .expression_table
+            .expression_is_valid(expression)
+        {
+            return false;
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_) => true,
+            ExpressionNode::ArrayLiteral(values) => self
+                .program
+                .expression_table
+                .expression_handles(*values)
+                .iter()
+                .all(|value| self.closed_value(*value)),
+            ExpressionNode::StructLiteral(value) => self
+                .program
+                .expression_table
+                .struct_fields(value.fields)
+                .iter()
+                .all(|field| self.closed_value(field.value)),
+            _ => false,
+        }
     }
 }

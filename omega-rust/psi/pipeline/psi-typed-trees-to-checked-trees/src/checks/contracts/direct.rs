@@ -49,10 +49,12 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    if instantiated_guard_proves(
+    if instantiated_live_value_proves(
         program,
         semantic,
         context,
+        caller_state_symbol,
+        statement_index,
         call_site,
         target_state,
         expression,
@@ -96,10 +98,13 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     })
 }
 
-fn instantiated_guard_proves(
+#[allow(clippy::too_many_arguments)]
+fn instantiated_live_value_proves(
     program: &psi_typed_trees::TypedTrees,
     semantic: &psi_facts::FactPlan,
     context: &psi_facts::FactContext,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
     call_site: &crate::CallSite<'_>,
     target: &(impl ContractTargetParameters + ?Sized),
     expression: psi_typed_trees::expression::ExpressionHandle,
@@ -138,6 +143,18 @@ fn instantiated_guard_proves(
             *arguments.get(position)?
         };
         evaluate_scalar(program, argument, &mut |leaf| {
+            // Local declarations are not current values. Read only assignment
+            // snapshots which survived the scheduled argument effects.
+            if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                caller_state_symbol,
+                statement_index,
+                leaf,
+            ) && let Some(value) =
+                super::prover::scalar_value_at_place(program, semantic, [context], &place)
+            {
+                return Some(value);
+            }
             semantic.context_view(context).facts().find_map(|fact| {
                 let psi_facts::FactPayload::BooleanValue {
                     expression: guard,

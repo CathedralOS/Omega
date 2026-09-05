@@ -1,0 +1,7 @@
+machine clear(flag: &mut bool) -> bool { flag = false; true }
+
+machine run() {
+    let mut flag: bool = true;
+    transition { _ -> done(clear(&mut flag), flag) }
+    state done(ignored: bool, current: bool) requires current {}
+}
