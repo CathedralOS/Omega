@@ -215,6 +215,12 @@ row is ambiguous, including same-kind duplication, so it contributes no
 inferred owner kind and admits no machine to a data-owner callable registry
 until repaired.
 
+State-name comparisons, duplicate selection, and state-local scope census use
+tail folds. A machine with many states does not retain one pending minimum
+operation per state; the earliest candidate and its existing tie behavior stay
+explicit in the accumulator. This is required by the current Omega D parser's
+776 authored states, not a new Epsilon state-count limit.
+
 Type formation walks every authored type after that census with an explicit
 stored/parameter/local/return/nested placement. It derives array-length,
 mixed-data, standalone-value `u8`, misplaced-`never`, forbidden-view, sealed-
@@ -234,7 +240,15 @@ The member-type candidate fold reverses the member spine and merges each
 candidate on the left of the accumulated result. This preserves the original
 right-associated conflict behavior with bounded call depth. Declaration and
 statement type-formation folds use the same ordering, so an earlier declaration
-does not retain a pending merge while a later machine body is checked. The winning
+does not retain a pending merge while a later machine body is checked. State
+type formation also reverses only the list spine and preserves exactly
+`min(parameters, min(body, suffix))`. Conflict precedence makes reassociation
+invalid even when ordinary distinct-coordinate errors would select the same
+minimum. State width therefore consumes no pending return frame per state.
+The [checking-invariant controls](../../../tests/epsilon/checking-invariants/README.md)
+pin this association with synthetic overlapping coordinates. They test the
+private candidate algebra, not acceptance of an Epsilon source with those spans.
+The winning
 candidate is promoted after successful census. D56's final type-
 formation entry subjudgment runs before that promotion: no authored
 `Main::main` owner/name candidate yields only `MissingEntry` at source extent;

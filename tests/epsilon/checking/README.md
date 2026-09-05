@@ -55,8 +55,17 @@ earlier child errors, and after-`never` suppression keep their exact precedence.
 The checker searches only the current terminal's contiguous prepended pattern
 facts for duplicates. It retains the complete program ledger for later consumers.
 
-`receipt.tsv` records the measured 697,820-byte checker receipt with SHA-256
-`4d53417259be9e53a0d2505dc657773b244097d1da0deddb2ee3519a77d0387b`.
-Every gate run reconstructs this exact receipt before comparing the 48 complete
+Four state-width controls each contain 260 authored states in one unused
+machine. They require acceptance of distinct empty states, `DuplicateName`
+at the final repeated state declaration (offset 5,703), and `UnknownType` at a final
+state parameter or local annotation (offsets 5,724 and 5,732). These sources
+previously ended in outer Gamma status 250 with no checker observation because
+state census and formed-type folds retained one return context per state.
+The controls require complete checking and exact diagnostics under the existing
+selected evaluator; 260 is a regression width, not a new language limit.
+
+`receipt.tsv` records the measured 698,704-byte checker receipt with SHA-256
+`2ca5247dfa014e588e26533de46f8ca0268c555ad2130f84db28482cfa4ae79e`.
+Every gate run reconstructs this exact receipt before comparing the 52 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.

@@ -241,24 +241,38 @@
 
 (def epsilon_census_state_against ((source EpsilonSourceView) (nameValue EpsilonName)
   (states EpsilonStateList)) EpsilonCensusCandidate
+  (epsilon_census_state_against_fold source nameValue states
+    NoEpsilonCensusCandidate))
+
+; State width does not retain pending minimum operations. Each fold preserves
+; the earliest candidate, including the earlier derivation on equal offsets.
+(def epsilon_census_state_against_fold ((source EpsilonSourceView)
+  (nameValue EpsilonName) (states EpsilonStateList)
+  (candidate EpsilonCensusCandidate)) EpsilonCensusCandidate
   (match states
-    (NoEpsilonStates NoEpsilonCensusCandidate)
+    (NoEpsilonStates candidate)
     ((MoreEpsilonStates item rest)
       (let current EpsilonCensusCandidate
         (if (epsilon_names_equal source nameValue (epsilon_state_name item))
           (epsilon_census_duplicate (epsilon_state_start item))
           NoEpsilonCensusCandidate)
-        (epsilon_census_min current
-          (epsilon_census_state_against source nameValue rest))))))
+        (epsilon_census_state_against_fold source nameValue rest
+          (epsilon_census_min candidate current))))))
 
 (def epsilon_census_state_duplicates ((source EpsilonSourceView)
   (states EpsilonStateList)) EpsilonCensusCandidate
+  (epsilon_census_state_duplicates_fold source states NoEpsilonCensusCandidate))
+
+(def epsilon_census_state_duplicates_fold ((source EpsilonSourceView)
+  (states EpsilonStateList) (candidate EpsilonCensusCandidate))
+  EpsilonCensusCandidate
   (match states
-    (NoEpsilonStates NoEpsilonCensusCandidate)
+    (NoEpsilonStates candidate)
     ((MoreEpsilonStates item rest)
-      (epsilon_census_min
+      (let current EpsilonCensusCandidate
         (epsilon_census_state_against source (epsilon_state_name item) rest)
-        (epsilon_census_state_duplicates source rest)))))
+        (epsilon_census_state_duplicates_fold source rest
+          (epsilon_census_min candidate current))))))
 
 (def epsilon_census_state_scope ((source EpsilonSourceView) (stateValue EpsilonState)
   (machineEnvironment EpsilonNameList)) EpsilonCensusCandidate
@@ -279,12 +293,19 @@
 
 (def epsilon_census_state_scopes ((source EpsilonSourceView) (states EpsilonStateList)
   (machineEnvironment EpsilonNameList)) EpsilonCensusCandidate
+  (epsilon_census_state_scopes_fold source states machineEnvironment
+    NoEpsilonCensusCandidate))
+
+(def epsilon_census_state_scopes_fold ((source EpsilonSourceView)
+  (states EpsilonStateList) (machineEnvironment EpsilonNameList)
+  (candidate EpsilonCensusCandidate)) EpsilonCensusCandidate
   (match states
-    (NoEpsilonStates NoEpsilonCensusCandidate)
+    (NoEpsilonStates candidate)
     ((MoreEpsilonStates item rest)
-      (epsilon_census_min
+      (let current EpsilonCensusCandidate
         (epsilon_census_state_scope source item machineEnvironment)
-        (epsilon_census_state_scopes source rest machineEnvironment)))))
+        (epsilon_census_state_scopes_fold source rest machineEnvironment
+          (epsilon_census_min candidate current))))))
 
 (def epsilon_census_machine_scope ((source EpsilonSourceView) (inputs EpsilonMachineInputs)
   (bodyValue EpsilonMachineBody)) EpsilonCensusCandidate
