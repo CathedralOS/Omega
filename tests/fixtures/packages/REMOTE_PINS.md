@@ -88,6 +88,26 @@ pins. Audit output reports current findings and does not approve changes or
 certify earlier project decisions. The nominal NetworkHost fixtures disclose
 reach and invocation but do not contain a concrete network provider.
 
+## Transitive private helpers
+
+Separate `private-helper` branches retain these exact revisions without changing
+the main fixture table:
+
+- `capability-vault`: `a89f7a50e4b7c0db8f09bf9c9e73fa54a576a4e2` acquires
+  through private helpers; `db5081e2b294d177a749fc8f5a5edac8cf83c357` removes
+  only the private acquisition call.
+- `graph-workbench`: `3b1b6679f8adad85bb09a65d67ddd0a23f8180d5` pins the
+  first leaf; `7484bc3e56ab153a2e5459dd51054f90b4f22215` pins the second.
+
+```text
+mbx test -p omega --test package_commands remote_review::transitive_helper:: -- --ignored --test-threads=1
+```
+
+The SSH canary checks a two-edge path from the project to the leaf. The public
+signature and declared reach/invocation ceilings stay fixed, but removal of the
+private call changes checked reach and reachable capability flow, requiring a
+decision. Nominal SecretHost flow is not a concrete secret-provider claim.
+
 ## Generated process authority
 
 The pure `generated-table` pin in the table remains unchanged. Its separate

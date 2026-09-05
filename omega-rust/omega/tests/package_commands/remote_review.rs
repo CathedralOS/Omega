@@ -5,6 +5,9 @@ use package_source::ImmutableSourceResolution;
 use std::fs;
 use std::process::Output;
 
+#[path = "remote_review/transitive_helper.rs"]
+mod transitive_helper;
+
 const TARGET: target::TargetProfile = target::TargetProfile::LinuxX64;
 const GRAPH: &str = "85e962bf5120f84d5f2d8c18c14a6d96d1ec5c64";
 const AXIOM: &str = "8f5bd07f166bcad08842e6bab1ba8b031e3afcb9";

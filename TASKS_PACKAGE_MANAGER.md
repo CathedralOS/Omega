@@ -10,19 +10,6 @@ records selected sources and accepted capabilities/assumptions, not proof of an
 audit. Use the existing compiler to check code; native artifact verification,
 host credentials, and organizational review policy have separate owners.
 
-## Required integration
-
-- [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Extend real-command/network coverage to
-  transitive helper authority.
-  Test HTTPS and SSH independently where credentials permit.
-  Cover missing baselines/old source, invalid proofs, spoofed boundaries,
-  concurrent edits, and interruption recovery. Run relevant package, resolver,
-  compiler-handoff, and architecture checks; report unavailable platforms or
-  credentials explicitly.
-  Acceptance: successful commands produce usable dependencies; failed stages
-  preserve or recover accepted files. Reuse bounded-process tests for helper
-  failure/cleanup rather than making OS hardening a package feature.
-
 ## Optional conveniences
 
 These do not block the supported online install/update workflow.
