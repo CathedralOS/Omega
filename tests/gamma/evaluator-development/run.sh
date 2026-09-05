@@ -37,8 +37,8 @@ from pathlib import Path
 from function_lookup import fixtures as function_lookup_fixtures
 
 artifacts = (
-    ("BETA", 42776, "95e8771385a3f8779abcc8aed116327e5de1b350e3aeb93398db913dc3459a33"),
-    ("TAPE", 7835, "708b6725d3e5a1eff7837336afcc18c45c6f04d5e102148fd710f63fe9b44950"),
+    ("BETA", 46479, "eabf2de565a9165cf3e8cfeb1917a1de76c9847641807199648bd2e1ee9a6427"),
+    ("TAPE", 8355, "c2ad4740ef13c676455439cc4666a5515c3b61f91d31736a0c8f60fd40b6d98e"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -65,14 +65,16 @@ def run(source, sealed_input=b"", timeout=20):
     request = struct.pack("<I", len(source)) + source + sealed_input
     process = subprocess.Popen(
         [os.environ["EVALUATOR"]], stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE, start_new_session=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
     )
     try:
-        output, _ = process.communicate(request, timeout=timeout)
+        output, error = process.communicate(request, timeout=timeout)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.wait()
         raise SystemExit("direct Beta evaluator timed out")
+    if error:
+        raise SystemExit(f"direct Beta evaluator emitted stderr: {error!r}")
     return process.returncode, output
 
 positive = {

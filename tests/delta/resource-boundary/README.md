@@ -1,7 +1,7 @@
 # Delta resource-boundary gate
 
 Run `sh tests/delta/resource-boundary/run.sh` from the repository root. The gate
-materializes and pins the complete canonical compiler, then compiles eight full
+materializes and pins the complete canonical compiler, then compiles twelve full
 authored Delta sources through `DCREQ` profile 1 and the selected Gamma evaluator.
 The host neither parses declarations nor injects counters or compiler rows.
 
@@ -46,14 +46,37 @@ below the separate source-byte provision. Their length, digest, source
 coordinate, status, and complete 40-byte frame expectations are fixed in the
 fixture owner; no expected diagnosis is obtained from compiler output.
 
+[`type_rows.py`](type_rows.py) supplies four total-type-row controls at D30's
+selected limit of 65,536, including the two built-in rows for `Int` and `Bytes`:
+
+| Authored source | Bytes | Expected exact DCOUT |
+| --- | ---: | --- |
+| 65,534 nominal types plus two built-in rows | 1,507,329 | Reject 11, source coordinate 21 |
+| Same nominal prefix plus fresh `T65534` | 1,507,352 | Incomplete 2, source coordinate 1,507,296, limit 65,536, requested 65,537 |
+| Same nominal prefix plus duplicate `T00000` | 1,507,352 | Reject 6, source coordinate 1,507,296 |
+| Same nominal prefix plus fresh `T65534` containing duplicate `C00000` | 1,507,352 | Incomplete 2, source coordinate 1,507,296, limit 65,536, requested 65,537 |
+
+Each prefix begins with `(data T00000 (C00000 Missing))`, followed by 65,533
+distinct nominal types with one distinct constructor each. An ordinary
+`main : Bytes -> Bytes` ends every source. The exact-boundary case reaches
+declaration resolution and rejects `Missing` at byte 21. The adjacent fresh
+type instead refuses its row before that later phase; a duplicate type retains
+its identity diagnosis without requesting a row. The fourth case requires type
+provision before inspecting that fresh type's duplicate constructor. There are
+only 65,534 prefix constructors, and at most 65,535 authored constructor entries
+in any case, below their separate 65,536-row boundary. All four sources are
+below the 4-MiB source-byte limit. Literal sizes, digests, coordinates, and
+complete 40-byte frames are independently pinned in the fixture owner.
+
 Each evaluation uses the existing full-customer diagnostic allowance of 300
 seconds. The gate prints elapsed time for each exact observation and reports a
 raw evaluator failure or timeout without relabeling it as compiler
 `Incomplete`. A selected evaluator heap or stack failure does not pass, and the
 boundary is not reduced to accommodate it.
 
-These controls test only the function- and constructor-row boundaries. They do
-not establish all D30 capacities, acceptance or emission of every in-bound program, or
-closure of the Delta edge. Other frontend and request behavior remains in the
+These controls test only the type-, function-, and constructor-row boundaries.
+They do not establish all D30 capacities, acceptance or emission of every
+in-bound program, or closure of the Delta edge. Other frontend and request
+behavior remains in the
 [frontend](../frontend-boundary/README.md) and
 [request](../request-boundary/README.md) gates.

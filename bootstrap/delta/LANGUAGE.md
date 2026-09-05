@@ -296,6 +296,14 @@ Duplicate constructor lookup precedes provision. A fresh 65,537th constructor
 returns `Incomplete` resource code 3 at its name-token start, with limit 65,536
 and requested 65,537, before its metadata or trie row is allocated. Duplicate
 types reject before any constructor in that declaration is provisioned.
+The type-row total includes the two builtins, `Int` and `Bytes`, plus each
+fresh nominal declaration. The selected 65,536-row limit therefore admits
+65,534 nominal declarations. Annotation occurrences and metadata copies do not
+add type rows. Duplicate type lookup precedes provision; a fresh declaration
+requesting total row 65,537 returns `Incomplete` resource code 2 at its
+type-name start, with limit 65,536 and requested 65,537, before type metadata
+or any constructor processing. Builtin identities need no nominal trie entries,
+but that representation choice does not increase the selected logical total.
 Declarations, constructors, and fields are visited
 in authored order; each parameter's conflict check precedes its own annotation,
 parameters precede the result type, and all declarations precede all bodies.

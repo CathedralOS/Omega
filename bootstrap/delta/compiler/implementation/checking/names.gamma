@@ -6,9 +6,10 @@
 
 ; A child row is (pair byte (pair child rest)). The outer option keeps empty
 ; distinct from a pair reference without using pair provenance in a condition.
+; Empty children and an absent trie share the same immutable absence carrier.
 (def name_child ((children Int) (byte Int)) Int
   (if (eq (first children) 0)
-    (empty_name_trie)
+    children
     (let row Int (second children)
       (let child_and_rest Int (second row)
         (if (eq (first row) byte)
@@ -94,7 +95,7 @@
 
 (def name_trie_find_option ((trie Int) (end Int) (index Int)) Int
   (if (eq (first trie) 0)
-    (pair 0 0)
+    trie
     (let node Int (second trie)
       (if (eq index end)
         (first node)

@@ -1,61 +1,59 @@
-; All projections below consume parser-owned nodes or counted work spines.
+; Count and pending spine travel as separate machine arguments.
+; A pending batch is (pair role (pair depth (pair remaining (pair nodes rest)))).
+; Nodes reuse the parser-owned ordered spine; no copied reverse child list.
+(def grammar_pending
+  ((role Int) (depth Int) (remaining Int) (nodes Int) (rest Int)) Int
+  (pair role (pair depth (pair remaining (pair nodes rest)))))
+
+(def grammar_run ((count Int) (work Int)) Int
+  (if (eq count 0)
+    (compiler_complete 0)
+    (let context Int (second work)
+      (let batch Int (second context)
+        (let children Int (second batch)
+          (grammar_sequence (first work) (first batch) (first children)
+            (first context) (- count 1) (second children)))))))
+
+; Only an actually pending sibling sequence gets a frame. The current child
+; enters its role directly, and popping a batch allocates no replacement work.
+(def grammar_sequence
+  ((role Int) (remaining Int) (nodes Int) (depth Int)
+   (count Int) (work Int)) Int
+  (if (eq remaining 0)
+    (grammar_run count work)
+    (if (eq remaining 1)
+      (grammar_check_role role (first nodes) depth count work)
+      (grammar_check_role role (first nodes) depth (+ count 1)
+        (grammar_pending role depth (- remaining 1) (second nodes) work)))))
+
 (def grammar_reject ((node Int)) Int
   (compiler_source_rejection 4 (syntax_start node)))
-
-(def grammar_missing ((node Int)) Int
-  (compiler_source_rejection 4 (- (syntax_after node) 1)))
 
 (def grammar_child_at ((children Int) (index Int)) Int
   (if (eq index 0)
     (first children)
     (grammar_child_at (second children) (- index 1))))
 
+; Shape probes return -1 on success, otherwise an exact source coordinate.
+; This is private control data, not a compiler outcome or a resource bound.
 (def grammar_exact_count ((node Int) (expected Int)) Int
   (let count Int (syntax_count node)
     (if (lt count 0)
-      (grammar_reject node)
+      (syntax_start node)
       (if (lt count expected)
-        (grammar_missing node)
+        (- (syntax_after node) 1)
         (if (eq count expected)
-          (compiler_complete 0)
-          (grammar_reject
-            (grammar_child_at (syntax_children node) expected)))))))
+          -1
+          (syntax_start (grammar_child_at (syntax_children node) expected)))))))
 
 (def grammar_minimum_count ((node Int) (minimum Int)) Int
   (let count Int (syntax_count node)
     (if (lt count 0)
-      (grammar_reject node)
-      (if (lt count minimum)
-        (grammar_missing node)
-        (compiler_complete 0)))))
+      (syntax_start node)
+      (if (lt count minimum) (- (syntax_after node) 1) -1))))
 
-(def grammar_queue_node ((role Int) (node Int) (work Int)) Int
-  (grammar_queue_node_at_depth role node 0 work))
-
-(def grammar_queue_node_at_depth
-  ((role Int) (node Int) (depth Int) (work Int)) Int
-  (pair (+ (first work) 1)
-    (pair (pair role (pair node depth)) (second work))))
-
-; Restore ordered children ahead of existing work without recursive descent.
-(def grammar_queue_nodes
-  ((role Int) (count Int) (nodes Int) (work Int)) Int
-  (grammar_queue_nodes_at_depth role count nodes 0 work))
-
-(def grammar_queue_nodes_at_depth
-  ((role Int) (count Int) (nodes Int) (depth Int) (work Int)) Int
-  (pair (+ count (first work))
-    (grammar_prepend_reversed role count depth
-      (syntax_reverse_nodes count nodes 0) (second work))))
-
-(def grammar_prepend_reversed
-  ((role Int) (count Int) (depth Int) (nodes Int) (entries Int)) Int
-  (if (eq count 0)
-    entries
-    (grammar_prepend_reversed role (- count 1) depth (second nodes)
-      (pair (pair role (pair (first nodes) depth)) entries))))
-
-(def grammar_atom_role ((role Int) (node Int) (work Int)) Int
+(def grammar_atom_role
+  ((role Int) (node Int) (count Int) (work Int)) Int
   (if (eq (syntax_count node) -1)
     (let start Int (syntax_start node)
       (let after Int (syntax_after node)
@@ -65,5 +63,5 @@
             (if (eq role 3)
               (upper_name_valid start after)
               (field_type_shape_valid start after)))
-          (if valid (compiler_complete work) (grammar_reject node)))))
+          (if valid (grammar_run count work) (grammar_reject node)))))
     (grammar_reject node)))

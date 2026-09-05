@@ -467,25 +467,17 @@
         mov r0 r91
         ret
 
-; Current token lookup. Return row pointer or zero.
+; Current token lookup through a sorted index; keep original control addresses.
 0x8b5: ; find_function:
-        mov r2 r90
-0x8b8: ; find_function_loop:
-        jeq r2 r88 0x8f5 ; -> find_function_absent:
-        mov r0 r2
-        call 0x840 ; -> function_row:
-        mov r3 r0
-        call 0x851 ; -> row_matches_token:
-        jnz r0 0x8f1 ; -> find_function_present:
-0x8e5: ; find_function_next:
-        add r2 r91
-        jmp 0x8b8 ; -> find_function_loop:
-0x8f1: ; find_function_present:
-        mov r0 r3
-        ret
-0x8f5: ; find_function_absent:
-        mov r0 r90
-        ret
+        jmp 0x1e9b ; -> indexed_find_function:
+        dw 0x0
+        dw 0x0
+        dw 0x0
+        dw 0x0
+        dw 0x0
+        dw 0x0
+        dw 0x0
+        mov r0 r0
 
 ; Reverse lexical lookup. Return environment row or zero.
 0x8f9: ; find_environment:
@@ -619,7 +611,7 @@
         call 0x9a2 ; -> skip_expression:
         call 0x5cf ; -> expect_close:
         add r88 r91
-        jmp 0xa32 ; -> census_loop:
+        jmp 0x1f9d ; -> index_completed_function:
 0xbd4: ; census_done:
         jz r8b 0x19e6 ; -> invalid:
         mov r0 r8b
@@ -1507,3 +1499,134 @@
         jz rb2 0x19f2 ; -> authored_trap:
         call 0x1890 ; -> validate_pair:
         ret
+
+; The 4096 authored-order five-word function rows end at
+; 0x01228000. Sorted row pointers occupy 0x01228000..0x01230000,
+; inside the existing function partition. Rows retain authored order.
+; Search bounds are [r10, r11); r12 is the midpoint, r13 the index base.
+; All new low registers are caller-clobbered; comparator preserves r10..r14.
+0x1e9b: ; indexed_find_function:
+        mov r10 r90
+        mov r11 r88
+        imm r13 0x1228000
+0x1eab: ; indexed_find_loop:
+        jlt r10 r11 0x1eba ; -> indexed_find_probe:
+        mov r0 r90
+        ret
+0x1eba: ; indexed_find_probe:
+        mov r12 r10
+        add r12 r11
+        imm r0 0x2
+        div r12 r0
+        mov r3 r12
+        imm r0 0x8
+        mul r3 r0
+        add r3 r13
+        load r3 r3
+        call 0x1f20 ; -> compare_function_token:
+        jz r0 0x1f1c ; -> indexed_find_present:
+        jlt r0 r90 0x1f10 ; -> indexed_find_lower:
+        mov r10 r12
+        add r10 r91
+        jmp 0x1eab ; -> indexed_find_loop:
+0x1f10: ; indexed_find_lower:
+        mov r11 r12
+        jmp 0x1eab ; -> indexed_find_loop:
+0x1f1c: ; indexed_find_present:
+        mov r0 r3
+        ret
+
+; Compare the current token with row r3 by (length, exact bytes).
+; Return -1, zero, or one. Neither source span nor the row pointer changes.
+0x1f20: ; compare_function_token:
+        mov r4 r3
+        imm r5 0x8
+        add r4 r5
+        load r4 r4
+        jlt r87 r4 0x1f8e ; -> function_token_less:
+        jlt r4 r87 0x1f95 ; -> function_token_greater:
+        load r4 r3
+        mov r5 r90
+0x1f4f: ; function_token_loop:
+        jeq r5 r87 0x1f99 ; -> function_token_equal:
+        mov r6 r4
+        add r6 r5
+        loadb r6 r6
+        mov r7 r86
+        add r7 r5
+        loadb r7 r7
+        jlt r7 r6 0x1f8e ; -> function_token_less:
+        jlt r6 r7 0x1f95 ; -> function_token_greater:
+        add r5 r91
+        jmp 0x1f4f ; -> function_token_loop:
+0x1f8e: ; function_token_less:
+        mov r0 r90
+        sub r0 r91
+        ret
+0x1f95: ; function_token_greater:
+        mov r0 r91
+        ret
+0x1f99: ; function_token_equal:
+        mov r0 r90
+        ret
+
+; Census has finished the new row, checked the declaration close, and advanced
+; r88 after the unchanged 4096-row preflight. Only the first r88-1 pointers
+; exist until this hook commits. r8c still identifies the new physical row.
+0x1f9d: ; index_completed_function:
+        mov r14 r8c
+        load r86 r14
+        mov r0 r14
+        imm r1 0x8
+        add r0 r1
+        load r87 r0
+        mov r10 r90
+        mov r11 r88
+        sub r11 r91
+        imm r13 0x1228000
+0x1fc9: ; function_index_position_loop:
+        jlt r10 r11 0x1fdd ; -> function_index_position_probe:
+        jmp 0x203f ; -> function_index_shift_begin:
+0x1fdd: ; function_index_position_probe:
+        mov r12 r10
+        add r12 r11
+        imm r0 0x2
+        div r12 r0
+        mov r3 r12
+        imm r0 0x8
+        mul r3 r0
+        add r3 r13
+        load r3 r3
+        call 0x1f20 ; -> compare_function_token:
+        jz r0 0x1a0a ; -> internal:
+        jlt r0 r90 0x2033 ; -> function_index_position_lower:
+        mov r10 r12
+        add r10 r91
+        jmp 0x1fc9 ; -> function_index_position_loop:
+0x2033: ; function_index_position_lower:
+        mov r11 r12
+        jmp 0x1fc9 ; -> function_index_position_loop:
+0x203f: ; function_index_shift_begin:
+        mov r11 r88
+        sub r11 r91
+0x2045: ; function_index_shift_loop:
+        jlt r10 r11 0x2059 ; -> function_index_shift_pointer:
+        jmp 0x2084 ; -> function_index_store_pointer:
+0x2059: ; function_index_shift_pointer:
+        mov r0 r11
+        imm r1 0x8
+        mul r0 r1
+        add r0 r13
+        mov r2 r0
+        sub r2 r1
+        load r2 r2
+        store r0 r2
+        sub r11 r91
+        jmp 0x2045 ; -> function_index_shift_loop:
+0x2084: ; function_index_store_pointer:
+        mov r0 r10
+        imm r1 0x8
+        mul r0 r1
+        add r0 r13
+        store r0 r14
+        jmp 0xa32 ; -> census_loop:

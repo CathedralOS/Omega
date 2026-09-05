@@ -1,16 +1,38 @@
 ; Token admission precedes declaration collection. Source-envelope validation
 ; has already completed; grammar positions and balanced forms are a later phase.
 ; Reuse the one closed operator alphabet in operator_arity_plus_one.
-; skip/token_end retain exact source spans and CR/LF/EOF comment behavior.
+; skip retains CR/LF/EOF comments; identifier admission finds its own end.
 ; EOF is tested before reading a token; scanning resumes only after acceptance.
 (def validate_source_tokens ((index Int)) Int
   (let start Int (skip index)
     (if (eq start (source_length))
       (compiler_complete 0)
-      (let token Int (validate_source_token start (token_end start))
-        (if (eq (first token) 0)
-          (validate_source_tokens (second token))
-          token)))))
+      (if (is_identifier_start (source_read start))
+        (let end Int (identifier_token_end (+ start 1))
+          (if (eq end 0)
+            (compiler_source_rejection 4 start)
+            (validate_source_tokens end)))
+        (let end Int (token_end start)
+          (let code Int (source_token_rejection_code start end)
+            (if (eq code 0)
+              (validate_source_tokens end)
+              (compiler_source_rejection code start))))))))
+
+; The first byte is already an identifier start. Scan each tail byte once,
+; leaving delimiters for the next token. A malformed tail cannot be repaired
+; by later bytes; the complete envelope has already established byte priority.
+; Every valid end is positive, so zero can report malformed spelling without
+; allocating a discarded per-token outcome. The caller owns its exact anchor.
+(def identifier_token_end ((index Int)) Int
+  (if (eq index (source_length))
+    index
+    (let byte Int (source_read index)
+      (if (is_identifier_continue byte)
+        (identifier_token_end (+ index 1))
+        (if (if (is_space byte) 1
+              (if (eq byte 40) 1 (if (eq byte 41) 1 (eq byte 59))))
+          index
+          0)))))
 
 (def lexical_decimal_digits_valid ((index Int) (end Int)) Int
   (if (eq index end)
@@ -30,24 +52,21 @@
         (lexical_decimal_digits_valid (+ start 1) end))
       (lexical_decimal_digits_valid start end))))
 
-; A complete token is an identifier, parenthesis, arithmetic operator, or
-; signed decimal. Reserved words are identifiers here; only grammar positions
-; can prohibit their use as authored names. Bare '-' is an operator token.
-(def validate_source_token ((start Int) (end Int)) Int
+; Identifier starts take the single-scan path above. Remaining tokens are
+; parentheses, arithmetic operators, or signed decimals. Bare '-' is an
+; operator token. Decimal spelling still completes before range checking.
+; Zero admits the token; nonzero is the owned rejection code at its start.
+(def source_token_rejection_code ((start Int) (end Int)) Int
   (let byte Int (source_read start)
-    (if (is_identifier_start byte)
-      (if (identifier_tail_valid (+ start 1) end)
-        (compiler_complete end)
-        (compiler_source_rejection 4 start))
-      (if (if (eq byte 40) 1 (eq byte 41))
-        (compiler_complete end)
-        (if (operator_arity_plus_one start end)
-          (compiler_complete end)
-          (if (lexical_integer_spelling_valid start end)
-            (if (integer_literal_valid start end)
-              (compiler_complete end)
-              (compiler_source_rejection 5 start))
-            (compiler_source_rejection 4 start)))))))
+    (if (if (eq byte 40) 1 (eq byte 41))
+      0
+      (if (operator_arity_plus_one start end)
+        0
+        (if (lexical_integer_spelling_valid start end)
+          (if (integer_literal_valid start end)
+            0
+            5)
+          4)))))
 
 ; One alphabet and binary arity classification shared by checking and emission.
 (def operator_arity_plus_one ((start Int) (end Int)) Int

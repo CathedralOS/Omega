@@ -1,0 +1,39 @@
+; A census cursor is (pair focus (pair depth (pair source-start ancestors))).
+; Focus uses the ordinary name trie. Each counted ancestor is an existing
+; parent node, without its outer presence wrapper, followed by older ancestors.
+; The source prefix identifies the edges from the root to this focus exactly.
+(def identity_cursor
+  ((depth Int) (source Int) (focus Int) (ancestors Int)) Int
+  (pair focus (pair depth (pair source ancestors))))
+
+(def empty_identity_cursor () Int
+  (identity_cursor 0 0 (empty_name_trie) 0))
+
+(def identity_cursor_depth ((cursor Int)) Int
+  (first (second cursor)))
+
+(def identity_cursor_source ((cursor Int)) Int
+  (first (second (second cursor))))
+
+(def identity_cursor_focus ((cursor Int)) Int
+  (first cursor))
+
+(def identity_cursor_ancestors ((cursor Int)) Int
+  (second (second (second cursor))))
+
+; Seek stops at the complete name or the parent of its first absent edge.
+; Prefix presence is not terminal presence, including shorter/longer names.
+(def identity_cursor_present ((cursor Int) (end Int)) Int
+  (if (eq (+ (identity_cursor_source cursor) (identity_cursor_depth cursor)) end)
+    (let focus Int (identity_cursor_focus cursor)
+      (if (first focus)
+        (first (first (second focus)))
+        0))
+    0))
+
+; Only the completed census materializes roots for the ordinary global catalog.
+; Existing immutable cursor snapshots remain independently finishable.
+(def identity_cursor_finish ((cursor Int)) Int
+  (name_trie_rebuild (identity_cursor_focus cursor)
+    (+ (identity_cursor_source cursor) (identity_cursor_depth cursor))
+    (identity_cursor_depth cursor) (identity_cursor_ancestors cursor)))

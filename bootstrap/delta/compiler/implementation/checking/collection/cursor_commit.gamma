@@ -1,0 +1,24 @@
+; The caller has sought this exact name, proved absence, and admitted its row.
+; Prefix ancestors remain deferred. A new edge prepends; an existing endpoint
+; receives only its absent terminal, preserving all children and payload types.
+; Commit changes only focus, sharing the unchanged depth/source/ancestor tail.
+(def identity_cursor_commit ((cursor Int) (end Int) (payload Int)) Int
+  (let depth Int (identity_cursor_depth cursor)
+    (let start Int (identity_cursor_source cursor)
+      (let focus Int (identity_cursor_focus cursor)
+        (let index Int (+ start depth)
+          (let updated Int
+            (if (eq (first focus) 0)
+              (name_trie_new_path end index payload)
+              (let node Int (second focus)
+                (let terminal Int (first node)
+                  (let children Int (second node)
+                    (if (eq index end)
+                      (if (first terminal)
+                        (fail)
+                        (pair 1 (pair (pair 1 payload) children)))
+                      (pair 1
+                        (pair terminal
+                          (name_children_prepend children (source_read index)
+                            (name_trie_new_path end (+ index 1) payload)))))))))
+            (pair updated (second cursor))))))))

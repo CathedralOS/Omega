@@ -12,7 +12,8 @@
       (publish_compiler_failure admission))))
 
 (def source_length () Int
-  (request_u32 12))
+  ; Exact-end admission established this immutable body extent from the header.
+  (- (input) 16))
 
 (def source_read ((index Int)) Int
   (read (+ 16 index)))

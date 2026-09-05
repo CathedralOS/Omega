@@ -1,15 +1,11 @@
 (def fail () Int
   (read (input)))
 
-(def ascii_between ((byte Int) (low Int) (high Int)) Int
-  (if (lt byte low) 0
-    (if (lt high byte) 0 1)))
-
 (def source_byte_allowed ((byte Int)) Int
-  (if (eq byte 9) 1
-    (if (eq byte 10) 1
-      (if (eq byte 13) 1
-        (ascii_between byte 32 126)))))
+  (if (lt byte 32)
+    (if (eq byte 9) 1
+      (if (eq byte 10) 1 (eq byte 13)))
+    (lt byte 127)))
 
 (def validate_source_envelope ((index Int)) Int
   (if (eq index (source_length))
@@ -229,14 +225,8 @@
 (def is_identifier_continue ((byte Int)) Int
   (if (is_identifier_start byte) 1 (is_digit byte)))
 
-(def identifier_tail_valid ((index Int) (end Int)) Int
-  (if (eq index end)
-    1
-    (if (is_identifier_continue (source_read index))
-      (identifier_tail_valid (+ index 1) end)
-      0)))
-
-(def reserved_name ((start Int) (end Int)) Int
+; Only lower/underscore name roles call this after lexical admission.
+(def reserved_value_name ((start Int) (end Int)) Int
   (if (token_data start end) 1
     (if (token_def start end) 1
       (if (token_match start end) 1
@@ -244,29 +234,26 @@
           (if (token_if start end) 1
             (if (token_eq start end) 1
               (if (token_lt start end) 1
-                (if (token_int start end) 1
-                  (if (token_bytes start end) 1
-                    (token_bytes_builtin start end)))))))))))
+                (token_bytes_builtin start end)))))))))
 
+; These role checks consume complete tokens admitted by validate_source_tokens.
+; Lexical admission alone validates identifier tails; roles check category and
+; exact reserved spelling without scanning those same identifier bytes again.
 (def value_name_valid ((start Int) (end Int)) Int
   (if (eq start end)
     0
-    (if (reserved_name start end)
-      0
-      (if (is_lower (source_read start))
-        (identifier_tail_valid (+ start 1) end)
-        (if (eq (source_read start) 95)
-          (identifier_tail_valid (+ start 1) end)
-          0)))))
+    (let byte Int (source_read start)
+      (if (if (is_lower byte) 1 (eq byte 95))
+        (if (reserved_value_name start end) 0 1)
+        0))))
 
 (def upper_name_valid ((start Int) (end Int)) Int
   (if (eq start end)
     0
-    (if (reserved_name start end)
-      0
-      (if (is_upper (source_read start))
-        (identifier_tail_valid (+ start 1) end)
-        0))))
+    (if (is_upper (source_read start))
+      (if (token_int start end) 0
+        (if (token_bytes start end) 0 1))
+      0)))
 
 (def form_head ((form Int)) Int
   (skip (token_end form)))
@@ -275,8 +262,4 @@
   (token_end (form_head form)))
 
 (def field_type_shape_valid ((start Int) (end Int)) Int
-  (if (token_int start end)
-    1
-    (if (token_bytes start end)
-      1
-      (upper_name_valid start end))))
+  (if (eq start end) 0 (is_upper (source_read start))))

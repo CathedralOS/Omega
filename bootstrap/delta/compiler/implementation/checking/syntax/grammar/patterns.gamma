@@ -1,23 +1,22 @@
-(def grammar_arm ((node Int) (depth Int) (work Int)) Int
+(def grammar_arm ((node Int) (depth Int) (count Int) (work Int)) Int
   (let shape Int (grammar_exact_count node 2)
-    (if (eq (first shape) 0)
+    (if (eq shape -1)
       (let children Int (syntax_children node)
-        (compiler_complete
-          (grammar_queue_node 9 (first children)
-            (grammar_queue_node_at_depth 1 (grammar_child_at children 1)
-              (+ depth 1) work))))
-      shape)))
+        (grammar_pattern (first children) (+ count 1)
+          (grammar_pending 1 (+ depth 1) 1 (second children) work)))
+      (compiler_source_rejection 4 shape))))
 
 ; Nullary spelling and parenthesized payload spelling retain their authored
 ; shape. Constructor identity, binder conflicts, and payload arity are later.
-(def grammar_pattern ((node Int) (work Int)) Int
+(def grammar_pattern ((node Int) (count Int) (work Int)) Int
   (if (eq (syntax_count node) -1)
-    (grammar_atom_role 3 node work)
+    (grammar_atom_role 3 node count work)
     (let shape Int (grammar_minimum_count node 1)
-      (if (eq (first shape) 0)
+      (if (eq shape -1)
         (let children Int (syntax_children node)
-          (compiler_complete
-            (grammar_queue_node 3 (first children)
-              (grammar_queue_nodes 2 (- (syntax_count node) 1)
+          (if (eq (syntax_count node) 1)
+            (grammar_atom_role 3 (first children) count work)
+            (grammar_atom_role 3 (first children) (+ count 1)
+              (grammar_pending 2 0 (- (syntax_count node) 1)
                 (second children) work))))
-        shape))))
+        (compiler_source_rejection 4 shape)))))
