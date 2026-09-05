@@ -31,10 +31,10 @@ expect_metric() {
     }
 }
 
-expect_metric 'source_lines=11743'
-expect_metric 'top_level_forms=878'
+expect_metric 'source_lines=11732'
+expect_metric 'top_level_forms=877'
 expect_metric 'data_forms=181'
-expect_metric 'definition_forms=697'
+expect_metric 'definition_forms=696'
 expect_metric 'optional_forms=8'
 expect_metric 'optional_lines=24'
 expect_metric 'optional_shapes=0/1:4,0/3:4'

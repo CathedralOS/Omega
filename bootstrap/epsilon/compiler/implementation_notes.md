@@ -143,14 +143,13 @@ array binder does not mutate the original subject. A view captured from a
 binder array retains that independent backing across state transfer through the
 ordinary root-liveness rule; unused binder roots are reclaimed normally.
 
-Constructor byte-range failures have one explicit staging gap. A final payload
-argument outside `0..255` traps as `ByteRange` after all preceding argument
-effects. A failing nonfinal byte payload returns private `Unsupported`, without
-publishing an Epsilon observation or evaluating later arguments. The settled
-[constructor payload establishment rule](../LANGUAGE.md#epsilon-constructor-payload-establishment-order)
-requires `ByteRange` here, preserving preceding output and suppressing later
-argument effects, traps, and exits. Updating this path and its competing-effect
-controls remains implementation work, not an owner blocker.
+Constructor arguments immediately establish their corresponding payload fields
+under the [constructor payload establishment rule](../LANGUAGE.md#epsilon-constructor-payload-establishment-order).
+A byte payload outside `0..255` traps as `ByteRange`, preserving effects from
+preceding arguments and from evaluating the failing argument itself. Later
+arguments do not run: their storage mutations, Console output, traps, and exits
+cannot precede this failure. Successful aggregate arguments still capture
+immutable snapshots before later arguments run.
 
 Impossible checked states produce internal failure, not `Unsupported`: a
 non-call control target, a missing ordinary field reference, a view represented
@@ -159,8 +158,8 @@ scalar helper. Control failures identify the normalized core's start; missing
 field facts identify the complete projection's start; malformed aggregate views
 identify their type's start. The pure scalar helper has no source coordinate
 and uses the existing internal-offset fallback of zero. These failures carry no
-buffered stdout into the private observation. Only the unimplemented nonfinal byte
-payload path creates `Unsupported`; other occurrences propagate it unchanged.
+buffered stdout into the private observation. No admitted execution branch
+creates `Unsupported`; remaining matches propagate that private carrier only.
 
 These storage, view, sum, and call operations also do not establish that the
 complete Omega D source executes. Every

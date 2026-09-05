@@ -25,11 +25,6 @@ not establish source-language conformance.
   incorrectly sent to the eager scalar helper (`Internal` at 0) from ordinary
   arithmetic, arithmetic traps, and correctly short-circuited evaluation. A
   reached missing local reports offset 107; skipped copies cannot do so.
-- [`constructors.delta`](constructors.delta): two outcomes retain the currently
-  unimplemented nonfinal-byte ordering route as `Unsupported`, while a final
-  byte failure remains `ByteRange` with its existing output prefix. The settled
-  [payload-establishment rule](../../../bootstrap/epsilon/LANGUAGE.md#epsilon-constructor-payload-establishment-order)
-  requires updating the nonfinal route to `ByteRange` as well.
 
 Every tested runtime call receives an existing stdout prefix `A`. The private
 codec in [`observations.delta`](observations.delta) encodes helper variants:
@@ -40,9 +35,9 @@ All integers encoded here are nonnegative and little-endian. Internal and
 unsupported variants carry no output. These are helper-outcome observations,
 not a test of the production final observation adapter or a RunEpsilon envelope.
 
-[`expected.hex`](expected.hex) independently specifies 156 bytes for the 33
+[`expected.hex`](expected.hex) independently specifies 152 bytes for the 31
 outcomes, in source order. The exact test source membership is recorded in
 [`runtime_invariants.delta.sources`](runtime_invariants.delta.sources).
-[`receipt.tsv`](receipt.tsv) binds the measured 707,582-byte Gamma receipt;
+[`receipt.tsv`](receipt.tsv) binds the measured 706,873-byte Gamma receipt;
 reconstruction must match its exact length and digest before execution.
 Generated source and receipts remain outside the repository.

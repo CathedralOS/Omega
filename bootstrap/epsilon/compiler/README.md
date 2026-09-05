@@ -48,8 +48,8 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,743 lines / 598,608 bytes, SHA-256
-`026ac4692589fb05feb06929a1b53c7ff4495c5a9be122d85f2bd32b94188004`.
+The packed evaluator is 11,732 lines / 597,945 bytes, SHA-256
+`3f0590c012cbfcfc9a7110afe6d70eff2de2a4edb95f467dc46f370956e16e99`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
@@ -102,6 +102,7 @@ sh tests/epsilon/delta-boundary-experiment/run.sh
 sh tests/epsilon/checking/run.sh
 sh tests/epsilon/runtime-references/run.sh
 sh tests/epsilon/runtime-invariants/run.sh
+sh tests/epsilon/source-views/run.sh
 sh tests/epsilon/interpreted-omega-experiment/run.sh
 sh tests/delta/staged-compiler/run.sh
 ```
@@ -114,13 +115,11 @@ backing; strings, range slices, `.as_slice`, indexing, lengths, and all four
 Console operations execute in this staging path. Sparse typed zero homes avoid
 eager array allocation; they do not establish the final application's physical
 storage profile. Sum constructors, first-case zero defaults, checked case
-transitions, and copied payload binders have staging execution paths. A failing
-`u8` payload argument followed by another argument still returns `Unsupported`;
-implementing the settled [immediate payload establishment rule](../LANGUAGE.md#epsilon-constructor-payload-establishment-order)
-must replace that staging refusal with `ByteRange` before later arguments run.
-Final-argument `ByteRange` already has an execution path. This is
-not full sum or evaluator completion. Remaining conformance obligations and
-final composition with D remain open.
+transitions, and copied payload binders have staging execution paths. The
+[immediate payload establishment rule](../LANGUAGE.md#epsilon-constructor-payload-establishment-order)
+traps as `ByteRange` at a failing byte payload before later arguments run,
+preserving earlier output. This is not full evaluator completion. Remaining
+conformance obligations and final composition with D remain open.
 The [runtime-invariant controls](../../../tests/epsilon/runtime-invariants/README.md)
 exercise internal-failure defenses with synthetic state that bypasses checking;
 they do not claim additional admitted Epsilon behavior or final publication.

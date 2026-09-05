@@ -71,5 +71,5 @@ if (status, observation) != (0, expected):
         f"runtime invariants expected status 0 and {expected.hex()}, "
         f"received status {status} and {observation.hex()}"
     )
-print("Epsilon runtime invariants: 33 exact helper outcomes pass", flush=True)
+print("Epsilon runtime invariants: 31 exact helper outcomes pass", flush=True)
 PY
