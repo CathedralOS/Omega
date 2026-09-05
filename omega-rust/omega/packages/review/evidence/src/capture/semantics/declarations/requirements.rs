@@ -1,4 +1,6 @@
-use crate::capture::semantics::declarations::{nominal_identity, nominal_owner};
+use crate::capture::semantics::declarations::{
+    nominal_identity, nominal_owner, provider_requirement_schema,
+};
 use crate::record::PackageReviewNominalIdentity;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
@@ -61,7 +63,7 @@ pub(crate) fn provider_requirement_identity(
     schema: omega_provider_planning::plans::ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-    match schema {
+    match provider_requirement_schema(compilation, schema, requirement_symbol)? {
         omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
             trait_requirement_identity_from_symbols(
                 compilation,

@@ -5137,7 +5137,7 @@ fn provider_selection_composition_mode(
 /// The static grant harvest: every `accept_boundary#<path>` marker call in
 /// the build machine's states (the postfix carve's desugar of
 /// `b.accept_boundary<path>();`). Order-preserving, deduplicated.
-fn harvest_root_grants(
+pub fn harvest_root_grants(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
 ) -> Result<Vec<omega_trust_model::AuthoredRootGrant>, Diagnostic> {

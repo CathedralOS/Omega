@@ -195,7 +195,7 @@ fn encode_boundary_application(
     Ok(())
 }
 
-pub(super) fn encode_compiler_intrinsic_execution(
+pub(crate) fn encode_compiler_intrinsic_execution(
     encoder: &mut Encoder,
     execution: &PackageReviewCompilerIntrinsicExecution,
 ) -> Result<(), PackageReviewEncodingError> {

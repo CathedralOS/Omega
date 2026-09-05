@@ -16,5 +16,5 @@ pub mod record;
 pub use capture::{
     project_checked_calling_policy, project_checked_conformance_policy,
     project_checked_package_review, project_checked_representation_policy,
-    project_non_executable_quotient_package_review,
+    project_checked_selected_provider_policy, project_non_executable_quotient_package_review,
 };

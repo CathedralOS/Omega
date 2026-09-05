@@ -103,6 +103,27 @@ retained calling application. This is inert policy, not reconstructed native
 evidence or an accepted lock. The older representation-TCB review rows and
 their replay-bearing encoding remain unchanged.
 
+`project_checked_selected_provider_policy` captures the selected closure owned
+by one exact checked root activation and target. It independently validates
+typed schema/realization associations and reharvests authored selections and
+grants. Its service signatures retain structured type ownership and static
+contracts even without a physical calling plan. With a calling plan, the exact
+selected schema application and declaring requirement rejoin the complete
+calling component. Service reach, direct invocations, progress-profile subjects,
+and establishment routes retain exact declaration owners independently of the
+readable service strings. Evaluated imports and syscalls retain their producer and
+binding meaning, not evaluation receipts. Table bindings retain exact attached
+data identities; installation rows retain both the published ceiling and the
+checked realization reach.
+
+The `OMEGA-SELECTED-PROVIDER-POLICY` version-1 component places grants inside
+their complete normalized plan and links atomic family coordinates by canonical
+plan index. Recovery checks complete family coverage and typed structural
+associations under one shared resource budget. Generic declaration families
+remain distinct from actual D29 demands and realization evidence. Neither this
+component nor the existing review encoding is an accepted package baseline;
+baseline composition, lock recovery, and transactions remain separate work.
+
 The supported result lanes do not pretend to prove a bodyless accepted claim,
 grant dangerous authority, validate externally supplied executable code, or
 exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins

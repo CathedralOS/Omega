@@ -12,7 +12,7 @@ use psi_typed_trees::{
     types::TypeReferenceHandle,
 };
 
-pub(super) fn instantiate(
+pub(crate) fn instantiate(
     compilation: &mut CheckedCompilation,
     parameters: &mut [TypeParameter],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],

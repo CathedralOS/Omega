@@ -1,4 +1,5 @@
 use crate::capture::behavior::project_service_row;
+use crate::capture::semantics::declarations::provider_requirement_schema;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewSelectedInstallationReach};
 use omega_compiler::CheckedCompilation;
 use omega_effects::provider_plan::ProviderPlan;
@@ -15,7 +16,11 @@ pub(crate) fn project_selected_installation_reach(
     realization_symbol: SymbolHandle,
     requirement_identity: &PackageReviewNominalIdentity,
 ) -> Result<Option<PackageReviewSelectedInstallationReach>, Vec<Diagnostic>> {
-    let requirement_reach = match schema {
+    let requirement_reach = match provider_requirement_schema(
+        compilation,
+        schema,
+        requirement_symbol,
+    )? {
         ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
             let owners = compilation
                 .traits()

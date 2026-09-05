@@ -94,7 +94,7 @@ fn encode_target(encoder: &mut Encoder, target: &str) -> Result<(), PackageRevie
     encoder.string(target)
 }
 
-fn encode_producer(
+pub(crate) fn encode_producer(
     encoder: &mut Encoder,
     producer: &PackagePolicyEvaluatedBindingProducer,
 ) -> Result<(), PackageReviewEncodingError> {
@@ -103,7 +103,7 @@ fn encode_producer(
     encoder.string(&producer.callable_identity)
 }
 
-fn encode_locator(
+pub(crate) fn encode_locator(
     encoder: &mut Encoder,
     locator: &PackageReviewForeignLocator,
 ) -> Result<(), PackageReviewEncodingError> {

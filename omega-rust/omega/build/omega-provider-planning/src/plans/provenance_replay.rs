@@ -500,8 +500,9 @@ fn derive_top_level_requirement_plans_with_provenance(
 /// requirement while explicitly conforming to a target root that inherits it
 /// and adds `Calling<C>`. In that case the descendant schema owns plan/ABI
 /// refinement, but the row keeps the parent's exact requirement identity.
-/// Requirements without accepted entry claims retain the established direct
-/// provider-plan behavior.
+/// A checked calling application also selects the descendant schema without
+/// requiring an unrelated routed entry claim. Other requirements retain their
+/// direct provider-plan behavior.
 fn provider_plan_schema_targets(
     typed: &TypedTrees,
     provider_type: &str,
@@ -529,7 +530,8 @@ fn provider_plan_schema_targets(
                 .iter()
                 .any(|method| {
                     method.requirement_identity == requirement_identity
-                        && !method.entry_claims.is_empty()
+                        && (!method.entry_claims.is_empty()
+                            || method.calling_plan_commitment.is_some())
                 })
                 .then(|| {
                     (

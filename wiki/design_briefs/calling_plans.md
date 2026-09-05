@@ -512,6 +512,12 @@ not already determine. Admission proves or accepts that a realization refines
 the complete boundary plan. See
 [`extern_boundary_and_format_domains.md`](extern_boundary_and_format_domains.md).
 
+When a provider explicitly conforms to a descendant boundary trait that selects
+an inherited requirement's checked calling application, that descendant owns
+the selected schema while the row keeps its declaring requirement identity.
+This applies to ordinary scalar signatures as well as routed entry claims;
+calling-policy selection does not require an unrelated authority-bearing input.
+
 ### Local dynamic dispatch
 
 `dyn Trait` remains within one artifact and does not use a boundary

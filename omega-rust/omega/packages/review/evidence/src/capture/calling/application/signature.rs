@@ -4,21 +4,22 @@ mod arguments;
 mod inheritance;
 mod parameters;
 mod types;
+pub(crate) use parameters::instantiate as instantiate_static_parameters;
 
 use super::rejected;
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use crate::capture::semantics::signatures::parameters::project_calling_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes;
 use crate::record::{
-    PackagePolicyCallingParameter, PackageReviewNominalIdentity, PackageReviewTypeIdentity,
-    PackageReviewTypeParameter,
+    PackageReviewNominalIdentity, PackageReviewTraitRequirementParameter,
+    PackageReviewTypeIdentity, PackageReviewTypeParameter,
 };
 use omega_compiler::CheckedCompilation;
 use omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::name::Identifier;
 
-pub(super) struct CallingSignatureProjection {
+pub(crate) struct CallingSignatureProjection {
     pub boundary_trait: PackageReviewNominalIdentity,
     pub boundary_arguments: Vec<PackageReviewTypeIdentity>,
     pub boundary_lifetime_parameter_count: u32,
@@ -28,7 +29,7 @@ pub(super) struct CallingSignatureProjection {
     pub requirement_lifetime_arguments: Vec<u32>,
     pub requirement_lifetime_parameter_count: u32,
     pub static_parameters: Vec<PackageReviewTypeParameter>,
-    pub semantic_parameters: Vec<PackagePolicyCallingParameter>,
+    pub semantic_parameters: Vec<PackageReviewTraitRequirementParameter>,
     pub semantic_result: Option<PackageReviewTypeIdentity>,
     pub lifetime_binders: Vec<Identifier>,
 }
@@ -37,10 +38,44 @@ pub(super) fn project(
     compilation: &CheckedCompilation,
     realization: &BoundaryCallingPlanRealization,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
+    let projected = project_application(
+        compilation,
+        realization.boundary_trait,
+        &realization.boundary_arguments,
+        realization.requirement_machine,
+    )?;
+    if projected.requirement.path
+        != realization
+            .materialized_signature()
+            .owner_requirement_identity()
+    {
+        return Err(rejected(
+            "calling requirement overload differs from the materialized signature",
+        ));
+    }
+    if projected.semantic_parameters.len()
+        != realization.materialized_signature().parameters().len()
+        || projected.semantic_result.is_some()
+            != realization.materialized_signature().result().is_some()
+    {
+        return Err(rejected(
+            "calling semantic signature differs from its materialized parameter or result telescope",
+        ));
+    }
+    Ok(projected)
+}
+
+/// Project the semantic application without requiring any physical realization.
+pub(crate) fn project_application(
+    compilation: &CheckedCompilation,
+    boundary_trait: psi_symbols::SymbolHandle,
+    boundary_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
+    requirement_machine: psi_symbols::SymbolHandle,
+) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let roots = compilation
         .traits()
         .iter()
-        .filter(|owner| owner.symbol == realization.boundary_trait && owner.is_boundary)
+        .filter(|owner| owner.symbol == boundary_trait && owner.is_boundary)
         .cloned()
         .collect::<Vec<_>>();
     let [root] = roots.as_slice() else {
@@ -63,8 +98,7 @@ pub(super) fn project(
     {
         return Err(rejected("boundary trait repeats a lifetime binder"));
     }
-    let root_arguments = realization
-        .boundary_arguments
+    let root_arguments = boundary_arguments
         .iter()
         .map(|argument| types::instantiate(&mut projected, *argument, &[], &root_lifetimes, 0))
         .collect::<Result<Vec<_>, _>>()?;
@@ -77,7 +111,7 @@ pub(super) fn project(
             lifetime_arguments: root.lifetime_parameters.clone(),
             inherited_substitutions: Vec::new(),
         },
-        realization.requirement_machine,
+        requirement_machine,
         &mut Vec::new(),
         &mut inherited,
     )?;
@@ -113,24 +147,13 @@ pub(super) fn project(
     let signatures = compilation
         .trait_machine_signatures(&application.owner)
         .iter()
-        .filter(|signature| signature.symbol == realization.requirement_machine)
+        .filter(|signature| signature.symbol == requirement_machine)
         .collect::<Vec<_>>();
     let [signature] = signatures.as_slice() else {
         return Err(rejected(
             "calling requirement has no exact declared signature",
         ));
     };
-    if compilation
-        .normalized_trait_requirement_overload_identity(&application.owner, signature)
-        .identity()
-        != realization
-            .materialized_signature()
-            .owner_requirement_identity()
-    {
-        return Err(rejected(
-            "calling requirement overload differs from the materialized signature",
-        ));
-    }
     let requirement = trait_requirement_identity(compilation, &application.owner, signature)?;
     let requirement_lifetime_arguments = application
         .lifetime_arguments
@@ -210,17 +233,8 @@ pub(super) fn project(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
-    let shape_roots = realization.materialized_signature().parameters();
-    if source_parameters.len() != shape_roots.len()
-        || signature.return_type.is_valid()
-            != realization.materialized_signature().result().is_some()
-    {
-        return Err(rejected(
-            "calling semantic signature differs from its materialized parameter or result telescope",
-        ));
-    }
     let mut semantic_parameters = Vec::new();
-    for (parameter, shape_root) in source_parameters.into_iter().zip(shape_roots) {
+    for parameter in source_parameters {
         let reference = types::instantiate(
             &mut projected,
             parameter.type_reference,
@@ -228,9 +242,9 @@ pub(super) fn project(
             &lifetimes,
             0,
         )?;
-        semantic_parameters.push(PackagePolicyCallingParameter {
+        semantic_parameters.push(PackageReviewTraitRequirementParameter {
             name: parameter.name.as_str().to_owned(),
-            value_type:
+            type_identity:
                 review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
                     &projected,
                     reference,
@@ -241,7 +255,7 @@ pub(super) fn project(
                 )?,
             is_mutable: parameter.is_mutable,
             is_const: parameter.is_const,
-            shape_root: *shape_root,
+            is_self: parameter.is_self,
         });
     }
     let semantic_result = if signature.return_type.is_valid() {

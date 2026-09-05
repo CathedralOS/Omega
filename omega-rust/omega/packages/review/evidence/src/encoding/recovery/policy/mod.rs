@@ -12,10 +12,12 @@ mod contracts;
 mod expressions;
 mod external;
 mod identity;
+mod intrinsic;
 mod model;
 mod physical_calling_policy;
 mod reader;
 mod representation;
+mod selected_providers;
 mod signatures;
 
 use PackagePolicyRecoveryError as Error;

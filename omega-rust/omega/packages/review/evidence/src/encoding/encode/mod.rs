@@ -11,10 +11,13 @@ pub(super) mod quotients;
 mod representation;
 pub(super) mod review;
 pub(super) mod rows;
+mod selected_providers;
 mod values;
 
 #[cfg(test)]
 pub(super) use values::expressions::{encode_contract_expression, encode_contract_static_argument};
+#[cfg(test)]
+pub(super) use values::providers::encode_compiler_intrinsic_execution;
 
 pub(crate) const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
 pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 130;
