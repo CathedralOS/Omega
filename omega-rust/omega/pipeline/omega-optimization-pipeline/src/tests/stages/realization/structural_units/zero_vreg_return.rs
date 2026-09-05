@@ -219,7 +219,7 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         corrupted_post.functions[0].machine = MachineId::new(3_599).unwrap();
         let selected_stage = range_stage.liveness_stage().selected_stage();
         assert!(
-            omega_machine_optimizer::validate_post_allocation_machine_plan(
+            omega_register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
                 selected_stage.selected(),
                 post.effects(),
                 range_stage.ranges(),

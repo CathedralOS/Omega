@@ -1,9 +1,7 @@
-use omega_machine_optimizer::{
-    PostAllocationMachineError, ValidatedPostAllocationMachinePlan,
-    ValidatedPreAllocationMachineEffects,
-};
+use crate::{PostAllocationMachineError, ValidatedPostAllocationMachinePlan};
 use omega_physical_instructions::PostAllocationMachineIdentity;
 use omega_selected_instructions_to_machine_effects::MachineEffectStageError;
+use omega_selected_instructions_to_machine_effects::ValidatedPreAllocationMachineEffects;
 use omega_selected_instructions_to_register_homes::{AllocationEvidence, AllocationReplayError};
 
 /// Home-aware machine facts joined only through independently replayed source
@@ -32,7 +30,7 @@ impl StagedOptimizedPostAllocationMachinePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
     pub(super) source: AllocationEvidence,
-    pub(super) effects: omega_machine_optimizer::PreAllocationMachineEffectIdentity,
+    pub(super) effects: omega_selected_instructions::PreAllocationMachineEffectIdentity,
     pub(super) machine: PostAllocationMachineIdentity,
     pub(super) function_count: usize,
     pub(super) structural_unit_function_count: usize,
@@ -45,7 +43,7 @@ impl StagedOptimizedPostAllocationMachineCustodyReceipt {
     pub const fn source(&self) -> &AllocationEvidence {
         &self.source
     }
-    pub const fn effects(&self) -> omega_machine_optimizer::PreAllocationMachineEffectIdentity {
+    pub const fn effects(&self) -> omega_selected_instructions::PreAllocationMachineEffectIdentity {
         self.effects
     }
     pub const fn machine(&self) -> PostAllocationMachineIdentity {

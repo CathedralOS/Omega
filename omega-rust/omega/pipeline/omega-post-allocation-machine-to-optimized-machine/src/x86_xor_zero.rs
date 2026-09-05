@@ -1,4 +1,4 @@
-use omega_machine_optimizer::{
+use crate::{
     ValidatedX86XorZeroMaterialization, X86XorZeroMaterializationIdentity,
     optimize_x86_materialize_i64_zero_with_xor, require_post_allocation_machine_rule,
     validate_x86_xor_zero_materialization,
@@ -34,7 +34,7 @@ impl StagedOptimizedX86XorZeroMaterialization {
 pub struct StagedOptimizedX86XorZeroMaterializationCustodyReceipt {
     selections: OptimizationSelectionIdentity,
     post_allocation_machine_selections: OptimizationSelectionIdentity,
-    source: omega_machine_optimizer::PostAllocationMachineIdentity,
+    source: omega_physical_instructions::PostAllocationMachineIdentity,
     materialization: X86XorZeroMaterializationIdentity,
     action_count: usize,
     baseline_bytes: u64,
@@ -48,7 +48,7 @@ impl StagedOptimizedX86XorZeroMaterializationCustodyReceipt {
     pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
         self.post_allocation_machine_selections
     }
-    pub const fn source(self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub const fn source(self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         self.source
     }
     pub const fn materialization(self) -> X86XorZeroMaterializationIdentity {

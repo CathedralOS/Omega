@@ -110,7 +110,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
         assert_eq!(homes.custody().assignment_count(), 7);
         let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
         assert_eq!(post.custody().instruction_count(), 10);
-        let decoded_post = omega_machine_optimizer::PostAllocationMachinePlan::decode(
+        let decoded_post = omega_physical_instructions::PostAllocationMachinePlan::decode(
             &post.machine().plan().encode(),
         )
         .unwrap();
@@ -375,10 +375,11 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             })
             .unwrap();
         subtract.alternative.key.variant = u32::MAX;
-        corrupted.identity = omega_machine_optimizer::post_allocation_machine_identity(&corrupted);
+        corrupted.identity =
+            omega_physical_instructions::post_allocation_machine_identity(&corrupted);
         assert!(matches!(
             validate_raw_post_allocation(&homes, &post, corrupted),
-            Err(omega_machine_optimizer::PostAllocationMachineError::InstructionMismatch { .. })
+            Err(omega_register_homes_to_post_allocation_machine::PostAllocationMachineError::InstructionMismatch { .. })
         ));
 
         let mut corrupted = post.machine().plan().clone();
@@ -391,19 +392,21 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             .unwrap()
             .write_units
             .clear();
-        corrupted.identity = omega_machine_optimizer::post_allocation_machine_identity(&corrupted);
+        corrupted.identity =
+            omega_physical_instructions::post_allocation_machine_identity(&corrupted);
         assert!(matches!(
             validate_raw_post_allocation(&homes, &post, corrupted),
-            Err(omega_machine_optimizer::PostAllocationMachineError::InstructionMismatch { .. })
+            Err(omega_register_homes_to_post_allocation_machine::PostAllocationMachineError::InstructionMismatch { .. })
         ));
 
         let mut corrupted = post.machine().plan().clone();
         corrupted.effects =
-            omega_machine_optimizer::PreAllocationMachineEffectIdentity::from_bytes([0x5a; 32]);
-        corrupted.identity = omega_machine_optimizer::post_allocation_machine_identity(&corrupted);
+            omega_selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0x5a; 32]);
+        corrupted.identity =
+            omega_physical_instructions::post_allocation_machine_identity(&corrupted);
         assert_eq!(
             validate_raw_post_allocation(&homes, &post, corrupted),
-            Err(omega_machine_optimizer::PostAllocationMachineError::EffectRootMismatch)
+            Err(omega_register_homes_to_post_allocation_machine::PostAllocationMachineError::EffectRootMismatch)
         );
     }
 }

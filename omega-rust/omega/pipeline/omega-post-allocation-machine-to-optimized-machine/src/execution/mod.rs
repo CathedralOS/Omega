@@ -6,7 +6,7 @@
 mod dispatch;
 mod validation;
 
-use omega_machine_optimizer::selected_post_allocation_machine_rule;
+use crate::selected_post_allocation_machine_rule;
 
 use super::{
     OptimizedPostAllocationMachineOptimizationError,

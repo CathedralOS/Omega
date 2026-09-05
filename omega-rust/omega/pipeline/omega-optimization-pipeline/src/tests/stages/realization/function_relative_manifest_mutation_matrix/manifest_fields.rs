@@ -1,12 +1,13 @@
 //! Reauthenticated function-relative V9 manifest and nested-custody mutations.
 
 use crate::tests::*;
-use omega_machine_optimizer::{PostAllocationMachineIdentity, PreAllocationMachineEffectIdentity};
 use omega_optimization_core::{
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
     SelectedLoweringOptimizationCompletionIdentity,
 };
+use omega_physical_instructions::PostAllocationMachineIdentity;
+use omega_selected_instructions::PreAllocationMachineEffectIdentity;
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use omega_target::{Architecture, ObjectFormat};
 

@@ -73,7 +73,7 @@ pub struct X86BranchRelaxationAction {
 pub struct StagedOptimizedX86BranchRelaxation {
     pub(super) source: ResolvedSelectedFormLayoutIdentity,
     pub(super) selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
-    pub(super) machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub(super) machine: omega_physical_instructions::PostAllocationMachineIdentity,
     pub(super) pre_layout: omega_machine_code::SelectedFormEncodingIdentity,
     pub(super) target: NativeTarget,
     pub(super) policy: X86BranchRelaxationPolicy,
@@ -96,7 +96,7 @@ impl StagedOptimizedX86BranchRelaxation {
         self.selected
     }
 
-    pub const fn machine(&self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub const fn machine(&self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         self.machine
     }
 

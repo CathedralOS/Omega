@@ -217,7 +217,7 @@ fn active_resident_mov_r32_pair_rejects_the_wrong_target() {
         ),
         Err(
             OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog(
-                omega_machine_optimizer::PostAllocationMachineRuleCatalogError::UnsupportedTarget {
+                omega_post_allocation_machine_to_optimized_machine::PostAllocationMachineRuleCatalogError::UnsupportedTarget {
                     optimization:
                         Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
                     required: omega_target::Architecture::X86_64,

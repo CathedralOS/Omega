@@ -33,8 +33,9 @@ pub(super) fn decode_optional_custody(
             let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
             let post_allocation_machine_selections =
                 OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-            let source =
-                omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
+            let source = omega_physical_instructions::PostAllocationMachineIdentity::from_bytes(
+                cursor.array()?,
+            );
             let action_count = usize::try_from(u64::from_le_bytes(cursor.array()?))
                 .map_err(|_| Error::ActionCountOverflow)?;
             let baseline_bytes = u64::from_le_bytes(cursor.array()?);

@@ -11,8 +11,9 @@ use omega_isa_x86_64::{
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
-use omega_machine_optimizer::{
-    Aarch64CbnzFusionAction, PostAllocationMachineInstruction, QualifiedPhysicalRead,
+use omega_physical_instructions::PostAllocationMachineInstruction;
+use omega_post_allocation_machine_to_optimized_machine::{
+    Aarch64CbnzFusionAction, QualifiedPhysicalRead,
 };
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{

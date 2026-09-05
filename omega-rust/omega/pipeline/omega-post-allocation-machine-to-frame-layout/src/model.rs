@@ -1,4 +1,4 @@
-use omega_machine_optimizer::PostAllocationMachineIdentity;
+use omega_physical_instructions::PostAllocationMachineIdentity;
 use omega_register_model::{
     PhysicalRegisterModelIdentity, RegisterViewId, TargetRegisterEnvironmentIdentity,
 };

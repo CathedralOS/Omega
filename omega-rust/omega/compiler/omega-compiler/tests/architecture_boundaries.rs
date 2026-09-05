@@ -40,7 +40,6 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         "omega-post-allocation-machine-to-selected-form-encoding",
         "omega-register-homes-to-post-allocation-machine",
         "omega-selected-form-encoding-to-resolved-layout",
-        "omega-machine-optimizer",
         "omega-selected-instructions-to-register-homes",
     ]);
 

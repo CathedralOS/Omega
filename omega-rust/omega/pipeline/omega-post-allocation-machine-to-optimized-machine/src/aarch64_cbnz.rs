@@ -1,12 +1,12 @@
-use omega_machine_optimizer::{
-    Aarch64CbnzFusionIdentity, ValidatedAarch64CbnzFusion,
-    optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz, require_post_allocation_machine_rule,
-    validate_aarch64_cbnz_fusion,
+use crate::{
+    ValidatedAarch64CbnzFusion, optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz,
+    require_post_allocation_machine_rule, validate_aarch64_cbnz_fusion,
 };
 use omega_optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
     OptimizationSelections, OptimizationWorkBudget,
 };
+use omega_physical_instructions::Aarch64CbnzFusionIdentity;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions_to_register_homes::{ValidatedLiveness, ValidatedSelectedAnalysis};
 
@@ -34,7 +34,7 @@ impl StagedOptimizedAarch64CbnzFusion {
 pub struct StagedOptimizedAarch64CbnzFusionCustodyReceipt {
     selections: OptimizationSelectionIdentity,
     post_allocation_machine_selections: OptimizationSelectionIdentity,
-    source: omega_machine_optimizer::PostAllocationMachineIdentity,
+    source: omega_physical_instructions::PostAllocationMachineIdentity,
     fusion: Aarch64CbnzFusionIdentity,
     action_count: usize,
 }
@@ -46,7 +46,7 @@ impl StagedOptimizedAarch64CbnzFusionCustodyReceipt {
     pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
         self.post_allocation_machine_selections
     }
-    pub const fn source(self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub const fn source(self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         self.source
     }
     pub const fn fusion(self) -> Aarch64CbnzFusionIdentity {

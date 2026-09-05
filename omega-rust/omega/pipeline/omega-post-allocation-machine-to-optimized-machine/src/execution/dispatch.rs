@@ -1,6 +1,4 @@
-use omega_machine_optimizer::{
-    PostAllocationMachineRuleCatalogEntry, PostAllocationMachineRuleKind,
-};
+use crate::{PostAllocationMachineRuleCatalogEntry, PostAllocationMachineRuleKind};
 
 use super::super::{
     OptimizedPostAllocationMachineOptimizationError,

@@ -1,7 +1,7 @@
 //! Exact work accounting and independently replayed action custody.
 
 use crate::tests::*;
-use omega_machine_optimizer::{
+use omega_post_allocation_machine_to_optimized_machine::{
     Aarch64CbnzFusionAction, Aarch64CbnzFusionError, Aarch64CbnzFusionWorkAxis,
     aarch64_cbnz_fusion_identity, optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz,
     validate_aarch64_cbnz_fusion,
@@ -10,7 +10,10 @@ use omega_machine_optimizer::{
 fn run(
     fixture: &super::fixture::OperationalFixture,
     budget: OptimizationWorkBudget,
-) -> Result<omega_machine_optimizer::ValidatedAarch64CbnzFusion, Aarch64CbnzFusionError> {
+) -> Result<
+    omega_post_allocation_machine_to_optimized_machine::ValidatedAarch64CbnzFusion,
+    Aarch64CbnzFusionError,
+> {
     let ranges = fixture.homes.legality_stage().live_range_stage();
     let selected = ranges.liveness_stage().selected_stage();
     optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz(

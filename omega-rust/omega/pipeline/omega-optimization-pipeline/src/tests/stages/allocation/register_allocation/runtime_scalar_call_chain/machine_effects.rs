@@ -10,8 +10,8 @@ use crate::tests::*;
 use super::fixture::{caller_machine, staged_homes, staged_selected};
 
 fn first_call(
-    plan: &mut omega_machine_optimizer::PreAllocationMachineEffectPlan,
-) -> &mut omega_machine_optimizer::InstructionMachineEffects {
+    plan: &mut omega_selected_instructions::PreAllocationMachineEffectPlan,
+) -> &mut omega_selected_instructions::InstructionMachineEffects {
     plan.functions
         .iter_mut()
         .find(|function| function.machine == caller_machine())
@@ -118,14 +118,14 @@ fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
 
         let encoded_effects = effects.plan().encode();
         assert_eq!(
-            omega_machine_optimizer::PreAllocationMachineEffectPlan::decode(&encoded_effects)
+            omega_selected_instructions::PreAllocationMachineEffectPlan::decode(&encoded_effects)
                 .unwrap(),
             effects.plan().clone()
         );
         let mut legacy_effects = encoded_effects;
         legacy_effects[8..12].copy_from_slice(&8_u32.to_le_bytes());
         assert!(
-            omega_machine_optimizer::PreAllocationMachineEffectPlan::decode(&legacy_effects)
+            omega_selected_instructions::PreAllocationMachineEffectPlan::decode(&legacy_effects)
                 .is_err(),
             "V8 must not acquire the V9 scalar-call vocabulary"
         );
@@ -134,13 +134,13 @@ fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
         let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
         let encoded_post = post.machine().plan().encode();
         assert_eq!(
-            omega_machine_optimizer::PostAllocationMachinePlan::decode(&encoded_post).unwrap(),
+            omega_physical_instructions::PostAllocationMachinePlan::decode(&encoded_post).unwrap(),
             post.machine().plan().clone()
         );
         let mut legacy_post = encoded_post;
         legacy_post[8..12].copy_from_slice(&4_u32.to_le_bytes());
         assert!(
-            omega_machine_optimizer::PostAllocationMachinePlan::decode(&legacy_post).is_err(),
+            omega_physical_instructions::PostAllocationMachinePlan::decode(&legacy_post).is_err(),
             "V4 must not acquire the V5 scalar-call vocabulary"
         );
         let selected_stage = homes
@@ -198,7 +198,7 @@ fn scalar_call_effect_corruption_fails_independent_replay() {
             }
         };
         let replay = |plan| {
-            omega_machine_optimizer::validate_pre_allocation_machine_effects(
+            omega_selected_instructions_to_machine_effects::validate_pre_allocation_machine_effects(
                 selected.selected(),
                 environment.identity(),
                 environment.physical(),

@@ -2101,7 +2101,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let physical_catalog_entrances = [
         "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/selected_lowering/mod.rs",
         "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes/src/rewrites/allocation_recovery/mod.rs",
-        "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/mod.rs",
+        "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/rules/mod.rs",
         "omega-rust/omega/pipeline/omega-selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
     ]
     .map(|relative| {
@@ -3833,7 +3833,7 @@ fn abstract_spill_memory_effects_are_independent_and_non_executable() {
     }
     let all_source = recursive_rust_source(&stage);
     for forbidden in [
-        "omega_machine_optimizer",
+        "omega_post_allocation_machine_to_optimized_machine",
         "MachineEncoded",
         "PostAllocationMachineInstruction",
         "StackPointer",
@@ -3888,7 +3888,7 @@ fn abstract_spill_access_constraints_are_independent_and_non_executable() {
     }
     let all_source = recursive_rust_source(&stage);
     for forbidden in [
-        "omega_machine_optimizer",
+        "omega_post_allocation_machine_to_optimized_machine",
         "MachineEncoded",
         "PostAllocationMachineInstruction",
         "StackPointer",
@@ -3940,7 +3940,7 @@ fn spill_frame_requirements_are_independent_and_non_authoritative() {
     );
     let all_source = recursive_rust_source(&stage);
     for forbidden in [
-        "omega_machine_optimizer",
+        "omega_post_allocation_machine_to_optimized_machine",
         "MachineEncoded",
         "PostAllocationMachineInstruction",
         "StackPointer",
@@ -4000,7 +4000,7 @@ fn allocated_callee_saved_requirements_are_independent_exact_and_non_authoritati
     );
     let all_source = recursive_rust_source(&stage);
     for forbidden in [
-        "omega_machine_optimizer",
+        "omega_post_allocation_machine_to_optimized_machine",
         "MachineEncoded",
         "PostAllocationMachineInstruction",
         "StackPointer",
@@ -4597,7 +4597,7 @@ fn projected_structural_selection_replay_is_independent_and_downstream_is_fenced
             "ProjectedStructuralCallReturnUnsupported",
         ),
         (
-            "omega-rust/omega/pipeline/omega-machine-optimizer/src/analyses/pre_allocation_effects/compute.rs",
+            "omega-rust/omega/pipeline/omega-selected-instructions-to-machine-effects/src/facts/compute.rs",
             "ProjectedStructuralCallReturnUnsupported",
         ),
     ] {

@@ -1,12 +1,12 @@
-use omega_machine_optimizer::{
-    Aarch64MovnMaterializationIdentity, ValidatedAarch64MovnMaterialization,
-    optimize_aarch64_materialize_i64_with_shortest_movn_seed, require_post_allocation_machine_rule,
-    validate_aarch64_movn_materialization,
+use crate::{
+    ValidatedAarch64MovnMaterialization, optimize_aarch64_materialize_i64_with_shortest_movn_seed,
+    require_post_allocation_machine_rule, validate_aarch64_movn_materialization,
 };
 use omega_optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
     OptimizationSelections, OptimizationWorkBudget,
 };
+use omega_physical_instructions::Aarch64MovnMaterializationIdentity;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
@@ -33,7 +33,7 @@ impl StagedOptimizedAarch64MovnMaterialization {
 pub struct StagedOptimizedAarch64MovnMaterializationCustodyReceipt {
     selections: OptimizationSelectionIdentity,
     post_allocation_machine_selections: OptimizationSelectionIdentity,
-    source: omega_machine_optimizer::PostAllocationMachineIdentity,
+    source: omega_physical_instructions::PostAllocationMachineIdentity,
     materialization: Aarch64MovnMaterializationIdentity,
     action_count: usize,
     baseline_words: u64,
@@ -47,7 +47,7 @@ impl StagedOptimizedAarch64MovnMaterializationCustodyReceipt {
     pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
         self.post_allocation_machine_selections
     }
-    pub const fn source(self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub const fn source(self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         self.source
     }
     pub const fn materialization(self) -> Aarch64MovnMaterializationIdentity {

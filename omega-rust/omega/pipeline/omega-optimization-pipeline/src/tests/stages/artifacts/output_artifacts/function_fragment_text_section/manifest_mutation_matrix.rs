@@ -99,7 +99,7 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
         }),
         ("post_allocation_machine", |record| {
             record.post_allocation_machine =
-                omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes([0x84; 32])
+                omega_physical_instructions::PostAllocationMachineIdentity::from_bytes([0x84; 32])
         }),
         ("final_pre_layout", |record| {
             record.final_pre_layout = SelectedFormEncodingIdentity::from_bytes([0x85; 32])

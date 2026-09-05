@@ -916,8 +916,8 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-machine-code",
- "omega-machine-optimizer",
  "omega-optimization-core",
+ "omega-physical-instructions",
  "omega-post-allocation-machine-to-frame-layout",
  "omega-post-allocation-machine-to-optimized-machine",
  "omega-post-allocation-machine-to-selected-form-encoding",
@@ -944,25 +944,6 @@ dependencies = [
  "psi-terminal-fuel",
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees-to-checked-trees",
-]
-
-[[package]]
-name = "omega-machine-optimizer"
-version = "0.1.0"
-dependencies = [
- "omega-isa-aarch64",
- "omega-isa-x86_64",
- "omega-optimization-core",
- "omega-optimization-unit",
- "omega-physical-instructions",
- "omega-register-model",
- "omega-selected-instructions",
- "omega-selected-instructions-to-register-homes",
- "omega-target",
- "omega-target-operations",
- "psi-core",
- "psi-terminal",
- "sha2",
 ]
 
 [[package]]
@@ -1099,7 +1080,6 @@ dependencies = [
  "omega-legalized-operations",
  "omega-machine-code",
  "omega-machine-emission",
- "omega-machine-optimizer",
  "omega-object-file",
  "omega-optimization-core",
  "omega-optimization-run-to-abstract-operations",
@@ -1346,7 +1326,7 @@ version = "0.1.0"
 dependencies = [
  "omega-callee-saved-requirements-to-save-storage",
  "omega-machine-code",
- "omega-machine-optimizer",
+ "omega-physical-instructions",
  "omega-register-homes-to-callee-saved-requirements",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
@@ -1361,13 +1341,20 @@ dependencies = [
 name = "omega-post-allocation-machine-to-optimized-machine"
 version = "0.1.0"
 dependencies = [
- "omega-machine-optimizer",
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
  "omega-optimization-core",
+ "omega-optimization-unit",
  "omega-physical-instructions",
  "omega-register-homes-to-post-allocation-machine",
  "omega-register-model",
+ "omega-selected-instructions",
  "omega-selected-instructions-to-register-homes",
  "omega-target",
+ "omega-target-operations",
+ "psi-core",
+ "psi-terminal",
+ "sha2",
 ]
 
 [[package]]
@@ -1378,7 +1365,6 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-machine-code",
- "omega-machine-optimizer",
  "omega-optimization-core",
  "omega-physical-instructions",
  "omega-post-allocation-machine-to-optimized-machine",
@@ -1504,11 +1490,15 @@ dependencies = [
 name = "omega-register-homes-to-post-allocation-machine"
 version = "0.1.0"
 dependencies = [
- "omega-machine-optimizer",
+ "omega-isa-x86_64",
+ "omega-optimization-core",
  "omega-physical-instructions",
+ "omega-register-model",
+ "omega-selected-instructions",
  "omega-selected-instructions-to-machine-effects",
  "omega-selected-instructions-to-register-homes",
  "omega-target-to-register-environment",
+ "psi-core",
 ]
 
 [[package]]
@@ -1590,7 +1580,6 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-machine-code",
- "omega-machine-optimizer",
  "omega-optimization-core",
  "omega-physical-instructions",
  "omega-post-allocation-machine-to-optimized-machine",
@@ -1627,12 +1616,12 @@ version = "0.1.0"
 dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
- "omega-machine-optimizer",
  "omega-register-model",
  "omega-selected-instructions",
  "omega-selected-instructions-to-register-homes",
  "omega-target",
  "omega-target-to-register-environment",
+ "psi-core",
 ]
 
 [[package]]

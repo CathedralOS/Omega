@@ -15,7 +15,6 @@ omega-post-allocation-machine-to-optimized-machine = { path = "../../pipeline/om
 omega-post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/omega-post-allocation-machine-to-selected-form-encoding" }
 omega-register-homes-to-post-allocation-machine = { path = "../../pipeline/omega-register-homes-to-post-allocation-machine" }
 omega-selected-form-encoding-to-resolved-layout = { path = "../../pipeline/omega-selected-form-encoding-to-resolved-layout" }
-omega-machine-optimizer = { path = "../../pipeline/omega-machine-optimizer" }
 omega-selected-instructions-to-register-homes = { path = "../../pipeline/omega-selected-instructions-to-register-homes" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
@@ -35,6 +34,8 @@ psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
+
+omega-physical-instructions = { path = "../../representations/omega-physical-instructions" }
 
 [dev-dependencies]
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }

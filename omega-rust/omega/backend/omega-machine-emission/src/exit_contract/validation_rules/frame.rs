@@ -47,7 +47,7 @@ pub(in crate::exit_contract) fn frame_permissions(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::exit_contract) fn validate_preservation_writes(
-    machine: &omega_machine_optimizer::PostAllocationMachineInstruction,
+    machine: &omega_physical_instructions::PostAllocationMachineInstruction,
     encoding: &SelectedFormEncodingRow,
     callee_saved: &BTreeSet<RegisterUnitId>,
     link_units: &BTreeSet<RegisterUnitId>,

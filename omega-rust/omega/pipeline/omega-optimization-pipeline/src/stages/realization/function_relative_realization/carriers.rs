@@ -64,7 +64,7 @@ impl StagedFixedFrameFunctionRelativeRealization {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     pub(super) source: StagedOptimizedRegisterHomeCustodyReceipt,
-    pub(super) machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub(super) machine: omega_physical_instructions::PostAllocationMachineIdentity,
     pub(super) requirements: AllocatedCalleeSavedRequirementIdentity,
     pub(super) storage: NonAuthoritativeCalleeSaveStorageIdentity,
     pub(super) frame: TargetFrameLayoutIdentity,
@@ -77,7 +77,7 @@ impl StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     pub const fn source(self) -> StagedOptimizedRegisterHomeCustodyReceipt {
         self.source
     }
-    pub const fn machine(self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+    pub const fn machine(self) -> omega_physical_instructions::PostAllocationMachineIdentity {
         self.machine
     }
     pub const fn requirements(self) -> AllocatedCalleeSavedRequirementIdentity {

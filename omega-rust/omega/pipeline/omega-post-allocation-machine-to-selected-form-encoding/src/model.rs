@@ -1,9 +1,9 @@
 use omega_machine_code::{
     X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
 };
-use omega_machine_optimizer::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use omega_optimization_core::{Optimization, OptimizationSelectionIdentity};
 use omega_physical_instructions::PostAllocationMachineIdentity;
+use omega_physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use omega_register_model::{RegisterUnitId, RegisterViewId};
 use omega_selected_instructions::{
     MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionId,
@@ -58,7 +58,7 @@ pub enum SelectedFormMachineDisposition {
     },
     Aarch64FusedBranchNonZeroToCbnzV1 {
         compare: SelectedInstructionId,
-        source_read: omega_machine_optimizer::QualifiedPhysicalRead,
+        source_read: omega_post_allocation_machine_to_optimized_machine::QualifiedPhysicalRead,
     },
     Aarch64ElidedSameViewCopyI64V1 {
         consumer: SelectedInstructionId,

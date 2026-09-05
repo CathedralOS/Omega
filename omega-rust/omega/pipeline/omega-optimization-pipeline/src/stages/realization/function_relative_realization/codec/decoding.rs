@@ -40,9 +40,11 @@ pub(super) fn decode_manifest_content(
         PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
     let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
     let pre_allocation_machine_effects =
-        omega_machine_optimizer::PreAllocationMachineEffectIdentity::from_bytes(cursor.array()?);
+        omega_selected_instructions::PreAllocationMachineEffectIdentity::from_bytes(
+            cursor.array()?,
+        );
     let post_allocation_machine =
-        omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
+        omega_physical_instructions::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
     let baseline_pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
     let pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
     let baseline_resolved_layout = ResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);

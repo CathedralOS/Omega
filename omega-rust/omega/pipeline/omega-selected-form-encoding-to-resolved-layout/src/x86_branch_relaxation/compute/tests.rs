@@ -376,7 +376,7 @@ fn corrupted_action_changes_identity_and_is_rejected_by_replay_comparison() {
     let roots = RevisionRoots {
         source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
         selected: omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
-        machine: omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes([3; 32]),
+        machine: omega_physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
         pre_layout: omega_machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
         target: NativeTarget::linux_x64(),
     };

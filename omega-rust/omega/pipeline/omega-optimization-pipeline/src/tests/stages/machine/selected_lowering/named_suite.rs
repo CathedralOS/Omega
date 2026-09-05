@@ -526,11 +526,11 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
         );
         assert_manifest_field_is_bound!(
             pre_allocation_machine_effects,
-            omega_machine_optimizer::PreAllocationMachineEffectIdentity::from_bytes([0x57; 32])
+            omega_selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0x57; 32])
         );
         assert_manifest_field_is_bound!(
             post_allocation_machine,
-            omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes([0x58; 32])
+            omega_physical_instructions::PostAllocationMachineIdentity::from_bytes([0x58; 32])
         );
         assert_manifest_field_is_bound!(
             pre_layout,

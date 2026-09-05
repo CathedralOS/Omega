@@ -110,7 +110,7 @@ fn every_representable_fragment_manifest_field_rejects_after_reauthentication() 
         }),
         ("post_allocation_machine", |record| {
             record.post_allocation_machine =
-                omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes([0x74; 32])
+                omega_physical_instructions::PostAllocationMachineIdentity::from_bytes([0x74; 32])
         }),
         ("final_pre_layout", |record| {
             record.final_pre_layout = SelectedFormEncodingIdentity::from_bytes([0x75; 32])

@@ -33,7 +33,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage",
     "omega-rust/omega/pipeline/omega-selected-instructions-to-register-homes",
     "omega-rust/omega/pipeline/omega-frame-layout-to-frame-protocol",
-    "omega-rust/omega/pipeline/omega-machine-optimizer",
+    "omega-rust/omega/representations/omega-physical-instructions/src/physical_instructions/costs",
     "omega-rust/omega/pipeline/omega-optimization-policy",
     "omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
     "omega-rust/omega/pipeline/omega-optimization-validation",
@@ -110,14 +110,14 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/mod.rs",
-        catalog: "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/rules/mod.rs",
+        catalog: "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/rules/catalog.rs",
         coordination_marker: "pub fn selected_post_allocation_machine_rule",
         catalog_marker: "POST_ALLOCATION_MACHINE_RULE_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/peephole_matching",
-            "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/aarch64",
-            "omega-rust/omega/pipeline/omega-machine-optimizer/src/rules/x86_64",
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/rules/peephole_matching",
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/rules/aarch64",
+            "omega-rust/omega/pipeline/omega-post-allocation-machine-to-optimized-machine/src/rules/x86_64",
         ],
     },
     RuleStageDescriptor {

@@ -6,7 +6,7 @@ use super::super::{
 };
 use super::{context::Context, require};
 use omega_machine_code::ResolvedSelectedFormRow;
-use omega_machine_optimizer::PostAllocationMachineInstruction;
+use omega_physical_instructions::PostAllocationMachineInstruction;
 use omega_post_allocation_machine_to_selected_form_encoding::{
     SelectedFormEncodingRow, SelectedFormEncodingState,
 };

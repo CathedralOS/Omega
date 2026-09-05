@@ -2,7 +2,9 @@
 
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use omega_machine_optimizer::{Aarch64CbnzFusionError, Aarch64CbnzFusionWorkAxis};
+use omega_post_allocation_machine_to_optimized_machine::{
+    Aarch64CbnzFusionError, Aarch64CbnzFusionWorkAxis,
+};
 
 fn optimized_source_with_budget(
     selections: OptimizationSelections,

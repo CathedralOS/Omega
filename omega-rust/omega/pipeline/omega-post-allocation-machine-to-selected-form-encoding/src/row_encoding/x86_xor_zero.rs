@@ -1,10 +1,10 @@
 //! Exact row encoder for x86-64 XOR-zero materialization.
 
 use omega_isa_x86_64::{encode_x86_64_selected_form, encode_x86_64_xor_zero_i64_materialization};
-use omega_machine_optimizer::{
+use omega_physical_instructions::PostAllocationMachineInstruction;
+use omega_post_allocation_machine_to_optimized_machine::{
     X86_MOVABS_I64_BYTE_COUNT, X86_XOR_R64_SELF_BYTE_COUNT, X86XorZeroInstructionDisposition,
 };
-use omega_physical_instructions::PostAllocationMachineInstruction;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstruction, SelectedInstructionKind};
 use omega_target::Architecture;

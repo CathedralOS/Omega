@@ -1,4 +1,4 @@
-use omega_machine_optimizer::{
+use omega_post_allocation_machine_to_optimized_machine::{
     Aarch64CbnzInstructionDisposition, Aarch64SameViewCopyInstructionDisposition,
 };
 use omega_register_model::ValidatedPhysicalRegisterModel;

@@ -27,7 +27,7 @@ use super::{
 #[allow(clippy::too_many_arguments)]
 pub(in crate::exit_contract) fn validate_structural_unit_functions(
     selected: &omega_selected_instructions::SelectedInstructionPlan,
-    machine: &omega_machine_optimizer::PostAllocationMachinePlan,
+    machine: &omega_physical_instructions::PostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
     target: NativeTarget,
@@ -312,7 +312,7 @@ pub(in crate::exit_contract) fn validate_structural_unit_functions(
 pub(in crate::exit_contract) fn validate_structural_call_layout(
     instruction: SelectedInstructionId,
     callee: MachineId,
-    machine: &omega_machine_optimizer::StructuralUnitCallMachineEffects,
+    machine: &omega_selected_instructions::StructuralUnitCallMachineEffects,
     layout: &omega_machine_code::ResolvedStructuralUnitCallLayout,
     callee_saved: &BTreeSet<RegisterUnitId>,
 ) -> Result<(), WholeFunctionExitContractError> {

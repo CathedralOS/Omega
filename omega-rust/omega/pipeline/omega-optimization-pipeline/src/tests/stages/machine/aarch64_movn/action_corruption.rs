@@ -1,6 +1,6 @@
 //! Independently replayed rejection of content-authenticated MOVN action corruption.
 
-use omega_machine_optimizer::{
+use omega_post_allocation_machine_to_optimized_machine::{
     Aarch64MovnMaterializationAction, Aarch64MovnMaterializationError,
     aarch64_movn_materialization_identity, validate_aarch64_movn_materialization,
 };

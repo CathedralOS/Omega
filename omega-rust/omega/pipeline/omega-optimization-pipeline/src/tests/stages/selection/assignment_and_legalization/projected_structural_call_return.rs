@@ -66,7 +66,7 @@ fn projected_structural_call_return_reaches_selection_on_all_targets_only() {
         assert!(matches!(
             analyze_machine_effects(selected.selected(), selected.register_environment()),
             Err(MachineEffectStageError::Analysis(
-                omega_machine_optimizer::MachineEffectError::ProjectedStructuralCallReturnUnsupported
+                omega_selected_instructions_to_machine_effects::MachineEffectError::ProjectedStructuralCallReturnUnsupported
             ))
         ));
         assert!(matches!(

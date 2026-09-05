@@ -6,6 +6,7 @@
 
 pub mod codec;
 pub mod control_flow;
+pub mod costs;
 pub mod evidence;
 pub mod identity;
 pub mod instructions;
@@ -13,6 +14,7 @@ pub mod operands;
 
 pub use codec::PostAllocationMachineDecodeError;
 pub use control_flow::*;
+pub use costs::*;
 pub use evidence::*;
 pub use identity::{PostAllocationMachineIdentity, post_allocation_machine_identity};
 pub use instructions::*;
