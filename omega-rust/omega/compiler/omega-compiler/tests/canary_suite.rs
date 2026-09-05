@@ -341,6 +341,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "constraints/selected_arithmetic_return_ensures",
     "control_flow/explicit_state_value_frontier",
+    "control_flow/nested_parameter_receiver_call",
     "arithmetic/bounded_max_call",
     "arithmetic/float_unit_ratio_compile",
     "arithmetic/bounded_return_literal",
