@@ -258,7 +258,7 @@ fn proof_output_runtime_call(
         }
         psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized => None,
     };
-    let (receiver_symbol, receiver_members) =
+    let (receiver_root_symbol, receiver_symbol, receiver_members) =
         proof_output_receiver_parts(&lowerer.typed_trees, call.receiver)
             .ok_or_else(|| Diagnostic::error("proof-output call receiver must be a name path"))?;
     let mut receiver = psi_arena::HandleSpan::empty();
@@ -284,6 +284,7 @@ fn proof_output_runtime_call(
                 .copied(),
         );
     Ok(typed::statement::TableCall {
+        receiver_root_symbol,
         receiver_symbol,
         target_symbol: call.target_symbol,
         receiver,
@@ -302,15 +303,24 @@ fn proof_output_runtime_call(
 fn proof_output_receiver_parts(
     program: &typed::TypedTrees,
     expression: typed::expression::ExpressionHandle,
-) -> Option<(psi_symbols::SymbolHandle, Vec<typed::name::Identifier>)> {
+) -> Option<(
+    psi_symbols::SymbolHandle,
+    psi_symbols::SymbolHandle,
+    Vec<typed::name::Identifier>,
+)> {
     if !expression.is_valid() {
-        return Some((psi_symbols::SymbolHandle::invalid(), Vec::new()));
+        return Some((
+            psi_symbols::SymbolHandle::invalid(),
+            psi_symbols::SymbolHandle::invalid(),
+            Vec::new(),
+        ));
     }
     match program.expression_table.expression(expression) {
         typed::expression::ExpressionNode::Borrow(inner) => {
             proof_output_receiver_parts(program, inner.target)
         }
         typed::expression::ExpressionNode::Name(path) => Some((
+            path.head_symbol,
             path.symbol,
             program
                 .expression_table
@@ -318,9 +328,9 @@ fn proof_output_receiver_parts(
                 .to_vec(),
         )),
         typed::expression::ExpressionNode::Member(member) => {
-            let (_, mut members) = proof_output_receiver_parts(program, member.receiver)?;
+            let (root, _, mut members) = proof_output_receiver_parts(program, member.receiver)?;
             members.push(member.member.clone());
-            Some((member.member_symbol, members))
+            Some((root, member.member_symbol, members))
         }
         _ => None,
     }

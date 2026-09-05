@@ -66,15 +66,25 @@ pub(super) fn assign_statement_symbols(
                 call.arguments,
             );
             if !call.receiver.is_empty() {
-                let (head_symbol, symbol) = resolve_state_scoped_members(
+                let members = statement_path_members.span_or_empty(call.receiver);
+                // A projected member may await type-aware resolution. Its
+                // lexical root is already exact and must survive independently.
+                let (root, _) = resolve_state_scoped_members(
                     symbols,
                     machine.symbol,
                     state_symbol,
-                    statement_path_members.span_or_empty(call.receiver),
+                    members.get(..1).unwrap_or_default(),
+                    call.receiver_starts_at_self,
+                );
+                call.receiver_root_symbol = root;
+                let (_, symbol) = resolve_state_scoped_members(
+                    symbols,
+                    machine.symbol,
+                    state_symbol,
+                    members,
                     call.receiver_starts_at_self,
                 );
                 if symbol.is_valid() {
-                    let _ = head_symbol;
                     call.receiver_symbol = symbol;
                 }
             }

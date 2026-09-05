@@ -442,6 +442,7 @@ fn apply_selected_boundary_adapter_rewrites(
         }
         rewrite.call.receiver = psi_arena::HandleSpan::empty();
         rewrite.call.receiver_symbol = psi_symbols::SymbolHandle::invalid();
+        rewrite.call.receiver_root_symbol = psi_symbols::SymbolHandle::invalid();
         rewrite.call.target =
             psi_typed_trees::name::Identifier::generated(rewrite.adapter.adapter_target);
         rewrite.call.target_symbol = rewrite.adapter.symbol;
